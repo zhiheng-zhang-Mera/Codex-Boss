@@ -3,10 +3,18 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AppSnapshot, AuditEvent, BossTask, Provider, ProviderId, TaskStatus } from "../src/shared/contracts";
 
-const providerSeed: Provider[] = [
-  { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false },
-  { id: "claude", name: "Claude", url: "https://claude.ai/new", accent: "#f0a46b", windowOpen: false },
-  { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", accent: "#8ab4f8", windowOpen: false }
+export const providerSeed: Provider[] = [
+  { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
+  { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", accent: "#8ab4f8", windowOpen: false, isCustom: false },
+  { id: "claude", name: "Claude", url: "https://claude.ai/new", accent: "#f0a46b", windowOpen: false, isCustom: false },
+  { id: "deepseek", name: "DeepSeek", url: "https://chat.deepseek.com/", accent: "#5b8cff", windowOpen: false, isCustom: false },
+  { id: "qwen", name: "Qwen", url: "https://chat.qwen.ai/", accent: "#8b7cf6", windowOpen: false, isCustom: false },
+  { id: "kimi", name: "Kimi", url: "https://www.kimi.com/", accent: "#48c7b5", windowOpen: false, isCustom: false },
+  { id: "grok", name: "Grok", url: "https://grok.com/", accent: "#d8d8d8", windowOpen: false, isCustom: false },
+  { id: "perplexity", name: "Perplexity", url: "https://www.perplexity.ai/", accent: "#20b8a7", windowOpen: false, isCustom: false },
+  { id: "copilot", name: "Microsoft Copilot", url: "https://copilot.microsoft.com/", accent: "#8d74ff", windowOpen: false, isCustom: false },
+  { id: "mistral", name: "Mistral", url: "https://chat.mistral.ai/chat", accent: "#ff8c42", windowOpen: false, isCustom: false },
+  { id: "doubao", name: "豆包", url: "https://www.doubao.com/chat/", accent: "#31a8ff", windowOpen: false, isCustom: false }
 ];
 
 export class StateStore {
@@ -27,6 +35,29 @@ export class StateStore {
     this.event("task.created", `任务“${title}”已加入队列`, { taskId: task.id });
     this.persist();
     return task;
+  }
+
+  addCustomProvider(name: string, url: string): Provider {
+    const provider: Provider = {
+      id: `custom-${randomUUID()}`,
+      name,
+      url,
+      accent: "#d9f99d",
+      windowOpen: false,
+      isCustom: true
+    };
+    this.snapshotValue.providers.push(provider);
+    this.event("provider.added", `自定义网页 AI“${name}”已添加`, { providerId: provider.id });
+    this.persist();
+    return provider;
+  }
+
+  removeCustomProvider(providerId: ProviderId): void {
+    const index = this.snapshotValue.providers.findIndex((item) => item.id === providerId && item.isCustom);
+    if (index < 0) throw new Error(`Unknown custom provider: ${providerId}`);
+    const [provider] = this.snapshotValue.providers.splice(index, 1);
+    this.event("provider.removed", `自定义网页 AI“${provider.name}”已移除`, { providerId });
+    this.persist();
   }
 
   setTaskStatus(taskId: string, status: TaskStatus): void {
@@ -55,7 +86,9 @@ export class StateStore {
   private read(): AppSnapshot {
     try {
       const saved = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AppSnapshot>;
-      const providers = providerSeed.map((seed) => ({ ...seed, ...(saved.providers?.find((item) => item.id === seed.id) ?? {}), windowOpen: false }));
+      const builtins = providerSeed.map((seed) => ({ ...seed, ...(saved.providers?.find((item) => item.id === seed.id) ?? {}), windowOpen: false, isCustom: false }));
+      const custom = (saved.providers ?? []).filter((item) => item.isCustom).map((item) => ({ ...item, windowOpen: false }));
+      const providers = [...builtins, ...custom];
       const tasks = (saved.tasks ?? []).map((task) => {
         const legacy = task as BossTask & { providerId?: ProviderId };
         return { ...task, providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };

@@ -9,7 +9,9 @@ Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现
 - Electron + React + TypeScript 独立桌面应用
 - 类 Codex 工作台的任务列表、详情、状态和事件时间线
 - 左半屏 Codex 风格聊天/任务输入，右半屏嵌入式网页工作区
-- ChatGPT、Claude、Gemini 原生 `WebContentsView`，按 1/2/3 个页面自动平铺
+- 默认选择 ChatGPT、Gemini、Claude 3 个页面；可同时打开 1–5 个原生 `WebContentsView` 并自动平铺
+- 内置 ChatGPT、Gemini、Claude、DeepSeek、Qwen、Kimi、Grok、Perplexity、Microsoft Copilot、Mistral、豆包
+- 可添加和移除自定义 HTTPS 网页 AI；可选目录不设为 5 个，但同时选中和运行上限均为 5 个
 - 每个处理器独立的持久化 Electron session partition
 - 显式打开、聚焦和关闭窗口，不使用隐藏后台浏览器
 - 本地 JSON 状态存储与原子写入
@@ -41,7 +43,7 @@ Start-Codex-Boss.cmd
 
 启动记录保存在本地 `.codex-boss/launcher.log`，Electron 标准输出和错误分别保存在同目录的 `electron.stdout.log` 与 `electron.stderr.log`。网页登录态和 Chromium session/cache 存放在 `%LOCALAPPDATA%\CodexBoss`，避免漫游目录权限影响页面加载。这些运行数据均不会提交 Git。
 
-在左侧选择一个或多个 AI 并创建任务后，应用会在右半屏显式加载对应网页处理器，并将任务置为 `running`。Phase 1 的登录检查、任务粘贴和结果采集由用户在可见页面中确认；Phase 2 才会加入版本化 DOM adapter 与可审计的输入/输出采集。
+启动后默认选中 ChatGPT、Gemini、Claude。在左侧可横向浏览更多内置网页 AI，也可以通过“自定义”添加 HTTPS 网页地址；自定义配置只保存在本机。一次最多选择或打开 5 个页面，右侧会按 1–5 个窗口自动分屏。创建任务后，应用会显式加载对应网页处理器，并将任务置为 `running`。Phase 1 的登录检查、任务粘贴和结果采集由用户在可见页面中确认；Phase 2 才会加入版本化 DOM adapter 与可审计的输入/输出采集。
 
 ## 核心边界
 
@@ -52,8 +54,9 @@ Desktop Shell (trusted)
   ├─ Window supervisor
   └─ Provider WebContentsViews (untrusted web content)
        ├─ persist:codex-boss-chatgpt
+       ├─ persist:codex-boss-gemini
        ├─ persist:codex-boss-claude
-       └─ persist:codex-boss-gemini
+       └─ persist:codex-boss-<provider-id>
 ```
 
 - 网页窗口是可替换的处理器，不是系统状态数据库。

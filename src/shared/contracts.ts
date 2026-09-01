@@ -1,4 +1,4 @@
-export type ProviderId = "chatgpt" | "claude" | "gemini";
+export type ProviderId = string;
 export type TaskStatus = "queued" | "running" | "waiting" | "completed" | "failed";
 
 export interface Provider {
@@ -7,6 +7,7 @@ export interface Provider {
   url: string;
   accent: string;
   windowOpen: boolean;
+  isCustom: boolean;
 }
 
 export interface BossTask {
@@ -22,7 +23,7 @@ export interface BossTask {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
@@ -40,6 +41,11 @@ export interface CreateTaskInput {
   providerIds: ProviderId[];
 }
 
+export interface CustomProviderInput {
+  name: string;
+  url: string;
+}
+
 export interface ViewBounds {
   x: number;
   y: number;
@@ -50,6 +56,8 @@ export interface ViewBounds {
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
+  addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
+  removeCustomProvider(providerId: ProviderId): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;

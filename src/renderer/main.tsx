@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { AppSnapshot, ProviderId, ViewBounds } from "../shared/contracts";
+import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
 import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
-  const [selectedProviders, setSelectedProviders] = useState<ProviderId[]>(["chatgpt"]);
+  const [selectedProviders, setSelectedProviders] = useState<ProviderId[]>(DEFAULT_PROVIDER_IDS);
   const [prompt, setPrompt] = useState("");
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customUrl, setCustomUrl] = useState("https://");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const surfaceRefs = useRef<Partial<Record<ProviderId, HTMLDivElement | null>>>({});
@@ -47,9 +51,40 @@ function App() {
   const activeTasks = useMemo(() => snapshot.tasks.slice(0, 20).reverse(), [snapshot.tasks]);
 
   function toggleProvider(providerId: ProviderId) {
-    setSelectedProviders((current) => current.includes(providerId)
-      ? current.length === 1 ? current : current.filter((id) => id !== providerId)
-      : [...current, providerId]);
+    setSelectedProviders((current) => {
+      if (current.includes(providerId)) return current.length === 1 ? current : current.filter((id) => id !== providerId);
+      if (current.length >= MAX_ACTIVE_PROVIDERS) {
+        setError(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
+        return current;
+      }
+      setError("");
+      return [...current, providerId];
+    });
+  }
+
+  async function addCustomProvider(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    try {
+      const next = await window.boss.addCustomProvider({ name: customName, url: customUrl });
+      const added = next.providers.at(-1);
+      setSnapshot(next);
+      if (added?.isCustom && selectedProviders.length < MAX_ACTIVE_PROVIDERS) setSelectedProviders((current) => [...current, added.id]);
+      setCustomName("");
+      setCustomUrl("https://");
+      setCustomOpen(false);
+    } catch (reason) { setError(String(reason)); }
+  }
+
+  async function removeCustomProvider(providerId: ProviderId) {
+    setError("");
+    try {
+      setSnapshot(await window.boss.removeCustomProvider(providerId));
+      setSelectedProviders((current) => {
+        const next = current.filter((id) => id !== providerId);
+        return next.length > 0 ? next : [DEFAULT_PROVIDER_IDS[0]];
+      });
+    } catch (reason) { setError(String(reason)); }
   }
 
   async function submit(event: React.FormEvent) {
@@ -72,6 +107,9 @@ function App() {
   async function openSelected() {
     setError("");
     try {
+      const resultingOpen = new Set(snapshot.providers.filter((provider) => provider.windowOpen).map((provider) => provider.id));
+      selectedProviders.forEach((providerId) => resultingOpen.add(providerId));
+      if (resultingOpen.size > MAX_ACTIVE_PROVIDERS) throw new Error(`当前选择会使已打开页面超过 ${MAX_ACTIVE_PROVIDERS} 个，请先关闭部分页面`);
       let next = snapshot;
       for (const providerId of selectedProviders) next = await window.boss.openProvider(providerId);
       setSnapshot(next);
@@ -106,12 +144,20 @@ function App() {
 
       <div className="composer-zone">
         <div className="provider-picker">
-          <span>调用页面</span>
-          {snapshot.providers.map((provider) => <button type="button" key={provider.id} className={selectedProviders.includes(provider.id) ? "selected" : ""} onClick={() => toggleProvider(provider.id)}>
-            <i style={{ background: provider.accent }} />{provider.name}
-          </button>)}
+          <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>
+          <div className="provider-options">{snapshot.providers.map((provider) => <div className={`provider-choice ${selectedProviders.includes(provider.id) ? "selected" : ""}`} key={provider.id}>
+            <button type="button" className="provider-toggle" onClick={() => toggleProvider(provider.id)}><i style={{ background: provider.accent }} />{provider.name}</button>
+            {provider.isCustom && <button type="button" className="provider-remove" aria-label={`移除 ${provider.name}`} onClick={() => void removeCustomProvider(provider.id)}>×</button>}
+          </div>)}</div>
+          <button type="button" className="add-provider" onClick={() => setCustomOpen((value) => !value)}>＋ 自定义</button>
           <button type="button" className="open-only" onClick={() => void openSelected()}>仅打开页面</button>
         </div>
+        {customOpen && <form className="custom-provider-form" onSubmit={addCustomProvider}>
+          <input value={customName} maxLength={50} onChange={(event) => setCustomName(event.target.value)} placeholder="AI 名称" autoFocus />
+          <input value={customUrl} onChange={(event) => setCustomUrl(event.target.value)} placeholder="https://example.com/chat" type="url" />
+          <button type="submit" disabled={!customName.trim() || !customUrl.trim()}>添加</button>
+          <button type="button" onClick={() => setCustomOpen(false)}>取消</button>
+        </form>}
         <form className="prompt-composer" onSubmit={submit}>
           <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="向多个网页 AI 发起任务…" rows={3} />
           <div className="composer-footer"><span>本阶段打开可见页面，任务内容不会自动提交给第三方</span><button type="submit" disabled={!prompt.trim() || sending}>{sending ? "…" : "↑"}</button></div>
@@ -121,7 +167,7 @@ function App() {
     </section>
 
     <section className="browser-half">
-      <header className="browser-header"><div><strong>网页处理器</strong><span>{openProviders.length} / {snapshot.providers.length} 页面运行中</span></div><div className="window-dots"><i /><i /><i /></div></header>
+      <header className="browser-header"><div><strong>网页处理器</strong><span>{openProviders.length} / {MAX_ACTIVE_PROVIDERS} 页面运行中</span></div><div className="window-dots"><i /><i /><i /></div></header>
       {openProviders.length === 0 ? <div className="browser-empty">
         <div className="snap-illustration"><span /><span /><span /></div>
         <h2>等待打开网页页面</h2><p>选择左侧一个或多个 AI，然后发送任务或点击“仅打开页面”。</p>

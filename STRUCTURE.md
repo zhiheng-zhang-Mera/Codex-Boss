@@ -29,7 +29,7 @@ Codex Boss Desktop
 | 桌面 shell | Electron | 顶层 Chromium 窗口、持久 session partition、Windows/macOS 成熟支持 |
 | UI | React + TypeScript + Vite | 强类型 IPC、快速工作台迭代、生产构建简单 |
 | 网页处理器 | 主窗口内原生 `WebContentsView` | 不受 iframe 限制；在右半屏真实渲染并可由用户接管 |
-| 页面布局 | renderer 测量 + allowlisted IPC | 1 页全屏、2 页上下、3 页双列加跨列，随窗口调整 |
+| 页面布局 | renderer 测量 + allowlisted IPC | 1–5 页自适应；3 页为双列加跨列，4 页为 2×2，5 页为上三下二 |
 | 登录态 | `persist:codex-boss-<provider>` | 不复制 Cookie，不向主 renderer 暴露凭据 |
 | 状态 | 本地 JSON，原子 rename + Windows copy-replace 回退 | Phase 1 依赖少；后续可替换 SQLite event store |
 | 权限边界 | sandboxed renderer + allowlisted IPC | 远端网页与 Node/文件系统隔离 |
@@ -105,7 +105,8 @@ Phase 1 的 `RUNNING` 只表示任务对应的可见窗口已经被调度，绝�
 - Electron 的 `userData` 与 `sessionData` 固定在 `%LOCALAPPDATA%\CodexBoss`，避免漫游 AppData 的跨卷 rename 与 Chromium cache 权限问题。
 - 创建任务会持久化 task 与 `task.created` 事件。
 - 运行任务会在右半屏加载所有选中网页，按数量自动平铺，设置 `RUNNING` 并追加事件。
-- ChatGPT、Claude、Gemini 使用不同的持久 session partition。
+- 默认选中 ChatGPT、Gemini、Claude；内置目录超过 5 个 provider，同时选择与运行均由 renderer 和主进程限制为最多 5 个。
+- 内置与自定义 provider 均使用独立持久 session partition；自定义入口只接受 HTTPS URL，并保存在本机状态文件。
 - renderer 与 provider 页面均不能访问 Node API。
 
 未在 Phase 1 验收范围：第三方登录成功、DOM selector 稳定性、自动输入、回答捕获、多模型质量、跨平台安装包签名。它们保持 `NOT_RUN`，不得由 build 成功替代。
