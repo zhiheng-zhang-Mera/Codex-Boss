@@ -2,7 +2,7 @@
 
 Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现代编码代理工作台的任务体验，但**不使用、嵌入或依赖 Codex 桌面端**。应用自己管理任务、状态、审计事件与网页处理器窗口；Codex CLI、OpenAI API 或其他模型能力只会作为后续可替换适配器接入。
 
-> 当前版本：`0.3.0`，Phase 2 visible adapters 与 Phase 3 Council foundation。应用可在受支持页面中可见预填、经用户二次确认后发送、观察并捕获原始回答；不会绕过登录、验证码、平台限制，也不把页面变化或未采集结果伪装成成功。
+> 当前版本：`0.4.0`，包含 Phase 2 visible adapters、Phase 3 Council foundation 与 Phase 4 evidence foundation。应用可在受支持页面中可见预填、经用户二次确认后发送、观察并捕获原始回答；不会绕过登录、验证码、平台限制，也不把页面变化或未采集结果伪装成成功。
 
 ## Phase 1 已实现
 
@@ -35,6 +35,15 @@ Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现
 - 当前轮未收齐全部 artifact 时禁止推进；格式错误的外部输出不会被修补成证据
 - 综合轮保留所有原始材料，不自动触发 shell、文件或其他外部执行
 
+## Phase 4 已实现（基础版）
+
+- 为每个任务生成带 SHA-256 manifest 与整体 integrity root 的本地证据包
+- 从综合轮的结构化 claims 建立 claim index，并区分未验证引用、争议和证据不足
+- 保留 dispute index、缺失 provider 清单，并默认给出 `HOLD_FOR_REVIEW`
+- 只把争议或证据不足 claim 及其引用 artifact 放入选择性回填轮次
+- 可选 Codex CLI 控制端复用当前 ChatGPT 账户登录状态进行独立审查；不复制 Cookie、token 或网页登录态
+- Codex 审查只能评价已有 dossier，不是额外投票，也不能把缺失证据自动升级为已验证
+
 ## 本地运行
 
 需要 Node.js 22+ 与 pnpm：
@@ -59,7 +68,13 @@ Start-Codex-Boss.cmd
 
 启动记录保存在本地 `.codex-boss/launcher.log`，Electron 标准输出和错误分别保存在同目录的 `electron.stdout.log` 与 `electron.stderr.log`。网页登录态和 Chromium session/cache 存放在 `%LOCALAPPDATA%\CodexBoss`，避免漫游目录权限影响页面加载。这些运行数据均不会提交 Git。
 
-启动后默认选中 ChatGPT、Gemini、Claude。在左侧可横向浏览更多内置网页 AI，也可以通过“自定义”添加 HTTPS 网页地址；自定义配置只保存在本机。一次最多选择或打开 5 个页面，右侧会按 1–5 个窗口自动分屏。创建任务后，先点击“预填到网页”；检查右侧内容无误后，再点击“确认发送到第三方”。Council 模式会在每一轮收齐原始证据后显示“推进 Council”，不会跳过缺失回答。
+启动后默认选中 ChatGPT、Gemini、Claude。在左侧可横向浏览更多内置网页 AI，也可以通过“自定义”添加 HTTPS 网页地址；自定义配置只保存在本机。一次最多选择或打开 5 个页面，右侧会按 1–5 个窗口自动分屏。创建任务后，先点击“预填到网页”；检查右侧内容无误后，再点击“确认发送到第三方”。Council 模式会在每一轮收齐原始证据后显示“推进 Council”，不会跳过缺失回答。Phase 4 可从已有 artifact 生成证据包、调用当前账户的 Codex CLI 做受限审查，并为未解决 claim 建立选择性回填轮次。
+
+### 账户与游客模式边界
+
+- Codex 控制端只读取本机 `codex login status`，状态栏显示 `CHATGPT`、`NOT_AUTHENTICATED` 或 `UNAVAILABLE`；不会从 Codex 桌面端读取或复制账户数据。
+- 每个网页版 AI 都使用本应用自己的隔离浏览器 session。若网站允许游客使用即可游客运行；要求登录、验证码或风控时会保持 `AUTH_REQUIRED` / `USER_ACTION_REQUIRED`，不会尝试绕过。
+- 游客能力和页面 DOM 会随服务端变化。production build、selector 单测或“页面已打开”都不能证明某个游客任务已成功发送或回答已采集。
 
 ## 核心边界
 
@@ -86,10 +101,10 @@ Desktop Shell (trusted)
 1. **Phase 1 — Desktop Foundation（本版本）**：独立主窗口、左右分屏、多页面自适应布局、任务状态与本地审计。
 2. **Phase 2 — Visible Adapters（本版本）**：版本化页面适配器、登录状态检测、可见输入、完成检测、原始输出捕获、失败恢复。
 3. **Phase 3 — Council Engine（本版本基础版）**：独立提案、匿名评审、冲突提取、少数意见与综合轮。
-4. **Phase 4 — Evidence & Verification**：artifact bundle、claim/dispute index、选择性回填、本地测试与外部证据验证。
+4. **Phase 4 — Evidence & Verification（本版本基础版）**：artifact bundle、claim/dispute index、选择性回填和当前账户 Codex 审查；真实游客网页验证需逐次记录。
 5. **Phase 5 — Optional Native Runtimes**：Codex CLI/app-server、Responses API 与其他原生适配器；全部可选，不依赖 Codex 桌面端。
 
-详细模块、状态机和验收标准见 [STRUCTURE.md](STRUCTURE.md)。
+详细模块、状态机和验收标准见 [STRUCTURE.md](STRUCTURE.md)；本轮 Phase 2–4 的现场结果与 `NOT_RUN` 边界见 [PHASE4_VALIDATION.md](PHASE4_VALIDATION.md)。
 
 ## 免责声明
 

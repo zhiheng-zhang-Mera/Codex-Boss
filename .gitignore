@@ -3,6 +3,7 @@ dist/
 dist-electron/
 coverage/
 .codex-boss/
+.codex-controller/
 *.log
 .DS_Store
 *.zip

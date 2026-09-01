@@ -4,6 +4,8 @@ import type { AppSnapshot, CreateTaskInput, CustomProviderInput, ProviderId, Tas
 import { MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
+import { CodexController } from "./codex-controller";
+import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
 
@@ -11,6 +13,7 @@ let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
 let providerViews: ProviderViews;
 let automation: ProviderAutomation;
+let codexController: CodexController;
 
 const localAppData = process.env.LOCALAPPDATA;
 if (localAppData) {
@@ -86,6 +89,8 @@ function createMainWindow(): void {
 
 if (ownsInstance) app.whenReady().then(() => {
   store = new StateStore(path.join(app.getPath("userData"), "state.json"));
+  codexController = new CodexController(app.getPath("userData"));
+  void codexController.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
 
@@ -170,6 +175,49 @@ if (ownsInstance) app.whenReady().then(() => {
       store.setTaskStatus(taskId, "completed");
     } else {
       throw new Error(`Council cannot advance from ${council.stage}`);
+    }
+    return publish();
+  });
+  ipcMain.handle("boss:build-evidence", (_event, taskId: string) => {
+    const snapshot = store.snapshot();
+    const task = snapshot.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    const council = snapshot.councils.find((item) => item.taskId === taskId);
+    const previous = snapshot.evidenceBundles.find((item) => item.taskId === taskId);
+    store.saveEvidence(buildEvidenceBundle(task, snapshot.artifacts, council, previous?.codexReview));
+    return publish();
+  });
+  ipcMain.handle("boss:rehydrate-evidence", (_event, taskId: string) => {
+    let snapshot = store.snapshot();
+    const task = snapshot.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    let bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId);
+    if (!bundle) {
+      bundle = buildEvidenceBundle(task, snapshot.artifacts, snapshot.councils.find((item) => item.taskId === taskId));
+      store.saveEvidence(bundle);
+      snapshot = store.snapshot();
+    }
+    if (!bundle.claims.some((claim) => claim.status === "DISPUTED" || claim.status === "INSUFFICIENT")) throw new Error("当前证据包没有需要选择性回填的 claim");
+    store.addRehydrationRound(taskId, buildRehydrationPrompts(task, bundle, snapshot.artifacts, task.providerIds));
+    return publish();
+  });
+  ipcMain.handle("boss:run-codex-review", async (_event, taskId: string) => {
+    let snapshot = store.snapshot();
+    const task = snapshot.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    let bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId);
+    if (!bundle) {
+      bundle = buildEvidenceBundle(task, snapshot.artifacts, snapshot.councils.find((item) => item.taskId === taskId));
+      store.saveEvidence(bundle);
+      snapshot = store.snapshot();
+    }
+    store.updateCodexReview(bundle.id, { status: "RUNNING" });
+    publish();
+    try {
+      const content = await codexController.review(bundle, snapshot.artifacts);
+      store.updateCodexReview(bundle.id, { status: "COMPLETED", content, completedAt: new Date().toISOString() });
+    } catch (error) {
+      store.updateCodexReview(bundle.id, { status: "FAILED", error: String(error), completedAt: new Date().toISOString() });
     }
     return publish();
   });

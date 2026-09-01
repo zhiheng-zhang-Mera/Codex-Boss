@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { providerSeed, StateStore } from "../electron/store";
+import { buildEvidenceBundle } from "../electron/evidence-engine";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 
 const temporaryDirectories: string[] = [];
@@ -59,5 +60,19 @@ describe("StateStore persistence", () => {
     const snapshot = store.snapshot();
     expect(snapshot.runs.filter((run) => run.taskId === task.id)).toHaveLength(3);
     expect(snapshot.councils.find((council) => council.taskId === task.id)).toEqual(expect.objectContaining({ stage: "proposals", round: 1 }));
+  });
+
+  it("persists Phase 4 controller and evidence state", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-store-"));
+    temporaryDirectories.push(directory);
+    const statePath = path.join(directory, "state.json");
+    const store = new StateStore(statePath);
+    const task = store.createTask("evidence", "check evidence", ["gemini"]);
+    store.setController({ kind: "codex-cli", accountMode: "CHATGPT", message: "current account" });
+    store.saveEvidence(buildEvidenceBundle(task, []));
+
+    const reloaded = new StateStore(statePath).snapshot();
+    expect(reloaded.controller.accountMode).toBe("CHATGPT");
+    expect(reloaded.evidenceBundles[0]).toEqual(expect.objectContaining({ taskId: task.id, decision: "HOLD_FOR_REVIEW" }));
   });
 });

@@ -3,7 +3,9 @@ export type TaskStatus = "queued" | "running" | "waiting" | "completed" | "faile
 export type TaskMode = "direct" | "council";
 export type AdapterOutcome = "SUCCESS" | "RETRYABLE_FAILURE" | "AUTH_REQUIRED" | "RATE_LIMITED" | "PAGE_CHANGED" | "FORMAT_INVALID" | "USER_ACTION_REQUIRED" | "UNSUPPORTED";
 export type ProviderRunPhase = "queued" | "opening" | "prepared" | "sending" | "waiting" | "completed" | "failed" | "blocked";
-export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "completed" | "blocked";
+export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "rehydration" | "completed" | "blocked";
+export type ClaimStatus = "UNVERIFIED" | "REFERENCED_NOT_VERIFIED" | "DISPUTED" | "INSUFFICIENT";
+export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW";
 
 export interface Provider {
   id: ProviderId;
@@ -71,10 +73,60 @@ export interface CouncilSession {
   updatedAt: string;
 }
 
+export interface EvidenceManifestEntry {
+  artifactId: string;
+  providerId: ProviderId;
+  sha256: string;
+  bytes: number;
+  capturedAt: string;
+}
+
+export interface ClaimRecord {
+  id: string;
+  text: string;
+  status: ClaimStatus;
+  evidenceArtifactIds: string[];
+  missingEvidenceLabels: string[];
+}
+
+export interface DisputeRecord {
+  id: string;
+  topic: string;
+  positions: string[];
+  evidenceArtifactIds: string[];
+  unresolved: true;
+}
+
+export interface CodexReview {
+  status: "NOT_RUN" | "RUNNING" | "COMPLETED" | "FAILED";
+  content?: string;
+  error?: string;
+  completedAt?: string;
+}
+
+export interface EvidenceBundle {
+  id: string;
+  taskId: string;
+  manifest: EvidenceManifestEntry[];
+  integrityRoot: string;
+  claims: ClaimRecord[];
+  disputes: DisputeRecord[];
+  missingProviderIds: ProviderId[];
+  decision: EvidenceDecision;
+  codexReview: CodexReview;
+  createdAt: string;
+}
+
+export interface ControllerState {
+  kind: "codex-cli";
+  accountMode: "CHATGPT" | "NOT_AUTHENTICATED" | "UNAVAILABLE" | "UNKNOWN";
+  message: string;
+}
+
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
@@ -86,6 +138,8 @@ export interface AppSnapshot {
   runs: ProviderRun[];
   artifacts: RawArtifact[];
   councils: CouncilSession[];
+  evidenceBundles: EvidenceBundle[];
+  controller: ControllerState;
   events: AuditEvent[];
 }
 
@@ -118,6 +172,9 @@ export interface BossBridge {
   sendTask(taskId: string): Promise<AppSnapshot>;
   captureTask(taskId: string): Promise<AppSnapshot>;
   advanceCouncil(taskId: string): Promise<AppSnapshot>;
+  buildEvidence(taskId: string): Promise<AppSnapshot>;
+  rehydrateEvidence(taskId: string): Promise<AppSnapshot>;
+  runCodexReview(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
   layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;

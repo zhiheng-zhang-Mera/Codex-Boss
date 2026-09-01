@@ -45,6 +45,8 @@ electron/
   preload.ts            narrow renderer bridge
   provider-views.ts     embedded provider view supervisor
   provider-automation.ts visible prepare/send/observe/capture controller
+  evidence-engine.ts    manifest, claims, disputes and selective rehydration
+  codex-controller.ts   optional current-account Codex CLI evidence review
   adapters/             versioned selector registry and isolated page scripts
   store.ts              local task/event persistence
 src/
@@ -154,3 +156,24 @@ Selector 必须按 provider/version 保存，带 fixture 与页面变化回归�
 这些协议建立在可靠 adapter、artifact store 与状态机之上，不能反向耦合具体 DOM 或 provider 品牌。
 
 Phase 3 当前实现为三个强制阶段：`proposals → peer_review → synthesis → completed`。每轮必须为全部参与 provider 捕获 artifact 后才能推进；匿名评审 prompt 不包含 provider 名称，并要求返回结构化冲突与少数意见。解析失败保持缺失，不用推测值替代。综合阶段明确禁止按票数决策，并要求区分证据、推断和未解决分歧。
+
+## 9. Phase 4 证据与验证
+
+Phase 4 把“已有回答”与“可采信结论”分开：
+
+```text
+raw artifacts
+  → SHA-256 manifest + integrity root
+  → claim / dispute / missing-provider index
+  → optional Codex dossier review
+  → selective rehydration for unresolved claims
+  → HOLD_FOR_REVIEW
+```
+
+- 综合 prompt 必须输出 `{"claims":[{"text":"...","evidenceLabels":["Proposal A"]}]}`；缺失或格式错误时 claim 标为 `INSUFFICIENT`。
+- 引用了 artifact 只表示 `REFERENCED_NOT_VERIFIED`，不等于事实验证。仍存在 conflict 时标为 `DISPUTED`。
+- 选择性回填只携带争议/不足 claim 所引用的 artifact；不把整段历史重新广播给所有页面。
+- Codex 控制端通过本机 Codex CLI 复用当前 ChatGPT 登录状态，并在独立空目录、只读 sandbox、ephemeral session 中审查 dossier。artifact 始终按不可信引用数据处理。
+- 当前阶段不包含互联网事实核验器、自动执行器或 `READY_FOR_USER_REVIEW` 自动升级，因此 evidence decision 保持 `HOLD_FOR_REVIEW`。
+
+Phase 4 基础验收：类型检查、证据引擎单测、production build、启动器 smoke test、控制端账户状态检测。第三方游客页的可用性、真实发送和回答采集必须分别保留现场结果；没有执行的项为 `NOT_RUN`。

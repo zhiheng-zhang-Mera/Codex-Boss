@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CouncilSession, Provider, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CodexReview, ControllerState, CouncilSession, EvidenceBundle, Provider, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
 
 export const providerSeed: Provider[] = [
   { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
@@ -99,6 +99,48 @@ export class StateStore {
     this.persist();
   }
 
+  setController(controller: ControllerState): void {
+    this.snapshotValue.controller = controller;
+    this.persist();
+  }
+
+  saveEvidence(bundle: EvidenceBundle): void {
+    this.snapshotValue.evidenceBundles.unshift(bundle);
+    this.snapshotValue.evidenceBundles = this.snapshotValue.evidenceBundles.slice(0, 50);
+    this.event("evidence.built", `证据包已生成：${bundle.manifest.length} 个 artifact，决策 ${bundle.decision}`, { taskId: bundle.taskId });
+    this.persist();
+  }
+
+  updateCodexReview(bundleId: string, review: CodexReview): void {
+    const bundle = this.snapshotValue.evidenceBundles.find((item) => item.id === bundleId);
+    if (!bundle) throw new Error(`Unknown evidence bundle: ${bundleId}`);
+    bundle.codexReview = review;
+    this.event("codex.review", `Codex 控制端审查状态：${review.status}`, { taskId: bundle.taskId });
+    this.persist();
+  }
+
+  recordRehydration(taskId: string): void {
+    this.event("evidence.rehydration", "已创建选择性证据回填轮次", { taskId });
+    this.persist();
+  }
+
+  addRehydrationRound(taskId: string, prompts: Map<ProviderId, string>): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    const currentRound = Math.max(0, ...this.runsForTask(taskId).map((run) => run.round));
+    const nextRound = currentRound + 1;
+    for (const providerId of task.providerIds) {
+      const prompt = prompts.get(providerId);
+      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, nextRound, prompt));
+    }
+    const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
+    if (council) { council.round = nextRound; council.stage = "rehydration"; council.updatedAt = new Date().toISOString(); }
+    task.status = "queued";
+    task.updatedAt = new Date().toISOString();
+    this.event("evidence.rehydration", "已创建选择性证据回填轮次", { taskId });
+    this.persist();
+  }
+
   addCustomProvider(name: string, url: string): Provider {
     const provider: Provider = {
       id: `custom-${randomUUID()}`,
@@ -169,9 +211,9 @@ export class StateStore {
         const legacy = task as BossTask & { providerId?: ProviderId };
         return { ...task, mode: task.mode ?? "direct", providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
       });
-      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], events: saved.events ?? [] };
+      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, events: saved.events ?? [] };
     } catch {
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], events: [] };
+      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, events: [] };
     }
   }
 

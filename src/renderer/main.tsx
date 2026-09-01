@@ -105,14 +105,17 @@ function App() {
     }
   }
 
-  async function taskAction(taskId: string, action: "prepare" | "send" | "capture" | "advance") {
+  async function taskAction(taskId: string, action: "prepare" | "send" | "capture" | "advance" | "evidence" | "rehydrate" | "codex") {
     setError("");
     setSending(true);
     try {
       const next = action === "prepare" ? await window.boss.prepareTask(taskId)
         : action === "send" ? await window.boss.sendTask(taskId)
           : action === "capture" ? await window.boss.captureTask(taskId)
-            : await window.boss.advanceCouncil(taskId);
+            : action === "advance" ? await window.boss.advanceCouncil(taskId)
+              : action === "evidence" ? await window.boss.buildEvidence(taskId)
+                : action === "rehydrate" ? await window.boss.rehydrateEvidence(taskId)
+                  : await window.boss.runCodexReview(taskId);
       setSnapshot(next);
     } catch (reason) { setError(String(reason)); }
     finally { setSending(false); }
@@ -140,7 +143,7 @@ function App() {
     <section className="chat-half">
       <header className="chat-header">
         <div className="app-brand"><span>B</span><div><strong>Codex Boss</strong><small>LOCAL MULTI-AI WORKSPACE</small></div></div>
-        <div className="workspace-pill"><i /> 本地工作区</div>
+        <div className="header-status"><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
 
       <div className="conversation">
@@ -153,6 +156,8 @@ function App() {
         {activeTasks.map((task) => {
           const runs = latestRuns(task);
           const council = snapshot.councils.find((item) => item.taskId === task.id);
+          const evidence = snapshot.evidenceBundles.find((item) => item.taskId === task.id);
+          const artifactCount = snapshot.artifacts.filter((artifact) => artifact.taskId === task.id).length;
           const allComplete = runs.length > 0 && runs.every((run) => run.phase === "completed");
           const canPrepare = runs.some((run) => ["queued", "blocked", "failed"].includes(run.phase));
           const canSend = runs.some((run) => run.phase === "prepared");
@@ -169,10 +174,14 @@ function App() {
                 {canPrepare && <button onClick={() => void taskAction(task.id, "prepare")} disabled={sending}>预填到网页</button>}
                 {canSend && <button className="confirm-send" onClick={() => void taskAction(task.id, "send")} disabled={sending}>确认发送到第三方</button>}
                 {canCapture && <button onClick={() => void taskAction(task.id, "capture")} disabled={sending}>采集当前回答</button>}
-                {task.mode === "council" && allComplete && council?.stage !== "completed" && <button onClick={() => void taskAction(task.id, "advance")} disabled={sending}>推进 Council</button>}
+                {task.mode === "council" && allComplete && council && ["proposals", "peer_review", "synthesis"].includes(council.stage) && <button onClick={() => void taskAction(task.id, "advance")} disabled={sending}>推进 Council</button>}
+                {artifactCount > 0 && <button onClick={() => void taskAction(task.id, "evidence")} disabled={sending}>生成 Phase 4 证据包</button>}
+                {evidence && <button onClick={() => void taskAction(task.id, "codex")} disabled={sending || evidence.codexReview.status === "RUNNING"}>Codex 账户审查</button>}
+                {evidence?.claims.some((claim) => claim.status === "DISPUTED" || claim.status === "INSUFFICIENT") && <button onClick={() => void taskAction(task.id, "rehydrate")} disabled={sending}>选择性回填</button>}
               </div>
               {council && (council.conflicts.length > 0 || council.minorityOpinions.length > 0) && <div className="council-findings"><b>保留的争议</b><span>{council.conflicts.length} 个冲突 · {council.minorityOpinions.length} 个少数意见</span></div>}
-              <small>{shortTime(task.updatedAt)} · {task.providerIds.length} 个独立页面 · {snapshot.artifacts.filter((artifact) => artifact.taskId === task.id).length} 份原始证据</small>
+              {evidence && <div className="evidence-card"><div><b>{evidence.decision}</b><code>{evidence.integrityRoot.slice(0, 12)}</code></div><span>{evidence.manifest.length} artifacts · {evidence.claims.length} claims · {evidence.disputes.length} disputes · 缺失 {evidence.missingProviderIds.length}</span><small>Codex review: {evidence.codexReview.status}</small>{evidence.codexReview.content && <p>{evidence.codexReview.content.slice(0, 500)}</p>}</div>}
+              <small>{shortTime(task.updatedAt)} · {task.providerIds.length} 个独立页面 · {artifactCount} 份原始证据</small>
             </div>
           </div>
         </article>; })}
