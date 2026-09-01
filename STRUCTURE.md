@@ -1,1223 +1,146 @@
-# Codex Boss — STRUCTURE
+# Codex Boss Desktop — Architecture
 
-本文档描述 Codex Boss 的模块边界、依赖关系、目录结构、数据流、状态机与扩展接口。
+## 1. 产品修正
 
-## 当前已实现边界 / Implemented starter boundary
+旧设计把 Codex 桌面端自身视为调度器，同时把“浏览器操作”留给宿主环境。这使项目无法独立运行，也无法定义窗口、权限、状态和故障恢复的真实所有者。
 
-```text
-src/codex_boss/core.py  evidence-linked Claim、Deliberation 与 fail-closed Verdict
-src/codex_boss/cli.py   单条 claim 的本地契约演示
-tests/test_core.py      缺失置信度、冲突与重复 ID 测试
-```
-
-以下其余目录与模块均为目标架构；只有实际存在于仓库中的路径才可视为已实现。
-
----
-
-# 1. Architectural Rule
-
-所有模块遵循：
+新设计将 Codex Boss 定义为独立桌面控制平面：
 
 ```text
-High Cohesion
-Low Coupling
-Explicit Contracts
-Replaceable Adapters
-Persistent State Outside Processors
+User
+  ↓
+Codex Boss Desktop
+  ├─ Task control plane
+  ├─ Evidence / audit store
+  ├─ Window supervisor
+  ├─ Protocol engine (later phase)
+  └─ Runtime adapters
+       ├─ Visible web window adapters
+       ├─ Codex CLI or app-server (optional)
+       └─ Model APIs (optional)
 ```
 
-核心依赖方向：
+“Codex”表示可选的编程代理能力与项目品牌来源，不表示必须运行 Codex 桌面端。桌面 shell、任务状态和处理器窗口都由本应用所有。
+
+## 2. 技术选择
+
+| 关注点 | 选择 | 原因 |
+|---|---|---|
+| 桌面 shell | Electron | 顶层 Chromium 窗口、持久 session partition、Windows/macOS 成熟支持 |
+| UI | React + TypeScript + Vite | 强类型 IPC、快速工作台迭代、生产构建简单 |
+| 网页处理器 | 独立 `BrowserWindow` | 不受 iframe 限制；页面始终可见且可由用户接管 |
+| 登录态 | `persist:codex-boss-<provider>` | 不复制 Cookie，不向主 renderer 暴露凭据 |
+| 状态 | 本地 JSON，临时文件后原子 rename | Phase 1 依赖少；后续可替换 SQLite event store |
+| 权限边界 | sandboxed renderer + allowlisted IPC | 远端网页与 Node/文件系统隔离 |
+| 自动化 | Phase 2 provider adapter | 页面 selector 与调度器解耦，失败必须显式分类 |
+
+不采用 Python GUI：它会额外引入浏览器运行时/调试协议，难以获得一致的顶层窗口与 session 生命周期。不采用 iframe：主流 AI 网站可能禁止嵌入，且登录流程需要顶层页面。不把 Playwright headless 当核心：产品要求用户能看到并接管实际页面。
+
+## 3. 当前目录
 
 ```text
-                ┌───────────┐
-                │   Codex   │
-                └─────┬─────┘
-                      │
-          ┌───────────┼────────────┐
-          ▼           ▼            ▼
-       Router      Protocol      Scheduler
-          │           │            │
-          └──────┬────┴─────┬──────┘
-                 ▼          ▼
-             Processor    Context
-              Manager      Engine
-                 │          │
-                 ▼          ▼
-              Adapter    Artifact
-                 │          │
-                 └────┬─────┘
-                      ▼
-                    Store
-                      │
-                      ▼
-                    Judge
-                      │
-                      ▼
-                   Executor
+electron/
+  main.ts               app lifecycle + allowlisted IPC
+  preload.ts            narrow renderer bridge
+  provider-windows.ts   visible provider window supervisor
+  store.ts              local task/event persistence
+src/
+  shared/contracts.ts   cross-process contracts
+  renderer/
+    main.tsx             desktop workbench
+    state.ts             pure view helpers
+    styles.css           visual system
+tests/
+  state.test.ts
+scripts/
+  start-codex-boss.ps1  production launcher + visible error reporting
+Start-Codex-Boss.cmd    double-click entrypoint
+.github/workflows/ci.yml
 ```
 
-禁止形成：
+## 4. 信任边界
 
 ```text
-Adapter ↔ Judge
-Adapter ↔ Storage implementation
-Protocol ↔ Browser DOM
-Context Engine ↔ Specific AI provider
+TRUSTED: Electron main process
+  ↓ allowlisted IPC with runtime validation
+LIMITED: local renderer
+  ↓ explicit window action
+UNTRUSTED: remote provider webContents
 ```
 
----
+Provider 窗口配置：
 
-# 2. Recommended Repository
+- `sandbox: true`
+- `contextIsolation: true`
+- `nodeIntegration: false`
+- 每个 provider 独立持久 partition
+- 新窗口请求仅允许 HTTPS 并交给系统浏览器
+- 不从远端网页直接调用主进程 IPC
+
+后续 adapter 捕获的任何内容都必须先写入 raw artifact，再经过 normalize、validate、judge，不能直接触发 shell 或文件动作。
+
+## 5. 任务与窗口状态
+
+任务状态：
 
 ```text
-codex-boss/
-│
-├── README.md
-├── STRUCTURE.md
-├── AGENTS.md
-├── LICENSE
-├── .gitignore
-│
-├── config/
-│   ├── council.yaml
-│   ├── providers.yaml
-│   ├── roles.yaml
-│   ├── protocols.yaml
-│   └── context.yaml
-│
-├── skills/
-│   └── council/
-│       ├── SKILL.md
-│       │
-│       ├── router/
-│       │   ├── task-classification.md
-│       │   └── protocol-selection.md
-│       │
-│       ├── protocols/
-│       │   ├── quick.md
-│       │   ├── council.md
-│       │   ├── debate.md
-│       │   ├── critique.md
-│       │   ├── redteam.md
-│       │   ├── verify.md
-│       │   └── warroom.md
-│       │
-│       ├── roles/
-│       │   ├── architect.md
-│       │   ├── implementer.md
-│       │   ├── critic.md
-│       │   ├── contrarian.md
-│       │   ├── researcher.md
-│       │   ├── evidence-verifier.md
-│       │   └── red-team.md
-│       │
-│       └── handoff/
-│           └── handoff-template.md
-│
-├── adapters/
-│   ├── README.md
-│   ├── common/
-│   │   ├── adapter-contract.md
-│   │   ├── output-status.md
-│   │   └── fallback-policy.md
-│   │
-│   ├── chatgpt/
-│   │   ├── adapter.md
-│   │   ├── selectors.yaml
-│   │   └── recovery.md
-│   │
-│   ├── claude/
-│   │   ├── adapter.md
-│   │   ├── selectors.yaml
-│   │   └── recovery.md
-│   │
-│   ├── gemini/
-│   │   ├── adapter.md
-│   │   ├── selectors.yaml
-│   │   └── recovery.md
-│   │
-│   └── optional/
-│       └── README.md
-│
-├── schemas/
-│   ├── manifest.schema.yaml
-│   ├── claim.schema.yaml
-│   ├── dispute.schema.yaml
-│   ├── evidence.schema.yaml
-│   ├── session.schema.yaml
-│   └── handoff.schema.yaml
-│
-├── templates/
-│   ├── proposal.md
-│   ├── review.md
-│   ├── revision.md
-│   ├── handoff.md
-│   └── manifest.yaml
-│
-├── engine/
-│   ├── router/
-│   ├── scheduler/
-│   ├── processor/
-│   ├── protocol/
-│   ├── context/
-│   ├── artifact/
-│   ├── validation/
-│   ├── consensus/
-│   ├── judge/
-│   └── executor/
-│
-├── workspace/
-│   ├── .gitkeep
-│   └── README.md
-│
-├── tests/
-│   ├── adapters/
-│   ├── schemas/
-│   ├── context/
-│   ├── protocols/
-│   ├── session/
-│   └── integration/
-│
-└── docs/
-    ├── protocol-spec.md
-    ├── artifact-spec.md
-    ├── security.md
-    └── examples/
+QUEUED → RUNNING → WAITING → COMPLETED
+                   └────────→ FAILED
 ```
 
----
+Phase 1 的 `RUNNING` 只表示任务对应的可见窗口已经被调度，绝不表示提示词已提交或回答已经完成。
 
-# 3. Module Boundaries
+窗口状态独立于任务状态：关闭窗口不会伪造任务失败或完成；应用只追加 `window.closed` 审计事件。再次运行会恢复相同 provider partition 的登录态并聚焦已有窗口。
 
-## 3.1 Router
+## 6. Phase 1 验收标准
 
-责任：
+- `npm run typecheck` 同时验证 renderer、main、preload 和 shared contracts。
+- `npm test` 验证任务状态汇总与持久时间显示的纯逻辑。
+- `pnpm run build` 生成 `dist/` 与 `dist-electron/`。
+- 主窗口在没有 Codex 桌面端时可独立启动。
+- 双击 `Start-Codex-Boss.cmd` 会直接加载 production 页面；重复启动只聚焦现有实例。
+- CMD 同步托管隐藏 PowerShell，直到应用退出，避免异步启动链在父进程结束后丢失 Electron。
+- PowerShell 启动脚本保持纯 ASCII，兼容 Windows PowerShell 5 的无 BOM 脚本解码；启动证据写入 `.codex-boss/launcher.log`。
+- 创建任务会持久化 task 与 `task.created` 事件。
+- 运行任务会打开/聚焦对应顶层网页窗口，设置 `RUNNING` 并追加事件。
+- ChatGPT、Claude、Gemini 使用不同的持久 session partition。
+- renderer 与 provider 页面均不能访问 Node API。
 
-- 判断任务类型
-- 选择 committee size
-- 分配角色
-- 选择 protocol
-- 判断是否需要 warroom
-- 判断是否需要 external verification
+未在 Phase 1 验收范围：第三方登录成功、DOM selector 稳定性、自动输入、回答捕获、多模型质量、跨平台安装包签名。它们保持 `NOT_RUN`，不得由 build 成功替代。
 
-输入：
+## 7. Phase 2 落地方式
+
+每个 provider 实现统一 adapter：
 
 ```text
-User Request
-Case State
-Available Processors
-```
-
-输出：
-
-```yaml
-committee_size: 3
-protocol: council
-roles:
-  A: architect
-  B: critic
-  C: implementer
-verification: optional
-```
-
-Router 不允许：
-
-- 操作浏览器
-- 保存 raw response
-- 直接评价模型答案
-
----
-
-## 3.2 Scheduler
-
-责任：
-
-- 创建 Round
-- 调度 Processor
-- 控制并发
-- 跟踪 round count
-- 决定是否 rollover
-- 控制 targeted debate
-
-Scheduler 只看：
-
-```text
-Task
-Protocol State
-Processor State
-Session State
-```
-
-不理解具体 AI 页面。
-
----
-
-## 3.3 Processor Manager
-
-Processor Manager 将：
-
-```text
-Committee Member
-```
-
-抽象成统一对象。
-
-```yaml
-member_id: A
-provider: claude
-role: architect
-session: S01
-round_count: 3
-state: REVIEW
-```
-
-Processor Manager 不关心：
-
-- DOM selector
-- browser tab implementation
-- model page layout
-
-这些属于 Adapter。
-
----
-
-# 4. Browser Adapter Layer
-
-每个 provider 独立 adapter。
-
-统一接口：
-
-```text
-open()
-ensure_authenticated()
-start_session()
-send(input)
-wait_for_completion()
-extract()
-normalize()
-close()
+detectAuth()
+prepareTask(task)
+showBeforeSend()
+sendWithUserVisibleAction()
+observeCompletion()
+captureRawArtifact()
 recover()
 ```
 
-返回统一状态：
+统一返回：
 
 ```text
-SUCCESS
-RETRYABLE_FAILURE
-AUTH_REQUIRED
-RATE_LIMITED
-FORMAT_INVALID
-UNSUPPORTED
+SUCCESS | RETRYABLE_FAILURE | AUTH_REQUIRED | RATE_LIMITED |
+PAGE_CHANGED | FORMAT_INVALID | USER_ACTION_REQUIRED | UNSUPPORTED
 ```
 
-Adapter 必须做到：
+Selector 必须按 provider/version 保存，带 fixture 与页面变化回归测试。自动化过程必须在可见窗口运行；验证码、安全检查和高风险确认一律停在 `USER_ACTION_REQUIRED`。
 
-```text
-Provider-specific logic
-```
-
-只存在于：
-
-```text
-adapters/<provider>/
-```
-
-不得泄漏到：
-
-```text
-engine/
-```
-
----
-
-# 5. Protocol Engine
-
-Protocol Engine 定义“委员会如何讨论”。
-
-不得处理：
-
-- Browser DOM
-- 文件 IO 实现
-- 具体模型名称
-
-示例：
-
-## quick
-
-```text
-Independent
-→ Synthesis
-```
-
-## council
-
-```text
-Independent
-→ Anonymous Review
-→ Conflict Extraction
-→ Synthesis
-```
-
-## debate
-
-```text
-Independent
-→ Review
-→ Conflict
-→ Targeted Debate
-→ Revision
-→ Synthesis
-```
-
-## warroom
-
-```text
-Independent
-→ Anonymous Review
-→ Conflict
-→ Targeted Debate
-→ Minority Review
-→ Red Team
-→ Verify
-→ Synthesis
-```
-
----
-
-# 6. Artifact Engine
-
-Artifact Engine 管理 AI 之间的通信文件。
-
-原则：
-
-```text
-Format-neutral
-Text-native preferred
-Binary tolerated only as external source
-```
-
-统一 Artifact object：
-
-```yaml
-artifact_id: ART-A-S01-R03-001
-case_id: CASE-001
-member_id: A
-session_id: S01
-round: 3
-type: narrative
-format: markdown
-path: response.md
-```
-
-支持：
-
-- md
-- json
-- yaml
-- txt
-- csv
-- xml
-- html
-- source code
-- diff / patch
-
----
-
-# 7. Manifest
-
-每轮输出目录：
-
-```text
-R03/
-├── manifest.yaml
-├── response.md
-├── claims.json
-└── risks.csv
-```
-
-Manifest 是 artifact bundle 的唯一入口。
-
-Artifact Engine：
-
-```text
-load manifest
-→ validate
-→ index
-→ archive
-```
-
-禁止通过：
-
-```text
-猜文件名
-```
-
-判断用途。
-
----
-
-# 8. Validation Engine
-
-负责验证：
-
-- manifest
-- artifact existence
-- schema
-- required identifiers
-- broken references
-- invalid claim ids
-- missing parent refs
-
-Validation 失败：
-
-```text
-FORMAT_INVALID
-```
-
-优先进行：
-
-```text
-format repair
-```
-
-而不是重新执行整轮推理。
-
----
-
-# 9. Claim Index
-
-所有关键结论具有稳定 ID。
-
-```text
-CLM-A-001
-CLM-A-002
-CLM-B-001
-```
-
-记录：
-
-```yaml
-id: CLM-A-014
-author: A
-status: disputed
-support:
-  - C
-oppose:
-  - B
-confidence: mixed
-raw_refs:
-  - members/A/S01/R02/response.md
-```
-
----
-
-# 10. Dispute Engine
-
-Dispute object：
-
-```yaml
-id: DSP-017
-claim: CLM-A-014
-support:
-  - A
-  - C
-oppose:
-  - B
-status: open
-priority: high
-```
-
-状态：
-
-```text
-OPEN
-→ UNDER_REVIEW
-→ DEBATING
-→ RESOLVED
-```
-
-或：
-
-```text
-OPEN
-→ UNRESOLVED
-```
-
-超过重审上限后：
-
-```text
-UNRESOLVED
-```
-
-不得无限辩论。
-
----
-
-# 11. Consensus Engine
-
-输出必须区分：
-
-```text
-Consensus
-Majority
-Minority
-Unresolved
-```
-
-禁止把：
-
-```text
-2 / 3 support
-```
-
-自动写成：
-
-```text
-Consensus
-```
-
-推荐：
-
-```yaml
-status:
-  consensus: [...]
-  majority: [...]
-  minority: [...]
-  unresolved: [...]
-```
-
----
-
-# 12. Context Engine
-
-Context Engine 包含：
-
-```text
-Normalizer
-Extractor
-Funnel
-Compressor
-Rehydrator
-```
-
----
-
-## 12.1 Normalizer
-
-将不同 processor 输出统一转换为内部文本 / artifact representation。
-
----
-
-## 12.2 Extractor
-
-抽取：
-
-- claims
-- evidence
-- assumptions
-- disagreements
-- risks
-- unresolved questions
-
----
-
-## 12.3 Funnel
-
-执行：
-
-```text
-RAW
-→ Structured
-→ Distilled
-```
-
-但不删除 RAW。
-
----
-
-## 12.4 Rehydrator
-
-输入：
-
-```text
-Claim ID
-Dispute ID
-Artifact Ref
-```
-
-输出：
-
-```text
-relevant original fragment
-```
-
-而不是整个历史会话。
-
----
-
-# 13. Storage Layer
-
-Workspace 是唯一长期 Case memory。
-
-```text
-workspace/
-└── CASE-001/
-    ├── case/
-    │   ├── request.md
-    │   └── metadata.yaml
-    │
-    ├── members/
-    │   ├── A/
-    │   ├── B/
-    │   └── C/
-    │
-    ├── council/
-    │   ├── claims/
-    │   ├── disputes/
-    │   ├── consensus/
-    │   ├── minority/
-    │   └── evidence/
-    │
-    ├── context/
-    │   ├── distilled/
-    │   └── rehydrated/
-    │
-    ├── verification/
-    │
-    └── final/
-```
-
----
-
-# 14. Processor Session Model
-
-```text
-Case
-└── Member A
-    ├── Session S01
-    │   ├── R01
-    │   ├── R02
-    │   └── ...
-    └── Session S02
-```
-
-Case 生命周期与网页聊天生命周期解耦。
-
----
-
-# 15. Session State Machine
-
-```text
-NEW
- ↓
-PROPOSE
- ↓
-REVIEW
- ↓
-CHALLENGED
- ↓
-DEFEND
- ↓
-REVISE
- ↓
-FINAL
-```
-
-允许短路：
-
-```text
-PROPOSE
-→ REVIEW
-→ FINAL
-```
-
----
-
-# 16. Session Limits
-
-```yaml
-session:
-  target_rounds: 4
-  soft_round_limit: 6
-  recommended_rollover: 8
-  hard_round_limit: 10
-
-  rollover_on:
-    - topic_shift
-    - context_bloat
-    - repeated_reasoning
-    - stage_transition
-```
-
-Hard limit 是保险丝。
-
-不是要求每个 AI 都跑满 10 轮。
-
----
-
-# 17. Handoff Engine
-
-到 rollover 时生成：
-
-```text
-HANDOFF
-```
-
-内容：
-
-- original case
-- member role
-- established facts
-- verified evidence
-- closed disputes
-- open disputes
-- current position
-- minority views
-- rejected proposals
-- pending questions
-- raw refs
-
-新 Session：
-
-```text
-CASE
-+
-HANDOFF
-+
-OPEN DISPUTES
-```
-
----
-
-# 18. Committee Scheduling
+## 8. 保留的委员会框架
 
-默认：
-
-```text
-3 members
-```
-
-复杂任务：
-
-```text
-5 members
-```
-
-禁止：
-
-```text
-所有成员每一轮都被调用
-```
-
-应使用：
-
-```text
-event-driven participation
-```
-
-例如：
-
-```text
-DSP-017
-A vs C
-→ schedule A
-→ schedule C
-```
-
-B 不参与。
-
----
-
-# 19. Judge Layer
-
-Codex Judge 不进行简单投票。
-
-Judge 输入：
-
-```text
-Claims
-Evidence
-Consensus
-Minority
-Disputes
-Verification Results
-```
-
-排序原则：
-
-```text
-Verified Evidence
->
-Direct Test
->
-Strong Source
->
-Reasoned Consensus
->
-Majority
->
-Raw Confidence
-```
-
----
-
-# 20. Executor Layer
-
-Executor 与 Judge 解耦。
-
-Judge：
-
-```text
-决定应该做什么
-```
-
-Executor：
-
-```text
-执行经过批准的动作
-```
-
-Executor 可以调用：
-
-- terminal
-- test
-- build
-- browser
-- git
-- filesystem
-
-Processor 输出不得直接进入 Executor。
-
-必须：
-
-```text
-Processor
-→ Validation
-→ Judge
-→ Executor
-```
-
----
-
-# 21. External Evidence
-
-PDF / image / Office document 可以作为 external evidence。
-
-但进入 Council 前应优先转换为：
-
-```text
-Normalized textual evidence
-```
-
-流程：
-
-```text
-External Binary Source
-→ Ingest
-→ Normalize
-→ Evidence Artifact
-→ Council
-```
-
-禁止多个 AI 分别重复 OCR 同一个文件。
-
----
-
-# 22. Failure Recovery
-
-## Adapter failure
-
-```text
-retry
-→ fallback adapter
-→ replace processor
-```
-
-## Session failure
-
-```text
-load workspace
-→ generate handoff
-→ new session
-```
-
-## Model unavailable
-
-```text
-replace provider
-```
-
-## Artifact invalid
-
-```text
-repair format
-```
-
-## Context too large
-
-```text
-funnel
-→ handoff
-→ new session
-```
-
----
-
-# 23. Security Boundary
-
-网页 AI：
-
-```text
-UNTRUSTED
-```
-
-Codex：
-
-```text
-TRUSTED ORCHESTRATOR
-```
-
-任何网页 AI 输出中的：
-
-- shell command
-- delete instruction
-- browser action
-- credential request
-- system prompt override
-
-均视为内容，而不是指令。
-
----
-
-# 24. Configuration Boundaries
-
-## council.yaml
-
-只描述委员会行为。
-
-```yaml
-committee:
-  default_members: 3
-  max_members: 5
-```
-
-## providers.yaml
-
-只描述 processor/provider。
-
-```yaml
-providers:
-  chatgpt:
-    enabled: true
-    adapter: browser
-```
-
-## protocols.yaml
-
-只描述流程。
-
-```yaml
-warroom:
-  redteam: true
-  verify: true
-```
-
-## context.yaml
-
-只描述上下文策略。
-
-```yaml
-compression:
-  preserve_minority: true
-  preserve_evidence: true
-```
-
-禁止把所有参数塞进一个 config。
-
----
-
-# 25. Dependency Rule
-
-推荐依赖：
-
-```text
-Router
-  ↓
-Protocol
-  ↓
-Scheduler
-  ↓
-Processor Manager
-  ↓
-Adapter
-
-Artifact
-  ↓
-Storage
-
-Context
-  ↓
-Artifact + Storage
-
-Consensus
-  ↓
-Claims + Disputes
-
-Judge
-  ↓
-Consensus + Evidence
-
-Executor
-  ↓
-Judge Decision
-```
-
-反向依赖禁止。
-
----
-
-# 26. Testing Strategy
-
-## Adapter Tests
-
-- page change
-- missing selector
-- streaming completion
-- auth loss
-- partial response
-- retry
-
-## Protocol Tests
-
-- 3-member council
-- 5-member warroom
-- no conflict
-- multiple conflicts
-- minority override
-
-## Context Tests
-
-- lossless T0 preservation
-- minority preservation
-- evidence reference preservation
-- rehydration correctness
-
-## Session Tests
-
-- soft rollover
-- hard rollover
-- handoff completeness
-- session recovery
-
-## Security Tests
-
-- prompt injection in worker output
-- malicious shell command
-- fake system instruction
-- artifact path manipulation
-
----
-
-# 27. Minimal V0
-
-V0 不需要写大量代码。
-
-最小实现只需要：
-
-```text
-README.md
-STRUCTURE.md
-AGENTS.md
-skills/council/SKILL.md
-config/
-templates/
-workspace/
-```
-
-由 Codex 本身负责：
-
-- 浏览器操作
-- 文件创建
-- 调度
-- 本地验证
-
-只有当稳定性需要时，再逐步增加：
-
-```text
-engine/
-adapters/
-schemas/
-tests/
-```
-
----
-
-# 28. Expansion Path
-
-### Stage A
-
-```text
-Skill-driven
-```
-
-### Stage B
-
-```text
-Skill + structured artifacts
-```
-
-### Stage C
-
-```text
-Skill + adapters + validation
-```
-
-### Stage D
-
-```text
-Full protocol engine
-```
-
-### Stage E
-
-```text
-Optional API processors
-```
-
-整个升级路径不改变核心协议。
-
----
-
-# 29. Final Design Principle
-
-项目任何模块都必须满足：
-
-```text
-Can this component be replaced
-without rewriting the rest?
-```
-
-如果答案是否定的，则耦合过高。
-
-理想状态：
-
-```text
-Replace Claude
-→ no protocol changes
-
-Replace Markdown with JSON
-→ no scheduler changes
-
-Replace Browser Adapter
-→ no judge changes
-
-Replace Context Funnel
-→ no provider changes
-
-Replace Storage backend
-→ no protocol changes
-```
+旧设计中有价值的部分继续保留为 Phase 3/4 协议，而不再冒充已实现功能：
 
-Codex Boss 的目标不是追求最复杂的多 Agent 系统，而是：
+- Independent Proposal
+- Anonymous Peer Review
+- Conflict / Minority preservation
+- Context Funnel / Selective Rehydration
+- Session rollover / Handoff
+- Evidence > vote
+- Processor output → validate → judge → execute
 
-> 用最少的胶水代码，把多个可替换 AI 处理器组织成一个可审计、可恢复、可验证、可扩展的委员会系统。
+这些协议建立在可靠 adapter、artifact store 与状态机之上，不能反向耦合具体 DOM 或 provider 品牌。

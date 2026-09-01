@@ -1,0 +1,17 @@
+import { contextBridge, ipcRenderer } from "electron";
+import type { AppSnapshot, BossBridge, CreateTaskInput, ProviderId, TaskStatus } from "../src/shared/contracts";
+
+const bridge: BossBridge = {
+  snapshot: () => ipcRenderer.invoke("boss:snapshot"),
+  createTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:create-task", input),
+  launchTask: (taskId: string) => ipcRenderer.invoke("boss:launch-task", taskId),
+  openProvider: (providerId: ProviderId) => ipcRenderer.invoke("boss:open-provider", providerId),
+  updateTask: (taskId: string, status: TaskStatus) => ipcRenderer.invoke("boss:update-task", taskId, status),
+  onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, snapshot: AppSnapshot) => listener(snapshot);
+    ipcRenderer.on("boss:snapshot-updated", wrapped);
+    return () => ipcRenderer.removeListener("boss:snapshot-updated", wrapped);
+  }
+};
+
+contextBridge.exposeInMainWorld("boss", bridge);

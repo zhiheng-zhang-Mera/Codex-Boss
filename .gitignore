@@ -1,11 +1,10 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
-build/
+node_modules/
 dist/
-*.egg-info/
+dist-electron/
+coverage/
+.codex-boss/
+*.log
+.DS_Store
 *.zip
 .coverage
 .DS_Store
