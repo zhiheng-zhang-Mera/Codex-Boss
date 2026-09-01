@@ -16,7 +16,7 @@ codex-boss "candidate proposal" --source raw/proposal-a.md --confidence 0.8
 
 The CLI evaluates one evidence-linked starter claim. It does not open a browser, contact an AI service, or execute the resulting proposal.
 
-Codex Boss 将 Codex 作为**主发令员、主持人、调度器、裁判和最终执行者**，把多个已登录的网页版 AI 作为可替换的“委员会处理器”。  
+Codex Boss 将 Codex 作为**主发令员、主持人、调度器、裁判和最终执行者**，把多个已登录的网页版 AI 作为可替换的“委员会处理器”。
 项目重点不是再造一个完整的 multi-agent framework，而是尽可能复用 Codex 已有的浏览器、Computer Use、文件系统、终端与代码执行能力，用最少的额外基础设施实现：
 
 - 多 AI 独立提案
