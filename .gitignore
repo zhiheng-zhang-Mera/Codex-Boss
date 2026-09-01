@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+*.zip
+.coverage
+.DS_Store
+Thumbs.db
+artifacts/
+runtime-data/
+secrets/

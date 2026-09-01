@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-boss"
+version = "0.1.0"
+description = "Local-first, evidence-preserving multi-model deliberation starter."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Zhiheng Zhang"}]
+classifiers = ["Development Status :: 2 - Pre-Alpha", "Programming Language :: Python :: 3"]
+
+[project.scripts]
+codex-boss = "codex_boss.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
