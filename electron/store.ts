@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AppSnapshot, AuditEvent, BossTask, Provider, ProviderId, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CouncilSession, Provider, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
 
 export const providerSeed: Provider[] = [
   { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
@@ -28,13 +28,75 @@ export class StateStore {
     return structuredClone(this.snapshotValue);
   }
 
-  createTask(title: string, prompt: string, providerIds: ProviderId[]): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct"): BossTask {
     const now = new Date().toISOString();
-    const task: BossTask = { id: randomUUID(), title, prompt, providerIds, status: "queued", createdAt: now, updatedAt: now };
+    const task: BossTask = { id: randomUUID(), title, prompt, providerIds, status: "queued", mode, createdAt: now, updatedAt: now };
     this.snapshotValue.tasks.unshift(task);
+    this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt)));
+    if (mode === "council") {
+      const council: CouncilSession = { id: randomUUID(), taskId: task.id, stage: "proposals", providerIds, round: 1, conflicts: [], minorityOpinions: [], createdAt: now, updatedAt: now };
+      this.snapshotValue.councils.unshift(council);
+    }
     this.event("task.created", `任务“${title}”已加入队列`, { taskId: task.id });
     this.persist();
     return task;
+  }
+
+  runsForTask(taskId: string): ProviderRun[] {
+    return this.snapshotValue.runs.filter((run) => run.taskId === taskId);
+  }
+
+  updateRun(runId: string, phase: ProviderRunPhase, outcome: AdapterOutcome | null, message: string, adapterVersion?: string): void {
+    const run = this.snapshotValue.runs.find((item) => item.id === runId);
+    if (!run) throw new Error(`Unknown run: ${runId}`);
+    run.phase = phase;
+    run.outcome = outcome;
+    run.message = message;
+    if (adapterVersion) run.adapterVersion = adapterVersion;
+    run.updatedAt = new Date().toISOString();
+    this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId });
+    this.persist();
+  }
+
+  captureArtifact(runId: string, content: string, sourceUrl: string): RawArtifact {
+    const run = this.snapshotValue.runs.find((item) => item.id === runId);
+    if (!run) throw new Error(`Unknown run: ${runId}`);
+    const council = this.snapshotValue.councils.find((item) => item.taskId === run.taskId);
+    const kind: RawArtifact["kind"] = council?.stage === "proposals" ? "proposal" : council?.stage === "peer_review" ? "peer_review" : council?.stage === "synthesis" ? "synthesis" : "response";
+    const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: content.slice(0, 100000), capturedAt: new Date().toISOString(), sourceUrl, untrusted: true };
+    this.snapshotValue.artifacts.unshift(artifact);
+    run.artifactId = artifact.id;
+    run.phase = "completed";
+    run.outcome = "SUCCESS";
+    run.message = "已捕获原始回答，等待验证";
+    run.updatedAt = artifact.capturedAt;
+    this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId });
+    this.reconcileTask(run.taskId);
+    this.persist();
+    return artifact;
+  }
+
+  addCouncilRound(taskId: string, prompts: Map<ProviderId, string>, stage: CouncilSession["stage"]): void {
+    const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
+    if (!council) throw new Error(`Unknown council task: ${taskId}`);
+    council.round += 1;
+    council.stage = stage;
+    council.updatedAt = new Date().toISOString();
+    for (const providerId of council.providerIds) {
+      const prompt = prompts.get(providerId);
+      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, council.round, prompt));
+    }
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (task) { task.status = "queued"; task.updatedAt = council.updatedAt; }
+    this.event("council.advanced", `Council 进入 ${stage} 阶段`, { taskId });
+    this.persist();
+  }
+
+  updateCouncil(taskId: string, patch: Partial<Pick<CouncilSession, "stage" | "conflicts" | "minorityOpinions" | "finalArtifactId">>): void {
+    const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
+    if (!council) throw new Error(`Unknown council task: ${taskId}`);
+    Object.assign(council, patch, { updatedAt: new Date().toISOString() });
+    this.persist();
   }
 
   addCustomProvider(name: string, url: string): Provider {
@@ -83,6 +145,20 @@ export class StateStore {
     this.snapshotValue.events = this.snapshotValue.events.slice(0, 200);
   }
 
+  private newRun(taskId: string, providerId: ProviderId, round: number, inputPrompt: string): ProviderRun {
+    const now = new Date().toISOString();
+    return { id: randomUUID(), taskId, providerId, round, phase: "queued", outcome: null, message: "等待可见预填", inputPrompt, adapterVersion: "unresolved", createdAt: now, updatedAt: now };
+  }
+
+  private reconcileTask(taskId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const maxRound = Math.max(...this.runsForTask(taskId).map((run) => run.round));
+    const runs = this.runsForTask(taskId).filter((run) => run.round === maxRound);
+    task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => ["failed", "blocked"].includes(run.phase)) ? "waiting" : "running";
+    task.updatedAt = new Date().toISOString();
+  }
+
   private read(): AppSnapshot {
     try {
       const saved = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AppSnapshot>;
@@ -91,11 +167,11 @@ export class StateStore {
       const providers = [...builtins, ...custom];
       const tasks = (saved.tasks ?? []).map((task) => {
         const legacy = task as BossTask & { providerId?: ProviderId };
-        return { ...task, providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
+        return { ...task, mode: task.mode ?? "direct", providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
       });
-      return { providers, tasks, events: saved.events ?? [] };
+      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], events: saved.events ?? [] };
     } catch {
-      return { providers: structuredClone(providerSeed), tasks: [], events: [] };
+      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], events: [] };
     }
   }
 

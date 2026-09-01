@@ -34,8 +34,12 @@ button { color: inherit; }
 .boss-message { display: grid; grid-template-columns: 28px 1fr; gap: 10px; margin-top: 12px; }
 .boss-avatar { background: #d9f99d; color: #18200f; font-family: Georgia, serif; }
 .boss-message > div:last-child { padding: 4px 0; }.boss-message strong { font-size: 11px; }.boss-message p { margin: 5px 0; color: #8d9395; font-size: 11px; }.boss-message small { color: #61676a; font-size: 9px; }
+.run-statuses { display: flex; flex-wrap: wrap; gap: 4px; margin: 7px 0; }.run-statuses span { border: 1px solid #34383a; border-radius: 999px; padding: 3px 6px; color: #949a9c; font-size: 8px; }.run-statuses .run-prepared { border-color: #7d8f59; color: #cfe79f; }.run-statuses .run-completed { border-color: #467b64; color: #8ee2b7; }.run-statuses .run-blocked, .run-statuses .run-failed { border-color: #754a46; color: #efaaa2; }
+.run-message { display: block; margin: 3px 0; }.task-actions { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }.task-actions button { border: 1px solid #3b4137; border-radius: 7px; padding: 5px 8px; background: #222820; color: #c7d7a4; font-size: 9px; cursor: pointer; }.task-actions .confirm-send { border-color: #aa7040; background: #49301d; color: #ffd0a7; }.task-actions button:disabled { opacity: .4; }
+.council-findings { display: flex; gap: 7px; margin: 7px 0; padding: 7px 9px; border-left: 2px solid #a88ae8; background: #201b29; font-size: 9px; }.council-findings span { color: #a79db5; }
 
 .composer-zone { padding: 12px clamp(22px, 4vw, 48px) 20px; background: linear-gradient(transparent, #111315 18%); }
+.mode-switch { display: flex; align-items: center; gap: 4px; max-width: 700px; margin: 0 auto 8px; }.mode-switch button { border: 1px solid #34383b; border-radius: 7px; padding: 5px 9px; background: #181b1d; color: #7b8183; font-size: 9px; cursor: pointer; }.mode-switch button.active { border-color: #798a59; background: #252d1d; color: #d7eba9; }.mode-switch span { margin-left: 4px; color: #686e70; font-size: 8px; }
 .provider-picker { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px; max-width: 700px; margin: 0 auto 8px; }
 .picker-label { display: flex; align-items: center; gap: 5px; white-space: nowrap; }.picker-label span { color: #6f7578; font-size: 9px; letter-spacing: .08em; }.picker-label b { color: #aab28f; font-size: 8px; }
 .provider-options { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }

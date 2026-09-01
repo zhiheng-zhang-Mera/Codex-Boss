@@ -50,4 +50,14 @@ describe("StateStore persistence", () => {
     expect(JSON.parse(fs.readFileSync(statePath, "utf8")).tasks[0].title).toBe("test");
     expect(fs.existsSync(`${statePath}.tmp`)).toBe(false);
   });
+
+  it("creates provider runs and a council session for council tasks", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-store-"));
+    temporaryDirectories.push(directory);
+    const store = new StateStore(path.join(directory, "state.json"));
+    const task = store.createTask("council", "compare evidence", ["chatgpt", "gemini", "claude"], "council");
+    const snapshot = store.snapshot();
+    expect(snapshot.runs.filter((run) => run.taskId === task.id)).toHaveLength(3);
+    expect(snapshot.councils.find((council) => council.taskId === task.id)).toEqual(expect.objectContaining({ stage: "proposals", round: 1 }));
+  });
 });

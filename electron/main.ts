@@ -2,12 +2,15 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import type { AppSnapshot, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, ViewBounds } from "../src/shared/contracts";
 import { MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
+import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
+import { ProviderAutomation } from "./provider-automation";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
 let providerViews: ProviderViews;
+let automation: ProviderAutomation;
 
 const localAppData = process.env.LOCALAPPDATA;
 if (localAppData) {
@@ -47,6 +50,8 @@ function attachProviderViews(): void {
     store.setWindow(id, open);
     publish();
   });
+  automation?.dispose();
+  automation = new ProviderAutomation(store, providerViews, provider, publish);
 }
 
 function createMainWindow(): void {
@@ -73,6 +78,7 @@ function createMainWindow(): void {
     console.error(`Renderer failed to load: ${code} ${description} ${url}`);
   });
   mainWindow.on("closed", () => {
+    automation?.dispose();
     providerViews?.destroyAll();
     mainWindow = null;
   });
@@ -90,7 +96,7 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length === 0) throw new Error("At least one provider is required");
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
-    store.createTask(input.title.trim(), input.prompt.trim(), providerIds);
+    store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct");
     return publish();
   });
   ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
@@ -130,6 +136,41 @@ if (ownsInstance) app.whenReady().then(() => {
     if (current.size > MAX_ACTIVE_PROVIDERS) throw new Error(`当前任务会使已打开页面超过 ${MAX_ACTIVE_PROVIDERS} 个，请先关闭部分页面`);
     task.providerIds.forEach(openProviderWithinLimit);
     store.setTaskStatus(taskId, "running");
+    return publish();
+  });
+  ipcMain.handle("boss:prepare-task", async (_event, taskId: string) => {
+    await automation.prepareTask(taskId);
+    return publish();
+  });
+  ipcMain.handle("boss:send-task", async (_event, taskId: string) => {
+    await automation.sendTask(taskId);
+    return publish();
+  });
+  ipcMain.handle("boss:capture-task", async (_event, taskId: string) => {
+    await automation.captureTask(taskId);
+    return publish();
+  });
+  ipcMain.handle("boss:advance-council", (_event, taskId: string) => {
+    const snapshot = store.snapshot();
+    const task = snapshot.tasks.find((item) => item.id === taskId);
+    const council = snapshot.councils.find((item) => item.taskId === taskId);
+    if (!task || !council) throw new Error("Council task not found");
+    const roundRuns = snapshot.runs.filter((run) => run.taskId === taskId && run.round === council.round);
+    if (roundRuns.length !== council.providerIds.length || !roundRuns.every((run) => run.phase === "completed" && run.artifactId)) throw new Error("当前 Council 阶段尚未收齐全部可验证回答");
+    const artifacts = roundRuns.map((run) => snapshot.artifacts.find((artifact) => artifact.id === run.artifactId)).filter((artifact) => artifact !== undefined);
+    if (council.stage === "proposals") {
+      store.addCouncilRound(taskId, buildPeerReviewPrompts(task.prompt, artifacts, council.providerIds), "peer_review");
+    } else if (council.stage === "peer_review") {
+      const allProposals = snapshot.artifacts.filter((artifact) => artifact.taskId === taskId && artifact.kind === "proposal");
+      const analysis = extractCouncilFindings(artifacts);
+      store.updateCouncil(taskId, analysis);
+      store.addCouncilRound(taskId, buildSynthesisPrompts(task.prompt, allProposals, artifacts, council.providerIds, analysis), "synthesis");
+    } else if (council.stage === "synthesis") {
+      store.updateCouncil(taskId, { stage: "completed" });
+      store.setTaskStatus(taskId, "completed");
+    } else {
+      throw new Error(`Council cannot advance from ${council.stage}`);
+    }
     return publish();
   });
   ipcMain.handle("boss:update-task", (_event, taskId: string, status: TaskStatus) => {

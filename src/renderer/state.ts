@@ -1,6 +1,6 @@
 import type { AppSnapshot, BossTask, TaskStatus } from "../shared/contracts";
 
-export const emptySnapshot: AppSnapshot = { providers: [], tasks: [], events: [] };
+export const emptySnapshot: AppSnapshot = { providers: [], tasks: [], runs: [], artifacts: [], councils: [], events: [] };
 
 export function taskCounts(tasks: BossTask[]): Record<TaskStatus, number> {
   return tasks.reduce<Record<TaskStatus, number>>(

@@ -33,6 +33,11 @@ export class ProviderViews {
     return view;
   }
 
+  get(providerId: ProviderId): WebContentsView | undefined {
+    const view = this.views.get(providerId);
+    return view && !view.webContents.isDestroyed() ? view : undefined;
+  }
+
   close(providerId: ProviderId): void {
     const view = this.views.get(providerId);
     if (!view) return;

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AppSnapshot, ProviderId, ViewBounds } from "../shared/contracts";
+import type { AppSnapshot, BossTask, ProviderId, TaskMode, ViewBounds } from "../shared/contracts";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
 import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
@@ -9,6 +9,7 @@ function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
   const [selectedProviders, setSelectedProviders] = useState<ProviderId[]>(DEFAULT_PROVIDER_IDS);
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<TaskMode>("direct");
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customUrl, setCustomUrl] = useState("https://");
@@ -94,7 +95,7 @@ function App() {
     setError("");
     try {
       const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
-      const created = await window.boss.createTask({ title, prompt: prompt.trim(), providerIds: selectedProviders });
+      const created = await window.boss.createTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode });
       setSnapshot(await window.boss.launchTask(created.tasks[0].id));
       setPrompt("");
     } catch (reason) {
@@ -102,6 +103,25 @@ function App() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function taskAction(taskId: string, action: "prepare" | "send" | "capture" | "advance") {
+    setError("");
+    setSending(true);
+    try {
+      const next = action === "prepare" ? await window.boss.prepareTask(taskId)
+        : action === "send" ? await window.boss.sendTask(taskId)
+          : action === "capture" ? await window.boss.captureTask(taskId)
+            : await window.boss.advanceCouncil(taskId);
+      setSnapshot(next);
+    } catch (reason) { setError(String(reason)); }
+    finally { setSending(false); }
+  }
+
+  function latestRuns(task: BossTask) {
+    const runs = snapshot.runs.filter((run) => run.taskId === task.id);
+    const round = Math.max(0, ...runs.map((run) => run.round));
+    return runs.filter((run) => run.round === round);
   }
 
   async function openSelected() {
@@ -130,19 +150,36 @@ function App() {
           <p>在左侧输入一次任务，右侧会按所选网页版 AI 数量自动分屏。每个页面保持独立登录状态，并始终可见。</p>
         </div>
 
-        {activeTasks.map((task) => <article className="conversation-turn" key={task.id}>
+        {activeTasks.map((task) => {
+          const runs = latestRuns(task);
+          const council = snapshot.councils.find((item) => item.taskId === task.id);
+          const allComplete = runs.length > 0 && runs.every((run) => run.phase === "completed");
+          const canPrepare = runs.some((run) => ["queued", "blocked", "failed"].includes(run.phase));
+          const canSend = runs.some((run) => run.phase === "prepared");
+          const canCapture = runs.some((run) => run.phase === "waiting");
+          return <article className="conversation-turn" key={task.id}>
           <div className="user-message"><span>你</span><p>{task.prompt}</p></div>
           <div className="boss-message">
             <div className="boss-avatar">B</div>
             <div><strong>已分派到 {task.providerIds.map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
-              <p>网页处理器已在右侧显式运行。当前状态：{task.status}。</p>
-              <small>{shortTime(task.updatedAt)} · {task.providerIds.length} 个独立页面</small>
+              <p>{task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.status}。</p>
+              <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId}: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
+              {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}
+              <div className="task-actions">
+                {canPrepare && <button onClick={() => void taskAction(task.id, "prepare")} disabled={sending}>预填到网页</button>}
+                {canSend && <button className="confirm-send" onClick={() => void taskAction(task.id, "send")} disabled={sending}>确认发送到第三方</button>}
+                {canCapture && <button onClick={() => void taskAction(task.id, "capture")} disabled={sending}>采集当前回答</button>}
+                {task.mode === "council" && allComplete && council?.stage !== "completed" && <button onClick={() => void taskAction(task.id, "advance")} disabled={sending}>推进 Council</button>}
+              </div>
+              {council && (council.conflicts.length > 0 || council.minorityOpinions.length > 0) && <div className="council-findings"><b>保留的争议</b><span>{council.conflicts.length} 个冲突 · {council.minorityOpinions.length} 个少数意见</span></div>}
+              <small>{shortTime(task.updatedAt)} · {task.providerIds.length} 个独立页面 · {snapshot.artifacts.filter((artifact) => artifact.taskId === task.id).length} 份原始证据</small>
             </div>
           </div>
-        </article>)}
+        </article>; })}
       </div>
 
       <div className="composer-zone">
+        <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>
         <div className="provider-picker">
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>
           <div className="provider-options">{snapshot.providers.map((provider) => <div className={`provider-choice ${selectedProviders.includes(provider.id) ? "selected" : ""}`} key={provider.id}>
@@ -160,7 +197,7 @@ function App() {
         </form>}
         <form className="prompt-composer" onSubmit={submit}>
           <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="向多个网页 AI 发起任务…" rows={3} />
-          <div className="composer-footer"><span>本阶段打开可见页面，任务内容不会自动提交给第三方</span><button type="submit" disabled={!prompt.trim() || sending}>{sending ? "…" : "↑"}</button></div>
+          <div className="composer-footer"><span>创建后先预填；只有再次点击“确认发送到第三方”才会提交</span><button type="submit" disabled={!prompt.trim() || sending}>{sending ? "…" : "↑"}</button></div>
         </form>
         {error && <div className="inline-error">{error}</div>}
       </div>

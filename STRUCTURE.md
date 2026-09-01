@@ -44,9 +44,12 @@ electron/
   main.ts               app lifecycle + allowlisted IPC
   preload.ts            narrow renderer bridge
   provider-views.ts     embedded provider view supervisor
+  provider-automation.ts visible prepare/send/observe/capture controller
+  adapters/             versioned selector registry and isolated page scripts
   store.ts              local task/event persistence
 src/
   shared/contracts.ts   cross-process contracts
+  shared/council-engine.ts anonymous review and evidence-first synthesis prompts
   renderer/
     main.tsx             desktop workbench
     state.ts             pure view helpers
@@ -134,6 +137,8 @@ PAGE_CHANGED | FORMAT_INVALID | USER_ACTION_REQUIRED | UNSUPPORTED
 
 Selector 必须按 provider/version 保存，带 fixture 与页面变化回归测试。自动化过程必须在可见窗口运行；验证码、安全检查和高风险确认一律停在 `USER_ACTION_REQUIRED`。
 
+当前实现把 `prepareTask` 与 `sendTask` 拆成两个独立 IPC。前者只在可见输入区预填并高亮；后者只能由 renderer 中明确的确认按钮触发。采集器以发送前的最后回答为 baseline，只有检测到新回答且连续稳定，或用户显式要求采集时，才写入带 `untrusted: true` 的 raw artifact。自定义网页和未版本化 provider 默认 `UNSUPPORTED`。
+
 ## 8. 保留的委员会框架
 
 旧设计中有价值的部分继续保留为 Phase 3/4 协议，而不再冒充已实现功能：
@@ -147,3 +152,5 @@ Selector 必须按 provider/version 保存，带 fixture 与页面变化回归�
 - Processor output → validate → judge → execute
 
 这些协议建立在可靠 adapter、artifact store 与状态机之上，不能反向耦合具体 DOM 或 provider 品牌。
+
+Phase 3 当前实现为三个强制阶段：`proposals → peer_review → synthesis → completed`。每轮必须为全部参与 provider 捕获 artifact 后才能推进；匿名评审 prompt 不包含 provider 名称，并要求返回结构化冲突与少数意见。解析失败保持缺失，不用推测值替代。综合阶段明确禁止按票数决策，并要求区分证据、推断和未解决分歧。
