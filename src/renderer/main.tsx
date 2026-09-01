@@ -1,93 +1,137 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AppSnapshot, ProviderId, TaskStatus } from "../shared/contracts";
-import { emptySnapshot, shortTime, taskCounts } from "./state";
+import type { AppSnapshot, ProviderId, ViewBounds } from "../shared/contracts";
+import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
-
-const statusLabels: Record<TaskStatus, string> = {
-  queued: "待运行", running: "运行中", waiting: "等待确认", completed: "已完成", failed: "失败"
-};
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
-  const [selectedId, setSelectedId] = useState<string>();
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [title, setTitle] = useState("");
+  const [selectedProviders, setSelectedProviders] = useState<ProviderId[]>(["chatgpt"]);
   const [prompt, setPrompt] = useState("");
-  const [providerId, setProviderId] = useState<ProviderId>("chatgpt");
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const surfaceRefs = useRef<Partial<Record<ProviderId, HTMLDivElement | null>>>({});
+  const openProviders = snapshot.providers.filter((provider) => provider.windowOpen);
+  const openKey = openProviders.map((provider) => provider.id).join(",");
 
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
     return window.boss.onSnapshot(setSnapshot);
   }, []);
+
   useEffect(() => {
-    if (!selectedId && snapshot.tasks[0]) setSelectedId(snapshot.tasks[0].id);
-  }, [snapshot.tasks, selectedId]);
+    const sendLayout = () => {
+      const layout: Partial<Record<ProviderId, ViewBounds>> = {};
+      for (const provider of openProviders) {
+        const element = surfaceRefs.current[provider.id];
+        if (!element) continue;
+        const rect = element.getBoundingClientRect();
+        layout[provider.id] = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }
+      void window.boss.layoutViews(layout);
+    };
+    const frame = requestAnimationFrame(sendLayout);
+    const observer = new ResizeObserver(sendLayout);
+    for (const provider of openProviders) {
+      const element = surfaceRefs.current[provider.id];
+      if (element) observer.observe(element);
+    }
+    window.addEventListener("resize", sendLayout);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", sendLayout);
+    };
+  }, [openKey]);
 
-  const selected = snapshot.tasks.find((task) => task.id === selectedId);
-  const counts = useMemo(() => taskCounts(snapshot.tasks), [snapshot.tasks]);
+  const activeTasks = useMemo(() => snapshot.tasks.slice(0, 20).reverse(), [snapshot.tasks]);
 
-  async function createTask(event: React.FormEvent) {
+  function toggleProvider(providerId: ProviderId) {
+    setSelectedProviders((current) => current.includes(providerId)
+      ? current.length === 1 ? current : current.filter((id) => id !== providerId)
+      : [...current, providerId]);
+  }
+
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (!prompt.trim() || sending) return;
+    setSending(true);
+    setError("");
     try {
-      const next = await window.boss.createTask({ title, prompt, providerId });
-      setSnapshot(next); setSelectedId(next.tasks[0]?.id); setTitle(""); setPrompt(""); setComposerOpen(false);
+      const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
+      const created = await window.boss.createTask({ title, prompt: prompt.trim(), providerIds: selectedProviders });
+      setSnapshot(await window.boss.launchTask(created.tasks[0].id));
+      setPrompt("");
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function openSelected() {
+    setError("");
+    try {
+      let next = snapshot;
+      for (const providerId of selectedProviders) next = await window.boss.openProvider(providerId);
+      setSnapshot(next);
     } catch (reason) { setError(String(reason)); }
   }
-  async function act(action: () => Promise<AppSnapshot>) {
-    setError("");
-    try { setSnapshot(await action()); } catch (reason) { setError(String(reason)); }
-  }
 
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">B</span><div><strong>Codex Boss</strong><small>LOCAL CONTROL PLANE</small></div></div>
-      <button className="new-task" onClick={() => setComposerOpen(true)}>＋ 新建任务</button>
-      <nav><button className="nav-active"><span>⌁</span>任务工作台<em>{snapshot.tasks.length}</em></button><button><span>◫</span>证据仓库</button><button><span>⌘</span>运行记录</button></nav>
-      <div className="sidebar-label">网页处理器</div>
-      <div className="provider-list">{snapshot.providers.map((item) => <button key={item.id} onClick={() => void act(() => window.boss.openProvider(item.id))}>
-        <i style={{ background: item.accent }} /><span>{item.name}<small>{item.windowOpen ? "窗口已打开" : "点击显式打开"}</small></span><b className={item.windowOpen ? "online" : ""} />
-      </button>)}</div>
-      <div className="local-note"><span>●</span><div><strong>本地优先</strong><small>登录与任务数据留在本机</small></div></div>
-    </aside>
+  return <div className="desktop-shell">
+    <section className="chat-half">
+      <header className="chat-header">
+        <div className="app-brand"><span>B</span><div><strong>Codex Boss</strong><small>LOCAL MULTI-AI WORKSPACE</small></div></div>
+        <div className="workspace-pill"><i /> 本地工作区</div>
+      </header>
 
-    <main>
-      <header><div><small>工作区 /</small><h1>任务工作台</h1></div><div className="header-status"><span>控制平面在线</span><button onClick={() => setComposerOpen(true)}>新建任务</button></div></header>
-      <section className="metrics">
-        <article><span>排队任务</span><strong>{counts.queued}</strong><small>等待分派至网页窗口</small></article>
-        <article><span>正在运行</span><strong>{counts.running}</strong><small>{snapshot.providers.filter((p) => p.windowOpen).length} 个处理器窗口在线</small></article>
-        <article><span>需要确认</span><strong>{counts.waiting}</strong><small>始终由用户保留最终控制</small></article>
-      </section>
-      <section className="workspace">
-        <div className="task-column">
-          <div className="section-heading"><div><h2>任务</h2><p>每项工作都保留状态和审计事件</p></div><span>{snapshot.tasks.length} TOTAL</span></div>
-          <div className="task-list">
-            {snapshot.tasks.length === 0 && <div className="empty"><b>还没有任务</b><span>创建第一项任务，然后在一个可见的网页子窗口中运行。</span><button onClick={() => setComposerOpen(true)}>创建任务</button></div>}
-            {snapshot.tasks.map((task) => { const provider = snapshot.providers.find((p) => p.id === task.providerId); return <button className={`task-card ${selectedId === task.id ? "selected" : ""}`} key={task.id} onClick={() => setSelectedId(task.id)}>
-              <i style={{ background: provider?.accent }} /><div><strong>{task.title}</strong><span>{provider?.name} · {shortTime(task.updatedAt)}</span></div><em className={`status ${task.status}`}>{statusLabels[task.status]}</em>
-            </button>; })}
-          </div>
+      <div className="conversation">
+        <div className="welcome-card">
+          <div className="welcome-mark">⌘</div>
+          <h1>今天要处理什么？</h1>
+          <p>在左侧输入一次任务，右侧会按所选网页版 AI 数量自动分屏。每个页面保持独立登录状态，并始终可见。</p>
         </div>
-        <aside className="inspector">{selected ? <>
-          <div className="eyebrow">TASK DETAIL</div><h2>{selected.title}</h2><div className={`big-status ${selected.status}`}>{statusLabels[selected.status]}</div>
-          <label>任务指令</label><div className="prompt-box">{selected.prompt}</div>
-          <label>目标处理器</label><div className="processor-row"><i style={{ background: snapshot.providers.find((p) => p.id === selected.providerId)?.accent }} /><strong>{snapshot.providers.find((p) => p.id === selected.providerId)?.name}</strong><span>独立会话分区</span></div>
-          <button className="launch" onClick={() => void act(() => window.boss.launchTask(selected.id))}>↗ 打开窗口并运行</button>
-          <div className="action-row"><button onClick={() => void act(() => window.boss.updateTask(selected.id, "waiting"))}>等待确认</button><button onClick={() => void act(() => window.boss.updateTask(selected.id, "completed"))}>标记完成</button></div>
-          <label>最近事件</label><div className="timeline">{snapshot.events.filter((event) => !event.taskId || event.taskId === selected.id).slice(0, 5).map((event) => <div key={event.id}><i /><span>{event.message}<small>{shortTime(event.at)}</small></span></div>)}</div>
-        </> : <div className="empty-inspector">选择一项任务查看详情</div>}</aside>
-      </section>
-    </main>
 
-    {composerOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setComposerOpen(false); }}><form className="composer" onSubmit={createTask}>
-      <div className="composer-head"><div><small>NEW TASK</small><h2>把工作交给一个可见窗口</h2></div><button type="button" onClick={() => setComposerOpen(false)}>×</button></div>
-      <label>任务名称<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：独立评审技术方案" required /></label>
-      <label>完整任务指令<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="写下目标、约束和期望输出。窗口打开后，第一阶段由你确认页面与登录状态。" required /></label>
-      <label>网页处理器<select value={providerId} onChange={(event) => setProviderId(event.target.value as ProviderId)}>{snapshot.providers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <div className="composer-actions"><button type="button" onClick={() => setComposerOpen(false)}>取消</button><button type="submit">创建任务</button></div>
-    </form></div>}
-    {error && <div className="toast" onClick={() => setError("")}>{error}</div>}
+        {activeTasks.map((task) => <article className="conversation-turn" key={task.id}>
+          <div className="user-message"><span>你</span><p>{task.prompt}</p></div>
+          <div className="boss-message">
+            <div className="boss-avatar">B</div>
+            <div><strong>已分派到 {task.providerIds.map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
+              <p>网页处理器已在右侧显式运行。当前状态：{task.status}。</p>
+              <small>{shortTime(task.updatedAt)} · {task.providerIds.length} 个独立页面</small>
+            </div>
+          </div>
+        </article>)}
+      </div>
+
+      <div className="composer-zone">
+        <div className="provider-picker">
+          <span>调用页面</span>
+          {snapshot.providers.map((provider) => <button type="button" key={provider.id} className={selectedProviders.includes(provider.id) ? "selected" : ""} onClick={() => toggleProvider(provider.id)}>
+            <i style={{ background: provider.accent }} />{provider.name}
+          </button>)}
+          <button type="button" className="open-only" onClick={() => void openSelected()}>仅打开页面</button>
+        </div>
+        <form className="prompt-composer" onSubmit={submit}>
+          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="向多个网页 AI 发起任务…" rows={3} />
+          <div className="composer-footer"><span>本阶段打开可见页面，任务内容不会自动提交给第三方</span><button type="submit" disabled={!prompt.trim() || sending}>{sending ? "…" : "↑"}</button></div>
+        </form>
+        {error && <div className="inline-error">{error}</div>}
+      </div>
+    </section>
+
+    <section className="browser-half">
+      <header className="browser-header"><div><strong>网页处理器</strong><span>{openProviders.length} / {snapshot.providers.length} 页面运行中</span></div><div className="window-dots"><i /><i /><i /></div></header>
+      {openProviders.length === 0 ? <div className="browser-empty">
+        <div className="snap-illustration"><span /><span /><span /></div>
+        <h2>等待打开网页页面</h2><p>选择左侧一个或多个 AI，然后发送任务或点击“仅打开页面”。</p>
+      </div> : <div className={`provider-grid count-${openProviders.length}`}>
+        {openProviders.map((provider) => <article className="provider-pane" key={provider.id}>
+          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><button onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div>
+          <div className="web-surface" ref={(element) => { surfaceRefs.current[provider.id] = element; }}><span>正在载入 {provider.name}…</span></div>
+        </article>)}
+      </div>}
+    </section>
   </div>;
 }
 

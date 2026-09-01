@@ -20,11 +20,11 @@ export class StateStore {
     return structuredClone(this.snapshotValue);
   }
 
-  createTask(title: string, prompt: string, providerId: ProviderId): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[]): BossTask {
     const now = new Date().toISOString();
-    const task: BossTask = { id: randomUUID(), title, prompt, providerId, status: "queued", createdAt: now, updatedAt: now };
+    const task: BossTask = { id: randomUUID(), title, prompt, providerIds, status: "queued", createdAt: now, updatedAt: now };
     this.snapshotValue.tasks.unshift(task);
-    this.event("task.created", `任务“${title}”已加入队列`, { taskId: task.id, providerId });
+    this.event("task.created", `任务“${title}”已加入队列`, { taskId: task.id });
     this.persist();
     return task;
   }
@@ -34,7 +34,7 @@ export class StateStore {
     if (!task) throw new Error(`Unknown task: ${taskId}`);
     task.status = status;
     task.updatedAt = new Date().toISOString();
-    this.event(status === "running" ? "task.started" : "task.status", `任务“${task.title}”状态变更为 ${status}`, { taskId, providerId: task.providerId });
+    this.event(status === "running" ? "task.started" : "task.status", `任务“${task.title}”状态变更为 ${status}`, { taskId });
     this.persist();
   }
 
@@ -56,7 +56,11 @@ export class StateStore {
     try {
       const saved = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AppSnapshot>;
       const providers = providerSeed.map((seed) => ({ ...seed, ...(saved.providers?.find((item) => item.id === seed.id) ?? {}), windowOpen: false }));
-      return { providers, tasks: saved.tasks ?? [], events: saved.events ?? [] };
+      const tasks = (saved.tasks ?? []).map((task) => {
+        const legacy = task as BossTask & { providerId?: ProviderId };
+        return { ...task, providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
+      });
+      return { providers, tasks, events: saved.events ?? [] };
     } catch {
       return { providers: structuredClone(providerSeed), tasks: [], events: [] };
     }
@@ -66,6 +70,13 @@ export class StateStore {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     const temp = `${this.filePath}.tmp`;
     fs.writeFileSync(temp, JSON.stringify(this.snapshotValue, null, 2), "utf8");
-    fs.renameSync(temp, this.filePath);
+    try {
+      fs.renameSync(temp, this.filePath);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!["EXDEV", "EEXIST", "EPERM"].includes(code ?? "")) throw error;
+      fs.copyFileSync(temp, this.filePath);
+      fs.unlinkSync(temp);
+    }
   }
 }

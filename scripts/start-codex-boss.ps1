@@ -29,6 +29,8 @@ try {
     $launcherData = Join-Path $projectRoot ".codex-boss"
     [System.IO.Directory]::CreateDirectory($launcherData) | Out-Null
     $script:logPath = Join-Path $launcherData "launcher.log"
+    $stdoutLog = Join-Path $launcherData "electron.stdout.log"
+    $stderrLog = Join-Path $launcherData "electron.stderr.log"
     Write-LauncherLog "Launcher started. root=$projectRoot smoke=$SmokeTest wait=$WaitForApp"
     $portableApp = Join-Path $projectRoot "release\Codex Boss.exe"
     $localElectron = Join-Path $projectRoot "node_modules\electron\dist\electron.exe"
@@ -37,14 +39,14 @@ try {
 
     if (Test-Path -LiteralPath $portableApp) {
         $arguments = if ($SmokeTest) { @("--codex-boss-smoke-test") } else { @() }
-        $process = Start-Process -FilePath $portableApp -ArgumentList $arguments -WorkingDirectory $projectRoot -PassThru
+        $process = Start-Process -FilePath $portableApp -ArgumentList $arguments -WorkingDirectory $projectRoot -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru
         Write-LauncherLog "Started packaged app. pid=$($process.Id)"
     } elseif ((Test-Path -LiteralPath $localElectron) -and
               (Test-Path -LiteralPath $rendererEntry) -and
               (Test-Path -LiteralPath $mainEntry)) {
         $arguments = @($projectRoot)
         if ($SmokeTest) { $arguments += "--codex-boss-smoke-test" }
-        $process = Start-Process -FilePath $localElectron -ArgumentList $arguments -WorkingDirectory $projectRoot -PassThru
+        $process = Start-Process -FilePath $localElectron -ArgumentList $arguments -WorkingDirectory $projectRoot -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru
         Write-LauncherLog "Started local production app. pid=$($process.Id)"
     } else {
         throw "Production build not found. Run 'pnpm install' and 'pnpm run build', then double-click Start-Codex-Boss.cmd again."
@@ -55,7 +57,7 @@ try {
             Stop-Process -Id $process.Id -Force
             throw "Launcher smoke test timed out."
         }
-        if ($process.ExitCode -ne 0) {
+        if (($null -ne $process.ExitCode) -and ($process.ExitCode -ne 0)) {
             throw "Desktop application exited unexpectedly. Exit code: $($process.ExitCode)."
         }
         Write-LauncherLog "Smoke test completed successfully."

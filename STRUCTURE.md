@@ -28,13 +28,14 @@ Codex Boss Desktop
 |---|---|---|
 | 桌面 shell | Electron | 顶层 Chromium 窗口、持久 session partition、Windows/macOS 成熟支持 |
 | UI | React + TypeScript + Vite | 强类型 IPC、快速工作台迭代、生产构建简单 |
-| 网页处理器 | 独立 `BrowserWindow` | 不受 iframe 限制；页面始终可见且可由用户接管 |
+| 网页处理器 | 主窗口内原生 `WebContentsView` | 不受 iframe 限制；在右半屏真实渲染并可由用户接管 |
+| 页面布局 | renderer 测量 + allowlisted IPC | 1 页全屏、2 页上下、3 页双列加跨列，随窗口调整 |
 | 登录态 | `persist:codex-boss-<provider>` | 不复制 Cookie，不向主 renderer 暴露凭据 |
-| 状态 | 本地 JSON，临时文件后原子 rename | Phase 1 依赖少；后续可替换 SQLite event store |
+| 状态 | 本地 JSON，原子 rename + Windows copy-replace 回退 | Phase 1 依赖少；后续可替换 SQLite event store |
 | 权限边界 | sandboxed renderer + allowlisted IPC | 远端网页与 Node/文件系统隔离 |
 | 自动化 | Phase 2 provider adapter | 页面 selector 与调度器解耦，失败必须显式分类 |
 
-不采用 Python GUI：它会额外引入浏览器运行时/调试协议，难以获得一致的顶层窗口与 session 生命周期。不采用 iframe：主流 AI 网站可能禁止嵌入，且登录流程需要顶层页面。不把 Playwright headless 当核心：产品要求用户能看到并接管实际页面。
+不采用 Python GUI：它会额外引入浏览器运行时/调试协议，难以获得一致的页面与 session 生命周期。不采用 iframe：主流 AI 网站可能禁止嵌入。`WebContentsView` 是 Electron 管理的真实 webContents，不是 iframe。不把 Playwright headless 当核心：产品要求用户能看到并接管实际页面。
 
 ## 3. 当前目录
 
@@ -42,7 +43,7 @@ Codex Boss Desktop
 electron/
   main.ts               app lifecycle + allowlisted IPC
   preload.ts            narrow renderer bridge
-  provider-windows.ts   visible provider window supervisor
+  provider-views.ts     embedded provider view supervisor
   store.ts              local task/event persistence
 src/
   shared/contracts.ts   cross-process contracts
@@ -101,8 +102,9 @@ Phase 1 的 `RUNNING` 只表示任务对应的可见窗口已经被调度，绝�
 - 双击 `Start-Codex-Boss.cmd` 会直接加载 production 页面；重复启动只聚焦现有实例。
 - CMD 同步托管隐藏 PowerShell，直到应用退出，避免异步启动链在父进程结束后丢失 Electron。
 - PowerShell 启动脚本保持纯 ASCII，兼容 Windows PowerShell 5 的无 BOM 脚本解码；启动证据写入 `.codex-boss/launcher.log`。
+- Electron 的 `userData` 与 `sessionData` 固定在 `%LOCALAPPDATA%\CodexBoss`，避免漫游 AppData 的跨卷 rename 与 Chromium cache 权限问题。
 - 创建任务会持久化 task 与 `task.created` 事件。
-- 运行任务会打开/聚焦对应顶层网页窗口，设置 `RUNNING` 并追加事件。
+- 运行任务会在右半屏加载所有选中网页，按数量自动平铺，设置 `RUNNING` 并追加事件。
 - ChatGPT、Claude、Gemini 使用不同的持久 session partition。
 - renderer 与 provider 页面均不能访问 Node API。
 

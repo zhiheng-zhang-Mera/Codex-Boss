@@ -13,7 +13,7 @@ export interface BossTask {
   id: string;
   title: string;
   prompt: string;
-  providerId: ProviderId;
+  providerIds: ProviderId[];
   status: TaskStatus;
   createdAt: string;
   updatedAt: string;
@@ -37,7 +37,14 @@ export interface AppSnapshot {
 export interface CreateTaskInput {
   title: string;
   prompt: string;
-  providerId: ProviderId;
+  providerIds: ProviderId[];
+}
+
+export interface ViewBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface BossBridge {
@@ -45,6 +52,8 @@ export interface BossBridge {
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
+  closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
+  layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
 }
