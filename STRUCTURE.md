@@ -45,6 +45,7 @@ electron/
   preload.ts            narrow renderer bridge
   provider-views.ts     embedded provider view supervisor
   provider-automation.ts visible prepare/send/observe/capture controller
+  account-sessions.ts   isolated persistent web login-session ownership
   evidence-engine.ts    manifest, claims, disputes and selective rehydration
   codex-controller.ts   optional current-account Codex CLI evidence review
   adapters/             versioned selector registry and isolated page scripts
@@ -139,7 +140,11 @@ PAGE_CHANGED | FORMAT_INVALID | USER_ACTION_REQUIRED | UNSUPPORTED
 
 Selector 必须按 provider/version 保存，带 fixture 与页面变化回归测试。自动化过程必须在可见窗口运行；验证码、安全检查和高风险确认一律停在 `USER_ACTION_REQUIRED`。
 
-当前实现把 `prepareTask` 与 `sendTask` 拆成两个独立 IPC。前者只在可见输入区预填并高亮；后者只能由 renderer 中明确的确认按钮触发。采集器以发送前的最后回答为 baseline，只有检测到新回答且连续稳定，或用户显式要求采集时，才写入带 `untrusted: true` 的 raw artifact。自定义网页和未版本化 provider 默认 `UNSUPPORTED`。
+当前主线由一次显式主控提交触发：先为整组页面执行 prepare preflight，只有全部 3 或 5 个页面均准备成功才同时执行 send；之后采集器按 provider 顺序一次只观察一个回答。发送前的最后回答仍作为 baseline，只有检测到新回答且连续稳定，或用户显式要求采集时，才写入带 `untrusted: true` 的 raw artifact。自定义网页和未版本化 provider 默认 `UNSUPPORTED`。
+
+每轮均建立 dispatch checkpoint。预填失败会恢复本地 run 到提交前记录；若发送阶段出现部分外部效果，则 checkpoint 标记 `ROLLED_BACK + requiresReconciliation`，禁止自动重试，因为第三方页面上的已发送内容无法真实撤回。仅当 3 或 5 个 provider 都捕获 artifact 后，checkpoint 才进入 `COMMITTED` 并解锁下一轮。
+
+选择状态与窗口状态不再分离。内置默认三页在启动后直接打开；三页在右侧纵向等分。五页模式使用全窗口 2×3 网格，主控在上排中间，其余五格为网页。所有登录记忆由 `AccountSessionManager` 通过独立 `persist:codex-boss-<provider>` partition 挂载，renderer 不接触 Cookie 或 token。
 
 ## 8. 保留的委员会框架
 

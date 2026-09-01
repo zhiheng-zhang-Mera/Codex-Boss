@@ -1,6 +1,6 @@
 # Phase 2–4 Validation Record
 
-Date: 2026-09-01 (Australia/Sydney)
+Updated: 2026-09-02 (Australia/Sydney)
 
 This record separates code/build evidence from third-party service observations. A loaded page, a visible input, or a passing selector test is not reported as a successful model response.
 
@@ -9,10 +9,10 @@ This record separates code/build evidence from third-party service observations.
 | Check | Result | Evidence |
 |---|---|---|
 | TypeScript contracts (renderer + Electron) | PASS | `pnpm run typecheck` |
-| Unit/integration tests | PASS | 6 files, 16 tests |
+| Unit/integration tests | PASS | 7 files, 21 tests |
 | Production renderer + Electron build | PASS | `pnpm run build` |
-| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-01T22:14:01+10:00 |
-| Windows split-screen render | PASS | Visible left workbench and right 3-page layout |
+| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-02T02:18:12+10:00; smoke mode exits without waiting on external web loads |
+| Windows split-screen render | PASS | 3-page vertical thirds and 5-page 2×3 layout both observed |
 | Current-account Codex CLI detection | PASS | App header displayed `Codex: CHATGPT`; detection reads `codex login status` and copies no credentials |
 
 ## Phase 2 visible-adapter validation
@@ -25,7 +25,21 @@ Selected guest candidates: Gemini, Qwen, Kimi.
 | Qwen | PASS | PASS (`询问 Qwen`, login/register controls also visible) | NOT_RUN | NOT_RUN | NOT_RUN |
 | Kimi | PASS | PASS (`尽管问，或做个 Agent 任务...`) | NOT_RUN | NOT_RUN | NOT_RUN |
 
-The three pages were visibly rendered in the expected two-top/one-bottom Windows-style split. No prompt text was entered or transmitted. The live run stopped when Windows displayed an Electron public/private network firewall permission dialog; the validator did not act on the security prompt.
+The original 2026-09-01 guest check used the earlier two-top/one-bottom layout. No prompt text was entered or transmitted. The live run stopped when Windows displayed an Electron public/private network firewall permission dialog; the validator did not act on the security prompt.
+
+## 2026-09-02 workflow and layout revision
+
+| Check | Result | Evidence boundary |
+|---|---|---|
+| Startup opens default three providers | PASS | ChatGPT, Gemini and Claude opened without a second button |
+| Three-provider layout | PASS | Right side showed equal top/middle/bottom panes |
+| Selection/open state coupling | PASS | Selecting Qwen immediately opened a fourth pane |
+| Five-provider layout | PASS | 2×3 workspace observed; Codex Boss occupied top-middle, five web AIs occupied remaining cells |
+| Pane-close coupling | PASS | Closing Kimi from its pane changed the main selector and count from 5 to 4 |
+| 3/5 group-size gate | PASS (code/test/UI) | Composer identified 4 as ineligible and 5 as eligible; no prompt was sent |
+| All-provider checkpoint and rollback | PASS (code/test) | Real partial-send failure was not induced because external sends are irreversible |
+| Sequential response collection | PASS (code/test) | Real guest responses remain NOT_RUN |
+| Persistent account-session module | PASS | Each provider maps to its isolated `persist:` partition; startup probe visibly classified ChatGPT `AUTH_REQUIRED`, Gemini `READY`, and left uncertain Claude as `UNKNOWN`; no credentials inspected |
 
 ## Phase 3 Council validation
 

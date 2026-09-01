@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CodexReview, ControllerState, CouncilSession, EvidenceBundle, Provider, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CodexReview, ControllerState, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
 
 export const providerSeed: Provider[] = [
   { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
@@ -72,6 +72,7 @@ export class StateStore {
     run.updatedAt = artifact.capturedAt;
     this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId });
     this.reconcileTask(run.taskId);
+    this.commitDispatchForRound(run.taskId, run.round);
     this.persist();
     return artifact;
   }
@@ -101,6 +102,68 @@ export class StateStore {
 
   setController(controller: ControllerState): void {
     this.snapshotValue.controller = controller;
+    this.persist();
+  }
+
+  setAccount(providerId: ProviderId, partition: string, mode: ProviderAccountMode, message: string): void {
+    const now = new Date().toISOString();
+    const existing = this.snapshotValue.accounts.find((account) => account.providerId === providerId);
+    if (existing && existing.partition === partition && existing.mode === mode && existing.message === message) return;
+    if (existing) Object.assign(existing, { partition, mode, message, persistent: true as const, updatedAt: now });
+    else this.snapshotValue.accounts.push({ providerId, partition, mode, persistent: true, message, updatedAt: now });
+    this.event("account.status", `${providerId} 账户会话：${mode}`, { providerId });
+    this.persist();
+  }
+
+  beginDispatch(taskId: string, round: number, expectedProviderIds: ProviderId[]): { checkpoint: DispatchCheckpoint; baseline: ProviderRun[] } {
+    const baseline = this.runsForTask(taskId).filter((run) => run.round === round).map((run) => structuredClone(run));
+    const now = new Date().toISOString();
+    const checkpoint: DispatchCheckpoint = { id: randomUUID(), taskId, round, expectedProviderIds, successfulProviderIds: [], failedProviderIds: [], status: "PREPARING", requiresReconciliation: false, message: "正在向全部网页 AI 准备同一轮提示", createdAt: now, updatedAt: now };
+    this.snapshotValue.dispatchCheckpoints.unshift(checkpoint);
+    this.snapshotValue.dispatchCheckpoints = this.snapshotValue.dispatchCheckpoints.slice(0, 100);
+    this.event("dispatch.checkpoint", `第 ${round} 轮已建立提交检查点`, { taskId });
+    this.persist();
+    return { checkpoint: structuredClone(checkpoint), baseline };
+  }
+
+  markDispatchCollecting(checkpointId: string, successfulProviderIds: ProviderId[]): void {
+    const checkpoint = this.checkpoint(checkpointId);
+    Object.assign(checkpoint, { status: "COLLECTING" as const, successfulProviderIds, failedProviderIds: [], message: "已一次提交到全部网页 AI；正在按顺序收集回答", updatedAt: new Date().toISOString() });
+    this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮全部提交成功，开始顺序采集`, { taskId: checkpoint.taskId });
+    this.persist();
+  }
+
+  commitDispatchForRound(taskId: string, round: number): void {
+    const checkpoint = this.snapshotValue.dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === round && item.status === "COLLECTING");
+    if (!checkpoint) return;
+    const runs = this.runsForTask(taskId).filter((run) => run.round === round);
+    if (runs.length !== checkpoint.expectedProviderIds.length || !runs.every((run) => run.phase === "completed" && run.artifactId)) return;
+    Object.assign(checkpoint, { status: "COMMITTED" as const, successfulProviderIds: checkpoint.expectedProviderIds, message: "全部网页 AI 回答已成功收集，检查点已提交", updatedAt: new Date().toISOString() });
+    this.event("dispatch.checkpoint", `第 ${round} 轮全员成功，允许下一步`, { taskId });
+    this.persist();
+  }
+
+  failDispatchCollection(taskId: string, round: number, failedProviderId: ProviderId | null, message: string): void {
+    const checkpoint = this.snapshotValue.dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === round && item.status === "COLLECTING");
+    if (!checkpoint) return;
+    const completed = this.runsForTask(taskId).filter((run) => run.round === round && run.phase === "completed").map((run) => run.providerId);
+    Object.assign(checkpoint, { status: "ROLLED_BACK" as const, successfulProviderIds: completed, failedProviderIds: failedProviderId ? [failedProviderId] : checkpoint.expectedProviderIds.filter((id) => !completed.includes(id)), requiresReconciliation: true, message, updatedAt: new Date().toISOString() });
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (task) { task.status = "waiting"; task.updatedAt = checkpoint.updatedAt; }
+    this.event("dispatch.checkpoint", `第 ${round} 轮采集未全员成功，保持上一次已提交记录：${message}`, { taskId });
+    this.persist();
+  }
+
+  rollbackDispatch(checkpointId: string, baseline: ProviderRun[], failedProviderIds: ProviderId[], requiresReconciliation: boolean, message: string): void {
+    const checkpoint = this.checkpoint(checkpointId);
+    for (const saved of baseline) {
+      const index = this.snapshotValue.runs.findIndex((run) => run.id === saved.id);
+      if (index >= 0) this.snapshotValue.runs[index] = structuredClone(saved);
+    }
+    Object.assign(checkpoint, { status: "ROLLED_BACK" as const, failedProviderIds, successfulProviderIds: requiresReconciliation ? checkpoint.expectedProviderIds.filter((id) => !failedProviderIds.includes(id)) : [], requiresReconciliation, message, updatedAt: new Date().toISOString() });
+    const task = this.snapshotValue.tasks.find((item) => item.id === checkpoint.taskId);
+    if (task) { task.status = "waiting"; task.updatedAt = checkpoint.updatedAt; }
+    this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮已回退到提交前记录：${message}`, { taskId: checkpoint.taskId });
     this.persist();
   }
 
@@ -160,6 +223,7 @@ export class StateStore {
     const index = this.snapshotValue.providers.findIndex((item) => item.id === providerId && item.isCustom);
     if (index < 0) throw new Error(`Unknown custom provider: ${providerId}`);
     const [provider] = this.snapshotValue.providers.splice(index, 1);
+    this.snapshotValue.accounts = this.snapshotValue.accounts.filter((account) => account.providerId !== providerId);
     this.event("provider.removed", `自定义网页 AI“${provider.name}”已移除`, { providerId });
     this.persist();
   }
@@ -211,9 +275,10 @@ export class StateStore {
         const legacy = task as BossTask & { providerId?: ProviderId };
         return { ...task, mode: task.mode ?? "direct", providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
       });
-      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, events: saved.events ?? [] };
+      const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
+      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch {
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, events: [] };
+      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], dispatchCheckpoints: [], events: [] };
     }
   }
 
@@ -229,5 +294,11 @@ export class StateStore {
       fs.copyFileSync(temp, this.filePath);
       fs.unlinkSync(temp);
     }
+  }
+
+  private checkpoint(checkpointId: string): DispatchCheckpoint {
+    const checkpoint = this.snapshotValue.dispatchCheckpoints.find((item) => item.id === checkpointId);
+    if (!checkpoint) throw new Error(`Unknown dispatch checkpoint: ${checkpointId}`);
+    return checkpoint;
   }
 }

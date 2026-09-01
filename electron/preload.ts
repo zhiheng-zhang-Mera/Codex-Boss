@@ -4,6 +4,7 @@ import type { AppSnapshot, BossBridge, CreateTaskInput, CustomProviderInput, Pro
 const bridge: BossBridge = {
   snapshot: () => ipcRenderer.invoke("boss:snapshot"),
   createTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:create-task", input),
+  dispatchTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:dispatch-task", input),
   addCustomProvider: (input: CustomProviderInput) => ipcRenderer.invoke("boss:add-custom-provider", input),
   removeCustomProvider: (providerId: ProviderId) => ipcRenderer.invoke("boss:remove-custom-provider", providerId),
   launchTask: (taskId: string) => ipcRenderer.invoke("boss:launch-task", taskId),

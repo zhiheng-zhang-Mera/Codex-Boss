@@ -3,6 +3,10 @@ import type { CustomProviderInput, ProviderId } from "./contracts";
 export const MAX_ACTIVE_PROVIDERS = 5;
 export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["chatgpt", "gemini", "claude"];
 
+export function isDispatchGroupSize(count: number): count is 3 | 5 {
+  return count === 3 || count === 5;
+}
+
 export function normalizeCustomProviderInput(input: CustomProviderInput): CustomProviderInput {
   const name = input.name.trim();
   if (!name || name.length > 50) throw new Error("自定义 AI 名称需为 1–50 个字符");

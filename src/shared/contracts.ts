@@ -6,6 +6,8 @@ export type ProviderRunPhase = "queued" | "opening" | "prepared" | "sending" | "
 export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "rehydration" | "completed" | "blocked";
 export type ClaimStatus = "UNVERIFIED" | "REFERENCED_NOT_VERIFIED" | "DISPUTED" | "INSUFFICIENT";
 export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW";
+export type ProviderAccountMode = "UNKNOWN" | "GUEST_READY" | "AUTH_REQUIRED" | "READY";
+export type DispatchCheckpointStatus = "PREPARING" | "COLLECTING" | "COMMITTED" | "ROLLED_BACK";
 
 export interface Provider {
   id: ProviderId;
@@ -123,10 +125,33 @@ export interface ControllerState {
   message: string;
 }
 
+export interface ProviderAccountState {
+  providerId: ProviderId;
+  partition: string;
+  mode: ProviderAccountMode;
+  persistent: true;
+  message: string;
+  updatedAt: string;
+}
+
+export interface DispatchCheckpoint {
+  id: string;
+  taskId: string;
+  round: number;
+  expectedProviderIds: ProviderId[];
+  successfulProviderIds: ProviderId[];
+  failedProviderIds: ProviderId[];
+  status: DispatchCheckpointStatus;
+  requiresReconciliation: boolean;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
@@ -140,6 +165,8 @@ export interface AppSnapshot {
   councils: CouncilSession[];
   evidenceBundles: EvidenceBundle[];
   controller: ControllerState;
+  accounts: ProviderAccountState[];
+  dispatchCheckpoints: DispatchCheckpoint[];
   events: AuditEvent[];
 }
 
@@ -165,6 +192,7 @@ export interface ViewBounds {
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
+  dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
   removeCustomProvider(providerId: ProviderId): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;

@@ -2,7 +2,7 @@
 
 Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现代编码代理工作台的任务体验，但**不使用、嵌入或依赖 Codex 桌面端**。应用自己管理任务、状态、审计事件与网页处理器窗口；Codex CLI、OpenAI API 或其他模型能力只会作为后续可替换适配器接入。
 
-> 当前版本：`0.4.0`，包含 Phase 2 visible adapters、Phase 3 Council foundation 与 Phase 4 evidence foundation。应用可在受支持页面中可见预填、经用户二次确认后发送、观察并捕获原始回答；不会绕过登录、验证码、平台限制，也不把页面变化或未采集结果伪装成成功。
+> 当前版本：`0.4.1`，包含 Phase 2 visible adapters、Phase 3 Council foundation 与 Phase 4 evidence foundation。主控输入一次提交到当前整组网页 AI，随后按固定顺序收集回答；不会绕过登录、验证码、平台限制，也不把部分成功或未采集结果伪装成整组成功。
 
 ## Phase 1 已实现
 
@@ -23,8 +23,9 @@ Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现
 
 - ChatGPT、Gemini、Claude、DeepSeek、Qwen、Kimi 的版本化可见页面 adapter
 - `AUTH_REQUIRED`、`RATE_LIMITED`、`PAGE_CHANGED`、`USER_ACTION_REQUIRED`、`UNSUPPORTED` 等失败封闭状态
-- 创建任务后先打开页面；“预填到网页”只填入输入区，只有再次点击“确认发送到第三方”才点击发送
-- 自动观察生成状态并捕获稳定回答为不可信外部原始证据，支持手动采集和重试
+- 在主控页选中 AI 会立即打开对应页面，取消选中或关闭页面会同步更新同一状态
+- 主控提交动作先预检整组页面，再一次提交到全部 3 或 5 个 AI，随后按 provider 顺序逐个等待和捕获回答
+- 任一页面预填失败时不发送并回退本地记录；部分页面可能已经发送时进入人工核对门禁，避免盲目重复提交
 - 自定义网页默认保持 `UNSUPPORTED`，避免猜测未知 DOM
 
 ## Phase 3 已实现
@@ -68,12 +69,13 @@ Start-Codex-Boss.cmd
 
 启动记录保存在本地 `.codex-boss/launcher.log`，Electron 标准输出和错误分别保存在同目录的 `electron.stdout.log` 与 `electron.stderr.log`。网页登录态和 Chromium session/cache 存放在 `%LOCALAPPDATA%\CodexBoss`，避免漫游目录权限影响页面加载。这些运行数据均不会提交 Git。
 
-启动后默认选中 ChatGPT、Gemini、Claude。在左侧可横向浏览更多内置网页 AI，也可以通过“自定义”添加 HTTPS 网页地址；自定义配置只保存在本机。一次最多选择或打开 5 个页面，右侧会按 1–5 个窗口自动分屏。创建任务后，先点击“预填到网页”；检查右侧内容无误后，再点击“确认发送到第三方”。Council 模式会在每一轮收齐原始证据后显示“推进 Council”，不会跳过缺失回答。Phase 4 可从已有 artifact 生成证据包、调用当前账户的 Codex CLI 做受限审查，并为未解决 claim 建立选择性回填轮次。
+启动后直接打开 ChatGPT、Gemini、Claude。网页选择状态与窗口打开状态完全一致，可从主控选择器或各网页标题栏关闭。3 个网页在右半屏按上、中、下等高排列；选择 5 个网页时，整个工作区切换为 2×3 六宫格，Codex Boss 主控位于上排中间，5 个网页占据其余单元。主控只在打开数量为 3 或 5 时允许一次提交；整组回答全部捕获并提交检查点后，Council 下一轮和 Phase 4 操作才会解锁。
 
 ### 账户与游客模式边界
 
 - Codex 控制端只读取本机 `codex login status`，状态栏显示 `CHATGPT`、`NOT_AUTHENTICATED` 或 `UNAVAILABLE`；不会从 Codex 桌面端读取或复制账户数据。
 - 每个网页版 AI 都使用本应用自己的隔离浏览器 session。若网站允许游客使用即可游客运行；要求登录、验证码或风控时会保持 `AUTH_REQUIRED` / `USER_ACTION_REQUIRED`，不会尝试绕过。
+- `AccountSessionManager` 单独管理 `persist:codex-boss-<provider>` 会话分区；关闭窗口或重启应用不会主动清除网页登录记忆，主控只显示可观察到的 `GUEST_READY`、`READY`、`AUTH_REQUIRED` 或 `UNKNOWN`。
 - 游客能力和页面 DOM 会随服务端变化。production build、selector 单测或“页面已打开”都不能证明某个游客任务已成功发送或回答已采集。
 
 ## 核心边界

@@ -3,6 +3,8 @@ import { adapterFor } from "./adapters/registry";
 import { prepareScript, probeScript, sendScript, type PageProbe } from "./adapters/page-scripts";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
+import { AccountSessionManager } from "./account-sessions";
+import { isDispatchGroupSize } from "../src/shared/provider-policy";
 
 type ProbeState = { content: string; stableCount: number };
 
@@ -15,8 +17,37 @@ export class ProviderAutomation {
     private readonly store: StateStore,
     private readonly views: ProviderViews,
     private readonly resolveProvider: (id: ProviderId) => Provider,
-    private readonly publish: () => unknown
+    private readonly publish: () => unknown,
+    private readonly accounts: AccountSessionManager
   ) {}
+
+  async dispatchTask(taskId: string): Promise<void> {
+    const runs = this.latestRuns(taskId);
+    if (!isDispatchGroupSize(runs.length)) throw new Error("一次提交工作流只接受 3 或 5 个同时运行的网页 AI");
+    const round = runs[0]?.round ?? 0;
+    const { checkpoint, baseline } = this.store.beginDispatch(taskId, round, runs.map((run) => run.providerId));
+    await Promise.all(runs.map((run) => this.prepareRun(run)));
+    let current = this.latestRuns(taskId);
+    const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
+    if (prepareFailures.length > 0) {
+      this.store.rollbackDispatch(checkpoint.id, baseline, prepareFailures, false, "至少一个网页未能完成预填；未执行任何发送");
+      this.publish();
+      return;
+    }
+    await Promise.all(current.map((run) => this.sendRun(run)));
+    current = this.latestRuns(taskId);
+    const sendFailures = current.filter((run) => run.phase !== "waiting").map((run) => run.providerId);
+    if (sendFailures.length > 0) {
+      const partialExternalEffect = current.some((run) => run.phase === "waiting");
+      this.store.rollbackDispatch(checkpoint.id, baseline, sendFailures, partialExternalEffect, partialExternalEffect ? "部分页面可能已经发送；本地记录已回退，必须人工核对后再操作" : "所有页面均未进入等待状态；本地记录已回退");
+      this.publish();
+      return;
+    }
+    this.store.markDispatchCollecting(checkpoint.id, current.map((run) => run.providerId));
+    this.store.setTaskStatus(taskId, "running");
+    this.startMonitor(taskId);
+    this.publish();
+  }
 
   async prepareTask(taskId: string): Promise<void> {
     for (const run of this.latestRuns(taskId).filter((item) => ["queued", "blocked", "failed"].includes(item.phase))) await this.prepareRun(run);
@@ -25,28 +56,7 @@ export class ProviderAutomation {
   }
 
   async sendTask(taskId: string): Promise<void> {
-    for (const run of this.latestRuns(taskId)) {
-      if (run.phase !== "prepared") continue;
-      const definition = adapterFor(this.resolveProvider(run.providerId));
-      const view = this.views.get(run.providerId);
-      if (!definition || !view) {
-        this.store.updateRun(run.id, "blocked", definition ? "RETRYABLE_FAILURE" : "UNSUPPORTED", definition ? "网页窗口未打开" : "该网页暂未提供可靠适配器");
-        continue;
-      }
-      try {
-        const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
-        if (!result.ok) {
-          this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮，请在可见网页中手动发送");
-          continue;
-        }
-        this.store.updateRun(run.id, "waiting", null, "已由用户确认发送，正在观察回答", definition.version);
-      } catch (error) {
-        this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `发送失败：${String(error)}`, definition.version);
-      }
-    }
-    this.store.setTaskStatus(taskId, "running");
-    this.startMonitor(taskId);
-    this.publish();
+    await this.dispatchTask(taskId);
   }
 
   async captureTask(taskId: string): Promise<void> {
@@ -72,8 +82,9 @@ export class ProviderAutomation {
     }
     try {
       const probe = await view.webContents.executeJavaScript(probeScript(definition)) as PageProbe;
+      this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
       if (probe.rateLimited) return this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version);
-      if (probe.loginLikely) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
+      if (probe.loginLikely && !probe.inputFound) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
       if (!probe.inputFound) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "未找到已版本化的输入区域，页面可能已变化", definition.version);
       const result = await view.webContents.executeJavaScript(prepareScript(definition, run.inputPrompt)) as { ok: boolean };
       if (!result.ok) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "输入区域在预填时失效", definition.version);
@@ -91,6 +102,10 @@ export class ProviderAutomation {
       if (Date.now() - startedAt > 10 * 60 * 1000) {
         clearInterval(timer);
         this.monitors.delete(taskId);
+        const runs = this.latestRuns(taskId);
+        const round = runs[0]?.round ?? 0;
+        this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 10 分钟，未达到全员成功条件");
+        this.publish();
         return;
       }
       void this.poll(taskId, false).then(() => this.publish());
@@ -99,7 +114,8 @@ export class ProviderAutomation {
   }
 
   private async poll(taskId: string, manual: boolean): Promise<void> {
-    const runs = this.latestRuns(taskId).filter((run) => run.phase === "waiting");
+    const next = this.latestRuns(taskId).find((run) => run.phase === "waiting");
+    const runs = next ? [next] : [];
     for (const run of runs) {
       const definition = adapterFor(this.resolveProvider(run.providerId));
       const view = this.views.get(run.providerId);
@@ -118,7 +134,10 @@ export class ProviderAutomation {
         this.stability.set(run.id, { content: probe.latestResponse, stableCount });
         if (manual || stableCount >= 2) this.store.captureArtifact(run.id, probe.latestResponse, probe.sourceUrl);
       } catch (error) {
-        if (manual) this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `采集失败：${String(error)}`, definition.version);
+        if (manual) {
+          this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `采集失败：${String(error)}`, definition.version);
+          this.store.failDispatchCollection(taskId, run.round, run.providerId, "顺序采集失败，未达到全员成功条件");
+        }
       }
     }
     if (this.latestRuns(taskId).every((run) => run.phase === "completed")) {
@@ -132,5 +151,24 @@ export class ProviderAutomation {
     const runs = this.store.runsForTask(taskId);
     const round = Math.max(0, ...runs.map((run) => run.round));
     return runs.filter((run) => run.round === round);
+  }
+
+  private async sendRun(run: ProviderRun): Promise<void> {
+    const definition = adapterFor(this.resolveProvider(run.providerId));
+    const view = this.views.get(run.providerId);
+    if (!definition || !view) {
+      this.store.updateRun(run.id, "blocked", definition ? "RETRYABLE_FAILURE" : "UNSUPPORTED", definition ? "网页窗口未打开" : "该网页暂未提供可靠适配器");
+      return;
+    }
+    try {
+      const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
+      if (!result.ok) {
+        this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮；整组不会进入下一步", definition.version);
+        return;
+      }
+      this.store.updateRun(run.id, "waiting", null, "已一次提交；等待按队列顺序采集回答", definition.version);
+    } catch (error) {
+      this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `发送失败：${String(error)}`, definition.version);
+    }
   }
 }

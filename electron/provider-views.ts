@@ -1,21 +1,24 @@
 import { BrowserWindow, WebContentsView } from "electron";
 import type { Provider, ProviderId, ViewBounds } from "../src/shared/contracts";
+import { AccountSessionManager } from "./account-sessions";
 
 export class ProviderViews {
   private readonly views = new Map<ProviderId, WebContentsView>();
 
   constructor(
     private readonly host: BrowserWindow,
-    private readonly onState: (providerId: ProviderId, open: boolean) => void
+    private readonly onState: (providerId: ProviderId, open: boolean) => void,
+    private readonly accounts: AccountSessionManager
   ) {}
 
   open(provider: Provider): WebContentsView {
     const existing = this.views.get(provider.id);
     if (existing && !existing.webContents.isDestroyed()) return existing;
 
+    this.accounts.ensure(provider.id);
     const view = new WebContentsView({
       webPreferences: {
-        partition: `persist:codex-boss-${provider.id}`,
+        partition: this.accounts.partitionFor(provider.id),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true
@@ -28,6 +31,7 @@ export class ProviderViews {
     });
     this.host.contentView.addChildView(view);
     this.views.set(provider.id, view);
+    this.accounts.mount(provider, view);
     this.onState(provider.id, true);
     void view.webContents.loadURL(provider.url);
     return view;
