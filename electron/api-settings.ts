@@ -75,7 +75,13 @@ export class ApiSettingsStore {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     const temporary = `${this.filePath}.tmp`;
     fs.writeFileSync(temporary, JSON.stringify({ version: 1, settings: this.settings }, null, 2), "utf8");
-    fs.renameSync(temporary, this.filePath);
+    try { fs.renameSync(temporary, this.filePath); }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!["EEXIST", "EPERM"].includes(code ?? "")) throw error;
+      fs.copyFileSync(temporary, this.filePath);
+      fs.unlinkSync(temporary);
+    }
   }
 }
 

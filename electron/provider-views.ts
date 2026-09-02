@@ -64,6 +64,10 @@ export class ProviderViews {
     }
   }
 
+  setVisible(visible: boolean): void {
+    for (const view of this.views.values()) view.setVisible(visible);
+  }
+
   destroyAll(): void {
     for (const providerId of [...this.views.keys()]) this.close(providerId);
   }

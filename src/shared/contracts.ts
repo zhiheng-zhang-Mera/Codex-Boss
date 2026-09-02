@@ -23,6 +23,7 @@ export interface Provider {
 
 export interface BossTask {
   id: string;
+  conversationId: string;
   title: string;
   prompt: string;
   providerIds: ProviderId[];
@@ -164,6 +165,24 @@ export interface ApiProviderSetting {
   updatedAt: string;
 }
 
+export interface ConversationFolder {
+  id: string;
+  name: string;
+  storageName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BossConversation {
+  id: string;
+  folderId: string;
+  title: string;
+  storageName: string;
+  taskIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UpdateApiSettingInput {
   providerId: ProviderId;
   enabled: boolean;
@@ -177,7 +196,7 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
@@ -193,6 +212,9 @@ export interface AppSnapshot {
   controller: ControllerState;
   accounts: ProviderAccountState[];
   apiSettings: ApiProviderSetting[];
+  folders: ConversationFolder[];
+  conversations: BossConversation[];
+  activeConversationId: string;
   dispatchCheckpoints: DispatchCheckpoint[];
   events: AuditEvent[];
 }
@@ -204,6 +226,12 @@ export interface CreateTaskInput {
   mode?: TaskMode;
   appMode?: AppMode;
   transportByProvider?: Record<ProviderId, RunTransport>;
+  conversationId?: string;
+}
+
+export interface CreateConversationInput {
+  folderId: string;
+  title: string;
 }
 
 export interface CustomProviderInput {
@@ -223,6 +251,12 @@ export interface BossBridge {
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
+  createFolder(name: string): Promise<AppSnapshot>;
+  renameFolder(folderId: string, name: string): Promise<AppSnapshot>;
+  createConversation(input: CreateConversationInput): Promise<AppSnapshot>;
+  renameConversation(conversationId: string, title: string): Promise<AppSnapshot>;
+  moveConversation(conversationId: string, folderId: string): Promise<AppSnapshot>;
+  selectConversation(conversationId: string): Promise<AppSnapshot>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
   removeCustomProvider(providerId: ProviderId): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;
@@ -236,6 +270,7 @@ export interface BossBridge {
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
   layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;
+  setProviderViewsVisible(visible: boolean): Promise<void>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
 }

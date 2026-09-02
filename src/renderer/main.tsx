@@ -52,11 +52,18 @@ function App() {
     };
   }, [openKey]);
 
-  const activeTasks = useMemo(() => snapshot.tasks.slice(0, 20).reverse(), [snapshot.tasks]);
+  useEffect(() => {
+    void window.boss.setProviderViewsVisible(!settingsOpen);
+    return () => { if (settingsOpen) void window.boss.setProviderViewsVisible(true); };
+  }, [settingsOpen]);
+
+  const activeConversation = snapshot.conversations.find((conversation) => conversation.id === snapshot.activeConversationId);
+  const activeTasks = useMemo(() => snapshot.tasks.filter((task) => task.conversationId === snapshot.activeConversationId).slice(0, 50).reverse(), [snapshot.tasks, snapshot.activeConversationId]);
 
   async function toggleProvider(providerId: ProviderId) {
     setError("");
     try {
+      if (prompt.trim()) throw new Error("当前任务已有输入，AI 选择和网页/API 通道已锁定；清空输入后再切换");
       const target = snapshot.providers.find((provider) => provider.id === providerId);
       if (!target) throw new Error(`Unknown provider: ${providerId}`);
       if (!target.windowOpen && openProviders.length >= MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时打开 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
@@ -92,13 +99,38 @@ function App() {
     setError("");
     try {
       const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
-      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, transportByProvider: appMode === "chat" ? {} : transportChoices }));
+      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, transportByProvider: appMode === "chat" ? {} : transportChoices, conversationId: snapshot.activeConversationId }));
       setPrompt("");
     } catch (reason) {
       setError(String(reason));
     } finally {
       setSending(false);
     }
+  }
+
+  async function createFolder() {
+    const name = window.prompt("新文件夹名称", "新文件夹")?.trim();
+    if (!name) return;
+    try { setSnapshot(await window.boss.createFolder(name)); } catch (reason) { setError(String(reason)); }
+  }
+
+  async function createConversation(folderId = activeConversation?.folderId ?? snapshot.folders[0]?.id) {
+    if (!folderId) return;
+    const title = window.prompt("新对话名称", "新对话")?.trim();
+    if (!title) return;
+    try { setSnapshot(await window.boss.createConversation({ folderId, title })); setPrompt(""); } catch (reason) { setError(String(reason)); }
+  }
+
+  async function renameFolder(folderId: string, current: string) {
+    const name = window.prompt("重命名文件夹", current)?.trim();
+    if (!name || name === current) return;
+    try { setSnapshot(await window.boss.renameFolder(folderId, name)); } catch (reason) { setError(String(reason)); }
+  }
+
+  async function renameConversation(conversationId: string, current: string) {
+    const title = window.prompt("重命名对话", current)?.trim();
+    if (!title || title === current) return;
+    try { setSnapshot(await window.boss.renameConversation(conversationId, title)); } catch (reason) { setError(String(reason)); }
   }
 
   function toggleTransport(providerId: ProviderId) {
@@ -120,7 +152,6 @@ function App() {
         apiKey: String(data.get("apiKey") ?? ""),
         clearApiKey: data.get("clearApiKey") === "on"
       }));
-      event.currentTarget.reset();
     } catch (reason) { setError(String(reason)); }
   }
 
@@ -152,10 +183,16 @@ function App() {
         <div className="header-status"><div className="app-mode-switch"><button className={appMode === "chat" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("chat")}>Chat</button><button className={appMode === "work" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("work")}>Work</button></div><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
 
+      <aside className="history-sidebar">
+        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" onClick={() => void createFolder()}>▣</button></div>
+        <div className="history-folders">{snapshot.folders.map((folder) => <section key={folder.id} className="history-folder"><header><b>{folder.name}</b><button onClick={() => void createConversation(folder.id)}>＋</button><button onClick={() => void renameFolder(folder.id, folder.name)}>···</button></header>{snapshot.conversations.filter((conversation) => conversation.folderId === folder.id).map((conversation) => <div key={conversation.id} className={`history-conversation ${conversation.id === snapshot.activeConversationId ? "active" : ""}`}><button className="conversation-select" onClick={() => void window.boss.selectConversation(conversation.id).then(setSnapshot).catch((reason) => setError(String(reason)))}><span>{conversation.title}</span><small>{conversation.taskIds.length} 条任务</small></button><button className="conversation-rename" title="重命名" onClick={() => void renameConversation(conversation.id, conversation.title)}>✎</button><select title="移动到文件夹" value={conversation.folderId} onChange={(event) => void window.boss.moveConversation(conversation.id, event.target.value).then(setSnapshot).catch((reason) => setError(String(reason)))}>{snapshot.folders.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></div>)}</section>)}</div>
+        <footer>本地：history/{snapshot.folders.find((folder) => folder.id === activeConversation?.folderId)?.storageName ?? ""}/{activeConversation?.storageName ?? ""}</footer>
+      </aside>
+
       <div className="conversation">
         <div className="welcome-card">
           <div className="welcome-mark">⌘</div>
-          <h1>今天要处理什么？</h1>
+          <h1>{activeConversation?.title ?? "今天要处理什么？"}</h1>
           <p>在左侧输入一次任务，右侧会按所选网页版 AI 数量自动分屏。每个页面保持独立登录状态，并始终可见。</p>
         </div>
 
@@ -199,11 +236,11 @@ function App() {
         <div className="provider-picker">
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>
           <div className="provider-options">{snapshot.providers.map((provider) => <div className={`provider-choice ${provider.windowOpen ? "selected" : ""}`} key={provider.id}>
-            <button type="button" className="provider-toggle" onClick={() => void toggleProvider(provider.id)}><i style={{ background: provider.accent }} />{provider.name}</button>
+            <button type="button" className="provider-toggle" disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，AI 选择已锁定" : "打开或关闭该 AI"} onClick={() => void toggleProvider(provider.id)}><i style={{ background: provider.accent }} />{provider.name}</button>
             {appMode === "work" && provider.windowOpen && <button type="button" className={`transport-toggle transport-${transportChoices[provider.id] ?? "web"}`} disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，通道已锁定" : "切换网页/API"} onClick={() => toggleTransport(provider.id)}>{transportChoices[provider.id] ?? "web"}</button>}
             {provider.isCustom && <button type="button" className="provider-remove" aria-label={`移除 ${provider.name}`} onClick={() => void removeCustomProvider(provider.id)}>×</button>}
           </div>)}</div>
-          <button type="button" className="add-provider" onClick={() => setCustomOpen((value) => !value)}>＋ 自定义</button>
+          <button type="button" className="add-provider" disabled={Boolean(prompt.trim())} onClick={() => setCustomOpen((value) => !value)}>＋ 自定义</button>
         </div>
         <div className="account-module"><b>账户会话</b>{openProviders.map((provider) => { const account = snapshot.accounts.find((item) => item.providerId === provider.id); return <span key={provider.id}><i className={`account-${(account?.mode ?? "UNKNOWN").toLowerCase()}`} />{provider.name}: {account?.mode ?? "UNKNOWN"}</span>; })}</div>
         {customOpen && <form className="custom-provider-form" onSubmit={addCustomProvider}>
@@ -228,7 +265,7 @@ function App() {
         <h2>等待打开网页页面</h2><p>在主控页选中 AI 时会直接打开；取消选中或点击页面标题栏 × 会立即关闭。</p>
       </div> : <div className={`provider-grid count-${openProviders.length}`}>
         {openProviders.map((provider) => <article className="provider-pane" key={provider.id}>
-          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><button onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div>
+          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div>
           <div className="web-surface" ref={(element) => { surfaceRefs.current[provider.id] = element; }}><span>正在载入 {provider.name}…</span></div>
         </article>)}
       </div>}

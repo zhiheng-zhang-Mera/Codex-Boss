@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
-import type { AppSnapshot, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, ViewBounds } from "../src/shared/contracts";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
@@ -11,6 +11,7 @@ import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
 import { ApiSettingsStore } from "./api-settings";
 import { ProviderApiClient } from "./provider-api";
+import { HistoryRepository } from "./history-repository";
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
@@ -48,6 +49,16 @@ function provider(id: ProviderId) {
   return match;
 }
 
+function taskTransports(input: CreateTaskInput, providerIds: ProviderId[]) {
+  const appMode = input.appMode ?? "chat";
+  const transports = Object.fromEntries(providerIds.map((providerId) => {
+    const requested = input.transportByProvider?.[providerId] ?? "web";
+    if (requested !== "web" && requested !== "api") throw new Error(`无效执行通道：${providerId}`);
+    return [providerId, appMode === "chat" ? "web" : requested];
+  }));
+  return { appMode, transports };
+}
+
 function openProviderWithinLimit(providerId: ProviderId): void {
   const target = provider(providerId);
   const openCount = store.snapshot().providers.filter((item) => item.windowOpen).length;
@@ -71,6 +82,7 @@ function createMainWindow(): void {
     height: 920,
     minWidth: 1080,
     minHeight: 700,
+    title: "Codex Boss",
     backgroundColor: "#0b0d10",
     titleBarStyle: "hiddenInset",
     autoHideMenuBar: true,
@@ -96,7 +108,7 @@ function createMainWindow(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  store = new StateStore(path.join(app.getPath("userData"), "state.json"));
+  store = new StateStore(path.join(app.getPath("userData"), "state.json"), new HistoryRepository(path.join(app.getAppPath(), "history")));
   apiSettings = new ApiSettingsStore(
     path.join(app.getPath("userData"), "api-settings.json"),
     (plainText) => {
@@ -121,7 +133,8 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length === 0) throw new Error("At least one provider is required");
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
-    store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", input.appMode ?? "chat", input.transportByProvider ?? {});
+    const { appMode, transports } = taskTransports(input, providerIds);
+    store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", appMode, transports, input.conversationId);
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
@@ -131,8 +144,8 @@ if (ownsInstance) app.whenReady().then(() => {
     providerIds.forEach(provider);
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
-    if ((input.appMode ?? "chat") === "chat" && Object.values(input.transportByProvider ?? {}).some((transport) => transport === "api")) throw new Error("Chat 模式只允许使用网页版 AI");
-    const task = store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", input.appMode ?? "chat", input.transportByProvider ?? {});
+    const { appMode, transports } = taskTransports(input, providerIds);
+    const task = store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", appMode, transports, input.conversationId);
     store.setTaskStatus(task.id, "running");
     await automation.dispatchTask(task.id);
     return publish();
@@ -142,6 +155,12 @@ if (ownsInstance) app.whenReady().then(() => {
     apiSettings.update(input);
     return publish();
   });
+  ipcMain.handle("boss:create-folder", (_event, name: string) => { store.createFolder(name); return publish(); });
+  ipcMain.handle("boss:rename-folder", (_event, folderId: string, name: string) => { store.renameFolder(folderId, name); return publish(); });
+  ipcMain.handle("boss:create-conversation", (_event, input: CreateConversationInput) => { store.createConversation(input.folderId, input.title); return publish(); });
+  ipcMain.handle("boss:rename-conversation", (_event, conversationId: string, title: string) => { store.renameConversation(conversationId, title); return publish(); });
+  ipcMain.handle("boss:move-conversation", (_event, conversationId: string, folderId: string) => { store.moveConversation(conversationId, folderId); return publish(); });
+  ipcMain.handle("boss:select-conversation", (_event, conversationId: string) => { store.selectConversation(conversationId); return publish(); });
   ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
     const normalized = normalizeCustomProviderInput(input);
     store.addCustomProvider(normalized.name, normalized.url);
@@ -171,6 +190,7 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     providerViews.layout(safeLayout);
   });
+  ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
   ipcMain.handle("boss:launch-task", (_event, taskId: string) => {
     const task = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);

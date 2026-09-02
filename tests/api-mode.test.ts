@@ -38,8 +38,9 @@ describe("encrypted API settings and protocol client", () => {
     const file = temporaryFile("api-settings.json");
     const settings = new ApiSettingsStore(file, protect, unprotect);
     settings.update({ providerId: "chatgpt", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.example.test/v1/", model: "test-model", apiKey: "secret-value" });
+    settings.update({ providerId: "chatgpt", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.example.test/v1/", model: "test-model-2" });
     expect(fs.readFileSync(file, "utf8")).not.toContain("secret-value");
-    expect(settings.snapshot(["chatgpt"])[0]).toEqual(expect.objectContaining({ enabled: true, baseUrl: "https://api.example.test/v1", model: "test-model", hasApiKey: true }));
+    expect(settings.snapshot(["chatgpt"])[0]).toEqual(expect.objectContaining({ enabled: true, baseUrl: "https://api.example.test/v1", model: "test-model-2", hasApiKey: true }));
   });
 
   it("sends an OpenAI-compatible request and extracts the answer", async () => {
