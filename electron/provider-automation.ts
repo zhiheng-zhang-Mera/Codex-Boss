@@ -5,6 +5,7 @@ import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
 import { AccountSessionManager } from "./account-sessions";
 import { isDispatchGroupSize } from "../src/shared/provider-policy";
+import { ProviderApiClient, type ApiCompletion } from "./provider-api";
 
 type ProbeState = { content: string; stableCount: number };
 
@@ -18,7 +19,8 @@ export class ProviderAutomation {
     private readonly views: ProviderViews,
     private readonly resolveProvider: (id: ProviderId) => Provider,
     private readonly publish: () => unknown,
-    private readonly accounts: AccountSessionManager
+    private readonly accounts: AccountSessionManager,
+    private readonly api: ProviderApiClient
   ) {}
 
   async dispatchTask(taskId: string): Promise<void> {
@@ -34,7 +36,11 @@ export class ProviderAutomation {
       this.publish();
       return;
     }
-    await Promise.all(current.map((run) => this.sendRun(run)));
+    const apiAnswers = new Map<string, ApiCompletion>();
+    await Promise.all(current.map(async (run) => {
+      const answer = await this.sendRun(run);
+      if (answer) apiAnswers.set(run.id, answer);
+    }));
     current = this.latestRuns(taskId);
     const sendFailures = current.filter((run) => run.phase !== "waiting").map((run) => run.providerId);
     if (sendFailures.length > 0) {
@@ -45,7 +51,9 @@ export class ProviderAutomation {
     }
     this.store.markDispatchCollecting(checkpoint.id, current.map((run) => run.providerId));
     this.store.setTaskStatus(taskId, "running");
-    this.startMonitor(taskId);
+    for (const [runId, answer] of apiAnswers) this.store.captureArtifact(runId, answer.content, answer.sourceUrl);
+    this.store.commitDispatchForRound(taskId, round);
+    if (this.latestRuns(taskId).some((run) => run.phase === "waiting")) this.startMonitor(taskId);
     this.publish();
   }
 
@@ -70,6 +78,15 @@ export class ProviderAutomation {
   }
 
   private async prepareRun(run: ProviderRun): Promise<void> {
+    if (run.transport === "api") {
+      try {
+        this.api.validate(run.providerId);
+        this.store.updateRun(run.id, "prepared", "SUCCESS", "API 设置和加密密钥已通过预检", "api/preflight-v1");
+      } catch (error) {
+        this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", `API 预检失败：${String(error)}`, "api/preflight-v1");
+      }
+      return;
+    }
     const definition = adapterFor(this.resolveProvider(run.providerId));
     if (!definition) {
       this.store.updateRun(run.id, "blocked", "UNSUPPORTED", "该网页暂未提供可靠适配器；仍可由用户手动操作");
@@ -153,7 +170,17 @@ export class ProviderAutomation {
     return runs.filter((run) => run.round === round);
   }
 
-  private async sendRun(run: ProviderRun): Promise<void> {
+  private async sendRun(run: ProviderRun): Promise<ApiCompletion | undefined> {
+    if (run.transport === "api") {
+      try {
+        const answer = await this.api.complete(run.providerId, run.inputPrompt);
+        this.store.updateRun(run.id, "waiting", null, "API 回答已返回，等待进入统一顺序采集记录", answer.adapterVersion);
+        return answer;
+      } catch (error) {
+        this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `API 请求失败：${String(error)}`, "api/request-v1");
+        return;
+      }
+    }
     const definition = adapterFor(this.resolveProvider(run.providerId));
     const view = this.views.get(run.providerId);
     if (!definition || !view) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AppSnapshot, BossTask, ProviderId, TaskMode, ViewBounds } from "../shared/contracts";
+import type { ApiProtocol, AppMode, AppSnapshot, BossTask, ProviderId, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
 import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
 import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
@@ -9,6 +9,9 @@ function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<TaskMode>("direct");
+  const [appMode, setAppMode] = useState<AppMode>("chat");
+  const [transportChoices, setTransportChoices] = useState<Record<ProviderId, RunTransport>>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customUrl, setCustomUrl] = useState("https://");
@@ -89,13 +92,36 @@ function App() {
     setError("");
     try {
       const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
-      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode }));
+      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, transportByProvider: appMode === "chat" ? {} : transportChoices }));
       setPrompt("");
     } catch (reason) {
       setError(String(reason));
     } finally {
       setSending(false);
     }
+  }
+
+  function toggleTransport(providerId: ProviderId) {
+    if (prompt.trim()) return;
+    setTransportChoices((current) => ({ ...current, [providerId]: current[providerId] === "api" ? "web" : "api" }));
+  }
+
+  async function saveApiSetting(event: React.FormEvent<HTMLFormElement>, providerId: ProviderId) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setError("");
+    try {
+      setSnapshot(await window.boss.updateApiSetting({
+        providerId,
+        enabled: data.get("enabled") === "on",
+        protocol: String(data.get("protocol")) as ApiProtocol,
+        baseUrl: String(data.get("baseUrl")),
+        model: String(data.get("model")),
+        apiKey: String(data.get("apiKey") ?? ""),
+        clearApiKey: data.get("clearApiKey") === "on"
+      }));
+      event.currentTarget.reset();
+    } catch (reason) { setError(String(reason)); }
   }
 
   async function taskAction(taskId: string, action: "dispatch" | "capture" | "advance" | "evidence" | "rehydrate" | "codex") {
@@ -123,7 +149,7 @@ function App() {
     <section className="chat-half">
       <header className="chat-header">
         <div className="app-brand"><span>B</span><div><strong>Codex Boss</strong><small>LOCAL MULTI-AI WORKSPACE</small></div></div>
-        <div className="header-status"><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
+        <div className="header-status"><div className="app-mode-switch"><button className={appMode === "chat" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("chat")}>Chat</button><button className={appMode === "work" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("work")}>Work</button></div><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
 
       <div className="conversation">
@@ -148,8 +174,8 @@ function App() {
           <div className="boss-message">
             <div className="boss-avatar">B</div>
             <div><strong>已分派到 {task.providerIds.map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
-              <p>{task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.status}。</p>
-              <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId}: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
+              <p>{task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.status}。</p>
+              <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId} [{run.transport}]: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
               {checkpoint && <div className={`dispatch-checkpoint checkpoint-${checkpoint.status.toLowerCase()}`}><b>{checkpoint.status}</b><span>{checkpoint.successfulProviderIds.length}/{checkpoint.expectedProviderIds.length} 成功 · {checkpoint.message}</span></div>}
               {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}
               <div className="task-actions">
@@ -174,6 +200,7 @@ function App() {
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>
           <div className="provider-options">{snapshot.providers.map((provider) => <div className={`provider-choice ${provider.windowOpen ? "selected" : ""}`} key={provider.id}>
             <button type="button" className="provider-toggle" onClick={() => void toggleProvider(provider.id)}><i style={{ background: provider.accent }} />{provider.name}</button>
+            {appMode === "work" && provider.windowOpen && <button type="button" className={`transport-toggle transport-${transportChoices[provider.id] ?? "web"}`} disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，通道已锁定" : "切换网页/API"} onClick={() => toggleTransport(provider.id)}>{transportChoices[provider.id] ?? "web"}</button>}
             {provider.isCustom && <button type="button" className="provider-remove" aria-label={`移除 ${provider.name}`} onClick={() => void removeCustomProvider(provider.id)}>×</button>}
           </div>)}</div>
           <button type="button" className="add-provider" onClick={() => setCustomOpen((value) => !value)}>＋ 自定义</button>
@@ -187,10 +214,11 @@ function App() {
         </form>}
         <form className="prompt-composer" onSubmit={submit}>
           <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="向多个网页 AI 发起任务…" rows={3} />
-          <div className="composer-footer"><span>一次提交到全部已打开 AI；仅 3 或 5 个全员成功后允许下一步</span><button type="submit" title={`提交到全部 ${selectedProviders.length} 个 AI`} disabled={!prompt.trim() || sending || !isDispatchGroupSize(selectedProviders.length)}>{sending ? "…" : "↑"}</button></div>
+          <div className="composer-footer"><span>{appMode === "chat" ? "Chat：全部使用可见网页" : "Work：任务输入后锁定各 AI 的网页/API 通道"}；仅 3/5 个全员成功后继续</span><button type="submit" title={`提交到全部 ${selectedProviders.length} 个 AI`} disabled={!prompt.trim() || sending || !isDispatchGroupSize(selectedProviders.length)}>{sending ? "…" : "↑"}</button></div>
         </form>
         {error && <div className="inline-error">{error}</div>}
       </div>
+      {settingsOpen && <div className="settings-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-panel"><header><div><strong>Codex Boss 设置</strong><span>API Key 仅加密保存在本机应用数据目录</span></div><button onClick={() => setSettingsOpen(false)}>×</button></header><div className="api-settings-list">{snapshot.providers.map((provider) => { const setting = snapshot.apiSettings.find((item) => item.providerId === provider.id); return <form key={`${provider.id}-${setting?.updatedAt ?? "new"}`} onSubmit={(event) => void saveApiSetting(event, provider.id)} className="api-setting-card"><div className="api-setting-title"><b>{provider.name}</b><span>{setting?.hasApiKey ? "密钥已保存" : "未保存密钥"}</span><label><input name="enabled" type="checkbox" defaultChecked={setting?.enabled} /> 启用</label></div><div className="api-setting-fields"><select name="protocol" defaultValue={setting?.protocol ?? "openai-compatible"}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select><input name="baseUrl" type="url" required defaultValue={setting?.baseUrl ?? "https://"} placeholder="API Base URL" /><input name="model" required defaultValue={setting?.model ?? ""} placeholder="模型名称" /><input name="apiKey" type="password" placeholder={setting?.hasApiKey ? "留空保留现有密钥" : "API Key"} /></div><div className="api-setting-actions"><label><input name="clearApiKey" type="checkbox" /> 清除已有密钥</label><button type="submit">保存</button></div></form>; })}</div></section></div>}
     </section>
 
     <section className="browser-half">

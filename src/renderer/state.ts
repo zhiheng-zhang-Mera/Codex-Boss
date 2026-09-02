@@ -1,6 +1,6 @@
 import type { AppSnapshot, BossTask, TaskStatus } from "../shared/contracts";
 
-export const emptySnapshot: AppSnapshot = { providers: [], tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], dispatchCheckpoints: [], events: [] };
+export const emptySnapshot: AppSnapshot = { providers: [], tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], dispatchCheckpoints: [], events: [] };
 
 export function taskCounts(tasks: BossTask[]): Record<TaskStatus, number> {
   return tasks.reduce<Record<TaskStatus, number>>(

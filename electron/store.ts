@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CodexReview, ControllerState, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossTask, CodexReview, ControllerState, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RunTransport, TaskMode, TaskStatus } from "../src/shared/contracts";
 
 export const providerSeed: Provider[] = [
   { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
@@ -28,11 +28,12 @@ export class StateStore {
     return structuredClone(this.snapshotValue);
   }
 
-  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct"): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}): BossTask {
     const now = new Date().toISOString();
-    const task: BossTask = { id: randomUUID(), title, prompt, providerIds, status: "queued", mode, createdAt: now, updatedAt: now };
+    const normalizedTransports = Object.fromEntries(providerIds.map((providerId) => [providerId, appMode === "chat" ? "web" : transportByProvider[providerId] ?? "web"])) as Record<ProviderId, RunTransport>;
+    const task: BossTask = { id: randomUUID(), title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
     this.snapshotValue.tasks.unshift(task);
-    this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt)));
+    this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt, normalizedTransports[providerId])));
     if (mode === "council") {
       const council: CouncilSession = { id: randomUUID(), taskId: task.id, stage: "proposals", providerIds, round: 1, conflicts: [], minorityOpinions: [], createdAt: now, updatedAt: now };
       this.snapshotValue.councils.unshift(council);
@@ -80,14 +81,14 @@ export class StateStore {
   addCouncilRound(taskId: string, prompts: Map<ProviderId, string>, stage: CouncilSession["stage"]): void {
     const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
     if (!council) throw new Error(`Unknown council task: ${taskId}`);
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     council.round += 1;
     council.stage = stage;
     council.updatedAt = new Date().toISOString();
     for (const providerId of council.providerIds) {
       const prompt = prompts.get(providerId);
-      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, council.round, prompt));
+      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, council.round, prompt, task?.transportByProvider[providerId] ?? "web"));
     }
-    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (task) { task.status = "queued"; task.updatedAt = council.updatedAt; }
     this.event("council.advanced", `Council 进入 ${stage} 阶段`, { taskId });
     this.persist();
@@ -102,6 +103,11 @@ export class StateStore {
 
   setController(controller: ControllerState): void {
     this.snapshotValue.controller = controller;
+    this.persist();
+  }
+
+  setApiSettings(settings: ApiProviderSetting[]): void {
+    this.snapshotValue.apiSettings = structuredClone(settings);
     this.persist();
   }
 
@@ -194,7 +200,7 @@ export class StateStore {
     const nextRound = currentRound + 1;
     for (const providerId of task.providerIds) {
       const prompt = prompts.get(providerId);
-      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, nextRound, prompt));
+      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, nextRound, prompt, task.transportByProvider[providerId] ?? "web"));
     }
     const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
     if (council) { council.round = nextRound; council.stage = "rehydration"; council.updatedAt = new Date().toISOString(); }
@@ -251,9 +257,9 @@ export class StateStore {
     this.snapshotValue.events = this.snapshotValue.events.slice(0, 200);
   }
 
-  private newRun(taskId: string, providerId: ProviderId, round: number, inputPrompt: string): ProviderRun {
+  private newRun(taskId: string, providerId: ProviderId, round: number, inputPrompt: string, transport: RunTransport = "web"): ProviderRun {
     const now = new Date().toISOString();
-    return { id: randomUUID(), taskId, providerId, round, phase: "queued", outcome: null, message: "等待可见预填", inputPrompt, adapterVersion: "unresolved", createdAt: now, updatedAt: now };
+    return { id: randomUUID(), taskId, providerId, transport, round, phase: "queued", outcome: null, message: transport === "api" ? "等待 API 预检" : "等待可见预填", inputPrompt, adapterVersion: "unresolved", createdAt: now, updatedAt: now };
   }
 
   private reconcileTask(taskId: string): void {
@@ -273,12 +279,16 @@ export class StateStore {
       const providers = [...builtins, ...custom];
       const tasks = (saved.tasks ?? []).map((task) => {
         const legacy = task as BossTask & { providerId?: ProviderId };
-        return { ...task, mode: task.mode ?? "direct", providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
+        const providerIds = task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]);
+        const appMode = task.appMode ?? "chat";
+        return { ...task, mode: task.mode ?? "direct", appMode, providerIds, transportByProvider: task.transportByProvider ?? Object.fromEntries(providerIds.map((id) => [id, "web"])) };
       });
+      const taskById = new Map(tasks.map((task) => [task.id, task]));
+      const runs = (saved.runs ?? []).map((run) => ({ ...run, transport: run.transport ?? taskById.get(run.taskId)?.transportByProvider[run.providerId] ?? "web" }));
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
-      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, apiSettings: saved.apiSettings ?? [], dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch {
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], dispatchCheckpoints: [], events: [] };
+      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], dispatchCheckpoints: [], events: [] };
     }
   }
 

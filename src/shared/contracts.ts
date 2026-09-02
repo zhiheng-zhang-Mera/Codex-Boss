@@ -1,6 +1,9 @@
 export type ProviderId = string;
 export type TaskStatus = "queued" | "running" | "waiting" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
+export type AppMode = "chat" | "work";
+export type RunTransport = "web" | "api";
+export type ApiProtocol = "openai-compatible" | "anthropic" | "gemini";
 export type AdapterOutcome = "SUCCESS" | "RETRYABLE_FAILURE" | "AUTH_REQUIRED" | "RATE_LIMITED" | "PAGE_CHANGED" | "FORMAT_INVALID" | "USER_ACTION_REQUIRED" | "UNSUPPORTED";
 export type ProviderRunPhase = "queued" | "opening" | "prepared" | "sending" | "waiting" | "completed" | "failed" | "blocked";
 export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "rehydration" | "completed" | "blocked";
@@ -25,6 +28,8 @@ export interface BossTask {
   providerIds: ProviderId[];
   status: TaskStatus;
   mode: TaskMode;
+  appMode: AppMode;
+  transportByProvider: Record<ProviderId, RunTransport>;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +38,7 @@ export interface ProviderRun {
   id: string;
   taskId: string;
   providerId: ProviderId;
+  transport: RunTransport;
   round: number;
   phase: ProviderRunPhase;
   outcome: AdapterOutcome | null;
@@ -148,6 +154,26 @@ export interface DispatchCheckpoint {
   updatedAt: string;
 }
 
+export interface ApiProviderSetting {
+  providerId: ProviderId;
+  enabled: boolean;
+  protocol: ApiProtocol;
+  baseUrl: string;
+  model: string;
+  hasApiKey: boolean;
+  updatedAt: string;
+}
+
+export interface UpdateApiSettingInput {
+  providerId: ProviderId;
+  enabled: boolean;
+  protocol: ApiProtocol;
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+  clearApiKey?: boolean;
+}
+
 export interface AuditEvent {
   id: string;
   at: string;
@@ -166,6 +192,7 @@ export interface AppSnapshot {
   evidenceBundles: EvidenceBundle[];
   controller: ControllerState;
   accounts: ProviderAccountState[];
+  apiSettings: ApiProviderSetting[];
   dispatchCheckpoints: DispatchCheckpoint[];
   events: AuditEvent[];
 }
@@ -175,6 +202,8 @@ export interface CreateTaskInput {
   prompt: string;
   providerIds: ProviderId[];
   mode?: TaskMode;
+  appMode?: AppMode;
+  transportByProvider?: Record<ProviderId, RunTransport>;
 }
 
 export interface CustomProviderInput {
@@ -193,6 +222,7 @@ export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
+  updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
   removeCustomProvider(providerId: ProviderId): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;
