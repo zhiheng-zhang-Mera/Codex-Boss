@@ -55,4 +55,16 @@ describe("local conversation history", () => {
     expect(safeSegment("../bad:name")).toBe("..-bad-name");
     expect(safeSegment("CON")).toBe("_CON");
   });
+
+  it("routes generated downloads into the active conversation without overwriting names", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-download-"));
+    const history = new HistoryRepository(path.join(root, "history"));
+    const store = new StateStore(path.join(root, "state.json"), history);
+    const snapshot = store.snapshot();
+    const first = history.generatedFilePath(snapshot, snapshot.activeConversationId, "chatgpt", "report?.pdf");
+    fs.writeFileSync(first, "first");
+    const second = history.generatedFilePath(snapshot, snapshot.activeConversationId, "chatgpt", "report?.pdf");
+    expect(path.relative(path.join(root, "history"), first)).toBe(path.join("常规", "新对话", "generated", "chatgpt", "report-.pdf"));
+    expect(path.basename(second)).toBe("report- (2).pdf");
+  });
 });

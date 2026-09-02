@@ -21,6 +21,7 @@ let codexController: CodexController;
 let accountSessions: AccountSessionManager;
 let apiSettings: ApiSettingsStore;
 let providerApi: ProviderApiClient;
+let historyRepository: HistoryRepository;
 
 const localAppData = process.env.LOCALAPPDATA;
 if (localAppData) {
@@ -71,7 +72,7 @@ function attachProviderViews(): void {
   providerViews = new ProviderViews(mainWindow, (id, open) => {
     store.setWindow(id, open);
     publish();
-  }, accountSessions);
+  }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
   automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi);
 }
@@ -108,7 +109,8 @@ function createMainWindow(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  store = new StateStore(path.join(app.getPath("userData"), "state.json"), new HistoryRepository(path.join(app.getAppPath(), "history")));
+  historyRepository = new HistoryRepository(path.join(app.getAppPath(), "history"));
+  store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
   apiSettings = new ApiSettingsStore(
     path.join(app.getPath("userData"), "api-settings.json"),
     (plainText) => {

@@ -32,6 +32,21 @@ export class HistoryRepository {
     this.atomicWrite(this.indexPath, JSON.stringify(index, null, 2));
   }
 
+  generatedFilePath(snapshot: AppSnapshot, conversationId: string, providerId: string, suggestedName: string): string {
+    const conversation = snapshot.conversations.find((item) => item.id === conversationId);
+    if (!conversation) throw new Error(`Unknown conversation: ${conversationId}`);
+    const folder = snapshot.folders.find((item) => item.id === conversation.folderId);
+    if (!folder) throw new Error(`Unknown conversation folder: ${conversation.folderId}`);
+    const directory = this.resolveRelative(path.join(folder.storageName, conversation.storageName, "generated", safeSegment(providerId)));
+    fs.mkdirSync(directory, { recursive: true });
+    const fileName = safeSegment(suggestedName);
+    const extension = path.extname(fileName);
+    const stem = path.basename(fileName, extension);
+    let candidate = path.join(directory, fileName);
+    for (let copy = 2; fs.existsSync(candidate); copy += 1) candidate = path.join(directory, `${stem} (${copy})${extension}`);
+    return candidate;
+  }
+
   private writeConversation(snapshot: AppSnapshot, folder: ConversationFolder, conversation: BossConversation, destination: string): void {
     const tasks = snapshot.tasks.filter((task) => task.conversationId === conversation.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const taskIds = new Set(tasks.map((task) => task.id));

@@ -111,7 +111,7 @@ Phase 1 的 `RUNNING` 只表示任务对应的可见窗口已经被调度，绝�
 
 窗口状态独立于任务状态：关闭窗口不会伪造任务失败或完成；应用只追加 `window.closed` 审计事件。再次运行会恢复相同 provider partition 的登录态并聚焦已有窗口。
 
-对话状态独立于执行状态。`folders`、`conversations` 和 `activeConversationId` 维护导航关系；每个 task 固定 `conversationId`。`HistoryRepository` 将当前对话投影到项目根目录 `history/<folder>/<conversation>/`，写出消息、运行元数据、raw artifacts 和 evidence bundles。重命名/移动通过 ID 索引定位旧目录并执行真实目录移动，不复制 API 密钥或网页登录态。
+对话状态独立于执行状态。`folders`、`conversations` 和 `activeConversationId` 维护导航关系；每个 task 固定 `conversationId`。`HistoryRepository` 将当前对话投影到项目根目录 `history/<folder>/<conversation>/`，写出消息、运行元数据、raw artifacts 和 evidence bundles；网页 AI 下载文件写入 `generated/<provider>/` 并使用防覆盖文件名。重命名/移动通过 ID 索引定位旧目录并执行真实目录移动，不复制 API 密钥或网页登录态。
 
 ## 6. Phase 1 验收标准
 

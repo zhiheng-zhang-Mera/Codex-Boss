@@ -11,7 +11,7 @@ This record separates code/build evidence from third-party service observations.
 | TypeScript contracts (renderer + Electron) | PASS | `pnpm run typecheck` |
 | Unit/integration tests | PASS | 7 files, 21 tests |
 | Production renderer + Electron build | PASS | `pnpm run build` |
-| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-03T08:48:26+10:00; smoke mode exits without waiting on external web loads |
+| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-03T09:01:07+10:00; smoke mode exits without waiting on external web loads |
 | Windows split-screen render | PASS | 3-page vertical thirds and 5-page 2×3 layout both observed |
 | Current-account Codex CLI detection | PASS | App header displayed `Codex: CHATGPT`; detection reads `codex login status` and copies no credentials |
 
@@ -81,6 +81,7 @@ After the user resolves the Windows firewall dialog, the next controlled checkpo
 | New/switch/continue conversations | PASS (code/test/UI) | History sidebar rendered migrated conversation and current task count |
 | Folder classification and dynamic rename/move | PASS (code/test) | Physical history directory moved and old empty parent removed |
 | Local text/artifact/evidence projection | PASS | Existing local state generated `history/常规/既有对话/` with metadata, messages, artifacts and evidence |
+| Generated-file routing | PASS (code/test) | Provider downloads resolve into active conversation `generated/<provider>/`; unsafe and duplicate names are normalized |
 | Git privacy boundary | PASS | `history/` ignored; no API key or local history staged |
 
 No real web prompt or API request was submitted during this revision. API integration tests use an in-process mock response.
