@@ -11,7 +11,7 @@ This record separates code/build evidence from third-party service observations.
 | TypeScript contracts (renderer + Electron) | PASS | `pnpm run typecheck` |
 | Unit/integration tests | PASS | 7 files, 21 tests |
 | Production renderer + Electron build | PASS | `pnpm run build` |
-| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-03T09:01:07+10:00; smoke mode exits without waiting on external web loads |
+| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-03T13:12:56+10:00; smoke mode exits without waiting on external web loads |
 | Windows split-screen render | PASS | 3-page vertical thirds and 5-page 2×3 layout both observed |
 | Current-account Codex CLI detection | PASS | App header displayed `Codex: CHATGPT`; detection reads `codex login status` and copies no credentials |
 

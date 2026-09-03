@@ -11,6 +11,9 @@ export type ClaimStatus = "UNVERIFIED" | "REFERENCED_NOT_VERIFIED" | "DISPUTED" 
 export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW";
 export type ProviderAccountMode = "UNKNOWN" | "GUEST_READY" | "AUTH_REQUIRED" | "READY";
 export type DispatchCheckpointStatus = "PREPARING" | "COLLECTING" | "COMMITTED" | "ROLLED_BACK";
+export type RemoteChannel = "wechat" | "qq";
+export type RemoteChannelStatus = "disabled" | "waiting" | "ready" | "error";
+export type RemoteCommandStatus = "pending" | "loaded" | "dismissed";
 
 export interface Provider {
   id: ProviderId;
@@ -165,6 +168,30 @@ export interface ApiProviderSetting {
   updatedAt: string;
 }
 
+export interface RemoteChannelSetting {
+  channel: RemoteChannel;
+  enabled: boolean;
+  commandPrefix: string;
+  status: RemoteChannelStatus;
+  message: string;
+  updatedAt: string;
+}
+
+export interface RemoteCommand {
+  id: string;
+  channel: RemoteChannel;
+  body: string;
+  sourceWindow: string;
+  status: RemoteCommandStatus;
+  receivedAt: string;
+}
+
+export interface UpdateRemoteChannelInput {
+  channel: RemoteChannel;
+  enabled: boolean;
+  commandPrefix: string;
+}
+
 export interface ConversationFolder {
   id: string;
   name: string;
@@ -196,7 +223,7 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
@@ -212,6 +239,8 @@ export interface AppSnapshot {
   controller: ControllerState;
   accounts: ProviderAccountState[];
   apiSettings: ApiProviderSetting[];
+  remoteChannels: RemoteChannelSetting[];
+  remoteCommands: RemoteCommand[];
   folders: ConversationFolder[];
   conversations: BossConversation[];
   activeConversationId: string;
@@ -251,6 +280,9 @@ export interface BossBridge {
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
+  updateRemoteChannel(input: UpdateRemoteChannelInput): Promise<AppSnapshot>;
+  loadRemoteCommand(commandId: string): Promise<AppSnapshot>;
+  dismissRemoteCommand(commandId: string): Promise<AppSnapshot>;
   createFolder(name: string): Promise<AppSnapshot>;
   renameFolder(folderId: string, name: string): Promise<AppSnapshot>;
   createConversation(input: CreateConversationInput): Promise<AppSnapshot>;

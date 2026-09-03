@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
-import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
@@ -12,6 +12,7 @@ import { StateStore } from "./store";
 import { ApiSettingsStore } from "./api-settings";
 import { ProviderApiClient } from "./provider-api";
 import { HistoryRepository } from "./history-repository";
+import { RemoteCommandRelay } from "./remote-relay";
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
@@ -22,6 +23,7 @@ let accountSessions: AccountSessionManager;
 let apiSettings: ApiSettingsStore;
 let providerApi: ProviderApiClient;
 let historyRepository: HistoryRepository;
+let remoteRelay: RemoteCommandRelay;
 
 const localAppData = process.env.LOCALAPPDATA;
 if (localAppData) {
@@ -122,6 +124,12 @@ if (ownsInstance) app.whenReady().then(() => {
   providerApi = new ProviderApiClient(apiSettings);
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   accountSessions = new AccountSessionManager(store, publish);
+  remoteRelay = new RemoteCommandRelay(
+    path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
+    (channel, status, message) => { store.setRemoteChannelRuntime(channel, status, message); publish(); },
+    (channel, body, sourceWindow) => { if (store.receiveRemoteCommand(channel, body, sourceWindow)) publish(); }
+  );
+  remoteRelay.sync(store.snapshot().remoteChannels);
   codexController = new CodexController(app.getPath("userData"));
   void codexController.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
@@ -157,6 +165,13 @@ if (ownsInstance) app.whenReady().then(() => {
     apiSettings.update(input);
     return publish();
   });
+  ipcMain.handle("boss:update-remote-channel", (_event, input: UpdateRemoteChannelInput) => {
+    store.updateRemoteChannel(input.channel, input.enabled, input.commandPrefix);
+    remoteRelay.sync(store.snapshot().remoteChannels);
+    return publish();
+  });
+  ipcMain.handle("boss:load-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "loaded"); return publish(); });
+  ipcMain.handle("boss:dismiss-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "dismissed"); return publish(); });
   ipcMain.handle("boss:create-folder", (_event, name: string) => { store.createFolder(name); return publish(); });
   ipcMain.handle("boss:rename-folder", (_event, folderId: string, name: string) => { store.renameFolder(folderId, name); return publish(); });
   ipcMain.handle("boss:create-conversation", (_event, input: CreateConversationInput) => { store.createConversation(input.folderId, input.title); return publish(); });
@@ -308,4 +323,7 @@ if (ownsInstance) app.whenReady().then(() => {
   }
 });
 
-app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+app.on("window-all-closed", () => {
+  remoteRelay?.dispose();
+  if (process.platform !== "darwin") app.quit();
+});

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RunTransport, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RunTransport, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
 const defaultFolderId = "folder-general";
@@ -107,6 +107,54 @@ export class StateStore {
     const conversation = this.conversation(conversationId);
     this.snapshotValue.activeConversationId = conversation.id;
     this.event("conversation.selected", `已切换到对话“${conversation.title}”`, {});
+    this.persist();
+  }
+
+  updateRemoteChannel(channel: RemoteChannel, enabled: boolean, commandPrefix: string): void {
+    const setting = this.snapshotValue.remoteChannels.find((item) => item.channel === channel);
+    if (!setting) throw new Error(`Unknown remote channel: ${channel}`);
+    const prefix = validCommandPrefix(commandPrefix);
+    Object.assign(setting, {
+      enabled,
+      commandPrefix: prefix,
+      status: enabled ? "waiting" as const : "disabled" as const,
+      message: enabled ? "正在启动本机桌面监听器" : "远程指令监听已关闭",
+      updatedAt: new Date().toISOString()
+    });
+    this.event("remote.channel", `${channel} 远程指令监听已${enabled ? "启用" : "关闭"}`, {});
+    this.persist();
+  }
+
+  setRemoteChannelRuntime(channel: RemoteChannel, status: RemoteChannelStatus, message: string): void {
+    const setting = this.snapshotValue.remoteChannels.find((item) => item.channel === channel);
+    if (!setting || (setting.status === status && setting.message === message)) return;
+    setting.status = setting.enabled ? status : "disabled";
+    setting.message = message.slice(0, 500);
+    setting.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  receiveRemoteCommand(channel: RemoteChannel, body: string, sourceWindow: string): RemoteCommand | null {
+    const setting = this.snapshotValue.remoteChannels.find((item) => item.channel === channel);
+    if (!setting?.enabled) return null;
+    const normalized = body.trim().slice(0, 10000);
+    if (!normalized) return null;
+    const now = Date.now();
+    const duplicate = this.snapshotValue.remoteCommands.some((item) => item.channel === channel && item.body === normalized && item.sourceWindow === sourceWindow && now - Date.parse(item.receivedAt) < 5000);
+    if (duplicate) return null;
+    const command: RemoteCommand = { id: randomUUID(), channel, body: normalized, sourceWindow: sourceWindow.slice(0, 200), status: "pending", receivedAt: new Date(now).toISOString() };
+    this.snapshotValue.remoteCommands.unshift(command);
+    this.snapshotValue.remoteCommands = this.snapshotValue.remoteCommands.slice(0, 100);
+    this.event("remote.command", `收到 ${channel} 待确认指令`, {});
+    this.persist();
+    return command;
+  }
+
+  setRemoteCommandStatus(commandId: string, status: RemoteCommandStatus): void {
+    const command = this.snapshotValue.remoteCommands.find((item) => item.id === commandId);
+    if (!command) throw new Error(`Unknown remote command: ${commandId}`);
+    command.status = status;
+    this.event("remote.command", `${command.channel} 指令已${status === "loaded" ? "载入" : "忽略"}`, {});
     this.persist();
   }
 
@@ -356,10 +404,11 @@ export class StateStore {
       const taskById = new Map(tasks.map((task) => [task.id, task]));
       const runs = (saved.runs ?? []).map((run) => ({ ...run, transport: run.transport ?? taskById.get(run.taskId)?.transportByProvider[run.providerId] ?? "web" }));
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
-      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, apiSettings: saved.apiSettings ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+      const remoteChannels = remoteChannelDefaults(now).map((fallback) => ({ ...fallback, ...(saved.remoteChannels ?? []).find((item) => item.channel === fallback.channel), status: "disabled" as const, message: "应用启动后等待监听器同步" }));
+      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch {
       const now = new Date().toISOString();
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
+      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
     }
   }
 
@@ -416,4 +465,14 @@ function uniqueName(base: string, existing: string[]): string {
   let suffix = 2;
   while (existing.includes(`${base} (${suffix})`)) suffix += 1;
   return `${base} (${suffix})`;
+}
+
+function validCommandPrefix(value: string): string {
+  const prefix = value.trim();
+  if (!/^\/[^\s]{1,19}$/.test(prefix)) throw new Error("指令前缀必须以 / 开头，长度为 2–20 且不能包含空格");
+  return prefix;
+}
+
+function remoteChannelDefaults(now: string): RemoteChannelSetting[] {
+  return (["wechat", "qq"] as const).map((channel) => ({ channel, enabled: false, commandPrefix: "/boss", status: "disabled", message: "远程指令监听未启用", updatedAt: now }));
 }
