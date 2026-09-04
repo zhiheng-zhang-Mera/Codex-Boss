@@ -68,12 +68,12 @@ describe("local conversation history", () => {
     expect(path.basename(second)).toBe("report- (2).pdf");
   });
 
-  it("starts every restored application session in a new conversation", () => {
+  it("restores the active conversation without adding blank history", () => {
     const { root, store } = workspace();
     store.createFolder("触发持久化");
     const previousActiveId = store.snapshot().activeConversationId;
     const restored = new StateStore(path.join(root, "state.json"), new HistoryRepository(path.join(root, "history")));
-    expect(restored.snapshot().activeConversationId).not.toBe(previousActiveId);
+    expect(restored.snapshot().activeConversationId).toBe(previousActiveId);
     expect(restored.snapshot().conversations[0]).toEqual(expect.objectContaining({ title: "新对话", taskIds: [] }));
   });
 
@@ -91,7 +91,7 @@ describe("local conversation history", () => {
     const snapshot = restored.snapshot();
     expect(snapshot.tasks.some((item) => item.id === task.id)).toBe(true);
     expect(snapshot.runs.some((run) => run.taskId === task.id)).toBe(true);
-    expect(snapshot.activeConversationId).not.toBe(conversation.id);
+    expect(snapshot.activeConversationId).toBe(conversation.id);
     expect(fs.readFileSync(path.join(oldDirectory, "messages.md"), "utf8")).toContain("只有用户发送的内容");
   });
 });

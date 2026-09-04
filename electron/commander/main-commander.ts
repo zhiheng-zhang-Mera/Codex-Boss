@@ -57,6 +57,8 @@ export class MainCommander {
       });
       if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); throw new Error("Native verification failed"); }
     }
+    const checkpoint = this.store.beginDispatch(taskId, 1, task.providerIds).checkpoint;
+    this.store.markDispatchCollecting(checkpoint.id, task.providerIds);
     for (const run of this.store.runsForTask(taskId)) this.store.captureArtifact(run.id, evidence.output || "Operation completed; empty result.", "local:native");
     this.ledger?.update(taskId, "native verification completed", (value) => { value.verificationState = "PASS"; value.usage.toolCalls++; value.nextAction = "REPORT_EVIDENCE"; });
     return true;

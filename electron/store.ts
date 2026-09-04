@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
 import { writeJson } from "./commander/durable-json";
@@ -399,6 +399,27 @@ export class StateStore {
     this.persist();
   }
 
+  setFinalizationPolicy(taskId: string, policy: import("../src/shared/contracts").FinalizationPolicy, blocker?: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.finalizationPolicy = policy; task.finalizationBlocker = blocker;
+    this.persist();
+  }
+
+  finalResponseForTask(taskId: string): FinalResponse | undefined {
+    const result = this.snapshotValue.finalResponses.find((item) => item.taskId === taskId);
+    return result ? structuredClone(result) : undefined;
+  }
+
+  saveFinalResponse(response: FinalResponse): void {
+    if (this.finalResponseForTask(response.taskId)) return;
+    const task = this.snapshotValue.tasks.find((item) => item.id === response.taskId);
+    if (!task || task.conversationId !== response.conversationId || !response.content.trim()) throw new Error("Invalid final response");
+    this.snapshotValue.finalResponses.push(structuredClone(response));
+    this.event("task.finalized", "Final response persisted", { taskId: task.id });
+    this.persist();
+  }
+
   saveEvidence(bundle: EvidenceBundle): void {
     this.snapshotValue.evidenceBundles.unshift(bundle);
     this.snapshotValue.evidenceBundles = this.snapshotValue.evidenceBundles.slice(0, 50);
@@ -520,7 +541,7 @@ export class StateStore {
   private beginStartupSession(): void {
     const previousActiveId = this.snapshotValue.activeConversationId;
     const previousActive = this.snapshotValue.conversations.find((item) => item.id === previousActiveId);
-    const folderId = previousActive && this.snapshotValue.folders.some((item) => item.id === previousActive.folderId) ? previousActive.folderId : this.snapshotValue.folders[0].id;
+
     for (const task of this.snapshotValue.tasks) {
       if (!["queued", "running", "waiting"].includes(task.status)) continue;
       const runs = this.runsForTask(task.id);
@@ -540,11 +561,8 @@ export class StateStore {
         task.nextAction = "RESTORE_SESSION_AND_CAPTURE";
       }
     }
-    const now = new Date().toISOString();
-    const conversation: BossConversation = { id: randomUUID(), folderId, title: "新对话", storageName: this.uniqueConversationStorageName(folderId, "新对话"), taskIds: [], createdAt: now, updatedAt: now };
-    this.snapshotValue.conversations.unshift(conversation);
-    this.snapshotValue.activeConversationId = conversation.id;
-    this.event("conversation.created", "应用启动；未完成任务和证据已保留", {});
+    this.snapshotValue.activeConversationId = previousActive?.id ?? this.snapshotValue.conversations[0].id;
+    this.event("conversation.selected", "应用启动；已恢复活动对话、未完成任务和证据", {});
     this.persist();
   }
 
@@ -571,13 +589,13 @@ export class StateStore {
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
       const remoteChannels = remoteChannelDefaults(now).map((fallback) => ({ ...fallback, ...(saved.remoteChannels ?? []).find((item) => item.channel === fallback.channel), status: "disabled" as const, message: "应用启动后等待监听器同步" }));
       const controller = saved.controller ?? { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
-      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], finalResponses: saved.finalResponses ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch (error) {
       if (fs.existsSync(this.filePath)) throw new Error(`Cannot restore task state: ${String(error)}`);
       const now = new Date().toISOString();
       const providers = structuredClone(providerSeed);
       const controller = { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
-      return { providers, tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller), roleRoutes: mergeRoleRoutes(), accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
+      return { providers, tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], finalResponses: [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller), roleRoutes: mergeRoleRoutes(), accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
     }
   }
 

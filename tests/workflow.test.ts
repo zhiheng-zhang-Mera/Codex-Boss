@@ -94,11 +94,11 @@ describe("layout policy styles", () => {
     expect(css).toContain(".layout-five .provider-grid.count-5 .provider-pane:nth-child(5) { grid-column: 4; grid-row: 2;");
   });
 
-  it("keeps history as an independent collapsible column spanning fifteen percent of the desktop", () => {
+  it("keeps history as an independent collapsible column with a readable bounded desktop width", () => {
     const css = fs.readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
     const renderer = fs.readFileSync(path.join(process.cwd(), "src", "renderer", "main.tsx"), "utf8");
-    expect(css).toContain(".desktop-shell.layout-three { grid-template-columns: 15vw var(--controller-width, 30vw) minmax(0, 1fr)");
-    expect(css).toContain(".desktop-shell.layout-five { display: grid; grid-template-columns: 15vw repeat(3");
+    expect(css).toContain(".desktop-shell.layout-three { grid-template-columns: clamp(220px, 16vw, 300px) var(--controller-width, 30vw) minmax(0, 1fr)");
+    expect(css).toContain(".desktop-shell.layout-five { display: grid; grid-template-columns: clamp(220px, 16vw, 300px) repeat(3");
     expect(css).toContain(".desktop-shell.layout-three.history-collapsed { grid-template-columns: 40px var(--controller-width, 30vw)");
     expect(renderer).toContain('openProviders.length === 3 ? "layout-three"');
     expect(renderer).toContain('className="controller-resizer"');

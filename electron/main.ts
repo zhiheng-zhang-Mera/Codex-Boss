@@ -1,3 +1,4 @@
+import { TaskFinalizer } from "./commander/task-finalizer";
 import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
@@ -41,14 +42,11 @@ let historyRepository: HistoryRepository;
 let remoteRelay: RemoteCommandRelay;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
-const localAppData = process.env.LOCALAPPDATA;
-if (localAppData) {
-  const localDataRoot = path.join(localAppData, "CodexBoss");
-  app.setPath("userData", localDataRoot);
-  app.setPath("sessionData", path.join(localDataRoot, "Session Data"));
-}
-
-if (overrideDataRoot) { app.setPath("userData", path.resolve(overrideDataRoot)); app.setPath("sessionData", path.join(path.resolve(overrideDataRoot), "Session Data")); }
+const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
+const projectDataRoot = path.join(app.getAppPath(), "runtime-data");
+const dataRoot = overrideDataRoot ? path.resolve(overrideDataRoot) : projectDataRoot;
+app.setPath("userData", dataRoot);
+app.setPath("sessionData", path.join(dataRoot, "Session Data"));
 
 const ownsInstance = app.requestSingleInstanceLock();
 const isSmokeTest = process.argv.includes("--codex-boss-smoke-test");
@@ -57,9 +55,17 @@ if (!ownsInstance) {
   app.quit();
 }
 if (ownsInstance) {
+  fs.mkdirSync(dataRoot, { recursive: true });
+  if (!overrideDataRoot && legacyDataRoot) {
+    for (const name of ["state.json", "api-settings.json", "task-contexts.json"]) {
+      const source = path.join(legacyDataRoot, name);
+      const destination = path.join(dataRoot, name);
+      if (!fs.existsSync(destination) && fs.existsSync(source)) fs.writeFileSync(destination, fs.readFileSync(source), { flag: "wx" });
+    }
+  }
   const cacheRoot = path.join(overrideDataRoot ? path.resolve(overrideDataRoot) : app.getAppPath(), ".cache");
   const sessionRoot = path.join(cacheRoot, "browser-profile");
-  const oldSessionRoot = app.getPath("sessionData");
+  const oldSessionRoot = !overrideDataRoot && legacyDataRoot ? path.join(legacyDataRoot, "Session Data") : app.getPath("sessionData");
   // Migrate only after acquiring the instance lock, before any browser starts.
   migrateBrowserProfile(oldSessionRoot, sessionRoot);
   for (const name of ["tmp", "crash-dumps"]) fs.mkdirSync(path.join(cacheRoot, name), { recursive: true });
@@ -136,7 +142,8 @@ function attachProviderViews(): void {
     publish();
   }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound);
+  const finalizer = new TaskFinalizer(store, publish);
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { await finalizer.finalize(id); });
 }
 
 function createMainWindow(): void {
@@ -174,7 +181,7 @@ function createMainWindow(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  historyRepository = new HistoryRepository(path.join(app.getAppPath(), "history"));
+  historyRepository = new HistoryRepository(path.join(overrideDataRoot ? dataRoot : app.getAppPath(), "history"));
   store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
   apiSettings = new ApiSettingsStore(
     path.join(app.getPath("userData"), "api-settings.json"),
@@ -234,6 +241,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
     commander.startTask(task.id);
     if (!await commander.executeDeterministic(task.id, input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath())) await automation.dispatchTask(task.id);
+    await automation.continueIfReady(task.id);
     return publish();
   });
   ipcMain.handle("boss:update-api-setting", (_event, input: UpdateApiSettingInput) => {
@@ -382,7 +390,7 @@ if (ownsInstance) app.whenReady().then(() => {
       if (!result.tasks.some((task) => task.title === "Native smoke verification" && task.status === "completed")) throw new Error("Native IPC execution did not complete");
       let rendered = false;
       for (let attempt = 0; attempt < 30; attempt++) {
-        rendered = await mainWindow.webContents.executeJavaScript('Boolean(document.querySelector(".conversation-turn .user-message")?.textContent.includes("list files") && document.querySelector(".run-completed"))');
+        rendered = await mainWindow.webContents.executeJavaScript('Boolean(document.querySelector(".conversation-turn .user-message")?.textContent.includes("list files") && document.querySelector(".final-response pre"))');
         if (rendered) break;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }

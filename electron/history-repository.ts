@@ -77,12 +77,15 @@ export class HistoryRepository {
     const runs = snapshot.runs.filter((run) => taskIds.has(run.taskId));
     const artifacts = snapshot.artifacts.filter((artifact) => taskIds.has(artifact.taskId));
     const evidence = snapshot.evidenceBundles.filter((bundle) => taskIds.has(bundle.taskId));
-    const metadata = { version: 1, folder: { id: folder.id, name: folder.name }, conversation, tasks, runs, updatedAt: new Date().toISOString() };
+    const finalResponses = snapshot.finalResponses.filter((item) => taskIds.has(item.taskId));
+    const metadata = { version: 1, finalResponses, folder: { id: folder.id, name: folder.name }, conversation, tasks, runs, updatedAt: new Date().toISOString() };
     this.atomicWrite(path.join(destination, "conversation.json"), JSON.stringify(metadata, null, 2));
 
     const messageLines = [`# ${conversation.title}`, ""];
     for (const task of tasks) {
       messageLines.push(`## ${task.title}`, "", `- 时间: ${task.createdAt}`, `- 模式: ${task.appMode}/${task.mode}`, "", "### 用户", "", task.prompt, "");
+      const final = finalResponses.find((item) => item.taskId === task.id);
+      if (final) messageLines.push("### Boss", "", final.content, "");
       for (const artifact of artifacts.filter((item) => item.taskId === task.id).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt))) {
         messageLines.push(`### ${artifact.providerId} (${artifact.kind})`, "", artifact.content, "");
       }

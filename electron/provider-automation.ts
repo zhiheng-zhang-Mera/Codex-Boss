@@ -27,7 +27,8 @@ export class ProviderAutomation {
     private readonly publish: () => unknown,
     private readonly accounts: AccountSessionManager,
     private readonly api: ProviderApiClient,
-    private readonly onRoundComplete?: (taskId: string) => Promise<void>
+    private readonly onRoundComplete?: (taskId: string) => Promise<void>,
+    private readonly onTaskComplete?: (taskId: string) => Promise<void>
   ) {}
 
   async dispatchTask(taskId: string): Promise<void> {
@@ -38,11 +39,14 @@ export class ProviderAutomation {
   }
 
   async continueIfReady(taskId: string): Promise<void> {
-    if (!this.onRoundComplete || continuationFor(this.store.snapshot(), taskId) !== "ADVANCE_COUNCIL") return;
+    if (!this.onRoundComplete && !this.onTaskComplete) return;
+    const continuation = continuationFor(this.store.snapshot(), taskId);
+    if (continuation === "COMPLETE") { await this.onTaskComplete?.(taskId); return; }
+    if (!this.onRoundComplete || continuation !== "ADVANCE_COUNCIL") return;
     const key = taskId + ":" + this.latestRuns(taskId)[0].round;
     if (this.continuedRounds.has(key)) return;
     this.continuedRounds.add(key);
-    try { await this.onRoundComplete(taskId); }
+    try { await this.onRoundComplete(taskId); await this.continueIfReady(taskId); }
     catch (error) { this.continuedRounds.delete(key); this.store.setTaskStatus(taskId, "waiting"); throw error; }
   }
 

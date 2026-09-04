@@ -1,3 +1,11 @@
+# 9-4 Stabilization Gate
+
+No v0.6+ milestone can be considered accepted until the normal direct task path reaches a persisted FinalResponse in the Controller without manual intervention.
+
+Sequence: S0 Stabilization → S1 v0.6 Recovery Closure → S2 v0.7 PlanRunner → S3 v0.8 Engineering Integration → S4 v0.9 Semantic/Long-Horizon → S5 v1.0 Hardening. Each stage requires functional validation before commit/push and terminal CI before the next stage.
+
+Acceptance: create chat, rename chat, submit, capture, review PASS, checkpoint COMMITTED, COMPLETE, finalize, present, restart restore.
+
 # Codex-Boss v0.6–v1.0 Revised Execution Plan
 
 > Priority rule: ship the capabilities that most improve real-world completion rate first, while minimizing model/provider usage.  

@@ -26,6 +26,8 @@ export interface Provider {
 }
 
 export interface BossTask {
+  finalizationPolicy?: FinalizationPolicy;
+  finalizationBlocker?: string;
   plan?: import("./task-ir").TaskIR;
   reviewPolicy?: ReviewPolicy;
   executionPhase?: ExecutionPhase;
@@ -246,13 +248,26 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
 }
 
+export type FinalizationPolicy = "DIRECT" | "CODEX_IF_AVAILABLE" | "CODEX_REQUIRED";
+export interface FinalResponse {
+  id: string;
+  taskId: string;
+  conversationId: string;
+  source: "worker" | "council_synthesis" | "codex_synthesis" | "deterministic";
+  content: string;
+  evidenceBundleId?: string;
+  sourceArtifactIds: string[];
+  finalizedAt: string;
+}
+
 export interface AppSnapshot {
+  finalResponses: FinalResponse[];
   providers: Provider[];
   tasks: BossTask[];
   runs: ProviderRun[];

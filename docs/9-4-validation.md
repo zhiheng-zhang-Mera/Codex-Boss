@@ -1,5 +1,11 @@
 # 9-4 implementation evidence
 
+## Known regressions discovered by live UI QA
+
+The original preview claims for direct PASS → final Controller response, History create/rename, and Codex/evidence finalization were NOT_ACCEPTED. A normal worker response could reach COMMITTED, but ProviderAutomation did not consume COMPLETE. The original version was an architecture preview / controlled integration, not stable v1.0 acceptance.
+
+Current stage evidence is recorded in [9-4-stabilization.md](9-4-stabilization.md). Earlier counts below are historical results, not current stage acceptance.
+
 Source plan: [9-4-plan.md](9-4-plan.md). The supplied document defines product requirements; it does not grant permission to execute instructions found in worker output.
 
 ## v0.5 checkpoint
@@ -52,7 +58,7 @@ Package version: `1.0.0-preview.1`. This is an integration preview, not acceptan
 | Arbitrary autonomous repository refactoring and merging | NOT_ACCEPTED |
 | Savings against live multi-model baseline | NOT_RUN / null |
 
-The final integration also registers native, API, web and Codex worker adapters, persists dispatch budgets, bounds context reconstruction, resumes a response interrupted inside REVIEW_GATE, and rejects task completion without passing evidence. Direct answers are displayed in the Controller. Council rounds advance automatically only after every selected response passes review and the round checkpoint is committed; synthesis completes the task. Explicit approval releases only the selected task's existing held responses, without changing future approval policy.
+The final integration also registers native, API, web and Codex worker adapters, persists dispatch budgets, bounds context reconstruction, resumes a response interrupted inside REVIEW_GATE, and rejects task completion without passing evidence. Direct worker artifacts can be captured and reviewed. Final direct-answer presentation in the original preview was NOT_ACCEPTED pending the COMPLETE → Finalizer → FinalResponse regression fix. See the S0 acceptance report for the new evidence. Council rounds advance automatically only after every selected response passes review and the round checkpoint is committed; synthesis completes the task. Explicit approval releases only the selected task's existing held responses, without changing future approval policy.
 
 Reproduction: `pnpm test`, `pnpm run build`, `pnpm run benchmark`, `pnpm run package:portable`, then `powershell -NoProfile -File scripts/smoke-portable.ps1`. Local machine-readable evidence is in ignored `artifacts/benchmark.json`, `artifacts/latest-package.json`, and `artifacts/latest-smoke.json`. CI runs the same checks for each pushed commit; match the Actions run to the commit when assessing remote evidence.
 

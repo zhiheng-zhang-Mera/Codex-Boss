@@ -54,7 +54,7 @@ describe("automatic round continuation", () => {
       else { store.addCouncilRound(id, new Map([["chatgpt", "next"]]), council.stage === "proposals" ? "peer_review" : "synthesis"); await automation.dispatchTask(id); }
     });
     await automation.dispatchTask(task.id); await automation.continueIfReady(task.id); automation.dispose();
-    expect(calls).toBe(3); expect(continuations).toBe(3);
+    expect(calls, JSON.stringify(store.snapshot().runs.map(({ phase, message }) => ({ phase, message })))).toBe(3); expect(continuations).toBe(3);
     expect(store.snapshot().tasks[0]).toMatchObject({ status: "completed", executionPhase: "COMPLETED" });
     expect(store.snapshot().dispatchCheckpoints.every((item) => item.status === "COMMITTED")).toBe(true);
   });
