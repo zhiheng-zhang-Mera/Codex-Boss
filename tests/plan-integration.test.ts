@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -69,4 +70,38 @@ it("waits rather than replanning a deferred runtime and resumes its pending step
   expect((await runner.run("task", plan, executor, async () => { replans++; return plan; })).status).toBe("WAITING");
   blocked = false; expect((await runner.run("task", plan, executor)).status).toBe("COMPLETED");
   expect(completedCalls).toBe(1); expect(replans).toBe(0);
+});
+
+it("executes a tasks.md refactor with real files, failed tests, repair and final delivery", async () => {
+  const dir = root(); const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, windowsHide: true });
+  fs.writeFileSync(path.join(dir, ".gitignore"), ".boss/\n");
+  fs.writeFileSync(path.join(dir, "tasks.md"), "Refactor sum.cjs while keeping addition correct and tests passing.");
+  fs.writeFileSync(path.join(dir, "sum.cjs"), "module.exports=(a,b)=>a+b;");
+  fs.writeFileSync(path.join(dir, "sum.test.cjs"), "const test=require('node:test');const assert=require('node:assert/strict');test('sum',()=>assert.equal(require('./sum.cjs')(2,3),5));");
+  git("init"); git("add", "."); git("-c", "user.name=Acceptance", "-c", "user.email=acceptance@example.invalid", "commit", "-m", "fixture");
+  const store = new StateStore(path.join(dir, ".boss", "state.json")); const registry = new RuntimeRegistry(); const budgets = new BudgetManager();
+  const goal = "按照 tasks.md 重构项目并确保测试通过"; let proposals = 0;
+  registry.register({ id: "local:engineering", kind: "local", capabilities: { roles: ["planning", "coding", "research", "validation"], supportsCancellation: true, supportsStreaming: false }, async healthCheck() { return { runtimeId: this.id, availability: "AVAILABLE", message: "ready", checkedAt: "now" }; }, async execute(request) {
+    let content: string;
+    if (request.role === "planning") content = JSON.stringify({ version: 1, goal, estimatedComplexity: "L2", steps: [{ ...step("refactor"), kind: "edit", requiredFiles: ["sum.cjs"] }, { ...step("verify", ["refactor"]), kind: "verify", requiredFiles: ["sum.cjs", "sum.test.cjs"] }, step("report", ["verify"])] });
+    else if (request.role === "coding") { const data = JSON.parse(request.prompt); proposals++; if (proposals === 2) expect(data.failures.length).toBeGreaterThan(0); content = JSON.stringify({ changes: [{ path: "sum.cjs", expectedSha256: data.files[0].expectedSha256, content: proposals === 1 ? "module.exports=(a,b)=>a-b;" : "module.exports=(a,b)=>{const result=a+b;return result;};" }], checks: [{ kind: "diff" }] }); }
+    else { expect(request.role).not.toBe("validation"); content = "Refactor verified by host tests."; }
+    return { runtimeId: this.id, jobId: request.jobId, status: "SUCCESS", content };
+  } });
+  const ledger = new TaskLedger(path.join(dir, ".boss", "tasks"));
+  const commander = new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), ledger);
+  const task = commander.createTask({ title: "refactor", objective: goal, providerIds: ["chatgpt"] });
+  expect(await commander.executePlan(task.id, dir)).toBe(true);
+  expect(proposals).toBe(2); expect(fs.readFileSync(path.join(dir, "sum.cjs"), "utf8")).toContain("const result=a+b");
+  expect(ledger.load(task.id)?.workspace?.strategy).toBe("branch");
+  expect(store.finalResponseForTask(task.id)?.content).toContain("Refactor verified");
+  expect(ledger.load(task.id)?.modifiedFiles).toContain("sum.cjs");
+}, 30000);
+
+it("corrects planner schema once and still rejects invalid replacement", async () => {
+  const goal = "First inspect then report"; let calls = 0;
+  const compiler = new PlanCompiler(async () => { calls++; return calls === 1 ? JSON.stringify({ version: 1, goal, steps: [{ ...step("read"), kind: "native", operation: { type: "read_file", path: "a.txt" } }] }) : JSON.stringify({ version: 1, goal, estimatedComplexity: "L2", steps: [step("a"), step("b", ["a"])] }); });
+  expect((await compiler.compile(goal)).steps).toHaveLength(2); expect(calls).toBe(2);
+  let failures = 0; const invalid = new PlanCompiler(async () => { failures++; return "not JSON"; });
+  await expect(invalid.compile(goal)).rejects.toThrow(); expect(failures).toBe(2);
 });

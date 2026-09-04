@@ -1,6 +1,6 @@
 export type TaskLevel = "L0" | "L1" | "L2" | "L3";
-export type NativeOperation = { kind: "git_status" } | { kind: "read_file"; path: string } | { kind: "list_files"; path: string };
-export interface TaskStep { id: string; kind: "native" | "worker" | "verify"; description: string; dependencies: string[]; requiredFiles: string[]; operation?: NativeOperation; }
+export type NativeOperation = { kind: "git_status" | "git_diff" | "git_diff_check" } | { kind: "read_file" | "list_files" | "inspect_log"; path: string } | { kind: "read_ranges"; path: string; start: number; end: number } | { kind: "search_text"; path: string; text: string } | { kind: "run_test" | "run_build" | "run_lint" | "run_typecheck"; files?: string[] };
+export interface TaskStep { id: string; kind: "native" | "worker" | "verify" | "edit"; description: string; dependencies: string[]; requiredFiles: string[]; operation?: NativeOperation; }
 export interface TaskIR {
   version: 1; goal: string; deliverables: string[]; constraints: string[]; successConditions: string[];
   riskLevel: "low" | "medium" | "high"; requiredCapabilities: string[]; dependencies: string[];
@@ -23,8 +23,15 @@ export function compileIntent(request: string, options: CompileOptions = {}): Ta
 export function validateGraph(steps: TaskStep[]): void {
   if (!steps.length || steps.length > 100) throw new Error("Graph must have 1–100 steps");
   for (const step of steps) {
-    if (!step || typeof step.id !== "string" || !["native", "worker", "verify"].includes(step.kind) || typeof step.description !== "string" || !step.description.trim() || step.description.length > 20000 || !Array.isArray(step.dependencies) || !Array.isArray(step.requiredFiles) || step.requiredFiles.length > 50 || step.requiredFiles.some((file) => typeof file !== "string" || /^(?:[A-Za-z]:|[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/.test(file))) throw new Error("Invalid graph step");
-    if (step.operation && (!["git_status", "read_file", "list_files"].includes(step.operation.kind) || (step.operation.kind !== "git_status" && typeof step.operation.path !== "string"))) throw new Error("Invalid native operation");
+    if (!step || typeof step.id !== "string" || !["native", "worker", "verify", "edit"].includes(step.kind) || typeof step.description !== "string" || !step.description.trim() || step.description.length > 20000 || !Array.isArray(step.dependencies) || !Array.isArray(step.requiredFiles) || step.requiredFiles.length > 50 || step.requiredFiles.some((file) => typeof file !== "string" || /^(?:[A-Za-z]:|[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/.test(file))) throw new Error("Invalid graph step");
+    if (step.operation) {
+      const op = step.operation;
+      if (!["git_status", "git_diff", "git_diff_check", "read_file", "list_files", "inspect_log", "read_ranges", "search_text", "run_test", "run_build", "run_lint", "run_typecheck"].includes(op.kind)) throw new Error("Invalid native operation");
+      if ("path" in op && (typeof op.path !== "string" || /^(?:[A-Za-z]:|[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/.test(op.path))) throw new Error("Invalid native path");
+      if (op.kind === "read_ranges" && (!Number.isInteger(op.start) || !Number.isInteger(op.end) || op.start < 1 || op.end < op.start || op.end - op.start > 2000)) throw new Error("Invalid line range");
+      if (op.kind === "search_text" && (typeof op.text !== "string" || !op.text || op.text.length > 1000)) throw new Error("Invalid search text");
+      if ("files" in op && (!Array.isArray(op.files) || op.files.length > 50 || op.files.some((file) => typeof file !== "string"))) throw new Error("Invalid command files");
+    }
   }
   const ids = new Set(steps.map((step) => step.id)); if (ids.size !== steps.length) throw new Error("Duplicate step ID");
   const done = new Set<string>();

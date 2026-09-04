@@ -1,4 +1,9 @@
 import fs from "node:fs";
+import { MergeCoordinator } from "../engineering/merge-coordinator";
+import { prepareWorkspace, prepareStepWorkspace } from "../engineering/workspace";
+import { ProposalRunner, type ProposalResult } from "../engineering/proposal-runner";
+import { requiredEngineeringChecks } from "../engineering/verification-policy";
+import { digest, runCheck } from "../engineering/verification";
 import { PlanCompiler, needsPlanning } from "./plan-compiler";
 import { PlanRunner } from "./plan-runner";
 import { workspacePath } from "../engineering/native-tools";
@@ -25,6 +30,7 @@ import { TaskStateMachine } from "./task-state-machine";
 export interface CommanderTaskInput { reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
 
 export class MainCommander {
+  private readonly mergeCoordinator = new MergeCoordinator();
   private readonly planExecutions = new Map<string, Promise<boolean>>();
   readonly supervisor?: ExecutionSupervisor;
   readonly stateMachine = new TaskStateMachine();
@@ -81,7 +87,14 @@ export class MainCommander {
       return result.content;
     });
     const plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);
-    this.store.setTaskPlan(taskId, plan); this.store.beginPlanExecution(taskId, workspace);
+    this.store.setTaskPlan(taskId, plan);
+    if (plan.steps.some((step) => step.kind === "edit")) {
+      const savedWorkspace = this.ledger.load(taskId)?.workspace;
+      const isolated = savedWorkspace ?? await prepareWorkspace(workspace, taskId, plan.riskLevel, plan.estimatedComplexity === "L3");
+      if (!savedWorkspace) this.ledger.update(taskId, "engineering workspace prepared", (record) => { record.workspace = isolated; });
+      workspace = isolated.path;
+    }
+    this.store.beginPlanExecution(taskId, workspace);
     task = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
     const outputs: Record<string, string> = {};
     for (const step of plan.steps) {
@@ -89,8 +102,24 @@ export class MainCommander {
       if (previous?.state === "COMPLETED" && previous.result?.content) outputs[step.id] = previous.result.content;
     }
     const result = await new PlanRunner(this.ledger).run(taskId, plan, {
-      readOnly: true,
+      readOnly: !plan.steps.some((step) => step.kind === "edit" || step.operation?.kind.startsWith("run_")),
       execute: async (step) => {
+        if (step.kind === "verify" && plan.steps.some((item) => item.kind === "edit")) {
+          const checks = await Promise.all(requiredEngineeringChecks(workspace, step.requiredFiles).map((check) => runCheck(workspace, check)));
+          outputs[step.id] = JSON.stringify({ status: checks.every((item) => item.passed) ? "PASS" : "FAIL", checks, workspace }); return outputs[step.id];
+        }
+        if (step.kind === "edit") {
+          const checks = requiredEngineeringChecks(workspace, step.requiredFiles);
+          const stepWorkspace = plan.estimatedComplexity === "L3" ? await prepareStepWorkspace(workspace, taskId + "_" + step.id, [...new Set([...step.requiredFiles, ...plan.steps.filter((item) => step.dependencies.includes(item.id)).flatMap((item) => item.requiredFiles)])]) : workspace;
+          const result = await new ProposalRunner(async (prompt) => {
+            const answer = await this.dispatchRole(taskId, "coder", prompt, {}, {}, "");
+            if (answer.status !== "SUCCESS" || !answer.content) throw new Error(answer.failure?.message ?? "Coder unavailable");
+            return answer.content;
+          }).run(stepWorkspace, task!.prompt + "\n" + step.description, step.requiredFiles, checks);
+          if (stepWorkspace !== workspace && result.status === "PASS") { const merged = await this.mergeCoordinator.merge(workspace, stepWorkspace, result, step.requiredFiles, checks, async (incoming, failure) => new ProposalRunner(async (prompt) => { const answer = await this.dispatchRole(taskId, "coder", prompt, {}, {}, ""); if (answer.status !== "SUCCESS" || !answer.content) throw new Error("Conflict resolver unavailable"); return answer.content; }).run(workspace, "Resolve this merge conflict while preserving both verified changes. " + failure + "\nIncoming proposal: " + JSON.stringify(incoming), step.requiredFiles, checks)); result.changes = merged.changes; result.checks = merged.checks; }
+          this.ledger!.update(taskId, "engineering proposal verified", (record) => { record.modifiedFiles = [...new Set([...record.modifiedFiles, ...result.changes.map((item) => item.path)])]; record.usage.toolCalls += result.checks.length; });
+          outputs[step.id] = JSON.stringify(result); return outputs[step.id];
+        }
         if (step.operation) { const output = (await executeNative(workspace, step.operation)).output || "Empty native result"; outputs[step.id] = output; return output; }
         const files: Record<string, string> = {};
         for (const file of step.requiredFiles) { const target = workspacePath(workspace, file); if (fs.existsSync(target) && fs.statSync(target).isFile()) { if (fs.statSync(target).size > 100000) throw new Error("Step file exceeds read budget"); files[file] = fs.readFileSync(target, "utf8"); } }
@@ -103,7 +132,7 @@ export class MainCommander {
         }
         outputs[step.id] = answer.content; return answer.content;
       },
-      verify: async (step, output) => step.operation ? output === ((await executeNative(workspace, step.operation)).output || "Empty native result") : Boolean(output.trim())
+      verify: async (step, output) => step.kind === "verify" && plan.steps.some((item) => item.kind === "edit") ? JSON.parse(output).status === "PASS" : step.kind === "edit" ? (() => { const result = JSON.parse(output) as ProposalResult; const latest = new Map(result.changes.map((change) => [change.path, change.after])); return result.status === "PASS" && [...latest].every(([file, hash]) => fs.existsSync(workspacePath(workspace, file)) && digest(fs.readFileSync(workspacePath(workspace, file), "utf8")) === hash); })() : step.operation?.kind.startsWith("run_") ? JSON.parse(output).passed === true : step.operation ? output === ((await executeNative(workspace, step.operation)).output || "Empty native result") : Boolean(output.trim())
     }, (previous, completed, failure) => compiler.replan(previous, completed, failure), (next) => this.store.setTaskPlan(taskId, next));
     if (result.status === "WAITING") {
       const deadlines = Object.values(this.ledger.load(taskId)!.jobs).filter((job) => job.state === "WAITING" && job.retryAt).map((job) => job.retryAt!);
@@ -116,7 +145,9 @@ export class MainCommander {
     this.store.markDispatchCollecting(checkpoint.id, current.providerIds);
     const finalPlan = current.plan!;
     const sinks = finalPlan.steps.filter((step) => !finalPlan.steps.some((other) => other.dependencies.includes(step.id)));
-    const content = sinks.map((step) => result.evidence.find((item) => item.stepId === step.id)?.output ?? outputs[step.id]).filter(Boolean).join("\n\n");
+    let content = sinks.map((step) => result.evidence.find((item) => item.stepId === step.id)?.output ?? outputs[step.id]).filter(Boolean).join("\n\n");
+    const edits = finalPlan.steps.filter((step) => step.kind === "edit").map((step) => JSON.parse(outputs[step.id]) as ProposalResult);
+    if (edits.length) content += "\n\n工程验证\n工作区：" + workspace + "\n修改文件：" + [...new Set(edits.flatMap((item) => item.changes.map((change) => change.path)))].join(", ") + "\n通过检查：" + edits.reduce((sum, item) => sum + item.checks.filter((check) => check.passed).length, 0) + "\n修复次数：" + edits.reduce((sum, item) => sum + item.repairs, 0);
     this.store.captureArtifact(this.store.runsForTask(taskId)[0].id, content, "local:plan");
     await new TaskFinalizer(this.store).finalize(taskId); return true;
   }

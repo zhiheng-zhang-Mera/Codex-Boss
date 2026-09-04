@@ -17,3 +17,6 @@ Thumbs.db
 artifacts/
 runtime-data/
 secrets/
+
+.boss/worktrees/
+.boss/tmp/
