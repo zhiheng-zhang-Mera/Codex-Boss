@@ -127,3 +127,6 @@ button { color: inherit; }
 .execution-options { display: flex; flex-wrap: wrap; gap: 10px; padding: 6px 0; font-size: 12px; color: #aab3c2; }
 .execution-options label { display: flex; align-items: center; gap: 6px; }
 .execution-options select, .execution-options input { background: #171c24; color: #e3e9f2; border: 1px solid #354052; border-radius: 6px; padding: 5px; }
+.worker-answer { margin: 10px 0; border: 1px solid #354052; border-radius: 8px; padding: 10px; background: #111820; }
+.worker-answer summary { color: #c8dfaf; cursor: pointer; font-size: 12px; }
+.worker-answer pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; font: 13px/1.65 system-ui, sans-serif; color: #e3e9f2; }

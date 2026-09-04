@@ -29,3 +29,33 @@ Validation: 23 test files / 72 tests passed, including real Node syntax failure 
 Added semantic action routing (native → DOM → UIA → structured state → vision), per-action deadlines and uncertain-effect barriers. Actual web response reads now use the DOM semantic backend. Memory namespaces and persistent observed-cost routing are available; degraded-mode selection includes deterministic-only operation. Review mode and local workspace controls are visible in the UI.
 
 Validation: 24 test files / 75 tests passed. Tests prove semantic preference, timeout fallback for reads, no fallback after uncertain submit, memory isolation and persistence of routing observations. General Windows UIA/vision adapters and the roadmap's supported-application success percentages remain NOT_RUN; this release only claims the installed DOM backend.
+
+## v1.0 preview integration and final local evidence
+
+Package version: `1.0.0-preview.1`. This is an integration preview, not acceptance of every roadmap capability or success-rate target.
+
+| Check | Observed result |
+| --- | --- |
+| Unit/integration tests | PASS: 25 files, 81 tests |
+| Renderer + Electron typecheck | PASS |
+| Production build | PASS |
+| Separate-process ledger reconstruction | PASS: 100/100 controlled cases; normal writer exit |
+| Injected network-failure failover | PASS: 20/20 controlled cases, 40 mock worker calls |
+| Simple request routing | PASS: 10/10 controlled prompts use L0/L1 |
+| Real syntax failure and repair | PASS in a temporary workspace |
+| Portable package | PASS: whitelist of current compiled sources, Electron runtime and required assets; SHA-256 manifest |
+| Packaged renderer, IPC, local execution and completion DOM | PASS under normal Windows process permissions, isolated user-data directory |
+| Restricted-process packaged launch | FAILED: GPU subprocess could not start; not counted as application acceptance |
+| External live AI requests | NOT_RUN |
+| Machine power-loss / real quota recovery | NOT_RUN |
+| General UIA/vision coverage | NOT_RUN |
+| Arbitrary autonomous repository refactoring and merging | NOT_ACCEPTED |
+| Savings against live multi-model baseline | NOT_RUN / null |
+
+The final integration also registers native, API, web and Codex worker adapters, persists dispatch budgets, bounds context reconstruction, resumes a response interrupted inside REVIEW_GATE, and rejects task completion without passing evidence. Direct answers are displayed in the Controller. Council rounds advance automatically only after every selected response passes review and the round checkpoint is committed; synthesis completes the task. Explicit approval releases only the selected task's existing held responses, without changing future approval policy.
+
+Reproduction: `pnpm test`, `pnpm run build`, `pnpm run benchmark`, `pnpm run package:portable`, then `powershell -NoProfile -File scripts/smoke-portable.ps1`. Local machine-readable evidence is in ignored `artifacts/benchmark.json`, `artifacts/latest-package.json`, and `artifacts/latest-smoke.json`. CI runs the same checks for each pushed commit; match the Actions run to the commit when assessing remote evidence.
+
+## Remaining roadmap work
+
+The shipped UI uses the conservative L0/L1 compiler. L2/L3 dependency graphs and scoped change/repair APIs exist, but arbitrary prose-to-engineering-plan generation, production worker worktree orchestration/merge, full JSON Schema and requested-attachment validation are not complete. Semantic routing has a real DOM integration; other general application backends still need implementation and live acceptance. These gaps are explicitly separate from the controlled test results above.

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
+import { writeJson } from "./commander/durable-json";
 import { TaskLedger } from "./commander/task-ledger";
 import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
 
@@ -187,6 +188,18 @@ export class StateStore {
     run.updatedAt = new Date().toISOString();
     this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId });
     this.persist();
+  }
+
+  recordDispatchAttempt(runId: string): void {
+    const run = this.snapshotValue.runs.find((item) => item.id === runId);
+    if (!run) throw new Error("Unknown run");
+    this.ledger.update(run.taskId, "provider dispatch budget", (state) => {
+      if (state.usage.modelCalls >= state.limits.modelCalls) throw new Error("Task model-call budget exhausted");
+      state.usage.modelCalls++;
+      state.usage.estimatedInputTokens += Math.ceil(run.inputPrompt.length / 4);
+      if (run.attempts) state.usage.retries++;
+      if (run.transport === "web") state.usage.browserActions++;
+    });
   }
 
   releaseReview(taskId: string): void {
@@ -453,6 +466,12 @@ export class StateStore {
   setTaskStatus(taskId: string, status: TaskStatus): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);
+    if (status === "completed") {
+      const runs = this.runsForTask(taskId); const round = Math.max(0, ...runs.map((run) => run.round));
+      const current = runs.filter((run) => run.round === round);
+      if (!current.length || !current.every((run) => run.artifactId && run.review?.status === "PASS" && run.phase === "completed")) throw new Error("Completion requires persisted passing evidence");
+      task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE";
+    } else if (status === "failed") { task.executionPhase = "FAILED"; task.nextAction = "STOP"; }
     task.status = status;
     task.updatedAt = new Date().toISOString();
     this.event(status === "running" ? "task.started" : "task.status", `任务“${task.title}”状态变更为 ${status}`, { taskId });
@@ -489,8 +508,12 @@ export class StateStore {
     const maxRound = Math.max(...this.runsForTask(taskId).map((run) => run.round));
     const runs = this.runsForTask(taskId).filter((run) => run.round === maxRound);
     if (runs.length === 0 || ["cancelled", "paused"].includes(task.status)) return;
-    task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => ["failed", "blocked"].includes(run.phase)) ? "waiting" : "running";
-    if (task.status === "completed") { task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE"; }
+    task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => run.phase === "failed") ? "failed" : runs.some((run) => run.phase === "blocked") ? "waiting" : "running";
+    if (task.status === "completed") {
+      const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
+      if (council && council.stage !== "completed") { task.status = "running"; task.executionPhase = "NEXT_STEP"; task.nextAction = "ADVANCE_COUNCIL"; }
+      else { task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE"; }
+    }
     task.updatedAt = new Date().toISOString();
   }
 
@@ -501,6 +524,16 @@ export class StateStore {
     for (const task of this.snapshotValue.tasks) {
       if (!["queued", "running", "waiting"].includes(task.status)) continue;
       const runs = this.runsForTask(task.id);
+      for (const run of runs) {
+        if (!run.response || run.review?.response_id === run.response.responseId) continue;
+        run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);
+        run.phase = run.review.status === "PASS" ? "completed" : run.review.status === "RETRY" ? "queued" : run.review.status === "FAILED" ? "failed" : "blocked";
+        if (run.review.status === "RETRY") run.attempts = (run.attempts ?? 0) + 1;
+        task.executionPhase = run.review.status === "PASS" ? "NEXT_STEP" : run.review.status === "HUMAN_REQUIRED" ? "WAITING_FOR_USER" : run.review.status;
+        task.nextAction = run.review.next_action;
+      }
+      this.reconcileTask(task.id);
+      for (const run of runs) this.commitDispatchForRound(task.id, run.round);
       if (runs.some((run) => ["sending", "waiting"].includes(run.phase))) {
         task.status = "waiting";
         task.executionPhase = "WAITING_FOR_RESPONSE";
@@ -549,25 +582,15 @@ export class StateStore {
   }
 
   private persist(): void {
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temp = `${this.filePath}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(this.snapshotValue, null, 2), "utf8");
-    try {
-      fs.renameSync(temp, this.filePath);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (!["EXDEV", "EEXIST", "EPERM"].includes(code ?? "")) throw error;
-      fs.copyFileSync(temp, this.filePath);
-      fs.unlinkSync(temp);
-    }
+    writeJson(this.filePath, this.snapshotValue);
     for (const task of this.snapshotValue.tasks) {
       const runs = this.runsForTask(task.id);
       const fingerprint = TaskLedger.fingerprint({ task, runs });
       if (this.ledgerHashes.get(task.id) === fingerprint) continue;
       this.ledger.create(task.id, task.prompt);
       this.ledger.update(task.id, "task/run transition", (state) => {
-        state.completedSteps = runs.filter((run) => run.review?.status === "PASS").map((run) => run.id);
-        state.pendingSteps = runs.filter((run) => !["completed", "failed"].includes(run.phase)).map((run) => run.id);
+        state.completedSteps = [...state.completedSteps.filter((id) => !runs.some((run) => run.id === id)), ...runs.filter((run) => run.review?.status === "PASS").map((run) => run.id)];
+        state.pendingSteps = [...state.pendingSteps.filter((id) => !runs.some((run) => run.id === id)), ...runs.filter((run) => !["completed", "failed"].includes(run.phase)).map((run) => run.id)];
         state.currentStep = state.pendingSteps[0] ?? null;
         state.nextAction = task.nextAction ?? task.executionPhase ?? task.status;
         state.usage.browserActions = Math.max(state.usage.browserActions, runs.filter((run) => run.phase === "sending" || run.phase === "waiting" || run.artifactId).length);

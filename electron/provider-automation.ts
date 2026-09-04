@@ -1,3 +1,5 @@
+import { continuationFor } from "./commander/continuation-router";
+import type { RuntimeRequest, RuntimeResult } from "./runtimes/runtime";
 import { SemanticRuntime } from "./computer/semantic-runtime";
 import type { Provider, ProviderId, ProviderRun } from "../src/shared/contracts";
 import { adapterFor } from "./adapters/registry";
@@ -11,6 +13,7 @@ import { ProviderApiClient, type ApiCompletion } from "./provider-api";
 type ProbeState = { content: string; stableCount: number };
 
 export class ProviderAutomation {
+  private readonly continuedRounds = new Set<string>();
   private readonly dispatching = new Set<string>();
   private readonly baselines = new Map<string, string>();
   private readonly stability = new Map<string, ProbeState>();
@@ -23,13 +26,44 @@ export class ProviderAutomation {
     private readonly resolveProvider: (id: ProviderId) => Provider,
     private readonly publish: () => unknown,
     private readonly accounts: AccountSessionManager,
-    private readonly api: ProviderApiClient
+    private readonly api: ProviderApiClient,
+    private readonly onRoundComplete?: (taskId: string) => Promise<void>
   ) {}
 
   async dispatchTask(taskId: string): Promise<void> {
     if (this.dispatching.has(taskId)) return;
     this.dispatching.add(taskId);
     try { await this.dispatch(taskId); } finally { this.dispatching.delete(taskId); }
+    await this.continueIfReady(taskId);
+  }
+
+  async continueIfReady(taskId: string): Promise<void> {
+    if (!this.onRoundComplete || continuationFor(this.store.snapshot(), taskId) !== "ADVANCE_COUNCIL") return;
+    const key = taskId + ":" + this.latestRuns(taskId)[0].round;
+    if (this.continuedRounds.has(key)) return;
+    this.continuedRounds.add(key);
+    try { await this.onRoundComplete(taskId); }
+    catch (error) { this.continuedRounds.delete(key); this.store.setTaskStatus(taskId, "waiting"); throw error; }
+  }
+
+  async executeWorker(providerId: string, request: RuntimeRequest, signal?: AbortSignal): Promise<RuntimeResult> {
+    if (signal?.aborted) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
+    const task = this.store.createTask(request.role, [request.context, request.prompt].filter(Boolean).join("\n\n"), [providerId]);
+    try {
+      await this.dispatchTask(task.id);
+      const deadline = Date.now() + (request.timeoutMs ?? 180000);
+      while (!signal?.aborted && Date.now() < deadline) {
+        const run = this.latestRuns(task.id)[0];
+        if (run.review?.status === "PASS" && run.response) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "SUCCESS", content: run.response.content };
+        if (["failed", "blocked"].includes(run.phase)) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "PERMANENT_FAILURE", failure: { code: run.outcome === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : "USER_ACTION_REQUIRED", message: run.message, retryable: false } };
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      if (!signal?.aborted) { this.store.setTaskStatus(task.id, "waiting"); return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "PERMANENT_FAILURE", failure: { code: "TIMEOUT", message: "Web response deadline exceeded; inspect the existing session", retryable: false } }; }
+      this.store.setTaskStatus(task.id, "cancelled");
+      return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
+    } finally {
+      const timer = this.monitors.get(task.id); if (timer) clearInterval(timer); this.monitors.delete(task.id);
+    }
   }
 
   async resumePending(): Promise<void> {
@@ -54,6 +88,7 @@ export class ProviderAutomation {
         } catch (error) { this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", String(error)); }
       }
     }
+    for (const task of this.store.snapshot().tasks) await this.continueIfReady(task.id);
     this.publish();
   }
 
@@ -187,7 +222,7 @@ export class ProviderAutomation {
       }
       if (this.pollingTasks.has(taskId)) return;
       this.pollingTasks.add(taskId);
-      void this.poll(taskId, false).then(() => this.publish()).finally(() => this.pollingTasks.delete(taskId));
+      void this.poll(taskId, false).then(() => this.publish()).catch((error) => { this.store.setTaskStatus(taskId, "waiting"); console.error("Response collection paused", error); this.publish(); }).finally(() => this.pollingTasks.delete(taskId));
     }, 4000);
     this.monitors.set(taskId, timer);
   }
@@ -231,6 +266,7 @@ export class ProviderAutomation {
       if (timer) clearInterval(timer);
       this.monitors.delete(taskId);
     }
+    await this.continueIfReady(taskId);
   }
 
   private latestRuns(taskId: string): ProviderRun[] {
@@ -240,6 +276,8 @@ export class ProviderAutomation {
   }
 
   private async sendRun(run: ProviderRun): Promise<ApiCompletion | undefined> {
+    try { this.store.recordDispatchAttempt(run.id); }
+    catch (error) { this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", String(error)); return; }
     this.store.updateRun(run.id, "sending", null, "发送前检查点已保存");
     if (run.transport === "api") {
       try {

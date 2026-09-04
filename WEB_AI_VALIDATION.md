@@ -1,3 +1,5 @@
+> Historical checkpoint before the 9-4 changes. Current behavior and acceptance: [9-4 validation](docs/9-4-validation.md).
+
 # Web AI and cache acceptance — 2026-09-04
 
 ## Observed live result

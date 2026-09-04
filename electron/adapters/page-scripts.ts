@@ -20,7 +20,8 @@ export function probeScript(definition: AdapterDefinition): string {
     const first = d.inputSelectors.map((s) => document.querySelector(s)).find(visible);
     const body = (document.body?.innerText || '').slice(0, 20000).toLowerCase();
     const loginLikely = /log in|sign in|登录|登入|继续使用|continue with google/.test(body) && !first;
-    const rateLimited = /rate limit|too many requests|try again later|请求过于频繁|达到.*上限/.test(body);
+    const alerts = Array.from(document.querySelectorAll('[role="alert"], [data-testid*="error"]')).filter(visible).map((e) => e.textContent || '').join(' ').toLowerCase();
+    const rateLimited = /rate limit|too many requests|try again later|请求过于频繁|达到.*上限/.test(alerts || (!first ? body : ''));
     const busy = d.stopSelectors.some((s) => visible(document.querySelector(s)));
     const nodes = Array.from(new Set(d.responseSelectors.flatMap((s) => Array.from(document.querySelectorAll(s))))).filter(visible);
     nodes.sort((a, b) => a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);

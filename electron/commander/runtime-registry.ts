@@ -20,7 +20,11 @@ export class RuntimeRegistry {
 
   async refreshHealth(runtimeId?: RuntimeId): Promise<RuntimeHealth[]> {
     const targets = runtimeId ? [this.require(runtimeId)] : this.list();
-    const settled = await Promise.allSettled(targets.map((runtime) => runtime.healthCheck()));
+    const settled = await Promise.allSettled(targets.map(async (runtime) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try { return await Promise.race([runtime.healthCheck(), new Promise<RuntimeHealth>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("Health probe timed out")), 15000); })]); }
+      finally { if (timer) clearTimeout(timer); }
+    }));
     return settled.map((item, index) => {
       const state: RuntimeHealth = item.status === "fulfilled" ? item.value : {
         runtimeId: targets[index].id,

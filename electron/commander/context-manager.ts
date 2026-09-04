@@ -46,7 +46,7 @@ export class ContextManager {
       `OPEN_DISPUTES:\n${context.openDisputes.map((item) => `${item.id}: ${item.topic}`).join("\n")}`,
       `SUMMARIES:\n${context.summaries.map((item) => item.text).join("\n")}`
     ];
-    const maxChars = Math.min(budget.maxChars ?? Number.MAX_SAFE_INTEGER, (budget.maxTokens ?? Number.MAX_SAFE_INTEGER) * 4);
+    const maxChars = Math.min(budget.maxChars ?? 24000, (budget.maxTokens ?? Number.MAX_SAFE_INTEGER) * 4);
     return sections.join("\n\n").slice(0, maxChars);
   }
 

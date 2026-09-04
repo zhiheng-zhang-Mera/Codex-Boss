@@ -6,6 +6,7 @@ export type RuntimeAvailability = "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE
 export type RuntimeCapability = "planning" | "research" | "review" | "synthesis" | "coding" | "validation" | "critique";
 
 export interface RuntimeCapabilities {
+  consumesModel?: boolean;
   roles: readonly RuntimeCapability[];
   supportsCancellation: boolean;
   supportsStreaming: boolean;

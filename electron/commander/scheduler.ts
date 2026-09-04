@@ -26,7 +26,7 @@ export class Scheduler {
       for (let attempt = 0; attempt <= policy.maxRetries; attempt += 1) {
         last = await this.executeWithTimeout(runtime, job.request, policy.timeoutMs);
         if (last.status === "SUCCESS" || last.status === "CANCELLED") return last;
-        if (last.failure?.code === "TIMEOUT" && !job.request.replaySafe) return last;
+        if (["TIMEOUT", "UNKNOWN"].includes(last.failure?.code ?? "") && !job.request.replaySafe) return last;
         if (last.failure?.code === "AUTH_REQUIRED" || last.failure?.code === "USER_ACTION_REQUIRED") return last;
         if (last.status === "PERMANENT_FAILURE" || !last.failure?.retryable) break;
       }
@@ -35,6 +35,7 @@ export class Scheduler {
   }
 
   async runBatch(jobs: ScheduledJob[], policy: DispatchPolicy): Promise<ScheduleBatchResult> {
+    if (!Number.isInteger(policy.maxParallel) || policy.maxParallel < 1) throw new Error("Invalid parallel bound");
     const results: PromiseSettledResult<RuntimeResult>[] = new Array(jobs.length);
     let cursor = 0;
     const worker = async () => {

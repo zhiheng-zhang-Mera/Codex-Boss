@@ -32,5 +32,9 @@ export class BudgetManager {
     return undefined;
   }
 
-  eligible(runtimeId: RuntimeId): boolean { return this.get(runtimeId).state !== "EXHAUSTED"; }
+  eligible(runtimeId: RuntimeId): boolean {
+    const state = this.get(runtimeId);
+    if (state.resetAt && Date.parse(state.resetAt) <= Date.now()) this.update(runtimeId, "UNKNOWN", "OBSERVED");
+    return this.get(runtimeId).state !== "EXHAUSTED";
+  }
 }

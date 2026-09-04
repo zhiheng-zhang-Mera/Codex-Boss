@@ -1,3 +1,4 @@
+import type { ResourceController } from "./resource-controller";
 import { randomUUID } from "node:crypto";
 import type { RuntimeAdapter, RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
 import { Scheduler } from "./scheduler";
@@ -7,7 +8,7 @@ import { reviewResponse } from "../../src/shared/execution";
 
 export class ExecutionSupervisor {
   private readonly active = new Map<string, Promise<RuntimeResult>>();
-  constructor(readonly ledger: TaskLedger, private readonly scheduler = new Scheduler()) {}
+  constructor(readonly ledger: TaskLedger, private readonly scheduler = new Scheduler(), private readonly resources?: ResourceController) {}
   execute(request: RuntimeRequest, candidates: RuntimeAdapter[]): Promise<RuntimeResult> {
     const key = `${request.taskId}/${request.jobId}`;
     const existing = this.active.get(key); if (existing) return existing;
@@ -33,15 +34,17 @@ export class ExecutionSupervisor {
         return this.defer(request, "Task operational budget exhausted", "BUDGET_EXHAUSTED");
       }
       const runtime = compatible[index];
+      const modelCalls = runtime.capabilities.consumesModel === false ? 0 : 1;
       const session = state.sessions.find((item) => item.provider === runtime.id) ?? { id: randomUUID(), taskId: request.taskId, provider: runtime.id, checkpoint: state.revision, health: "AVAILABLE", resumeStrategy: "RECONSTRUCT" as const };
       this.ledger.update(request.taskId, "step started", (value) => {
         if (!value.sessions.some((item) => item.id === session.id)) value.sessions.push(session);
         value.activeProvider = runtime.id; value.sessionId = session.id; value.currentStep = request.jobId; value.nextAction = "WAIT_FOR_RESPONSE";
-        value.usage.modelCalls++; value.usage.estimatedInputTokens += Math.ceil((request.prompt.length + (request.context?.length ?? 0)) / 4);
+        value.usage.modelCalls += modelCalls; value.usage.estimatedInputTokens += Math.ceil((request.prompt.length + (request.context?.length ?? 0)) / 4);
         if (attempts) value.usage.retries++;
         value.jobs[request.jobId] = { id: request.jobId, fingerprint, state: "RUNNING", sessionId: session.id, attempts: attempts + 1 };
       });
       const result = await this.scheduler.dispatch({ request: { ...request, sessionId: session.id }, candidates: [runtime] }, { maxParallel: 1, maxRetries: 0, timeoutMs: request.timeoutMs ?? 180000, allowFallback: false, requireAll: true });
+      this.resources?.record(runtime.id, result.status === "SUCCESS", modelCalls, result.metrics?.durationMs ?? 0);
       const review = reviewResponse({ taskId: request.taskId, workerId: runtime.id, responseId: request.jobId, content: result.content ?? result.artifact?.content ?? "", outcome: result.status === "SUCCESS" ? "SUCCESS" : "RETRYABLE_FAILURE" });
       if (result.status === "SUCCESS" && review.status === "PASS") {
         this.ledger.update(request.taskId, "step completed", (value) => {

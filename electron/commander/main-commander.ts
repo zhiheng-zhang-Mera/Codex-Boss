@@ -5,7 +5,6 @@ import { executeNative } from "../engineering/native-tools";
 import { TaskLedger } from "./task-ledger";
 import { ExecutionSupervisor } from "./execution-supervisor";
 import type { ReviewPolicy } from "../../src/shared/execution";
-import { randomUUID } from "node:crypto";
 import type { AppMode, BossTask, ProviderId, RunTransport, TaskMode, TaskStatus } from "../../src/shared/contracts";
 import type { RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
 import type { StateStore } from "../store";
@@ -32,7 +31,7 @@ export class MainCommander {
     readonly executionGate: ExecutionGate,
     readonly ledger?: TaskLedger,
     readonly resources?: ResourceController
-  ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler); }
+  ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources); }
 
   createTask(input: CommanderTaskInput): BossTask {
     const plan = compileIntent(input.objective, { constraints: input.constraints });
@@ -68,10 +67,14 @@ export class MainCommander {
   cancelTask(taskId: string): void { this.transition(taskId, "cancelled"); }
 
   async dispatchRole(taskId: string, role: RoleId, prompt: string, routing: Omit<RoleRoutingRequest, "role"> = {}, policy: Partial<DispatchPolicy> = {}): Promise<RuntimeResult> {
-    const candidates = this.router.route({ role, ...routing }).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
-    const request: RuntimeRequest = { replaySafe: true, jobId: randomUUID(), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`) };
+    await this.registry.refreshHealth();
+    const snapshot = this.store.snapshot();
+    const controls = snapshot.runtimeStatuses;
+    const configured = snapshot.roleRoutes.find((route) => route.role === role);
+    const candidates = this.router.route({ preferredRuntimes: configured?.runtimeIds, allowFallback: configured?.fallback, role, ...routing }).filter((candidate) => controls.find((control) => control.runtimeId === candidate.runtimeId)?.enabled !== false).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
+    const request: RuntimeRequest = { replaySafe: true, jobId: TaskLedger.fingerprint({ role, prompt }).slice(0, 32), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`) };
     const result = this.supervisor ? await this.supervisor.execute(request, candidates) : await this.scheduler.dispatch({ request, candidates }, { maxParallel: 1, timeoutMs: 180000, maxRetries: 0, allowFallback: true, requireAll: true, ...policy });
-    this.resources?.record(result.runtimeId, result.status === "SUCCESS", 1, result.metrics?.durationMs ?? 0);
+    if (!this.supervisor && result.runtimeId !== "none") this.resources?.record(result.runtimeId, result.status === "SUCCESS", 1, result.metrics?.durationMs ?? 0);
     if (result.failure) this.budgets.observeFailure(result.runtimeId, result.failure.message);
     return result;
   }

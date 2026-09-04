@@ -215,3 +215,14 @@ raw artifacts
 - 当前阶段不包含互联网事实核验器、自动执行器或 `READY_FOR_USER_REVIEW` 自动升级，因此 evidence decision 保持 `HOLD_FOR_REVIEW`。
 
 Phase 4 基础验收：类型检查、证据引擎单测、production build、启动器 smoke test、控制端账户状态检测。第三方游客页的可用性、真实发送和回答采集必须分别保留现场结果；没有执行的项为 `NOT_RUN`。
+
+## 9-4 execution layers
+
+- `src/shared/execution.ts`: review contracts, deterministic checks, user-visible states.
+- `src/shared/task-ir.ts`: conservative intent compiler and graph validation.
+- `electron/commander/task-ledger.ts`, `execution-supervisor.ts`, `interruption.ts`: durable checkpoints, explicit sessions and bounded recovery.
+- `electron/engineering/`: native operations, scoped change manifests, evidence verification, graph runtime and workspace isolation.
+- `electron/computer/semantic-runtime.ts`: semantic action ordering and uncertain-effect handling; DOM is the currently connected backend.
+- `electron/commander/resource-controller.ts`: separated memory scopes, measured routing observations and degraded modes.
+- `scripts/benchmark.cjs`, `package-portable.cjs`: controlled benchmark and whitelisted portable packaging.
+- `docs/9-4-validation.md`: implementation checkpoints and outstanding release evidence.

@@ -37,7 +37,7 @@ describe("StateStore persistence", () => {
     expect(() => normalizeCustomProviderInput({ name: "Unsafe", url: "http://ai.example.test" })).toThrow("仅支持 HTTPS");
   });
 
-  it("falls back to copy-replace when Windows rejects the atomic rename", () => {
+  it("stops safely when Windows rejects atomic persistence", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-store-"));
     temporaryDirectories.push(directory);
     const statePath = path.join(directory, "state.json");
@@ -46,9 +46,9 @@ describe("StateStore persistence", () => {
     });
 
     const store = new StateStore(statePath);
-    store.createTask("test", "evidence", ["chatgpt"]);
+    expect(() => store.createTask("test", "evidence", ["chatgpt"])).toThrow("cross-device");
 
-    expect(JSON.parse(fs.readFileSync(statePath, "utf8")).tasks[0].title).toBe("test");
+    expect(fs.existsSync(statePath)).toBe(false);
     expect(fs.existsSync(`${statePath}.tmp`)).toBe(false);
   });
 

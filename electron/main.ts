@@ -7,6 +7,8 @@ import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normal
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
 import { CodexCliRuntime } from "./runtimes/codex/codex-cli-runtime";
+import { ProviderRuntimeAdapter } from "./runtimes/web/provider-runtime-adapter";
+import { NativeRuntime, ApiRuntime } from "./runtimes/native-api-runtime";
 import { RuntimeRegistry } from "./commander/runtime-registry";
 import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
@@ -99,6 +101,34 @@ function openProviderWithinLimit(providerId: ProviderId): void {
   providerViews.open(target);
 }
 
+async function advanceCouncilRound(taskId: string): Promise<void> {
+    const snapshot = store.snapshot();
+    const task = snapshot.tasks.find((item) => item.id === taskId);
+    const council = snapshot.councils.find((item) => item.taskId === taskId);
+    if (!task || !council) throw new Error("Council task not found");
+    const checkpoint = snapshot.dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === council.round);
+    if (!checkpoint || checkpoint.status !== "COMMITTED" || checkpoint.requiresReconciliation) throw new Error("当前轮次未达到 所选 AI 全员成功检查点");
+    const roundRuns = snapshot.runs.filter((run) => run.taskId === taskId && run.round === council.round);
+    if (roundRuns.length !== council.providerIds.length || !roundRuns.every((run) => run.phase === "completed" && run.artifactId)) throw new Error("当前 Council 阶段尚未收齐全部可验证回答");
+    const artifacts = roundRuns.map((run) => snapshot.artifacts.find((artifact) => artifact.id === run.artifactId)).filter((artifact) => artifact !== undefined);
+    if (council.stage === "proposals") {
+      store.addCouncilRound(taskId, buildPeerReviewPrompts(task.prompt, artifacts, council.providerIds), "peer_review");
+      await automation.dispatchTask(taskId);
+    } else if (council.stage === "peer_review") {
+      const allProposals = snapshot.artifacts.filter((artifact) => artifact.taskId === taskId && artifact.kind === "proposal");
+      const analysis = extractCouncilFindings(artifacts);
+      store.updateCouncil(taskId, analysis);
+      store.addCouncilRound(taskId, buildSynthesisPrompts(task.prompt, allProposals, artifacts, council.providerIds, analysis), "synthesis");
+      await automation.dispatchTask(taskId);
+    } else if (council.stage === "synthesis") {
+      store.updateCouncil(taskId, { stage: "completed" });
+      store.setTaskStatus(taskId, "completed");
+    } else {
+      throw new Error(`Council cannot advance from ${council.stage}`);
+    }
+    publish();
+}
+
 function attachProviderViews(): void {
   if (!mainWindow) throw new Error("Main window was not created");
   providerViews = new ProviderViews(mainWindow, (id, open) => {
@@ -106,11 +136,12 @@ function attachProviderViews(): void {
     publish();
   }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi);
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound);
 }
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
+    show: !isSmokeTest,
     width: 1440,
     height: 920,
     minWidth: 1080,
@@ -120,6 +151,8 @@ function createMainWindow(): void {
     titleBarStyle: "hiddenInset",
     autoHideMenuBar: true,
     webPreferences: {
+      offscreen: isSmokeTest,
+      backgroundThrottling: !isSmokeTest,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -165,13 +198,19 @@ if (ownsInstance) app.whenReady().then(() => {
   const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
+  runtimeRegistry.register(new NativeRuntime(app.getAppPath()));
+  for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
   commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
-  if (!isSmokeTest) { DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit); void automation.resumePending(); }
+  for (const item of store.snapshot().providers) runtimeRegistry.register(new ProviderRuntimeAdapter("web:" + item.id, {
+    async healthCheck() { return { runtimeId: "web:" + item.id, availability: providerViews.get(item.id) ? "AVAILABLE" : "DOWN", message: "Visible provider session", checkedAt: new Date().toISOString() }; },
+    execute: (request, signal) => automation.executeWorker(item.id, request, signal)
+  }));
+  if (!isSmokeTest) { DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit); void automation.resumePending().catch((error) => console.error("Resume paused", error)); }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
@@ -265,38 +304,13 @@ if (ownsInstance) app.whenReady().then(() => {
     await automation.sendTask(taskId);
     return publish();
   });
-  ipcMain.handle("boss:release-review", (_event, taskId: string) => { store.releaseReview(taskId); return publish(); });
+  ipcMain.handle("boss:release-review", async (_event, taskId: string) => { store.releaseReview(taskId); await automation.continueIfReady(taskId); return publish(); });
   ipcMain.handle("boss:capture-task", async (_event, taskId: string) => {
     await automation.captureTask(taskId);
     return publish();
   });
-  ipcMain.handle("boss:advance-council", async (_event, taskId: string) => {
-    const snapshot = store.snapshot();
-    const task = snapshot.tasks.find((item) => item.id === taskId);
-    const council = snapshot.councils.find((item) => item.taskId === taskId);
-    if (!task || !council) throw new Error("Council task not found");
-    const checkpoint = snapshot.dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === council.round);
-    if (!checkpoint || checkpoint.status !== "COMMITTED" || checkpoint.requiresReconciliation) throw new Error("当前轮次未达到 3/5 个网页 AI 全员成功检查点");
-    const roundRuns = snapshot.runs.filter((run) => run.taskId === taskId && run.round === council.round);
-    if (roundRuns.length !== council.providerIds.length || !roundRuns.every((run) => run.phase === "completed" && run.artifactId)) throw new Error("当前 Council 阶段尚未收齐全部可验证回答");
-    const artifacts = roundRuns.map((run) => snapshot.artifacts.find((artifact) => artifact.id === run.artifactId)).filter((artifact) => artifact !== undefined);
-    if (council.stage === "proposals") {
-      store.addCouncilRound(taskId, buildPeerReviewPrompts(task.prompt, artifacts, council.providerIds), "peer_review");
-      await automation.dispatchTask(taskId);
-    } else if (council.stage === "peer_review") {
-      const allProposals = snapshot.artifacts.filter((artifact) => artifact.taskId === taskId && artifact.kind === "proposal");
-      const analysis = extractCouncilFindings(artifacts);
-      store.updateCouncil(taskId, analysis);
-      store.addCouncilRound(taskId, buildSynthesisPrompts(task.prompt, allProposals, artifacts, council.providerIds, analysis), "synthesis");
-      await automation.dispatchTask(taskId);
-    } else if (council.stage === "synthesis") {
-      store.updateCouncil(taskId, { stage: "completed" });
-      store.setTaskStatus(taskId, "completed");
-    } else {
-      throw new Error(`Council cannot advance from ${council.stage}`);
-    }
-    return publish();
-  });
+  ipcMain.handle("boss:advance-council", async (_event, taskId: string) => { await automation.continueIfReady(taskId); return publish(); });
+
   ipcMain.handle("boss:build-evidence", (_event, taskId: string) => {
     const snapshot = store.snapshot();
     const task = snapshot.tasks.find((item) => item.id === taskId);
@@ -360,7 +374,28 @@ if (ownsInstance) app.whenReady().then(() => {
   });
 
   if (isSmokeTest) {
-    setTimeout(() => app.exit(0), 2500);
+    const smoke = async () => {
+      if (!mainWindow) throw new Error("Smoke renderer missing");
+      const ready = await mainWindow.webContents.executeJavaScript('Boolean(window.boss && document.querySelector(".composer-zone"))');
+      if (!ready) throw new Error("Renderer bridge or UI not ready");
+      const result = await mainWindow.webContents.executeJavaScript('window.boss.dispatchTask({title:"Native smoke verification",prompt:"list files",providerIds:[],appMode:"work"})') as AppSnapshot;
+      if (!result.tasks.some((task) => task.title === "Native smoke verification" && task.status === "completed")) throw new Error("Native IPC execution did not complete");
+      let rendered = false;
+      for (let attempt = 0; attempt < 30; attempt++) {
+        rendered = await mainWindow.webContents.executeJavaScript('Boolean(document.querySelector(".conversation-turn .user-message")?.textContent.includes("list files") && document.querySelector(".run-completed"))');
+        if (rendered) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!rendered) throw new Error("Completed task was not rendered");
+      mainWindow.webContents.invalidate();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const root = app.getPath("userData");
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, "smoke.png"), (await mainWindow.webContents.capturePage()).toPNG());
+      fs.writeFileSync(path.join(root, "smoke-result.json"), JSON.stringify({ rendererLoaded: true, nativeCompleted: true, completionVisible: true, generatedAt: new Date().toISOString() }, null, 2));
+      app.exit(0);
+    };
+    setTimeout(() => { void smoke().catch((error) => { console.error(error); app.exit(1); }); }, 1500);
   }
 });
 
