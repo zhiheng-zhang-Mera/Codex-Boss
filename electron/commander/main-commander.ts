@@ -1,4 +1,5 @@
 import { compileIntent } from "../../src/shared/task-ir";
+import { EngineeringRuntime } from "../engineering/engineering-runtime";
 import { executeNative } from "../engineering/native-tools";
 import { TaskLedger } from "./task-ledger";
 import { ExecutionSupervisor } from "./execution-supervisor";
@@ -48,6 +49,13 @@ export class MainCommander {
     if (!task || !operation) return false;
     this.store.setTaskStatus(taskId, "running");
     const evidence = await executeNative(workspace, operation);
+    if (this.ledger && task.plan) {
+      const result = await new EngineeringRuntime(this.ledger).run(taskId, task.plan, {
+        async execute() { return JSON.stringify(evidence); },
+        async verify(_step, output) { const previous = JSON.parse(output); const current = await executeNative(workspace, operation); return previous.output === current.output && previous.verified === true; }
+      });
+      if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); throw new Error("Native verification failed"); }
+    }
     for (const run of this.store.runsForTask(taskId)) this.store.captureArtifact(run.id, evidence.output || "Operation completed; empty result.", "local:native");
     this.ledger?.update(taskId, "native verification completed", (value) => { value.verificationState = "PASS"; value.usage.toolCalls++; value.nextAction = "REPORT_EVIDENCE"; });
     return true;

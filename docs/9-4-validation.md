@@ -17,3 +17,9 @@ v0.6–v1.0 layers are in progress. Numerical roadmap targets are benchmark goal
 Implemented versioned task checkpoints, explicit worker sessions, a 14-kind interruption taxonomy, fail-closed corrupt-ledger reads, bounded supervisor recovery, capability-compatible fallback, operational budgets, restart preservation and original-session web capture. Native exact operations (git status, read file, list files) run without a model. Task IR supports validated dependency graphs, L0–L3 levels and a maximum of three graph workers; ordinary natural-language requests remain L1 unless an explicit graph is supplied. Replanning has explicit triggers.
 
 Validation: 22 test files / 69 tests passed; renderer/Electron TypeScript passed. Live recovery percentages and automatic decomposition of arbitrary complex prose: NOT_RUN. Native operations use the application workspace; broader engineering workspace selection is handled separately. The Codex adapter reconstructs bounded context rather than relying on an implicit last session.
+
+## v0.8 checkpoint
+
+Added dependency-aware EngineeringRuntime, bounded disjoint-scope scheduling, persisted per-step verification and evidence hashes, hash-bound file-change manifests, path/symlink confinement, protected metadata boundaries, branch/worktree preparation, and a two-repair maximum. The native Commander path uses the engineering verification runtime. Model output remains data; applying a change requires the caller's authorized file scope.
+
+Validation: 23 test files / 72 tests passed, including real Node syntax failure and repair, three concurrent independent scopes, and verification after restart. Arbitrary autonomous repository refactoring and automatic merge of model-generated branches remain unaccepted; the graph executor and change manifest APIs are the implemented boundary.
