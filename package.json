@@ -14,7 +14,8 @@
     "build": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:electron",
     "start": "electron .",
     "package:portable": "node scripts/package-portable.cjs",
-    "benchmark": "node scripts/benchmark.cjs"
+    "benchmark": "node scripts/benchmark.cjs",
+    "install:electron": "node node_modules/electron/install.js"
   },
   "dependencies": {
     "cross-env": "latest",

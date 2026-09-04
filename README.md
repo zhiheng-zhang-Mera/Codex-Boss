@@ -16,6 +16,7 @@ Codex Boss 是本地优先的 Electron 桌面控制器。`9-4` 分支按 [执行
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm run install:electron
 pnpm run build
 pnpm test
 pnpm run benchmark

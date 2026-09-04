@@ -59,3 +59,7 @@ Reproduction: `pnpm test`, `pnpm run build`, `pnpm run benchmark`, `pnpm run pac
 ## Remaining roadmap work
 
 The shipped UI uses the conservative L0/L1 compiler. L2/L3 dependency graphs and scoped change/repair APIs exist, but arbitrary prose-to-engineering-plan generation, production worker worktree orchestration/merge, full JSON Schema and requested-attachment validation are not complete. Semantic routing has a real DOM integration; other general application backends still need implementation and live acceptance. These gaps are explicitly separate from the controlled test results above.
+
+## Clean-runner installation correction
+
+The first remote run (33835892766) passed tests, build and controlled benchmarks but failed packaging because the clean dependency installation did not include Electron binaries. The workflow now explicitly runs the locked Electron package installer via `pnpm run install:electron`; local setup documents the same step. Remote acceptance must be assessed on the subsequent run, not the failed initial run.
