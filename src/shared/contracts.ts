@@ -1,3 +1,4 @@
+import type { ExecutionPhase, ReviewPolicy, ReviewResult, WorkerResponse } from "./execution";
 export type ProviderId = string;
 export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
@@ -8,7 +9,7 @@ export type AdapterOutcome = "SUCCESS" | "RETRYABLE_FAILURE" | "AUTH_REQUIRED" |
 export type ProviderRunPhase = "queued" | "opening" | "prepared" | "sending" | "waiting" | "completed" | "failed" | "blocked";
 export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "rehydration" | "completed" | "blocked";
 export type ClaimStatus = "UNVERIFIED" | "REFERENCED_NOT_VERIFIED" | "DISPUTED" | "INSUFFICIENT";
-export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW";
+export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW" | "PASS";
 export type ProviderAccountMode = "UNKNOWN" | "GUEST_READY" | "AUTH_REQUIRED" | "READY";
 export type DispatchCheckpointStatus = "PREPARING" | "COLLECTING" | "COMMITTED" | "ROLLED_BACK";
 export type RemoteChannel = "wechat" | "qq";
@@ -25,6 +26,9 @@ export interface Provider {
 }
 
 export interface BossTask {
+  reviewPolicy?: ReviewPolicy;
+  executionPhase?: ExecutionPhase;
+  nextAction?: string;
   id: string;
   conversationId: string;
   title: string;
@@ -39,6 +43,11 @@ export interface BossTask {
 }
 
 export interface ProviderRun {
+  response?: WorkerResponse;
+  review?: ReviewResult;
+  attempts?: number;
+  responseBaseline?: string;
+  sessionUrl?: string;
   id: string;
   taskId: string;
   providerId: ProviderId;
@@ -264,6 +273,7 @@ export interface AppSnapshot {
 }
 
 export interface CreateTaskInput {
+  reviewPolicy?: ReviewPolicy;
   title: string;
   prompt: string;
   providerIds: ProviderId[];

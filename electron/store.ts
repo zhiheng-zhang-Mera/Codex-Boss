@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
+import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
+
 const defaultFolderId = "folder-general";
 const defaultConversationId = "conversation-default";
 
@@ -178,17 +180,44 @@ export class StateStore {
     this.persist();
   }
 
+  setReviewPolicy(taskId: string, policy: ReviewPolicy): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.reviewPolicy = structuredClone(policy);
+    this.persist();
+  }
+
+  setRunSession(runId: string, baseline: string, url: string): void {
+    const run = this.snapshotValue.runs.find((item) => item.id === runId);
+    if (!run) throw new Error("Unknown run");
+    run.responseBaseline = baseline;
+    run.sessionUrl = url;
+    this.persist();
+  }
+
   captureArtifact(runId: string, content: string, sourceUrl: string): RawArtifact {
     const run = this.snapshotValue.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Unknown run: ${runId}`);
+    if (run.review?.status === "PASS" && run.artifactId) return this.snapshotValue.artifacts.find((item) => item.id === run.artifactId)!;
+    const task = this.snapshotValue.tasks.find((item) => item.id === run.taskId)!;
+    task.executionPhase = "RESPONSE_RECEIVED";
     const council = this.snapshotValue.councils.find((item) => item.taskId === run.taskId);
     const kind: RawArtifact["kind"] = council?.stage === "proposals" ? "proposal" : council?.stage === "peer_review" ? "peer_review" : council?.stage === "synthesis" ? "synthesis" : "response";
     const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: content.slice(0, 100000), capturedAt: new Date().toISOString(), sourceUrl, untrusted: true };
     this.snapshotValue.artifacts.unshift(artifact);
     run.artifactId = artifact.id;
-    run.phase = "completed";
-    run.outcome = "SUCCESS";
-    run.message = "已捕获原始回答，等待验证";
+    run.response = { taskId: run.taskId, workerId: run.providerId, responseId: artifact.id, content: artifact.content, outcome: "SUCCESS" };
+    task.executionPhase = "REVIEW_GATE";
+    this.persist();
+    run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);
+    run.phase = run.review.status === "PASS" ? "completed" : run.review.status === "RETRY" ? "queued" : run.review.status === "FAILED" ? "failed" : "blocked";
+    run.outcome = run.review.status === "PASS" ? "SUCCESS" : "FORMAT_INVALID";
+    run.message = run.review.retry_reason ?? run.review.human_review_reason ?? "回答已通过确定性审查";
+    task.executionPhase = run.review.status === "PASS" ? "NEXT_STEP" : run.review.status === "HUMAN_REQUIRED" ? "WAITING_FOR_USER" : run.review.status;
+    task.nextAction = run.review.next_action;
+    if (run.review.status === "RETRY") run.attempts = (run.attempts ?? 0) + 1;
+    // Persist evidence, review and continuation together before releasing the gate.
+    this.persist();
     run.updatedAt = artifact.capturedAt;
     this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId });
     this.reconcileTask(run.taskId);
@@ -430,7 +459,9 @@ export class StateStore {
     if (!task) return;
     const maxRound = Math.max(...this.runsForTask(taskId).map((run) => run.round));
     const runs = this.runsForTask(taskId).filter((run) => run.round === maxRound);
+    if (runs.length === 0 || ["cancelled", "paused"].includes(task.status)) return;
     task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => ["failed", "blocked"].includes(run.phase)) ? "waiting" : "running";
+    if (task.status === "completed") { task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE"; }
     task.updatedAt = new Date().toISOString();
   }
 
@@ -438,32 +469,20 @@ export class StateStore {
     const previousActiveId = this.snapshotValue.activeConversationId;
     const previousActive = this.snapshotValue.conversations.find((item) => item.id === previousActiveId);
     const folderId = previousActive && this.snapshotValue.folders.some((item) => item.id === previousActive.folderId) ? previousActive.folderId : this.snapshotValue.folders[0].id;
-    const artifactsByTask = new Set(this.snapshotValue.artifacts.map((artifact) => artifact.taskId));
-    const sentTaskIds = new Set<string>();
-    for (const run of this.snapshotValue.runs) if (["sending", "waiting", "completed"].includes(run.phase)) sentTaskIds.add(run.taskId);
-    for (const checkpoint of this.snapshotValue.dispatchCheckpoints) if (["COLLECTING", "COMMITTED"].includes(checkpoint.status) || checkpoint.requiresReconciliation) sentTaskIds.add(checkpoint.taskId);
-    for (const event of this.snapshotValue.events) if (event.type === "adapter.sent" && event.taskId) sentTaskIds.add(event.taskId);
-    const discardedTaskIds = new Set(this.snapshotValue.tasks.filter((task) => sentTaskIds.has(task.id) && !artifactsByTask.has(task.id)).map((task) => task.id));
-    const affectedConversationIds = new Set(this.snapshotValue.tasks.filter((task) => discardedTaskIds.has(task.id)).map((task) => task.conversationId));
-
-    if (discardedTaskIds.size > 0) {
-      this.snapshotValue.tasks = this.snapshotValue.tasks.filter((task) => !discardedTaskIds.has(task.id));
-      this.snapshotValue.runs = this.snapshotValue.runs.filter((run) => !discardedTaskIds.has(run.taskId));
-      this.snapshotValue.artifacts = this.snapshotValue.artifacts.filter((artifact) => !discardedTaskIds.has(artifact.taskId));
-      this.snapshotValue.councils = this.snapshotValue.councils.filter((council) => !discardedTaskIds.has(council.taskId));
-      this.snapshotValue.evidenceBundles = this.snapshotValue.evidenceBundles.filter((bundle) => !discardedTaskIds.has(bundle.taskId));
-      this.snapshotValue.dispatchCheckpoints = this.snapshotValue.dispatchCheckpoints.filter((checkpoint) => !discardedTaskIds.has(checkpoint.taskId));
-      this.snapshotValue.events = this.snapshotValue.events.filter((event) => !event.taskId || !discardedTaskIds.has(event.taskId));
+    for (const task of this.snapshotValue.tasks) {
+      if (!["queued", "running", "waiting"].includes(task.status)) continue;
+      const runs = this.runsForTask(task.id);
+      if (runs.some((run) => ["sending", "waiting"].includes(run.phase))) {
+        task.status = "waiting";
+        task.executionPhase = "WAITING_FOR_RESPONSE";
+        task.nextAction = "RESTORE_SESSION_AND_CAPTURE";
+      }
     }
-
-    for (const conversation of this.snapshotValue.conversations) conversation.taskIds = this.snapshotValue.tasks.filter((task) => task.conversationId === conversation.id).map((task) => task.id).reverse();
-    this.snapshotValue.conversations = this.snapshotValue.conversations.filter((conversation) => conversation.taskIds.length > 0 || (!affectedConversationIds.has(conversation.id) && !(conversation.id === previousActiveId && conversation.title === "新对话")));
-
     const now = new Date().toISOString();
     const conversation: BossConversation = { id: randomUUID(), folderId, title: "新对话", storageName: this.uniqueConversationStorageName(folderId, "新对话"), taskIds: [], createdAt: now, updatedAt: now };
     this.snapshotValue.conversations.unshift(conversation);
     this.snapshotValue.activeConversationId = conversation.id;
-    this.event("conversation.created", discardedTaskIds.size > 0 ? `新会话已开始；已丢弃 ${discardedTaskIds.size} 个无回复的单向任务` : "应用启动并进入新对话", {});
+    this.event("conversation.created", "应用启动；未完成任务和证据已保留", {});
     this.persist();
   }
 

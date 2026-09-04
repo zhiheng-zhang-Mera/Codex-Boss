@@ -25,12 +25,17 @@ export class ProviderAutomation {
   ) {}
 
   async dispatchTask(taskId: string): Promise<void> {
-    const runs = this.latestRuns(taskId);
-    if (!isDispatchGroupSize(runs.length)) throw new Error("一次提交工作流只接受 3 或 5 个同时运行的网页 AI");
+    const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    if (!task || ["cancelled", "paused"].includes(task.status)) return;
+    const allRuns = this.latestRuns(taskId);
+    if (allRuns.some((run) => ["sending", "waiting"].includes(run.phase))) { this.startMonitor(taskId); return; }
+    const runs = allRuns.filter((run) => run.phase !== "completed");
+    if (runs.length === 0) return;
+    if (!isDispatchGroupSize(runs.length)) throw new Error("请选择 1–5 个 AI");
     const round = runs[0]?.round ?? 0;
-    const { checkpoint, baseline } = this.store.beginDispatch(taskId, round, runs.map((run) => run.providerId));
+    const { checkpoint, baseline } = this.store.beginDispatch(taskId, round, allRuns.map((run) => run.providerId));
     for (const run of runs) await this.prepareRun(run);
-    let current = this.latestRuns(taskId);
+    let current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
     if (prepareFailures.length > 0) {
       this.store.rollbackDispatch(checkpoint.id, baseline, prepareFailures, false, "至少一个网页未能完成预填；未执行任何发送");
@@ -42,7 +47,7 @@ export class ProviderAutomation {
       const answer = await this.sendRun(run);
       if (answer) apiAnswers.set(run.id, answer);
     }));
-    current = this.latestRuns(taskId);
+    current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const sendFailures = current.filter((run) => run.phase !== "waiting").map((run) => run.providerId);
     if (sendFailures.length > 0) {
       const partialExternalEffect = current.some((run) => run.phase === "waiting");
@@ -54,7 +59,7 @@ export class ProviderAutomation {
     this.store.setTaskStatus(taskId, "running");
     for (const [runId, answer] of apiAnswers) this.store.captureArtifact(runId, answer.content, answer.sourceUrl);
     this.store.commitDispatchForRound(taskId, round);
-    if (this.latestRuns(taskId).some((run) => run.phase === "waiting")) this.startMonitor(taskId);
+    if (this.latestRuns(taskId).some((run) => run.phase === "waiting" || run.review?.status === "RETRY")) this.startMonitor(taskId);
     this.publish();
   }
 
@@ -114,6 +119,7 @@ export class ProviderAutomation {
       }
       if (!result.ok) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", `输入区域在预填时失效：${result.reason ?? "unknown"}`, definition.version);
       this.baselines.set(run.id, probe.latestResponse);
+      this.store.setRunSession(run.id, probe.latestResponse, probe.sourceUrl);
       this.store.updateRun(run.id, "prepared", "SUCCESS", "提示词已在可见页面预填；等待用户确认发送", definition.version);
     } catch (error) {
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `页面适配器执行失败：${String(error)}`, definition.version);
@@ -150,7 +156,7 @@ export class ProviderAutomation {
         const probe = await view.webContents.executeJavaScript(probeScript(definition)) as PageProbe;
         if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); return; }
         if (probe.busy) { this.stability.delete(run.id); return; }
-        const baseline = this.baselines.get(run.id) ?? "";
+        const baseline = this.baselines.get(run.id) ?? run.responseBaseline ?? "";
         if (!probe.latestResponse || probe.latestResponse === baseline) {
           if (manual) this.store.updateRun(run.id, "waiting", "FORMAT_INVALID", "尚未发现可验证的新回答，可稍后重试或手动完成", definition.version);
           return;
@@ -169,7 +175,9 @@ export class ProviderAutomation {
         this.store.failDispatchCollection(taskId, detail.run.round, detail.run.providerId, "并行采集失败，未达到全员成功条件");
       }
     }
-    if (this.latestRuns(taskId).every((run) => run.phase === "completed")) {
+    const latest = this.latestRuns(taskId);
+    if (latest.some((run) => run.review?.status === "RETRY" && run.phase === "queued") && !latest.some((run) => run.phase === "waiting")) await this.dispatchTask(taskId);
+    if (this.latestRuns(taskId).every((run) => ["completed", "failed", "blocked"].includes(run.phase))) {
       const timer = this.monitors.get(taskId);
       if (timer) clearInterval(timer);
       this.monitors.delete(taskId);

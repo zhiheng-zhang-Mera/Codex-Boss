@@ -174,18 +174,18 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
     const { appMode, transports } = taskTransports(input, providerIds);
-    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId });
+    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
     const providerIds = [...new Set(input.providerIds)];
     if (!input.title.trim() || !input.prompt.trim()) throw new Error("Title and prompt are required");
-    if (!isDispatchGroupSize(providerIds.length)) throw new Error("一次提交必须选择 3 或 5 个网页版 AI");
+    if (!isDispatchGroupSize(providerIds.length)) throw new Error("请选择 1–5 个 AI；默认使用单 AI");
     providerIds.forEach(provider);
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
-    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId });
+    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
     commander.startTask(task.id);
     await automation.dispatchTask(task.id);
     return publish();

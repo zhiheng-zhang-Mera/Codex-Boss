@@ -1,3 +1,4 @@
+import type { ReviewPolicy } from "../../src/shared/execution";
 import { randomUUID } from "node:crypto";
 import type { AppMode, BossTask, ProviderId, RunTransport, TaskMode, TaskStatus } from "../../src/shared/contracts";
 import type { RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
@@ -10,7 +11,7 @@ import { RuntimeRegistry } from "./runtime-registry";
 import { Scheduler, type DispatchPolicy } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
 
-export interface CommanderTaskInput { title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
+export interface CommanderTaskInput { reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
 
 export class MainCommander {
   readonly stateMachine = new TaskStateMachine();
@@ -26,6 +27,7 @@ export class MainCommander {
 
   createTask(input: CommanderTaskInput): BossTask {
     const task = this.store.createTask(input.title, input.objective, input.providerIds, input.mode, input.appMode, input.transports, input.conversationId);
+    if (input.reviewPolicy) this.store.setReviewPolicy(task.id, input.reviewPolicy);
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     return task;

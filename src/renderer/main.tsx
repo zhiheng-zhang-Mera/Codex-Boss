@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApiProtocol, AppMode, AppSnapshot, BossTask, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
+import { executionLabel } from "../shared/execution";
 import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
 import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
@@ -285,7 +286,7 @@ function App() {
           <div className="boss-message">
             <div className="boss-avatar">B</div>
             <div><strong>已分派到 {task.providerIds.map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
-              <p>{task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.status}。</p>
+              <p>{task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p>
               <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId} [{run.transport}]: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
               {checkpoint && <div className={`dispatch-checkpoint checkpoint-${checkpoint.status.toLowerCase()}`}><b>{checkpoint.status}</b><span>{checkpoint.successfulProviderIds.length}/{checkpoint.expectedProviderIds.length} 成功 · {checkpoint.message}</span></div>}
               {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}
@@ -326,7 +327,7 @@ function App() {
         {pendingRemoteCommands.length > 0 && <section className="remote-inbox"><header><b>远程指令待确认</b><span>{pendingRemoteCommands.length}</span></header>{pendingRemoteCommands.slice(0, 3).map((command) => <article key={command.id}><div><strong>{command.channel === "wechat" ? "微信" : "QQ"}</strong><small>{command.sourceWindow} · {shortTime(command.receivedAt)}</small><p>{command.body}</p></div><button type="button" onClick={() => void loadRemoteCommand(command.id, command.body)} disabled={Boolean(prompt.trim())}>载入</button><button type="button" onClick={() => void dismissRemoteCommand(command.id)}>忽略</button></article>)}</section>}
         <form className="prompt-composer" onSubmit={submit}>
           <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="向多个网页 AI 发起任务…" rows={3} />
-          <div className="composer-footer"><span>{appMode === "chat" ? "Chat：全部使用可见网页" : "Work：任务输入后锁定各 AI 的网页/API 通道"}；仅 3/5 个全员成功后继续</span><button type="submit" title={`提交到全部 ${selectedProviders.length} 个 AI`} disabled={!prompt.trim() || sending || !isDispatchGroupSize(selectedProviders.length)}>{sending ? "…" : "↑"}</button></div>
+          <div className="composer-footer"><span>{appMode === "chat" ? "Chat：全部使用可见网页" : "Work：任务输入后锁定各 AI 的网页/API 通道"}；所选 AI 回答通过审查后继续</span><button type="submit" title={`提交到全部 ${selectedProviders.length} 个 AI`} disabled={!prompt.trim() || sending || !isDispatchGroupSize(selectedProviders.length)}>{sending ? "…" : "↑"}</button></div>
         </form>
         {error && <div className="inline-error">{error}</div>}
       </div>

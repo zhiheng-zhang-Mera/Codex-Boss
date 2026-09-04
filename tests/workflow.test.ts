@@ -19,8 +19,8 @@ function newStore(): StateStore {
 }
 
 describe("group dispatch checkpoints", () => {
-  it("allows only three or five providers", () => {
-    expect([1, 2, 3, 4, 5].filter(isDispatchGroupSize)).toEqual([3, 5]);
+  it("allows bounded single and multi-provider dispatch", () => {
+    expect([1, 2, 3, 4, 5].filter(isDispatchGroupSize)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("commits only after every provider artifact is captured", () => {

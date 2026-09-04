@@ -77,7 +77,7 @@ describe("local conversation history", () => {
     expect(restored.snapshot().conversations[0]).toEqual(expect.objectContaining({ title: "新对话", taskIds: [] }));
   });
 
-  it("discards a sent task with zero replies instead of saving a one-way conversation", () => {
+  it("preserves sent tasks and history across restart", () => {
     const { root, historyRoot, store } = workspace();
     const previous = store.snapshot();
     const conversation = previous.conversations.find((item) => item.id === previous.activeConversationId)!;
@@ -89,9 +89,9 @@ describe("local conversation history", () => {
 
     const restored = new StateStore(path.join(root, "state.json"), new HistoryRepository(historyRoot));
     const snapshot = restored.snapshot();
-    expect(snapshot.tasks.some((item) => item.id === task.id)).toBe(false);
-    expect(snapshot.runs.some((run) => run.taskId === task.id)).toBe(false);
+    expect(snapshot.tasks.some((item) => item.id === task.id)).toBe(true);
+    expect(snapshot.runs.some((run) => run.taskId === task.id)).toBe(true);
     expect(snapshot.activeConversationId).not.toBe(conversation.id);
-    expect(fs.readFileSync(path.join(oldDirectory, "messages.md"), "utf8")).not.toContain("只有用户发送的内容");
+    expect(fs.readFileSync(path.join(oldDirectory, "messages.md"), "utf8")).toContain("只有用户发送的内容");
   });
 });

@@ -14,10 +14,10 @@ afterEach(() => {
 });
 
 describe("StateStore persistence", () => {
-  it("ships more choices than the five-page active limit and defaults to three", () => {
+  it("ships more choices than the five-page active limit and defaults to one", () => {
     expect(providerSeed.map((provider) => provider.id)).toEqual(expect.arrayContaining(["chatgpt", "gemini", "claude", "deepseek", "qwen", "kimi"]));
     expect(providerSeed.length).toBeGreaterThan(MAX_ACTIVE_PROVIDERS);
-    expect(DEFAULT_PROVIDER_IDS).toEqual(["chatgpt", "qwen", "grok"]);
+    expect(DEFAULT_PROVIDER_IDS).toEqual(["chatgpt"]);
   });
 
   it("persists and removes a custom web AI", () => {
