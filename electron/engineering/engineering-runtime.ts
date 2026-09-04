@@ -8,6 +8,7 @@ export interface StepEvidence { deferred?: boolean; stepId: string; passed: bool
 export interface GraphResult { status: "COMPLETED" | "FAILED" | "WAITING"; evidence: StepEvidence[]; }
 export interface GraphExecutor {
   readOnly?: boolean;
+  parallelism?: () => number;
   execute(step: TaskStep): Promise<string>;
   verify(step: TaskStep, output: string): Promise<boolean>;
 }
@@ -44,7 +45,7 @@ export class EngineeringRuntime {
       // Concurrent workers must own disjoint file scopes. Unknown scope is serialized.
       const batch: TaskStep[] = []; const owned = new Set<string>();
       for (const step of ready) {
-        if (batch.length >= width) break;
+        if (batch.length >= Math.max(1, Math.min(width, executor.parallelism?.() ?? width))) break;
         if (!executor.readOnly && batch.length && (!step.requiredFiles.length || batch.some((item) => !item.requiredFiles.length) || step.requiredFiles.some((file) => [...owned].some((other) => { const a = path.resolve(file).toLowerCase(); const b = path.resolve(other).toLowerCase(); return a === b || a.startsWith(b + path.sep) || b.startsWith(a + path.sep); })))) continue;
         batch.push(step); step.requiredFiles.forEach((file) => owned.add(file));
       }

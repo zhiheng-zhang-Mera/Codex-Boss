@@ -73,3 +73,43 @@ it("does not resend a captured-session request whose URL is uncertain", async ()
   recovery.defer(run, "CAPTURE_EXISTING", 1); await queue.runDue();
   expect(sent).toBe(false); expect(queue.list()[0].state).toBe("PAUSED"); expect(store.snapshot().tasks[0].recoveryMessage).toContain("人工核对");
 });
+
+it("restores the recorded conversation before reading an existing provider view", async () => {
+ const dir = root(); const store = new StateStore(path.join(dir, "state.json")); const queue = new RecoveryScheduler(path.join(dir, "queue.json"));
+ const task = store.createTask("restore exact conversation", "question", ["chatgpt"]); const run = store.runsForTask(task.id)[0];
+ const expected = "https://chatgpt.com/c/original"; store.setRunSession(run.id, "", expected);
+ let current = "https://chatgpt.com/c/unrelated"; const events: string[] = []; let sends = 0;
+ const contents = { isCrashed: () => false, getURL: () => current, async loadURL(url: string) { events.push("navigate"); current = url; }, async executeJavaScript() { events.push("probe"); return { sourceUrl: current, loginLikely: false, rateLimited: false }; } };
+ const views = { get: () => ({ webContents: contents }), close() {}, open: () => ({ webContents: contents }) };
+ const recovery = new WebRecovery(store, views as never, () => ({ async resumePending() { events.push("capture"); }, async dispatchTask() { sends++; } }) as never, () => providerSeed[0], queue, new BudgetManager());
+ recovery.defer(store.runsForTask(task.id)[0], "CAPTURE_EXISTING", 1); await queue.runDue();
+ expect(events).toEqual(["navigate", "probe", "capture"]); expect(current).toBe(expected); expect(sends).toBe(0);
+});
+it("does not collect a different conversation after a restore redirect", async () => {
+ const dir = root(); const store = new StateStore(path.join(dir, "state.json")); const queue = new RecoveryScheduler(path.join(dir, "queue.json"));
+ const task = store.createTask("redirect", "question", ["chatgpt"]); const run = store.runsForTask(task.id)[0];
+ store.setRunSession(run.id, "", "https://chatgpt.com/c/original"); let captures = 0;
+ const contents = { isCrashed: () => false, getURL: () => "https://chatgpt.com/", async loadURL() {}, async executeJavaScript() { return { sourceUrl: "https://chatgpt.com/c/different", loginLikely: false, rateLimited: false }; } };
+ const recovery = new WebRecovery(store, { get: () => ({ webContents: contents }) } as never, () => ({ async resumePending() { captures++; } }) as never, () => providerSeed[0], queue, new BudgetManager());
+ recovery.defer(store.runsForTask(task.id)[0], "CAPTURE_EXISTING", 1); await queue.runDue();
+ expect(captures).toBe(0); expect(queue.list()[0].state).toBe("PAUSED"); expect(store.snapshot().tasks[0].recoveryMessage).toContain("原会话");
+});
+
+it("wakes paused recovery only after explicit resume and preserves future deadlines", async () => {
+ const file = path.join(root(), "queue.json"); const queue = new RecoveryScheduler(file); let calls = 0;
+ queue.register("web", async () => { calls++; return { done: false, error: "login required" }; });
+ queue.schedule({ id: "web:task", taskId: "task", kind: "web", retryAt: 1, payload: { strategy: "CAPTURE_EXISTING" } });
+ await queue.runDue(); expect(queue.list()[0].state).toBe("PAUSED");
+ await queue.runDue(); expect(calls).toBe(1);
+ const restored = new RecoveryScheduler(file);
+ restored.register("web", async () => { calls++; return { done: true }; });
+ expect(restored.resumeTask("other")).toBe(0);
+ expect(restored.resumeTask("task", 1000)).toBe(1);
+ await restored.runDue(999); expect(calls).toBe(1);
+ await restored.runDue(1000); expect(calls).toBe(2); expect(restored.list()).toHaveLength(0);
+ const delayed = new RecoveryScheduler(file);
+ delayed.register("web", async () => ({ done: false, error: "paused" }));
+ delayed.schedule({ id: "later", taskId: "later", kind: "web", retryAt: 5000, payload: {} });
+ await delayed.runDue(5000);
+ delayed.resumeTask("later", 1000); expect(delayed.list()[0].retryAt).toBe(5000);
+});

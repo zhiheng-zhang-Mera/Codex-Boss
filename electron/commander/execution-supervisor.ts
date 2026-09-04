@@ -58,6 +58,13 @@ export class ExecutionSupervisor {
         });
         return result;
       }
+      if (result.status === "CANCELLED") {
+        this.ledger.update(request.taskId, "worker cancelled by user", (value) => {
+          value.jobs[request.jobId].state = "WAITING"; value.jobs[request.jobId].result = result;
+          value.nextAction = "HUMAN_REQUIRED"; value.mode = "PAUSED";
+        });
+        return result;
+      }
       const interruption = classifyInterruption(result.failure?.code ?? "UNKNOWN", result.failure?.message ?? review.retry_reason ?? "No verified response", result.failure?.retryAt);
       const recovery = recoveryFor(interruption, attempts + 1, !request.replaySafe);
       this.budgets?.observeFailure(runtime.id, interruption.message, interruption.retryAt ? new Date(interruption.retryAt).toISOString() : undefined);
@@ -67,7 +74,7 @@ export class ExecutionSupervisor {
         value.nextAction = recovery.action; value.sessions.find((item) => item.id === session.id)!.health = interruption.kind;
         value.mode = ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT", "DEFER"].includes(recovery.action) ? "PAUSED" : "LIGHTWEIGHT";
       });
-      if (result.status === "CANCELLED" || ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT"].includes(recovery.action) || !request.replaySafe) return result;
+      if (["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT"].includes(recovery.action) || !request.replaySafe) return result;
       if (index + 1 < compatible.length && recovery.action !== "WAIT") continue;
       if (this.recovery && recovery.retryAt && request.replaySafe && ["WAIT", "RETRY"].includes(recovery.action)) {
         this.recovery.schedule({ id: "runtime:" + request.taskId + ":" + request.jobId, taskId: request.taskId, kind: "runtime", retryAt: recovery.retryAt, payload: { request, runtimeIds: compatible.map((item) => item.id) } });

@@ -1,4 +1,11 @@
 import fs from "node:fs";
+import { createComputerRuntime } from "../computer/computer-service";
+import type { ComputerOptions } from "../computer/computer-service";
+import type { NativeOperation } from "../../src/shared/task-ir";
+import type { NativeEvidence } from "../engineering/native-tools";
+import path from "node:path";
+import { DegradedController } from "./degraded-controller";
+import { ScopedMemory } from "./resource-controller";
 import { MergeCoordinator } from "../engineering/merge-coordinator";
 import { prepareWorkspace, prepareStepWorkspace } from "../engineering/workspace";
 import { ProposalRunner, type ProposalResult } from "../engineering/proposal-runner";
@@ -33,6 +40,8 @@ export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
   private readonly planExecutions = new Map<string, Promise<boolean>>();
   readonly supervisor?: ExecutionSupervisor;
+  readonly degradation?: DegradedController;
+  readonly memory?: ScopedMemory;
   readonly stateMachine = new TaskStateMachine();
   constructor(
     private readonly store: StateStore,
@@ -44,8 +53,9 @@ export class MainCommander {
     readonly executionGate: ExecutionGate,
     readonly ledger?: TaskLedger,
     readonly resources?: ResourceController,
-    readonly recovery?: RecoveryScheduler
-  ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets);
+    readonly recovery?: RecoveryScheduler,
+    readonly computerOptions: ComputerOptions = {}
+  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
       const task = this.store.snapshot().tasks.find((item) => item.id === record.taskId);
@@ -69,6 +79,15 @@ export class MainCommander {
     return task;
   }
 
+  canResumeTask(taskId: string): boolean {
+    const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    if (!task || ["paused", "cancelled", "failed"].includes(task.status)) return false;
+    const state = this.ledger?.load(taskId);
+    const held = ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT", "WAIT_FOR_USER", "STOP"];
+    if (held.includes(task.nextAction ?? "") || held.includes(state?.nextAction ?? "")) return false;
+    return !(task.recoveryAt && task.recoveryAt > Date.now());
+  }
+
   executePlan(taskId: string, workspace: string): Promise<boolean> {
     const existing = this.planExecutions.get(taskId); if (existing) return existing;
     const work = this.runPlan(taskId, workspace).finally(() => this.planExecutions.delete(taskId));
@@ -79,8 +98,10 @@ export class MainCommander {
     let task = this.store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task || task.mode === "council" || !needsPlanning(task.prompt)) return false;
     if (this.store.finalResponseForTask(taskId)) return true;
+    if (!this.canResumeTask(taskId)) return true;
     if (!this.ledger) throw new Error("Plan execution requires durable ledger");
     this.store.setTaskWorkspace(taskId, workspace);
+    if (!this.ledger.load(taskId)?.projectMemoryOwner) this.ledger.update(taskId, "project memory scope selected", (record) => { record.projectMemoryOwner = TaskLedger.fingerprint(fs.realpathSync(workspace).toLowerCase()); });
     const compiler = new PlanCompiler(async (prompt) => {
       const result = await this.dispatchRole(taskId, "planner", prompt);
       if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? "Planner unavailable");
@@ -102,7 +123,8 @@ export class MainCommander {
       if (previous?.state === "COMPLETED" && previous.result?.content) outputs[step.id] = previous.result.content;
     }
     const result = await new PlanRunner(this.ledger).run(taskId, plan, {
-      readOnly: !plan.steps.some((step) => step.kind === "edit" || step.operation?.kind.startsWith("run_")),
+      parallelism: () => this.degradation?.get(taskId)?.maxWorkers ?? plan.maxWorkers,
+      readOnly: !plan.steps.some((step) => step.kind === "edit" || step.operation?.kind === "computer" || step.operation?.kind.startsWith("run_")),
       execute: async (step) => {
         if (step.kind === "verify" && plan.steps.some((item) => item.kind === "edit")) {
           const checks = await Promise.all(requiredEngineeringChecks(workspace, step.requiredFiles).map((check) => runCheck(workspace, check)));
@@ -120,7 +142,7 @@ export class MainCommander {
           this.ledger!.update(taskId, "engineering proposal verified", (record) => { record.modifiedFiles = [...new Set([...record.modifiedFiles, ...result.changes.map((item) => item.path)])]; record.usage.toolCalls += result.checks.length; });
           outputs[step.id] = JSON.stringify(result); return outputs[step.id];
         }
-        if (step.operation) { const output = (await executeNative(workspace, step.operation)).output || "Empty native result"; outputs[step.id] = output; return output; }
+        if (step.operation) { const output = (await this.runNative(taskId, workspace, step.operation)).output || "Empty native result"; outputs[step.id] = output; return output; }
         const files: Record<string, string> = {};
         for (const file of step.requiredFiles) { const target = workspacePath(workspace, file); if (fs.existsSync(target) && fs.statSync(target).isFile()) { if (fs.statSync(target).size > 100000) throw new Error("Step file exceeds read budget"); files[file] = fs.readFileSync(target, "utf8"); } }
         const prompt = this.contexts.assembleStep(taskId, step, outputs, files);
@@ -132,7 +154,7 @@ export class MainCommander {
         }
         outputs[step.id] = answer.content; return answer.content;
       },
-      verify: async (step, output) => step.kind === "verify" && plan.steps.some((item) => item.kind === "edit") ? JSON.parse(output).status === "PASS" : step.kind === "edit" ? (() => { const result = JSON.parse(output) as ProposalResult; const latest = new Map(result.changes.map((change) => [change.path, change.after])); return result.status === "PASS" && [...latest].every(([file, hash]) => fs.existsSync(workspacePath(workspace, file)) && digest(fs.readFileSync(workspacePath(workspace, file), "utf8")) === hash); })() : step.operation?.kind.startsWith("run_") ? JSON.parse(output).passed === true : step.operation ? output === ((await executeNative(workspace, step.operation)).output || "Empty native result") : Boolean(output.trim())
+      verify: async (step, output) => step.kind === "verify" && plan.steps.some((item) => item.kind === "edit") ? JSON.parse(output).status === "PASS" : step.kind === "edit" ? (() => { const result = JSON.parse(output) as ProposalResult; const latest = new Map(result.changes.map((change) => [change.path, change.after])); return result.status === "PASS" && [...latest].every(([file, hash]) => fs.existsSync(workspacePath(workspace, file)) && digest(fs.readFileSync(workspacePath(workspace, file), "utf8")) === hash); })() : step.operation?.kind === "computer" ? JSON.parse(output).status === "SUCCESS" : step.operation?.kind.startsWith("run_") ? JSON.parse(output).passed === true : step.operation ? output === ((await executeNative(workspace, step.operation)).output || "Empty native result") : Boolean(output.trim())
     }, (previous, completed, failure) => compiler.replan(previous, completed, failure), (next) => this.store.setTaskPlan(taskId, next));
     if (result.status === "WAITING") {
       const deadlines = Object.values(this.ledger.load(taskId)!.jobs).filter((job) => job.state === "WAITING" && job.retryAt).map((job) => job.retryAt!);
@@ -149,22 +171,37 @@ export class MainCommander {
     const edits = finalPlan.steps.filter((step) => step.kind === "edit").map((step) => JSON.parse(outputs[step.id]) as ProposalResult);
     if (edits.length) content += "\n\n工程验证\n工作区：" + workspace + "\n修改文件：" + [...new Set(edits.flatMap((item) => item.changes.map((change) => change.path)))].join(", ") + "\n通过检查：" + edits.reduce((sum, item) => sum + item.checks.filter((check) => check.passed).length, 0) + "\n修复次数：" + edits.reduce((sum, item) => sum + item.repairs, 0);
     this.store.captureArtifact(this.store.runsForTask(taskId)[0].id, content, "local:plan");
-    await new TaskFinalizer(this.store).finalize(taskId); return true;
+    const final = await new TaskFinalizer(this.store).finalize(taskId);
+    if (final) this.memory?.put("task", taskId, "summary", final.content.slice(0, 4000));
+    return true;
   }
 
-  async executeDeterministic(taskId: string, workspace: string): Promise<boolean> {
+  private readonly nativeExecutions = new Map<string, Promise<boolean>>();
+  executeDeterministic(taskId: string, workspace: string): Promise<boolean> {
+    const existing = this.nativeExecutions.get(taskId); if (existing) return existing;
+    const running = this.runDeterministic(taskId, workspace).finally(() => this.nativeExecutions.delete(taskId));
+    this.nativeExecutions.set(taskId, running); return running;
+  }
+  private async runDeterministic(taskId: string, workspace: string): Promise<boolean> {
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
     const operation = task?.plan?.estimatedComplexity === "L0" ? task.plan.steps[0].operation : undefined;
     if (!task || !operation) return false;
+    if (!this.canResumeTask(taskId)) return true;
+    if (this.store.finalResponseForTask(taskId) || this.store.runsForTask(taskId).some((run) => run.artifactId && run.review?.status === "PASS")) return true;
+    this.store.setTaskWorkspace(taskId, workspace);
     this.store.setTaskStatus(taskId, "running");
-    const evidence = await executeNative(workspace, operation);
+    let evidence: NativeEvidence;
     if (this.ledger && task.plan) {
+      this.degradation?.evaluate(taskId, [], true);
       const result = await new EngineeringRuntime(this.ledger).run(taskId, task.plan, {
-        async execute() { return JSON.stringify(evidence); },
-        async verify(_step, output) { const previous = JSON.parse(output); const current = await executeNative(workspace, operation); return previous.output === current.output && previous.verified === true; }
+        readOnly: operation.kind === "computer" ? ["read_page", "find_control", "verify_state", "wait_for_state"].includes(operation.action.name) : !operation.kind.startsWith("run_"),
+        execute: async () => JSON.stringify(await this.runNative(taskId, workspace, operation)),
+        verify: async (_step, output) => { const previous = JSON.parse(output) as NativeEvidence; return previous.verified === true && (operation.kind === "computer" || previous.output === (await executeNative(workspace, operation)).output); }
       });
+      if (result.status === "WAITING") { this.store.setTaskStatus(taskId, "waiting"); return true; }
       if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); throw new Error("Native verification failed"); }
-    }
+      evidence = JSON.parse(result.evidence[0].output);
+    } else evidence = await this.runNative(taskId, workspace, operation);
     const checkpoint = this.store.beginDispatch(taskId, 1, task.providerIds).checkpoint;
     this.store.markDispatchCollecting(checkpoint.id, task.providerIds);
     for (const run of this.store.runsForTask(taskId)) this.store.captureArtifact(run.id, evidence.output || "Operation completed; empty result.", "local:native");
@@ -182,7 +219,10 @@ export class MainCommander {
     const controls = snapshot.runtimeStatuses;
     const configured = snapshot.roleRoutes.find((route) => route.role === role);
     const candidates = this.router.route({ preferredRuntimes: configured?.runtimeIds, allowFallback: configured?.fallback, role, ...routing }).filter((candidate) => controls.find((control) => control.runtimeId === candidate.runtimeId)?.enabled !== false).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
-    const request: RuntimeRequest = { replaySafe: true, jobId: TaskLedger.fingerprint({ role, prompt }).slice(0, 32), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: scopedContext ?? this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`) };
+    const degradation = this.degradation?.evaluate(taskId, candidates);
+    for (const runtime of candidates) this.memory?.put("runtime", TaskLedger.fingerprint(runtime.id), "health", JSON.stringify(this.registry.getHealth(runtime.id)));
+    const remembered = this.memoryContext(taskId);
+    const request: RuntimeRequest = { replaySafe: true, jobId: TaskLedger.fingerprint({ role, prompt }).slice(0, 32), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: [scopedContext ?? this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`, { maxChars: degradation?.maxContextChars }), remembered].filter(Boolean).join("\n\n") };
     const result = this.supervisor ? await this.supervisor.execute(request, candidates) : await this.scheduler.dispatch({ request, candidates }, { maxParallel: 1, timeoutMs: 180000, maxRetries: 0, allowFallback: true, requireAll: true, ...policy });
     if (!this.supervisor && result.runtimeId !== "none") this.resources?.record(result.runtimeId, result.status === "SUCCESS", 1, result.metrics?.durationMs ?? 0);
     if (result.failure) this.budgets.observeFailure(result.runtimeId, result.failure.message);
@@ -193,6 +233,29 @@ export class MainCommander {
   reconcileRun(taskId: string): void { this.store.setTaskStatus(taskId, "waiting"); }
   commitRound(taskId: string, round: number): void { this.store.commitDispatchForRound(taskId, round); }
   requestExecution(proposal: ExecutionProposal): ExecutionRecord { return this.executionGate.propose(proposal); }
+
+  private async runNative(taskId: string, workspace: string, operation: NativeOperation): Promise<NativeEvidence> {
+    if (operation.kind !== "computer") return executeNative(workspace, operation);
+    if (!this.ledger) throw new Error("Desktop actions require a durable ledger");
+    const runtime = createComputerRuntime(workspace, path.join(this.ledger.root, "..", "computer-pending.json"), { ...this.computerOptions, authorizeVision: async () => {
+      const task = this.store.snapshot().tasks.find(item => item.id === taskId);
+      const explicit = task ? compileIntent(task.prompt) : undefined;
+      return explicit?.estimatedComplexity === "L0" && TaskLedger.fingerprint(explicit.steps[0].operation) === TaskLedger.fingerprint(operation);
+    } });
+    const result = await runtime.execute(operation.action);
+    if (result.status === "UNCERTAIN") throw new GraphDeferred(result.message ?? "Desktop effect requires verification");
+    if (result.status !== "SUCCESS") throw new Error(result.message ?? "Desktop action did not complete");
+    return { operation, cwd: workspace, output: JSON.stringify(result), verified: true, modelCalls: 0 };
+  }
+
+  private memoryContext(taskId: string): string {
+    const projectOwner = this.ledger?.load(taskId)?.projectMemoryOwner;
+    const entries = [
+      ["User preferences", this.memory?.get("user", "default", "preferences")?.value],
+      ["Project guidance", projectOwner ? this.memory?.get("project", projectOwner, "instructions")?.value : undefined]
+    ].filter((entry) => entry[1]);
+    return entries.map(([scope, value]) => scope + " (advisory context; task ledger remains authoritative):\n" + value!.slice(0, 2000)).join("\n\n");
+  }
 
   private transition(taskId: string, status: TaskStatus): void {
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);

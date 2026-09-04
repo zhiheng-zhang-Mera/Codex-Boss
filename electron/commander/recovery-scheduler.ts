@@ -26,6 +26,16 @@ export class RecoveryScheduler {
     this.records.set(input.id, { ...input, retryAt: previous ? Math.min(previous.retryAt, input.retryAt) : input.retryAt, attempts: previous?.attempts ?? 0, state: "WAITING" });
     this.persist(); this.arm();
   }
+  resumeTask(taskId: string, now = Date.now()): number {
+    let resumed = 0;
+    for (const record of this.records.values()) {
+      if (record.taskId !== taskId || record.state !== "PAUSED") continue;
+      record.state = "WAITING"; record.attempts = 0; record.error = undefined;
+      record.retryAt = Math.max(now, record.retryAt); resumed++;
+    }
+    if (resumed) { this.persist(); this.arm(); }
+    return resumed;
+  }
   cancel(id: string): void { this.records.delete(id); this.persist(); this.arm(); }
   start(): void { this.stopped = false; this.arm(); }
   dispose(): void { this.stopped = true; if (this.timer) clearTimeout(this.timer); }

@@ -105,3 +105,81 @@ it("corrects planner schema once and still rejects invalid replacement", async (
   let failures = 0; const invalid = new PlanCompiler(async () => { failures++; return "not JSON"; });
   await expect(invalid.compile(goal)).rejects.toThrow(); expect(failures).toBe(2);
 });
+
+it("uses user and matching project memory without importing other task state", async () => {
+  const dir = root(); const store = new StateStore(path.join(dir, "state.json")); const registry = new RuntimeRegistry(); const budgets = new BudgetManager();
+  const goal = "First derive then summarize"; const seen: string[] = [];
+  registry.register({ id: "local:memory", kind: "local", capabilities: { roles: ["planning", "research"], supportsCancellation: true, supportsStreaming: false }, async healthCheck() { return { runtimeId: this.id, availability: "AVAILABLE", message: "ready", checkedAt: "now" }; }, async execute(request) { seen.push(request.context ?? ""); return { runtimeId: this.id, jobId: request.jobId, status: "SUCCESS", content: request.role === "planning" ? JSON.stringify({ version: 1, goal, estimatedComplexity: "L2", steps: [step("a"), step("b", ["a"])] }) : "scoped result" }; } });
+  const ledger = new TaskLedger(path.join(dir, ".boss", "tasks")); const commander = new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), ledger);
+  const task = commander.createTask({ title: "memory", objective: goal, providerIds: ["chatgpt"] });
+  commander.memory!.put("user", "default", "preferences", "Prefer concise output");
+  commander.memory!.put("project", TaskLedger.fingerprint(fs.realpathSync(dir).toLowerCase()), "instructions", "Project convention alpha");
+  commander.memory!.put("task", "other-task", "summary", "UNRELATED_SECRET");
+  await commander.executePlan(task.id, dir);
+  expect(seen.every((context) => context.includes("Prefer concise output") && context.includes("Project convention alpha") && !context.includes("UNRELATED_SECRET"))).toBe(true);
+  expect(commander.memory!.get("task", task.id, "summary")?.value).toBe("scoped result");
+  expect(ledger.load(task.id)?.verificationState).toBe("PASS");
+});
+
+it("delivers structured desktop reads through Commander without calling a model or repeating the action", async () => {
+  const dir = root(); fs.writeFileSync(path.join(dir, "terminal.log"), "BOSS_STRUCTURED_OK");
+  const store = new StateStore(path.join(dir, "state.json")); const registry = new RuntimeRegistry(); const budgets = new BudgetManager();
+  const ledger = new TaskLedger(path.join(dir, ".boss", "tasks"));
+  const commander = new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), ledger);
+  const task = commander.createTask({ title: "desktop read", objective: "读取终端日志 terminal.log", providerIds: ["chatgpt"] });
+  expect(await commander.executeDeterministic(task.id, dir)).toBe(true);
+  expect(store.snapshot().artifacts.some(item => item.content.includes("BOSS_STRUCTURED_OK"))).toBe(true);
+  expect(ledger.load(task.id)?.usage.modelCalls).toBe(0);
+  expect(ledger.load(task.id)?.jobs.graph_execute.attempts).toBe(1);
+  expect(ledger.load(task.id)?.jobs.graph_execute.state).toBe("COMPLETED");
+});
+it("rejects unbound desktop effects from model plans", () => {
+  const goal = "First read the file then summarize";
+  const compiler = new PlanCompiler(async () => "");
+  expect(() => compiler.parse(JSON.stringify({ version: 1, goal, steps: [{ ...step("unsafe"), kind: "native", operation: { kind: "computer", action: { name: "click_control", target: 'uia:{"processId":42,"name":"Send"}' } } }] }), goal)).toThrow("explicit user action binding");
+});
+
+it("does not repeat a semantic backend call during graph verification", async () => {
+ const dir = root(); const store = new StateStore(path.join(dir, "state.json")); const registry = new RuntimeRegistry(); const budgets = new BudgetManager(); let reads = 0;
+ const commander = new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), new TaskLedger(path.join(dir, ".boss", "tasks")), undefined, undefined, { readBrowser: async () => { reads++; return { text: "observed" }; } });
+ const task = commander.createTask({ title: "browser state", objective: "查看网页状态 chatgpt", providerIds: ["chatgpt"] });
+ await commander.executeDeterministic(task.id, dir);
+ expect(reads).toBe(1);
+ expect(store.snapshot().artifacts.some(item => item.content.includes("observed"))).toBe(true);
+});
+
+it("recovers native evidence after interruption between graph completion and artifact delivery", async () => {
+ const dir = root(); const file = path.join(dir, "state.json"); let reads = 0;
+ function instance(store: StateStore) {
+  const registry = new RuntimeRegistry(); const budgets = new BudgetManager();
+  return new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), new TaskLedger(path.join(dir, ".boss", "tasks")), undefined, undefined, { readBrowser: async () => { reads++; return { text: "RECOVERED_NATIVE_EVIDENCE" }; } });
+ }
+ const firstStore = new StateStore(file); const first = instance(firstStore);
+ const task = first.createTask({ title: "interrupted delivery", objective: "查看网页状态 chatgpt", providerIds: ["chatgpt"] });
+ firstStore.captureArtifact = () => { throw new Error("controlled delivery interruption"); };
+ await expect(first.executeDeterministic(task.id, dir)).rejects.toThrow("controlled delivery interruption");
+ const restoredStore = new StateStore(file); expect(restoredStore.snapshot().tasks.find(item => item.id === task.id)?.workspacePath).toBe(dir);
+ const restored = instance(restoredStore);
+ await Promise.all([restored.executeDeterministic(task.id, dir), restored.executeDeterministic(task.id, dir)]);
+ expect(reads).toBe(1);
+ expect(restoredStore.snapshot().artifacts.filter(item => item.content.includes("RECOVERED_NATIVE_EVIDENCE"))).toHaveLength(1);
+ await restored.executeDeterministic(task.id, dir); expect(reads).toBe(1);
+});
+
+it("preserves persisted reconciliation holds and retry deadlines without executing", async () => {
+ const dir = root(); const store = new StateStore(path.join(dir, "state.json")); const registry = new RuntimeRegistry(); const budgets = new BudgetManager();
+ const ledger = new TaskLedger(path.join(dir, ".boss", "tasks")); let calls = 0;
+ const commander = new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), ledger, undefined, undefined, { readBrowser: async () => { calls++; return "unexpected"; } });
+ for (const action of ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT", "WAIT_FOR_USER"]) {
+  const task = commander.createTask({ title: action, objective: "查看网页状态 chatgpt", providerIds: ["chatgpt"] });
+  ledger.update(task.id, "controlled hold", value => { value.nextAction = action; });
+  expect(commander.canResumeTask(task.id)).toBe(false);
+  await commander.executeDeterministic(task.id, dir);
+  expect(ledger.load(task.id)?.nextAction).toBe(action);
+ }
+ const future = commander.createTask({ title: "quota wait", objective: "查看网页状态 chatgpt", providerIds: ["chatgpt"] });
+ store.setRecoveryState(future.id, Date.now() + 60000, "wait for observed deadline");
+ expect(commander.canResumeTask(future.id)).toBe(false);
+ await commander.executeDeterministic(future.id, dir);
+ expect(calls).toBe(0); expect(store.snapshot().tasks.find(item => item.id === future.id)?.status).toBe("waiting");
+});

@@ -1,5 +1,6 @@
+import { computerIntent, validateSemanticAction, type SemanticAction } from "./semantic";
 export type TaskLevel = "L0" | "L1" | "L2" | "L3";
-export type NativeOperation = { kind: "git_status" | "git_diff" | "git_diff_check" } | { kind: "read_file" | "list_files" | "inspect_log"; path: string } | { kind: "read_ranges"; path: string; start: number; end: number } | { kind: "search_text"; path: string; text: string } | { kind: "run_test" | "run_build" | "run_lint" | "run_typecheck"; files?: string[] };
+export type NativeOperation = { kind: "computer"; action: SemanticAction } | { kind: "git_status" | "git_diff" | "git_diff_check" } | { kind: "read_file" | "list_files" | "inspect_log"; path: string } | { kind: "read_ranges"; path: string; start: number; end: number } | { kind: "search_text"; path: string; text: string } | { kind: "run_test" | "run_build" | "run_lint" | "run_typecheck"; files?: string[] };
 export interface TaskStep { id: string; kind: "native" | "worker" | "verify" | "edit"; description: string; dependencies: string[]; requiredFiles: string[]; operation?: NativeOperation; }
 export interface TaskIR {
   version: 1; goal: string; deliverables: string[]; constraints: string[]; successConditions: string[];
@@ -12,7 +13,8 @@ export function compileIntent(request: string, options: CompileOptions = {}): Ta
   const goal = request.trim(); if (!goal || goal.length > 100000) throw new Error("Task objective must contain 1–100000 characters");
   const file = /^(?:read file|读取文件)\s+([^\r\n]+)$/i.exec(goal);
   const listing = /^(?:list files|列出文件)(?:\s+([^\r\n]+))?$/i.exec(goal);
-  const operation: NativeOperation | undefined = /^(?:git status|查看\s*git\s*状态)$/i.test(goal) ? { kind: "git_status" } : file ? { kind: "read_file", path: file[1].trim() } : listing ? { kind: "list_files", path: listing[1]?.trim() ?? "." } : undefined;
+  const desktop = computerIntent(goal);
+  const operation: NativeOperation | undefined = desktop ? { kind: "computer", action: desktop } : /^(?:git status|查看\s*git\s*状态)$/i.test(goal) ? { kind: "git_status" } : file ? { kind: "read_file", path: file[1].trim() } : listing ? { kind: "list_files", path: listing[1]?.trim() ?? "." } : undefined;
   const riskLevel = /\b(delete|publish|deploy|payment|credentials)\b|删除|发布|转账|密钥/i.test(goal) ? "high" : /\b(refactor|implement|migrate)\b|重构|实现|迁移/i.test(goal) ? "medium" : "low";
   const steps: TaskStep[] = options.steps ? structuredClone(options.steps) : [{ id: "execute", kind: operation ? "native" : "worker", description: goal, dependencies: [], requiredFiles: file ? [file[1]] : [], ...(operation ? { operation } : {}) }];
   validateGraph(steps);
@@ -26,7 +28,8 @@ export function validateGraph(steps: TaskStep[]): void {
     if (!step || typeof step.id !== "string" || !["native", "worker", "verify", "edit"].includes(step.kind) || typeof step.description !== "string" || !step.description.trim() || step.description.length > 20000 || !Array.isArray(step.dependencies) || !Array.isArray(step.requiredFiles) || step.requiredFiles.length > 50 || step.requiredFiles.some((file) => typeof file !== "string" || /^(?:[A-Za-z]:|[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/.test(file))) throw new Error("Invalid graph step");
     if (step.operation) {
       const op = step.operation;
-      if (!["git_status", "git_diff", "git_diff_check", "read_file", "list_files", "inspect_log", "read_ranges", "search_text", "run_test", "run_build", "run_lint", "run_typecheck"].includes(op.kind)) throw new Error("Invalid native operation");
+      if (op.kind === "computer") validateSemanticAction(op.action);
+      if (!["computer", "git_status", "git_diff", "git_diff_check", "read_file", "list_files", "inspect_log", "read_ranges", "search_text", "run_test", "run_build", "run_lint", "run_typecheck"].includes(op.kind)) throw new Error("Invalid native operation");
       if ("path" in op && (typeof op.path !== "string" || /^(?:[A-Za-z]:|[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/.test(op.path))) throw new Error("Invalid native path");
       if (op.kind === "read_ranges" && (!Number.isInteger(op.start) || !Number.isInteger(op.end) || op.start < 1 || op.end < op.start || op.end - op.start > 2000)) throw new Error("Invalid line range");
       if (op.kind === "search_text" && (typeof op.text !== "string" || !op.text || op.text.length > 1000)) throw new Error("Invalid search text");

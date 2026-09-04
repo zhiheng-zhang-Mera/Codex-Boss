@@ -38,6 +38,7 @@ export class PlanCompiler {
     const value = JSON.parse(raw) as Partial<TaskIR>;
     if (value.version !== 1 || value.goal !== goal || !Array.isArray(value.steps)) throw new Error("Planner must return the requested TaskIR");
     validateGraph(value.steps);
+    if (value.steps.some((step) => step.operation?.kind === "computer" && (!["read_page", "find_control", "verify_state"].includes(step.operation.action.name) || !/^(explorer|terminal|git|vscode|browser):/.test(step.operation.action.target)))) throw new Error("Planner desktop mutations require explicit user action binding");
     if (value.steps.some((step) => step.kind === "edit") && !/(?:refactor|implement|fix|重构|实现|修复|修改)/i.test(goal)) throw new Error("Goal does not authorize editing");
     if (value.steps.some((step) => step.kind === "edit" && !step.requiredFiles.length)) throw new Error("Edit step requires explicit files");
     const plan = compileIntent(goal, { steps: value.steps, allowParallel: value.estimatedComplexity === "L3" });

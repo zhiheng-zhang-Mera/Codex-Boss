@@ -24,7 +24,7 @@ function copyCompiled(sourceRoot) {
 }
 copyCompiled(path.join(root, 'electron')); copyCompiled(path.join(root, 'src/shared'));
 fs.mkdirSync(path.join(app, 'scripts'));
-fs.copyFileSync(path.join(root, 'scripts/pc-chat-relay.ps1'), path.join(app, 'scripts/pc-chat-relay.ps1'));
+for (const name of ['pc-chat-relay.ps1', 'windows-ocr.ps1']) fs.copyFileSync(path.join(root, 'scripts', name), path.join(app, 'scripts', name));
 fs.cpSync(path.join(root, '.codex-boss/config'), path.join(app, '.codex-boss/config'), { recursive: true });
 fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'codex-boss', version, main: 'dist-electron/electron/main.js' }, null, 2));
 fs.copyFileSync(path.join(root, 'LICENSE'), path.join(app, 'LICENSE'));

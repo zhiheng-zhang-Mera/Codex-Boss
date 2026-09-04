@@ -1,3 +1,4 @@
+import { providerVisionSurface } from "./computer/backends/provider-vision-surface";
 import { RecoveryScheduler } from "./commander/recovery-scheduler";
 import { WebRecovery } from "./commander/web-recovery";
 import { TaskFinalizer } from "./commander/task-finalizer";
@@ -222,7 +223,11 @@ if (ownsInstance) app.whenReady().then(() => {
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
-  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler);
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), readBrowser: async (id) => {
+    const view = providerViews.get(provider(id).id);
+    if (!view) throw new Error("Provider page is not open");
+    return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
+  } });
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
@@ -230,10 +235,20 @@ if (ownsInstance) app.whenReady().then(() => {
     async healthCheck() { return { runtimeId: "web:" + item.id, availability: providerViews.get(item.id) ? "AVAILABLE" : "DOWN", message: "Visible provider session", checkedAt: new Date().toISOString() }; },
     execute: (request, signal) => automation.executeWorker(item.id, request, signal)
   }));
-  if (!isSmokeTest) { DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit); void automation.resumePending().catch((error) => console.error("Resume paused", error));
-    for (const task of store.snapshot().tasks.filter((item) => item.workspacePath && ["running", "waiting", "queued"].includes(item.status))) {
-      void commander.executePlan(task.id, task.workspacePath!).then(publish).catch((error) => { store.setRecoveryState(task.id, undefined, String(error)); publish(); });
-    } }
+  const resumeLocalTasks = async () => {
+    for (const task of store.snapshot().tasks.filter((item) => item.workspacePath && ["running", "waiting", "queued"].includes(item.status) && commander.canResumeTask(item.id))) {
+      try {
+        if (await commander.executeDeterministic(task.id, task.workspacePath!)) await automation.continueIfReady(task.id);
+        else await commander.executePlan(task.id, task.workspacePath!);
+        publish();
+      } catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); }
+    }
+  };
+  if (!isSmokeTest) {
+    DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit);
+    void automation.resumePending().catch((error) => console.error("Resume paused", error));
+    void resumeLocalTasks();
+  }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
@@ -385,6 +400,10 @@ if (ownsInstance) app.whenReady().then(() => {
   });
   ipcMain.handle("boss:update-task", (_event, taskId: string, status: TaskStatus) => {
     store.setTaskStatus(taskId, status);
+    if (status === "running" && recoveryScheduler.resumeTask(taskId)) {
+      const deadline = Math.min(...recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt));
+      store.setRecoveryState(taskId, deadline, "用户已继续任务；按记录的时间恢复原会话");
+    }
     return publish();
   });
 
@@ -405,6 +424,32 @@ if (ownsInstance) app.whenReady().then(() => {
       if (!mainWindow) throw new Error("Smoke renderer missing");
       const ready = await mainWindow.webContents.executeJavaScript('Boolean(window.boss && document.querySelector(".composer-zone"))');
       if (!ready) throw new Error("Renderer bridge or UI not ready");
+      if (process.argv.includes("--boss-restart-seed")) {
+        fs.writeFileSync(path.join(dataRoot, "restart-evidence.txt"), "BOSS_RESTART_EVIDENCE");
+        store.captureArtifact = () => { fs.writeFileSync(path.join(dataRoot, "restart-seeded.json"), JSON.stringify({ phase: "before_artifact", pid: process.pid })); process.exit(0); };
+        await mainWindow.webContents.executeJavaScript("window.boss.dispatchTask(" + JSON.stringify({ title: "Restart acceptance", prompt: "读取终端日志 restart-evidence.txt", providerIds: [], appMode: "work", workspacePath: dataRoot }) + ")");
+        throw new Error("Restart seed did not exit");
+      }
+      if (process.argv.includes("--boss-restart-verify")) {
+        await resumeLocalTasks();
+        const snapshot = store.snapshot();
+        const task = snapshot.tasks.find((item) => item.title === "Restart acceptance");
+        if (!task || task.status !== "completed") throw new Error("Restart task not completed");
+        const final = store.finalResponseForTask(task.id);
+        if (!final?.content.includes("BOSS_RESTART_EVIDENCE")) throw new Error("Restart final evidence absent");
+        const ledger = commander.ledger!.load(task.id)!;
+        if (ledger.jobs.graph_execute.attempts !== 1) throw new Error("Restart repeated native execution");
+        if (snapshot.artifacts.filter((item) => item.taskId === task.id).length !== 1) throw new Error("Restart duplicated artifact");
+        let visible = false;
+        for (let i = 0; i < 30; i++) {
+          visible = await mainWindow.webContents.executeJavaScript('Boolean(document.querySelector(".final-response")?.textContent.includes("BOSS_RESTART_EVIDENCE"))');
+          if (visible) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        if (!visible) throw new Error("Restart final not rendered");
+        fs.writeFileSync(path.join(dataRoot, "restart-result.json"), JSON.stringify({ kind: "CONTROLLED_ELECTRON_RESTART", status: "PASS", pid: process.pid, taskId: task.id, attempts: ledger.jobs.graph_execute.attempts, finalVisible: visible }, null, 2));
+        app.exit(0); return;
+      }
       const result = await mainWindow.webContents.executeJavaScript('window.boss.dispatchTask({title:"Native smoke verification",prompt:"list files",providerIds:[],appMode:"work"})') as AppSnapshot;
       if (!result.tasks.some((task) => task.title === "Native smoke verification" && task.status === "completed")) throw new Error("Native IPC execution did not complete");
       let rendered = false;

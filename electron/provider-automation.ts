@@ -102,7 +102,7 @@ export class ProviderAutomation {
           if (new URL(run.sessionUrl).origin !== new URL(provider.url).origin) throw new Error("Session origin mismatch");
           const open = this.store.snapshot().providers.filter((item) => item.windowOpen).length;
           if (!this.views.get(run.providerId) && open >= 5) continue;
-          const view = this.views.open(provider);
+          const view = this.views.open(provider, false);
           await view.webContents.loadURL(run.sessionUrl);
           this.store.updateRun(run.id, "waiting", null, "已恢复原会话，继续采集；未重复发送");
           this.startMonitor(task.id);

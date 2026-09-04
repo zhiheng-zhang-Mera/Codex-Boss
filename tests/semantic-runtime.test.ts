@@ -27,3 +27,32 @@ describe("semantic and long-horizon runtime", () => {
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 });
+
+it("preserves uncertain mutation across restart and verifies its original expected effect", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "boss-semantic-resume-"));
+  try {
+    const file = path.join(root, "pending.json"); let mutations = 0;
+    const first = new SemanticRuntime([{ kind: "uia", supports: () => true, async execute() { mutations++; return { status: "UNCERTAIN" }; } }], file);
+    await first.execute({ name: "enter_text", target: "editor", value: "expected text" });
+    const restored = new SemanticRuntime([{ kind: "uia", supports: () => true, async execute(action) { if (action.name === "verify_state") expect(action.value).toBe("expected text"); else mutations++; return { status: "SUCCESS" }; } }], file);
+    expect((await restored.execute({ name: "enter_text", target: "editor", value: "duplicate" })).status).toBe("UNCERTAIN");
+    expect(mutations).toBe(1);
+    expect((await restored.execute({ name: "verify_state", target: "editor", value: "unrelated" })).status).toBe("SUCCESS");
+    expect((await restored.execute({ name: "enter_text", target: "editor", value: "next" })).status).toBe("SUCCESS"); expect(mutations).toBe(2);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+it("serializes shared journals and canonicalizes UIA selectors", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "boss-semantic-concurrent-"));
+  try {
+    const file = path.join(root, "pending.json"); let calls = 0;
+    const backend = { kind: "uia" as const, supports: () => true, async execute() { calls++; await new Promise(r => setTimeout(r, 5)); return { status: "UNCERTAIN" as const }; } };
+    const first = new SemanticRuntime([backend], file); const second = new SemanticRuntime([backend], file);
+    await Promise.all([first.execute({ name: "click_control", target: 'uia:{"processId":42,"name":"Save"}' }), second.execute({ name: "click_control", target: 'uia:{"name":"Save","processId":42}' })]);
+    expect(calls).toBe(1);
+    await second.execute({ name: "enter_text", target: "another", value: "text" });
+    expect(Object.keys(JSON.parse(fs.readFileSync(file, "utf8")))).toHaveLength(2);
+    expect((await first.execute({ name: "click_control", target: "another" })).status).toBe("UNCERTAIN");
+    expect(calls).toBe(2);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

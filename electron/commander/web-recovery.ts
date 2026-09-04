@@ -36,12 +36,17 @@ export class WebRecovery {
       if (payload.strategy === "CAPTURE_EXISTING") {
         if (!run.sessionUrl || run.sessionUrl === provider.url || new URL(run.sessionUrl).origin !== new URL(provider.url).origin) return this.pause(task.id, "原会话地址不明确，需人工核对上次发送结果");
         if (!view || view.webContents.isCrashed()) {
-          this.views.close(run.providerId); view = this.views.open(provider);
-          await view.webContents.loadURL(run.sessionUrl!);
+          this.views.close(run.providerId); view = this.views.open(provider, false);
         }
-      } else if (!view) { view = this.views.open(provider); await view.webContents.loadURL(provider.url); }
+        // A failed load can retain the requested URL while displaying a Chromium error page.
+        await view.webContents.loadURL(run.sessionUrl!);
+      } else {
+        if (!view || view.webContents.isCrashed()) { this.views.close(run.providerId); view = this.views.open(provider, false); }
+        await view.webContents.loadURL(provider.url);
+      }
       const probe = await view!.webContents.executeJavaScript(probeScript(definition)) as PageProbe;
       if (probe.loginLikely) return this.pause(task.id, "请在原网页完成登录后恢复任务");
+      if (payload.strategy === "CAPTURE_EXISTING" && probe.sourceUrl !== run.sessionUrl) return this.pause(task.id, "恢复后的页面不是记录中的原会话，需人工核对；不会采集其他对话");
       if (probe.rateLimited) return { done: false, retryAt: Date.now() + 60000, error: "Provider still rate limited" };
       this.budgets.update("web:" + run.providerId, "UNKNOWN", "OBSERVED");
       if (payload.strategy === "CAPTURE_EXISTING") this.store.updateRun(run.id, "waiting", null, "已恢复原会话，仅继续采集");

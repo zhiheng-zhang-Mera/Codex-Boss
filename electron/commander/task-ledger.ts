@@ -8,6 +8,8 @@ export interface Consumption { modelCalls: number; estimatedInputTokens: number;
 export interface WorkerSession { externalSessionId?: string; url?: string; id: string; provider: string; taskId: string; checkpoint: number; health: string; resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION" | "RESTORE_URL"; }
 export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; }
 export interface TaskLedgerRecord {
+  projectMemoryOwner?: string;
+  degradation?: import("./degraded-controller").DegradationState;
   workspace?: { path: string; strategy: "current" | "branch" | "worktree"; branch?: string; base?: string };
   schemaVersion: 1; taskId: string; objective: string; constraints: string[]; revision: number;
   completedSteps: string[]; currentStep: string | null; pendingSteps: string[]; modifiedFiles: string[];
