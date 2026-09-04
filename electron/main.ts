@@ -1,10 +1,19 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
+import fs from "node:fs";
+import { migrateBrowserProfile } from "./runtime-paths";
 import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
-import { CodexController } from "./codex-controller";
+import { CodexCliRuntime } from "./runtimes/codex/codex-cli-runtime";
+import { RuntimeRegistry } from "./commander/runtime-registry";
+import { BudgetManager } from "./commander/budget-manager";
+import { RoleRouter } from "./commander/role-router";
+import { Scheduler } from "./commander/scheduler";
+import { ContextManager } from "./commander/context-manager";
+import { ExecutionGate } from "./commander/execution-gate";
+import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
 import { ProviderViews } from "./provider-views";
@@ -18,7 +27,8 @@ let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
 let providerViews: ProviderViews;
 let automation: ProviderAutomation;
-let codexController: CodexController;
+let codexRuntime: CodexCliRuntime;
+let commander: MainCommander;
 let accountSessions: AccountSessionManager;
 let apiSettings: ApiSettingsStore;
 let providerApi: ProviderApiClient;
@@ -38,11 +48,25 @@ const isSmokeTest = process.argv.includes("--codex-boss-smoke-test");
 if (!ownsInstance) {
   app.quit();
 }
+if (ownsInstance) {
+  const cacheRoot = path.join(app.getAppPath(), ".cache");
+  const sessionRoot = path.join(cacheRoot, "browser-profile");
+  const oldSessionRoot = app.getPath("sessionData");
+  // Migrate only after acquiring the instance lock, before any browser starts.
+  migrateBrowserProfile(oldSessionRoot, sessionRoot);
+  for (const name of ["tmp", "crash-dumps"]) fs.mkdirSync(path.join(cacheRoot, name), { recursive: true });
+  app.setPath("sessionData", sessionRoot);
+  app.setPath("temp", path.join(cacheRoot, "tmp"));
+  app.setPath("crashDumps", path.join(cacheRoot, "crash-dumps"));
+  process.env.TEMP = process.env.TMP = path.join(cacheRoot, "tmp");
+}
 
 function publish(): AppSnapshot {
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   const snapshot = store.snapshot();
-  mainWindow?.webContents.send("boss:snapshot-updated", snapshot);
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send("boss:snapshot-updated", snapshot);
+  }
   return snapshot;
 }
 
@@ -85,7 +109,7 @@ function createMainWindow(): void {
     height: 920,
     minWidth: 1080,
     minHeight: 700,
-    title: "Codex Boss",
+    title: "Codex Boss — Controller",
     backgroundColor: "#0b0d10",
     titleBarStyle: "hiddenInset",
     autoHideMenuBar: true,
@@ -104,9 +128,9 @@ function createMainWindow(): void {
     console.error(`Renderer failed to load: ${code} ${description} ${url}`);
   });
   mainWindow.on("closed", () => {
+    mainWindow = null;
     automation?.dispose();
     providerViews?.destroyAll();
-    mainWindow = null;
   });
 }
 
@@ -130,8 +154,14 @@ if (ownsInstance) app.whenReady().then(() => {
     (channel, body, sourceWindow) => { if (store.receiveRemoteCommand(channel, body, sourceWindow)) publish(); }
   );
   remoteRelay.sync(store.snapshot().remoteChannels);
-  codexController = new CodexController(app.getPath("userData"));
-  void codexController.detect().then((controller) => { store.setController(controller); publish(); });
+  const runtimeRegistry = new RuntimeRegistry();
+  const budgetManager = new BudgetManager();
+  codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
+  runtimeRegistry.register(codexRuntime);
+  const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
+  contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager), budgetManager, contextManager, new ExecutionGate());
+  void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
   if (!isSmokeTest) DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit);
@@ -144,7 +174,7 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
     const { appMode, transports } = taskTransports(input, providerIds);
-    store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", appMode, transports, input.conversationId);
+    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId });
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
@@ -155,8 +185,8 @@ if (ownsInstance) app.whenReady().then(() => {
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
-    const task = store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", appMode, transports, input.conversationId);
-    store.setTaskStatus(task.id, "running");
+    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId });
+    commander.startTask(task.id);
     await automation.dispatchTask(task.id);
     return publish();
   });
@@ -170,6 +200,8 @@ if (ownsInstance) app.whenReady().then(() => {
     remoteRelay.sync(store.snapshot().remoteChannels);
     return publish();
   });
+  ipcMain.handle("boss:update-runtime-control", (_event, runtimeId: string, enabled: boolean, priority: number) => { store.setRuntimeControl(runtimeId, Boolean(enabled), Number(priority)); return publish(); });
+  ipcMain.handle("boss:update-role-route", (_event, role, runtimeIds: string[], fallback: boolean) => { store.setRoleRoute(role, runtimeIds, Boolean(fallback)); return publish(); });
   ipcMain.handle("boss:load-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "loaded"); return publish(); });
   ipcMain.handle("boss:dismiss-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "dismissed"); return publish(); });
   ipcMain.handle("boss:create-folder", (_event, name: string) => { store.createFolder(name); return publish(); });
@@ -294,9 +326,10 @@ if (ownsInstance) app.whenReady().then(() => {
     store.updateCodexReview(bundle.id, { status: "RUNNING" });
     publish();
     try {
-      const content = await codexController.review(bundle, snapshot.artifacts);
+      const content = await codexRuntime.review(bundle, snapshot.artifacts);
       store.updateCodexReview(bundle.id, { status: "COMPLETED", content, completedAt: new Date().toISOString() });
     } catch (error) {
+      store.observeRuntimeFailure("codex:cli", String(error));
       store.updateCodexReview(bundle.id, { status: "FAILED", error: String(error), completedAt: new Date().toISOString() });
     }
     return publish();

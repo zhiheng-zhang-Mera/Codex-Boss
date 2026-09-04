@@ -60,7 +60,7 @@ export class ProviderViews {
     const download = this.downloadListeners.get(providerId);
     if (download) download.session.off("will-download", download.listener);
     this.downloadListeners.delete(providerId);
-    this.host.contentView.removeChildView(view);
+    if (!this.host.isDestroyed()) this.host.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
     this.views.delete(providerId);
     this.onState(providerId, false);

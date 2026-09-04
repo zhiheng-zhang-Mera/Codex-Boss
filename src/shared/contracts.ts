@@ -1,5 +1,5 @@
 export type ProviderId = string;
-export type TaskStatus = "queued" | "running" | "waiting" | "completed" | "failed";
+export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
 export type AppMode = "chat" | "work";
 export type RunTransport = "web" | "api";
@@ -135,6 +135,19 @@ export interface ControllerState {
   message: string;
 }
 
+export interface RuntimeStatusView {
+  runtimeId: string;
+  label: string;
+  kind: "web" | "codex" | "api" | "local";
+  availability: "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN";
+  budget: "UNKNOWN" | "OK" | "LOW" | "EXHAUSTED";
+  enabled: boolean;
+  priority: number;
+  message: string;
+}
+
+export interface RoleRouteView { role: "planner" | "researcher" | "reviewer" | "synthesizer" | "coder" | "validator" | "critic"; runtimeIds: string[]; fallback: boolean; }
+
 export interface ProviderAccountState {
   providerId: ProviderId;
   partition: string;
@@ -223,7 +236,7 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
   taskId?: string;
   providerId?: ProviderId;
   message: string;
@@ -237,6 +250,8 @@ export interface AppSnapshot {
   councils: CouncilSession[];
   evidenceBundles: EvidenceBundle[];
   controller: ControllerState;
+  runtimeStatuses: RuntimeStatusView[];
+  roleRoutes: RoleRouteView[];
   accounts: ProviderAccountState[];
   apiSettings: ApiProviderSetting[];
   remoteChannels: RemoteChannelSetting[];
@@ -281,6 +296,8 @@ export interface BossBridge {
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
   updateRemoteChannel(input: UpdateRemoteChannelInput): Promise<AppSnapshot>;
+  updateRuntimeControl(runtimeId: string, enabled: boolean, priority: number): Promise<AppSnapshot>;
+  updateRoleRoute(role: RoleRouteView["role"], runtimeIds: string[], fallback: boolean): Promise<AppSnapshot>;
   loadRemoteCommand(commandId: string): Promise<AppSnapshot>;
   dismissRemoteCommand(commandId: string): Promise<AppSnapshot>;
   createFolder(name: string): Promise<AppSnapshot>;

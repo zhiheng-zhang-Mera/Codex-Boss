@@ -9,11 +9,11 @@
 ```text
 User
   ↓
-Codex Boss Desktop
-  ├─ Task control plane
-  ├─ Evidence / audit store
-  ├─ Window supervisor
-  ├─ Protocol engine (later phase)
+Controller / Main Commander
+  ├─ Task State Machine + Scheduler
+  ├─ Runtime Registry + Budget Manager + Role Router
+  ├─ Context Manager + Protocol Engine
+  ├─ Evidence / audit store + Execution Gate
   └─ Runtime adapters
        ├─ Visible web window adapters
        ├─ Codex CLI or app-server (optional)
@@ -44,15 +44,29 @@ Codex Boss Desktop
 electron/
   main.ts               app lifecycle + allowlisted IPC
   preload.ts            narrow renderer bridge
+  commander/
+    main-commander.ts    deterministic lifecycle and protocol coordinator
+    task-state-machine.ts validated lifecycle transitions
+    scheduler.ts         timeout/retry/fallback/concurrency/commit decision
+    runtime-registry.ts  adapter registration and health cache
+    role-router.ts       provider-neutral role candidate ordering
+    budget-manager.ts    observed runtime budget state
+    context-manager.ts   canonical local context and selective funnel
+    execution-gate.ts    approval-gated external mutation lifecycle
+    runtime-policy.ts    validated local routing policy loader
+  runtimes/
+    runtime.ts           common RuntimeAdapter contract
+    web/                 provider web Runtime adapter boundary
+    codex/               optional Codex CLI Runtime
+    unsupported-runtime.ts explicit API/local placeholder
   provider-views.ts     embedded provider view supervisor
-  provider-automation.ts visible prepare/send/observe/capture controller
+  provider-automation.ts visible prepare/send plus concurrent observe/capture
   account-sessions.ts   isolated persistent web login-session ownership
   api-settings.ts       encrypted local API configuration
   provider-api.ts       OpenAI-compatible / Anthropic / Gemini clients
   history-repository.ts project-root conversation/file persistence and rename moves
   remote-relay.ts       opt-in WeChat/QQ listener lifecycle + validated record parser
   evidence-engine.ts    manifest, claims, disputes and selective rehydration
-  codex-controller.ts   optional current-account Codex CLI evidence review
   adapters/             versioned selector registry and isolated page scripts
   store.ts              local task/event persistence
 src/

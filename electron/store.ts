@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RunTransport, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
 const defaultFolderId = "folder-general";
@@ -25,8 +25,10 @@ export class StateStore {
   private snapshotValue: AppSnapshot;
 
   constructor(private readonly filePath: string, private readonly history?: HistoryRepository) {
+    const restored = fs.existsSync(this.filePath);
     this.snapshotValue = this.read();
-    this.history?.sync(this.snapshotValue);
+    if (restored) this.beginStartupSession();
+    else this.history?.sync(this.snapshotValue);
   }
 
   snapshot(): AppSnapshot {
@@ -165,6 +167,12 @@ export class StateStore {
     run.outcome = outcome;
     run.message = message;
     if (adapterVersion) run.adapterVersion = adapterVersion;
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === `${run.transport}:${run.providerId}`);
+    if (runtime && outcome) {
+      runtime.availability = outcome === "RATE_LIMITED" ? "RATE_LIMITED" : outcome === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : outcome === "PAGE_CHANGED" ? "PAGE_CHANGED" : outcome === "USER_ACTION_REQUIRED" ? "USER_ACTION_REQUIRED" : outcome === "UNSUPPORTED" ? "UNSUPPORTED" : outcome === "SUCCESS" ? "AVAILABLE" : runtime.availability;
+      runtime.budget = outcome === "RATE_LIMITED" ? "LOW" : runtime.budget;
+      runtime.message = message;
+    }
     run.updatedAt = new Date().toISOString();
     this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId });
     this.persist();
@@ -214,6 +222,41 @@ export class StateStore {
 
   setController(controller: ControllerState): void {
     this.snapshotValue.controller = controller;
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === "codex:cli");
+    if (runtime) {
+      runtime.availability = controller.accountMode === "CHATGPT" ? "AVAILABLE" : controller.accountMode === "NOT_AUTHENTICATED" ? "AUTH_REQUIRED" : "DOWN";
+      runtime.message = controller.message;
+    }
+    this.persist();
+  }
+
+  setRuntimeControl(runtimeId: string, enabled: boolean, priority: number): void {
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === runtimeId);
+    if (!runtime) throw new Error(`Unknown runtime: ${runtimeId}`);
+    runtime.enabled = enabled;
+    runtime.priority = Math.max(0, Math.min(999, Math.trunc(priority)));
+    this.event("runtime.policy", `${runtimeId} ${enabled ? "enabled" : "disabled"}; priority=${runtime.priority}`, {});
+    this.persist();
+  }
+
+  observeRuntimeFailure(runtimeId: string, message: string): void {
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === runtimeId);
+    if (!runtime) return;
+    if (/quota|allowance|budget|额度|用量.*(耗尽|上限)|limit reached/i.test(message)) { runtime.availability = "BUDGET_EXHAUSTED"; runtime.budget = "EXHAUSTED"; }
+    else if (/rate.?limit|too many requests|频率限制/i.test(message)) { runtime.availability = "RATE_LIMITED"; runtime.budget = "LOW"; }
+    else runtime.availability = "DOWN";
+    runtime.message = message.slice(0, 500);
+    this.event("runtime.policy", `${runtimeId} failure isolated: ${runtime.availability}`, {});
+    this.persist();
+  }
+
+  setRoleRoute(role: RoleRouteView["role"], runtimeIds: string[], fallback: boolean): void {
+    const route = this.snapshotValue.roleRoutes.find((item) => item.role === role);
+    if (!route) throw new Error(`Unknown role: ${role}`);
+    const known = new Set(this.snapshotValue.runtimeStatuses.map((item) => item.runtimeId));
+    route.runtimeIds = [...new Set(runtimeIds)].filter((id) => known.has(id));
+    route.fallback = fallback;
+    this.event("runtime.policy", `${role} route updated`, {});
     this.persist();
   }
 
@@ -247,7 +290,7 @@ export class StateStore {
   markDispatchCollecting(checkpointId: string, successfulProviderIds: ProviderId[]): void {
     const checkpoint = this.checkpoint(checkpointId);
     Object.assign(checkpoint, { status: "COLLECTING" as const, successfulProviderIds, failedProviderIds: [], message: "已一次提交到全部网页 AI；正在按顺序收集回答", updatedAt: new Date().toISOString() });
-    this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮全部提交成功，开始顺序采集`, { taskId: checkpoint.taskId });
+    this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮全部提交成功，开始并发采集`, { taskId: checkpoint.taskId });
     this.persist();
   }
 
@@ -332,6 +375,7 @@ export class StateStore {
       isCustom: true
     };
     this.snapshotValue.providers.push(provider);
+    this.snapshotValue.runtimeStatuses.push({ runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web", availability: "DOWN", budget: "UNKNOWN", enabled: true, priority: 100, message: "Visible session closed" });
     this.event("provider.added", `自定义网页 AI“${name}”已添加`, { providerId: provider.id });
     this.persist();
     return provider;
@@ -342,6 +386,8 @@ export class StateStore {
     if (index < 0) throw new Error(`Unknown custom provider: ${providerId}`);
     const [provider] = this.snapshotValue.providers.splice(index, 1);
     this.snapshotValue.accounts = this.snapshotValue.accounts.filter((account) => account.providerId !== providerId);
+    this.snapshotValue.runtimeStatuses = this.snapshotValue.runtimeStatuses.filter((runtime) => runtime.runtimeId !== `web:${providerId}`);
+    for (const route of this.snapshotValue.roleRoutes) route.runtimeIds = route.runtimeIds.filter((runtimeId) => runtimeId !== `web:${providerId}`);
     this.event("provider.removed", `自定义网页 AI“${provider.name}”已移除`, { providerId });
     this.persist();
   }
@@ -360,6 +406,11 @@ export class StateStore {
     if (!provider) throw new Error(`Unknown provider: ${providerId}`);
     if (provider.windowOpen === open) return;
     provider.windowOpen = open;
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === `web:${providerId}`);
+    if (runtime) {
+      runtime.availability = open ? "AVAILABLE" : "DOWN";
+      runtime.message = open ? "Visible session open" : "Visible session closed";
+    }
     this.event(open ? "window.opened" : "window.closed", `${provider.name} 子窗口已${open ? "打开" : "关闭"}`, { providerId });
     this.persist();
   }
@@ -381,6 +432,39 @@ export class StateStore {
     const runs = this.runsForTask(taskId).filter((run) => run.round === maxRound);
     task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => ["failed", "blocked"].includes(run.phase)) ? "waiting" : "running";
     task.updatedAt = new Date().toISOString();
+  }
+
+  private beginStartupSession(): void {
+    const previousActiveId = this.snapshotValue.activeConversationId;
+    const previousActive = this.snapshotValue.conversations.find((item) => item.id === previousActiveId);
+    const folderId = previousActive && this.snapshotValue.folders.some((item) => item.id === previousActive.folderId) ? previousActive.folderId : this.snapshotValue.folders[0].id;
+    const artifactsByTask = new Set(this.snapshotValue.artifacts.map((artifact) => artifact.taskId));
+    const sentTaskIds = new Set<string>();
+    for (const run of this.snapshotValue.runs) if (["sending", "waiting", "completed"].includes(run.phase)) sentTaskIds.add(run.taskId);
+    for (const checkpoint of this.snapshotValue.dispatchCheckpoints) if (["COLLECTING", "COMMITTED"].includes(checkpoint.status) || checkpoint.requiresReconciliation) sentTaskIds.add(checkpoint.taskId);
+    for (const event of this.snapshotValue.events) if (event.type === "adapter.sent" && event.taskId) sentTaskIds.add(event.taskId);
+    const discardedTaskIds = new Set(this.snapshotValue.tasks.filter((task) => sentTaskIds.has(task.id) && !artifactsByTask.has(task.id)).map((task) => task.id));
+    const affectedConversationIds = new Set(this.snapshotValue.tasks.filter((task) => discardedTaskIds.has(task.id)).map((task) => task.conversationId));
+
+    if (discardedTaskIds.size > 0) {
+      this.snapshotValue.tasks = this.snapshotValue.tasks.filter((task) => !discardedTaskIds.has(task.id));
+      this.snapshotValue.runs = this.snapshotValue.runs.filter((run) => !discardedTaskIds.has(run.taskId));
+      this.snapshotValue.artifacts = this.snapshotValue.artifacts.filter((artifact) => !discardedTaskIds.has(artifact.taskId));
+      this.snapshotValue.councils = this.snapshotValue.councils.filter((council) => !discardedTaskIds.has(council.taskId));
+      this.snapshotValue.evidenceBundles = this.snapshotValue.evidenceBundles.filter((bundle) => !discardedTaskIds.has(bundle.taskId));
+      this.snapshotValue.dispatchCheckpoints = this.snapshotValue.dispatchCheckpoints.filter((checkpoint) => !discardedTaskIds.has(checkpoint.taskId));
+      this.snapshotValue.events = this.snapshotValue.events.filter((event) => !event.taskId || !discardedTaskIds.has(event.taskId));
+    }
+
+    for (const conversation of this.snapshotValue.conversations) conversation.taskIds = this.snapshotValue.tasks.filter((task) => task.conversationId === conversation.id).map((task) => task.id).reverse();
+    this.snapshotValue.conversations = this.snapshotValue.conversations.filter((conversation) => conversation.taskIds.length > 0 || (!affectedConversationIds.has(conversation.id) && !(conversation.id === previousActiveId && conversation.title === "新对话")));
+
+    const now = new Date().toISOString();
+    const conversation: BossConversation = { id: randomUUID(), folderId, title: "新对话", storageName: this.uniqueConversationStorageName(folderId, "新对话"), taskIds: [], createdAt: now, updatedAt: now };
+    this.snapshotValue.conversations.unshift(conversation);
+    this.snapshotValue.activeConversationId = conversation.id;
+    this.event("conversation.created", discardedTaskIds.size > 0 ? `新会话已开始；已丢弃 ${discardedTaskIds.size} 个无回复的单向任务` : "应用启动并进入新对话", {});
+    this.persist();
   }
 
   private read(): AppSnapshot {
@@ -405,10 +489,13 @@ export class StateStore {
       const runs = (saved.runs ?? []).map((run) => ({ ...run, transport: run.transport ?? taskById.get(run.taskId)?.transportByProvider[run.providerId] ?? "web" }));
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
       const remoteChannels = remoteChannelDefaults(now).map((fallback) => ({ ...fallback, ...(saved.remoteChannels ?? []).find((item) => item.channel === fallback.channel), status: "disabled" as const, message: "应用启动后等待监听器同步" }));
-      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+      const controller = saved.controller ?? { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
+      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch {
       const now = new Date().toISOString();
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
+      const providers = structuredClone(providerSeed);
+      const controller = { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
+      return { providers, tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller), roleRoutes: mergeRoleRoutes(), accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
     }
   }
 
@@ -475,4 +562,18 @@ function validCommandPrefix(value: string): string {
 
 function remoteChannelDefaults(now: string): RemoteChannelSetting[] {
   return (["wechat", "qq"] as const).map((channel) => ({ channel, enabled: false, commandPrefix: "/boss", status: "disabled", message: "远程指令监听未启用", updatedAt: now }));
+}
+
+const roles: RoleRouteView["role"][] = ["planner", "researcher", "reviewer", "synthesizer", "coder", "validator", "critic"];
+
+function mergeRuntimeStatuses(providers: Provider[], controller: ControllerState, saved: RuntimeStatusView[] = []): RuntimeStatusView[] {
+  const defaults: RuntimeStatusView[] = [
+    ...providers.map((provider, index) => ({ runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web" as const, availability: provider.windowOpen ? "AVAILABLE" as const : "DOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 10, message: provider.windowOpen ? "Visible session open" : "Visible session closed" })),
+    { runtimeId: "codex:cli", label: "Codex CLI", kind: "codex", availability: controller.accountMode === "CHATGPT" ? "AVAILABLE" : controller.accountMode === "NOT_AUTHENTICATED" ? "AUTH_REQUIRED" : "DOWN", budget: "UNKNOWN", enabled: true, priority: 50, message: controller.message }
+  ];
+  return defaults.map((fallback) => ({ ...fallback, ...(saved.find((item) => item.runtimeId === fallback.runtimeId) ?? {}), availability: fallback.availability, message: fallback.message }));
+}
+
+function mergeRoleRoutes(saved: RoleRouteView[] = []): RoleRouteView[] {
+  return roles.map((role) => saved.find((item) => item.role === role) ?? { role, runtimeIds: role === "coder" ? ["codex:cli", "web:chatgpt"] : ["web:chatgpt", "web:claude", "web:gemini", "codex:cli"], fallback: true });
 }

@@ -17,6 +17,12 @@ export class HistoryRepository {
   sync(snapshot: AppSnapshot): void {
     fs.mkdirSync(this.root, { recursive: true });
     const index = this.readIndex();
+    const liveConversationIds = new Set(snapshot.conversations.map((conversation) => conversation.id));
+    for (const [conversationId, relative] of Object.entries(index.conversations)) {
+      if (liveConversationIds.has(conversationId)) continue;
+      this.removeConversationRecord(relative);
+      delete index.conversations[conversationId];
+    }
     const folders = new Map(snapshot.folders.map((folder) => [folder.id, folder]));
     for (const conversation of snapshot.conversations) {
       const folder = folders.get(conversation.folderId);
@@ -30,6 +36,24 @@ export class HistoryRepository {
       index.conversations[conversation.id] = relative;
     }
     this.atomicWrite(this.indexPath, JSON.stringify(index, null, 2));
+  }
+
+  private removeConversationRecord(relative: string): void {
+    const destination = this.resolveRelative(relative);
+    for (const fileName of ["conversation.json", "messages.md"]) {
+      const filePath = path.join(destination, fileName);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    for (const directoryName of ["artifacts", "evidence"]) {
+      const directory = path.join(destination, directoryName);
+      if (fs.existsSync(directory)) fs.rmSync(directory, { recursive: true, force: true });
+    }
+    let current = destination;
+    const resolvedRoot = path.resolve(this.root);
+    while (current !== resolvedRoot && current.startsWith(`${resolvedRoot}${path.sep}`) && fs.existsSync(current) && fs.readdirSync(current).length === 0) {
+      fs.rmdirSync(current);
+      current = path.dirname(current);
+    }
   }
 
   generatedFilePath(snapshot: AppSnapshot, conversationId: string, providerId: string, suggestedName: string): string {
@@ -116,7 +140,7 @@ export class HistoryRepository {
     try { fs.renameSync(temporary, filePath); }
     catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
-      if (!["EEXIST", "EPERM"].includes(code ?? "")) throw error;
+      if (!["EXDEV", "EEXIST", "EPERM"].includes(code ?? "")) throw error;
       fs.copyFileSync(temporary, filePath);
       fs.unlinkSync(temporary);
     }

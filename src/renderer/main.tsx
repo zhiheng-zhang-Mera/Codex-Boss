@@ -13,10 +13,16 @@ function App() {
   const [transportChoices, setTransportChoices] = useState<Record<ProviderId, RunTransport>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(() => window.localStorage.getItem("codex-boss:history-collapsed") === "true");
+  const [controllerWidth, setControllerWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem("codex-boss:controller-width"));
+    return Number.isFinite(saved) && saved >= 20 && saved <= 55 ? saved : 30;
+  });
   const [customName, setCustomName] = useState("");
   const [customUrl, setCustomUrl] = useState("https://");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const surfaceRefs = useRef<Partial<Record<ProviderId, HTMLDivElement | null>>>({});
   const openProviders = snapshot.providers.filter((provider) => provider.windowOpen);
   const selectedProviders = openProviders.map((provider) => provider.id);
@@ -56,6 +62,14 @@ function App() {
     void window.boss.setProviderViewsVisible(!settingsOpen);
     return () => { if (settingsOpen) void window.boss.setProviderViewsVisible(true); };
   }, [settingsOpen]);
+
+  useEffect(() => {
+    window.localStorage.setItem("codex-boss:history-collapsed", String(historyCollapsed));
+  }, [historyCollapsed]);
+
+  useEffect(() => {
+    window.localStorage.setItem("codex-boss:controller-width", String(controllerWidth));
+  }, [controllerWidth]);
 
   const activeConversation = snapshot.conversations.find((conversation) => conversation.id === snapshot.activeConversationId);
   const activeTasks = useMemo(() => snapshot.tasks.filter((task) => task.conversationId === snapshot.activeConversationId).slice(0, 50).reverse(), [snapshot.tasks, snapshot.activeConversationId]);
@@ -165,6 +179,22 @@ function App() {
     } catch (reason) { setError(String(reason)); }
   }
 
+  async function saveRuntimeControl(event: React.FormEvent<HTMLFormElement>, runtimeId: string) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    try { setSnapshot(await window.boss.updateRuntimeControl(runtimeId, data.get("enabled") === "on", Number(data.get("priority") ?? 100))); }
+    catch (reason) { setError(String(reason)); }
+  }
+
+  async function saveRoleRoute(event: React.FormEvent<HTMLFormElement>, route: AppSnapshot["roleRoutes"][number]) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const primary = String(data.get("primary") ?? "");
+    const runtimeIds = [primary, ...route.runtimeIds.filter((runtimeId) => runtimeId !== primary)].filter(Boolean);
+    try { setSnapshot(await window.boss.updateRoleRoute(route.role, runtimeIds, data.get("fallback") === "on")); }
+    catch (reason) { setError(String(reason)); }
+  }
+
   async function loadRemoteCommand(commandId: string, body: string) {
     setError("");
     try {
@@ -172,6 +202,14 @@ function App() {
       setSnapshot(await window.boss.loadRemoteCommand(commandId));
       setPrompt(body);
     } catch (reason) { setError(String(reason)); }
+  }
+
+  function resizeController(clientX: number) {
+    const bounds = shellRef.current?.getBoundingClientRect();
+    if (!bounds?.width) return;
+    const historyWidth = historyCollapsed ? 40 : bounds.width * 0.15;
+    const percentage = ((clientX - bounds.left - historyWidth) / bounds.width) * 100;
+    setControllerWidth(Math.round(Math.max(20, Math.min(55, percentage)) * 10) / 10);
   }
 
   async function dismissRemoteCommand(commandId: string) {
@@ -200,18 +238,24 @@ function App() {
     return runs.filter((run) => run.round === round);
   }
 
-  return <div className={`desktop-shell ${openProviders.length === 5 ? "layout-five" : ""}`}>
-    <section className="chat-half">
-      <header className="chat-header">
-        <div className="app-brand"><span>B</span><div><strong>Codex Boss</strong><small>LOCAL MULTI-AI WORKSPACE</small></div></div>
-        <div className="header-status"><div className="app-mode-switch"><button className={appMode === "chat" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("chat")}>Chat</button><button className={appMode === "work" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("work")}>Work</button></div><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
-      </header>
-
-      <aside className="history-sidebar">
-        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" onClick={() => void createFolder()}>▣</button></div>
+  return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""}`}>
+    <aside className="history-sidebar" aria-label="对话历史">
+      <div className="history-toolbar">
+        {!historyCollapsed && <div className="app-mode-switch"><button className={appMode === "chat" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("chat")}>Chat</button><button className={appMode === "work" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("work")}>Work</button></div>}
+        <button className="history-toggle" title={historyCollapsed ? "展开历史记录" : "收起历史记录"} aria-label={historyCollapsed ? "展开历史记录" : "收起历史记录"} aria-expanded={!historyCollapsed} aria-controls="history-content" onClick={() => setHistoryCollapsed((value) => !value)}>{historyCollapsed ? "›" : "‹"}</button>
+      </div>
+      {!historyCollapsed && <div id="history-content" className="history-content">
+        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" aria-label="新建文件夹" onClick={() => void createFolder()}>▣</button></div>
         <div className="history-folders">{snapshot.folders.map((folder) => <section key={folder.id} className="history-folder"><header><b>{folder.name}</b><button onClick={() => void createConversation(folder.id)}>＋</button><button onClick={() => void renameFolder(folder.id, folder.name)}>···</button></header>{snapshot.conversations.filter((conversation) => conversation.folderId === folder.id).map((conversation) => <div key={conversation.id} className={`history-conversation ${conversation.id === snapshot.activeConversationId ? "active" : ""}`}><button className="conversation-select" onClick={() => void window.boss.selectConversation(conversation.id).then(setSnapshot).catch((reason) => setError(String(reason)))}><span>{conversation.title}</span><small>{conversation.taskIds.length} 条任务</small></button><button className="conversation-rename" title="重命名" onClick={() => void renameConversation(conversation.id, conversation.title)}>✎</button><select title="移动到文件夹" value={conversation.folderId} onChange={(event) => void window.boss.moveConversation(conversation.id, event.target.value).then(setSnapshot).catch((reason) => setError(String(reason)))}>{snapshot.folders.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></div>)}</section>)}</div>
         <footer>本地：history/{snapshot.folders.find((folder) => folder.id === activeConversation?.folderId)?.storageName ?? ""}/{activeConversation?.storageName ?? ""}</footer>
-      </aside>
+      </div>}
+    </aside>
+
+    <section className="chat-half">
+      <header className="chat-header">
+        <div className="app-brand"><span>C</span><div><strong>Controller</strong><small>CODEX BOSS · LOCAL COMMANDER</small></div></div>
+        <div className="header-status"><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
+      </header>
 
       <div className="conversation">
         <div className="welcome-card">
@@ -219,6 +263,12 @@ function App() {
           <h1>{activeConversation?.title ?? "今天要处理什么？"}</h1>
           <p>在左侧输入一次任务，右侧会按所选网页版 AI 数量自动分屏。每个页面保持独立登录状态，并始终可见。</p>
         </div>
+
+        <details className="runtime-overview">
+          <summary><b>Runtime Status</b><span>Main Commander 本地持有任务状态</span></summary>
+          <div className="runtime-status-grid">{snapshot.runtimeStatuses.map((runtime) => <form key={runtime.runtimeId} onSubmit={(event) => void saveRuntimeControl(event, runtime.runtimeId)}><span className={`runtime-${runtime.availability.toLowerCase()}`}><i />{runtime.label}<small>{runtime.availability} · {runtime.budget}</small></span><label><input name="enabled" type="checkbox" defaultChecked={runtime.enabled} /> 启用</label><label>优先级 <input name="priority" type="number" min="0" max="999" defaultValue={runtime.priority} /></label><button type="submit">保存</button></form>)}</div>
+          <div className="role-route-grid">{snapshot.roleRoutes.map((route) => <form key={route.role} onSubmit={(event) => void saveRoleRoute(event, route)}><b>{route.role}</b><select name="primary" defaultValue={route.runtimeIds[0]}>{snapshot.runtimeStatuses.filter((runtime) => runtime.enabled).map((runtime) => <option key={runtime.runtimeId} value={runtime.runtimeId}>{runtime.label}</option>)}</select><label><input name="fallback" type="checkbox" defaultChecked={route.fallback} /> fallback</label><button type="submit">设为首选</button></form>)}</div>
+        </details>
 
         {activeTasks.map((task) => {
           const runs = latestRuns(task);
@@ -241,7 +291,7 @@ function App() {
               {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}
               <div className="task-actions">
                 {canRetry && <button className="confirm-send" onClick={() => void taskAction(task.id, "dispatch")} disabled={sending}>重新提交整组</button>}
-                {canCapture && <button onClick={() => void taskAction(task.id, "capture")} disabled={sending}>采集下一个回答</button>}
+                {canCapture && <button onClick={() => void taskAction(task.id, "capture")} disabled={sending}>并发采集本轮回答</button>}
                 {task.mode === "council" && allComplete && roundCommitted && council && ["proposals", "peer_review", "synthesis"].includes(council.stage) && <button onClick={() => void taskAction(task.id, "advance")} disabled={sending}>提交下一轮到全部 AI</button>}
                 {artifactCount > 0 && roundCommitted && <button onClick={() => void taskAction(task.id, "evidence")} disabled={sending}>生成 Phase 4 证据包</button>}
                 {evidence && <button onClick={() => void taskAction(task.id, "codex")} disabled={sending || evidence.codexReview.status === "RUNNING"}>Codex 账户审查</button>}
@@ -282,6 +332,8 @@ function App() {
       </div>
       {settingsOpen && <div className="settings-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-panel"><header><div><strong>Codex Boss 设置</strong><span>API Key 加密保存；微信/QQ 指令仅从本机可见窗口读取</span></div><button onClick={() => setSettingsOpen(false)}>×</button></header><div className="api-settings-list"><section className="remote-settings"><div className="settings-section-title"><b>PC 远程指令</b><span>先登录桌面客户端；仅识别前缀消息并进入人工确认队列</span></div>{snapshot.remoteChannels.map((setting) => <form key={`${setting.channel}-${setting.updatedAt}`} className="remote-setting-card" onSubmit={(event) => void saveRemoteChannel(event, setting.channel)}><div><b>{setting.channel === "wechat" ? "微信" : "QQ"}</b><i className={`remote-status status-${setting.status}`} /> <span>{setting.status}</span><small>{setting.message}</small></div><label>前缀 <input name="commandPrefix" defaultValue={setting.commandPrefix} pattern="/[^\\s]{1,19}" required /></label><label><input name="enabled" type="checkbox" defaultChecked={setting.enabled} /> 启用</label><button type="submit">保存</button></form>)}</section>{snapshot.providers.map((provider) => { const setting = snapshot.apiSettings.find((item) => item.providerId === provider.id); return <form key={`${provider.id}-${setting?.updatedAt ?? "new"}`} onSubmit={(event) => void saveApiSetting(event, provider.id)} className="api-setting-card"><div className="api-setting-title"><b>{provider.name}</b><span>{setting?.hasApiKey ? "密钥已保存" : "未保存密钥"}</span><label><input name="enabled" type="checkbox" defaultChecked={setting?.enabled} /> 启用</label></div><div className="api-setting-fields"><select name="protocol" defaultValue={setting?.protocol ?? "openai-compatible"}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select><input name="baseUrl" type="url" required defaultValue={setting?.baseUrl ?? "https://"} placeholder="API Base URL" /><input name="model" required defaultValue={setting?.model ?? ""} placeholder="模型名称" /><input name="apiKey" type="password" placeholder={setting?.hasApiKey ? "留空保留现有密钥" : "API Key"} /></div><div className="api-setting-actions"><label><input name="clearApiKey" type="checkbox" /> 清除已有密钥</label><button type="submit">保存</button></div></form>; })}</div></section></div>}
     </section>
+
+    {openProviders.length === 3 && <div className="controller-resizer" role="separator" aria-label="调整 Controller 宽度" aria-orientation="vertical" aria-valuemin={20} aria-valuemax={55} aria-valuenow={controllerWidth} tabIndex={0} title="拖动调整 Controller 宽度；双击恢复 30%" onDoubleClick={() => setControllerWidth(30)} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); resizeController(event.clientX); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeController(event.clientX); }} onKeyDown={(event) => { if (event.key === "ArrowLeft") setControllerWidth((value) => Math.max(20, value - 1)); else if (event.key === "ArrowRight") setControllerWidth((value) => Math.min(55, value + 1)); else if (event.key === "Home") setControllerWidth(30); }} />}
 
     <section className="browser-half">
       <header className="browser-header"><div><strong>网页处理器</strong><span>{openProviders.length} / {MAX_ACTIVE_PROVIDERS} 页面运行中</span></div><div className="window-dots"><i /><i /><i /></div></header>

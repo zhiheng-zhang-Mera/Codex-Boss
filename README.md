@@ -2,18 +2,31 @@
 
 Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现代编码代理工作台的任务体验，但**不使用、嵌入或依赖 Codex 桌面端**。应用自己管理任务、状态、审计事件与网页处理器窗口；Codex CLI、OpenAI API 或其他模型能力只会作为后续可替换适配器接入。
 
-> 当前版本：`0.6.0`，新增 Chat / Work 双工作方式、逐 AI 网页/API 通道、加密 API 设置、按文件夹组织的本地多对话历史，以及微信/QQ PC 登录态远程指令队列。主控输入一次提交到当前整组 AI，随后按固定顺序收集回答；不会绕过登录、验证码、平台限制，也不把部分成功或未采集结果伪装成整组成功。
+> 当前包版本仍为 `0.6.0`；本次在其上完成 v0.5 Independent Commander 架构迁移。主交互页现在命名为 **Controller**。Controller 是本地确定性控制器，Role 与 Runtime 分离，Codex CLI 只是可选的 `codex:cli` Runtime。整组发送后，各 provider 的 completion observation 与 artifact capture 并发进行，最终仍通过严格 commit barrier；不会绕过登录、验证码、平台限制，也不把部分成功伪装成完整成功。
+
+## Independent Commander
+
+- `MainCommander` 持有任务生命周期、调度、canonical context 与 execution proposal 边界，不调用 provider-specific API 生成内容。
+- Role 描述工作（planner、reviewer、synthesizer、coder、validator 等），Runtime 描述执行者（`web:*`、`codex:cli`、`api:*`、`local:*`）。
+- Controller 页的 Runtime Status 可启停 Runtime、调整优先级，并为各 Role 设置首选 Runtime 和 fallback 策略。
+- 默认策略位于 `.codex-boss/config/runtime-policy.json`，配套 JSON Schema 不允许凭据字段；网页登录态仍由隔离 partition 持有。
+- Runtime 的额度、限流、认证或页面变化属于局部失败。Scheduler 仅在没有兼容候选者且协议无法满足时返回失败/对账状态。
+- 所有 Runtime 输出保持 `UNTRUSTED_EXTERNAL_OUTPUT`；shell、filesystem、git、network mutation 必须先形成 ExecutionProposal 并经过 Execution Gate。
 
 ## Chat / Work 与任务通道
 
 - **Chat**：3 或 5 个 AI 全部使用可见网页版，保持直接对话体验。
+- 默认打开的三页为 **ChatGPT、Qwen、Grok**。三页模式下 Controller 默认占窗口宽度 30%，可拖动 Controller 与网页区之间的分隔条调整；方向键可微调，双击或按 Home 恢复 30%。
+- 每次新启动都会为 Provider 创建新的 WebContentsView、清除 HTTP 缓存并重新导航到起始 URL；持久登录 partition 保留，因此重新载入不会主动登出账号。
 - **Work**：在主任务输入前，可为每个已打开 AI 单独选择 `web` 或 `api`；开始输入后，AI 集合和各自通道一起锁定，清空输入后才能切换。
-- API 设置位于主控右上角“设置”，支持 OpenAI-compatible、Anthropic 和 Gemini 协议，可分别配置启用状态、HTTPS Base URL、模型和 API Key。
+- API 设置位于 Controller 右上角“设置”，支持 OpenAI-compatible、Anthropic 和 Gemini 协议，可分别配置启用状态、HTTPS Base URL、模型和 API Key。
 - API Key 使用 Electron `safeStorage` 调用 Windows 安全存储加密，只在 `%LOCALAPPDATA%\CodexBoss\api-settings.json` 保存密文；renderer、状态快照、`history/` 和 Git 中均不保存明文。
 - Work 可以混用网页和 API，但仍执行同一个 3/5 全员成功检查点；任一通道失败都不会解锁下一阶段。
 
 ## 多对话与本地历史
 
+- 每次启动应用都会进入一个新的空对话；不会自动续写上一次活动对话。
+- 已进入发送/等待阶段但没有捕获到任何回复 artifact 的任务会在下次启动时丢弃，其单向用户消息不会保留为完整沟通。已经收到至少一个真实回复的任务不会被该规则误删。
 - 左侧历史栏支持新建、切换和延续旧对话；新任务始终追加到当前对话。
 - 对话可以放入不同文件夹、移动归类，并可动态重命名文件夹或对话。
 - 本地结构为 `history/<文件夹名>/<对话名>/`，包含 `conversation.json`、`messages.md`、`artifacts/` 和 `evidence/`。

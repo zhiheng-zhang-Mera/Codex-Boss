@@ -67,4 +67,31 @@ describe("local conversation history", () => {
     expect(path.relative(path.join(root, "history"), first)).toBe(path.join("常规", "新对话", "generated", "chatgpt", "report-.pdf"));
     expect(path.basename(second)).toBe("report- (2).pdf");
   });
+
+  it("starts every restored application session in a new conversation", () => {
+    const { root, store } = workspace();
+    store.createFolder("触发持久化");
+    const previousActiveId = store.snapshot().activeConversationId;
+    const restored = new StateStore(path.join(root, "state.json"), new HistoryRepository(path.join(root, "history")));
+    expect(restored.snapshot().activeConversationId).not.toBe(previousActiveId);
+    expect(restored.snapshot().conversations[0]).toEqual(expect.objectContaining({ title: "新对话", taskIds: [] }));
+  });
+
+  it("discards a sent task with zero replies instead of saving a one-way conversation", () => {
+    const { root, historyRoot, store } = workspace();
+    const previous = store.snapshot();
+    const conversation = previous.conversations.find((item) => item.id === previous.activeConversationId)!;
+    const folder = previous.folders.find((item) => item.id === conversation.folderId)!;
+    const oldDirectory = path.join(historyRoot, folder.storageName, conversation.storageName);
+    const task = store.createTask("未完成", "只有用户发送的内容", ["chatgpt", "gemini", "grok"]);
+    for (const run of store.runsForTask(task.id)) store.updateRun(run.id, "waiting", null, "已发送，等待回复");
+    expect(fs.readFileSync(path.join(oldDirectory, "messages.md"), "utf8")).toContain("只有用户发送的内容");
+
+    const restored = new StateStore(path.join(root, "state.json"), new HistoryRepository(historyRoot));
+    const snapshot = restored.snapshot();
+    expect(snapshot.tasks.some((item) => item.id === task.id)).toBe(false);
+    expect(snapshot.runs.some((run) => run.taskId === task.id)).toBe(false);
+    expect(snapshot.activeConversationId).not.toBe(conversation.id);
+    expect(fs.readFileSync(path.join(oldDirectory, "messages.md"), "utf8")).not.toContain("只有用户发送的内容");
+  });
 });

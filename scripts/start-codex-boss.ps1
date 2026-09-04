@@ -26,6 +26,12 @@ function Show-LauncherError {
 
 try {
     $projectRoot = Split-Path -Parent $PSScriptRoot
+    $projectCache = Join-Path $projectRoot ".cache"
+    $env:TEMP = Join-Path $projectCache "tmp"
+    $env:TMP = $env:TEMP
+    $env:npm_config_cache = Join-Path $projectCache "npm"
+    $env:ELECTRON_CACHE = Join-Path $projectCache "electron"
+    [System.IO.Directory]::CreateDirectory($env:TEMP) | Out-Null
     $launcherData = Join-Path $projectRoot ".codex-boss"
     [System.IO.Directory]::CreateDirectory($launcherData) | Out-Null
     $script:logPath = Join-Path $launcherData "launcher.log"

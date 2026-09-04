@@ -57,13 +57,60 @@ describe("persistent account sessions", () => {
     accounts.recordProbe("gemini", true, true);
     expect(store.snapshot().accounts[0]).toEqual(expect.objectContaining({ providerId: "gemini", partition: "persist:codex-boss-gemini", persistent: true, mode: "GUEST_READY" }));
   });
+
+  it("keeps login storage while freshly navigating each new provider view", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "electron", "provider-views.ts"), "utf8");
+    expect(source).toContain("loadURL(provider.url");
+    expect(source).not.toContain("session.clearCache()");
+    expect(source).not.toContain("clearStorageData");
+    expect(source).toContain("if (!this.host.isDestroyed()) this.host.contentView.removeChildView(view)");
+  });
+});
+
+describe("provider input focus policy", () => {
+  it("does not publish to a destroyed host during child-view shutdown", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "electron", "main.ts"), "utf8");
+    expect(source).toContain("!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()");
+    const close = source.slice(source.indexOf('mainWindow.on("closed"'));
+    expect(close.indexOf("mainWindow = null")).toBeLessThan(close.indexOf("providerViews?.destroyAll()"));
+  });
+  it("activates Grok web contents before focusing its editor for native insertion", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "electron", "provider-automation.ts"), "utf8");
+    const focus = source.indexOf("view.webContents.focus()");
+    const clearAndFocusEditor = source.indexOf('prepareScript(definition, "")');
+    const nativeInsert = source.indexOf("view.webContents.insertText(run.inputPrompt)");
+    expect(focus).toBeGreaterThan(-1);
+    expect(focus).toBeLessThan(clearAndFocusEditor);
+    expect(clearAndFocusEditor).toBeLessThan(nativeInsert);
+    expect(source).toContain('definition.providerId === "grok"');
+  });
 });
 
 describe("layout policy styles", () => {
   it("defines vertical thirds and a five-provider six-cell workspace", () => {
     const css = fs.readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
     expect(css).toContain(".provider-grid.count-3 { grid-template-columns: 1fr; grid-template-rows: repeat(3");
-    expect(css).toContain(".layout-five .chat-half { grid-column: 2; grid-row: 1;");
-    expect(css).toContain(".layout-five .provider-grid.count-5 .provider-pane:nth-child(5) { grid-column: 3; grid-row: 2;");
+    expect(css).toContain(".layout-five .chat-half { grid-column: 3; grid-row: 1;");
+    expect(css).toContain(".layout-five .provider-grid.count-5 .provider-pane:nth-child(5) { grid-column: 4; grid-row: 2;");
+  });
+
+  it("keeps history as an independent collapsible column spanning fifteen percent of the desktop", () => {
+    const css = fs.readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
+    const renderer = fs.readFileSync(path.join(process.cwd(), "src", "renderer", "main.tsx"), "utf8");
+    expect(css).toContain(".desktop-shell.layout-three { grid-template-columns: 15vw var(--controller-width, 30vw) minmax(0, 1fr)");
+    expect(css).toContain(".desktop-shell.layout-five { display: grid; grid-template-columns: 15vw repeat(3");
+    expect(css).toContain(".desktop-shell.layout-three.history-collapsed { grid-template-columns: 40px var(--controller-width, 30vw)");
+    expect(renderer).toContain('openProviders.length === 3 ? "layout-three"');
+    expect(renderer).toContain('className="controller-resizer"');
+    expect(renderer).toContain('setControllerWidth(30)');
+    expect(renderer).toContain('codex-boss:controller-width');
+    expect(css).toContain(".layout-three .controller-resizer { display: block; position: absolute;");
+    expect(css).not.toContain(".layout-three .controller-resizer { display: block; position: relative;");
+    expect(css).toContain("grid-template-rows: minmax(0, 1fr)");
+    expect(css).toContain(".browser-half { grid-column: 3; grid-row: 1; }");
+    expect(renderer.indexOf('<aside className="history-sidebar"')).toBeLessThan(renderer.indexOf('<section className="chat-half">'));
+    expect(renderer).toContain('<div className="history-toolbar">');
+    expect(renderer).toContain('aria-controls="history-content"');
+    expect(renderer).toContain('codex-boss:history-collapsed');
   });
 });
