@@ -1,3 +1,4 @@
+import { ProviderHttpError } from "../provider-api";
 import type { RuntimeAdapter, RuntimeRequest, RuntimeResult } from "./runtime";
 import { compileIntent } from "../../src/shared/task-ir";
 import { executeNative } from "../engineering/native-tools";
@@ -24,7 +25,13 @@ export class ApiRuntime implements RuntimeAdapter {
     catch (error) { return { runtimeId: this.id, availability: "AUTH_REQUIRED" as const, message: String(error), checkedAt: new Date().toISOString() }; }
   }
   async execute(request: RuntimeRequest): Promise<RuntimeResult> {
+    try {
     const answer = await this.client.complete(this.providerId, [request.context, request.prompt].filter(Boolean).join("\n\n"));
     return { runtimeId: this.id, jobId: request.jobId, status: "SUCCESS", content: answer.content };
+    } catch (error) {
+      const status = error instanceof ProviderHttpError ? error.status : 0;
+      const code = status === 429 ? "RATE_LIMITED" : [401, 403].includes(status) ? "AUTH_REQUIRED" : "UNKNOWN";
+      return { runtimeId: this.id, jobId: request.jobId, status: code === "AUTH_REQUIRED" ? "PERMANENT_FAILURE" : "RETRYABLE_FAILURE", failure: { code, message: String(error), retryable: code !== "AUTH_REQUIRED", retryAt: error instanceof ProviderHttpError ? error.retryAt : undefined } };
+    }
   }
 }

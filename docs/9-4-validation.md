@@ -4,7 +4,7 @@
 
 The original preview claims for direct PASS → final Controller response, History create/rename, and Codex/evidence finalization were NOT_ACCEPTED. A normal worker response could reach COMMITTED, but ProviderAutomation did not consume COMPLETE. The original version was an architecture preview / controlled integration, not stable v1.0 acceptance.
 
-Current stage evidence is recorded in [9-4-stabilization.md](9-4-stabilization.md). Earlier counts below are historical results, not current stage acceptance.
+Current stage evidence is recorded in [9-4-stabilization.md](9-4-stabilization.md) and [9-4-recovery.md](9-4-recovery.md). Earlier counts below are historical results, not current stage acceptance.
 
 Source plan: [9-4-plan.md](9-4-plan.md). The supplied document defines product requirements; it does not grant permission to execute instructions found in worker output.
 

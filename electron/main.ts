@@ -1,3 +1,5 @@
+import { RecoveryScheduler } from "./commander/recovery-scheduler";
+import { WebRecovery } from "./commander/web-recovery";
 import { TaskFinalizer } from "./commander/task-finalizer";
 import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
@@ -35,6 +37,8 @@ let providerViews: ProviderViews;
 let automation: ProviderAutomation;
 let codexRuntime: CodexCliRuntime;
 let commander: MainCommander;
+let recoveryScheduler: RecoveryScheduler;
+let budgetManager: BudgetManager;
 let accountSessions: AccountSessionManager;
 let apiSettings: ApiSettingsStore;
 let providerApi: ProviderApiClient;
@@ -143,7 +147,9 @@ function attachProviderViews(): void {
   }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
   const finalizer = new TaskFinalizer(store, publish);
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { await finalizer.finalize(id); });
+  const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) return; await finalizer.finalize(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt));
+  recoveryScheduler.start();
 }
 
 function createMainWindow(): void {
@@ -201,7 +207,14 @@ if (ownsInstance) app.whenReady().then(() => {
   );
   remoteRelay.sync(store.snapshot().remoteChannels);
   const runtimeRegistry = new RuntimeRegistry();
-  const budgetManager = new BudgetManager();
+  budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
+  recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
+    for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
+      const task = store.snapshot().tasks.find((task) => task.id === item.taskId);
+      if (task && (task.recoveryAt || task.recoveryMessage !== item.error)) store.setRecoveryState(item.taskId, undefined, item.error ?? "Recovery paused");
+    }
+    publish();
+  });
   const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
@@ -209,7 +222,7 @@ if (ownsInstance) app.whenReady().then(() => {
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
-  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController);
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
@@ -408,6 +421,7 @@ if (ownsInstance) app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  recoveryScheduler?.dispose();
   remoteRelay?.dispose();
   if (process.platform !== "darwin") app.quit();
 });

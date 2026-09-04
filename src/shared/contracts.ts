@@ -26,6 +26,8 @@ export interface Provider {
 }
 
 export interface BossTask {
+  recoveryAt?: number;
+  recoveryMessage?: string;
   finalizationPolicy?: FinalizationPolicy;
   finalizationBlocker?: string;
   plan?: import("./task-ir").TaskIR;

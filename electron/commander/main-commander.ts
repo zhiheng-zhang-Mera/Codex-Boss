@@ -1,3 +1,4 @@
+import type { RecoveryScheduler } from "./recovery-scheduler";
 import { compileIntent } from "../../src/shared/task-ir";
 import { ResourceController } from "./resource-controller";
 import { EngineeringRuntime } from "../engineering/engineering-runtime";
@@ -30,8 +31,19 @@ export class MainCommander {
     readonly contexts: ContextManager,
     readonly executionGate: ExecutionGate,
     readonly ledger?: TaskLedger,
-    readonly resources?: ResourceController
-  ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources); }
+    readonly resources?: ResourceController,
+    readonly recovery?: RecoveryScheduler
+  ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets);
+    recovery?.register("runtime", async (record) => {
+      const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
+      const task = this.store.snapshot().tasks.find((item) => item.id === record.taskId);
+      if (task && ["cancelled", "paused"].includes(task.status)) return { done: false, error: "Task stopped by user" };
+      const candidates = payload.runtimeIds.map((id) => this.registry.get(id)).filter((runtime) => runtime !== undefined);
+      await this.registry.refreshHealth();
+      const result = await this.supervisor!.execute(payload.request, candidates);
+      const job = this.ledger?.load(record.taskId)?.jobs[payload.request.jobId];
+      return result.status === "SUCCESS" ? { done: true } : { done: false, retryAt: job?.retryAt, error: result.failure?.message };
+    }); }
 
   createTask(input: CommanderTaskInput): BossTask {
     const plan = compileIntent(input.objective, { constraints: input.constraints });

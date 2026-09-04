@@ -399,6 +399,14 @@ export class StateStore {
     this.persist();
   }
 
+  setRecoveryState(taskId: string, retryAt?: number, message?: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.recoveryAt = retryAt; task.recoveryMessage = message;
+    if (message) { task.status = "waiting"; task.nextAction = retryAt ? "WAIT" : "HUMAN_REQUIRED"; }
+    this.event("task.status", message ?? "Recovery resumed", { taskId }); this.persist();
+  }
+
   setFinalizationPolicy(taskId: string, policy: import("../src/shared/contracts").FinalizationPolicy, blocker?: string): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
@@ -613,7 +621,9 @@ export class StateStore {
         state.nextAction = task.nextAction ?? task.executionPhase ?? task.status;
         state.usage.browserActions = Math.max(state.usage.browserActions, runs.filter((run) => run.phase === "sending" || run.phase === "waiting" || run.artifactId).length);
         for (const run of runs) {
-          if (!state.sessions.some((session) => session.id === run.id)) state.sessions.push({ id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", resumeStrategy: "EXPLICIT_SESSION" });
+          const session = { id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", url: run.sessionUrl, resumeStrategy: run.sessionUrl ? "RESTORE_URL" as const : "RECONSTRUCT" as const };
+          const index = state.sessions.findIndex((item) => item.id === run.id);
+          if (index < 0) state.sessions.push(session); else state.sessions[index] = { ...state.sessions[index], ...session };
         }
       });
       this.ledgerHashes.set(task.id, fingerprint);

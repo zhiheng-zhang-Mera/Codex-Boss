@@ -14,7 +14,7 @@ export function classifyInterruption(code: string, message: string, retryAt?: nu
 export function recoveryFor(interruption: Interruption, attempts: number, sideEffectUncertain = false, now = Date.now()): { action: RecoveryAction; retryAt?: number } {
   if (sideEffectUncertain) return { action: "VERIFY_SIDE_EFFECT" };
   if (["AUTH_EXPIRED", "HUMAN_APPROVAL_REQUIRED"].includes(interruption.kind)) return { action: "HUMAN_REQUIRED" };
-  if (attempts >= 3 || ["UNKNOWN_INTERRUPTION", "DEPENDENCY_FAILURE", "RESOURCE_EXHAUSTED"].includes(interruption.kind)) return { action: "DEFER" };
+  if (attempts >= 3 || ["DEPENDENCY_FAILURE", "RESOURCE_EXHAUSTED"].includes(interruption.kind)) return { action: "DEFER" };
   if (["QUOTA_EXHAUSTED", "CREDIT_EXHAUSTED"].includes(interruption.kind)) return interruption.retryAt ? { action: "WAIT", retryAt: interruption.retryAt } : { action: "DEFER" };
   if (["SESSION_EXPIRED", "PROCESS_CRASH", "BROWSER_CRASH"].includes(interruption.kind)) return { action: "RECONSTRUCT" };
   return { action: interruption.retryAt && interruption.retryAt > now ? "WAIT" : "RETRY", retryAt: Math.max(interruption.retryAt ?? 0, now + Math.min(60000, 1000 * 2 ** attempts)) };

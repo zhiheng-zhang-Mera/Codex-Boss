@@ -285,6 +285,7 @@ function App() {
             <div className="boss-avatar">B</div>
             <div><strong>{task.plan?.estimatedComplexity === "L0" ? "本地任务" : "已分派到"} {task.providerIds.filter((id) => id !== "native:tools").map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
               <p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p>
+              {task.recoveryMessage && <p role="status">{task.recoveryMessage}{task.recoveryAt ? " · " + new Date(task.recoveryAt).toLocaleString() : ""}</p>}
               {task.finalizationBlocker && <p role="status">{task.finalizationBlocker}</p>}
               {finalResponse && <section className="final-response" aria-label="最终回答"><strong>已完成</strong><pre>{finalResponse.content}</pre></section>}
               <details className="execution-details"><summary>执行与证据详情</summary>

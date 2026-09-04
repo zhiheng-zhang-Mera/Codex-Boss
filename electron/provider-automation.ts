@@ -8,7 +8,7 @@ import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
 import { AccountSessionManager } from "./account-sessions";
 import { isDispatchGroupSize } from "../src/shared/provider-policy";
-import { ProviderApiClient, type ApiCompletion } from "./provider-api";
+import { ProviderHttpError, ProviderApiClient, type ApiCompletion } from "./provider-api";
 
 type ProbeState = { content: string; stableCount: number };
 
@@ -28,7 +28,8 @@ export class ProviderAutomation {
     private readonly accounts: AccountSessionManager,
     private readonly api: ProviderApiClient,
     private readonly onRoundComplete?: (taskId: string) => Promise<void>,
-    private readonly onTaskComplete?: (taskId: string) => Promise<void>
+    private readonly onTaskComplete?: (taskId: string) => Promise<void>,
+    private readonly onRecovery?: (run: ProviderRun, strategy: "CAPTURE_EXISTING" | "RETRY_UNSENT", retryAt?: number) => void
   ) {}
 
   async dispatchTask(taskId: string): Promise<void> {
@@ -70,9 +71,16 @@ export class ProviderAutomation {
     }
   }
 
-  async resumePending(): Promise<void> {
+  private deferRecovery(run: ProviderRun, strategy: "CAPTURE_EXISTING" | "RETRY_UNSENT", retryAt?: number): void {
+    if (!this.onRecovery) return;
+    const timer = this.monitors.get(run.taskId); if (timer) clearInterval(timer);
+    this.monitors.delete(run.taskId);
+    this.onRecovery(run, strategy, retryAt);
+  }
+
+  async resumePending(taskId?: string): Promise<void> {
     const reserved = new Set<string>();
-    for (const task of this.store.snapshot().tasks.filter((item) => ["waiting", "running"].includes(item.status))) {
+    for (const task of this.store.snapshot().tasks.filter((item) => (!taskId || item.id === taskId) && ["waiting", "running"].includes(item.status))) {
       for (const run of this.latestRuns(task.id).filter((item) => ["waiting", "sending"].includes(item.phase))) {
         if (reserved.has(run.providerId)) continue;
         reserved.add(run.providerId);
@@ -191,7 +199,7 @@ export class ProviderAutomation {
     try {
       const probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
-      if (probe.rateLimited) return this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version);
+      if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.deferRecovery(run, "RETRY_UNSENT"); return; }
       if (probe.loginLikely && !probe.inputFound) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
       if (!probe.inputFound) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "未找到已版本化的输入区域，页面可能已变化", definition.version);
       let result = await view.webContents.executeJavaScript(prepareScript(definition, run.inputPrompt)) as { ok: boolean; reason?: string };
@@ -238,11 +246,11 @@ export class ProviderAutomation {
     const settled = await Promise.allSettled(runs.map(async (run) => {
       const definition = adapterFor(this.resolveProvider(run.providerId));
       const view = this.views.get(run.providerId);
-      if (!definition || !view) return;
+      if (!definition || !view) { if (!view) this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
       try {
         const probe = await this.readPage(run.providerId, probeScript(definition));
         if (probe.sourceUrl !== run.sessionUrl) this.store.setRunSession(run.id, run.responseBaseline ?? "", probe.sourceUrl);
-        if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); return; }
+        if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
         if (probe.busy) { this.stability.delete(run.id); return; }
         const baseline = this.baselines.get(run.id) ?? run.responseBaseline ?? "";
         if (!probe.latestResponse || probe.latestResponse === baseline) {
@@ -253,7 +261,7 @@ export class ProviderAutomation {
         const stableCount = previous?.content === probe.latestResponse ? previous.stableCount + 1 : 1;
         this.stability.set(run.id, { content: probe.latestResponse, stableCount });
         if (manual || stableCount >= 2) this.store.captureArtifact(run.id, probe.latestResponse, probe.sourceUrl);
-      } catch (error) { throw { run, definition, error }; }
+      } catch (error) { this.onRecovery?.(run, "CAPTURE_EXISTING"); throw { run, definition, error }; }
     }));
     if (manual) {
       const failed = settled.find((item): item is PromiseRejectedResult => item.status === "rejected");
@@ -289,7 +297,8 @@ export class ProviderAutomation {
         this.store.updateRun(run.id, "waiting", null, "API 回答已返回，等待进入统一并发采集记录", answer.adapterVersion);
         return answer;
       } catch (error) {
-        this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `API 请求失败：${String(error)}`, "api/request-v1");
+        this.store.updateRun(run.id, "failed", error instanceof ProviderHttpError && error.status === 429 ? "RATE_LIMITED" : "RETRYABLE_FAILURE", `API 请求失败：${String(error)}`, "api/request-v1");
+        if (error instanceof ProviderHttpError && error.status === 429) this.onRecovery?.(run, "RETRY_UNSENT", error.retryAt);
         return;
       }
     }

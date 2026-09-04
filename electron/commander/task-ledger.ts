@@ -5,7 +5,7 @@ import { readJson, validId, writeJson } from "./durable-json";
 import type { Interruption } from "./interruption";
 import type { RuntimeResult } from "../runtimes/runtime";
 export interface Consumption { modelCalls: number; estimatedInputTokens: number; estimatedOutputTokens: number; toolCalls: number; browserActions: number; retries: number; workerRuntimeMs: number; providerWaitMs: number; }
-export interface WorkerSession { id: string; provider: string; taskId: string; checkpoint: number; health: string; resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION"; }
+export interface WorkerSession { externalSessionId?: string; url?: string; id: string; provider: string; taskId: string; checkpoint: number; health: string; resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION" | "RESTORE_URL"; }
 export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; }
 export interface TaskLedgerRecord {
   schemaVersion: 1; taskId: string; objective: string; constraints: string[]; revision: number;
