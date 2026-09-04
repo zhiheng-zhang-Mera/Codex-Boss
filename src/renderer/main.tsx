@@ -78,7 +78,7 @@ function App() {
   }, [controllerWidth]);
 
   const activeConversation = snapshot.conversations.find((conversation) => conversation.id === snapshot.activeConversationId);
-  const activeTasks = useMemo(() => snapshot.tasks.filter((task) => task.conversationId === snapshot.activeConversationId).slice(0, 50).reverse(), [snapshot.tasks, snapshot.activeConversationId]);
+  const activeTasks = useMemo(() => snapshot.tasks.filter((task) => !task.parentTaskId && task.conversationId === snapshot.activeConversationId).slice(0, 50).reverse(), [snapshot.tasks, snapshot.activeConversationId]);
   const pendingRemoteCommands = snapshot.remoteCommands.filter((command) => command.status === "pending");
 
   async function toggleProvider(providerId: ProviderId) {

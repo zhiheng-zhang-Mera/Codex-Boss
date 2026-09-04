@@ -22,6 +22,10 @@ export function compileIntent(request: string, options: CompileOptions = {}): Ta
 }
 export function validateGraph(steps: TaskStep[]): void {
   if (!steps.length || steps.length > 100) throw new Error("Graph must have 1–100 steps");
+  for (const step of steps) {
+    if (!step || typeof step.id !== "string" || !["native", "worker", "verify"].includes(step.kind) || typeof step.description !== "string" || !step.description.trim() || step.description.length > 20000 || !Array.isArray(step.dependencies) || !Array.isArray(step.requiredFiles) || step.requiredFiles.length > 50 || step.requiredFiles.some((file) => typeof file !== "string" || /^(?:[A-Za-z]:|[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/.test(file))) throw new Error("Invalid graph step");
+    if (step.operation && (!["git_status", "read_file", "list_files"].includes(step.operation.kind) || (step.operation.kind !== "git_status" && typeof step.operation.path !== "string"))) throw new Error("Invalid native operation");
+  }
   const ids = new Set(steps.map((step) => step.id)); if (ids.size !== steps.length) throw new Error("Duplicate step ID");
   const done = new Set<string>();
   for (const step of steps) {

@@ -68,3 +68,12 @@ describe("versioned visible adapters", () => {
     expect(verifyPromptScript(definition!, "hello")).toContain("\\u00A0");
   });
 });
+
+it("verifies rich-editor paragraph boundaries without discarding indentation", () => {
+  const text = (value: string) => ({ nodeType: 3, textContent: value });
+  const p = (children: unknown[]) => ({ nodeName: "P", childNodes: children });
+  const editor = { nodeName: "DIV", childNodes: [p([text("one")]), p([{ nodeName: "BR" }]), p([text("  two")])], innerText: "one\n\n\n\n  two", getClientRects: () => [{}] };
+  const context = { document: { querySelector: () => editor }, HTMLTextAreaElement: class {}, HTMLInputElement: class {} };
+  expect(vm.runInNewContext(verifyPromptScript(adapterFor(provider("chatgpt"))!, "one\n\n  two"), context).ok).toBe(true);
+  expect(vm.runInNewContext(verifyPromptScript(adapterFor(provider("chatgpt"))!, "one\n\n two"), context).ok).toBe(false);
+});

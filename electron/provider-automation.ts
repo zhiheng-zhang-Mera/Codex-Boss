@@ -53,9 +53,18 @@ export class ProviderAutomation {
 
   async executeWorker(providerId: string, request: RuntimeRequest, signal?: AbortSignal): Promise<RuntimeResult> {
     if (signal?.aborted) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
-    const task = this.store.createTask(request.role, [request.context, request.prompt].filter(Boolean).join("\n\n"), [providerId]);
+    const parent = this.store.snapshot().tasks.find((item) => item.id === request.taskId);
+    const existing = this.store.snapshot().tasks.find((item) => item.parentTaskId === request.taskId && item.runtimeJobId === request.jobId && item.providerIds.includes(providerId));
+    const task = existing ?? this.store.createTask(request.role, [request.context, request.prompt].filter(Boolean).join("\n\n"), [providerId], "direct", "work", {}, parent?.conversationId, request.taskId, request.jobId);
     try {
-      await this.dispatchTask(task.id);
+      if (existing && this.latestRuns(task.id).some((run) => ["waiting", "sending"].includes(run.phase))) await this.resumePending(task.id);
+      else if (!existing) await this.dispatchTask(task.id);
+      if (existing && this.latestRuns(task.id).some((run) => ["queued", "prepared"].includes(run.phase))) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "PERMANENT_FAILURE", failure: { code: "USER_ACTION_REQUIRED", message: "Interrupted worker has no confirmed send state; reconcile before retry", retryable: false } };
+      const checkpoint = this.store.snapshot().dispatchCheckpoints.find((item) => item.taskId === task.id);
+      if (checkpoint?.status === "ROLLED_BACK") {
+        this.store.setTaskStatus(task.id, "failed");
+        return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "PERMANENT_FAILURE", failure: { code: checkpoint.requiresReconciliation ? "USER_ACTION_REQUIRED" : "PAGE_CHANGED", message: checkpoint.message, retryable: false } };
+      }
       const deadline = Date.now() + (request.timeoutMs ?? 180000);
       while (!signal?.aborted && Date.now() < deadline) {
         const run = this.latestRuns(task.id)[0];

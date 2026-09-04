@@ -33,6 +33,14 @@ export class ContextManager {
     if (changed) this.persist();
   }
 
+  assembleStep(taskId: string, step: import("../../src/shared/task-ir").TaskStep, dependencyOutputs: Record<string, string>, files: Record<string, string>): string {
+    const context = this.get(taskId); if (!context) throw new Error("Unknown task context");
+    return JSON.stringify({ objective: context.objective, currentStep: step, constraints: context.constraints,
+      dependencyOutputs: Object.fromEntries(step.dependencies.map((id) => [id, (dependencyOutputs[id] ?? "").slice(0, 12000)])),
+      authorizedFiles: Object.fromEntries(step.requiredFiles.map((file) => [file, (files[file] ?? "").slice(0, 16000)])),
+      requiredEvidence: "Return the requested result with sources or verification; no unrequested actions.", openDisputes: context.openDisputes }, null, 2).slice(0, 64000);
+  }
+
   assemble(taskId: string, role: RoleId, roleInstructions: string, budget: ContextBudget = {}): string {
     const context = this.get(taskId);
     if (!context) throw new Error(`Unknown task context: ${taskId}`);

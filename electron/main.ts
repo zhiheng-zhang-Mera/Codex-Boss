@@ -230,7 +230,10 @@ if (ownsInstance) app.whenReady().then(() => {
     async healthCheck() { return { runtimeId: "web:" + item.id, availability: providerViews.get(item.id) ? "AVAILABLE" : "DOWN", message: "Visible provider session", checkedAt: new Date().toISOString() }; },
     execute: (request, signal) => automation.executeWorker(item.id, request, signal)
   }));
-  if (!isSmokeTest) { DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit); void automation.resumePending().catch((error) => console.error("Resume paused", error)); }
+  if (!isSmokeTest) { DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit); void automation.resumePending().catch((error) => console.error("Resume paused", error));
+    for (const task of store.snapshot().tasks.filter((item) => item.workspacePath && ["running", "waiting", "queued"].includes(item.status))) {
+      void commander.executePlan(task.id, task.workspacePath!).then(publish).catch((error) => { store.setRecoveryState(task.id, undefined, String(error)); publish(); });
+    } }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
@@ -253,7 +256,10 @@ if (ownsInstance) app.whenReady().then(() => {
     const { appMode, transports } = taskTransports(input, providerIds);
     const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
     commander.startTask(task.id);
-    if (!await commander.executeDeterministic(task.id, input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath())) await automation.dispatchTask(task.id);
+    publish();
+    const workspace = input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath();
+    try { if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id); }
+    catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
     await automation.continueIfReady(task.id);
     return publish();
   });

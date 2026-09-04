@@ -9,6 +9,15 @@ export interface PageProbe {
   sourceUrl: string;
 }
 
+const editorSerialization = `
+    const serialized = (node) => {
+      if (node.nodeType === 3) return node.textContent || '';
+      if (node.nodeName === 'BR') return '\\n';
+      const text = Array.from(node.childNodes || []).map(serialized).join('');
+      return /^(P|DIV|LI)$/.test(node.nodeName || '') ? text.replace(/\\n$/, '') + '\\n' : text;
+    };
+`;
+
 function payload(definition: AdapterDefinition): string {
   return JSON.stringify(definition).replaceAll("<", "\\u003c");
 }
@@ -62,7 +71,8 @@ export function prepareScript(definition: AdapterDefinition, prompt: string): st
       ? input.value
       : (input.innerText || input.textContent || '');
     const normalize = (text) => text.replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, '').replace(/\\u00A0/g, ' ').replace(/\\r\\n?/g, '\\n').trim();
-    return normalize(current) === normalize(value)
+    ${editorSerialization}
+    return normalize(current) === normalize(value) || normalize(serialized(input)) === normalize(value)
       ? { ok: true }
       : { ok: false, reason: 'value-not-applied' };
   })()`;
@@ -79,7 +89,8 @@ export function verifyPromptScript(definition: AdapterDefinition, prompt: string
       ? input.value
       : (input.innerText || input.textContent || '');
     const normalize = (text) => text.replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, '').replace(/\\u00A0/g, ' ').replace(/\\r\\n?/g, '\\n').trim();
-    return normalize(current) === normalize(${safePrompt})
+    ${editorSerialization}
+    return normalize(current) === normalize(${safePrompt}) || normalize(serialized(input)) === normalize(${safePrompt})
       ? { ok: true }
       : { ok: false, reason: 'value-not-applied' };
   })()`;

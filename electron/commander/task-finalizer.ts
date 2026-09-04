@@ -46,7 +46,7 @@ export class TaskFinalizer {
       }
     }
     const response: FinalResponse = { id: randomUUID(), taskId, conversationId: task.conversationId,
-      source: synthesis?.trim() ? "codex_synthesis" : council ? "council_synthesis" : accepted.length === 1 ? "worker" : "deterministic",
+      source: synthesis?.trim() ? "codex_synthesis" : council ? "council_synthesis" : accepted.length === 1 && !["commander:plan", "native:tools"].includes(accepted[0].providerId) ? "worker" : "deterministic",
       content: synthesis?.trim() || (accepted.length === 1 ? accepted[0].content : accepted.map((item) => `${item.providerId}\n\n${item.content}`).join("\n\n---\n\n")),
       evidenceBundleId: bundle.id, sourceArtifactIds: accepted.map((item) => item.id), finalizedAt: new Date().toISOString() };
     this.store.saveFinalResponse(response);

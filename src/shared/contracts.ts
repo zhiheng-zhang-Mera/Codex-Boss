@@ -26,6 +26,10 @@ export interface Provider {
 }
 
 export interface BossTask {
+  parentTaskId?: string;
+  runtimeJobId?: string;
+  workspacePath?: string;
+  selectedProviderIds?: ProviderId[];
   recoveryAt?: number;
   recoveryMessage?: string;
   finalizationPolicy?: FinalizationPolicy;

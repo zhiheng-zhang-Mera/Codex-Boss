@@ -3,9 +3,11 @@ import { createHash } from "node:crypto";
 import type { TaskIR, TaskStep } from "../../src/shared/task-ir";
 import { validateGraph } from "../../src/shared/task-ir";
 import { TaskLedger } from "../commander/task-ledger";
-export interface StepEvidence { stepId: string; passed: boolean; output: string; sha256: string; }
-export interface GraphResult { status: "COMPLETED" | "FAILED"; evidence: StepEvidence[]; }
+export class GraphDeferred extends Error {}
+export interface StepEvidence { deferred?: boolean; stepId: string; passed: boolean; output: string; sha256: string; }
+export interface GraphResult { status: "COMPLETED" | "FAILED" | "WAITING"; evidence: StepEvidence[]; }
 export interface GraphExecutor {
+  readOnly?: boolean;
   execute(step: TaskStep): Promise<string>;
   verify(step: TaskStep, output: string): Promise<boolean>;
 }
@@ -34,7 +36,7 @@ export class EngineeringRuntime {
         // Revalidate persisted evidence against the current workspace before skipping work.
         if (await executor.verify(step, output)) { completed.add(step.id); evidence.push(this.evidence(step.id, output, true)); }
         else return { status: "FAILED", evidence: [...evidence, this.evidence(step.id, output, false)] };
-      } else if (previous?.state === "RUNNING") throw new Error(`Interrupted step ${step.id} requires side-effect reconciliation`);
+      } else if (previous?.state === "RUNNING" && !executor.readOnly) throw new Error(`Interrupted step ${step.id} requires side-effect reconciliation`);
     }
     const width = plan.estimatedComplexity === "L3" ? Math.max(1, Math.min(3, plan.maxWorkers)) : 1;
     while (completed.size < plan.steps.length) {
@@ -43,24 +45,25 @@ export class EngineeringRuntime {
       const batch: TaskStep[] = []; const owned = new Set<string>();
       for (const step of ready) {
         if (batch.length >= width) break;
-        if (batch.length && (!step.requiredFiles.length || batch.some((item) => !item.requiredFiles.length) || step.requiredFiles.some((file) => [...owned].some((other) => { const a = path.resolve(file).toLowerCase(); const b = path.resolve(other).toLowerCase(); return a === b || a.startsWith(b + path.sep) || b.startsWith(a + path.sep); })))) continue;
+        if (!executor.readOnly && batch.length && (!step.requiredFiles.length || batch.some((item) => !item.requiredFiles.length) || step.requiredFiles.some((file) => [...owned].some((other) => { const a = path.resolve(file).toLowerCase(); const b = path.resolve(other).toLowerCase(); return a === b || a.startsWith(b + path.sep) || b.startsWith(a + path.sep); })))) continue;
         batch.push(step); step.requiredFiles.forEach((file) => owned.add(file));
       }
       if (!batch.length) return { status: "FAILED", evidence };
       const results = await Promise.all(batch.map(async (step) => {
         const key = `graph_${step.id}`;
         this.ledger.update(taskId, "step started", (state) => { state.currentStep = step.id; state.jobs[key] = { id: key, fingerprint: TaskLedger.fingerprint(step), state: "RUNNING", sessionId: `${taskId}_${step.id}`, attempts: (state.jobs[key]?.attempts ?? 0) + 1 }; });
-        let output = ""; let passed = false;
-        try { output = await executor.execute(step); passed = await executor.verify(step, output); } catch (error) { output = String(error); }
-        const item = this.evidence(step.id, output, passed);
+        let output = ""; let passed = false; let deferred = false;
+        try { output = await executor.execute(step); passed = await executor.verify(step, output); } catch (error) { output = String(error); deferred = error instanceof GraphDeferred; }
+        const item = { ...this.evidence(step.id, output, passed), ...(deferred ? { deferred: true } : {}) };
         this.ledger.update(taskId, "verification finished", (state) => {
-          state.jobs[key].state = passed ? "COMPLETED" : "FAILED";
+          state.jobs[key].state = passed ? "COMPLETED" : deferred ? "WAITING" : "FAILED";
           state.jobs[key].result = { runtimeId: "engineering", jobId: step.id, status: passed ? "SUCCESS" : "PERMANENT_FAILURE", content: output };
           if (passed) { state.completedSteps = [...new Set([...state.completedSteps, step.id])]; state.pendingSteps = state.pendingSteps.filter((id) => id !== step.id); }
           state.verificationState = passed ? "PASS" : "FAILED";
         }); return item;
       }));
       evidence.push(...results);
+      if (results.some((item) => item.deferred)) { this.ledger.update(taskId, "graph waiting for runtime", (state) => { state.nextAction = "WAIT"; }); return { status: "WAITING", evidence }; }
       if (results.some((item) => !item.passed)) { this.ledger.update(taskId, "verification failed", (state) => { state.verificationState = "FAILED"; state.nextAction = "REPAIR_OR_REPLAN"; }); return { status: "FAILED", evidence }; }
       results.forEach((item) => completed.add(item.stepId));
     }

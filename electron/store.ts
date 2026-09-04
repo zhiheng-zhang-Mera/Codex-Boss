@@ -42,13 +42,13 @@ export class StateStore {
     return structuredClone(this.snapshotValue);
   }
 
-  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId, parentTaskId?: string, runtimeJobId?: string): BossTask {
     const now = new Date().toISOString();
     const conversation = this.conversation(conversationId);
     const normalizedTransports = Object.fromEntries(providerIds.map((providerId) => [providerId, appMode === "chat" ? "web" : transportByProvider[providerId] ?? "web"])) as Record<ProviderId, RunTransport>;
-    const task: BossTask = { id: randomUUID(), conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
+    const task: BossTask = { id: randomUUID(), parentTaskId, runtimeJobId, conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
     this.snapshotValue.tasks.unshift(task);
-    conversation.taskIds.push(task.id);
+    if (!parentTaskId) conversation.taskIds.push(task.id);
     conversation.updatedAt = now;
     this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt, normalizedTransports[providerId])));
     if (mode === "council") {
@@ -214,6 +214,23 @@ export class StateStore {
     }
     this.reconcileTask(taskId); this.persist();
     for (const run of this.runsForTask(taskId)) this.commitDispatchForRound(taskId, run.round);
+  }
+
+  setTaskWorkspace(taskId: string, workspace: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task"); task.workspacePath = workspace; this.persist();
+  }
+
+  beginPlanExecution(taskId: string, workspace: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    if (!task.selectedProviderIds) {
+      if (this.runsForTask(taskId).some((run) => run.phase !== "queued")) throw new Error("Cannot replace already dispatched work");
+      task.selectedProviderIds = [...task.providerIds]; task.providerIds = ["commander:plan"];
+      this.snapshotValue.runs = this.snapshotValue.runs.filter((run) => run.taskId !== taskId);
+      this.snapshotValue.runs.push(this.newRun(taskId, "commander:plan", 1, task.prompt, "api"));
+    }
+    task.workspacePath = workspace; this.persist();
   }
 
   setTaskPlan(taskId: string, plan: import("../src/shared/task-ir").TaskIR): void {
@@ -591,7 +608,7 @@ export class StateStore {
       const conversations = saved.conversations?.length ? saved.conversations : [{ id: defaultConversationId, folderId: folders[0].id, title: tasks.length ? "既有对话" : "新对话", storageName: tasks.length ? "既有对话" : "新对话", taskIds: tasks.map((task) => task.id), createdAt: tasks.at(-1)?.createdAt ?? now, updatedAt: tasks[0]?.updatedAt ?? now }];
       const conversationIds = new Set(conversations.map((conversation) => conversation.id));
       for (const task of tasks) if (!conversationIds.has(task.conversationId)) task.conversationId = conversations[0].id;
-      for (const conversation of conversations) conversation.taskIds = tasks.filter((task) => task.conversationId === conversation.id).map((task) => task.id).reverse();
+      for (const conversation of conversations) conversation.taskIds = tasks.filter((task) => !task.parentTaskId && task.conversationId === conversation.id).map((task) => task.id).reverse();
       const taskById = new Map(tasks.map((task) => [task.id, task]));
       const runs = (saved.runs ?? []).map((run) => ({ ...run, transport: run.transport ?? taskById.get(run.taskId)?.transportByProvider[run.providerId] ?? "web" }));
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));

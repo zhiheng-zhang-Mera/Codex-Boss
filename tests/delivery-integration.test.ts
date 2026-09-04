@@ -63,3 +63,17 @@ describe("automatic round continuation", () => {
     expect(() => store.setTaskStatus(task.id, "completed")).toThrow("persisted passing evidence");
   });
 });
+
+it("reuses a completed internal worker after restart without dispatch", async () => {
+  const { file, store } = workspace();
+  const parent = store.createTask("parent", "plan", ["chatgpt"]);
+  const child = store.createTask("research", "prompt", ["chatgpt"], "direct", "work", {}, parent.conversationId, parent.id, "stable-job");
+  store.captureArtifact(store.runsForTask(child.id)[0].id, "cached worker answer", "https://chatgpt.com/c/test");
+  const restored = new StateStore(file);
+  const automation = new ProviderAutomation(restored, {} as never, (id) => providerSeed.find((p) => p.id === id)!, () => undefined, {} as never, {} as never);
+  const result = await automation.executeWorker("chatgpt", { taskId: parent.id, jobId: "stable-job", role: "research", prompt: "prompt" });
+  expect(result).toMatchObject({ status: "SUCCESS", content: "cached worker answer" });
+  expect(restored.snapshot().tasks).toHaveLength(2);
+  expect(restored.snapshot().dispatchCheckpoints).toHaveLength(0);
+  automation.dispose();
+});
