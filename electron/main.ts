@@ -13,6 +13,7 @@ import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
 import { ContextManager } from "./commander/context-manager";
 import { ExecutionGate } from "./commander/execution-gate";
+import { TaskLedger } from "./commander/task-ledger";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
@@ -160,11 +161,11 @@ if (ownsInstance) app.whenReady().then(() => {
   runtimeRegistry.register(codexRuntime);
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
-  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager), budgetManager, contextManager, new ExecutionGate());
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")));
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
-  if (!isSmokeTest) DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit);
+  if (!isSmokeTest) { DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit); void automation.resumePending(); }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
@@ -187,7 +188,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const { appMode, transports } = taskTransports(input, providerIds);
     const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
     commander.startTask(task.id);
-    await automation.dispatchTask(task.id);
+    if (!await commander.executeDeterministic(task.id, app.getAppPath())) await automation.dispatchTask(task.id);
     return publish();
   });
   ipcMain.handle("boss:update-api-setting", (_event, input: UpdateApiSettingInput) => {

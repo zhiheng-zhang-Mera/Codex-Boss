@@ -18,6 +18,7 @@ export interface ScheduleBatchResult {
 
 export class Scheduler {
   async dispatch(job: ScheduledJob, policy: DispatchPolicy): Promise<RuntimeResult> {
+    if (!Number.isInteger(policy.maxRetries) || policy.maxRetries < 0 || policy.maxRetries > 3 || !Number.isFinite(policy.timeoutMs) || policy.timeoutMs <= 0) throw new Error("Invalid dispatch bounds");
     if (job.candidates.length === 0) return failureResult(job.request, "UNSUPPORTED", "No eligible runtime remains", false);
     const candidates = policy.allowFallback ? job.candidates : job.candidates.slice(0, 1);
     let last = failureResult(job.request, "UNKNOWN", "Runtime did not execute", true);
@@ -25,6 +26,8 @@ export class Scheduler {
       for (let attempt = 0; attempt <= policy.maxRetries; attempt += 1) {
         last = await this.executeWithTimeout(runtime, job.request, policy.timeoutMs);
         if (last.status === "SUCCESS" || last.status === "CANCELLED") return last;
+        if (last.failure?.code === "TIMEOUT" && !job.request.replaySafe) return last;
+        if (last.failure?.code === "AUTH_REQUIRED" || last.failure?.code === "USER_ACTION_REQUIRED") return last;
         if (last.status === "PERMANENT_FAILURE" || !last.failure?.retryable) break;
       }
     }
@@ -41,7 +44,7 @@ export class Scheduler {
         catch (reason) { results[index] = { status: "rejected", reason }; }
       }
     };
-    await Promise.all(Array.from({ length: Math.max(1, Math.min(policy.maxParallel, jobs.length)) }, worker));
+    await Promise.all(Array.from({ length: Math.max(1, Math.min(3, policy.maxParallel, jobs.length)) }, worker));
     const successCount = results.filter((item) => item.status === "fulfilled" && item.value.status === "SUCCESS").length;
     const required = policy.requireAll ? jobs.length : Math.max(1, policy.minSuccess ?? 1);
     return { results, successCount, state: successCount >= required ? "READY_TO_COMMIT" : "RECONCILIATION_REQUIRED" };
@@ -57,6 +60,7 @@ export class Scheduler {
       }, timeoutMs);
     });
     try { return await Promise.race([runtime.execute(request, controller.signal), timeout]); }
+    catch (error) { return { runtimeId: runtime.id, jobId: request.jobId, status: "RETRYABLE_FAILURE", failure: { code: "UNKNOWN", message: String(error), retryable: true } }; }
     finally { if (timer) clearTimeout(timer); }
   }
 }

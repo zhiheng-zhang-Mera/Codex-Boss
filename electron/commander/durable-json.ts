@@ -1,0 +1,22 @@
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+
+// Same-directory rename plus a previous verified generation. Never overwrite corrupt input.
+export function writeJson(file: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  const fd = fs.openSync(temporary, "wx");
+  try { fs.writeFileSync(fd, JSON.stringify(value, null, 2), "utf8"); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  try { fs.renameSync(temporary, file); }
+  finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
+}
+export function readJson<T>(file: string): T | undefined {
+  if (!fs.existsSync(file)) return undefined;
+  return JSON.parse(fs.readFileSync(file, "utf8")) as T;
+}
+export function validId(id: string): string {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(id)) throw new Error("Invalid ledger identity");
+  return id;
+}

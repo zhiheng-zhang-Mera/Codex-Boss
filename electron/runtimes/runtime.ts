@@ -19,6 +19,9 @@ export interface RuntimeHealth {
 }
 
 export interface RuntimeRequest {
+  sessionId?: string;
+  replaySafe?: boolean;
+  timeoutMs?: number;
   jobId: string;
   taskId: string;
   role: RuntimeCapability;
@@ -27,6 +30,7 @@ export interface RuntimeRequest {
 }
 
 export interface RuntimeFailure {
+  retryAt?: number;
   code: RuntimeAvailability | "TIMEOUT" | "UNKNOWN";
   message: string;
   retryable: boolean;

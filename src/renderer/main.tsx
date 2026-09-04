@@ -286,7 +286,7 @@ function App() {
           <div className="boss-message">
             <div className="boss-avatar">B</div>
             <div><strong>已分派到 {task.providerIds.map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
-              <p>{task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p>
+              <p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p>
               <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId} [{run.transport}]: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
               {checkpoint && <div className={`dispatch-checkpoint checkpoint-${checkpoint.status.toLowerCase()}`}><b>{checkpoint.status}</b><span>{checkpoint.successfulProviderIds.length}/{checkpoint.expectedProviderIds.length} 成功 · {checkpoint.message}</span></div>}
               {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}

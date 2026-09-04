@@ -11,3 +11,9 @@ Validation: TypeScript checks passed; 20 test files / 61 tests passed. Live auth
 ## Remaining release acceptance
 
 v0.6–v1.0 layers are in progress. Numerical roadmap targets are benchmark goals, not measured results. Machine-loss, real account quota, provider failover continuity, and supported application coverage require external evidence.
+
+## v0.6 / v0.7 checkpoint
+
+Implemented versioned task checkpoints, explicit worker sessions, a 14-kind interruption taxonomy, fail-closed corrupt-ledger reads, bounded supervisor recovery, capability-compatible fallback, operational budgets, restart preservation and original-session web capture. Native exact operations (git status, read file, list files) run without a model. Task IR supports validated dependency graphs, L0–L3 levels and a maximum of three graph workers; ordinary natural-language requests remain L1 unless an explicit graph is supplied. Replanning has explicit triggers.
+
+Validation: 22 test files / 69 tests passed; renderer/Electron TypeScript passed. Live recovery percentages and automatic decomposition of arbitrary complex prose: NOT_RUN. Native operations use the application workspace; broader engineering workspace selection is handled separately. The Codex adapter reconstructs bounded context rather than relying on an implicit last session.

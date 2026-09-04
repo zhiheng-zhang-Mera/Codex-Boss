@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
+import { TaskLedger } from "./commander/task-ledger";
 import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
 
 const defaultFolderId = "folder-general";
@@ -25,8 +26,11 @@ export const providerSeed: Provider[] = [
 
 export class StateStore {
   private snapshotValue: AppSnapshot;
+  private readonly ledger: TaskLedger;
+  private readonly ledgerHashes = new Map<string, string>();
 
   constructor(private readonly filePath: string, private readonly history?: HistoryRepository) {
+    this.ledger = new TaskLedger(path.join(path.dirname(filePath), ".boss", "tasks"));
     const restored = fs.existsSync(this.filePath);
     this.snapshotValue = this.read();
     if (restored) this.beginStartupSession();
@@ -175,9 +179,20 @@ export class StateStore {
       runtime.budget = outcome === "RATE_LIMITED" ? "LOW" : runtime.budget;
       runtime.message = message;
     }
+    const task = this.snapshotValue.tasks.find((item) => item.id === run.taskId);
+    if (task && !["cancelled", "paused", "completed"].includes(task.status)) {
+      task.executionPhase = phase === "waiting" ? "WAITING_FOR_RESPONSE" : phase === "sending" ? "DISPATCHING" : phase === "blocked" ? "WAITING_FOR_USER" : phase === "failed" ? "FAILED" : "IDLE";
+      if (phase === "blocked") task.status = "waiting";
+    }
     run.updatedAt = new Date().toISOString();
     this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId });
     this.persist();
+  }
+
+  setTaskPlan(taskId: string, plan: import("../src/shared/task-ir").TaskIR): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.plan = structuredClone(plan); this.persist();
   }
 
   setReviewPolicy(taskId: string, policy: ReviewPolicy): void {
@@ -510,7 +525,8 @@ export class StateStore {
       const remoteChannels = remoteChannelDefaults(now).map((fallback) => ({ ...fallback, ...(saved.remoteChannels ?? []).find((item) => item.channel === fallback.channel), status: "disabled" as const, message: "应用启动后等待监听器同步" }));
       const controller = saved.controller ?? { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
       return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
-    } catch {
+    } catch (error) {
+      if (fs.existsSync(this.filePath)) throw new Error(`Cannot restore task state: ${String(error)}`);
       const now = new Date().toISOString();
       const providers = structuredClone(providerSeed);
       const controller = { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
@@ -529,6 +545,23 @@ export class StateStore {
       if (!["EXDEV", "EEXIST", "EPERM"].includes(code ?? "")) throw error;
       fs.copyFileSync(temp, this.filePath);
       fs.unlinkSync(temp);
+    }
+    for (const task of this.snapshotValue.tasks) {
+      const runs = this.runsForTask(task.id);
+      const fingerprint = TaskLedger.fingerprint({ task, runs });
+      if (this.ledgerHashes.get(task.id) === fingerprint) continue;
+      this.ledger.create(task.id, task.prompt);
+      this.ledger.update(task.id, "task/run transition", (state) => {
+        state.completedSteps = runs.filter((run) => run.review?.status === "PASS").map((run) => run.id);
+        state.pendingSteps = runs.filter((run) => !["completed", "failed"].includes(run.phase)).map((run) => run.id);
+        state.currentStep = state.pendingSteps[0] ?? null;
+        state.nextAction = task.nextAction ?? task.executionPhase ?? task.status;
+        state.usage.browserActions = Math.max(state.usage.browserActions, runs.filter((run) => run.phase === "sending" || run.phase === "waiting" || run.artifactId).length);
+        for (const run of runs) {
+          if (!state.sessions.some((session) => session.id === run.id)) state.sessions.push({ id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", resumeStrategy: "EXPLICIT_SESSION" });
+        }
+      });
+      this.ledgerHashes.set(task.id, fingerprint);
     }
     this.history?.sync(this.snapshotValue);
   }

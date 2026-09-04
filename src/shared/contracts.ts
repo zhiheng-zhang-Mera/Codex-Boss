@@ -26,6 +26,7 @@ export interface Provider {
 }
 
 export interface BossTask {
+  plan?: import("./task-ir").TaskIR;
   reviewPolicy?: ReviewPolicy;
   executionPhase?: ExecutionPhase;
   nextAction?: string;

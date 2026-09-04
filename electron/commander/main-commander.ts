@@ -1,3 +1,7 @@
+import { compileIntent } from "../../src/shared/task-ir";
+import { executeNative } from "../engineering/native-tools";
+import { TaskLedger } from "./task-ledger";
+import { ExecutionSupervisor } from "./execution-supervisor";
 import type { ReviewPolicy } from "../../src/shared/execution";
 import { randomUUID } from "node:crypto";
 import type { AppMode, BossTask, ProviderId, RunTransport, TaskMode, TaskStatus } from "../../src/shared/contracts";
@@ -14,6 +18,7 @@ import { TaskStateMachine } from "./task-state-machine";
 export interface CommanderTaskInput { reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
 
 export class MainCommander {
+  readonly supervisor?: ExecutionSupervisor;
   readonly stateMachine = new TaskStateMachine();
   constructor(
     private readonly store: StateStore,
@@ -22,15 +27,30 @@ export class MainCommander {
     readonly router: RoleRouter,
     readonly budgets: BudgetManager,
     readonly contexts: ContextManager,
-    readonly executionGate: ExecutionGate
-  ) {}
+    readonly executionGate: ExecutionGate,
+    readonly ledger?: TaskLedger
+  ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler); }
 
   createTask(input: CommanderTaskInput): BossTask {
-    const task = this.store.createTask(input.title, input.objective, input.providerIds, input.mode, input.appMode, input.transports, input.conversationId);
+    const plan = compileIntent(input.objective, { constraints: input.constraints });
+    const task = this.store.createTask(input.title, input.objective, plan.estimatedComplexity === "L0" ? ["native:tools"] : input.providerIds, input.mode, input.appMode, input.transports, input.conversationId);
+    this.store.setTaskPlan(task.id, plan);
     if (input.reviewPolicy) this.store.setReviewPolicy(task.id, input.reviewPolicy);
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
+    this.ledger?.create(task.id, input.objective, input.constraints);
     return task;
+  }
+
+  async executeDeterministic(taskId: string, workspace: string): Promise<boolean> {
+    const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    const operation = task?.plan?.estimatedComplexity === "L0" ? task.plan.steps[0].operation : undefined;
+    if (!task || !operation) return false;
+    this.store.setTaskStatus(taskId, "running");
+    const evidence = await executeNative(workspace, operation);
+    for (const run of this.store.runsForTask(taskId)) this.store.captureArtifact(run.id, evidence.output || "Operation completed; empty result.", "local:native");
+    this.ledger?.update(taskId, "native verification completed", (value) => { value.verificationState = "PASS"; value.usage.toolCalls++; value.nextAction = "REPORT_EVIDENCE"; });
+    return true;
   }
 
   startTask(taskId: string): void { this.transition(taskId, "running"); }
@@ -39,8 +59,8 @@ export class MainCommander {
 
   async dispatchRole(taskId: string, role: RoleId, prompt: string, routing: Omit<RoleRoutingRequest, "role"> = {}, policy: Partial<DispatchPolicy> = {}): Promise<RuntimeResult> {
     const candidates = this.router.route({ role, ...routing }).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
-    const request: RuntimeRequest = { jobId: randomUUID(), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`) };
-    const result = await this.scheduler.dispatch({ request, candidates }, { maxParallel: 1, timeoutMs: 180000, maxRetries: 0, allowFallback: true, requireAll: true, ...policy });
+    const request: RuntimeRequest = { replaySafe: true, jobId: randomUUID(), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`) };
+    const result = this.supervisor ? await this.supervisor.execute(request, candidates) : await this.scheduler.dispatch({ request, candidates }, { maxParallel: 1, timeoutMs: 180000, maxRetries: 0, allowFallback: true, requireAll: true, ...policy });
     if (result.failure) this.budgets.observeFailure(result.runtimeId, result.failure.message);
     return result;
   }

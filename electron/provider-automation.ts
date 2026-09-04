@@ -10,6 +10,7 @@ import { ProviderApiClient, type ApiCompletion } from "./provider-api";
 type ProbeState = { content: string; stableCount: number };
 
 export class ProviderAutomation {
+  private readonly dispatching = new Set<string>();
   private readonly baselines = new Map<string, string>();
   private readonly stability = new Map<string, ProbeState>();
   private readonly monitors = new Map<string, ReturnType<typeof setInterval>>();
@@ -25,9 +26,45 @@ export class ProviderAutomation {
   ) {}
 
   async dispatchTask(taskId: string): Promise<void> {
+    if (this.dispatching.has(taskId)) return;
+    this.dispatching.add(taskId);
+    try { await this.dispatch(taskId); } finally { this.dispatching.delete(taskId); }
+  }
+
+  async resumePending(): Promise<void> {
+    const reserved = new Set<string>();
+    for (const task of this.store.snapshot().tasks.filter((item) => ["waiting", "running"].includes(item.status))) {
+      for (const run of this.latestRuns(task.id).filter((item) => ["waiting", "sending"].includes(item.phase))) {
+        if (reserved.has(run.providerId)) continue;
+        reserved.add(run.providerId);
+        const provider = this.resolveProvider(run.providerId);
+        if (run.transport !== "web" || !run.sessionUrl || run.sessionUrl === provider.url) {
+          this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "中断前发送结果或会话地址不确定，请核对原页面；不会自动重发");
+          continue;
+        }
+        try {
+          if (new URL(run.sessionUrl).origin !== new URL(provider.url).origin) throw new Error("Session origin mismatch");
+          const open = this.store.snapshot().providers.filter((item) => item.windowOpen).length;
+          if (!this.views.get(run.providerId) && open >= 5) continue;
+          const view = this.views.open(provider);
+          await view.webContents.loadURL(run.sessionUrl);
+          this.store.updateRun(run.id, "waiting", null, "已恢复原会话，继续采集；未重复发送");
+          this.startMonitor(task.id);
+        } catch (error) { this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", String(error)); }
+      }
+    }
+    this.publish();
+  }
+
+  private async dispatch(taskId: string): Promise<void> {
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task || ["cancelled", "paused"].includes(task.status)) return;
     const allRuns = this.latestRuns(taskId);
+    if (allRuns.some((run) => run.review?.status === "HUMAN_REQUIRED" || run.review?.status === "FAILED")) return;
+    const latestCheckpoint = this.store.snapshot().dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === allRuns[0]?.round);
+    if (latestCheckpoint?.requiresReconciliation) throw new Error("请先核对上一次发送结果，避免重复提交");
+    const otherActive = this.store.snapshot().runs.some((run) => run.taskId !== taskId && allRuns.some((item) => item.providerId === run.providerId) && ["sending", "waiting", "prepared"].includes(run.phase));
+    if (otherActive) throw new Error("所选 AI 正在处理另一任务，请等待其完成");
     if (allRuns.some((run) => ["sending", "waiting"].includes(run.phase))) { this.startMonitor(taskId); return; }
     const runs = allRuns.filter((run) => run.phase !== "completed");
     if (runs.length === 0) return;
@@ -147,6 +184,8 @@ export class ProviderAutomation {
   }
 
   private async poll(taskId: string, manual: boolean): Promise<void> {
+    const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    if (!task || ["cancelled", "paused"].includes(task.status)) return;
     const runs = this.latestRuns(taskId).filter((run) => run.phase === "waiting");
     const settled = await Promise.allSettled(runs.map(async (run) => {
       const definition = adapterFor(this.resolveProvider(run.providerId));
@@ -154,6 +193,7 @@ export class ProviderAutomation {
       if (!definition || !view) return;
       try {
         const probe = await view.webContents.executeJavaScript(probeScript(definition)) as PageProbe;
+        if (probe.sourceUrl !== run.sessionUrl) this.store.setRunSession(run.id, run.responseBaseline ?? "", probe.sourceUrl);
         if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); return; }
         if (probe.busy) { this.stability.delete(run.id); return; }
         const baseline = this.baselines.get(run.id) ?? run.responseBaseline ?? "";
@@ -191,6 +231,7 @@ export class ProviderAutomation {
   }
 
   private async sendRun(run: ProviderRun): Promise<ApiCompletion | undefined> {
+    this.store.updateRun(run.id, "sending", null, "发送前检查点已保存");
     if (run.transport === "api") {
       try {
         const answer = await this.api.complete(run.providerId, run.inputPrompt);
