@@ -1,4 +1,5 @@
 import { compileIntent } from "../../src/shared/task-ir";
+import { ResourceController } from "./resource-controller";
 import { EngineeringRuntime } from "../engineering/engineering-runtime";
 import { executeNative } from "../engineering/native-tools";
 import { TaskLedger } from "./task-ledger";
@@ -29,7 +30,8 @@ export class MainCommander {
     readonly budgets: BudgetManager,
     readonly contexts: ContextManager,
     readonly executionGate: ExecutionGate,
-    readonly ledger?: TaskLedger
+    readonly ledger?: TaskLedger,
+    readonly resources?: ResourceController
   ) { if (ledger) this.supervisor = new ExecutionSupervisor(ledger, scheduler); }
 
   createTask(input: CommanderTaskInput): BossTask {
@@ -69,6 +71,7 @@ export class MainCommander {
     const candidates = this.router.route({ role, ...routing }).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
     const request: RuntimeRequest = { replaySafe: true, jobId: randomUUID(), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`) };
     const result = this.supervisor ? await this.supervisor.execute(request, candidates) : await this.scheduler.dispatch({ request, candidates }, { maxParallel: 1, timeoutMs: 180000, maxRetries: 0, allowFallback: true, requireAll: true, ...policy });
+    this.resources?.record(result.runtimeId, result.status === "SUCCESS", 1, result.metrics?.durationMs ?? 0);
     if (result.failure) this.budgets.observeFailure(result.runtimeId, result.failure.message);
     return result;
   }

@@ -189,6 +189,20 @@ export class StateStore {
     this.persist();
   }
 
+  releaseReview(taskId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    for (const run of this.runsForTask(taskId)) {
+      if (run.review?.status !== "HUMAN_REQUIRED" || !run.response) continue;
+      // User releases this response only; the task's policy remains in force for future responses.
+      run.review = reviewResponse(run.response, { ...(task.reviewPolicy ?? defaultReviewPolicy), approvalRequired: false, highImpact: false, externalAction: false }, run.attempts ?? 0);
+      run.phase = run.review.status === "PASS" ? "completed" : "failed";
+      run.message = run.review.retry_reason ?? "用户已确认接收回答";
+    }
+    this.reconcileTask(taskId); this.persist();
+    for (const run of this.runsForTask(taskId)) this.commitDispatchForRound(taskId, run.round);
+  }
+
   setTaskPlan(taskId: string, plan: import("../src/shared/task-ir").TaskIR): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");

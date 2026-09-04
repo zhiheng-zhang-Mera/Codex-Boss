@@ -23,3 +23,9 @@ Validation: 22 test files / 69 tests passed; renderer/Electron TypeScript passed
 Added dependency-aware EngineeringRuntime, bounded disjoint-scope scheduling, persisted per-step verification and evidence hashes, hash-bound file-change manifests, path/symlink confinement, protected metadata boundaries, branch/worktree preparation, and a two-repair maximum. The native Commander path uses the engineering verification runtime. Model output remains data; applying a change requires the caller's authorized file scope.
 
 Validation: 23 test files / 72 tests passed, including real Node syntax failure and repair, three concurrent independent scopes, and verification after restart. Arbitrary autonomous repository refactoring and automatic merge of model-generated branches remain unaccepted; the graph executor and change manifest APIs are the implemented boundary.
+
+## v0.9 checkpoint
+
+Added semantic action routing (native → DOM → UIA → structured state → vision), per-action deadlines and uncertain-effect barriers. Actual web response reads now use the DOM semantic backend. Memory namespaces and persistent observed-cost routing are available; degraded-mode selection includes deterministic-only operation. Review mode and local workspace controls are visible in the UI.
+
+Validation: 24 test files / 75 tests passed. Tests prove semantic preference, timeout fallback for reads, no fallback after uncertain submit, memory isolation and persistence of routing observations. General Windows UIA/vision adapters and the roadmap's supported-application success percentages remain NOT_RUN; this release only claims the installed DOM backend.

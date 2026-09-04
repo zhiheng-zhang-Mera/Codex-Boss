@@ -23,6 +23,7 @@ const bridge: BossBridge = {
   prepareTask: (taskId: string) => ipcRenderer.invoke("boss:prepare-task", taskId),
   sendTask: (taskId: string) => ipcRenderer.invoke("boss:send-task", taskId),
   captureTask: (taskId: string) => ipcRenderer.invoke("boss:capture-task", taskId),
+  releaseReview: (taskId: string) => ipcRenderer.invoke("boss:release-review", taskId),
   advanceCouncil: (taskId: string) => ipcRenderer.invoke("boss:advance-council", taskId),
   buildEvidence: (taskId: string) => ipcRenderer.invoke("boss:build-evidence", taskId),
   rehydrateEvidence: (taskId: string) => ipcRenderer.invoke("boss:rehydrate-evidence", taskId),

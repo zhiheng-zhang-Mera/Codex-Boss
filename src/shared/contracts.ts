@@ -274,6 +274,7 @@ export interface AppSnapshot {
 }
 
 export interface CreateTaskInput {
+  workspacePath?: string;
   reviewPolicy?: ReviewPolicy;
   title: string;
   prompt: string;
@@ -323,6 +324,7 @@ export interface BossBridge {
   prepareTask(taskId: string): Promise<AppSnapshot>;
   sendTask(taskId: string): Promise<AppSnapshot>;
   captureTask(taskId: string): Promise<AppSnapshot>;
+  releaseReview(taskId: string): Promise<AppSnapshot>;
   advanceCouncil(taskId: string): Promise<AppSnapshot>;
   buildEvidence(taskId: string): Promise<AppSnapshot>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;

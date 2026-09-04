@@ -1,3 +1,4 @@
+import { SemanticRuntime } from "./computer/semantic-runtime";
 import type { Provider, ProviderId, ProviderRun } from "../src/shared/contracts";
 import { adapterFor } from "./adapters/registry";
 import { prepareScript, probeScript, sendScript, verifyPromptScript, type PageProbe } from "./adapters/page-scripts";
@@ -120,6 +121,14 @@ export class ProviderAutomation {
     this.monitors.clear();
   }
 
+  private async readPage(providerId: string, script: string): Promise<PageProbe> {
+    const view = this.views.get(providerId);
+    if (!view) throw new Error("Browser unavailable");
+    const result = await new SemanticRuntime([{ kind: "dom", supports: (action) => action.name === "read_page", async execute() { return { status: "SUCCESS", evidence: await view.webContents.executeJavaScript(script) }; } }]).execute({ name: "read_page", target: providerId });
+    if (result.status !== "SUCCESS") throw new Error(result.message ?? "Page read failed");
+    return result.evidence as PageProbe;
+  }
+
   private async prepareRun(run: ProviderRun): Promise<void> {
     if (run.transport === "api") {
       try {
@@ -141,7 +150,7 @@ export class ProviderAutomation {
       return;
     }
     try {
-      const probe = await view.webContents.executeJavaScript(probeScript(definition)) as PageProbe;
+      const probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
       if (probe.rateLimited) return this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version);
       if (probe.loginLikely && !probe.inputFound) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
@@ -192,7 +201,7 @@ export class ProviderAutomation {
       const view = this.views.get(run.providerId);
       if (!definition || !view) return;
       try {
-        const probe = await view.webContents.executeJavaScript(probeScript(definition)) as PageProbe;
+        const probe = await this.readPage(run.providerId, probeScript(definition));
         if (probe.sourceUrl !== run.sessionUrl) this.store.setRunSession(run.id, run.responseBaseline ?? "", probe.sourceUrl);
         if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); return; }
         if (probe.busy) { this.stability.delete(run.id); return; }

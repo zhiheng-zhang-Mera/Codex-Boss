@@ -1,3 +1,4 @@
+import type { ResourceController } from "./resource-controller";
 import type { RuntimeCapability, RuntimeId } from "../runtimes/runtime";
 import { isRuntimeAvailable } from "../runtimes/runtime";
 import type { RuntimeRegistry } from "./runtime-registry";
@@ -18,7 +19,7 @@ export interface RoleRoutingRequest {
 export interface RuntimeCandidate { runtimeId: RuntimeId; rank: number; reason: string; }
 
 export class RoleRouter {
-  constructor(private readonly registry: RuntimeRegistry, private readonly budgets: BudgetManager) {}
+  constructor(private readonly registry: RuntimeRegistry, private readonly budgets: BudgetManager, private readonly resources?: ResourceController) {}
 
   route(request: RoleRoutingRequest): RuntimeCandidate[] {
     const required = new Set([ROLE_CAPABILITY[request.role], ...(request.requiredCapabilities ?? [])]);
@@ -29,7 +30,7 @@ export class RoleRouter {
       if (![...required].every((capability) => runtime.capabilities.roles.includes(capability))) return false;
       return isRuntimeAvailable(this.registry.getHealth(runtime.id)?.availability ?? "DOWN");
     });
-    candidates.sort((a, b) => score(a.id, request.pinnedRuntime, preferred) - score(b.id, request.pinnedRuntime, preferred));
+    candidates.sort((a, b) => score(a.id, request.pinnedRuntime, preferred) - score(b.id, request.pinnedRuntime, preferred) || (this.resources?.score(a.id) ?? 1) - (this.resources?.score(b.id) ?? 1));
     const routed = candidates.map((runtime, rank) => ({ runtimeId: runtime.id, rank, reason: runtime.id === request.pinnedRuntime ? "explicit pin" : preferred.includes(runtime.id) ? `preferred #${preferred.indexOf(runtime.id) + 1}` : "compatible fallback" }));
     return request.allowFallback === false ? routed.slice(0, 1) : routed;
   }

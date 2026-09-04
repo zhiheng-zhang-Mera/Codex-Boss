@@ -13,6 +13,8 @@ import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
 import { ContextManager } from "./commander/context-manager";
 import { ExecutionGate } from "./commander/execution-gate";
+import { compileIntent } from "../src/shared/task-ir";
+import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
@@ -36,12 +38,15 @@ let providerApi: ProviderApiClient;
 let historyRepository: HistoryRepository;
 let remoteRelay: RemoteCommandRelay;
 
+const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const localAppData = process.env.LOCALAPPDATA;
 if (localAppData) {
   const localDataRoot = path.join(localAppData, "CodexBoss");
   app.setPath("userData", localDataRoot);
   app.setPath("sessionData", path.join(localDataRoot, "Session Data"));
 }
+
+if (overrideDataRoot) { app.setPath("userData", path.resolve(overrideDataRoot)); app.setPath("sessionData", path.join(path.resolve(overrideDataRoot), "Session Data")); }
 
 const ownsInstance = app.requestSingleInstanceLock();
 const isSmokeTest = process.argv.includes("--codex-boss-smoke-test");
@@ -50,7 +55,7 @@ if (!ownsInstance) {
   app.quit();
 }
 if (ownsInstance) {
-  const cacheRoot = path.join(app.getAppPath(), ".cache");
+  const cacheRoot = path.join(overrideDataRoot ? path.resolve(overrideDataRoot) : app.getAppPath(), ".cache");
   const sessionRoot = path.join(cacheRoot, "browser-profile");
   const oldSessionRoot = app.getPath("sessionData");
   // Migrate only after acquiring the instance lock, before any browser starts.
@@ -157,11 +162,12 @@ if (ownsInstance) app.whenReady().then(() => {
   remoteRelay.sync(store.snapshot().remoteChannels);
   const runtimeRegistry = new RuntimeRegistry();
   const budgetManager = new BudgetManager();
+  const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
-  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")));
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
@@ -181,14 +187,14 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
     const providerIds = [...new Set(input.providerIds)];
     if (!input.title.trim() || !input.prompt.trim()) throw new Error("Title and prompt are required");
-    if (!isDispatchGroupSize(providerIds.length)) throw new Error("请选择 1–5 个 AI；默认使用单 AI");
+    if (compileIntent(input.prompt).estimatedComplexity !== "L0" && !isDispatchGroupSize(providerIds.length)) throw new Error("请选择 1–5 个 AI；默认使用单 AI");
     providerIds.forEach(provider);
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
     const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
     commander.startTask(task.id);
-    if (!await commander.executeDeterministic(task.id, app.getAppPath())) await automation.dispatchTask(task.id);
+    if (!await commander.executeDeterministic(task.id, input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath())) await automation.dispatchTask(task.id);
     return publish();
   });
   ipcMain.handle("boss:update-api-setting", (_event, input: UpdateApiSettingInput) => {
@@ -259,6 +265,7 @@ if (ownsInstance) app.whenReady().then(() => {
     await automation.sendTask(taskId);
     return publish();
   });
+  ipcMain.handle("boss:release-review", (_event, taskId: string) => { store.releaseReview(taskId); return publish(); });
   ipcMain.handle("boss:capture-task", async (_event, taskId: string) => {
     await automation.captureTask(taskId);
     return publish();
