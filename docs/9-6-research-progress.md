@@ -136,6 +136,13 @@ cores plus live web-AI novelty review.
   HumanInterventionRequest so the guidance card can collect the decision; typecheck + targeted
   tests green.
 
+## Round 6 — research runs observable/resumable
+
+- `ResearchLedger.list()` (newest-first, corrupt-file-tolerant) + IPC/bridge
+  `boss:research-list`; renderer Research view lists existing runs (goal/state/time) with a
+  "查看" action that reopens a run into the status + advance control.
+- Tests: `research-ledger-list` (1).
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
