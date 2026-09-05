@@ -1,6 +1,7 @@
 import { readJson, writeJson } from "../commander/durable-json";
 import type { PermissionManifest, PermissionKind } from "../../src/shared/permission";
 import { EMPTY_MANIFEST } from "../../src/shared/permission";
+import { changeAllowed, type GuardianVerdict } from "../../src/shared/guardian";
 
 /**
  * Workspace Permission Manifest (plan §18). A workspace owns one persisted
@@ -32,5 +33,16 @@ export class PermissionManifestStore {
     const manifest = this.load(workspaceId);
     if (!manifest[kind].allow.includes(entry)) manifest[kind].allow = [...manifest[kind].allow, entry];
     this.save(workspaceId, manifest);
+  }
+
+  /**
+   * Permission grants on the permission system are Guardian-protected (plan
+   * §28): widening a manifest requires a guardian token, otherwise denied.
+   */
+  guardedGrant(workspaceId: string, kind: PermissionKind, entry: string, guardToken: boolean): GuardianVerdict {
+    const verdict = changeAllowed("permission.system", guardToken, workspaceId);
+    if (!verdict.allowed) return verdict;
+    this.grant(workspaceId, kind, entry);
+    return verdict;
   }
 }
