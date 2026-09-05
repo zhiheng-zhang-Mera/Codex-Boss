@@ -36,7 +36,7 @@ import { Scheduler, type DispatchPolicy } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
 import type { CircuitBreaker } from "./circuit-breaker";
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -82,7 +82,7 @@ export class MainCommander {
     if (input.reviewPolicy) this.store.setReviewPolicy(task.id, input.reviewPolicy);
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
-    this.ledger?.create(task.id, input.objective, input.constraints);
+    this.ledger?.create(task.id, input.objective, input.constraints, input.budget);
     return task;
   }
 

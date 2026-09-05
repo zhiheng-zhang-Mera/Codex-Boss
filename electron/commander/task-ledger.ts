@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import { readJson, validId, writeJson } from "./durable-json";
 import type { Interruption } from "./interruption";
 import type { RuntimeResult } from "../runtimes/runtime";
+import type { ConfigLayerName } from "../../src/shared/config-layering";
+import { resolveOperationalLimits, type OperationalLimitOverrides } from "../../src/shared/config-layering";
 export interface Consumption { modelCalls: number; estimatedInputTokens: number; estimatedOutputTokens: number; toolCalls: number; browserActions: number; retries: number; workerRuntimeMs: number; providerWaitMs: number; }
 export interface WorkerSession { externalSessionId?: string; url?: string; id: string; provider: string; taskId: string; checkpoint: number; health: string; resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION" | "RESTORE_URL"; }
 export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; }
@@ -19,6 +21,15 @@ export interface TaskLedgerRecord {
   mode: "NORMAL" | "LIGHTWEIGHT" | "DETERMINISTIC" | "PAUSED";
   sessions: WorkerSession[]; jobs: Record<string, LedgerJob>; checkpointReason: string;
   providerState?: import("../../src/shared/provider-state").ProviderStateRecord;
+  /** Per-limit provenance (plan §7 explainable config), e.g. { modelCalls: "task" }. */
+  limitsSource?: Partial<Record<"modelCalls" | "retries" | "toolCalls", ConfigLayerName>>;
+}
+
+/** Operational budget a task may override from the task config layer (plan §7). */
+export interface TaskBudgetOptions extends OperationalLimitOverrides {}
+
+export function explainTaskBudget(record: Pick<TaskLedgerRecord, "limits" | "limitsSource">): string[] {
+  return (Object.keys(record.limits) as (keyof TaskLedgerRecord["limits"])[]).map((key) => `${key} = ${record.limits[key]} (source: ${record.limitsSource?.[key] ?? "system"})`);
 }
 export class TaskLedger {
   constructor(readonly root: string) {}
@@ -32,9 +43,10 @@ export class TaskLedger {
     if (record.schemaVersion !== 1 || record.taskId !== taskId || !Number.isInteger(record.revision)) throw new Error("Invalid task checkpoint");
     return record;
   }
-  create(taskId: string, objective: string, constraints: string[] = []): TaskLedgerRecord {
+  create(taskId: string, objective: string, constraints: string[] = [], budget: TaskBudgetOptions = {}): TaskLedgerRecord {
     const existing = this.load(taskId); if (existing) return existing;
-    return this.save({ schemaVersion: 1, taskId, objective, constraints, revision: 0, completedSteps: [], currentStep: null, pendingSteps: [], modifiedFiles: [], verificationState: "NOT_RUN", failureHistory: [], activeProvider: null, sessionId: null, nextAction: "COMPILE", usage: { modelCalls: 0, estimatedInputTokens: 0, estimatedOutputTokens: 0, toolCalls: 0, browserActions: 0, retries: 0, workerRuntimeMs: 0, providerWaitMs: 0 }, limits: { modelCalls: 12, retries: 3, toolCalls: 100 }, mode: "NORMAL", sessions: [], jobs: {}, checkpointReason: "task compiled" }, "task compiled");
+    const resolved = resolveOperationalLimits(budget);
+    return this.save({ schemaVersion: 1, taskId, objective, constraints, revision: 0, completedSteps: [], currentStep: null, pendingSteps: [], modifiedFiles: [], verificationState: "NOT_RUN", failureHistory: [], activeProvider: null, sessionId: null, nextAction: "COMPILE", usage: { modelCalls: 0, estimatedInputTokens: 0, estimatedOutputTokens: 0, toolCalls: 0, browserActions: 0, retries: 0, workerRuntimeMs: 0, providerWaitMs: 0 }, limits: resolved.values, limitsSource: resolved.sources, mode: "NORMAL", sessions: [], jobs: {}, checkpointReason: "task compiled" }, "task compiled");
   }
   save(record: TaskLedgerRecord, reason: string): TaskLedgerRecord {
     const current = this.load(record.taskId);
