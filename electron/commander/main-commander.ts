@@ -36,6 +36,7 @@ import { Scheduler, type DispatchPolicy } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
 import type { CircuitBreaker } from "./circuit-breaker";
 import { buildReproductionSnapshot } from "../repro-snapshot";
+import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; }
 
@@ -59,7 +60,8 @@ export class MainCommander {
     readonly recovery?: RecoveryScheduler,
     readonly computerOptions: ComputerOptions = {},
     readonly breaker?: CircuitBreaker,
-    readonly events?: import("./event-bus").DomainEventBus
+    readonly events?: import("./event-bus").DomainEventBus,
+    readonly workspaces?: import("../workspace/workspace-registry").WorkspaceRegistry
   ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker, events); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
@@ -82,6 +84,9 @@ export class MainCommander {
     this.store.setTaskPlan(task.id, plan);
     if (input.finalizationPolicy) this.store.setFinalizationPolicy(task.id, input.finalizationPolicy);
     if (input.reviewPolicy) this.store.setReviewPolicy(task.id, input.reviewPolicy);
+    // AP01a: every task belongs to a workspace. Default/scratch shim keeps
+    // current single-repo behavior when no registry is configured.
+    if (this.workspaces) this.store.setTaskWorkspaceId(task.id, DEFAULT_WORKSPACE_ID);
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     this.ledger?.create(task.id, input.objective, input.constraints, input.budget);

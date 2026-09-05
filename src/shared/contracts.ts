@@ -29,6 +29,8 @@ export interface BossTask {
   parentTaskId?: string;
   runtimeJobId?: string;
   workspacePath?: string;
+  /** Workspace this task belongs to (plan AP01); absent = default shim workspace. */
+  workspaceId?: string;
   selectedProviderIds?: ProviderId[];
   recoveryAt?: number;
   recoveryMessage?: string;

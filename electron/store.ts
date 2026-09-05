@@ -223,6 +223,19 @@ export class StateStore {
     if (!task) throw new Error("Unknown task"); task.workspacePath = workspace; this.persist();
   }
 
+  setTaskWorkspaceId(taskId: string, workspaceId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task"); task.workspaceId = workspaceId; this.persist();
+  }
+
+  bindTaskToWorkspace(taskId: string, workspaceId: string, workspacePath?: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.workspaceId = workspaceId;
+    if (workspacePath) task.workspacePath = workspacePath;
+    this.persist();
+  }
+
   beginPlanExecution(taskId: string, workspace: string): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
