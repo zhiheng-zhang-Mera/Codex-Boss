@@ -10,6 +10,7 @@ import type { ResearchStageExecutor } from "./research-supervisor";
 import { ResearchRuntime } from "./runtime/research-runtime";
 import { PrimaryRunRecorder, type PrimaryExperimentOptions, type RecordedExperiment } from "./runtime/run-recorder";
 import { analyzeRecordedRuns, type RunAnalysisOptions, type RunAnalysisResult } from "./evidence/run-analysis";
+import { buildReproducibilityAudit, type ReproducibilityAudit } from "./evidence/repro-audit";
 
 /**
  * Research service facade (plan 9-6 Phase 5–11 glue). One object composes the
@@ -88,6 +89,15 @@ export class ResearchService {
     if (record.ir.state !== "PROTOCOL_FROZEN" || !record.ir.protocolHash) throw new Error("Protocol must be frozen before analysis");
     if (options.protocolHash !== record.ir.protocolHash) throw new Error("Analysis protocol hash does not match the frozen protocol");
     return analyzeRecordedRuns(this.evidence, id, options);
+  }
+
+  /**
+   * Deterministic reproducibility audit of a claim over its recorded runs
+   * (REPRODUCED only when the round-11 analysis shows evidence + independent
+   * replication). Fail-closed guards mirror analyzeRuns.
+   */
+  reproducibility(id: string, options: RunAnalysisOptions): ReproducibilityAudit {
+    return buildReproducibilityAudit(this.analyzeRuns(id, options));
   }
 
   /** Reference hash helper so callers never hand-roll canonical JSON. */

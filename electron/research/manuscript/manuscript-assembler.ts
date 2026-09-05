@@ -23,6 +23,8 @@ export interface ManuscriptOptions {
   evidenceIds: string[];             // available evidence node ids (from EvidenceGraph)
   writer: SectionWriter;
   maxRevisions?: number;
+  /** Deterministic reproducibility audit (round 11); written when supplied. */
+  reproducibility?: import("../evidence/repro-audit").ReproducibilityAudit;
 }
 
 export interface ManuscriptOutput {
@@ -70,9 +72,12 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
   const reproducibilityFile = path.join(auditDir, "reproducibility.json");
   const finalAuditFile = path.join(auditDir, "final-audit.json");
   fs.writeFileSync(citationsFile, JSON.stringify({ status: "PENDING" }, null, 2));
-  fs.writeFileSync(reproducibilityFile, JSON.stringify({ status: "PENDING" }, null, 2));
+  // Round-11: a real reproducibility audit replaces the static PENDING stub when
+  // the caller supplies recorded-run analysis (never fabricated).
+  const reproducibility = options.reproducibility ?? { status: "PENDING", reason: "not audited", at: new Date().toISOString() };
+  fs.writeFileSync(reproducibilityFile, JSON.stringify(reproducibility, null, 2));
   const passed = Object.values(sections).every((section) => section.status === "REVISED");
-  fs.writeFileSync(finalAuditFile, JSON.stringify({ passed, sections: Object.fromEntries(Object.entries(sections).map(([key, value]) => [key, value.status])) }, null, 2));
+  fs.writeFileSync(finalAuditFile, JSON.stringify({ passed, sections: Object.fromEntries(Object.entries(sections).map(([key, value]) => [key, value.status])), reproducibility: reproducibility.status }, null, 2));
 
   return { paperMd, paperTex, referencesBib, figures: [], sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };
 }

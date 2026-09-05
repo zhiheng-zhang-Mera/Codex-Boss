@@ -185,6 +185,16 @@ cores plus live web-AI novelty review.
 - Tests: `run-analysis` (5, incl. real node experiments) + `run-recorder` (5) green; handoff
   `docs/9-6-research-round11-run-analysis.md`.
 
+## Round 12 — Reproducibility audit for real recorded runs (done)
+
+- `electron/research/evidence/repro-audit.ts`: `buildReproducibilityAudit` — REPRODUCED only
+  when the round-11 analysis adopted the claim with evidence AND ≥2 distinct-seed runs under
+  the same frozen protocol; precise reason otherwise.
+- Manuscript assembler writes real `audit/reproducibility.json` (+ `final-audit.json`
+  reproducibility flag) when supplied, PENDING stub otherwise; `ResearchService.reproducibility`.
+- Tests: `repro-audit` (4) + `run-analysis` (5) + `research-manuscript` (3) green; handoff
+  `docs/9-6-research-round12-repro-audit.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
