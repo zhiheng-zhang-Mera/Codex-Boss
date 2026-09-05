@@ -6,6 +6,7 @@ import type { Interruption } from "./interruption";
 import type { RuntimeResult } from "../runtimes/runtime";
 import type { ConfigLayerName } from "../../src/shared/config-layering";
 import { resolveOperationalLimits, type OperationalLimitOverrides } from "../../src/shared/config-layering";
+import { validateReproductionSnapshot, type ReproductionSnapshot } from "../repro-snapshot";
 export interface Consumption { modelCalls: number; estimatedInputTokens: number; estimatedOutputTokens: number; toolCalls: number; browserActions: number; retries: number; workerRuntimeMs: number; providerWaitMs: number; }
 export interface WorkerSession { externalSessionId?: string; url?: string; id: string; provider: string; taskId: string; checkpoint: number; health: string; resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION" | "RESTORE_URL"; }
 export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; }
@@ -57,6 +58,17 @@ export class TaskLedger {
   }
   update(taskId: string, reason: string, mutate: (record: TaskLedgerRecord) => void): TaskLedgerRecord {
     const record = this.load(taskId); if (!record) throw new Error("Unknown ledger task"); mutate(record); return this.save(record, reason);
+  }
+
+  /** Persist a reproducibility snapshot beside the task checkpoints (plan §11). */
+  saveReproduction(taskId: string, snapshot: ReproductionSnapshot): void {
+    writeJson(path.join(this.root, validId(taskId), "repro.json"), snapshot);
+  }
+
+  /** Latest saved reproduction snapshot for a task, fail-closed on corruption. */
+  loadReproduction(taskId: string): ReproductionSnapshot | undefined {
+    const value = readJson<unknown>(path.join(this.root, validId(taskId), "repro.json"));
+    return value ? validateReproductionSnapshot(value) : undefined;
   }
   static fingerprint(value: unknown): string { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 }

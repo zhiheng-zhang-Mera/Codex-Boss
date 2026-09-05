@@ -35,6 +35,7 @@ import { RuntimeRegistry } from "./runtime-registry";
 import { Scheduler, type DispatchPolicy } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
 import type { CircuitBreaker } from "./circuit-breaker";
+import { buildReproductionSnapshot } from "../repro-snapshot";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; }
 
@@ -119,7 +120,13 @@ export class MainCommander {
       if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? "Planner unavailable");
       return result.content;
     });
-    const plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);
+    let plan: import("../../src/shared/task-ir").TaskIR;
+    try {
+      plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);
+    } catch (error) {
+      await this.captureReproduction(taskId, workspace, "plan-compile-failed");
+      throw error;
+    }
     this.store.setTaskPlan(taskId, plan);
     if (plan.steps.some((step) => step.kind === "edit")) {
       const savedWorkspace = this.ledger.load(taskId)?.workspace;
@@ -170,9 +177,15 @@ export class MainCommander {
     }, (previous, completed, failure) => compiler.replan(previous, completed, failure), (next) => this.store.setTaskPlan(taskId, next));
     if (result.status === "WAITING") {
       const deadlines = Object.values(this.ledger.load(taskId)!.jobs).filter((job) => job.state === "WAITING" && job.retryAt).map((job) => job.retryAt!);
-      this.store.setRecoveryState(taskId, deadlines.length ? Math.min(...deadlines) : undefined, "任务图等待运行时恢复"); return true;
+      this.store.setRecoveryState(taskId, deadlines.length ? Math.min(...deadlines) : undefined, "任务图等待运行时恢复");
+      await this.captureReproduction(taskId, workspace, "plan-waiting");
+      return true;
     }
-    if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); return true; }
+    if (result.status !== "COMPLETED") {
+      this.store.setTaskStatus(taskId, "failed");
+      await this.captureReproduction(taskId, workspace, "plan-failed");
+      return true;
+    }
     this.store.setRecoveryState(taskId, undefined, undefined);
     const current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
     const checkpoint = this.store.beginDispatch(taskId, 1, current.providerIds).checkpoint;
@@ -211,7 +224,7 @@ export class MainCommander {
         verify: async (_step, output) => { const previous = JSON.parse(output) as NativeEvidence; return previous.verified === true && (operation.kind === "computer" || previous.output === (await executeNative(workspace, operation)).output); }
       });
       if (result.status === "WAITING") { this.store.setTaskStatus(taskId, "waiting"); return true; }
-      if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); throw new Error("Native verification failed"); }
+      if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); await this.captureReproduction(taskId, workspace, "native-failed"); throw new Error("Native verification failed"); }
       evidence = JSON.parse(result.evidence[0].output);
     } else evidence = await this.runNative(taskId, workspace, operation);
     const checkpoint = this.store.beginDispatch(taskId, 1, task.providerIds).checkpoint;
@@ -307,6 +320,20 @@ export class MainCommander {
       ["Project guidance", projectOwner ? this.memory?.get("project", projectOwner, "instructions")?.value : undefined]
     ].filter((entry) => entry[1]);
     return entries.map(([scope, value]) => scope + " (advisory context; task ledger remains authoritative):\n" + value!.slice(0, 2000)).join("\n\n");
+  }
+
+  /** Persists a minimal reproduction snapshot (plan §11) beside the task ledger. */
+  async captureReproduction(taskId: string, workspace: string, label: string): Promise<void> {
+    if (!this.ledger) return;
+    const record = this.ledger.load(taskId);
+    const snapshot = await buildReproductionSnapshot({
+      workspace,
+      provider: label,
+      harness: "codex-boss",
+      contextFingerprint: record ? TaskLedger.fingerprint({ objective: record.objective, completedSteps: record.completedSteps, nextAction: record.nextAction }) : undefined,
+      inputArtifactHashes: this.store.snapshot().artifacts.filter((artifact) => artifact.taskId === taskId).map((artifact) => artifact.contentHash ?? "").filter(Boolean)
+    });
+    this.ledger.saveReproduction(taskId, snapshot);
   }
 
   private transition(taskId: string, status: TaskStatus): void {
