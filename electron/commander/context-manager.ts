@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ClaimRecord, DisputeRecord } from "../../src/shared/contracts";
 import type { RoleId } from "./role-router";
+import { migrateJsonFile, readEnvelope, schemaMigrations, type VersionedEnvelope } from "./schema-migration";
 
 export interface ContextSummary { id: string; text: string; createdAt: string; }
 export interface ExecutionRef { id: string; status: string; }
@@ -18,6 +19,19 @@ export interface TaskContext {
   executionHistory: ExecutionRef[];
 }
 export interface ContextBudget { maxChars?: number; maxTokens?: number; maxArtifacts?: number; }
+
+const CONTEXT_SCHEMA = "task-contexts";
+// Legacy task-contexts.json was an unversioned array of TaskContext; v1 wraps
+// that payload in the versioned envelope. The step is identity — the value it
+// guarantees is provenance + the fail-closed envelope contract, not data shape.
+schemaMigrations.register(CONTEXT_SCHEMA, {
+  from: 0,
+  to: 1,
+  migrate: (payload) => payload,
+  validate: (payload) => {
+    if (!Array.isArray(payload)) throw new Error("task-contexts payload must be an array");
+  }
+});
 
 export class ContextManager {
   private readonly contexts = new Map<string, TaskContext>();
@@ -61,8 +75,12 @@ export class ContextManager {
   private restore(): void {
     if (!this.filePath || !fs.existsSync(this.filePath)) return;
     try {
-      const parsed = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as TaskContext[];
-      for (const context of parsed) if (context?.taskId) this.contexts.set(context.taskId, context);
+      // Legacy files were an unversioned array; migrate a copy to the v1
+      // envelope (read-old → migrate-copy → validate → atomic commit).
+      migrateJsonFile(CONTEXT_SCHEMA, this.filePath);
+      const parsed = readEnvelope<TaskContext[]>(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
+      if (parsed.schema_id !== CONTEXT_SCHEMA) throw new Error("Unrecognized task-context file");
+      for (const context of parsed.data) if (context?.taskId) this.contexts.set(context.taskId, context);
     } catch { /* corrupt optional context never replaces canonical task state */ }
   }
 
@@ -70,7 +88,14 @@ export class ContextManager {
     if (!this.filePath) return;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     const temporary = `${this.filePath}.tmp`;
-    const content = JSON.stringify([...this.contexts.values()], null, 2);
+    const envelope: VersionedEnvelope<TaskContext[]> = {
+      schema_id: CONTEXT_SCHEMA,
+      schema_version: schemaMigrations.latest(CONTEXT_SCHEMA),
+      created_by: "codex-boss",
+      migration_history: [],
+      data: [...this.contexts.values()]
+    };
+    const content = JSON.stringify(envelope, null, 2);
     fs.writeFileSync(temporary, content, "utf8");
     try { fs.renameSync(temporary, this.filePath); }
     catch (error) {
