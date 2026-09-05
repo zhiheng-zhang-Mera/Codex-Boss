@@ -73,6 +73,25 @@ describe("recorded-run analysis (Phase 10→8)", () => {
     expect(result.verdict.reason).toContain("no independent replication");
   });
 
+  it("excludes failed runs from evidence (a crashed run never fabricates statistics)", () => {
+    const dir = root();
+    const graph = new EvidenceGraph(dir);
+    graph.addRun("an1", runRecord(1, { accuracy: 9 }));
+    graph.addRun("an1", { ...runRecord(2, { accuracy: 999 }), passed: false }); // crashed but printed METRICS
+    const result = analyzeRecordedRuns(graph, "an1", {
+      claimId: "claim:ok", metric: "accuracy", protocolHash: "frozen-abc", baseline: 8,
+      votes: [{ reviewerId: "r1", claimId: "claim:ok", stance: "supports" }]
+    });
+    // The failed run is not eligible → no independent replication → not adopted.
+    expect(result.eligibleRuns).toHaveLength(1);
+    expect(result.independentReplication).toBe(false);
+    expect(result.verdict.adopted).toBe(false);
+    // And if only failed runs exist, analysis throws (no fabricated statistics).
+    const onlyFailed = new EvidenceGraph(dir);
+    onlyFailed.addRun("an1", { ...runRecord(1, { accuracy: 999 }), passed: false });
+    expect(() => analyzeRecordedRuns(onlyFailed, "an1", { claimId: "c", metric: "accuracy", protocolHash: "frozen-abc" })).toThrow(/No recorded runs/);
+  });
+
   it("rejects analysis with no eligible runs (no fabricated statistics)", () => {
     const dir = root();
     const graph = new EvidenceGraph(dir);

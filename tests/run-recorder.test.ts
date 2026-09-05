@@ -82,6 +82,24 @@ describe("primary-run recorder (Phase 6→10 glue)", () => {
     expect(["unknown"]).toContain(git.commit);
     expect(typeof git.dirty).toBe("boolean");
   });
+
+  it("records whether a real run passed and persists a failed run as passed:false", async () => {
+    const cwd = root();
+    const evidenceDir = path.join(cwd, ".evidence");
+    const recorder = new PrimaryRunRecorder(new EvidenceGraph(evidenceDir), new ResearchRuntime());
+    const ok = await recorder.run("r1", { experimentId: "exp-ok", protocolHash: "h", spec: specAt(cwd, 3), seed: 3 });
+    expect(ok.record.passed).toBe(true);
+    // Exit code 1 but still prints METRICS → recorded, passed:false (never evidence).
+    const failing = await recorder.run("r1", {
+      experimentId: "exp-fail", protocolHash: "h",
+      spec: { ...specAt(cwd, 4), args: ["-e", "console.log('METRICS ' + JSON.stringify({accuracy: 999})); process.exit(1)"] }, seed: 4
+    });
+    expect(failing.passed).toBe(false);
+    expect(failing.record.passed).toBe(false);
+    const stored = new EvidenceGraph(evidenceDir).runs("r1");
+    expect(stored).toHaveLength(2);
+    expect(stored.find((run) => run.runId === failing.record.runId)?.passed).toBe(false);
+  });
 });
 
 describe("research service runExperiment (Phase 5–10 composition)", () => {

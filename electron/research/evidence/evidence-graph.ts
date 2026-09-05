@@ -29,6 +29,8 @@ export interface PrimaryRunRecord {
   durationMs: number;
   hardware: string;
   timestamp: string;
+  /** True when the process completed successfully (exit 0 + expected markers); absent = legacy default true. */
+  passed?: boolean;
 }
 
 export type EvidenceNodeKind = "research-question" | "hypothesis" | "protocol" | "experiment" | "run" | "metric" | "statistic" | "claim" | "figure-table" | "paper-sentence";

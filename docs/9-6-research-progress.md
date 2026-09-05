@@ -248,6 +248,14 @@ cores plus live web-AI novelty review.
 - Tests: `citation-audit` (4) + `research-citation` (4) + `research-artifact-tree` (2) green;
   handoff `docs/9-6-research-round18-contradicted-citations.md`.
 
+## Round 19 — Failed runs are never evidence (done)
+
+- `PrimaryRunRecord.passed?` persisted by the recorder from the real process result; analysis
+  excludes `passed:false` runs (crashed runs that printed METRICS never fabricate statistics);
+  only-failed runs throw. Legacy records remain eligible.
+- Tests: `run-recorder` (6) + `run-analysis` (6) + `repro-audit` (4) green; handoff
+  `docs/9-6-research-round19-failed-runs.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

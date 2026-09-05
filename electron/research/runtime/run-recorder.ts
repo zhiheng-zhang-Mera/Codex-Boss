@@ -120,7 +120,8 @@ export class PrimaryRunRecorder {
       metrics,
       durationMs: result.durationMs,
       hardware: `${process.platform}-${process.arch}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      passed: result.passed
     };
     this.evidence.addRun(researchId, record);
     return { record, passed: result.passed };

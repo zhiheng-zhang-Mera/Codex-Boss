@@ -37,7 +37,10 @@ export interface RunAnalysisResult {
 }
 
 export function analyzeRecordedRuns(evidence: EvidenceGraph, researchId: string, options: RunAnalysisOptions): RunAnalysisResult {
-  const eligible = evidence.runs(researchId).filter((run) => run.protocolHash === options.protocolHash && typeof run.metrics[options.metric] === "number");
+  // Failed runs (passed === false) never count as evidence — a crashed process
+  // that still printed a METRICS line must not fabricate statistics. Runs
+  // recorded before the passed flag existed (legacy) default to eligible.
+  const eligible = evidence.runs(researchId).filter((run) => run.passed !== false && run.protocolHash === options.protocolHash && typeof run.metrics[options.metric] === "number");
   if (!eligible.length) throw new Error(`No recorded runs for metric ${options.metric} under the frozen protocol`);
   const values = eligible.map((run) => run.metrics[options.metric] as number);
   const describe = statsDescribe(values);
