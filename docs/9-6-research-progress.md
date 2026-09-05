@@ -112,18 +112,28 @@ Branch `9-6-research` created from `9-5` after the AP pack commits.
 Requires Level-B stability + live runs; the Level-A auto-RQ pipeline builds on Phases 5–11
 cores plus live web-AI novelty review.
 
+## Phase 12 — Level-A planning core (done; live execution pending)
+
+- `src/shared/research-levela.ts`: `ProjectSignals`, `noveltyReview` (overlap with existing
+  tested modules + falsifiability + test-harness presence), `levelAGate` (novelty/feasibility
+  ≥ 2.0), `buildExperimentSpec` (primary metric + ≥2 replication runs) + validation.
+- `electron/research/levela-planner.ts`: `LevelAPlanner.plan(goal, workspace)` — project
+  inspection → injected web-AI proposals → falsifiable RQ selection (Phase 8) → novelty gate →
+  replicable primary experiment spec (deterministic plan; live execution never mocked).
+- Tests: `tests/levela-planner.test.ts` (4).
+
 ## Open / next
 
-- Renderer: remaining cosmetic component extraction (HistorySidebar, ConversationTurn,
-  ProviderGrid/ProviderPane, Composer, SettingsPanel…) — the renderer is functional and the
-  components that enable later phases (ConversationContextMenu, HistoryNameDialog,
-  HumanInterventionCard, ResearchProgress) already exist; further splitting is optional
-  structure-only churn with no renderer test harness.
-- Live Level-B E2E (real repo + web-AI reviewers + real experiments, first on Codex-Boss
-  itself) and Level-A auto-RQ, per Final Acceptance in the research plan — requires a GUI/tool
-  session; never substituted by mocks.
-- Live-only items (Blender/Unreal sessions, packaged smoke, long-running soak) run in release
-  validation.
+- **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
+  Codex-Boss itself (real repo + logged-in web-AI reviewers + real experiments + statistics +
+  independent replication + manuscript `paper.pdf`), Chat/Work/Direct/Council/Engineering/
+  Recovery manual acceptance, packaged-portable smoke, Blender/Unreal live sessions.
+- Renderer pure structural split of legacy inline sections (HistorySidebar, ConversationTurn,
+  ProviderGrid/ProviderPane, Composer, SettingsPanel) is intentionally deferred: main.tsx is
+  functional and the components that enable later phases already exist; restructuring only for
+  file size has no renderer test harness and would trade working UI for cosmetic structure.
+- Full verification gate after each further slice: `pnpm run typecheck` + `pnpm test` +
+  `pnpm run build:renderer`/`build:electron`.
 
 ## Round 3 additions (research-mode surface)
 
