@@ -302,6 +302,13 @@ cores plus live web-AI novelty review.
 - Tests: `levelb-executor` (2) + `research-service` (4) + `research-artifact-tree` (2) green;
   handoff `docs/9-6-research-round25-cleanup.md`.
 
+## Round 26 — Level-A plan starts a durable research run (done)
+
+- `ResearchService.startLevelA` seeds the run IR with the selected falsifiable question +
+  hypothesis (validateLevelAPlan fail-closed); protocol never invented at start.
+- Tests: `research-service` (5) + `levela-planner` (4) green; handoff
+  `docs/9-6-research-round26-levela-start.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

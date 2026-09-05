@@ -87,6 +87,28 @@ describe("research service facade (Phase 5-11 glue)", () => {
     expect(() => service.amend("ghost", { changes: [{ field: "baseline", before: "0.8", after: "0.7", reason: "x" }] })).toThrow(/Unknown/i);
   });
 
+  it("starts a research run from a deterministic Level-A plan (question + hypothesis seeded)", () => {
+    const dir = root();
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;");
+    const service = new ResearchService({ root: path.join(dir, ".boss"), executor: new DefaultLevelBExecutor() });
+    const plan = {
+      selectedQuestion: { id: "q1", question: "Does evidence-grounded review beat majority voting?", hypothesis: "H: evidence-grounded review wins", measurable: true, falsifiable: true, proposedBy: "reviewer-a", noveltyScore: 4, feasibilityScore: 4 },
+      hypothesis: "H: evidence-grounded review wins",
+      novelty: { claimId: "q1", noveltyScore: 4, feasibilityScore: 4, reasons: [] },
+      experiment: { id: "exp-q1", primaryMetric: "effect-size", replicationRuns: 3, purpose: "EXPERIMENT", command: [], seed: 7, createdAt: new Date(0).toISOString() }
+    };
+    const record = service.startLevelA({ id: "levela1", goal: "study decision quality", workspace: dir, reviewers: ["web:chatgpt"], plan: plan as never });
+    expect(record.ir.state).toBe("SCOPING");
+    expect(record.ir.researchQuestions).toEqual([plan.selectedQuestion.question]);
+    expect(record.ir.hypotheses).toEqual([plan.hypothesis]);
+    // The protocol is NOT invented at start — freeze still required before runs.
+    expect(record.ir.protocolHash).toBeUndefined();
+    // A plan with <2 replication runs fails closed.
+    const bad = { ...plan, experiment: { ...plan.experiment, replicationRuns: 1 } };
+    expect(() => service.startLevelA({ id: "levela2", goal: "g", workspace: dir, reviewers: ["web:gemini"], plan: bad as never })).toThrow(/replication/i);
+  });
+
   it("writes evidence graph runs and exposes the protocol hash helper", () => {
     const dir = root();
     fs.mkdirSync(path.join(dir, "src"), { recursive: true });

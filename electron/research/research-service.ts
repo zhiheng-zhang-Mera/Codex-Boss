@@ -15,6 +15,7 @@ import { PrimaryRunRecorder, type PrimaryExperimentOptions, type RecordedExperim
 import { analyzeRecordedRuns, type RunAnalysisOptions, type RunAnalysisResult } from "./evidence/run-analysis";
 import { buildReproducibilityAudit, type ReproducibilityAudit } from "./evidence/repro-audit";
 import { manuscriptClaimsFromGraph, type ManuscriptClaimsDerivation } from "./evidence/graph-claims";
+import { validateLevelAPlan, type LevelAPlan } from "../../src/shared/research-levela";
 
 /**
  * Research service facade (plan 9-6 Phase 5–11 glue). One object composes the
@@ -51,6 +52,29 @@ export class ResearchService {
   }
 
   start(ir: ResearchIR): ResearchLedgerFile { return this.supervisor.start(ir); }
+
+  /**
+   * Starts a research run from a deterministic Level-A plan (round 26): the IR
+   * records the selected falsifiable question + hypothesis. The live flow then
+   * freezes a real protocol (freeze()) before experiments run — no protocol is
+   * invented here.
+   */
+  startLevelA(input: { id: string; goal: string; workspace: string; reviewers: string[]; plan: LevelAPlan }): ResearchLedgerFile {
+    validateLevelAPlan(input.plan); // fail-closed: falsifiable question + ≥2 replication runs required
+    if (!input.plan?.selectedQuestion?.question || !input.plan.hypothesis) throw new Error("Level-A plan requires a question and hypothesis");
+    const ir: ResearchIR = {
+      schemaVersion: 1,
+      id: input.id,
+      goal: input.goal,
+      scope: { workspace: input.workspace, allowedDomains: [], reviewers: input.reviewers, autonomy: "AUTOPILOT", budget: { maxExperiments: input.plan.experiment.replicationRuns + 1, maxSteps: 30 } },
+      state: "SCOPING",
+      researchQuestions: [input.plan.selectedQuestion.question],
+      hypotheses: [input.plan.hypothesis],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    return this.supervisor.start(ir);
+  }
   status(id: string): ResearchLedgerFile | undefined { return this.ledger.load(id); }
   step(id: string): Promise<{ state: ResearchState; decision?: ResearchDecisionEntry }> { return this.supervisor.step(id); }
   wait(id: string, state: Extract<ResearchState, "WAITING_FOR_USER" | "WAITING_FOR_PROVIDER">, reason: string): void { this.supervisor.wait(id, state, reason); }
