@@ -243,11 +243,12 @@ harness used to build the product.
 - `electron/research/`: durable research ledger + autopilot supervisor (research-ledger.ts,
   research-supervisor.ts), protocol manager, Level-B default executor, citation source store,
   evidence graph, manuscript assembler, structured research runtime
-  (`runtime/` with process runner, environment manager).
+  (`runtime/` with process runner, environment manager, primary-run recorder binding real runs
+  to the frozen protocol hash).
 - `electron/commander/progress-recorder.ts`, `human-guidance-gate.ts`,
   `continuation-waker.ts`: event-bus surfaces feeding live progress / pauses / continuation.
 - `electron/research/runtime/`: structured spawn (no `shell:true`), allow-listed executables,
-  concurrency budget, artifact capture.
+  concurrency budget, artifact capture, primary-run provenance recorder (run-recorder.ts).
 - Renderer: `Chat | Work | Research` top nav + research launcher (goal / workspace / reviewers /
   autonomy), Research status + step control; history context menu, archived conversation
   toggle, live progress strip, horizontal 3-AI panes with persisted order.

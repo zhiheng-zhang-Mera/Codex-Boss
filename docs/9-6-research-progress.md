@@ -162,6 +162,19 @@ cores plus live web-AI novelty review.
   at WAITING_FOR_PROVIDER / WAITING_FOR_USER / RECOVERING instead of a no-op step button.
 - typecheck + build:renderer + build:electron PASS; handoff `docs/9-6-research-round9-resume-ipc.md`.
 
+## Round 10 — Real experiment → primary-run provenance (done)
+
+- `electron/research/runtime/run-recorder.ts`: `PrimaryRunRecorder` composes a real
+  allow-listed `ResearchRuntime` run into a protocol-bound `PrimaryRunRecord` persisted via the
+  EvidenceGraph (git state, command/args, env fingerprint, lock hash, seed, input/output/stdout
+  hashes, metrics, duration, hardware); deterministic `METRICS <json>` parsing; fail-closed on
+  missing declared inputs.
+- `ResearchService.runExperiment` — freeze → real run: rejects unfrozen runs and mismatched
+  protocol hashes (Phase 7 silent-mutation guard); no evidence written on rejection.
+- Tests: `run-recorder` (5, real node subprocesses) + `research-service` (3) +
+  `research-supervisor` (7) + `research-runtime` (5) green; handoff
+  `docs/9-6-research-round10-run-recorder.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

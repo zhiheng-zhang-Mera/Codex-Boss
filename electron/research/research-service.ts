@@ -7,6 +7,8 @@ import { ProtocolManager } from "./protocol-manager";
 import { EvidenceGraph, type PrimaryRunRecord } from "./evidence/evidence-graph";
 import { assembleManuscript, type ManuscriptOptions } from "./manuscript/manuscript-assembler";
 import type { ResearchStageExecutor } from "./research-supervisor";
+import { ResearchRuntime } from "./runtime/research-runtime";
+import { PrimaryRunRecorder, type PrimaryExperimentOptions, type RecordedExperiment } from "./runtime/run-recorder";
 
 /**
  * Research service facade (plan 9-6 Phase 5–11 glue). One object composes the
@@ -20,6 +22,8 @@ import type { ResearchStageExecutor } from "./research-supervisor";
 export interface ResearchServiceOptions {
   root: string;
   executor: ResearchStageExecutor;
+  /** Optional structured runtime; required for runExperiment(). */
+  runtime?: ResearchRuntime;
 }
 
 export class ResearchService {
@@ -27,6 +31,7 @@ export class ResearchService {
   readonly supervisor: ResearchSupervisor;
   readonly protocols: ProtocolManager;
   readonly evidence: EvidenceGraph;
+  readonly runtime: ResearchRuntime | undefined;
 
   constructor(private readonly options: ResearchServiceOptions) {
     const root = options.root;
@@ -34,6 +39,7 @@ export class ResearchService {
     this.protocols = new ProtocolManager(path.join(root, "protocols"));
     this.evidence = new EvidenceGraph(path.join(root, "evidence"));
     this.supervisor = new ResearchSupervisor({ ledger: this.ledger, executor: options.executor });
+    this.runtime = options.runtime;
   }
 
   start(ir: ResearchIR): ResearchLedgerFile { return this.supervisor.start(ir); }
@@ -52,6 +58,23 @@ export class ResearchService {
   }
 
   recordRun(id: string, run: PrimaryRunRecord): void { this.evidence.addRun(id, run); }
+
+  /**
+   * Runs a *real* experiment through the structured runtime and records the
+   * primary run against the frozen protocol. Fail-closed: the run must exist,
+   * the protocol must already be frozen, and the protocol hash of the run must
+   * match the frozen one (Phase 7 silent-mutation guard) — an experiment can
+   * never attach to an unfrozen or amended protocol.
+   */
+  async runExperiment(id: string, options: PrimaryExperimentOptions): Promise<RecordedExperiment> {
+    const record = this.ledger.load(id);
+    if (!record) throw new Error(`Unknown research run: ${id}`);
+    if (record.ir.state !== "PROTOCOL_FROZEN" || !record.ir.protocolHash) throw new Error("Protocol must be frozen before experiments run");
+    if (options.protocolHash !== record.ir.protocolHash) throw new Error("Experiment protocol hash does not match the frozen protocol");
+    if (!this.runtime) throw new Error("Research runtime not configured for this service");
+    const recorder = new PrimaryRunRecorder(this.evidence, this.runtime);
+    return recorder.run(id, options);
+  }
 
   /** Reference hash helper so callers never hand-roll canonical JSON. */
   hashProtocol(protocol: ResearchProtocol): string { return protocolHash(protocol); }
