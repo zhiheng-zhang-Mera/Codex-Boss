@@ -256,6 +256,14 @@ cores plus live web-AI novelty review.
 - Tests: `run-recorder` (6) + `run-analysis` (6) + `repro-audit` (4) green; handoff
   `docs/9-6-research-round19-failed-runs.md`.
 
+## Round 20 — Deterministic references.bib from verified citations (done)
+
+- `src/shared/research-bibliography.ts`: BibTeX entries only for verified non-contradicting
+  records (SOURCE_RETRIEVED/PASSAGE_VERIFIED/CLAIM_SUPPORTED/PARTIAL); assembler writes
+  `references.bib` from citations when supplied, stub otherwise.
+- Tests: `citation-audit` (6) + `research-manuscript` (3) + `research-artifact-tree` (2) green;
+  handoff `docs/9-6-research-round20-bibliography.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

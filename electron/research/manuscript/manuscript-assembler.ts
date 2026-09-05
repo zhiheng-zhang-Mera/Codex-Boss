@@ -3,6 +3,7 @@ import path from "node:path";
 import { validId } from "../../commander/durable-json";
 import { MANUSCRIPT_SECTIONS, evidenceCheckDraft, type ManuscriptPlan, type ManuscriptSection, type SectionBrief, type SectionDraft } from "../../../src/shared/research-manuscript";
 import { summarizeCitationAudit, type CitationRecord } from "../../../src/shared/research-citation";
+import { referencesBib } from "../../../src/shared/research-bibliography";
 
 /**
  * Manuscript assembler (plan 9-6 Phase 11). Runs the section pipeline with an
@@ -66,10 +67,12 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
 
   const paperMd = assembleMarkdown(options, sections);
   const paperTex = assembleLatex(options, sections);
-  const referencesBib = `% References for ${options.title}\n`;
+  // Round-20: references.bib is generated from verified citation records when
+  // supplied (never from AI-suggested titles alone); otherwise a stub header.
+  const bibliography = options.citations ? referencesBib(options.citations) : `% References for ${options.title}\n`;
   fs.writeFileSync(path.join(manuscriptDir, "paper.md"), paperMd, "utf8");
   fs.writeFileSync(path.join(manuscriptDir, "paper.tex"), paperTex, "utf8");
-  fs.writeFileSync(path.join(manuscriptDir, "references.bib"), referencesBib, "utf8");
+  fs.writeFileSync(path.join(manuscriptDir, "references.bib"), bibliography, "utf8");
 
   const citationsFile = path.join(auditDir, "citations.json");
   const reproducibilityFile = path.join(auditDir, "reproducibility.json");
@@ -90,7 +93,7 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
     citations: citationAudit ? { ok: citationAudit.ok, verified: citationAudit.verified, unsupported: citationAudit.unsupportedIds, contradicted: citationAudit.contradictedIds } : "PENDING"
   }, null, 2));
 
-  return { paperMd, paperTex, referencesBib, figures: [], sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };
+  return { paperMd, paperTex, referencesBib: bibliography, figures: [], sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };
 }
 
 function sectionBriefFor(options: ManuscriptOptions, section: ManuscriptSection): SectionBrief {
