@@ -195,6 +195,15 @@ cores plus live web-AI novelty review.
 - Tests: `repro-audit` (4) + `run-analysis` (5) + `research-manuscript` (3) green; handoff
   `docs/9-6-research-round12-repro-audit.md`.
 
+## Round 13 — Manuscript claims derived from the evidence graph (done)
+
+- `electron/research/evidence/graph-claims.ts`: `deriveManuscriptClaims` walks claim nodes and
+  binds each to upstream evidence-kind nodes (run/statistic/metric/…) via BFS — a manuscript
+  only asserts claims recorded by the analyzer, traceable to evidence by construction;
+  `ResearchService.manuscriptClaims(id)`.
+- Tests: `graph-claims` (4, incl. live freeze→run→analyze→derive) green; handoff
+  `docs/9-6-research-round13-graph-claims.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

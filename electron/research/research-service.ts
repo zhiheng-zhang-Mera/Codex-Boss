@@ -11,6 +11,7 @@ import { ResearchRuntime } from "./runtime/research-runtime";
 import { PrimaryRunRecorder, type PrimaryExperimentOptions, type RecordedExperiment } from "./runtime/run-recorder";
 import { analyzeRecordedRuns, type RunAnalysisOptions, type RunAnalysisResult } from "./evidence/run-analysis";
 import { buildReproducibilityAudit, type ReproducibilityAudit } from "./evidence/repro-audit";
+import { manuscriptClaimsFromGraph, type ManuscriptClaimsDerivation } from "./evidence/graph-claims";
 
 /**
  * Research service facade (plan 9-6 Phase 5–11 glue). One object composes the
@@ -106,5 +107,14 @@ export class ResearchService {
   /** Assembles the manuscript tree for a ready run (writes research/<id>/manuscript + audit). */
   manuscript(id: string, options: ManuscriptOptions): Promise<Awaited<ReturnType<typeof assembleManuscript>>> {
     return assembleManuscript(this.options.root, options);
+  }
+
+  /**
+   * Derives the manuscript claims/evidence wiring from the evidence graph's
+   * real claim + statistic nodes (round 11), so a caller can pass them into
+   * manuscript() and every asserted claim stays traceable to recorded runs.
+   */
+  manuscriptClaims(id: string): ManuscriptClaimsDerivation {
+    return manuscriptClaimsFromGraph(this.evidence, id);
   }
 }
