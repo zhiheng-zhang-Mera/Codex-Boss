@@ -114,10 +114,27 @@ cores plus live web-AI novelty review.
 
 ## Open / next
 
-- Renderer top nav (Chat | Work | Research) + research-mode inputs (goal/workspace/reviewers/
-  autonomy/budget) and Research supervisor IPC adoption (research-ledger + progress + guidance
-  gate are all server-ready).
-- ResearchProgress/HumanInterventionCard renderer components.
-- Live Level-B E2E (real repo + web-AI) and Level-A, per Final Acceptance in the research plan.
-- Full verification gate: run full suite + typecheck + build after each further slice; current
-  full suite is **92 files / 437 tests PASS**.
+- Renderer: remaining cosmetic component extraction (HistorySidebar, ConversationTurn,
+  ProviderGrid/ProviderPane, Composer, SettingsPanel…) — the renderer is functional and the
+  components that enable later phases (ConversationContextMenu, HistoryNameDialog,
+  HumanInterventionCard, ResearchProgress) already exist; further splitting is optional
+  structure-only churn with no renderer test harness.
+- Live Level-B E2E (real repo + web-AI reviewers + real experiments, first on Codex-Boss
+  itself) and Level-A auto-RQ, per Final Acceptance in the research plan — requires a GUI/tool
+  session; never substituted by mocks.
+- Live-only items (Blender/Unreal sessions, packaged smoke, long-running soak) run in release
+  validation.
+
+## Round 3 additions (research-mode surface)
+
+- main.ts IPC + bridge: `boss:research-start` / `research-status` / `research-step` /
+  `research-protocol-freeze` backed by the durable `ResearchLedger`, `ProtocolManager` and a
+  `ResearchSupervisor` with the `DefaultLevelBExecutor` (real bounded repo inspection for
+  PROJECT_INSPECTION; reviewer-gated stages honestly flagged, never fabricating evidence).
+- Renderer top nav `Chat | Work | Research` + research launcher (goal / workspace / autonomy,
+  reviewers = open web AIs) and a 推进下一阶段 control.
+- `HumanInterventionCard` + `ResearchProgress` renderer components; intervention polling +
+  resolution wired to the guidance gate.
+- Docs: README 9-6 section, STRUCTURE.md research-mode inventory, `docs/9-6-validation.md`
+  (verified vs NOT_RUN), this progress file.
+- Verification: full suite **97 files / 456 tests PASS**, typecheck + renderer build PASS.
