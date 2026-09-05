@@ -27,7 +27,7 @@ Branch `9-6-research` created from `9-5` after the AP pack commits.
 - IPC/preload/bridge: archive / delete / duplicate / export; renderer `ConversationContextMenu`
   (right-click + `···` share one menu: rename / move / duplicate / export / archive / delete with
   delete confirmation), archived toggle, archived styling.
-- Tests: `tests/history.test.ts` 10 tests.
+- Tests: `tests/history.test.ts` 10 tests; handoff `docs/9-6-research-phase1-history.md`.
 - Open: extraction of the remaining renderer components (HistorySidebar, ConversationTurn,
   ProviderGrid/ProviderPane, LiveTaskProgress, HumanInterventionCard, Composer, SettingsPanel…)
   is being folded into later phases as each new UI lands rather than as a zero-test re-shuffle.
