@@ -233,6 +233,14 @@ cores plus live web-AI novelty review.
 - Tests: `research-supervisor` (8) + `research-service` (3) green; handoff
   `docs/9-6-research-round16-pending-hygiene.md`.
 
+## Round 17 — Amendment facade on ResearchService (done)
+
+- `ResearchService.amend(id, amendment)` — fail-closed (run must exist + be PROTOCOL_FROZEN
+  before an amendment is accepted); bound to the frozen hash, never changes it; `amendments(id)`
+  passthrough.
+- Tests: `research-service` (4) + `research-protocol` (3) green; handoff
+  `docs/9-6-research-round17-amend-facade.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { ResearchIR, ResearchState } from "../../src/shared/research-ir";
-import type { ResearchProtocol, ProtocolFreezeResult } from "../../src/shared/research-protocol";
+import type { ResearchProtocol, ProtocolFreezeResult, ProtocolAmendment } from "../../src/shared/research-protocol";
 import { ResearchLedger, type ResearchLedgerFile, type ResearchDecisionEntry } from "./research-ledger";
 import { ResearchSupervisor, protocolHash } from "./research-supervisor";
 import { ProtocolManager } from "./protocol-manager";
@@ -61,6 +61,23 @@ export class ResearchService {
     this.ledger.setState(id, "PROTOCOL_FROZEN", "protocol frozen");
     this.ledger.checkpoint(id, (next) => { next.ir.protocolHash = result.hash; next.ir.updatedAt = new Date().toISOString(); }, "protocol hash recorded");
     return result;
+  }
+
+  /**
+   * Records an approved frozen-field amendment bound to the frozen protocol hash
+   * (Phase 7: silent scientific mutation is forbidden; changes need an
+   * amendment). Fail-closed: run must exist and the protocol must be frozen.
+   * An amendment never changes the frozen hash the experiments bind to.
+   */
+  amend(id: string, amendment: Omit<ProtocolAmendment, "protocolHash" | "approved" | "createdAt">): ProtocolAmendment {
+    const record = this.ledger.load(id);
+    if (!record) throw new Error(`Unknown research run: ${id}`);
+    if (record.ir.state !== "PROTOCOL_FROZEN" || !record.ir.protocolHash) throw new Error("Protocol must be frozen before amendment");
+    return this.protocols.amend(id, amendment);
+  }
+
+  amendments(id: string): ProtocolAmendment[] {
+    return this.protocols.amendments(id);
   }
 
   recordRun(id: string, run: PrimaryRunRecord): void { this.evidence.addRun(id, run); }

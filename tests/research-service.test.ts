@@ -70,6 +70,23 @@ describe("research service facade (Phase 5-11 glue)", () => {
     expect(service.status("svc1")!.ir.state).toBe("FAILED");
   });
 
+  it("records a frozen-field amendment bound to the frozen hash only after freeze", () => {
+    const dir = root();
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;");
+    const service = new ResearchService({ root: path.join(dir, ".boss"), executor: new DefaultLevelBExecutor() });
+    service.start(ir(dir));
+    // Amendment before freeze fails closed (Phase 7: no silent scientific change).
+    expect(() => service.amend("svc1", { changes: [{ field: "baseline", before: "0.8", after: "0.7", reason: "measurement fix" }] })).toThrow(/frozen/i);
+    const frozen = service.freeze("svc1", protocol());
+    const amendment = service.amend("svc1", { changes: [{ field: "baseline", before: "0.8", after: "0.7", reason: "measurement fix" }] });
+    expect(amendment.protocolHash).toBe(frozen.hash);
+    expect(service.amendments("svc1")).toHaveLength(1);
+    // The frozen hash experiments bind to never changes via amendment.
+    expect(service.protocols.load("svc1")?.protocolHash).toBe(frozen.hash);
+    expect(() => service.amend("ghost", { changes: [{ field: "baseline", before: "0.8", after: "0.7", reason: "x" }] })).toThrow(/Unknown/i);
+  });
+
   it("writes evidence graph runs and exposes the protocol hash helper", () => {
     const dir = root();
     fs.mkdirSync(path.join(dir, "src"), { recursive: true });
