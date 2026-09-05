@@ -314,7 +314,7 @@ if (ownsInstance) app.whenReady().then(() => {
   }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
-  ipcMain.handle("boss:progress", () => ({ summaries: progressAggregator?.summaries() ?? [], detail: (progressAggregator?.detail() ?? []).slice(-100) }));
+  ipcMain.handle("boss:progress", () => progressAggregator?.summaries() ?? []);
   ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
   ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);
   ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => {
@@ -580,6 +580,10 @@ if (ownsInstance) app.whenReady().then(() => {
         const ledger = commander.ledger!.load(task.id)!;
         if (ledger.jobs.graph_execute.attempts !== 1) throw new Error("Restart repeated native execution");
         if (snapshot.artifacts.filter((item) => item.taskId === task.id).length !== 1) throw new Error("Restart duplicated artifact");
+        // A resumed task can finish before the renderer subscribes to snapshot
+        // updates. Re-publish after the durable assertions so the restored
+        // final response is observable in the newly-created window as well.
+        publish();
         let visible = false;
         for (let i = 0; i < 30; i++) {
           visible = await mainWindow.webContents.executeJavaScript('Boolean(document.querySelector(".final-response")?.textContent.includes("BOSS_RESTART_EVIDENCE"))');

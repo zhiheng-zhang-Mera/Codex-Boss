@@ -68,6 +68,12 @@ describe("persistent account sessions", () => {
 });
 
 describe("provider input focus policy", () => {
+  it("keeps the progress IPC payload aligned with the renderer array contract", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "electron", "main.ts"), "utf8");
+    expect(source).toContain('ipcMain.handle("boss:progress", () => progressAggregator?.summaries() ?? [])');
+    expect(source).not.toContain('ipcMain.handle("boss:progress", () => ({ summaries:');
+  });
+
   it("does not publish to a destroyed host during child-view shutdown", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "electron", "main.ts"), "utf8");
     expect(source).toContain("!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()");
