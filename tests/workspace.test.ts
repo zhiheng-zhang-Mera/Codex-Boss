@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_WORKSPACE_ID, SCRATCH_WORKSPACE_ID } from "../src/shared/workspace";
 import { WorkspaceRegistry } from "../electron/workspace/workspace-registry";
+import { durableFileFor, durableRootFor } from "../electron/workspace/durable-roots";
 import { StateStore } from "../electron/store";
 import { TaskLedger } from "../electron/commander/task-ledger";
 import { RuntimeRegistry } from "../electron/commander/runtime-registry";
@@ -53,6 +54,31 @@ describe("workspace registry + resolver", () => {
     expect(() => registry.setActive("missing")).toThrow(/Unknown workspace/);
     fs.writeFileSync(file, JSON.stringify({ schema_version: 9 }));
     expect(() => new WorkspaceRegistry(file).list()).toThrow(/Invalid/);
+  });
+
+  it("references multiple repositories and artifact roots in one workspace", () => {
+    const dir = root();
+    fs.mkdirSync(path.join(dir, "repoA"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "repoB"), { recursive: true });
+    const registry = new WorkspaceRegistry(path.join(root(), "workspaces.json"));
+    registry.ensureShims();
+    const created = registry.create({ id: "multi", name: "Multi", repositories: [path.join(dir, "repoA"), path.join(dir, "repoB")], artifact_roots: [path.join(dir, "artifacts")] });
+    expect(created.repositories).toHaveLength(2);
+    expect(created.artifact_roots).toEqual([path.join(dir, "artifacts")]);
+    expect(registry.resolveForPath(path.join(dir, "repoA", "deep")).id).toBe("multi");
+    expect(registry.resolveForPath(path.join(dir, "repoB")).id).toBe("multi");
+  });
+
+  it("computes workspace-scoped durable roots with a single-repo shim", () => {
+    const dir = root();
+    // Default/Scratch keep the legacy root (shim): existing data stays readable.
+    expect(durableRootFor(dir, DEFAULT_WORKSPACE_ID)).toBe(dir);
+    expect(durableRootFor(dir, SCRATCH_WORKSPACE_ID)).toBe(dir);
+    // Named workspaces get their own sub-root (isolation).
+    expect(durableRootFor(dir, "project-b")).toBe(path.join(dir, "workspaces", "project-b"));
+    const file = durableFileFor(dir, "project-b", ".boss/state.json");
+    expect(file).toBe(path.join(dir, "workspaces", "project-b", ".boss", "state.json"));
+    expect(() => durableFileFor(dir, "project-b", "../escape.json")).toThrow(/escapes/);
   });
 });
 

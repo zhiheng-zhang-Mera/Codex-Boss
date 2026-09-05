@@ -24,6 +24,8 @@ import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
+import { durableFileFor } from "./workspace/durable-roots";
+import { PermissionManifestStore } from "./security/permission-manifest";
 import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
 import { MainCommander } from "./commander/main-commander";
@@ -214,6 +216,7 @@ if (ownsInstance) app.whenReady().then(() => {
   attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));
   const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
+  const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
     for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
       const task = store.snapshot().tasks.find((task) => task.id === item.taskId);

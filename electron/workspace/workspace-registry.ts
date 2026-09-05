@@ -19,11 +19,11 @@ export class WorkspaceRegistry {
 
   get(id: string): Workspace | undefined { const found = this.fileValue.workspaces.find((workspace) => workspace.id === id); return found ? structuredClone(found) : undefined; }
 
-  create(input: { id?: string; name: string; repositories?: string[] }): Workspace {
+  create(input: { id?: string; name: string; repositories?: string[]; artifact_roots?: string[] }): Workspace {
     const id = input.id ?? idFromName(input.name);
     if (this.get(id)) throw new Error(`Workspace already exists: ${id}`);
     const now = new Date().toISOString();
-    const workspace = validateWorkspace({ id, name: input.name.trim().slice(0, 80), repositories: [...new Set(input.repositories ?? [])], schema_version: 1, created_at: now, updated_at: now });
+    const workspace = validateWorkspace({ id, name: input.name.trim().slice(0, 80), repositories: [...new Set(input.repositories ?? [])], ...(input.artifact_roots ? { artifact_roots: [...new Set(input.artifact_roots)] } : {}), schema_version: 1, created_at: now, updated_at: now });
     this.fileValue.workspaces.push(workspace);
     this.persist();
     return structuredClone(workspace);
