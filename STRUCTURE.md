@@ -243,13 +243,18 @@ harness used to build the product.
   falsifiable-RQ selection, Level-A novelty gate + experiment spec, evidence>vote
   adjudication, deterministic SVG figures, human guidance, live progress, pane zoom).
 - `electron/research/`: durable research ledger + autopilot supervisor (research-ledger.ts,
-  research-supervisor.ts), protocol manager (freeze/amend bound to frozen hash), Level-B default
-  executor, citation source store, evidence graph (+ recorded-run analysis → stats →
-  evidence>vote verdict, reproducibility audit, graph-derived manuscript claims, figure →
-  run traceability), manuscript assembler (paper.md/tex + verified references.bib + figures +
-  audit tree), Level-A planner, structured research runtime (`runtime/` with process runner,
-  environment manager, primary-run recorder binding real runs to the frozen protocol hash,
-  fail-closed on failed runs).
+  research-supervisor.ts) with reviewer-gate pauses + resume-to-pending-stage; protocol manager
+  (freeze/amend bound to frozen hash, freeze recorded on the run IR); Level-B default executor,
+  citation source store (cache-derived source acquisition), evidence graph (full chain
+  Question → Hypothesis → Protocol → Experiment → Run → Statistic → Claim → Figure → Paper
+  Sentence; recorded-run analysis → stats → evidence>vote verdict; reproducibility audit;
+  graph-derived manuscript claims; figure → run traceability), manuscript assembler
+  (paper.md/tex with embedded figures + verified references.bib + reviewer gate + audit tree),
+  Level-A planner (startLevelA seeds a run IR), structured research runtime (`runtime/` with
+  process runner, environment manager, primary-run recorder binding real runs to the frozen
+  protocol hash, fail-closed on failed runs); `ResearchService` facade exposes
+  runExperiment / analyzeRuns / reproducibility / amend / manuscriptClaims / registerFigure /
+  registerPaperSection / syncEvidenceChain / snapshotArtifacts / verifyCitation / startLevelA.
 - `electron/commander/progress-recorder.ts`, `human-guidance-gate.ts`,
   `continuation-waker.ts`: event-bus surfaces feeding live progress / pauses / continuation.
 - `electron/research/runtime/`: structured spawn (no `shell:true`), allow-listed executables,
@@ -258,6 +263,8 @@ harness used to build the product.
   autonomy), Research status + step control with resume for control-paused runs; history context
   menu, archived conversation toggle, live progress strip, horizontal 3-AI panes with persisted
   order.
+- Live acceptance tooling: `scripts/acceptance-research-audit.cjs` (Final Acceptance I+J per-run
+  verdict), `docs/9-6-live-acceptance-runbook.md` (A–J GUI runbook).
 - Handoffs: `docs/9-6-research-phase*.md` + `docs/9-6-research-round*.md`;
   progress/limits: `docs/9-6-research-progress.md`.
 
