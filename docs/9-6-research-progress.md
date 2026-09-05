@@ -241,6 +241,13 @@ cores plus live web-AI novelty review.
 - Tests: `research-service` (4) + `research-protocol` (3) green; handoff
   `docs/9-6-research-round17-amend-facade.md`.
 
+## Round 18 — CONTRADICTED citations block primary claims (done)
+
+- Citation audit `ok` now false on UNSUPPORTED **or** CONTRADICTED; audit JSONs carry
+  `contradicted` ids and `final-audit.passed` fails on a contradicting source.
+- Tests: `citation-audit` (4) + `research-citation` (4) + `research-artifact-tree` (2) green;
+  handoff `docs/9-6-research-round18-contradicted-citations.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

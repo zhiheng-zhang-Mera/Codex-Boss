@@ -19,7 +19,7 @@ const claims = [{ id: "c1", evidenceIds: ["stat:s1"] }];
 const writer = { async write(brief: { section: string; evidenceIds: string[] }) { return `draft ${brief.evidenceIds.join(",")}`; } };
 
 describe("citation audit summary (Phase 9/14)", () => {
-  it("counts verified citations and flags UNSUPPORTED ones (primary-claim rule)", () => {
+  it("counts verified citations and flags UNSUPPORTED + CONTRADICTED ones (primary-claim rule)", () => {
     const audit = summarizeCitationAudit([
       citation("a", "CLAIM_SUPPORTED"),
       citation("b", "PASSAGE_VERIFIED"),
@@ -30,9 +30,12 @@ describe("citation audit summary (Phase 9/14)", () => {
     expect(audit.total).toBe(5);
     expect(audit.verified).toBe(3);
     expect(audit.unsupportedIds).toEqual(["d"]);
+    expect(audit.contradictedIds).toEqual(["e"]);
     expect(audit.ok).toBe(false);
     expect(summarizeCitationAudit([citation("a", "CLAIM_SUPPORTED"), citation("b", "SOURCE_RETRIEVED")]).ok).toBe(true);
-    expect(summarizeCitationAudit([])).toEqual({ total: 0, perStatus: {}, verified: 0, unsupportedIds: [], ok: true });
+    // A CONTRADICTED source must never back a primary claim either.
+    expect(summarizeCitationAudit([citation("a", "CONTRADICTED")]).ok).toBe(false);
+    expect(summarizeCitationAudit([])).toEqual({ total: 0, perStatus: {}, verified: 0, unsupportedIds: [], contradictedIds: [], ok: true });
   });
 });
 
@@ -59,5 +62,16 @@ describe("manuscript audit integration for citations", () => {
     const final = JSON.parse(fs.readFileSync(output.audit.finalAuditFile, "utf8"));
     expect(final.citations).toBe("PENDING");
     expect(final.passed).toBe(true);
+  });
+
+  it("fails the final audit when a citation contradicts the claim", async () => {
+    const dir = root();
+    const output = await assembleManuscript(path.join(dir, "research"), options({ citations: [citation("a", "CONTRADICTED")] }));
+    const citations = JSON.parse(fs.readFileSync(output.audit.citationsFile, "utf8"));
+    expect(citations.contradictedIds).toEqual(["a"]);
+    expect(citations.ok).toBe(false);
+    const final = JSON.parse(fs.readFileSync(output.audit.finalAuditFile, "utf8"));
+    expect(final.citations.contradicted).toEqual(["a"]);
+    expect(final.passed).toBe(false);
   });
 });

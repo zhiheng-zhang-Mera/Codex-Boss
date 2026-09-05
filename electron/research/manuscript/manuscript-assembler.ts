@@ -87,7 +87,7 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
     passed,
     sections: Object.fromEntries(Object.entries(sections).map(([key, value]) => [key, value.status])),
     reproducibility: reproducibility.status,
-    citations: citationAudit ? { ok: citationAudit.ok, verified: citationAudit.verified, unsupported: citationAudit.unsupportedIds } : "PENDING"
+    citations: citationAudit ? { ok: citationAudit.ok, verified: citationAudit.verified, unsupported: citationAudit.unsupportedIds, contradicted: citationAudit.contradictedIds } : "PENDING"
   }, null, 2));
 
   return { paperMd, paperTex, referencesBib, figures: [], sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };

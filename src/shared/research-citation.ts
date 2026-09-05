@@ -66,6 +66,8 @@ export interface CitationAuditSummary {
   verified: number;
   /** Ids still UNSUPPORTED — a primary claim must not bind these. */
   unsupportedIds: string[];
+  /** Ids whose source contradicts the claim — must not back a primary claim. */
+  contradictedIds: string[];
   ok: boolean;
 }
 
@@ -73,7 +75,8 @@ export interface CitationAuditSummary {
 export function summarizeCitationAudit(records: CitationRecord[]): CitationAuditSummary {
   const perStatus: Partial<Record<CitationStatus, number>> = {};
   for (const record of records) perStatus[record.status] = (perStatus[record.status] ?? 0) + 1;
-  const verified = records.filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status) && record.status !== "CONTRADICTED").length;
+  const verified = records.filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status)).length;
   const unsupportedIds = records.filter((record) => record.status === "UNSUPPORTED").map((record) => record.id);
-  return { total: records.length, perStatus, verified, unsupportedIds, ok: unsupportedIds.length === 0 };
+  const contradictedIds = records.filter((record) => record.status === "CONTRADICTED").map((record) => record.id);
+  return { total: records.length, perStatus, verified, unsupportedIds, contradictedIds, ok: unsupportedIds.length === 0 && contradictedIds.length === 0 };
 }
