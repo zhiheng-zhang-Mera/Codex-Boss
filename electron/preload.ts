@@ -9,6 +9,7 @@ const bridge: BossBridge = {
   resolveIntervention: (taskId: string, kind: import("../src/shared/intervention").InterventionKind, answer: string) => ipcRenderer.invoke("boss:resolve-intervention", taskId, kind, answer),
   researchStart: (input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }) => ipcRenderer.invoke("boss:research-start", input),
   researchStatus: (id: string) => ipcRenderer.invoke("boss:research-status", id),
+  researchStep: (id: string) => ipcRenderer.invoke("boss:research-step", id),
   researchProtocolFreeze: (id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => ipcRenderer.invoke("boss:research-protocol-freeze", id, protocol),
   createTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:create-task", input),
   dispatchTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:dispatch-task", input),

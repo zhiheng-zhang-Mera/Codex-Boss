@@ -204,6 +204,21 @@ function App() {
     }
   }
 
+  async function advanceResearch() {
+    if (!researchStatus || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      const next = await window.boss.researchStep(researchStatus.id) as { state: string } | null;
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string } } | null;
+      setResearchStatus(next ? { id: researchStatus.id, state: next.state } : refreshed ? { id: researchStatus.id, state: refreshed.ir.state } : researchStatus);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
   function createFolder() { setHistoryDialog({ mode: "create-folder", value: "新文件夹" }); }
   function createConversation(folderId = activeConversation?.folderId ?? snapshot.folders[0]?.id) {
     if (folderId) setHistoryDialog({ mode: "create-conversation", folderId, value: "新对话" });
@@ -443,7 +458,7 @@ function App() {
           <label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
           <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
           <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
-          {researchStatus && <p role="status">研究 {researchStatus.id} · 当前阶段 {researchStatus.state}（Research Progress 面板见对话区进度条）</p>}
+          {researchStatus && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}</span><button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button></div>}
         </form> : <>
         <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>

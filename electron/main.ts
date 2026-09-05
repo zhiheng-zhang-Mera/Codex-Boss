@@ -38,6 +38,8 @@ import { attachProgressRecorder } from "./commander/progress-recorder";
 import { HumanGuidanceGate } from "./commander/human-guidance-gate";
 import { ResearchLedger } from "./research/research-ledger";
 import { ProtocolManager } from "./research/protocol-manager";
+import { ResearchSupervisor } from "./research/research-supervisor";
+import { DefaultLevelBExecutor } from "./research/default-levelb-executor";
 import type { ResearchIR } from "../src/shared/research-ir";
 import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
@@ -69,6 +71,7 @@ let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] 
 let humanGuidance: HumanGuidanceGate | undefined;
 let researchLedgers: ResearchLedger | undefined;
 let researchProtocols: ProtocolManager | undefined;
+let researchSupervisor: ResearchSupervisor | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -260,6 +263,7 @@ if (ownsInstance) app.whenReady().then(() => {
   humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
   researchLedgers = new ResearchLedger(path.join(app.getPath("userData"), ".boss", "research"));
   researchProtocols = new ProtocolManager(path.join(app.getPath("userData"), ".boss", "research-protocols"));
+  researchSupervisor = new ResearchSupervisor({ ledger: researchLedgers, executor: new DefaultLevelBExecutor() });
   attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
@@ -335,6 +339,7 @@ if (ownsInstance) app.whenReady().then(() => {
     return record;
   });
   ipcMain.handle("boss:research-status", (_event, id: string) => researchLedgers?.load(id) ?? null);
+  ipcMain.handle("boss:research-step", async (_event, id: string) => researchSupervisor?.step(id) ?? null);
   ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => researchProtocols?.freeze(id, protocol));
   ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
     const target = workspaceId ?? workspaces.activeWorkspaceId();
