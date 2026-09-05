@@ -122,6 +122,17 @@ cores plus live web-AI novelty review.
   replicable primary experiment spec (deterministic plan; live execution never mocked).
 - Tests: `tests/levela-planner.test.ts` (4).
 
+## ResearchService facade + deterministic Level-B pipeline (round 5)
+
+- `electron/research/research-service.ts`: single facade composing ledger + supervisor +
+  protocol manager + evidence graph + manuscript assembler under one root (freeze moves run to
+  PROTOCOL_FROZEN and records the hash).
+- `electron/research/levelb-pipeline-executor.ts`: deterministic Level-B executor that reaches
+  real statistics + evidence>vote adjudication offline (repo inspection + seeded stats +
+  injected reviewer votes); RQ/literature/manuscript stages stay reviewer-gated, never
+  fabricated.
+- Tests: `research-service` (3) + `levelb-pipeline` (2).
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
