@@ -6,8 +6,8 @@ items 7–9 (real evidence, docs update, full test/typecheck/build) and Final Ac
 
 ## Verified (deterministic, run in CI-style vitest + typecheck)
 
-- Full suite: **107 files / 498 tests PASS** (last recorded full run after the round-20
-  deterministic bibliography slice; re-run before any further slice).
+- Full suite: **108 files / 501 tests PASS** (last recorded full run after the round-21
+  deterministic figures slice; re-run before any further slice).
 - typecheck (renderer + electron) PASS; renderer build + electron build PASS individually
   (`pnpm run build` aggregate fails only because nested `pnpm` cannot resolve through corepack
   here; each underlying step is green).

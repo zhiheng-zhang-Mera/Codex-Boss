@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ResearchIR } from "../src/shared/research-ir";
 import type { ResearchProtocol } from "../src/shared/research-protocol";
+import { metricFigureSvg } from "../src/shared/research-figures";
 import { ResearchService } from "../electron/research/research-service";
 import { ResearchRuntime } from "../electron/research/runtime/research-runtime";
 import { DefaultLevelBExecutor } from "../electron/research/default-levelb-executor";
@@ -59,16 +60,24 @@ describe("full offline artifact tree (freeze → real runs → analysis → audi
     const derived = svc.manuscriptClaims(id);
     const claim = derived.claims.find((item) => item.id === "claim:accuracy")!;
     expect(claim.evidenceIds.length).toBeGreaterThanOrEqual(3);
+    // Figure from the real recorded run metrics (deterministic SVG).
+    const runs = svc.evidence.runs(id);
+    const figure = metricFigureSvg(runs.map((run, index) => ({ label: `run ${index + 1}`, value: run.metrics.accuracy })), { title: "accuracy by run", yLabel: "accuracy" });
     const writer = { async write(brief: { section: string; evidenceIds: string[] }) { return brief.evidenceIds.length ? `${brief.section} supports @${brief.evidenceIds.join(", @")}` : `${brief.section} no claims`; } };
 
     const output = await svc.manuscript(id, {
       title: "Evidence vs Majority", authors: ["Boss"], plan: { id, claimsToSections: { "claim:accuracy": ["abstract", "results"] } },
-      claims: derived.claims, evidenceIds: derived.evidenceIds, writer, reproducibility: repro, citations: svc.citations.list()
+      claims: derived.claims, evidenceIds: derived.evidenceIds, writer, reproducibility: repro, citations: svc.citations.list(), figures: [{ name: "accuracy.svg", svg: figure }]
     });
     const rootDir = path.join(workspace, ".boss", id);
     expect(fs.existsSync(path.join(rootDir, "manuscript", "paper.md"))).toBe(true);
     expect(fs.existsSync(path.join(rootDir, "manuscript", "paper.tex"))).toBe(true);
     expect(fs.existsSync(path.join(rootDir, "manuscript", "references.bib"))).toBe(true);
+    expect(output.figures).toContain("accuracy.svg");
+    expect(fs.existsSync(path.join(rootDir, "manuscript", "figures", "accuracy.svg"))).toBe(true);
+    const figureSvg = fs.readFileSync(path.join(rootDir, "manuscript", "figures", "accuracy.svg"), "utf8");
+    expect(figureSvg).toContain("accuracy by run");
+    expect(figureSvg).toContain("run 1");
     const citations = JSON.parse(fs.readFileSync(output.audit.citationsFile, "utf8"));
     expect(citations.unsupportedIds).toEqual(["cite:bad"]); // primary claim may not bind UNSUPPORTED
     const reproWritten = JSON.parse(fs.readFileSync(output.audit.reproducibilityFile, "utf8"));

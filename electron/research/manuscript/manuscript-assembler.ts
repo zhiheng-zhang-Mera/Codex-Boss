@@ -29,12 +29,15 @@ export interface ManuscriptOptions {
   reproducibility?: import("../evidence/repro-audit").ReproducibilityAudit;
   /** Citation records to audit (round 14); written into audit/citations.json when supplied. */
   citations?: CitationRecord[];
+  /** Deterministic SVG figures (round 21); written into manuscript/figures/ when supplied. */
+  figures?: Array<{ name: string; svg: string }>;
 }
 
 export interface ManuscriptOutput {
   paperMd: string;
   paperTex: string;
   referencesBib: string;
+  /** Names of figure files actually written into manuscript/figures/. */
   figures: string[];
   sections: Record<ManuscriptSection, SectionDraft>;
   audit: { citationsFile: string; reproducibilityFile: string; finalAuditFile: string; passed: boolean };
@@ -73,6 +76,14 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
   fs.writeFileSync(path.join(manuscriptDir, "paper.md"), paperMd, "utf8");
   fs.writeFileSync(path.join(manuscriptDir, "paper.tex"), paperTex, "utf8");
   fs.writeFileSync(path.join(manuscriptDir, "references.bib"), bibliography, "utf8");
+  // Round-21: write deterministic SVG figures (real recorded metrics) into
+  // manuscript/figures/; never invented, only what the caller supplies.
+  const writtenFigures: string[] = [];
+  for (const figure of options.figures ?? []) {
+    const safeName = figure.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80) || "figure.svg";
+    fs.writeFileSync(path.join(manuscriptDir, "figures", safeName), figure.svg, "utf8");
+    writtenFigures.push(safeName);
+  }
 
   const citationsFile = path.join(auditDir, "citations.json");
   const reproducibilityFile = path.join(auditDir, "reproducibility.json");
@@ -93,7 +104,7 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
     citations: citationAudit ? { ok: citationAudit.ok, verified: citationAudit.verified, unsupported: citationAudit.unsupportedIds, contradicted: citationAudit.contradictedIds } : "PENDING"
   }, null, 2));
 
-  return { paperMd, paperTex, referencesBib: bibliography, figures: [], sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };
+  return { paperMd, paperTex, referencesBib: bibliography, figures: writtenFigures, sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };
 }
 
 function sectionBriefFor(options: ManuscriptOptions, section: ManuscriptSection): SectionBrief {

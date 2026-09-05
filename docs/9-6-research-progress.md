@@ -264,6 +264,14 @@ cores plus live web-AI novelty review.
 - Tests: `citation-audit` (6) + `research-manuscript` (3) + `research-artifact-tree` (2) green;
   handoff `docs/9-6-research-round20-bibliography.md`.
 
+## Round 21 — Deterministic paper figures from real runs (done)
+
+- `src/shared/research-figures.ts`: deterministic SVG metric chart; assembler writes supplied
+  figures into `manuscript/figures/` (sanitized names) and reports them.
+- Tests: `research-figures` (3) + `research-artifact-tree` (2, now generates a figure from real
+  run metrics) + `research-manuscript` (3) green; handoff
+  `docs/9-6-research-round21-figures.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
