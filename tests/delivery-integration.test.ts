@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { StateStore, providerSeed } from "../electron/store";
 import { ProviderAutomation } from "../electron/provider-automation";
+import { vi } from "vitest";
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));
 function workspace() { const dir = fs.mkdtempSync(path.join(os.tmpdir(), "boss-loop-")); dirs.push(dir); const file = path.join(dir, "state.json"); return { file, store: new StateStore(file) }; }
@@ -75,5 +76,31 @@ it("reuses a completed internal worker after restart without dispatch", async ()
   expect(result).toMatchObject({ status: "SUCCESS", content: "cached worker answer" });
   expect(restored.snapshot().tasks).toHaveLength(2);
   expect(restored.snapshot().dispatchCheckpoints).toHaveLength(0);
+  automation.dispose();
+});
+
+it("starts each internal web worker from the provider new-chat URL", async () => {
+  const { store } = workspace(); const parent = store.createTask("parent", "plan", ["chatgpt"]);
+  const child = store.createTask("research", "isolated prompt", ["chatgpt"], "direct", "work", {}, parent.conversationId, parent.id, "worker-one");
+  const loadURL = vi.fn(async () => {});
+  const webContents = { loadURL, executeJavaScript: vi.fn(async () => ({ inputFound: false, loginLikely: false, rateLimited: false, latestResponse: "", sourceUrl: "https://chatgpt.com/" })) };
+  const automation = new ProviderAutomation(store, { get: () => ({ webContents }) } as never, id => providerSeed.find(p => p.id === id)!, () => {}, { recordProbe() {} } as never, {} as never);
+  await automation.prepareTask(child.id);
+  expect(loadURL).toHaveBeenCalledExactlyOnceWith("https://chatgpt.com/");
+  expect(store.runsForTask(child.id)[0].phase).toBe("blocked");
+  automation.dispose();
+});
+
+it("does not let concurrent internal workers navigate the same provider view", async () => {
+  const { store } = workspace(); const parent = store.createTask("parent", "plan", ["chatgpt"]);
+  const one = store.createTask("research", "one", ["chatgpt"], "direct", "work", {}, parent.conversationId, parent.id, "one");
+  const two = store.createTask("review", "two", ["chatgpt"], "direct", "work", {}, parent.conversationId, parent.id, "two");
+  let release!: () => void; const blocked = new Promise<void>(resolve => { release = resolve; }); let loads = 0;
+  const webContents = { async loadURL() { loads++; await blocked; }, async executeJavaScript() { return { inputFound: false, loginLikely: false, rateLimited: false, latestResponse: "", sourceUrl: "https://chatgpt.com/" }; } };
+  const automation = new ProviderAutomation(store, { get: () => ({ webContents }) } as never, id => providerSeed.find(p => p.id === id)!, () => {}, { recordProbe() {} } as never, {} as never);
+  const first = automation.prepareTask(one.id); await new Promise(resolve => setTimeout(resolve, 10));
+  await automation.prepareTask(two.id); release(); await first;
+  expect(loads).toBe(1);
+  expect(store.runsForTask(two.id)[0]).toMatchObject({ phase: "blocked", outcome: "USER_ACTION_REQUIRED" });
   automation.dispose();
 });

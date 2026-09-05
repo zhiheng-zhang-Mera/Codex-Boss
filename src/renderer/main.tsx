@@ -1,7 +1,10 @@
+import { taskPresentation } from "../shared/task-presentation";
+import { timelineForTask } from "../shared/task-timeline";
+import { currentFinalResponse } from "../shared/final-response";
 import { HistoryNameDialog, type HistoryDialogState } from "./components/HistoryNameDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { ApiProtocol, AppMode, AppSnapshot, BossTask, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
+import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
 import { compileIntent } from "../shared/task-ir";
 import { executionLabel, type ReviewMode } from "../shared/execution";
 import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
@@ -13,6 +16,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<TaskMode>("direct");
   const [appMode, setAppMode] = useState<AppMode>("chat");
+  const [finalizationPolicy, setFinalizationPolicy] = useState<FinalizationPolicy | "">("");
   const [reviewMode, setReviewMode] = useState<ReviewMode>("BALANCED");
   const [workspacePath, setWorkspacePath] = useState("");
   const [transportChoices, setTransportChoices] = useState<Record<ProviderId, RunTransport>>({});
@@ -29,6 +33,8 @@ function App() {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const conversationRef = useRef<HTMLDivElement | null>(null);
+  const followLatestRef = useRef(true);
   const surfaceRefs = useRef<Partial<Record<ProviderId, HTMLDivElement | null>>>({});
   const openProviders = snapshot.providers.filter((provider) => provider.windowOpen);
   const selectedProviders = openProviders.map((provider) => provider.id);
@@ -79,6 +85,11 @@ function App() {
 
   const activeConversation = snapshot.conversations.find((conversation) => conversation.id === snapshot.activeConversationId);
   const activeTasks = useMemo(() => snapshot.tasks.filter((task) => !task.parentTaskId && task.conversationId === snapshot.activeConversationId).slice(0, 50).reverse(), [snapshot.tasks, snapshot.activeConversationId]);
+  useEffect(() => {
+    const pane = conversationRef.current;
+    if (pane && followLatestRef.current) pane.scrollTop = pane.scrollHeight;
+  }, [snapshot.finalResponses, snapshot.activeConversationId, activeTasks.length]);
+  useEffect(() => { followLatestRef.current = true; const pane = conversationRef.current; if (pane) pane.scrollTop = pane.scrollHeight; }, [snapshot.activeConversationId]);
   const pendingRemoteCommands = snapshot.remoteCommands.filter((command) => command.status === "pending");
 
   async function toggleProvider(providerId: ProviderId) {
@@ -120,7 +131,7 @@ function App() {
     setError("");
     try {
       const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
-      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, workspacePath: workspacePath.trim() || undefined, reviewPolicy: { mode: reviewMode, maxRetries: 2 }, transportByProvider: appMode === "chat" ? {} : transportChoices, conversationId: snapshot.activeConversationId }));
+      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, workspacePath: workspacePath.trim() || undefined, reviewPolicy: { mode: reviewMode, maxRetries: 2 }, finalizationPolicy: finalizationPolicy || undefined, transportByProvider: appMode === "chat" ? {} : transportChoices, conversationId: snapshot.activeConversationId }));
       setPrompt("");
     } catch (reason) {
       setError(String(reason));
@@ -255,13 +266,14 @@ function App() {
         <div className="header-status"><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
 
-      <div className="conversation">
-        <div className="welcome-card">
+      <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
+        {activeTasks.length === 0 && <div className="welcome-card">
           <div className="welcome-mark">⌘</div>
           <h1>{activeConversation?.title ?? "今天要处理什么？"}</h1>
           <p>在左侧输入一次任务，右侧会按所选网页版 AI 数量自动分屏。每个页面保持独立登录状态，并始终可见。</p>
         </div>
 
+        }
         <details className="runtime-overview">
           <summary><b>Runtime Status</b><span>Main Commander 本地持有任务状态</span></summary>
           <div className="runtime-status-grid">{snapshot.runtimeStatuses.map((runtime) => <form key={runtime.runtimeId} onSubmit={(event) => void saveRuntimeControl(event, runtime.runtimeId)}><span className={`runtime-${runtime.availability.toLowerCase()}`}><i />{runtime.label}<small>{runtime.availability} · {runtime.budget}</small></span><label><input name="enabled" type="checkbox" defaultChecked={runtime.enabled} /> 启用</label><label>优先级 <input name="priority" type="number" min="0" max="999" defaultValue={runtime.priority} /></label><button type="submit">保存</button></form>)}</div>
@@ -271,8 +283,10 @@ function App() {
         {activeTasks.map((task) => {
           const runs = latestRuns(task);
           const council = snapshot.councils.find((item) => item.taskId === task.id);
-          const finalResponse = snapshot.finalResponses.find((item) => item.taskId === task.id);
-          const evidence = snapshot.evidenceBundles.find((item) => item.taskId === task.id);
+          const finalResponse = currentFinalResponse(snapshot, task.id);
+          const presentation = taskPresentation(task, runs, finalResponse);
+          const timeline = timelineForTask(snapshot.events, task.id);
+          const evidence = snapshot.evidenceBundles.find((item) => finalResponse ? item.id === finalResponse.evidenceBundleId : item.taskId === task.id);
           const checkpoint = snapshot.dispatchCheckpoints.find((item) => item.taskId === task.id && item.round === (council?.round ?? runs[0]?.round ?? 1));
           const artifactCount = snapshot.artifacts.filter((artifact) => artifact.taskId === task.id).length;
           const allComplete = runs.length > 0 && runs.every((run) => run.phase === "completed");
@@ -283,13 +297,15 @@ function App() {
           <div className="user-message"><span>你</span><p>{task.prompt}</p></div>
           <div className="boss-message">
             <div className="boss-avatar">B</div>
-            <div><strong>{task.plan?.estimatedComplexity === "L0" ? "本地任务" : "已分派到"} {task.providerIds.filter((id) => id !== "native:tools").map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</strong>
-              <p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p>
+            <div><strong className="task-state" data-task-state={presentation.state} role="status">{presentation.label}</strong>
+              <span className="task-provider-label">{task.plan?.estimatedComplexity === "L0" ? "本地任务" : "已分派到"} {task.providerIds.filter((id) => id !== "native:tools").map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</span>
+              <details className="task-technical-summary"><summary>任务信息</summary><p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p></details>
               {task.recoveryMessage && <p role="status">{task.recoveryMessage}{task.recoveryAt ? " · " + new Date(task.recoveryAt).toLocaleString() : ""}</p>}
-              {task.finalizationBlocker && <p role="status">{task.finalizationBlocker}</p>}
-              {finalResponse && <section className="final-response" aria-label="最终回答"><strong>已完成</strong><pre>{finalResponse.content}</pre></section>}
+              {task.finalizationBlocker && !finalResponse && <p><button className="retry-finalization" onClick={() => void window.boss.updateTask(task.id, "running").then(setSnapshot).catch((reason) => setError(String(reason)))}>重试整理答复</button></p>}
+              {finalResponse && <section className="final-response" aria-label="最终回答"><pre>{finalResponse.content}</pre></section>}
               <details className="execution-details"><summary>执行与证据详情</summary>
               <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId} [{run.transport}]: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
+              {timeline.length > 0 && <details className="task-timeline"><summary>任务时间线 · {timeline.length}</summary><ol>{timeline.map((entry, index) => <li key={`${entry.timestamp}-${entry.event}-${index}`}><time>{shortTime(entry.timestamp)}</time><span>{entry.message}</span>{entry.runtimeId && <code>{entry.runtimeId}</code>}{entry.evidenceRef && <code title={entry.evidenceRef}>证据 {entry.evidenceRef.slice(0, 8)}</code>}</li>)}</ol></details>}
               {checkpoint && <div className={`dispatch-checkpoint checkpoint-${checkpoint.status.toLowerCase()}`}><b>{checkpoint.status}</b><span>{checkpoint.successfulProviderIds.length}/{checkpoint.expectedProviderIds.length} 成功 · {checkpoint.message}</span></div>}
               {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}
               {runs.filter((run) => run.review?.status === "PASS" && run.response).map((run) => <details className="worker-answer" open={!finalResponse && task.mode === "direct"} key={run.id + "-answer"}><summary>{run.providerId === "native:tools" ? "本地执行结果" : (snapshot.providers.find((provider) => provider.id === run.providerId)?.name ?? run.providerId) + " 的回答"}</summary><pre>{run.response!.content}</pre></details>)}
@@ -297,7 +313,7 @@ function App() {
                 {canRetry && <button className="confirm-send" onClick={() => void taskAction(task.id, "dispatch")} disabled={sending}>重新提交整组</button>}
                 {canCapture && <button onClick={() => void taskAction(task.id, "capture")} disabled={sending}>并发采集本轮回答</button>}
                 {task.mode === "council" && allComplete && roundCommitted && council && ["proposals", "peer_review", "synthesis"].includes(council.stage) && <button onClick={() => void taskAction(task.id, "advance")} disabled={sending}>提交下一轮到全部 AI</button>}
-                {artifactCount > 0 && roundCommitted && <button onClick={() => void taskAction(task.id, "evidence")} disabled={sending}>生成 Phase 4 证据包</button>}
+                {artifactCount > 0 && roundCommitted && <button onClick={() => void taskAction(task.id, "evidence")} disabled={sending}>生成证据包</button>}
                 {evidence && <button onClick={() => void taskAction(task.id, "codex")} disabled={sending || evidence.codexReview.status === "RUNNING"}>Codex 账户审查</button>}
                 {evidence?.claims.some((claim) => claim.status === "DISPUTED" || claim.status === "INSUFFICIENT") && <button onClick={() => void taskAction(task.id, "rehydrate")} disabled={sending}>选择性回填</button>}
               </div>
@@ -312,7 +328,7 @@ function App() {
       </div>
 
       <div className="composer-zone">
-        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div>
+        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div>
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>
         <div className="provider-picker">
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>

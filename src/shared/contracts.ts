@@ -257,6 +257,10 @@ export interface AuditEvent {
   type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
   taskId?: string;
   providerId?: ProviderId;
+  stepId?: string;
+  runtimeId?: string;
+  evidenceRef?: string;
+  budgetDelta?: Partial<Record<"modelCalls" | "toolCalls" | "browserActions" | "retries", number>>;
   message: string;
 }
 
@@ -273,6 +277,7 @@ export interface FinalResponse {
 }
 
 export interface AppSnapshot {
+  schemaVersion: 2;
   finalResponses: FinalResponse[];
   providers: Provider[];
   tasks: BossTask[];
@@ -295,6 +300,7 @@ export interface AppSnapshot {
 }
 
 export interface CreateTaskInput {
+  finalizationPolicy?: FinalizationPolicy;
   workspacePath?: string;
   reviewPolicy?: ReviewPolicy;
   title: string;

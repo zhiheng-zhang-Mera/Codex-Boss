@@ -145,3 +145,14 @@ button { color: inherit; }
 .final-response pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 14px; line-height: 1.6; }
 .execution-details { margin-top: 12px; }
 .execution-details > summary { cursor: pointer; color: #aeb3b4; }
+
+.task-provider-label { display: block; margin-top: 4px; color: #8d9395; font-size: 11px; }
+.task-technical-summary { margin-top: 6px; font-size: 11px; color: #8d9395; }
+.task-technical-summary summary { cursor: pointer; }
+.task-state[data-task-state="COMPLETED"] { color: #a9d9b6; }
+.task-state[data-task-state="FAILED"], .task-state[data-task-state="WAITING_FOR_USER"] { color: #e6bc83; }
+.retry-finalization { padding: 7px 10px; background: #202925; color: #dce8df; border: 1px solid #536458; border-radius: 6px; cursor: pointer; }
+.task-timeline ol { display: grid; gap: 7px; padding-left: 20px; }
+.task-timeline li { color: #8d9395; font-size: 10px; }
+.task-timeline time { margin-right: 8px; color: #697174; }
+.task-timeline code { margin-left: 8px; color: #9cab91; }

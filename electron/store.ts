@@ -1,3 +1,4 @@
+import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -186,7 +187,7 @@ export class StateStore {
       if (phase === "blocked") task.status = "waiting";
     }
     run.updatedAt = new Date().toISOString();
-    this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId });
+    this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId, stepId: run.id, runtimeId: `${run.transport}:${run.providerId}` });
     this.persist();
   }
 
@@ -278,7 +279,7 @@ export class StateStore {
     // Persist evidence, review and continuation together before releasing the gate.
     this.persist();
     run.updatedAt = artifact.capturedAt;
-    this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId });
+    this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId, stepId: run.id, runtimeId: `${run.transport}:${run.providerId}`, evidenceRef: artifact.id });
     this.reconcileTask(run.taskId);
     this.commitDispatchForRound(run.taskId, run.round);
     this.persist();
@@ -432,7 +433,7 @@ export class StateStore {
   }
 
   finalResponseForTask(taskId: string): FinalResponse | undefined {
-    const result = this.snapshotValue.finalResponses.find((item) => item.taskId === taskId);
+    const result = currentFinalResponse(this.snapshotValue, taskId);
     return result ? structuredClone(result) : undefined;
   }
 
@@ -440,8 +441,10 @@ export class StateStore {
     if (this.finalResponseForTask(response.taskId)) return;
     const task = this.snapshotValue.tasks.find((item) => item.id === response.taskId);
     if (!task || task.conversationId !== response.conversationId || !response.content.trim()) throw new Error("Invalid final response");
+    task.status = "completed"; task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE";
+    task.finalizationBlocker = undefined; task.recoveryAt = undefined; task.recoveryMessage = undefined; task.updatedAt = response.finalizedAt;
     this.snapshotValue.finalResponses.push(structuredClone(response));
-    this.event("task.finalized", "Final response persisted", { taskId: task.id });
+    this.event("task.finalized", "最终答复已保存", { taskId: task.id, evidenceRef: response.evidenceBundleId ?? response.id });
     this.persist();
   }
 
@@ -538,7 +541,7 @@ export class StateStore {
     this.persist();
   }
 
-  private event(type: AuditEvent["type"], message: string, refs: Pick<AuditEvent, "taskId" | "providerId">): void {
+  private event(type: AuditEvent["type"], message: string, refs: Pick<AuditEvent, "taskId" | "providerId" | "stepId" | "runtimeId" | "evidenceRef" | "budgetDelta">): void {
     this.snapshotValue.events.unshift({ id: randomUUID(), at: new Date().toISOString(), type, message, ...refs });
     this.snapshotValue.events = this.snapshotValue.events.slice(0, 200);
   }
@@ -594,6 +597,12 @@ export class StateStore {
   private read(): AppSnapshot {
     try {
       const saved = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AppSnapshot>;
+      const sourceVersion = saved.schemaVersion ?? 1;
+      if (sourceVersion !== 1 && sourceVersion !== 2) throw new Error(`Unsupported state schema version: ${sourceVersion}`);
+      if (sourceVersion === 1) {
+        const backup = `${this.filePath}.pre-v2.bak`;
+        if (!fs.existsSync(backup)) fs.copyFileSync(this.filePath, backup, fs.constants.COPYFILE_EXCL);
+      }
       const builtins = providerSeed.map((seed) => ({ ...seed, ...(saved.providers?.find((item) => item.id === seed.id) ?? {}), windowOpen: false, isCustom: false }));
       const custom = (saved.providers ?? []).filter((item) => item.isCustom).map((item) => ({ ...item, windowOpen: false }));
       const providers = [...builtins, ...custom];
@@ -614,13 +623,13 @@ export class StateStore {
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
       const remoteChannels = remoteChannelDefaults(now).map((fallback) => ({ ...fallback, ...(saved.remoteChannels ?? []).find((item) => item.channel === fallback.channel), status: "disabled" as const, message: "应用启动后等待监听器同步" }));
       const controller = saved.controller ?? { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
-      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], finalResponses: saved.finalResponses ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+      return { schemaVersion: 2, providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], finalResponses: saved.finalResponses ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch (error) {
       if (fs.existsSync(this.filePath)) throw new Error(`Cannot restore task state: ${String(error)}`);
       const now = new Date().toISOString();
       const providers = structuredClone(providerSeed);
       const controller = { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
-      return { providers, tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], finalResponses: [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller), roleRoutes: mergeRoleRoutes(), accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
+      return { schemaVersion: 2, providers, tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], finalResponses: [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller), roleRoutes: mergeRoleRoutes(), accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
     }
   }
 

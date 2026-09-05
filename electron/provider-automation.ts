@@ -19,6 +19,7 @@ export class ProviderAutomation {
   private readonly stability = new Map<string, ProbeState>();
   private readonly monitors = new Map<string, ReturnType<typeof setInterval>>();
   private readonly pollingTasks = new Set<string>();
+  private readonly preparingProviders = new Map<ProviderId, string>();
 
   constructor(
     private readonly store: StateStore,
@@ -205,7 +206,15 @@ export class ProviderAutomation {
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", "网页窗口未打开", definition.version);
       return;
     }
+    const owner = this.preparingProviders.get(run.providerId);
+    if (owner && owner !== run.taskId) {
+      this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "该 AI 正在准备另一个任务；当前任务未导航、未发送", definition.version);
+      return;
+    }
+    this.preparingProviders.set(run.providerId, run.taskId);
     try {
+      const task = this.store.snapshot().tasks.find((item) => item.id === run.taskId);
+      if (task?.parentTaskId && !run.sessionUrl) await view.webContents.loadURL(this.resolveProvider(run.providerId).url);
       const probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
       if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.deferRecovery(run, "RETRY_UNSENT"); return; }
@@ -225,6 +234,8 @@ export class ProviderAutomation {
       this.store.updateRun(run.id, "prepared", "SUCCESS", "提示词已在可见页面预填；等待用户确认发送", definition.version);
     } catch (error) {
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `页面适配器执行失败：${String(error)}`, definition.version);
+    } finally {
+      if (this.preparingProviders.get(run.providerId) === run.taskId) this.preparingProviders.delete(run.providerId);
     }
   }
 

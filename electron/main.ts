@@ -1,11 +1,10 @@
 import { providerVisionSurface } from "./computer/backends/provider-vision-surface";
 import { RecoveryScheduler } from "./commander/recovery-scheduler";
 import { WebRecovery } from "./commander/web-recovery";
-import { TaskFinalizer } from "./commander/task-finalizer";
 import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { migrateBrowserProfile } from "./runtime-paths";
+import { migrateBrowserProfile, migrateLegacyPersistentData } from "./runtime-paths";
 import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
@@ -62,11 +61,7 @@ if (!ownsInstance) {
 if (ownsInstance) {
   fs.mkdirSync(dataRoot, { recursive: true });
   if (!overrideDataRoot && legacyDataRoot) {
-    for (const name of ["state.json", "api-settings.json", "task-contexts.json"]) {
-      const source = path.join(legacyDataRoot, name);
-      const destination = path.join(dataRoot, name);
-      if (!fs.existsSync(destination) && fs.existsSync(source)) fs.writeFileSync(destination, fs.readFileSync(source), { flag: "wx" });
-    }
+    migrateLegacyPersistentData(legacyDataRoot, dataRoot, path.join(app.getAppPath(), "history"));
   }
   const cacheRoot = path.join(overrideDataRoot ? path.resolve(overrideDataRoot) : app.getAppPath(), ".cache");
   const sessionRoot = path.join(cacheRoot, "browser-profile");
@@ -147,7 +142,7 @@ function attachProviderViews(): void {
     publish();
   }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
-  const finalizer = new TaskFinalizer(store, publish);
+  const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
   const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
   automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) return; await finalizer.finalize(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt));
   recoveryScheduler.start();
@@ -258,7 +253,7 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
     const { appMode, transports } = taskTransports(input, providerIds);
-    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
+    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy });
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
@@ -269,7 +264,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
-    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy });
+    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy });
     commander.startTask(task.id);
     publish();
     const workspace = input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath();
@@ -398,12 +393,13 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     return publish();
   });
-  ipcMain.handle("boss:update-task", (_event, taskId: string, status: TaskStatus) => {
+  ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
     store.setTaskStatus(taskId, status);
     if (status === "running" && recoveryScheduler.resumeTask(taskId)) {
       const deadline = Math.min(...recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt));
       store.setRecoveryState(taskId, deadline, "用户已继续任务；按记录的时间恢复原会话");
     }
+    if (status === "running" && store.snapshot().tasks.find((item) => item.id === taskId)?.finalizationBlocker) await commander.finalizeTask(taskId, publish);
     return publish();
   });
 
