@@ -361,6 +361,15 @@ cores plus live web-AI novelty review.
 - Tests: `research-ledger-list` (2) + `research-supervisor` (8) green; handoff
   `docs/9-6-research-round32-list-state.md`.
 
+## Round 33 — Machine-checkable research acceptance audit (done)
+
+- `scripts/acceptance-research-audit.cjs` verifies Final Acceptance I + J per run
+  (snapshots/hash binding, final audit, reproducibility REPRODUCED, citations ok, claim/paper
+  graph nodes, paper.md/tex/bib + figures embedded); exit 0/1 + JSON report.
+- Tests: `research-acceptance-audit` (2, real offline artifact trees: PASS with verified
+  citations, FAIL on UNSUPPORTED bound) green; handoff
+  `docs/9-6-research-round33-audit-script.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
