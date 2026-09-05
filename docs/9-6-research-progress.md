@@ -354,6 +354,13 @@ cores plus live web-AI novelty review.
   Chat/Work/Direct/Council/Engineering/Recovery acceptance, Blender/Unreal live rows). No live
   item is claimed passed without that session's evidence.
 
+## Round 32 — Run list exposes freeze/pause state (done)
+
+- `ResearchLedger.list()` rows carry `protocolHash?`/`pendingStage?`; `BossBridge.researchList`
+  type widened; corrupt-tolerant list unchanged.
+- Tests: `research-ledger-list` (2) + `research-supervisor` (8) green; handoff
+  `docs/9-6-research-round32-list-state.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

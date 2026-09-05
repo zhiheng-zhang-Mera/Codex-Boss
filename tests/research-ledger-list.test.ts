@@ -29,4 +29,18 @@ describe("research ledger list (round 6)", () => {
     fs.writeFileSync(path.join(dir, "r-broken.json"), "{not-json");
     expect(ledger.list().length).toBe(3);
   });
+
+  it("exposes protocolHash and pendingStage on list rows (round 34 GUI drive support)", () => {
+    const dir = root();
+    const ledger = new ResearchLedger(dir);
+    const record = ledger.create(ir("r1", "frozen+paused"));
+    // Set a protocol hash (freeze path writes it) then pause at a reviewer gate.
+    ledger.checkpoint("r1", (next) => { next.ir.protocolHash = "abc123"; next.ir.updatedAt = new Date().toISOString(); }, "hash");
+    ledger.pauseAt("r1", "LITERATURE_REVIEW", "reviewer gate");
+    const run = ledger.list().find((item) => item.id === "r1")!;
+    expect(run.protocolHash).toBe("abc123");
+    expect(run.pendingStage).toBe("LITERATURE_REVIEW");
+    expect(run.state).toBe("WAITING_FOR_PROVIDER");
+    expect(record.revision).toBeGreaterThanOrEqual(1);
+  });
 });

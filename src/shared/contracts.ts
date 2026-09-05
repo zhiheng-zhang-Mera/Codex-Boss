@@ -351,7 +351,7 @@ export interface BossBridge {
   resolveIntervention(taskId: string, kind: import("./intervention").InterventionKind, answer: string): Promise<import("./intervention").HumanInterventionRequest>;
   researchStart(input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }): Promise<unknown>;
   researchStatus(id: string): Promise<unknown>;
-  researchList(): Promise<Array<{ id: string; goal: string; state: string; revision: number; updatedAt: string }>>;
+  researchList(): Promise<Array<{ id: string; goal: string; state: string; revision: number; updatedAt: string; protocolHash?: string; pendingStage?: string }>>;
   researchStep(id: string): Promise<unknown>;
   /** Resumes a control-paused research run to its pending stage; true when it actually resumed. */
   researchResume(id: string): Promise<boolean>;
