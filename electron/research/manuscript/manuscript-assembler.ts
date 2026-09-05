@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { validId } from "../../commander/durable-json";
 import { MANUSCRIPT_SECTIONS, evidenceCheckDraft, type ManuscriptPlan, type ManuscriptSection, type SectionBrief, type SectionDraft } from "../../../src/shared/research-manuscript";
+import { summarizeCitationAudit, type CitationRecord } from "../../../src/shared/research-citation";
 
 /**
  * Manuscript assembler (plan 9-6 Phase 11). Runs the section pipeline with an
@@ -25,6 +26,8 @@ export interface ManuscriptOptions {
   maxRevisions?: number;
   /** Deterministic reproducibility audit (round 11); written when supplied. */
   reproducibility?: import("../evidence/repro-audit").ReproducibilityAudit;
+  /** Citation records to audit (round 14); written into audit/citations.json when supplied. */
+  citations?: CitationRecord[];
 }
 
 export interface ManuscriptOutput {
@@ -71,13 +74,21 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
   const citationsFile = path.join(auditDir, "citations.json");
   const reproducibilityFile = path.join(auditDir, "reproducibility.json");
   const finalAuditFile = path.join(auditDir, "final-audit.json");
-  fs.writeFileSync(citationsFile, JSON.stringify({ status: "PENDING" }, null, 2));
+  // Round-14: real citation audit replaces the static PENDING stub when records
+  // are supplied (never fabricated; primary claims must not bind UNSUPPORTED).
+  const citationAudit = options.citations ? summarizeCitationAudit(options.citations) : null;
+  fs.writeFileSync(citationsFile, JSON.stringify(citationAudit ?? { status: "PENDING" }, null, 2));
   // Round-11: a real reproducibility audit replaces the static PENDING stub when
   // the caller supplies recorded-run analysis (never fabricated).
   const reproducibility = options.reproducibility ?? { status: "PENDING", reason: "not audited", at: new Date().toISOString() };
   fs.writeFileSync(reproducibilityFile, JSON.stringify(reproducibility, null, 2));
-  const passed = Object.values(sections).every((section) => section.status === "REVISED");
-  fs.writeFileSync(finalAuditFile, JSON.stringify({ passed, sections: Object.fromEntries(Object.entries(sections).map(([key, value]) => [key, value.status])), reproducibility: reproducibility.status }, null, 2));
+  const passed = Object.values(sections).every((section) => section.status === "REVISED") && (options.citations ? citationAudit!.ok : true);
+  fs.writeFileSync(finalAuditFile, JSON.stringify({
+    passed,
+    sections: Object.fromEntries(Object.entries(sections).map(([key, value]) => [key, value.status])),
+    reproducibility: reproducibility.status,
+    citations: citationAudit ? { ok: citationAudit.ok, verified: citationAudit.verified, unsupported: citationAudit.unsupportedIds } : "PENDING"
+  }, null, 2));
 
   return { paperMd, paperTex, referencesBib, figures: [], sections, audit: { citationsFile, reproducibilityFile, finalAuditFile, passed } };
 }

@@ -204,6 +204,15 @@ cores plus live web-AI novelty review.
 - Tests: `graph-claims` (4, incl. live freeze→run→analyze→derive) green; handoff
   `docs/9-6-research-round13-graph-claims.md`.
 
+## Round 14 — Citation audit in the manuscript tree (done)
+
+- `summarizeCitationAudit(records)` (shared) — verified counts + UNSUPPORTED flagging
+  (primary-claim rule: no UNSUPPORTED citation may back a primary claim).
+- Manuscript assembler writes real `audit/citations.json` + `final-audit.json` citations gate
+  when records are supplied; PENDING stub preserved otherwise.
+- Tests: `citation-audit` (3) + `research-citation` (4) + `research-manuscript` (3) green;
+  handoff `docs/9-6-research-round14-citation-audit.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

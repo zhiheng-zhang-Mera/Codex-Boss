@@ -55,3 +55,25 @@ export function primaryClaimSupported(records: CitationRecord[]): { ok: boolean;
   const unsupported = records.filter((record) => record.status === "UNSUPPORTED").map((record) => record.id);
   return { ok: unsupported.length === 0, unsupported };
 }
+
+/** Statuses that count as verified evidence for a primary claim (Phase 9 audit). */
+export const VERIFIED_CITATION_STATUSES: readonly CitationStatus[] = ["SOURCE_RETRIEVED", "PASSAGE_VERIFIED", "CLAIM_SUPPORTED", "PARTIAL"];
+
+export interface CitationAuditSummary {
+  total: number;
+  perStatus: Partial<Record<CitationStatus, number>>;
+  /** Citations that verified to at least SOURCE_RETRIEVED and do not contradict. */
+  verified: number;
+  /** Ids still UNSUPPORTED — a primary claim must not bind these. */
+  unsupportedIds: string[];
+  ok: boolean;
+}
+
+/** Deterministic audit over citation records for the manuscript audit tree. */
+export function summarizeCitationAudit(records: CitationRecord[]): CitationAuditSummary {
+  const perStatus: Partial<Record<CitationStatus, number>> = {};
+  for (const record of records) perStatus[record.status] = (perStatus[record.status] ?? 0) + 1;
+  const verified = records.filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status) && record.status !== "CONTRADICTED").length;
+  const unsupportedIds = records.filter((record) => record.status === "UNSUPPORTED").map((record) => record.id);
+  return { total: records.length, perStatus, verified, unsupportedIds, ok: unsupportedIds.length === 0 };
+}
