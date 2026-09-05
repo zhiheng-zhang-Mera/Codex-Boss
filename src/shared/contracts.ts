@@ -346,6 +346,9 @@ export interface ViewBounds {
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
   progress(): Promise<import("./progress").ProgressSummary[]>;
+  activeIntervention(taskId: string): Promise<import("./intervention").HumanInterventionRequest | undefined>;
+  listInterventions(taskId?: string): Promise<import("./intervention").HumanInterventionRequest[]>;
+  resolveIntervention(taskId: string, kind: import("./intervention").InterventionKind, answer: string): Promise<import("./intervention").HumanInterventionRequest>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;

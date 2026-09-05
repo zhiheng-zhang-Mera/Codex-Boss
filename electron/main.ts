@@ -35,6 +35,8 @@ import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
 import { attachProgressRecorder } from "./commander/progress-recorder";
+import { HumanGuidanceGate } from "./commander/human-guidance-gate";
+import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
@@ -61,6 +63,7 @@ let remoteRelay: RemoteCommandRelay;
 let domainEventBus: DomainEventBus | undefined;
 let detachContinuationWaker: (() => void) | undefined;
 let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] | undefined;
+let humanGuidance: HumanGuidanceGate | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -249,6 +252,7 @@ if (ownsInstance) app.whenReady().then(() => {
   const domainEvents = new DomainEventBus();
   domainEventBus = domainEvents;
   progressAggregator = attachProgressRecorder(domainEvents).aggregator;
+  humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
   attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
@@ -300,6 +304,9 @@ if (ownsInstance) app.whenReady().then(() => {
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
   ipcMain.handle("boss:progress", () => ({ summaries: progressAggregator?.summaries() ?? [], detail: (progressAggregator?.detail() ?? []).slice(-100) }));
+  ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
+  ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);
+  ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => humanGuidance?.resolve(taskId, kind, answer));
   ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
     const target = workspaceId ?? workspaces.activeWorkspaceId();
     return openProjectState(target).summary(target);
