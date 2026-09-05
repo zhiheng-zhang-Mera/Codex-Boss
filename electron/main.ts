@@ -347,6 +347,16 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:rename-conversation", (_event, conversationId: string, title: string) => { store.renameConversation(conversationId, title); return publish(); });
   ipcMain.handle("boss:move-conversation", (_event, conversationId: string, folderId: string) => { store.moveConversation(conversationId, folderId); return publish(); });
   ipcMain.handle("boss:select-conversation", (_event, conversationId: string) => { store.selectConversation(conversationId); return publish(); });
+  ipcMain.handle("boss:archive-conversation", (_event, conversationId: string, archived: boolean) => { store.setConversationArchived(conversationId, Boolean(archived)); return publish(); });
+  ipcMain.handle("boss:delete-conversation", (_event, conversationId: string) => { store.deleteConversation(conversationId); return publish(); });
+  ipcMain.handle("boss:duplicate-conversation", (_event, conversationId: string) => { store.duplicateConversation(conversationId); return publish(); });
+  ipcMain.handle("boss:export-conversation", async (_event, conversationId: string) => {
+    const exportRoot = path.join(app.getPath("userData"), "exports");
+    const destination = historyRepository.exportConversation(store.snapshot(), conversationId, exportRoot);
+    const { shell } = await import("electron");
+    shell.showItemInFolder(destination);
+    return destination;
+  });
   ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
     const normalized = normalizeCustomProviderInput(input);
     store.addCustomProvider(normalized.name, normalized.url);

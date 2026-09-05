@@ -251,6 +251,8 @@ export interface BossConversation {
   taskIds: string[];
   createdAt: string;
   updatedAt: string;
+  /** Archived conversations are hidden from the default list but never deleted. */
+  archived?: boolean;
 }
 
 export interface UpdateApiSettingInput {
@@ -266,7 +268,7 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "conversation.archived" | "conversation.deleted" | "conversation.duplicated" | "conversation.exported" | "remote.channel" | "remote.command" | "runtime.policy";
   taskId?: string;
   providerId?: ProviderId;
   stepId?: string;
@@ -357,6 +359,10 @@ export interface BossBridge {
   renameConversation(conversationId: string, title: string): Promise<AppSnapshot>;
   moveConversation(conversationId: string, folderId: string): Promise<AppSnapshot>;
   selectConversation(conversationId: string): Promise<AppSnapshot>;
+  archiveConversation(conversationId: string, archived: boolean): Promise<AppSnapshot>;
+  deleteConversation(conversationId: string): Promise<AppSnapshot>;
+  duplicateConversation(conversationId: string): Promise<AppSnapshot>;
+  exportConversation(conversationId: string): Promise<string>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
   removeCustomProvider(providerId: ProviderId): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;
