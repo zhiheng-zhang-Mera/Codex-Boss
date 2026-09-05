@@ -2,7 +2,6 @@ import type { BudgetManager } from "./budget-manager";
 import type { RecoveryScheduler } from "./recovery-scheduler";
 import { ProviderSessionRegistry } from "./provider-session-registry";
 import type { ResourceController } from "./resource-controller";
-import { randomUUID } from "node:crypto";
 import type { RuntimeAdapter, RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
 import { Scheduler } from "./scheduler";
 import { TaskLedger } from "./task-ledger";
@@ -43,7 +42,12 @@ export class ExecutionSupervisor {
       // A tripped provider is skipped; HALF_OPEN admits exactly one probe.
       if (this.breaker && !this.breaker.admit(runtime.id)) continue;
       const modelCalls = runtime.capabilities.consumesModel === false ? 0 : 1;
-      const session = new ProviderSessionRegistry(this.ledger).forRuntime(request.taskId, runtime.id) ?? { id: randomUUID(), taskId: request.taskId, provider: runtime.id, checkpoint: state.revision, health: "AVAILABLE", resumeStrategy: "RECONSTRUCT" as const };
+      const sessionRegistry = new ProviderSessionRegistry(this.ledger);
+      const workspaceId = state.workspace?.path;
+      const existingSession = sessionRegistry.forRuntime(request.taskId, runtime.id);
+      const session = existingSession ?? sessionRegistry.sessionFor(request.taskId, runtime.id, workspaceId);
+      // AP07a lifecycle: reusing an existing provider session means CONTINUE.
+      if (existingSession && existingSession.kind !== "CONTINUE") sessionRegistry.save({ ...existingSession, kind: "CONTINUE", ...(workspaceId ? { workspaceId } : {}) });
       this.ledger.update(request.taskId, "step started", (value) => {
         if (!value.sessions.some((item) => item.id === session.id)) value.sessions.push(session);
         value.activeProvider = runtime.id; value.sessionId = session.id; value.currentStep = request.jobId; value.nextAction = "WAIT_FOR_RESPONSE";

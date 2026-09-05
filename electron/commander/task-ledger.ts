@@ -8,7 +8,20 @@ import type { ConfigLayerName } from "../../src/shared/config-layering";
 import { resolveOperationalLimits, type OperationalLimitOverrides } from "../../src/shared/config-layering";
 import { validateReproductionSnapshot, type ReproductionSnapshot } from "../repro-snapshot";
 export interface Consumption { modelCalls: number; estimatedInputTokens: number; estimatedOutputTokens: number; toolCalls: number; browserActions: number; retries: number; workerRuntimeMs: number; providerWaitMs: number; }
-export interface WorkerSession { externalSessionId?: string; url?: string; id: string; provider: string; taskId: string; checkpoint: number; health: string; resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION" | "RESTORE_URL"; }
+export interface WorkerSession {
+  externalSessionId?: string;
+  url?: string;
+  id: string;
+  provider: string;
+  taskId: string;
+  checkpoint: number;
+  health: string;
+  resumeStrategy: "RECONSTRUCT" | "EXPLICIT_SESSION" | "RESTORE_URL";
+  /** Explicit lifecycle kind (AP07a); absent on legacy records = NEW. */
+  kind?: import("../../src/shared/session-state").SessionLifecycleKind;
+  /** Workspace the session belongs to (AP07a binding); resolved from task workspace. */
+  workspaceId?: string;
+}
 export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; }
 export interface TaskLedgerRecord {
   projectMemoryOwner?: string;
