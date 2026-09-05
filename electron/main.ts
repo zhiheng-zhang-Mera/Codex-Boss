@@ -339,6 +339,7 @@ if (ownsInstance) app.whenReady().then(() => {
     return record;
   });
   ipcMain.handle("boss:research-status", (_event, id: string) => researchLedgers?.load(id) ?? null);
+  ipcMain.handle("boss:research-list", () => researchLedgers?.list() ?? []);
   ipcMain.handle("boss:research-step", async (_event, id: string) => researchSupervisor?.step(id) ?? null);
   ipcMain.handle("boss:research-wait", (_event, input: { id: string; kind: InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => {
     const { id, ...rest } = input;

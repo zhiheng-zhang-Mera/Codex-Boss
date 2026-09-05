@@ -51,6 +51,7 @@ function App() {
   const [researchWorkspace, setResearchWorkspace] = useState("");
   const [researchAutonomy, setResearchAutonomy] = useState<"AUTOPILOT" | "GUIDED">("AUTOPILOT");
   const [researchStatus, setResearchStatus] = useState<{ id: string; state: string } | null>(null);
+  const [researchRuns, setResearchRuns] = useState<Array<{ id: string; goal: string; state: string; updatedAt: string }>>([]);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const followLatestRef = useRef(true);
@@ -88,7 +89,7 @@ function App() {
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
     void window.boss.projectState().then(setProjectState).catch(() => {});
-    const refreshProgress = () => { void window.boss.progress().then(setProgress).catch(() => {}); void window.boss.listInterventions().then((items) => setInterventions(items.filter((item) => !item.resolvedAt))).catch(() => {}); };
+    const refreshProgress = () => { void window.boss.progress().then(setProgress).catch(() => {}); void window.boss.listInterventions().then((items) => setInterventions(items.filter((item) => !item.resolvedAt))).catch(() => {}); void window.boss.researchList().then(setResearchRuns).catch(() => {}); };
     refreshProgress();
     const timer = window.setInterval(refreshProgress, 1500);
     const unsubscribe = window.boss.onSnapshot((next) => { setSnapshot(next); void window.boss.projectState().then(setProjectState).catch(() => {}); });
@@ -469,6 +470,7 @@ function App() {
           <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
           <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
           {researchStatus && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}</span><button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button></div>}
+          {researchRuns.length > 0 && <section className="research-runs"><b>已有研究</b>{researchRuns.slice(0, 20).map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 60)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string } }).ir.state })).catch(() => {})}>查看</button></div>)}</section>}
         </form> : <>
         <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>

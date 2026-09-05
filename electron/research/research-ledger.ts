@@ -68,6 +68,22 @@ export class ResearchLedger {
     return { schemaVersion: 1, ir: value.ir, decisions: value.decisions, checkpointReason: value.checkpointReason ?? "", revision: value.revision ?? 1 };
   }
 
+  /** Lists all research runs (id + goal + state + revision), newest first. */
+  list(): Array<{ id: string; goal: string; state: ResearchState; revision: number; updatedAt: string }> {
+    if (!fs.existsSync(this.root)) return [];
+    const runs = fs.readdirSync(this.root).filter((name) => name.endsWith(".json") && !name.startsWith(".")).map((name) => {
+      try {
+        const value = readJson<Partial<ResearchLedgerFile>>(path.join(this.root, name));
+        if (!value?.schemaVersion || !value.ir || !Array.isArray(value.decisions)) return undefined;
+        validateResearchIR(value.ir);
+        return { id: value.ir.id, goal: value.ir.goal, state: value.ir.state, revision: value.revision ?? 1, updatedAt: value.ir.updatedAt };
+      } catch {
+        return undefined; // corrupt/unreadable single run never breaks the list
+      }
+    }).filter((run): run is { id: string; goal: string; state: ResearchState; revision: number; updatedAt: string } => run !== undefined);
+    return runs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   appendDecision(id: string, entry: Omit<ResearchDecisionEntry, "at">): ResearchDecisionEntry {
     const record = this.require(id);
     const decision: ResearchDecisionEntry = { ...entry, at: new Date().toISOString() };
