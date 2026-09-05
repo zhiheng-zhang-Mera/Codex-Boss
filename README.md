@@ -76,7 +76,7 @@ see `docs/9-5-ap*.md`) and adds Research mode:
 - 3-AI horizontal panes with per-pane auto zoom and persisted provider order.
 - Live progress summaries from the domain bus (never private chain-of-thought).
 - Autopilot + human-guidance gate (pause only for real user decisions).
-- Research mode (`Chat | Work | Research`): goal + workspace + web-AI reviewers -> research state machine (SCOPING...READY) -> structured research runtime -> protocol freeze/amendment -> citation ladder -> deterministic statistics + evidence graph -> section-by-section manuscript + audit.
-- Decision rule is fixed to evidence > vote: no claim is adopted by vote alone without verified experiment evidence.
+- Research mode (`Chat | Work | Research`): goal + workspace + web-AI reviewers -> research state machine (SCOPING...READY) -> structured research runtime -> protocol freeze/amendment (GUI freeze control) -> citation ladder -> deterministic statistics + evidence graph (full Question→Hypothesis→Protocol→Experiment→Run→Statistic→Claim→Figure→Paper-Sentence chain) -> section-by-section manuscript (reviewer gate, verified references.bib, embedded figures) + audit (reproducibility + citation audit).
+- Decision rule is fixed to evidence > vote: no claim is adopted by vote alone without verified experiment evidence; failed experiment runs never count as evidence.
 
-Progress and outstanding boundaries: `docs/9-6-research-progress.md` and each `docs/9-6-research-phase*.md`. Final Level-A/Level-B live E2E (real repo + web-AI reviewers + real experiments + manuscript PDF) requires a GUI tool session per the research plan Final Acceptance and is never replaced by mocks/fixtures.
+Progress and outstanding boundaries: `docs/9-6-research-progress.md` and each `docs/9-6-research-phase*.md` / `docs/9-6-research-round*.md`. Final Level-A/Level-B live E2E (real repo + web-AI reviewers + real experiments + manuscript PDF) requires a GUI tool session per the research plan Final Acceptance and is never replaced by mocks/fixtures; the exact steps are in `docs/9-6-live-acceptance-runbook.md` and per-run verdicts are produced by `scripts/acceptance-research-audit.cjs`.
