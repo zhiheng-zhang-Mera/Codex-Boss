@@ -69,6 +69,24 @@ describe("research ledger + supervisor (Phase 5)", () => {
     expect(ledger.load("r1")!.ir.state).toBe("FAILED");
   });
 
+  it("resumes only from control states back to SCOPING (round 7)", () => {
+    const dir = root();
+    const ledger = new ResearchLedger(dir);
+    ledger.create(ir());
+    const supervisor = new ResearchSupervisor({ ledger, executor: { async run() { return { summary: "x" }; } } });
+    // WAITING_FOR_USER → resume() → SCOPING
+    supervisor.wait("r1", "WAITING_FOR_USER", "choose direction");
+    expect(supervisor.resume("r1")).toBe(true);
+    expect(ledger.load("r1")!.ir.state).toBe("SCOPING");
+    // A normal/terminal state is not resumable.
+    ledger.setState("r1", "PROTOCOL_FROZEN", "frozen");
+    expect(supervisor.resume("r1")).toBe(false);
+    ledger.setState("r1", "FAILED", "stop");
+    expect(supervisor.resume("r1")).toBe(false);
+    // Unknown id is a no-op (false), never throws.
+    expect(supervisor.resume("ghost")).toBe(false);
+  });
+
   it("produces a stable protocol hash", () => {
     expect(protocolHash({ hypothesis: "h", metric: "m" })).toBe(protocolHash({ metric: "m", hypothesis: "h" }));
     expect(protocolHash("a")).not.toBe(protocolHash("b"));

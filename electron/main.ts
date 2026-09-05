@@ -317,7 +317,12 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:progress", () => ({ summaries: progressAggregator?.summaries() ?? [], detail: (progressAggregator?.detail() ?? []).slice(-100) }));
   ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
   ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);
-  ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => humanGuidance?.resolve(taskId, kind, answer));
+  ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => {
+    const resolved = humanGuidance?.resolve(taskId, kind, answer);
+    // If the paused task is a research run, resume it from its control state.
+    if (resolved && researchSupervisor?.resume(taskId)) domainEvents.publish({ type: "HUMAN_APPROVED", taskId, message: "intervention answered; research resumed" });
+    return resolved;
+  });
 
   // Research mode (plan 9-6 Phase 5+): durable ledger + protocol manager surface.
   ipcMain.handle("boss:research-start", (_event, input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }) => {

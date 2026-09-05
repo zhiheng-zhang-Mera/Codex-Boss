@@ -64,6 +64,16 @@ export class ResearchSupervisor {
     this.options.ledger.setState(id, state, reason);
   }
 
+  /** Resumes a run paused at a control state back to SCOPING (user answered / provider ready). */
+  resume(id: string): boolean {
+    const record = this.options.ledger.load(id);
+    if (!record) return false;
+    const state = record.ir.state;
+    if (state !== "WAITING_FOR_USER" && state !== "WAITING_FOR_PROVIDER" && state !== "RECOVERING") return false;
+    this.options.ledger.setState(id, "SCOPING", `resumed from ${state}`);
+    return true;
+  }
+
   fail(id: string, reason: string): void {
     this.options.ledger.setState(id, "FAILED", reason);
   }
