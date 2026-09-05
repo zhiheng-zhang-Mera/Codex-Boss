@@ -42,6 +42,11 @@ function App() {
   const [customUrl, setCustomUrl] = useState("https://");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [view, setView] = useState<"chat" | "work" | "research">("chat");
+  const [researchGoal, setResearchGoal] = useState("");
+  const [researchWorkspace, setResearchWorkspace] = useState("");
+  const [researchAutonomy, setResearchAutonomy] = useState<"AUTOPILOT" | "GUIDED">("AUTOPILOT");
+  const [researchStatus, setResearchStatus] = useState<{ id: string; state: string } | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const followLatestRef = useRef(true);
@@ -175,6 +180,23 @@ function App() {
       const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
       setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, workspacePath: workspacePath.trim() || undefined, reviewPolicy: { mode: reviewMode, maxRetries: 2 }, finalizationPolicy: finalizationPolicy || undefined, transportByProvider: appMode === "chat" ? {} : transportChoices, conversationId: snapshot.activeConversationId }));
       setPrompt("");
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function startResearch(event: React.FormEvent) {
+    event.preventDefault();
+    if (!researchGoal.trim() || !researchWorkspace.trim() || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      if (!selectedProviders.length) throw new Error("Research 需要至少一个已打开的网页 AI 作为 reviewer");
+      const record = await window.boss.researchStart({ goal: researchGoal.trim(), workspace: researchWorkspace.trim(), reviewers: selectedProviders, autonomy: researchAutonomy }) as { ir: { id: string; state: string } };
+      setResearchStatus({ id: record.ir.id, state: record.ir.state });
+      setResearchGoal("");
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -414,7 +436,16 @@ function App() {
       </div>
 
       <div className="composer-zone">
-        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div>
+        <div className="top-view-nav"><button className={view === "chat" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("chat"); setAppMode("chat"); } }}>Chat</button><button className={view === "work" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("work"); setAppMode("work"); } }}>Work</button><button className={view === "research" ? "active" : ""} onClick={() => { if (!prompt.trim()) setView("research"); }}>Research</button></div>
+        {view === "research" ? <form className="research-launcher" onSubmit={startResearch}>
+          <label>Research Goal <textarea aria-label="研究目标" value={researchGoal} maxLength={20000} onChange={(event) => setResearchGoal(event.target.value)} rows={2} placeholder="例如：研究 Codex Boss 的证据化多 AI 决策 vs 多数投票，完成真实实验并写 pre-print" /></label>
+          <label>Workspace <input aria-label="研究仓库" value={researchWorkspace} onChange={(event) => setResearchWorkspace(event.target.value)} placeholder="本地仓库目录" /></label>
+          <label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
+          <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
+          <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
+          {researchStatus && <p role="status">研究 {researchStatus.id} · 当前阶段 {researchStatus.state}（Research Progress 面板见对话区进度条）</p>}
+        </form> : <>
+        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>
         <div className="provider-picker">
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>

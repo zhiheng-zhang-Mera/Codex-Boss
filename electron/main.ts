@@ -36,6 +36,9 @@ import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
 import { attachProgressRecorder } from "./commander/progress-recorder";
 import { HumanGuidanceGate } from "./commander/human-guidance-gate";
+import { ResearchLedger } from "./research/research-ledger";
+import { ProtocolManager } from "./research/protocol-manager";
+import type { ResearchIR } from "../src/shared/research-ir";
 import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
@@ -64,6 +67,8 @@ let domainEventBus: DomainEventBus | undefined;
 let detachContinuationWaker: (() => void) | undefined;
 let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] | undefined;
 let humanGuidance: HumanGuidanceGate | undefined;
+let researchLedgers: ResearchLedger | undefined;
+let researchProtocols: ProtocolManager | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -253,6 +258,8 @@ if (ownsInstance) app.whenReady().then(() => {
   domainEventBus = domainEvents;
   progressAggregator = attachProgressRecorder(domainEvents).aggregator;
   humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
+  researchLedgers = new ResearchLedger(path.join(app.getPath("userData"), ".boss", "research"));
+  researchProtocols = new ProtocolManager(path.join(app.getPath("userData"), ".boss", "research-protocols"));
   attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
@@ -307,6 +314,28 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
   ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);
   ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => humanGuidance?.resolve(taskId, kind, answer));
+
+  // Research mode (plan 9-6 Phase 5+): durable ledger + protocol manager surface.
+  ipcMain.handle("boss:research-start", (_event, input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }) => {
+    if (!input.goal.trim() || !input.workspace.trim()) throw new Error("Research goal and workspace are required");
+    if (!input.reviewers.length) throw new Error("Research requires at least one reviewer");
+    const ir: ResearchIR = {
+      schemaVersion: 1,
+      id: input.id ?? `research-${Date.now()}`,
+      goal: input.goal.trim(),
+      scope: { workspace: input.workspace.trim(), allowedDomains: [], reviewers: input.reviewers, autonomy: input.autonomy ?? "AUTOPILOT", budget: { maxExperiments: input.maxExperiments ?? 5, maxSteps: input.maxSteps ?? 100 } },
+      state: "SCOPING",
+      researchQuestions: [],
+      hypotheses: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const record = researchLedgers!.create(ir);
+    domainEvents.publish({ type: "TOOL_RESULT_READY", taskId: ir.id, message: `research ${ir.id} started` });
+    return record;
+  });
+  ipcMain.handle("boss:research-status", (_event, id: string) => researchLedgers?.load(id) ?? null);
+  ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => researchProtocols?.freeze(id, protocol));
   ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
     const target = workspaceId ?? workspaces.activeWorkspaceId();
     return openProjectState(target).summary(target);
