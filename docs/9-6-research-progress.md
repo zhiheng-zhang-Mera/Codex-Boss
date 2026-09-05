@@ -309,6 +309,13 @@ cores plus live web-AI novelty review.
 - Tests: `research-service` (5) + `levela-planner` (4) green; handoff
   `docs/9-6-research-round26-levela-start.md`.
 
+## Round 27 — Reviewer gate in the manuscript pipeline (done)
+
+- Assembler accepts a `SectionReviewer`; a section is REVISED only after reviewer approval (or
+  absent) AND evidence check; reviewer notes recorded. Backward compatible.
+- Tests: `research-manuscript` (4) + `citation-audit` (6) + `research-artifact-tree` (2) green;
+  handoff `docs/9-6-research-round27-reviewer-gate.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

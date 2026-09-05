@@ -17,6 +17,15 @@ export interface SectionWriter {
   write(brief: SectionBrief, revision: number): Promise<string>;
 }
 
+/**
+ * Deterministic/live reviewer of one drafted section (plan Phase 11: brief →
+ * draft → reviewer → evidence check → revision). Returning approved:false adds
+ * notes and forces another revision (bounded by maxRevisions).
+ */
+export interface SectionReviewer {
+  review(input: { section: ManuscriptSection; content: string; revision: number }): Promise<{ approved: boolean; notes: string[] }>;
+}
+
 export interface ManuscriptOptions {
   title: string;
   authors?: string[];
@@ -24,6 +33,7 @@ export interface ManuscriptOptions {
   claims: Array<{ id: string; evidenceIds: string[] }>;
   evidenceIds: string[];             // available evidence node ids (from EvidenceGraph)
   writer: SectionWriter;
+  reviewer?: SectionReviewer;
   maxRevisions?: number;
   /** Deterministic reproducibility audit (round 11); written when supplied. */
   reproducibility?: import("../evidence/repro-audit").ReproducibilityAudit;
@@ -58,14 +68,27 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
     const brief = sectionBriefFor(options, section);
     let content = "";
     let status: SectionDraft["status"] = "REVISED";
+    const reviewerNotes: string[] = [];
     for (let revision = 0; revision <= maxRevisions; revision += 1) {
       content = await options.writer.write(brief, revision);
+      // Reviewer gate (plan Phase 11): draft → reviewer → evidence check.
+      if (options.reviewer) {
+        const review = await options.reviewer.review({ section, content, revision });
+        reviewerNotes.push(...review.notes);
+        if (!review.approved) {
+          status = "REVIEWED";
+          if (revision < maxRevisions) continue; // force another revision
+        }
+      }
       const verdict = evidenceCheckDraft({ section, allowedEvidenceIds: brief.evidenceIds, content }, available);
-      if (verdict.passed) break;
+      if (verdict.passed) {
+        status = "REVISED"; // reviewer approved (or absent) AND evidence check cleared
+        break;
+      }
       status = "EVIDENCE_CHECKED";
       if (revision === maxRevisions) content += "\n\n<!-- evidence check: " + verdict.missingEvidence.join(", ") + " -->";
     }
-    sections[section] = { section, status, allowedEvidenceIds: brief.evidenceIds, content, revisions: content.includes("evidence check") ? maxRevisions : 0, updatedAt: new Date().toISOString() };
+    sections[section] = { section, status, allowedEvidenceIds: brief.evidenceIds, content, reviewerNotes, revisions: content.includes("evidence check") ? maxRevisions : 0, updatedAt: new Date().toISOString() };
   }
 
   const paperMd = assembleMarkdown(options, sections);

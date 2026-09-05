@@ -50,4 +50,24 @@ describe("manuscript assembler (Phase 11 electron)", () => {
     expect(JSON.parse(fs.readFileSync(path.join(dir, "r1", "audit", "final-audit.json"), "utf8")).passed).toBe(true);
     expect(output.paperMd).toContain("# Multi-Agent Study");
   });
+
+  it("runs the reviewer gate: unapproved sections are revised and notes are recorded", async () => {
+    const dir = root();
+    const writer = { async write(brief: { section: string; evidenceIds: string[] }, revision: number) {
+      return `${brief.section} draft rev ${revision} ${brief.evidenceIds.map((id) => "@" + id).join(" ")}`;
+    } };
+    // Deterministic reviewer: rejects the first two drafts of "results", then approves.
+    const reviewer = { async review(input: { section: string; content: string; revision: number }) {
+      if (input.section === "results" && input.revision < 2) return { approved: false, notes: [`results needs more support (rev ${input.revision})`] };
+      return { approved: true, notes: ["ok"] };
+    } };
+    const output = await assembleManuscript(dir, { title: "Study", plan, claims, evidenceIds, writer, reviewer });
+    const results = output.sections.results;
+    expect(results.content).toContain("rev 2"); // rejected at rev 0 and 1 → final draft is rev 2
+    expect(results.reviewerNotes.some((note) => note.includes("results needs more support"))).toBe(true);
+    // Approved sections (e.g. methods) keep a single revision and their note.
+    expect(output.sections.methods.content).toContain("rev 0");
+    // final audit still passes (sections REVISED once evidence check clears).
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "r1", "audit", "final-audit.json"), "utf8")).passed).toBe(true);
+  });
 });
