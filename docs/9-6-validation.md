@@ -8,9 +8,10 @@ items 7–9 (real evidence, docs update, full test/typecheck/build) and Final Ac
 
 - Full suite: **108 files / 504 tests PASS** (last recorded full run after the round-27
   manuscript reviewer-gate slice; re-run before any further slice).
-- typecheck (renderer + electron) PASS; renderer build + electron build PASS individually
-  (`pnpm run build` aggregate fails only because nested `pnpm` cannot resolve through corepack
-  here; each underlying step is green).
+- typecheck (renderer + electron) PASS; `build:renderer` PASS; `build:electron` PASS — full
+  verification gate re-run after rounds 13–27 shared-module additions (`pnpm run build`
+  aggregate fails only because nested `pnpm` cannot resolve through corepack here; each
+  underlying step is green).
 
 ### BOSS v1–v3 packs (branch 9-5, carried into 9-6-research)
 
