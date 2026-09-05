@@ -26,7 +26,15 @@ function parseStructuredClaims(content: string): StructuredClaim[] {
 
 export function buildEvidenceBundle(task: BossTask, artifacts: RawArtifact[], council?: CouncilSession, previousReview?: EvidenceBundle["codexReview"]): EvidenceBundle {
   const taskArtifacts = artifacts.filter((artifact) => artifact.taskId === task.id);
-  const manifest = taskArtifacts.map((artifact) => ({ artifactId: artifact.id, providerId: artifact.providerId, sha256: sha256(artifact.content), bytes: Buffer.byteLength(artifact.content, "utf8"), capturedAt: artifact.capturedAt })).sort((a, b) => a.artifactId.localeCompare(b.artifactId));
+  const manifest = taskArtifacts.map((artifact) => {
+    // Conformance (AP05a): the artifact records its own content hash at capture.
+    // If present it must match what we compute now — fail closed rather than
+    // silently re-hashing content that was mutated after capture.
+    const computed = sha256(artifact.content);
+    const stored = artifact.contentHash ?? computed;
+    if (stored !== computed) throw new Error(`Artifact content hash mismatch: ${artifact.id}`);
+    return { artifactId: artifact.id, providerId: artifact.providerId, sha256: stored, bytes: Buffer.byteLength(artifact.content, "utf8"), capturedAt: artifact.capturedAt };
+  }).sort((a, b) => a.artifactId.localeCompare(b.artifactId));
   const integrityRoot = sha256(manifest.map((item) => `${item.artifactId}:${item.sha256}`).join("\n"));
   const labelMap = proposalLabels(taskArtifacts);
   const claims: ClaimRecord[] = [];

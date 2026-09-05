@@ -72,6 +72,8 @@ export interface ProviderRun {
   updatedAt: string;
 }
 
+export type ArtifactClassification = "PUBLIC" | "INTERNAL" | "SECRET" | "GUARDIAN";
+
 export interface RawArtifact {
   id: string;
   taskId: string;
@@ -82,6 +84,14 @@ export interface RawArtifact {
   capturedAt: string;
   sourceUrl: string;
   untrusted: true;
+  /** Artifact schema version (plan §4.3/§6); 1 = conformance fields present. */
+  version?: 1;
+  /** sha256 of `content` computed at capture; evidence engine verifies it fail-closed. */
+  contentHash?: string;
+  /** Executor that produced the artifact (e.g. "web:chatgpt", "local:native"). */
+  producer?: string;
+  /** Security classification; defaults to INTERNAL (plan §18 vocabulary reserved). */
+  classification?: ArtifactClassification;
 }
 
 export interface CouncilFinding {

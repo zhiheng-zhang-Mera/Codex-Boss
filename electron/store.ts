@@ -1,7 +1,7 @@
 import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
@@ -263,7 +263,9 @@ export class StateStore {
     task.executionPhase = "RESPONSE_RECEIVED";
     const council = this.snapshotValue.councils.find((item) => item.taskId === run.taskId);
     const kind: RawArtifact["kind"] = council?.stage === "proposals" ? "proposal" : council?.stage === "peer_review" ? "peer_review" : council?.stage === "synthesis" ? "synthesis" : "response";
-    const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: content.slice(0, 100000), capturedAt: new Date().toISOString(), sourceUrl, untrusted: true };
+    const storedContent = content.slice(0, 100000);
+    const producer: string = run.providerId.startsWith("native:") || run.providerId === "local:plan" ? "local:native" : `${run.transport}:${run.providerId}`;
+    const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: storedContent, capturedAt: new Date().toISOString(), sourceUrl, untrusted: true, version: 1, contentHash: sha256Hex(storedContent), producer, classification: "INTERNAL" };
     this.snapshotValue.artifacts.unshift(artifact);
     run.artifactId = artifact.id;
     run.response = { taskId: run.taskId, workerId: run.providerId, responseId: artifact.id, content: artifact.content, outcome: "SUCCESS" };
@@ -701,6 +703,10 @@ function validCommandPrefix(value: string): string {
   const prefix = value.trim();
   if (!/^\/[^\s]{1,19}$/.test(prefix)) throw new Error("指令前缀必须以 / 开头，长度为 2–20 且不能包含空格");
   return prefix;
+}
+
+export function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function remoteChannelDefaults(now: string): RemoteChannelSetting[] {
