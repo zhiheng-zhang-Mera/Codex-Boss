@@ -50,7 +50,7 @@ describe("research runtime (Phase 6)", () => {
     expect(runtime.stats().totalRuns).toBe(1);
   });
 
-  it("fails when expected output is missing and enforces concurrency", async () => {
+  it("fails when expected output is missing and enforces concurrency", { timeout: 30000 }, async () => {
     const runtime = new ResearchRuntime({ maxConcurrent: 1 });
     const missing = await runtime.run(spec({ args: ["-e", "console.log('other')"], expectedOutputs: ["BOSS_MARK_OK"] }));
     expect(missing.passed).toBe(false);

@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import type { ResearchStageExecutor, StageOutcome } from "./research-supervisor";
 import type { ResearchIR, ResearchState } from "../../src/shared/research-ir";
 import { scanRepo } from "../engineering/repo-inspector";
@@ -57,12 +56,4 @@ export class DefaultLevelBExecutor implements ResearchStageExecutor {
         return { summary: `stage ${input.stage} has no deterministic offline work in the default executor; recorded as placeholder` };
     }
   }
-}
-
-/** Persists a research output tree stub (plan Phase 11 shape) for a ready run. */
-export function researchOutputDir(directory: string, id: string): string {
-  const dir = path.join(directory, id, "research");
-  fs.mkdirSync(dir, { recursive: true });
-  for (const sub of ["literature", "experiments", "analysis", "evidence", "manuscript/figures", "audit"]) fs.mkdirSync(path.join(dir, sub), { recursive: true });
-  return dir;
 }

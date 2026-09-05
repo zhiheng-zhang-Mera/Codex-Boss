@@ -294,6 +294,14 @@ cores plus live web-AI novelty review.
 - Tests: `research-artifact-tree` (2) + `research-service` (4) green; handoff
   `docs/9-6-research-round24-snapshots.md`.
 
+## Round 25 — Remove stale researchOutputDir stub (done)
+
+- Deleted the unused `researchOutputDir` helper whose `<dir>/<id>/research/…` layout
+  contradicted the real artifact tree (`<dir>/<id>/research-ir.json|protocol.json|manuscript/|
+  audit/`); executor logic unchanged.
+- Tests: `levelb-executor` (2) + `research-service` (4) + `research-artifact-tree` (2) green;
+  handoff `docs/9-6-research-round25-cleanup.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
