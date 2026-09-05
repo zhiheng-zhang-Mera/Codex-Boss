@@ -137,4 +137,14 @@ export class ResearchService {
   manuscriptClaims(id: string): ManuscriptClaimsDerivation {
     return manuscriptClaimsFromGraph(this.evidence, id);
   }
+
+  /**
+   * Registers a figure node bound to its source runs (round 22). Call after a
+   * figure file was written (e.g. via manuscript figures) so a paper figure is
+   * traceable in the evidence graph to the exact runs that produced it.
+   * Returns the figure node id (e.g. `figure:accuracy`).
+   */
+  registerFigure(id: string, figureId: string, sourceRunIds: string[], label?: string): string {
+    return this.evidence.addFigure(id, figureId, sourceRunIds, label);
+  }
 }

@@ -75,6 +75,19 @@ export class EvidenceGraph {
     this.write(id, file);
   }
 
+  /**
+   * Registers a figure-table node (round 22) bound to the source run/metric
+   * evidence nodes it plots, so a paper figure is traceable to the recorded
+   * runs that produced it (plan chain … Run → Metric → Statistic → Claim →
+   * Figure/Table → Paper Sentence).
+   */
+  addFigure(id: string, figureId: string, sourceNodeIds: string[], label = `figure ${figureId}`): string {
+    const nodeId = `figure:${figureId}`;
+    this.addNode(id, { id: nodeId, kind: "figure-table", label });
+    for (const source of sourceNodeIds) this.addEdge(id, source, nodeId);
+    return nodeId;
+  }
+
   runs(id: string): PrimaryRunRecord[] {
     const dir = this.dir(id);
     return fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.startsWith("run-") && name.endsWith(".json")).map((name) => readJson<PrimaryRunRecord>(path.join(dir, name))!).filter(Boolean) : [];

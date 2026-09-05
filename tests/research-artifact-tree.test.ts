@@ -78,6 +78,13 @@ describe("full offline artifact tree (freeze → real runs → analysis → audi
     const figureSvg = fs.readFileSync(path.join(rootDir, "manuscript", "figures", "accuracy.svg"), "utf8");
     expect(figureSvg).toContain("accuracy by run");
     expect(figureSvg).toContain("run 1");
+    // The figure is traceable in the evidence graph to the exact runs it plots.
+    const figureNode = svc.registerFigure(id, "accuracy", runs.map((run) => `run:${run.runId}`), "accuracy by run");
+    expect(figureNode).toBe("figure:accuracy");
+    const graph = svc.evidence.graph(id);
+    expect(graph.nodes.some((node) => node.id === "figure:accuracy" && node.kind === "figure-table")).toBe(true);
+    const graphRunIds = runs.map((run) => `run:${run.runId}`);
+    expect(graph.edges.filter((edge) => edge.to === "figure:accuracy").map((edge) => edge.from).sort()).toEqual([...graphRunIds].sort());
     const citations = JSON.parse(fs.readFileSync(output.audit.citationsFile, "utf8"));
     expect(citations.unsupportedIds).toEqual(["cite:bad"]); // primary claim may not bind UNSUPPORTED
     const reproWritten = JSON.parse(fs.readFileSync(output.audit.reproducibilityFile, "utf8"));

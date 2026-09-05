@@ -272,6 +272,13 @@ cores plus live web-AI novelty review.
   run metrics) + `research-manuscript` (3) green; handoff
   `docs/9-6-research-round21-figures.md`.
 
+## Round 22 — Paper figures traceable in the evidence graph (done)
+
+- `EvidenceGraph.addFigure` registers `figure:<id>` (kind figure-table) bound to its source
+  run/evidence nodes; `ResearchService.registerFigure` facade.
+- Tests: `research-artifact-tree` (2, asserts run→figure edges) + `graph-claims` (4) +
+  `research-figures` (3) green; handoff `docs/9-6-research-round22-figure-traceability.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
