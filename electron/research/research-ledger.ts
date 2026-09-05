@@ -94,7 +94,14 @@ export class ResearchLedger {
   }
 
   setState(id: string, state: ResearchState, reason: string): ResearchLedgerFile {
-    return this.checkpoint(id, (record) => { record.ir.state = state; record.ir.updatedAt = new Date().toISOString(); }, reason);
+    return this.checkpoint(id, (record) => {
+      record.ir.state = state;
+      // A pendingStage only makes sense while parked at a control state (gate
+      // pause). Moving to a main/terminal state (freeze, fail, manual set)
+      // invalidates the pause: never resume into a stage that was superseded.
+      if (!["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(state)) delete record.ir.pendingStage;
+      record.ir.updatedAt = new Date().toISOString();
+    }, reason);
   }
 
   /** Pauses at a reviewer/decision gate: WAITING_FOR_PROVIDER + pendingStage (no main-state advance). */

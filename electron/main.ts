@@ -359,7 +359,23 @@ if (ownsInstance) app.whenReady().then(() => {
     const raised = humanGuidance?.raise({ taskId: id, ...rest, contextSummary: rest.contextSummary ?? rest.question.slice(0, 300) });
     return raised ?? null;
   });
-  ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => researchProtocols?.freeze(id, protocol));
+  ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => {
+    const result = researchProtocols?.freeze(id, protocol);
+    if (!result) return null;
+    // Mirror ResearchService.freeze: record the canonical hash on the run IR and
+    // move the run to PROTOCOL_FROZEN so later experiment/analysis steps bind to
+    // the frozen protocol (round 16 consistency fix). Only when the ledger run
+    // exists (started via boss:research-start).
+    if (researchLedgers?.load(id)) {
+      researchLedgers.checkpoint(id, (record) => {
+        record.ir.protocolHash = result.hash;
+        record.ir.state = "PROTOCOL_FROZEN";
+        delete record.ir.pendingStage;
+        record.ir.updatedAt = new Date().toISOString();
+      }, "protocol frozen (hash recorded)");
+    }
+    return result;
+  });
   ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
     const target = workspaceId ?? workspaces.activeWorkspaceId();
     return openProjectState(target).summary(target);

@@ -225,6 +225,14 @@ cores plus live web-AI novelty review.
   `repro-audit` (4) + `citation-audit` (3) green; handoff
   `docs/9-6-research-round15-artifact-tree.md`.
 
+## Round 16 — Pending-stage hygiene + GUI freeze consistency (done)
+
+- Ledger `setState` clears `pendingStage` on main/terminal transitions (freeze/fail) but keeps
+  it across control-state waits; main.ts `boss:research-protocol-freeze` mirrors
+  `ResearchService.freeze` (records ir.protocolHash + moves to PROTOCOL_FROZEN).
+- Tests: `research-supervisor` (8) + `research-service` (3) green; handoff
+  `docs/9-6-research-round16-pending-hygiene.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

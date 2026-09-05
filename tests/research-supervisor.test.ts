@@ -121,6 +121,23 @@ describe("research ledger + supervisor (Phase 5)", () => {
     expect(resumed.ir.pendingStage).toBeUndefined();
   });
 
+  it("clears pendingStage when a paused run moves to a main/terminal state (round 16)", () => {
+    const dir = root();
+    const ledger = new ResearchLedger(dir);
+    ledger.create(ir());
+    ledger.pauseAt("r1", "LITERATURE_REVIEW", "reviewer gate");
+    expect(ledger.load("r1")!.ir.pendingStage).toBe("LITERATURE_REVIEW");
+    // Freeze / fail / manual main-state moves invalidate the gate pause.
+    ledger.setState("r1", "PROTOCOL_FROZEN", "protocol frozen");
+    expect(ledger.load("r1")!.ir.state).toBe("PROTOCOL_FROZEN");
+    expect(ledger.load("r1")!.ir.pendingStage).toBeUndefined();
+    // A control-state transition (e.g. a human guidance wait on top of a gate
+    // pause) must keep the pending stage so resume() can return to it.
+    ledger.pauseAt("r1", "MANUSCRIPT", "manuscript gate");
+    ledger.setState("r1", "WAITING_FOR_USER", "guidance wait");
+    expect(ledger.load("r1")!.ir.pendingStage).toBe("MANUSCRIPT");
+  });
+
   it("produces a stable protocol hash", () => {
     expect(protocolHash({ hypothesis: "h", metric: "m" })).toBe(protocolHash({ metric: "m", hypothesis: "h" }));
     expect(protocolHash("a")).not.toBe(protocolHash("b"));
