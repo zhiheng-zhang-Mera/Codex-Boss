@@ -23,6 +23,7 @@ import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
+import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { durableFileFor } from "./workspace/durable-roots";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
@@ -55,6 +56,8 @@ let apiSettings: ApiSettingsStore;
 let providerApi: ProviderApiClient;
 let historyRepository: HistoryRepository;
 let remoteRelay: RemoteCommandRelay;
+let domainEventBus: DomainEventBus | undefined;
+let detachContinuationWaker: (() => void) | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -156,7 +159,9 @@ function attachProviderViews(): void {
   automation?.dispose();
   const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
   const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) return; await finalizer.finalize(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt));
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) return; await finalizer.finalize(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus);
+  detachContinuationWaker?.();
+  detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
 }
 
@@ -217,6 +222,7 @@ if (ownsInstance) app.whenReady().then(() => {
   const runtimeRegistry = new RuntimeRegistry();
   budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
   const domainEvents = new DomainEventBus();
+  domainEventBus = domainEvents;
   attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
@@ -362,7 +368,7 @@ if (ownsInstance) app.whenReady().then(() => {
     await automation.sendTask(taskId);
     return publish();
   });
-  ipcMain.handle("boss:release-review", async (_event, taskId: string) => { store.releaseReview(taskId); await automation.continueIfReady(taskId); return publish(); });
+  ipcMain.handle("boss:release-review", async (_event, taskId: string) => { store.releaseReview(taskId); domainEvents.publish({ type: "HUMAN_APPROVED", taskId, message: "operator approved the review gate" }); await automation.continueIfReady(taskId); return publish(); });
   ipcMain.handle("boss:capture-task", async (_event, taskId: string) => {
     await automation.captureTask(taskId);
     return publish();

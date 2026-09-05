@@ -9,6 +9,7 @@ import { StateStore } from "./store";
 import { AccountSessionManager } from "./account-sessions";
 import { isDispatchGroupSize } from "../src/shared/provider-policy";
 import { ProviderHttpError, ProviderApiClient, type ApiCompletion } from "./provider-api";
+import type { DomainEventBus } from "./commander/event-bus";
 
 type ProbeState = { content: string; stableCount: number };
 
@@ -30,8 +31,14 @@ export class ProviderAutomation {
     private readonly api: ProviderApiClient,
     private readonly onRoundComplete?: (taskId: string) => Promise<void>,
     private readonly onTaskComplete?: (taskId: string) => Promise<void>,
-    private readonly onRecovery?: (run: ProviderRun, strategy: "CAPTURE_EXISTING" | "RETRY_UNSENT", retryAt?: number) => void
+    private readonly onRecovery?: (run: ProviderRun, strategy: "CAPTURE_EXISTING" | "RETRY_UNSENT", retryAt?: number) => void,
+    private readonly events?: DomainEventBus
   ) {}
+
+  /** Publishes a TOOL_RESULT_READY domain event when a round's answers are fully collected (AP13). */
+  private notifyToolResultReady(taskId: string, runId: string): void {
+    this.events?.publish({ type: "TOOL_RESULT_READY", taskId, jobId: runId, message: "provider round answers collected" });
+  }
 
   async dispatchTask(taskId: string): Promise<void> {
     if (this.dispatching.has(taskId)) return;
@@ -154,6 +161,7 @@ export class ProviderAutomation {
     this.store.setTaskStatus(taskId, "running");
     for (const [runId, answer] of apiAnswers) this.store.captureArtifact(runId, answer.content, answer.sourceUrl);
     this.store.commitDispatchForRound(taskId, round);
+    if (apiAnswers.size) this.notifyToolResultReady(taskId, [...apiAnswers.keys()][0]);
     if (this.latestRuns(taskId).some((run) => run.phase === "waiting" || run.review?.status === "RETRY")) this.startMonitor(taskId);
     this.publish();
   }
