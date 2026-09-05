@@ -1,12 +1,22 @@
 import type { DomainEvent, DomainEventBus } from "../commander/event-bus";
 import type { TelemetryStore, TelemetryOutcome } from "./telemetry-store";
+import { redactSecrets } from "../../src/shared/secret-scan";
 
 /**
  * Bridges the domain bus (plan §13.1) into the Performance DB (plan §16): each
  * WORKER_COMPLETED / WORKER_FAILED event becomes a durable telemetry record
  * with decision → reason → outcome semantics.
+ *
+ * Failure reasons are sanitized with the §18 Log Sanitizer before persistence
+ * so a provider error that echoes a key never lands raw in the Performance DB
+ * (AP30 secret-tainted-log seed).
  */
-export function attachTelemetryRecorder(events: DomainEventBus, store: TelemetryStore, estimateTokens: (chars: number) => number = (chars) => Math.ceil(chars / 4)): () => void {
+export function attachTelemetryRecorder(
+  events: DomainEventBus,
+  store: TelemetryStore,
+  estimateTokens: (chars: number) => number = (chars) => Math.ceil(chars / 4),
+  sanitize: (text: string) => string = redactSecrets,
+): () => void {
   const record = (event: DomainEvent, outcome: TelemetryOutcome, reason?: string) => {
     if (!event.taskId || !event.jobId) return;
     const durationMs = event.result?.metrics?.durationMs ?? 0;
@@ -16,7 +26,7 @@ export function attachTelemetryRecorder(events: DomainEventBus, store: Telemetry
       runtimeId: event.runtimeId ?? "unknown",
       role: event.type === "WORKER_COMPLETED" ? "worker" : "worker",
       outcome,
-      ...(reason ? { reason } : {}),
+      ...(reason ? { reason: sanitize(reason) } : {}),
       modelCalls: 1,
       estimatedTokens: estimateTokens(event.message?.length ?? 0),
       latencyMs: durationMs,
