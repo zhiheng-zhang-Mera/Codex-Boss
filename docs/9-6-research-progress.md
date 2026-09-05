@@ -324,6 +324,14 @@ cores plus live web-AI novelty review.
 - Tests: `research-artifact-tree` (2, asserts claim/figure → paper edges) + `graph-claims` (4)
   green; handoff `docs/9-6-research-round28-paper-sentences.md`.
 
+## Round 29 — Paper embeds its figures (md + tex) (done)
+
+- Assembler now writes figures before building the paper; paper.md gains a `## Figures` section
+  with one image per real figure file; paper.tex gains `\usepackage{graphicx}` +
+  `\includegraphics` per figure and a bibliography when citations were supplied.
+- Tests: `research-figures` (3) + `research-manuscript` (4) + `citation-audit` (6) +
+  `research-artifact-tree` (2) green; handoff `docs/9-6-research-round29-paper-figures.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

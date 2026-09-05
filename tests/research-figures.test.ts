@@ -38,6 +38,14 @@ describe("manuscript figure writing", () => {
     const file = path.join(dir, "research", "r1", "manuscript", "figures", "runs.svg");
     expect(fs.existsSync(file)).toBe(true);
     expect(fs.readFileSync(file, "utf8")).toBe(svg);
+    // paper.md and paper.tex embed exactly the figure files that were written.
+    const paperMd = fs.readFileSync(path.join(dir, "research", "r1", "manuscript", "paper.md"), "utf8");
+    expect(paperMd).toContain("![runs.svg](figures/runs.svg)");
+    const paperTex = fs.readFileSync(path.join(dir, "research", "r1", "manuscript", "paper.tex"), "utf8");
+    expect(paperTex).toContain("\\includegraphics[width=\\linewidth]{runs.svg}");
+    // Returned in-memory content matches the files.
+    expect(output.paperMd).toContain("![runs.svg](figures/runs.svg)");
+    expect(output.paperTex).toContain("\\includegraphics");
   });
 
   it("leaves figures empty when none supplied (backward compatible)", async () => {

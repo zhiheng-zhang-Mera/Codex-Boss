@@ -91,13 +91,9 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
     sections[section] = { section, status, allowedEvidenceIds: brief.evidenceIds, content, reviewerNotes, revisions: content.includes("evidence check") ? maxRevisions : 0, updatedAt: new Date().toISOString() };
   }
 
-  const paperMd = assembleMarkdown(options, sections);
-  const paperTex = assembleLatex(options, sections);
   // Round-20: references.bib is generated from verified citation records when
   // supplied (never from AI-suggested titles alone); otherwise a stub header.
   const bibliography = options.citations ? referencesBib(options.citations) : `% References for ${options.title}\n`;
-  fs.writeFileSync(path.join(manuscriptDir, "paper.md"), paperMd, "utf8");
-  fs.writeFileSync(path.join(manuscriptDir, "paper.tex"), paperTex, "utf8");
   fs.writeFileSync(path.join(manuscriptDir, "references.bib"), bibliography, "utf8");
   // Round-21: write deterministic SVG figures (real recorded metrics) into
   // manuscript/figures/; never invented, only what the caller supplies.
@@ -107,6 +103,12 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
     fs.writeFileSync(path.join(manuscriptDir, "figures", safeName), figure.svg, "utf8");
     writtenFigures.push(safeName);
   }
+  // Build the paper bodies once the written figure names are known, so
+  // paper.md/paper.tex reference exactly the figures that exist on disk.
+  const paperMd = assembleMarkdown(options, sections, writtenFigures);
+  const paperTex = assembleLatex(options, sections, writtenFigures);
+  fs.writeFileSync(path.join(manuscriptDir, "paper.md"), paperMd, "utf8");
+  fs.writeFileSync(path.join(manuscriptDir, "paper.tex"), paperTex, "utf8");
 
   const citationsFile = path.join(auditDir, "citations.json");
   const reproducibilityFile = path.join(auditDir, "reproducibility.json");
@@ -136,15 +138,24 @@ function sectionBriefFor(options: ManuscriptOptions, section: ManuscriptSection)
   return { section, purpose: "", claimIds, evidenceIds };
 }
 
-function assembleMarkdown(options: ManuscriptOptions, sections: Record<string, SectionDraft>): string {
+function assembleMarkdown(options: ManuscriptOptions, sections: Record<string, SectionDraft>, figures: string[]): string {
   const lines = [`# ${options.title}`, ""];
   if (options.authors?.length) lines.push(...options.authors.map((author) => `- ${author}`), "");
   for (const section of MANUSCRIPT_SECTIONS) lines.push(`## ${section}`, "", sections[section].content, "");
+  // Figures section references only files actually written into manuscript/figures/.
+  if (figures.length) {
+    lines.push("## Figures", "");
+    for (const figure of figures) lines.push(`![${figure}](figures/${figure})`, "");
+  }
   return lines.join("\n");
 }
 
-function assembleLatex(options: ManuscriptOptions, sections: Record<string, SectionDraft>): string {
+function assembleLatex(options: ManuscriptOptions, sections: Record<string, SectionDraft>, figures: string[]): string {
   const command = { abstract: "abstract", introduction: "section{Introduction}", methods: "section{Methods}", results: "section{Results}", discussion: "section{Discussion}", conclusion: "section{Conclusion}" };
   const body = MANUSCRIPT_SECTIONS.map((section) => sections[section].content).join("\n\n");
-  return ["\\documentclass{article}", "\\begin{document}", `\\title{${options.title}}`, "\\maketitle", "\\begin{abstract}" + body + "\\end{abstract}", "\\end{document}"].join("\n");
+  const figureBlock = figures.length
+    ? "\n\\begin{figure}[h]\n\\includegraphics[width=\\linewidth]{" + figures.join("}\n\\includegraphics[width=\\linewidth]{") + "}\n\\end{figure}"
+    : "";
+  const bibliography = options.citations ? "\n\\bibliographystyle{plain}\n\\bibliography{references}" : "";
+  return ["\\documentclass{article}", "\\usepackage{graphicx}", "\\begin{document}", `\\title{${options.title}}`, "\\maketitle", "\\begin{abstract}" + body + "\\end{abstract}", figureBlock, bibliography, "\\end{document}"].join("\n");
 }
