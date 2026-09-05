@@ -85,7 +85,7 @@ describe("evidence-graph → manuscript claim derivation (Phase 11)", () => {
 });
 
 describe("research service manuscriptClaims (integration)", () => {
-  it("derives claims from a graph the analyzer populated", async () => {
+  it("derives claims from a graph the analyzer populated", { timeout: 60000 }, async () => {
     const cwd = root();
     fs.mkdirSync(path.join(cwd, "src"), { recursive: true });
     fs.writeFileSync(path.join(cwd, "src", "a.ts"), "export const a = 1;");

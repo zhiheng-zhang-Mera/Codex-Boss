@@ -50,8 +50,9 @@ function App() {
   const [researchGoal, setResearchGoal] = useState("");
   const [researchWorkspace, setResearchWorkspace] = useState("");
   const [researchAutonomy, setResearchAutonomy] = useState<"AUTOPILOT" | "GUIDED">("AUTOPILOT");
-  const [researchStatus, setResearchStatus] = useState<{ id: string; state: string } | null>(null);
-  const [researchRuns, setResearchRuns] = useState<Array<{ id: string; goal: string; state: string; updatedAt: string }>>([]);
+  const [researchStatus, setResearchStatus] = useState<{ id: string; state: string; protocolHash?: string } | null>(null);
+  const [protocolDraft, setProtocolDraft] = useState({ hypothesis: "", primaryMetric: "accuracy", baseline: "0.5", sampleDefinition: "sample", evaluationCriterion: "mean >= baseline" });
+  const [researchRuns, setResearchRuns] = useState<Array<{ id: string; goal: string; state: string; updatedAt: string; protocolHash?: string; pendingStage?: string }>>([]);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const followLatestRef = useRef(true);
@@ -204,8 +205,8 @@ function App() {
     setError("");
     try {
       if (!selectedProviders.length) throw new Error("Research 需要至少一个已打开的网页 AI 作为 reviewer");
-      const record = await window.boss.researchStart({ goal: researchGoal.trim(), workspace: researchWorkspace.trim(), reviewers: selectedProviders, autonomy: researchAutonomy }) as { ir: { id: string; state: string } };
-      setResearchStatus({ id: record.ir.id, state: record.ir.state });
+      const record = await window.boss.researchStart({ goal: researchGoal.trim(), workspace: researchWorkspace.trim(), reviewers: selectedProviders, autonomy: researchAutonomy }) as { ir: { id: string; state: string; protocolHash?: string } };
+      setResearchStatus({ id: record.ir.id, state: record.ir.state, protocolHash: record.ir.protocolHash });
       setResearchGoal("");
     } catch (reason) {
       setError(String(reason));
@@ -220,8 +221,8 @@ function App() {
     setError("");
     try {
       const next = await window.boss.researchStep(researchStatus.id) as { state: string } | null;
-      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string } } | null;
-      setResearchStatus(next ? { id: researchStatus.id, state: next.state } : refreshed ? { id: researchStatus.id, state: refreshed.ir.state } : researchStatus);
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string; protocolHash?: string } } | null;
+      setResearchStatus(next ? { id: researchStatus.id, state: next.state, protocolHash: researchStatus.protocolHash } : refreshed ? { id: researchStatus.id, state: refreshed.ir.state, protocolHash: refreshed.ir.protocolHash } : researchStatus);
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -237,9 +238,27 @@ function App() {
     try {
       const resumed = await window.boss.researchResume(researchStatus.id);
       if (!resumed) setError("该研究未处于可恢复的等待状态");
-      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string } } | null;
-      if (refreshed) setResearchStatus({ id: researchStatus.id, state: refreshed.ir.state });
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string; protocolHash?: string } } | null;
+      if (refreshed) setResearchStatus({ id: researchStatus.id, state: refreshed.ir.state, protocolHash: refreshed.ir.protocolHash });
       void window.boss.researchList().then(setResearchRuns).catch(() => {});
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  /** Freezes the research protocol via IPC (round 16 semantics: hash + PROTOCOL_FROZEN). */
+  async function freezeProtocol(event: React.FormEvent) {
+    event.preventDefault();
+    if (!researchStatus || sending) return;
+    if (!protocolDraft.hypothesis.trim()) { setError("Protocol 需要 hypothesis"); return; }
+    setSending(true);
+    setError("");
+    try {
+      const frozen = await window.boss.researchProtocolFreeze(researchStatus.id, { schemaVersion: 1, hypothesis: protocolDraft.hypothesis.trim(), primaryMetric: protocolDraft.primaryMetric.trim(), baseline: protocolDraft.baseline.trim(), sampleDefinition: protocolDraft.sampleDefinition.trim(), evaluationCriterion: protocolDraft.evaluationCriterion.trim(), createdAt: new Date().toISOString() }) as { hash?: string } | null;
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string; protocolHash?: string } } | null;
+      if (refreshed) setResearchStatus({ id: researchStatus.id, state: refreshed.ir.state, protocolHash: refreshed.ir.protocolHash ?? frozen?.hash });
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -487,8 +506,9 @@ function App() {
           <label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
           <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
           <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
-          {researchStatus && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}</span>{["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(researchStatus.state) ? <button type="button" disabled={sending} onClick={() => void resumeResearch()}>恢复研究（回到待办阶段）</button> : <button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button>}</div>}
-          {researchRuns.length > 0 && <section className="research-runs"><b>已有研究</b>{researchRuns.slice(0, 20).map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 60)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string } }).ir.state })).catch(() => {})}>查看</button></div>)}</section>}
+          {researchStatus && !researchStatus.protocolHash && <form className="research-status research-status-freeze" onSubmit={(event) => void freezeProtocol(event)}><b>冻结协议（实验前必填；冻结后不可静默修改）</b><label>Hypothesis <input aria-label="协议假设" value={protocolDraft.hypothesis} maxLength={2000} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, hypothesis: event.target.value }))} placeholder="H: 可证伪假设" /></label><label>Primary metric <input aria-label="主指标" value={protocolDraft.primaryMetric} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, primaryMetric: event.target.value }))} /></label><label>Baseline <input aria-label="基线" value={protocolDraft.baseline} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, baseline: event.target.value }))} /></label><label>Sample definition <input aria-label="样本定义" value={protocolDraft.sampleDefinition} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, sampleDefinition: event.target.value }))} /></label><label>Evaluation criterion <input aria-label="评估标准" value={protocolDraft.evaluationCriterion} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, evaluationCriterion: event.target.value }))} /></label><button type="submit" disabled={sending || !protocolDraft.hypothesis.trim()}>冻结协议</button></form>}
+          {researchStatus && researchStatus.protocolHash && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}{researchStatus.protocolHash ? ` · 协议已冻结 ${researchStatus.protocolHash.slice(0, 8)}` : ""}</span>{["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(researchStatus.state) ? <button type="button" disabled={sending} onClick={() => void resumeResearch()}>恢复研究（回到待办阶段）</button> : <button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button>}</div>}
+          {researchRuns.length > 0 && <section className="research-runs"><b>已有研究</b>{researchRuns.slice(0, 20).map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 60)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}{run.protocolHash ? " · 已冻结" : ""}{run.pendingStage ? ` · 待办 ${run.pendingStage}` : ""}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string; protocolHash?: string } }).ir.state, protocolHash: (record as { ir: { state: string; protocolHash?: string } }).ir.protocolHash })).catch(() => {})}>查看</button></div>)}</section>}
         </form> : <>
         <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>

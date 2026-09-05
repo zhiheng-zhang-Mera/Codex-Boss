@@ -370,6 +370,13 @@ cores plus live web-AI novelty review.
   citations, FAIL on UNSUPPORTED bound) green; handoff
   `docs/9-6-research-round33-audit-script.md`.
 
+## Round 34 — Protocol freeze control in the Research view (done)
+
+- Research view shows a freeze-protocol form when the open run is unfrozen (submit →
+  `researchProtocolFreeze` → status shows frozen hash + PROTOCOL_FROZEN); run rows display
+  已冻结/待办 from the list fields. typecheck + build:renderer PASS.
+- Handoff `docs/9-6-research-round34-freeze-ui.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
