@@ -23,6 +23,8 @@ import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
+import { TelemetryStore } from "./telemetry/telemetry-store";
+import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
@@ -208,6 +210,7 @@ if (ownsInstance) app.whenReady().then(() => {
   const runtimeRegistry = new RuntimeRegistry();
   budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
   const domainEvents = new DomainEventBus();
+  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
     for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
       const task = store.snapshot().tasks.find((task) => task.id === item.taskId);
