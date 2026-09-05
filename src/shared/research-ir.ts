@@ -81,6 +81,8 @@ export interface ResearchIR {
   goal: string;
   scope: ResearchScope;
   state: ResearchState;
+  /** When paused at a reviewer/decision gate, the stage to resume into. */
+  pendingStage?: ResearchState;
   protocolHash?: string;
   researchQuestions: string[];
   hypotheses: string[];
@@ -97,6 +99,7 @@ export function validateResearchIR(ir: ResearchIR): void {
   if (!["AUTOPILOT", "GUIDED"].includes(ir.scope.autonomy)) throw new Error("Invalid autonomy mode");
   if (!Number.isInteger(ir.scope.budget.maxExperiments) || ir.scope.budget.maxExperiments < 1 || !Number.isInteger(ir.scope.budget.maxSteps) || ir.scope.budget.maxSteps < 1) throw new Error("Invalid research budget");
   if (!RESEARCH_MAIN_STATES.includes(ir.state) && !["RECOVERING", "WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "FAILED"].includes(ir.state)) throw new Error("Invalid research state");
+  if (ir.pendingStage !== undefined && !RESEARCH_MAIN_STATES.includes(ir.pendingStage)) throw new Error("Invalid pending research stage");
 }
 
 /** Deterministic successor: control states return to SCOPING on resume unless FAILED/READY. */

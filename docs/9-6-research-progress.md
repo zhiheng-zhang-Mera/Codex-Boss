@@ -143,6 +143,18 @@ cores plus live web-AI novelty review.
   "查看" action that reopens a run into the status + advance control.
 - Tests: `research-ledger-list` (1).
 
+## Round 8 — Honest reviewer-gate pauses (done)
+
+- `ResearchIR.pendingStage` (resume-into-stage on a gate pause) + ledger `pauseAt` +
+  advance-clears-pending; supervisor `step()` no longer runs control states and honors
+  `StageOutcome.pause` (park at WAITING_FOR_PROVIDER, never advance); `resume()` returns to the
+  exact pending stage instead of restarting from SCOPING.
+- `DefaultLevelBExecutor` pauses at reviewer-gated stages (literature/RQ/design/analysis/
+  manuscript); `LevelBPipelineExecutor` flags the same gates as its injected-reviewer offline
+  stand-in and only proceeds there because reviewers are injected — no fabricated evidence.
+- Tests: `research-supervisor` (7) + `research-service` (3) + `levelb-executor` (2) +
+  `levelb-pipeline` (2) green; handoff `docs/9-6-research-round8-gate-pause.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

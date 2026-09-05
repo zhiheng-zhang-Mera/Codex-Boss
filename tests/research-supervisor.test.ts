@@ -87,6 +87,40 @@ describe("research ledger + supervisor (Phase 5)", () => {
     expect(supervisor.resume("ghost")).toBe(false);
   });
 
+  it("pauses at a reviewer-gated executor outcome and resumes to the pending stage (round 8)", async () => {
+    const dir = root();
+    const ledger = new ResearchLedger(dir);
+    ledger.create(ir());
+    const supervisor = new ResearchSupervisor({
+      ledger,
+      executor: {
+        async run(input) {
+          if (input.stage === "LITERATURE_REVIEW") return { summary: "needs reviewer", pause: true, pauseReason: "stage LITERATURE_REVIEW requires a web-AI reviewer" };
+          return { summary: `ran ${input.stage}` };
+        }
+      }
+    });
+    // SCOPING executes and advances to PROJECT_INSPECTION (no pause).
+    let out = await supervisor.step("r1");
+    expect(out.state).toBe("PROJECT_INSPECTION");
+    out = await supervisor.step("r1"); // → LITERATURE_REVIEW
+    expect(out.state).toBe("LITERATURE_REVIEW");
+    // LITERATURE_REVIEW pauses: WAITING_FOR_PROVIDER, pendingStage recorded, no advance.
+    out = await supervisor.step("r1");
+    expect(out.state).toBe("WAITING_FOR_PROVIDER");
+    const paused = ledger.load("r1")!;
+    expect(paused.ir.state).toBe("WAITING_FOR_PROVIDER");
+    expect(paused.ir.pendingStage).toBe("LITERATURE_REVIEW");
+    expect(paused.decisions.at(-1)?.decision).toBe("paused:LITERATURE_REVIEW");
+    // A step while paused must not silently restart the run.
+    expect((await supervisor.step("r1")).state).toBe("WAITING_FOR_PROVIDER");
+    // Resume returns exactly to the pending stage, not to SCOPING.
+    expect(supervisor.resume("r1")).toBe(true);
+    const resumed = ledger.load("r1")!;
+    expect(resumed.ir.state).toBe("LITERATURE_REVIEW");
+    expect(resumed.ir.pendingStage).toBeUndefined();
+  });
+
   it("produces a stable protocol hash", () => {
     expect(protocolHash({ hypothesis: "h", metric: "m" })).toBe(protocolHash({ metric: "m", hypothesis: "h" }));
     expect(protocolHash("a")).not.toBe(protocolHash("b"));

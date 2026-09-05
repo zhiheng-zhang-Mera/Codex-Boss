@@ -24,7 +24,7 @@ function protocol(): ResearchProtocol {
 }
 
 describe("research service facade (Phase 5-11 glue)", () => {
-  it("runs an offline autopilot journey: start → inspect → gate stages", async () => {
+  it("runs an offline autopilot journey: start → inspect → honest pause at reviewer gates", async () => {
     const dir = root();
     fs.mkdirSync(path.join(dir, "src"), { recursive: true });
     fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;");
@@ -40,11 +40,19 @@ describe("research service facade (Phase 5-11 glue)", () => {
     expect(second.state).toBe("LITERATURE_REVIEW");
     const record = service.status("svc1")!;
     expect(record.decisions.some((d) => d.stepId === "PROJECT_INSPECTION" && d.evidenceRefs?.[0]?.startsWith("repo:"))).toBe(true);
-    // Reviewer-gated stages are surfaced honestly (no fabricated evidence).
+    // Reviewer-gated stages pause (evidence > vote): the run parks at
+    // WAITING_FOR_PROVIDER with the pending stage recorded — it never advances
+    // past a gate no executor actually passed.
     const gated = await service.step("svc1");
-    expect(gated.state).toBe("QUESTION_FORMULATION"); // autopilot advances; decision reason flags reviewer need
-    const gatedDecision = service.status("svc1")!.decisions.find((d) => d.stepId === "LITERATURE_REVIEW")!;
+    expect(gated.state).toBe("WAITING_FOR_PROVIDER");
+    const paused = service.status("svc1")!;
+    expect(paused.ir.pendingStage).toBe("LITERATURE_REVIEW");
+    const gatedDecision = paused.decisions.find((d) => d.stepId === "LITERATURE_REVIEW")!;
     expect(gatedDecision.reason).toContain("requires web-AI reviewer");
+    // resume() returns to the exact pending stage, never a restart from SCOPING.
+    expect(service.supervisor.resume("svc1")).toBe(true);
+    expect(service.status("svc1")!.ir.state).toBe("LITERATURE_REVIEW");
+    expect(service.status("svc1")!.ir.pendingStage).toBeUndefined();
   });
 
   it("freezes a protocol (moves to PROTOCOL_FROZEN, records hash) and can fail a run", () => {

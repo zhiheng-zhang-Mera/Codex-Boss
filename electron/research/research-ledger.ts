@@ -54,6 +54,7 @@ export class ResearchLedger {
     return this.checkpoint(id, (record) => {
       const next = nextResearchState(record.ir.state, true);
       if (next) record.ir.state = next;
+      delete record.ir.pendingStage;
       record.ir.updatedAt = new Date().toISOString();
       if (!next) return;
     }, reason);
@@ -94,6 +95,15 @@ export class ResearchLedger {
 
   setState(id: string, state: ResearchState, reason: string): ResearchLedgerFile {
     return this.checkpoint(id, (record) => { record.ir.state = state; record.ir.updatedAt = new Date().toISOString(); }, reason);
+  }
+
+  /** Pauses at a reviewer/decision gate: WAITING_FOR_PROVIDER + pendingStage (no main-state advance). */
+  pauseAt(id: string, pendingStage: ResearchState, reason: string): ResearchLedgerFile {
+    return this.checkpoint(id, (record) => {
+      record.ir.state = "WAITING_FOR_PROVIDER";
+      record.ir.pendingStage = pendingStage;
+      record.ir.updatedAt = new Date().toISOString();
+    }, reason);
   }
 
   private require(id: string): ResearchLedgerFile {

@@ -37,7 +37,7 @@ describe("Level-B default executor (Phase 8)", () => {
     expect(record.decisions[0].reason).toContain("2 files");
   });
 
-  it("marks reviewer-gated stages honestly instead of fabricating evidence", async () => {
+  it("marks reviewer-gated stages honestly: pause instead of fabricating evidence", async () => {
     const dir = root();
     fs.mkdirSync(path.join(dir, "src"), { recursive: true });
     fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;");
@@ -46,6 +46,7 @@ describe("Level-B default executor (Phase 8)", () => {
     const executor = new DefaultLevelBExecutor();
     const outcome = await executor.run({ ir: ir(dir, "LITERATURE_REVIEW"), stage: "LITERATURE_REVIEW", workspace: dir });
     expect(outcome.summary).toContain("requires web-AI reviewer");
+    expect(outcome.pause).toBe(true);
     expect(outcome.evidenceRefs).toBeUndefined();
   });
 });
