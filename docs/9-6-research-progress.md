@@ -132,6 +132,9 @@ cores plus live web-AI novelty review.
   injected reviewer votes); RQ/literature/manuscript stages stay reviewer-gated, never
   fabricated.
 - Tests: `research-service` (3) + `levelb-pipeline` (2).
+- IPC `boss:research-wait` — pauses a research run (WAITING_FOR_USER) and raises a
+  HumanInterventionRequest so the guidance card can collect the decision; typecheck + targeted
+  tests green.
 
 ## Open / next
 
