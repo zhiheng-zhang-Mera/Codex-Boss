@@ -1,6 +1,20 @@
 # Codex Boss Desktop
 
-Codex Boss 是本地优先的 Electron 桌面控制器。`9-4` 分支已按 [执行计划](docs/9-4-plan.md) 完成稳定 **1.0.0** 的有界本机验收。真实网页、桌面、恢复、迁移和资源证据及其外推边界见 [V1.0 验收记录](docs/9-4-v1-hardening.md)。
+Codex Boss 是本地优先的 Electron 桌面控制器。`9-5` 分支收录当前最新本地版本及 2026-09-05 可见窗口运行 Demo；功能基线延续 `9-4` 按 [执行计划](docs/9-4-plan.md) 完成的稳定 **1.0.0** 有界本机验收。真实网页、桌面、恢复、迁移和资源证据及其外推边界见 [V1.0 验收记录](docs/9-4-v1-hardening.md)。
+
+## 9-5 可见窗口 Demo
+
+[观看 90 秒运行 Demo（WebM，无音频）](docs/media/codex-boss-9-5-demo.webm)
+
+Demo 使用 2026-09-05 的本地 `1897dd4` 构建，由 Computer Use 在真实 Codex Boss Electron 窗口中完成 History 收起/展开、Chat/Work 切换、Runtime Status 和执行证据查看；未发送新模型请求、未执行远程命令。录制元数据见 [JSON](docs/media/codex-boss-9-5-demo.webm.json)。录制前本地验证结果为 74 个测试文件、330 项测试全部通过，TypeScript 检查和生产构建通过。
+
+![Codex Boss Chat 主界面](docs/media/codex-boss-9-5-main.png)
+
+![Codex Boss Work 模式](docs/media/codex-boss-9-5-work.png)
+
+![Codex Boss Runtime Status](docs/media/codex-boss-9-5-runtime.png)
+
+![Codex Boss 执行与证据详情](docs/media/codex-boss-9-5-evidence.png)
 
 ## 当前可用路径
 
