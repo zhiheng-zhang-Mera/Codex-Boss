@@ -7,6 +7,7 @@ import { HistoryRepository, safeSegment } from "./history-repository";
 
 import { writeJson } from "./commander/durable-json";
 import { TaskLedger } from "./commander/task-ledger";
+import { applyStateStorageBudget, type LifecyclePruneReport } from "./commander/state-budget";
 import { sessionKindForResumeStrategy } from "../src/shared/session-state";
 import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
 
@@ -42,6 +43,23 @@ export class StateStore {
 
   snapshot(): AppSnapshot {
     return structuredClone(this.snapshotValue);
+  }
+
+  /**
+   * Applies the state.json storage budget (plan §17 seam): prunes terminal
+   * tasks beyond the per-conversation cap, cascade-removes orphaned rows, and
+   * optionally enforces TTL / run-history caps. Active work is never touched.
+   * Callers that pass a non-default policy must have already flushed their
+   * ledger checkpoints (ledger rows are keyed by taskId and are not pruned
+   * here). Idempotent.
+   */
+  applyStorageBudget(policy: Parameters<typeof applyStateStorageBudget>[1] = { maxCompletedTasksPerConversation: 0, maxRunsPerTask: 0, enforceTtl: false }): LifecyclePruneReport {
+    const { snapshot, report } = applyStateStorageBudget(this.snapshotValue, policy);
+    if (report.removed.length) {
+      this.snapshotValue = snapshot;
+      this.persist();
+    }
+    return report;
   }
 
   createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId, parentTaskId?: string, runtimeJobId?: string): BossTask {
