@@ -156,3 +156,13 @@ button { color: inherit; }
 .task-timeline li { color: #8d9395; font-size: 10px; }
 .task-timeline time { margin-right: 8px; color: #697174; }
 .task-timeline code { margin-left: 8px; color: #9cab91; }
+
+.conversation-context-menu { position: fixed; z-index: 60; display: flex; flex-direction: column; min-width: 168px; padding: 6px; border: 1px solid #3a4042; border-radius: 10px; background: #171b1d; box-shadow: 0 12px 30px #00000066; }
+.conversation-context-menu button { border: 0; border-radius: 6px; padding: 7px 10px; background: transparent; color: #d6d8d5; text-align: left; font-size: 12px; cursor: pointer; }
+.conversation-context-menu button:hover { background: #2a3133; }
+.conversation-context-menu button.menu-danger { color: #e58f85; }
+.conversation-context-menu .menu-separator { height: 1px; margin: 5px 2px; background: #33393b; }
+.history-conversation.archived .conversation-select span { color: #8a9092; text-decoration: line-through; }
+.conversation-menu-button { margin-left: auto; border: 0; background: transparent; color: #7c8284; padding: 2px 6px; cursor: pointer; border-radius: 6px; }
+.conversation-menu-button:hover { background: #2a3133; color: #d6d8d5; }
+.archive-toggle.active { background: #303923; color: #d9eba8; }

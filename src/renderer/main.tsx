@@ -3,6 +3,7 @@ import { timelineForTask } from "../shared/task-timeline";
 import { currentFinalResponse } from "../shared/final-response";
 import type { ProjectStateSummary } from "../shared/project-tree";
 import { HistoryNameDialog, type HistoryDialogState } from "./components/HistoryNameDialog";
+import { ConversationContextMenu, type ConversationMenuState } from "./components/ConversationContextMenu";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
@@ -26,6 +27,8 @@ function App() {
   const [workspacePath, setWorkspacePath] = useState("");
   const [transportChoices, setTransportChoices] = useState<Record<ProviderId, RunTransport>>({});
   const [historyDialog, setHistoryDialog] = useState<HistoryDialogState | null>(null);
+  const [conversationMenu, setConversationMenu] = useState<ConversationMenuState | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [projectState, setProjectState] = useState<ProjectStateSummary | null>(null);
@@ -163,6 +166,47 @@ function App() {
     }
   }
 
+  const visibleConversations = useMemo(() => snapshot.conversations.filter((conversation) => showArchived || !conversation.archived), [snapshot.conversations, showArchived]);
+
+  async function archiveConversation(conversationId: string) {
+    const target = snapshot.conversations.find((item) => item.id === conversationId);
+    if (!target) return;
+    const next = await window.boss.archiveConversation(conversationId, !target.archived);
+    setSnapshot(next);
+    if (next.activeConversationId !== conversationId) return;
+  }
+
+  async function deleteConversation(conversationId: string) {
+    if (!window.confirm("删除后该对话的任务、运行记录、原始证据与最终回答将一并删除（历史文件同步清理），且不可恢复。确认删除？")) return;
+    setSnapshot(await window.boss.deleteConversation(conversationId));
+  }
+
+  function openConversationMenu(event: React.MouseEvent, conversationId: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    setConversationMenu({ conversationId, x: event.clientX, y: event.clientY });
+  }
+
+  async function duplicateConversation(conversationId: string) {
+    const next = await window.boss.duplicateConversation(conversationId);
+    setSnapshot(next);
+    setPrompt("");
+  }
+
+  async function exportConversation(conversationId: string) {
+    try { await window.boss.exportConversation(conversationId); }
+    catch (reason) { setError(String(reason)); }
+  }
+
+  const menuActions = conversationMenu ? {
+    rename: (id: string) => { const conversation = snapshot.conversations.find((item) => item.id === id); if (conversation) renameConversation(id, conversation.title); },
+    move: (id: string) => { const conversation = snapshot.conversations.find((item) => item.id === id); const current = snapshot.folders.findIndex((item) => item.id === conversation?.folderId); const next = snapshot.folders[(current + 1) % snapshot.folders.length]; if (conversation && next) void window.boss.moveConversation(id, next.id).then(setSnapshot).catch((reason) => setError(String(reason))); },
+    duplicate: (id: string) => void duplicateConversation(id),
+    export: (id: string) => void exportConversation(id),
+    archive: (id: string) => void archiveConversation(id),
+    delete: (id: string) => void deleteConversation(id)
+  } : null;
+
   function toggleTransport(providerId: ProviderId) {
     if (prompt.trim()) return;
     setTransportChoices((current) => ({ ...current, [providerId]: current[providerId] === "api" ? "web" : "api" }));
@@ -255,14 +299,15 @@ function App() {
 
   return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""}`}>
     {historyDialog && <HistoryNameDialog state={historyDialog} onSubmit={saveHistoryName} onClose={() => setHistoryDialog(null)} />}
+    {conversationMenu && menuActions && <ConversationContextMenu state={conversationMenu} actions={menuActions} onClose={() => setConversationMenu(null)} />}
     <aside className="history-sidebar" aria-label="对话历史">
       <div className="history-toolbar">
         {!historyCollapsed && <div className="app-mode-switch"><button className={appMode === "chat" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("chat")}>Chat</button><button className={appMode === "work" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("work")}>Work</button></div>}
         <button className="history-toggle" title={historyCollapsed ? "展开历史记录" : "收起历史记录"} aria-label={historyCollapsed ? "展开历史记录" : "收起历史记录"} aria-expanded={!historyCollapsed} aria-controls="history-content" onClick={() => setHistoryCollapsed((value) => !value)}>{historyCollapsed ? "›" : "‹"}</button>
       </div>
       {!historyCollapsed && <div id="history-content" className="history-content">
-        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" aria-label="新建文件夹" onClick={() => void createFolder()}>▣</button></div>
-        <div className="history-folders">{snapshot.folders.map((folder) => <section key={folder.id} className="history-folder"><header><b>{folder.name}</b><button onClick={() => void createConversation(folder.id)}>＋</button><button onClick={() => void renameFolder(folder.id, folder.name)}>···</button></header>{snapshot.conversations.filter((conversation) => conversation.folderId === folder.id).map((conversation) => <div key={conversation.id} className={`history-conversation ${conversation.id === snapshot.activeConversationId ? "active" : ""}`}><button className="conversation-select" onClick={() => void window.boss.selectConversation(conversation.id).then(setSnapshot).catch((reason) => setError(String(reason)))}><span>{conversation.title}</span><small>{conversation.taskIds.length} 条任务</small></button><button className="conversation-rename" title="重命名" onClick={() => void renameConversation(conversation.id, conversation.title)}>✎</button><select title="移动到文件夹" value={conversation.folderId} onChange={(event) => void window.boss.moveConversation(conversation.id, event.target.value).then(setSnapshot).catch((reason) => setError(String(reason)))}>{snapshot.folders.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></div>)}</section>)}</div>
+        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" aria-label="新建文件夹" onClick={() => void createFolder()}>▣</button><button title={showArchived ? "隐藏已归档" : "显示已归档"} aria-label={showArchived ? "隐藏已归档" : "显示已归档"} className={showArchived ? "archive-toggle active" : "archive-toggle"} onClick={() => setShowArchived((value) => !value)}>🗄</button></div>
+        <div className="history-folders">{snapshot.folders.map((folder) => <section key={folder.id} className="history-folder"><header><b>{folder.name}</b><button onClick={() => void createConversation(folder.id)}>＋</button><button onClick={() => void renameFolder(folder.id, folder.name)}>···</button></header>{visibleConversations.filter((conversation) => conversation.folderId === folder.id).map((conversation) => <div key={conversation.id} className={`history-conversation ${conversation.archived ? "archived" : ""} ${conversation.id === snapshot.activeConversationId ? "active" : ""}`} onContextMenu={(event) => openConversationMenu(event, conversation.id)}><button className="conversation-select" onClick={() => void window.boss.selectConversation(conversation.id).then(setSnapshot).catch((reason) => setError(String(reason)))}><span>{conversation.title}</span><small>{conversation.taskIds.length} 条任务{conversation.archived ? " · 已归档" : ""}</small></button><button className="conversation-menu-button" title="对话操作" aria-label={`${conversation.title} 操作`} onClick={(event) => openConversationMenu(event, conversation.id)}>···</button></div>)}</section>)}</div>
         <footer>本地：history/{snapshot.folders.find((folder) => folder.id === activeConversation?.folderId)?.storageName ?? ""}/{activeConversation?.storageName ?? ""}</footer>
       </div>}
     </aside>
