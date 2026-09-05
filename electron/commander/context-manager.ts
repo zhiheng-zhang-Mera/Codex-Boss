@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ClaimRecord, DisputeRecord } from "../../src/shared/contracts";
 import type { RoleId } from "./role-router";
-import { migrateJsonFile, readEnvelope, schemaMigrations, type VersionedEnvelope } from "./schema-migration";
+import { readEnvelope, migrateJsonFile, schemaMigrations, type VersionedEnvelope } from "./schema-migration";
+import { compileContextCapsule, type ContextCapsule } from "../../src/shared/context-capsule";
 
 export interface ContextSummary { id: string; text: string; createdAt: string; }
 export interface ExecutionRef { id: string; status: string; }
@@ -70,6 +71,13 @@ export class ContextManager {
     ];
     const maxChars = Math.min(budget.maxChars ?? 24000, (budget.maxTokens ?? Number.MAX_SAFE_INTEGER) * 4);
     return sections.join("\n\n").slice(0, maxChars);
+  }
+
+  /** C0/C1 capsule for a task+role with scoped files (AP09); the fingerprint is a cache-invalidation key. */
+  capsule(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number): ContextCapsule {
+    const context = this.get(taskId);
+    if (!context) throw new Error(`Unknown task context: ${taskId}`);
+    return compileContextCapsule({ role, objective: context.objective, files, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars });
   }
 
   private restore(): void {
