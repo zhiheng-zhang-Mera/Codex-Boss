@@ -81,6 +81,18 @@ describe("full offline artifact tree (freeze → real runs → analysis → audi
     // The figure is traceable in the evidence graph to the exact runs it plots.
     const figureNode = svc.registerFigure(id, "accuracy", runs.map((run) => `run:${run.runId}`), "accuracy by run");
     expect(figureNode).toBe("figure:accuracy");
+    // Materialize the head of the evidence chain; every edge target must exist
+    // (no dangling experiment:/protocol:/question:/hypothesis: references).
+    svc.syncEvidenceChain(id);
+    const chain = svc.evidence.graph(id);
+    const nodeIds = new Set(chain.nodes.map((node) => node.id));
+    for (const edge of chain.edges) {
+      expect(nodeIds.has(edge.from)).toBe(true);
+      expect(nodeIds.has(edge.to)).toBe(true);
+    }
+    expect(chain.nodes.some((node) => node.id === "protocol:" + frozen.hash.slice(0, 16) && node.kind === "protocol")).toBe(true);
+    expect(chain.nodes.some((node) => node.kind === "experiment" && node.label === "exp-accuracy")).toBe(true);
+    expect(chain.edges.some((edge) => edge.from === "protocol:" + frozen.hash.slice(0, 16) && edge.to === "experiment:exp-accuracy")).toBe(true);
     const graph = svc.evidence.graph(id);
     expect(graph.nodes.some((node) => node.id === "figure:accuracy" && node.kind === "figure-table")).toBe(true);
     const graphRunIds = runs.map((run) => `run:${run.runId}`);

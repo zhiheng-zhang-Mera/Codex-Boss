@@ -160,6 +160,24 @@ export class ResearchService {
   /** Reference hash helper so callers never hand-roll canonical JSON. */
   hashProtocol(protocol: ResearchProtocol): string { return protocolHash(protocol); }
 
+  /**
+   * Materializes the head of the evidence chain (Question → Hypothesis →
+   * Protocol → Experiment) from the ledger IR + frozen protocol + recorded
+   * runs, so experiment→run edges never dangle. Idempotent; call after freeze
+   * and after experiments are recorded.
+   */
+  syncEvidenceChain(id: string): void {
+    const record = this.ledger.load(id);
+    if (!record) throw new Error(`Unknown research run: ${id}`);
+    const experimentIds = [...new Set(this.evidence.runs(id).map((run) => run.experimentId))];
+    this.evidence.syncChain(id, {
+      questions: record.ir.researchQuestions,
+      hypotheses: record.ir.hypotheses,
+      protocolHash: record.ir.protocolHash,
+      experimentIds
+    });
+  }
+
   /** Assembles the manuscript tree for a ready run (writes research/<id>/manuscript + audit). */
   manuscript(id: string, options: ManuscriptOptions): Promise<Awaited<ReturnType<typeof assembleManuscript>>> {
     return assembleManuscript(this.options.root, options);

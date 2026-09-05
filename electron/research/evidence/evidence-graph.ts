@@ -69,6 +69,34 @@ export class EvidenceGraph {
     this.write(id, file);
   }
 
+  /**
+   * Idempotently materializes the head of the plan's evidence chain
+   * (Question → Hypothesis → Protocol → Experiment) so no edge ever dangles:
+   * `addRun` writes `experiment:<exp> → run:<run>` edges, so this guarantees the
+   * experiment node exists, plus question/hypothesis/protocol anchors from the
+   * run IR. Run → statistic/claim/figure/paper links are added by the analyzer /
+   * figure / paper-section recorders.
+   */
+  syncChain(id: string, input: { questions: string[]; hypotheses: string[]; protocolHash?: string; experimentIds: string[] }): void {
+    const questionNodes = input.questions.map((_, index) => `question:q${index}`);
+    const hypothesisNodes = input.hypotheses.map((_, index) => `hypothesis:h${index}`);
+    for (const nodeId of questionNodes) this.addNode(id, { id: nodeId, kind: "research-question", label: nodeId });
+    for (const nodeId of hypothesisNodes) this.addNode(id, { id: nodeId, kind: "hypothesis", label: nodeId });
+    for (let index = 0; index < Math.min(questionNodes.length, hypothesisNodes.length); index += 1) {
+      this.addEdge(id, questionNodes[index], hypothesisNodes[index]);
+    }
+    if (input.protocolHash) {
+      const protocolId = `protocol:${input.protocolHash.slice(0, 16)}`;
+      this.addNode(id, { id: protocolId, kind: "protocol", label: input.protocolHash });
+      for (const nodeId of hypothesisNodes) this.addEdge(id, nodeId, protocolId);
+      for (const experimentId of input.experimentIds) {
+        const experimentNode = `experiment:${experimentId}`;
+        this.addNode(id, { id: experimentNode, kind: "experiment", label: experimentId });
+        this.addEdge(id, protocolId, experimentNode);
+      }
+    }
+  }
+
   addEdge(id: string, from: string, to: string): void {
     const file = this.read(id);
     if (!file.edges.some((edge) => edge.from === from && edge.to === to)) file.edges.push({ from, to });

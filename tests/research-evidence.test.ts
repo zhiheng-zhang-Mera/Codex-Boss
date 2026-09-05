@@ -86,4 +86,28 @@ describe("evidence graph + primary-run provenance (Phase 10)", () => {
     fs.writeFileSync(path.join(dir, "r1", "evidence-graph.json"), JSON.stringify({ schemaVersion: 9 }));
     expect(() => graph.graph("r1")).toThrow();
   });
+
+  it("syncs the question→hypothesis→protocol→experiment chain with no dangling edges", () => {
+    const dir = root();
+    const graph = new EvidenceGraph(dir);
+    graph.addRun("r1", run(1)); // adds experiment:exp1 → run:run-1 edge
+    graph.syncChain("r1", { questions: ["Q1"], hypotheses: ["H1"], protocolHash: "frozen-abc", experimentIds: ["exp1"] });
+    const file = graph.graph("r1");
+    const ids = new Set(file.nodes.map((node) => node.id));
+    for (const edge of file.edges) {
+      expect(ids.has(edge.from)).toBe(true);
+      expect(ids.has(edge.to)).toBe(true);
+    }
+    expect(file.nodes.some((node) => node.id === "question:q0" && node.kind === "research-question")).toBe(true);
+    expect(file.nodes.some((node) => node.id === "hypothesis:h0")).toBe(true);
+    expect(file.nodes.some((node) => node.id === "protocol:frozen-abc" && node.kind === "protocol")).toBe(true);
+    expect(file.nodes.some((node) => node.id === "experiment:exp1" && node.kind === "experiment")).toBe(true);
+    expect(file.edges.some((edge) => edge.from === "question:q0" && edge.to === "hypothesis:h0")).toBe(true);
+    expect(file.edges.some((edge) => edge.from === "hypothesis:h0" && edge.to === "protocol:frozen-abc")).toBe(true);
+    expect(file.edges.some((edge) => edge.from === "protocol:frozen-abc" && edge.to === "experiment:exp1")).toBe(true);
+    // Idempotent: a second sync adds no duplicate nodes/edges.
+    graph.syncChain("r1", { questions: ["Q1"], hypotheses: ["H1"], protocolHash: "frozen-abc", experimentIds: ["exp1"] });
+    expect(graph.graph("r1").nodes.length).toBe(file.nodes.length);
+    expect(graph.graph("r1").edges.length).toBe(file.edges.length);
+  });
 });

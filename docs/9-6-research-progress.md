@@ -340,6 +340,13 @@ cores plus live web-AI novelty review.
 - Tests: `research-citation` (5) + `research-service` (6) + `citation-audit` (6) green; handoff
   `docs/9-6-research-round30-source-cache.md`.
 
+## Round 31 — Complete the evidence chain (done)
+
+- `EvidenceGraph.syncChain` materializes question/hypothesis/protocol/experiment head nodes
+  (no dangling edges, idempotent); `ResearchService.syncEvidenceChain` from IR + runs.
+- Tests: `research-artifact-tree` (2, all edge targets exist) + `research-evidence` (7) +
+  `graph-claims` (4) green; handoff `docs/9-6-research-round31-chain.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
