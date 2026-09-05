@@ -316,6 +316,14 @@ cores plus live web-AI novelty review.
 - Tests: `research-manuscript` (4) + `citation-audit` (6) + `research-artifact-tree` (2) green;
   handoff `docs/9-6-research-round27-reviewer-gate.md`.
 
+## Round 28 — Paper sentences traceable to claims + figures (done)
+
+- `EvidenceGraph.addPaperSection` registers `paper:<section>` (kind paper-sentence) bound to the
+  claim/figure nodes the section asserts — completing Claim/Figure → Paper Sentence;
+  `ResearchService.registerPaperSection`.
+- Tests: `research-artifact-tree` (2, asserts claim/figure → paper edges) + `graph-claims` (4)
+  green; handoff `docs/9-6-research-round28-paper-sentences.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

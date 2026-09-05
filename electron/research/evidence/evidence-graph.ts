@@ -88,6 +88,21 @@ export class EvidenceGraph {
     return nodeId;
   }
 
+  /**
+   * Registers one paper-sentence node per manuscript section (round 28),
+   * completing the plan chain: the section asserts its claims and illustrates
+   * its figures, so every paper statement is traceable to the evidence nodes
+   * behind it (Claim / Figure/Table → Paper Sentence). Deterministic — the
+   * section is a real manuscript section recorded after assembly.
+   */
+  addPaperSection(id: string, sectionId: string, input: { claimNodeIds?: string[]; figureNodeIds?: string[] }, label = `paper ${sectionId}`): string {
+    const nodeId = `paper:${sectionId}`;
+    this.addNode(id, { id: nodeId, kind: "paper-sentence", label });
+    for (const claim of input.claimNodeIds ?? []) this.addEdge(id, claim, nodeId);
+    for (const figure of input.figureNodeIds ?? []) this.addEdge(id, figure, nodeId);
+    return nodeId;
+  }
+
   runs(id: string): PrimaryRunRecord[] {
     const dir = this.dir(id);
     return fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.startsWith("run-") && name.endsWith(".json")).map((name) => readJson<PrimaryRunRecord>(path.join(dir, name))!).filter(Boolean) : [];

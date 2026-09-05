@@ -85,6 +85,19 @@ describe("full offline artifact tree (freeze → real runs → analysis → audi
     expect(graph.nodes.some((node) => node.id === "figure:accuracy" && node.kind === "figure-table")).toBe(true);
     const graphRunIds = runs.map((run) => `run:${run.runId}`);
     expect(graph.edges.filter((edge) => edge.to === "figure:accuracy").map((edge) => edge.from).sort()).toEqual([...graphRunIds].sort());
+    // Paper sentences: every manuscript section asserting the claim is recorded
+    // as a paper-sentence node bound to claim:accuracy + figure:accuracy —
+    // completing the chain Claim / Figure/Table → Paper Sentence.
+    const abstractId = svc.registerPaperSection(id, "abstract", { claimNodeIds: ["claim:accuracy"], figureNodeIds: [] });
+    const resultsId = svc.registerPaperSection(id, "results", { claimNodeIds: ["claim:accuracy"], figureNodeIds: ["figure:accuracy"] });
+    expect(abstractId).toBe("paper:abstract");
+    expect(resultsId).toBe("paper:results");
+    const full = svc.evidence.graph(id);
+    expect(full.nodes.some((node) => node.id === "paper:abstract" && node.kind === "paper-sentence")).toBe(true);
+    expect(full.nodes.some((node) => node.id === "paper:results" && node.kind === "paper-sentence")).toBe(true);
+    expect(full.edges.some((edge) => edge.from === "claim:accuracy" && edge.to === "paper:abstract")).toBe(true);
+    expect(full.edges.some((edge) => edge.from === "claim:accuracy" && edge.to === "paper:results")).toBe(true);
+    expect(full.edges.some((edge) => edge.from === "figure:accuracy" && edge.to === "paper:results")).toBe(true);
     // Durable IR + frozen protocol snapshots sit beside the manuscript tree.
     const snapshots = svc.snapshotArtifacts(id);
     const irSnapshot = JSON.parse(fs.readFileSync(snapshots.irFile, "utf8"));

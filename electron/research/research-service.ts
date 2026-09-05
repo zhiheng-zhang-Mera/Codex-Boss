@@ -195,4 +195,14 @@ export class ResearchService {
   registerFigure(id: string, figureId: string, sourceRunIds: string[], label?: string): string {
     return this.evidence.addFigure(id, figureId, sourceRunIds, label);
   }
+
+  /**
+   * Records one paper-sentence node per manuscript section (round 28), bound to
+   * the claim + figure nodes the section asserts — completing the evidence
+   * chain Claim / Figure/Table → Paper Sentence. Deterministic: sections are
+   * recorded after the manuscript is assembled, never invented.
+   */
+  registerPaperSection(id: string, sectionId: string, input: { claimNodeIds?: string[]; figureNodeIds?: string[] }, label?: string): string {
+    return this.evidence.addPaperSection(id, sectionId, input, label);
+  }
 }
