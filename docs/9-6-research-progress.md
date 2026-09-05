@@ -287,6 +287,13 @@ cores plus live web-AI novelty review.
 - Tests: `research-evidence` (6) + `research-manuscript` (3) green; handoff
   `docs/9-6-research-round23-paired-stats.md`.
 
+## Round 24 — Durable IR + protocol snapshots in the artifact tree (done)
+
+- `ResearchService.snapshotArtifacts(id)` writes `research/<id>/research-ir.json` and (when
+  frozen) `protocol.json` beside the manuscript/audit tree.
+- Tests: `research-artifact-tree` (2) + `research-service` (4) green; handoff
+  `docs/9-6-research-round24-snapshots.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

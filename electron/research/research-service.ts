@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import path from "node:path";
+import { validId, writeJson } from "../commander/durable-json";
 import type { ResearchIR, ResearchState } from "../../src/shared/research-ir";
 import type { ResearchProtocol, ProtocolFreezeResult, ProtocolAmendment } from "../../src/shared/research-protocol";
 import { ResearchLedger, type ResearchLedgerFile, type ResearchDecisionEntry } from "./research-ledger";
@@ -127,6 +129,28 @@ export class ResearchService {
   /** Assembles the manuscript tree for a ready run (writes research/<id>/manuscript + audit). */
   manuscript(id: string, options: ManuscriptOptions): Promise<Awaited<ReturnType<typeof assembleManuscript>>> {
     return assembleManuscript(this.options.root, options);
+  }
+
+  /**
+   * Materializes the run's durable snapshots into the artifact tree
+   * (research/<id>/research-ir.json + protocol.json, plan Phase 11 tree). The
+   * protocol.json is written only once the protocol is frozen (never a stub).
+   * Returns the written file paths.
+   */
+  snapshotArtifacts(id: string): { irFile: string; protocolFile?: string } {
+    const record = this.ledger.load(id);
+    if (!record) throw new Error(`Unknown research run: ${id}`);
+    const dir = path.join(this.options.root, validId(id));
+    fs.mkdirSync(dir, { recursive: true });
+    const irFile = path.join(dir, "research-ir.json");
+    writeJson(irFile, record.ir);
+    const store = this.protocols.load(id);
+    let protocolFile: string | undefined;
+    if (store) {
+      protocolFile = path.join(dir, "protocol.json");
+      writeJson(protocolFile, store);
+    }
+    return { irFile, protocolFile };
   }
 
   /**

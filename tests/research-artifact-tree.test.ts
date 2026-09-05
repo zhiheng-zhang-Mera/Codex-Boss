@@ -85,6 +85,14 @@ describe("full offline artifact tree (freeze → real runs → analysis → audi
     expect(graph.nodes.some((node) => node.id === "figure:accuracy" && node.kind === "figure-table")).toBe(true);
     const graphRunIds = runs.map((run) => `run:${run.runId}`);
     expect(graph.edges.filter((edge) => edge.to === "figure:accuracy").map((edge) => edge.from).sort()).toEqual([...graphRunIds].sort());
+    // Durable IR + frozen protocol snapshots sit beside the manuscript tree.
+    const snapshots = svc.snapshotArtifacts(id);
+    const irSnapshot = JSON.parse(fs.readFileSync(snapshots.irFile, "utf8"));
+    expect(irSnapshot.id).toBe(id);
+    expect(irSnapshot.protocolHash).toBe(frozen.hash);
+    const protocolSnapshot = JSON.parse(fs.readFileSync(snapshots.protocolFile!, "utf8"));
+    expect(protocolSnapshot.protocolHash).toBe(frozen.hash);
+    expect(protocolSnapshot.amendments).toEqual([]);
     const citations = JSON.parse(fs.readFileSync(output.audit.citationsFile, "utf8"));
     expect(citations.unsupportedIds).toEqual(["cite:bad"]); // primary claim may not bind UNSUPPORTED
     const reproWritten = JSON.parse(fs.readFileSync(output.audit.reproducibilityFile, "utf8"));
