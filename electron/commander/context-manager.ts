@@ -1,9 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import type { ClaimRecord, DisputeRecord } from "../../src/shared/contracts";
 import type { RoleId } from "./role-router";
 import { readEnvelope, migrateJsonFile, schemaMigrations, type VersionedEnvelope } from "./schema-migration";
-import { compileContextCapsule, type ContextCapsule } from "../../src/shared/context-capsule";
+import { compileContextCapsule, capsuleCacheKeyInput, type ContextCapsule, type ContextCapsuleLevel } from "../../src/shared/context-capsule";
+
+/** Content-addressed key (plan §13.4): scope|kind|version|input hash. */
+function cacheKeyFor(scope: string, fingerprint: string, level: ContextCapsuleLevel): string {
+  return createHash("sha256").update([scope, "context-capsule", "2", level, fingerprint].join("|"), "utf8").digest("hex");
+}
 
 export interface ContextSummary { id: string; text: string; createdAt: string; }
 export interface ExecutionRef { id: string; status: string; }
@@ -73,11 +79,21 @@ export class ContextManager {
     return sections.join("\n\n").slice(0, maxChars);
   }
 
-  /** C0/C1 capsule for a task+role with scoped files (AP09); the fingerprint is a cache-invalidation key. */
-  capsule(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number): ContextCapsule {
+  /** C0/C1/C2 capsule for a task+role with scoped files (AP09); the fingerprint is a cache-invalidation key. */
+  capsule(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number, architecture?: Record<string, string>): ContextCapsule {
     const context = this.get(taskId);
     if (!context) throw new Error(`Unknown task context: ${taskId}`);
-    return compileContextCapsule({ role, objective: context.objective, files, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars });
+    return compileContextCapsule({ role, objective: context.objective, files, architecture, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars });
+  }
+
+  /** Returns the content-addressed cache key for a compiled capsule (plan §13.4 hash+version+policy). */
+  capsuleCacheKey(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number, architecture?: Record<string, string>): { key: string; scope: string; fingerprint: string; level: ContextCapsuleLevel } {
+    const context = this.get(taskId);
+    if (!context) throw new Error(`Unknown task context: ${taskId}`);
+    const input = { role, objective: context.objective, files, architecture, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars };
+    const meta = capsuleCacheKeyInput(input);
+    const scope = `task-context:${taskId}`;
+    return { key: cacheKeyFor(scope, meta.fingerprint, meta.level), scope, fingerprint: meta.fingerprint, level: meta.level };
   }
 
   private restore(): void {

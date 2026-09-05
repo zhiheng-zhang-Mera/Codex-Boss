@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { compileContextCapsule } from "../src/shared/context-capsule";
+import { compileContextCapsule, requiredContextLevel } from "../src/shared/context-capsule";
 import { ContextManager } from "../electron/commander/context-manager";
 
 const dirs: string[] = [];
@@ -58,5 +58,30 @@ describe("ContextManager capsule adoption", () => {
     // Dependencies (disputes/summaries) always promote to C1; adding files grows the capsule.
     expect(withoutFiles.level).toBe("C1");
     expect(a.sections.length).toBeGreaterThan(withoutFiles.sections.length);
+  });
+
+  it("promotes to C2 when an architecture slice is supplied and derives a cache key", () => {
+    const file = path.join(root(), "contexts.json");
+    const manager = new ContextManager(file);
+    manager.save({ taskId: "task", objective: "move a module across boundaries", constraints: [], currentProtocol: "direct", currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] });
+    const c2 = manager.capsule("task", "coder", { "src/a.ts": "export function a(){}" }, undefined, { interfaces: "A → B", edges: "src/a.ts → src/b.ts" });
+    expect(c2.level).toBe("C2");
+    expect(c2.sections.some((section) => JSON.stringify(section).includes("architecture"))).toBe(true);
+    const key = manager.capsuleCacheKey("task", "coder", { "src/a.ts": "export function a(){}" }, undefined, { interfaces: "A → B", edges: "src/a.ts → src/b.ts" });
+    expect(key.scope).toBe("task-context:task");
+    expect(key.level).toBe("C2");
+    const keyDifferent = manager.capsuleCacheKey("task", "coder", { "src/a.ts": "export function a(){} // changed" }, undefined, { interfaces: "A → B", edges: "src/a.ts → src/b.ts" });
+    expect(key.key).not.toBe(keyDifferent.key);
+    expect(key.fingerprint).toBe(c2.fingerprint);
+  });
+});
+
+describe("required context resolver", () => {
+  it("chooses C0 for a reasoning step with no files, C1 for scoped files, C2 for architecture/cross-module work", () => {
+    expect(requiredContextLevel({ kind: "worker", requiredFiles: [], dependencies: [] })).toBe("C0");
+    expect(requiredContextLevel({ kind: "worker", requiredFiles: ["src/a.ts"], dependencies: ["step"] })).toBe("C1");
+    expect(requiredContextLevel({ kind: "edit", requiredFiles: ["src/a.ts"], dependencies: [], crossModule: true })).toBe("C2");
+    expect(requiredContextLevel({ kind: "edit", requiredFiles: ["src/a.ts"], dependencies: [], hasArchitecture: true })).toBe("C2");
+    expect(requiredContextLevel({ kind: "edit", requiredFiles: ["a.ts", "b.ts", "c.ts", "d.ts"], dependencies: [] })).toBe("C2");
   });
 });
