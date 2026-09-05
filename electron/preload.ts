@@ -3,6 +3,7 @@ import type { AppSnapshot, BossBridge, CreateConversationInput, CreateTaskInput,
 
 const bridge: BossBridge = {
   snapshot: () => ipcRenderer.invoke("boss:snapshot"),
+  progress: () => ipcRenderer.invoke("boss:progress"),
   createTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:create-task", input),
   dispatchTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:dispatch-task", input),
   updateApiSetting: (input: UpdateApiSettingInput) => ipcRenderer.invoke("boss:update-api-setting", input),

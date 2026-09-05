@@ -345,6 +345,7 @@ export interface ViewBounds {
 
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
+  progress(): Promise<import("./progress").ProgressSummary[]>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;

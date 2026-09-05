@@ -19,6 +19,7 @@ function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalVie
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
+  const [progress, setProgress] = useState<Array<import("../shared/progress").ProgressSummary>>([]);
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<TaskMode>("direct");
   const [appMode, setAppMode] = useState<AppMode>("chat");
@@ -78,7 +79,11 @@ function App() {
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
     void window.boss.projectState().then(setProjectState).catch(() => {});
-    return window.boss.onSnapshot((next) => { setSnapshot(next); void window.boss.projectState().then(setProjectState).catch(() => {}); });
+    const refreshProgress = () => void window.boss.progress().then(setProgress).catch(() => {});
+    refreshProgress();
+    const timer = window.setInterval(refreshProgress, 1500);
+    const unsubscribe = window.boss.onSnapshot((next) => { setSnapshot(next); void window.boss.projectState().then(setProjectState).catch(() => {}); });
+    return () => { window.clearInterval(timer); unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -127,6 +132,7 @@ function App() {
   }, [snapshot.finalResponses, snapshot.activeConversationId, activeTasks.length]);
   useEffect(() => { followLatestRef.current = true; const pane = conversationRef.current; if (pane) pane.scrollTop = pane.scrollHeight; }, [snapshot.activeConversationId]);
   const pendingRemoteCommands = snapshot.remoteCommands.filter((command) => command.status === "pending");
+  const activeProgress = progress.filter((item) => snapshot.tasks.some((task) => task.id === item.taskId && !["cancelled", "paused", "completed", "failed"].includes(task.status)));
 
   async function toggleProvider(providerId: ProviderId) {
     setError("");
@@ -345,6 +351,7 @@ function App() {
       </header>
 
       <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
+        {activeProgress.length > 0 && <section className="live-progress" aria-label="实时进度">{activeProgress.map((item) => <div className={`progress-line progress-${item.status.toLowerCase()}`} key={item.taskId}><i />{item.label}<small>{item.stage} · {item.source}</small></div>)}</section>}
         {activeTasks.length === 0 && <div className="welcome-card">
           <div className="welcome-mark">⌘</div>
           <h1>{activeConversation?.title ?? "今天要处理什么？"}</h1>
