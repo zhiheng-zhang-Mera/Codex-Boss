@@ -37,6 +37,7 @@ import { TaskStateMachine } from "./task-state-machine";
 import type { CircuitBreaker } from "./circuit-breaker";
 import { buildReproductionSnapshot } from "../repro-snapshot";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
+import { resourceProfile } from "../../src/shared/software-session";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; }
 
@@ -61,7 +62,8 @@ export class MainCommander {
     readonly computerOptions: ComputerOptions = {},
     readonly breaker?: CircuitBreaker,
     readonly events?: import("./event-bus").DomainEventBus,
-    readonly workspaces?: import("../workspace/workspace-registry").WorkspaceRegistry
+    readonly workspaces?: import("../workspace/workspace-registry").WorkspaceRegistry,
+    readonly leases?: import("../computer/software-lease").SoftwareLeaseRegistry
   ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker, events); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
@@ -308,15 +310,25 @@ export class MainCommander {
   private async runNative(taskId: string, workspace: string, operation: NativeOperation): Promise<NativeEvidence> {
     if (operation.kind !== "computer") return executeNative(workspace, operation);
     if (!this.ledger) throw new Error("Desktop actions require a durable ledger");
-    const runtime = createComputerRuntime(workspace, path.join(this.ledger.root, "..", "computer-pending.json"), { ...this.computerOptions, authorizeVision: async () => {
-      const task = this.store.snapshot().tasks.find(item => item.id === taskId);
-      const explicit = task ? compileIntent(task.prompt) : undefined;
-      return explicit?.estimatedComplexity === "L0" && TaskLedger.fingerprint(explicit.steps[0].operation) === TaskLedger.fingerprint(operation);
-    } });
-    const result = await runtime.execute(operation.action);
-    if (result.status === "UNCERTAIN") throw new GraphDeferred(result.message ?? "Desktop effect requires verification");
-    if (result.status !== "SUCCESS") throw new Error(result.message ?? "Desktop action did not complete");
-    return { operation, cwd: workspace, output: JSON.stringify(result), verified: true, modelCalls: 0 };
+    // AP19/§16: desktop targets are mutex-protected — shared-read for reads,
+    // exclusive for mutations — so two tasks never mutate the same software.
+    const profile = resourceProfile(operation.action.name);
+    const target = "computer:" + fs.realpathSync(workspace);
+    if (this.leases?.canAccess(target, profile.mode)) this.leases.acquire({ owner_task: taskId, target, mode: profile.mode, leaseMs: 60000 });
+    try {
+      const runtime = createComputerRuntime(workspace, path.join(this.ledger.root, "..", "computer-pending.json"), { ...this.computerOptions, authorizeVision: async () => {
+        const task = this.store.snapshot().tasks.find(item => item.id === taskId);
+        const explicit = task ? compileIntent(task.prompt) : undefined;
+        return explicit?.estimatedComplexity === "L0" && TaskLedger.fingerprint(explicit.steps[0].operation) === TaskLedger.fingerprint(operation);
+      } });
+      const result = await runtime.execute(operation.action);
+      if (result.status === "UNCERTAIN") throw new GraphDeferred(result.message ?? "Desktop effect requires verification");
+      if (result.status !== "SUCCESS") throw new Error(result.message ?? "Desktop action did not complete");
+      return { operation, cwd: workspace, output: JSON.stringify(result), verified: true, modelCalls: 0 };
+    } finally {
+      // Released on every exit (success, verify-defer, error): a replay re-acquires.
+      this.leases?.release(target, taskId);
+    }
   }
 
   private memoryContext(taskId: string): string {

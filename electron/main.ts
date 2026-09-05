@@ -25,6 +25,7 @@ import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { durableFileFor } from "./workspace/durable-roots";
+import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
@@ -217,6 +218,7 @@ if (ownsInstance) app.whenReady().then(() => {
   const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
+  const softwareLeases = new SoftwareLeaseRegistry();
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
     for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
       const task = store.snapshot().tasks.find((task) => task.id === item.taskId);
@@ -236,7 +238,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
-  } }, circuitBreaker, domainEvents, workspaces);
+  } }, circuitBreaker, domainEvents, workspaces, softwareLeases);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();
