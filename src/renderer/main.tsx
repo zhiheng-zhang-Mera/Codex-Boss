@@ -4,6 +4,9 @@ import { currentFinalResponse } from "../shared/final-response";
 import type { ProjectStateSummary } from "../shared/project-tree";
 import { HistoryNameDialog, type HistoryDialogState } from "./components/HistoryNameDialog";
 import { ConversationContextMenu, type ConversationMenuState } from "./components/ConversationContextMenu";
+import { HumanInterventionCard } from "./components/HumanInterventionCard";
+import { ResearchProgress } from "./components/ResearchProgress";
+import type { HumanInterventionRequest } from "../shared/intervention";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
@@ -20,6 +23,7 @@ function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalVie
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
   const [progress, setProgress] = useState<Array<import("../shared/progress").ProgressSummary>>([]);
+  const [interventions, setInterventions] = useState<HumanInterventionRequest[]>([]);
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<TaskMode>("direct");
   const [appMode, setAppMode] = useState<AppMode>("chat");
@@ -84,7 +88,7 @@ function App() {
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
     void window.boss.projectState().then(setProjectState).catch(() => {});
-    const refreshProgress = () => void window.boss.progress().then(setProgress).catch(() => {});
+    const refreshProgress = () => { void window.boss.progress().then(setProgress).catch(() => {}); void window.boss.listInterventions().then((items) => setInterventions(items.filter((item) => !item.resolvedAt))).catch(() => {}); };
     refreshProgress();
     const timer = window.setInterval(refreshProgress, 1500);
     const unsubscribe = window.boss.onSnapshot((next) => { setSnapshot(next); void window.boss.projectState().then(setProjectState).catch(() => {}); });
@@ -138,6 +142,11 @@ function App() {
   useEffect(() => { followLatestRef.current = true; const pane = conversationRef.current; if (pane) pane.scrollTop = pane.scrollHeight; }, [snapshot.activeConversationId]);
   const pendingRemoteCommands = snapshot.remoteCommands.filter((command) => command.status === "pending");
   const activeProgress = progress.filter((item) => snapshot.tasks.some((task) => task.id === item.taskId && !["cancelled", "paused", "completed", "failed"].includes(task.status)));
+
+  async function resolveIntervention(request: HumanInterventionRequest, answer: string) {
+    await window.boss.resolveIntervention(request.taskId, request.kind, answer);
+    setInterventions((current) => current.filter((item) => item.id !== request.id));
+  }
 
   async function toggleProvider(providerId: ProviderId) {
     setError("");
@@ -388,7 +397,8 @@ function App() {
       </header>
 
       <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
-        {activeProgress.length > 0 && <section className="live-progress" aria-label="实时进度">{activeProgress.map((item) => <div className={`progress-line progress-${item.status.toLowerCase()}`} key={item.taskId}><i />{item.label}<small>{item.stage} · {item.source}</small></div>)}</section>}
+        {interventions.length > 0 && <div className="intervention-stack">{interventions.slice(0, 3).map((request) => <HumanInterventionCard key={request.id} request={request} onResolve={(kind, answer) => resolveIntervention({ ...request, kind }, answer)} />)}</div>}
+        <ResearchProgress summaries={activeProgress} />
         {activeTasks.length === 0 && <div className="welcome-card">
           <div className="welcome-mark">⌘</div>
           <h1>{activeConversation?.title ?? "今天要处理什么？"}</h1>

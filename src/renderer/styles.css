@@ -191,3 +191,22 @@ button { color: inherit; }
 .research-reviewers { color: #a89f82; font-size: 9px; }
 .research-launcher button { border: 1px solid #6a6138; border-radius: 8px; padding: 7px 10px; background: #302d1c; color: #e8dda4; font-size: 10px; cursor: pointer; }
 .research-launcher button:disabled { opacity: .4; cursor: not-allowed; }
+
+.research-progress { display: flex; flex-direction: column; gap: 5px; max-width: 640px; margin: 0 auto 10px; padding: 8px 10px; border: 1px solid #2f4a3a; border-radius: 10px; background: #10201a; }
+.research-progress-row { display: grid; grid-template-columns: 8px 1fr; column-gap: 8px; align-items: baseline; color: #bfd6c6; font-size: 10px; }
+.research-progress-row i { width: 7px; height: 7px; border-radius: 50%; background: #7db48d; animation: pulse 1.4s infinite; }
+.research-progress-row.progress-waiting i { background: #d8b568; }
+.research-progress-row.progress-failed i, .progress-attention i { background: #e58f85; animation: none; }
+.research-progress-row b { font-size: 10px; }
+.research-progress-row small { margin-left: 8px; color: #6f9080; font-size: 8px; }
+.research-progress-row p { grid-column: 2; margin: 0; color: #8fa89b; font-size: 9px; }
+.intervention-stack { display: flex; flex-direction: column; gap: 8px; max-width: 640px; margin: 0 auto 10px; }
+.intervention-card { border: 1px solid #6a4f38; border-radius: 11px; padding: 10px 12px; background: #241a12; color: #e8d9c2; box-shadow: 0 0 18px #0008; }
+.intervention-head { display: flex; justify-content: space-between; color: #efc98f; font-size: 10px; }
+.intervention-head span { color: #8d7a63; font-size: 8px; }
+.intervention-card p { margin: 7px 0 4px; color: #f0e4d0; font-size: 11px; }
+.intervention-card small { color: #a39278; font-size: 9px; }
+.intervention-options { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0; }
+.intervention-options button, .intervention-card input, .intervention-card button { border: 1px solid #7a6445; border-radius: 7px; padding: 5px 8px; background: #362a1a; color: #eeddb8; font-size: 9px; cursor: pointer; }
+.intervention-card input { flex: 1; min-width: 0; }
+.intervention-card form { display: flex; gap: 5px; }
