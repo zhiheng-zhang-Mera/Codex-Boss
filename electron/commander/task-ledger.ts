@@ -18,6 +18,7 @@ export interface TaskLedgerRecord {
   usage: Consumption; limits: { modelCalls: number; retries: number; toolCalls: number };
   mode: "NORMAL" | "LIGHTWEIGHT" | "DETERMINISTIC" | "PAUSED";
   sessions: WorkerSession[]; jobs: Record<string, LedgerJob>; checkpointReason: string;
+  providerState?: import("../../src/shared/provider-state").ProviderStateRecord;
 }
 export class TaskLedger {
   constructor(readonly root: string) {}

@@ -9,6 +9,7 @@ import { TaskLedger } from "./task-ledger";
 import { classifyInterruption, recoveryFor } from "./interruption";
 import type { CircuitBreaker } from "./circuit-breaker";
 import { providerTechnicalInterruption } from "./circuit-breaker";
+import { pausedForProvider, stateForRecovery } from "../../src/shared/provider-state";
 import { reviewResponse } from "../../src/shared/execution";
 
 export class ExecutionSupervisor {
@@ -59,6 +60,7 @@ export class ExecutionSupervisor {
         this.ledger.update(request.taskId, "step completed", (value) => {
           value.jobs[request.jobId].state = "COMPLETED"; value.jobs[request.jobId].result = result;
           value.completedSteps = [...new Set([...value.completedSteps, request.jobId])]; value.currentStep = null; value.nextAction = "NEXT_STEP"; value.mode = "NORMAL";
+          delete value.providerState;
           value.usage.estimatedOutputTokens += Math.ceil((result.content?.length ?? 0) / 4); value.usage.workerRuntimeMs += result.metrics?.durationMs ?? 0;
         });
         return result;
@@ -67,7 +69,7 @@ export class ExecutionSupervisor {
         this.breaker?.cancelProbe(runtime.id);
         this.ledger.update(request.taskId, "worker cancelled by user", (value) => {
           value.jobs[request.jobId].state = "WAITING"; value.jobs[request.jobId].result = result;
-          value.nextAction = "HUMAN_REQUIRED"; value.mode = "PAUSED";
+          value.nextAction = "HUMAN_REQUIRED"; value.mode = "PAUSED"; value.providerState = pausedForProvider("worker cancelled by user");
         });
         return result;
       }
@@ -80,6 +82,7 @@ export class ExecutionSupervisor {
         value.failureHistory.push(interruption); value.jobs[request.jobId].state = "WAITING";
         value.jobs[request.jobId].result = result; value.jobs[request.jobId].retryAt = recovery.retryAt;
         value.nextAction = recovery.action; value.sessions.find((item) => item.id === session.id)!.health = interruption.kind;
+        value.providerState = stateForRecovery(recovery.action, interruption.message, recovery.retryAt);
         value.mode = ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT", "DEFER"].includes(recovery.action) ? "PAUSED" : "LIGHTWEIGHT";
       });
       if (["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT"].includes(recovery.action) || !request.replaySafe) return result;

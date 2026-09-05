@@ -92,6 +92,11 @@ export class MainCommander {
     const state = this.ledger?.load(taskId);
     const held = ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT", "WAIT_FOR_USER", "STOP"];
     if (held.includes(task.nextAction ?? "") || held.includes(state?.nextAction ?? "")) return false;
+    // Named provider lifecycle (AP03a): PAUSED_PROVIDER never auto-resumes; a
+    // WAITING_PROVIDER that is still inside its retry deadline waits as well.
+    const providerState = state?.providerState;
+    if (providerState?.state === "PAUSED_PROVIDER") return false;
+    if (providerState?.state === "WAITING_PROVIDER" && providerState.retryAt && providerState.retryAt > Date.now()) return false;
     return !(task.recoveryAt && task.recoveryAt > Date.now());
   }
 
