@@ -19,6 +19,15 @@ export interface Microtask {
   requiredFiles: string[];
 }
 
+/** Canonical single-file-scope decomposition used when a step owns one file group. */
+export function singleMicrotask(step: TaskStep): Microtask[] {
+  const group = step.requiredFiles.slice(0, 50);
+  const read: Microtask = { id: `${step.id}_read_0`, kind: "read", parentStepId: step.id, description: `Read ${step.id} scope`, dependencies: step.dependencies, requiredFiles: group };
+  const propose: Microtask = { id: `${step.id}_propose_0`, kind: "propose", parentStepId: step.id, description: `Propose change for ${step.id}`, dependencies: [read.id], requiredFiles: group };
+  const verify: Microtask = { id: `${step.id}_verify`, kind: "verify", parentStepId: step.id, description: `Verify ${step.id} acceptance`, dependencies: [propose.id], requiredFiles: group };
+  return [read, propose, verify];
+}
+
 /** Expands an edit/worker step into the canonical microtask pattern. */
 export function decomposeStep(step: TaskStep, options: { splitJoin?: boolean; maxFilesPerProposal?: number } = {}): Microtask[] {
   const maxPerProposal = options.maxFilesPerProposal ?? 10;
