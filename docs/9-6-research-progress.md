@@ -19,35 +19,105 @@ Recorded on 9-5 before branching:
 
 Branch `9-6-research` created from `9-5` after the AP pack commits.
 
-## Phase 1 — Renderer history management (in progress)
+## Phase 1 — History archive/delete/duplicate/export (done; split remainder open)
 
-Done this round:
+- `StateStore.setConversationArchived` / `deleteConversation` (full cascade incl. ledger purge +
+  history cleanup) / `duplicateConversation` (fresh ids); `TaskLedger.purgeTask`;
+  `HistoryRepository.exportConversation`; event vocabulary additions.
+- IPC/preload/bridge: archive / delete / duplicate / export; renderer `ConversationContextMenu`
+  (right-click + `···` share one menu: rename / move / duplicate / export / archive / delete with
+  delete confirmation), archived toggle, archived styling.
+- Tests: `tests/history.test.ts` 10 tests.
+- Open: extraction of the remaining renderer components (HistorySidebar, ConversationTurn,
+  ProviderGrid/ProviderPane, LiveTaskProgress, HumanInterventionCard, Composer, SettingsPanel…)
+  is being folded into later phases as each new UI lands rather than as a zero-test re-shuffle.
 
-- Durable conversation operations in `electron/store.ts`:
-  - `setConversationArchived` (archived flag; restore removes the flag),
-  - `deleteConversation` — full cascade (tasks/runs/councils/artifacts/evidenceBundles/
-    finalResponses/dispatchCheckpoints) plus `TaskLedger.purgeTask` and history-directory cleanup
-    through the existing `HistoryRepository.sync`;
-  - `duplicateConversation` — fresh ids for conversation/tasks/runs/artifacts, never reusing old
-    run/checkpoint ids.
-  - Event vocabulary extended (conversation.archived/deleted/duplicated/exported).
-- `electron/commander/task-ledger.ts`: `purgeTask`.
-- `electron/history-repository.ts`: `exportConversation` (messages.md + artifacts/ + evidence/
-  into `<userData>/exports/<folder>/<conversation>-<timestamp>`).
-- IPC + preload + bridge: `boss:archive-conversation`, `boss:delete-conversation`,
-  `boss:duplicate-conversation`, `boss:export-conversation`.
-- Renderer: `ConversationContextMenu` component (right-click and `···` share the same menu:
-  rename / move / duplicate / export / archive / delete), archived-conversation toggle (🗄),
-  archived rows shown struck-through; delete asks for confirmation.
-- Tests: `tests/history.test.ts` 10 tests (archive/restore, cascade delete with no orphan
-  history dirs, duplicate with fresh ids, export into timestamped dir).
+## Phase 2 — 3-AI horizontal layout + auto zoom + provider order (done)
 
-Still open (next slice): extract the remaining renderer components (HistorySidebar,
-ConversationTurn, ProviderGrid/ProviderPane, LiveTaskProgress, HumanInterventionCard,
-Composer, SettingsPanel…) per Phase 1 layout; add `···`-equivalent validation in live Electron
-smoke; then Phases 2–12 of the research plan.
+- `src/shared/provider-view-profile.ts`: display profiles, `zoomForPaneWidth` (clamped),
+  `ProviderViewSlot` order helpers (pure + tested).
+- `electron/provider-views.ts` applies `webContents.setZoomFactor` per pane on every layout;
+  renderer count-3 grid is horizontal 1×3 with full-height columns; provider pane order
+  persisted (`codex-boss:provider-display-order`) with `‹ ›` controls.
+- Tests: `tests/provider-view-profile.test.ts` (4); workflow layout-policy test updated.
 
-## Up next
+## Phase 3 — Live progress (done)
 
-Phase 2 (3-AI 1×3 layout + auto zoom + provider order persistence) → Phase 3 (live progress) →
-… → Phase 12 / Final Acceptance (see the research plan file for acceptance criteria).
+- `src/shared/progress.ts`: ProgressEvent/Status/Source + `ProgressAggregator` (per-task summary,
+  bounded detail timeline, round counts).
+- `electron/commander/progress-recorder.ts` maps domain events → progress; `boss:progress` IPC +
+  bridge; renderer live-progress strip with pulse animation (1.5 s poll).
+- Tests: `tests/progress.test.ts` (4).
+
+## Phase 4 — Autopilot + human guidance gate (done)
+
+- `src/shared/intervention.ts`: HumanInterventionRequest + deterministic `decideIntervention`
+  (auto-recover list vs must-pause kinds/paid/irreversible; unknown → human).
+- `electron/commander/human-guidance-gate.ts`: durable one-active-per-task gate with resolve;
+  IPC `boss:active-intervention` / `list-interventions` / `resolve-intervention`.
+- Tests: `tests/human-guidance-gate.test.ts` (5).
+
+## Phase 5 — Research IR + supervisor + ledger (core done)
+
+- `src/shared/research-ir.ts`: full ResearchState machine + ResearchIR validation.
+- `electron/research/research-ledger.ts` (durable checkpoints/decisions) +
+  `research-supervisor.ts` (autopilot stage driver, protocol hash primitive).
+- Tests: `tests/research-supervisor.test.ts` (5).
+
+## Phase 6 — Independent research runtime (done)
+
+- `src/shared/research-command.ts` (structured spec + allow-list + fail-closed validation).
+- `electron/research/runtime/{process-runner,research-runtime,environment-manager}.ts` —
+  structured spawn, concurrency budget, artifact capture, command hashing.
+- Tests: `tests/research-runtime.test.ts` (5, real node subprocesses).
+
+## Phase 7 — Protocol freeze + amendment (done)
+
+- `src/shared/research-protocol.ts` (frozen vs auto-fixable fields, silent-mutation guard) +
+  `electron/research/protocol-manager.ts` (durable freeze + amendments bound to frozen hash).
+- Tests: `tests/research-protocol.test.ts` (3).
+
+## Phase 8 — Level-B selection + evidence>vote (core done)
+
+- `src/shared/research-levelb.ts` (falsifiable RQ selection),
+  `src/shared/research-adjudicate.ts` (evidence > vote: stats + independent replication required;
+  votes never adopt evidence-less claims).
+- Tests: `tests/research-levelb.test.ts` (5).
+- Live Level-B E2E on Codex-Boss itself (real repo inspection + web-AI reviewers + real
+  experiments) is a GUI/live run — see docs/9-6-research-phase8-levelb.md.
+
+## Phase 9 — Literature / citation core (done)
+
+- `src/shared/research-citation.ts` (verification ladder + UNSUPPORTED primary-claim guard) +
+  `electron/research/literature/source-store.ts` (durable citations + content-addressed source
+  cache).
+- Tests: `tests/research-citation.test.ts` (4).
+
+## Phase 10 — Statistics + evidence graph (done)
+
+- `src/shared/research-statistics.ts` (mean/median/sd/CI, seeded bootstrap CI, Cohen's d,
+  permutation p) + `electron/research/evidence/evidence-graph.ts` (provenance records + graph
+  nodes/edges).
+- Tests: `tests/research-evidence.test.ts` (5).
+
+## Phase 11 — Manuscript pipeline (core done)
+
+- `src/shared/research-manuscript.ts` (sections, evidence-scoped briefs, evidence-check) +
+  `electron/research/manuscript/manuscript-assembler.ts` (section pipeline with injected writer,
+  paper.md/tex/bib + audit tree).
+- Tests: `tests/research-manuscript.test.ts` (3).
+
+## Phase 12 — Level-A (pending)
+
+Requires Level-B stability + live runs; the Level-A auto-RQ pipeline builds on Phases 5–11
+cores plus live web-AI novelty review.
+
+## Open / next
+
+- Renderer top nav (Chat | Work | Research) + research-mode inputs (goal/workspace/reviewers/
+  autonomy/budget) and Research supervisor IPC adoption (research-ledger + progress + guidance
+  gate are all server-ready).
+- ResearchProgress/HumanInterventionCard renderer components.
+- Live Level-B E2E (real repo + web-AI) and Level-A, per Final Acceptance in the research plan.
+- Full verification gate: run full suite + typecheck + build after each further slice; current
+  full suite is **92 files / 437 tests PASS**.
