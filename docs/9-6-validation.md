@@ -33,6 +33,10 @@ graph (10) · manuscript pipeline (11). Handoffs: `docs/9-6-research-phase*.md`;
 
 ## NOT_RUN / live acceptance (requires GUI + real tools)
 
+The exact steps + evidence format for every item below are in
+**`docs/9-6-live-acceptance-runbook.md`** (plan Final Acceptance A–J). Run them in a GUI
+session and return the filled checklist to close each item.
+
 - Level-A / Level-B live E2E: real repo inspection via web-AI reviewers, real experiments,
   independent replication, manuscript `paper.pdf` — requires a machine with the installed
   Electron app, logged-in web sessions and (for PDF) a LaTeX toolchain. Never substituted by

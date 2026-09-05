@@ -347,6 +347,13 @@ cores plus live web-AI novelty review.
 - Tests: `research-artifact-tree` (2, all edge targets exist) + `research-evidence` (7) +
   `graph-claims` (4) green; handoff `docs/9-6-research-round31-chain.md`.
 
+## Live Final Acceptance runbook (ready for GUI session)
+
+- `docs/9-6-live-acceptance-runbook.md` — step-by-step A–J instructions + evidence/return
+  format for the GUI/live session (web-AI reviewers, real experiments, paper.pdf, manual
+  Chat/Work/Direct/Council/Engineering/Recovery acceptance, Blender/Unreal live rows). No live
+  item is claimed passed without that session's evidence.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
