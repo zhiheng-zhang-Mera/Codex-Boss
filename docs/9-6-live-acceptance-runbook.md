@@ -120,6 +120,46 @@ Evidence: run id + step timeline showing zero manual continuations.
 
 ---
 
+## G/H Control Surface Reference (bridge/IPC)
+
+The Research view uses `window.boss.*` (contracts in `src/shared/contracts.ts`); for a manual
+GUI drive of G/H these are the exact calls:
+
+- **Start**: `researchStart({ goal, workspace, reviewers, autonomy })` → returns ledger record.
+- **Step**: `researchStep(id)` — executes the current stage; reviewer-gated stages park the run
+  at `WAITING_FOR_PROVIDER` with a `paused:<stage>` decision (rounds 8–9). Stepping a paused
+  run is a no-op.
+- **Status**: `researchStatus(id)` → `{ ir: { state, protocolHash, pendingStage } }`.
+- **Resume**: `researchResume(id)` — returns true and moves the run to its recorded pending
+  stage; a live executor then runs that stage with web-AI reviewers (round 9 wiring).
+- **Freeze protocol** (before experiments; run must exist): `researchProtocolFreeze(id,
+  protocol)` where `protocol` is a `ResearchProtocol`:
+
+  ```json
+  {
+    "schemaVersion": 1,
+    "hypothesis": "H: evidence-grounded review beats majority voting",
+    "primaryMetric": "accuracy",
+    "baseline": "0.8",
+    "sampleDefinition": "tasks 1..50 on the Codex-Boss repo",
+    "evaluationCriterion": "mean >= baseline",
+    "createdAt": "2025-…"
+  }
+  ```
+
+  The handler mirrors `ResearchService.freeze`: it records `ir.protocolHash` and moves the run
+  to `PROTOCOL_FROZEN` (round 16). Freezing twice throws.
+- **Wait/intervention**: `researchWait({ id, kind, question, options, blockingStepId,
+  contextSummary })` — parks at `WAITING_FOR_USER` and raises an intervention card;
+  `resolveIntervention(taskId, kind, answer)` records the answer and resumes the run (rounds
+  6–7).
+
+Note: the offline Research view currently exposes Start / Step / Resume / status. For G/H the
+live session additionally drives protocol freeze and the reviewer-gated stages via the above
+bridge calls (or the app's live executor wiring, which replaces `DefaultLevelBExecutor`).
+
+---
+
 ## I. Research Integrity (verify on the Level-B/Level-A run)
 
 - protocol frozen (`research/<id>/protocol.json` + `ir.protocolHash` match);
