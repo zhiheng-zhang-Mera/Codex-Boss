@@ -69,11 +69,11 @@ export interface MutationVerdict {
   changedMechanical: string[];
 }
 
-/** Diffs a post-freeze protocol against its scientific core — the silent-mutation guard. */
+/** Compares the current scientific core to a previously frozen one (silent-mutation guard). */
 export function diffProtocol(original: Record<string, string>, candidate: ResearchProtocol): MutationVerdict {
-  const changedFrozen = Object.keys(original).filter((field) => candidate[field as FrozenField] !== undefined && candidate[field as FrozenField] !== original[field]);
-  const changedMechanical = AUTO_FIXABLE_FIELDS.filter((field) => candidate[field as never] !== undefined && candidate[field as never] !== original[field as never]);
-  return { silentChange: changedFrozen.length > 0, changedFrozen, changedMechanical };
+  const candidateCore = scientificCore(candidate);
+  const changedFrozen = Object.keys(original).filter((field) => candidateCore[field] !== undefined && candidateCore[field] !== original[field]);
+  return { silentChange: changedFrozen.length > 0, changedFrozen, changedMechanical: [] };
 }
 
 export function validateAmendment(amendment: ProtocolAmendment): void {
