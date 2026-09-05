@@ -9,6 +9,7 @@ import { assembleManuscript, type ManuscriptOptions } from "./manuscript/manuscr
 import type { ResearchStageExecutor } from "./research-supervisor";
 import { ResearchRuntime } from "./runtime/research-runtime";
 import { PrimaryRunRecorder, type PrimaryExperimentOptions, type RecordedExperiment } from "./runtime/run-recorder";
+import { analyzeRecordedRuns, type RunAnalysisOptions, type RunAnalysisResult } from "./evidence/run-analysis";
 
 /**
  * Research service facade (plan 9-6 Phase 5–11 glue). One object composes the
@@ -74,6 +75,19 @@ export class ResearchService {
     if (!this.runtime) throw new Error("Research runtime not configured for this service");
     const recorder = new PrimaryRunRecorder(this.evidence, this.runtime);
     return recorder.run(id, options);
+  }
+
+  /**
+   * Analyzes the real recorded runs of a frozen protocol into deterministic
+   * statistics + an evidence>vote claim verdict (Phase 10). Same fail-closed
+   * rules as runExperiment: run must exist, protocol frozen, hash must match.
+   */
+  analyzeRuns(id: string, options: RunAnalysisOptions): RunAnalysisResult {
+    const record = this.ledger.load(id);
+    if (!record) throw new Error(`Unknown research run: ${id}`);
+    if (record.ir.state !== "PROTOCOL_FROZEN" || !record.ir.protocolHash) throw new Error("Protocol must be frozen before analysis");
+    if (options.protocolHash !== record.ir.protocolHash) throw new Error("Analysis protocol hash does not match the frozen protocol");
+    return analyzeRecordedRuns(this.evidence, id, options);
   }
 
   /** Reference hash helper so callers never hand-roll canonical JSON. */

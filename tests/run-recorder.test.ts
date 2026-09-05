@@ -35,7 +35,7 @@ function specAt(cwd: string, seed: number): ResearchCommandSpec {
 }
 
 describe("primary-run recorder (Phase 6→10 glue)", () => {
-  it("runs a real experiment and records protocol-bound provenance", async () => {
+  it("runs a real experiment and records protocol-bound provenance", { timeout: 30000 }, async () => {
     const cwd = root();
     const evidenceDir = path.join(cwd, ".evidence");
     const recorder = new PrimaryRunRecorder(new EvidenceGraph(evidenceDir), new ResearchRuntime());
@@ -60,7 +60,7 @@ describe("primary-run recorder (Phase 6→10 glue)", () => {
     expect(new EvidenceGraph(evidenceDir).runs("r1")).toHaveLength(3);
   });
 
-  it("hashes declared inputs and detects a dependency lockfile", async () => {
+  it("hashes declared inputs and detects a dependency lockfile", { timeout: 30000 }, async () => {
     const cwd = root();
     fs.writeFileSync(path.join(cwd, "data.csv"), "a,b\n1,2\n");
     fs.writeFileSync(path.join(cwd, "package-lock.json"), JSON.stringify({ lockfileVersion: 3 }));

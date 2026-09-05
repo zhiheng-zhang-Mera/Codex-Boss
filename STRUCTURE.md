@@ -242,9 +242,9 @@ harness used to build the product.
   human guidance, live progress, pane zoom).
 - `electron/research/`: durable research ledger + autopilot supervisor (research-ledger.ts,
   research-supervisor.ts), protocol manager, Level-B default executor, citation source store,
-  evidence graph, manuscript assembler, structured research runtime
-  (`runtime/` with process runner, environment manager, primary-run recorder binding real runs
-  to the frozen protocol hash).
+  evidence graph (+ recorded-run analysis → stats → evidence>vote verdict), manuscript
+  assembler, structured research runtime (`runtime/` with process runner, environment manager,
+  primary-run recorder binding real runs to the frozen protocol hash).
 - `electron/commander/progress-recorder.ts`, `human-guidance-gate.ts`,
   `continuation-waker.ts`: event-bus surfaces feeding live progress / pauses / continuation.
 - `electron/research/runtime/`: structured spawn (no `shell:true`), allow-listed executables,

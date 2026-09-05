@@ -175,6 +175,16 @@ cores plus live web-AI novelty review.
   `research-supervisor` (7) + `research-runtime` (5) green; handoff
   `docs/9-6-research-round10-run-recorder.md`.
 
+## Round 11 — Recorded runs → statistics → claim verdict (done)
+
+- `electron/research/evidence/run-analysis.ts`: `analyzeRecordedRuns` computes deterministic
+  stats (mean/median/sd/CI) over real recorded runs bound to the frozen protocol and
+  adjudicates the claim (evidence > vote); independent replication = ≥2 distinct-seed runs;
+  adds run → statistic → claim nodes/edges to the evidence graph; throws when no eligible runs.
+- `ResearchService.analyzeRuns` — freeze/hash fail-closed guards mirror runExperiment.
+- Tests: `run-analysis` (5, incl. real node experiments) + `run-recorder` (5) green; handoff
+  `docs/9-6-research-round11-run-analysis.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on
