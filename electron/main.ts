@@ -26,6 +26,7 @@ import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { durableFileFor } from "./workspace/durable-roots";
+import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
@@ -122,6 +123,27 @@ function openProviderWithinLimit(providerId: ProviderId): void {
   providerViews.open(target);
 }
 
+function openProjectState(workspaceId: string): ProjectStateStore {
+  return new ProjectStateStore(durableFileFor(app.getPath("userData"), workspaceId, path.join(".boss", "project-state.json")));
+}
+
+/** Records a durable task completion into its workspace's project state (AP15 seam). */
+function recordTaskOutcome(taskId: string): void {
+  const snapshot = store.snapshot();
+  const task = snapshot.tasks.find((item) => item.id === taskId);
+  const final = store.finalResponseForTask(taskId);
+  if (!task || !final) return;
+  const workspaceId = task.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  try {
+    openProjectState(workspaceId).recordTaskCompletion(workspaceId, {
+      taskId: task.id,
+      title: task.title,
+      findings: final.content.slice(0, 2000),
+      nextActions: task.plan && task.plan.steps.some((step) => step.kind === "edit") ? ["verify merged changes with the full test suite"] : undefined
+    });
+  } catch { /* project state recording is advisory; never blocks completion */ }
+}
+
 async function advanceCouncilRound(taskId: string): Promise<void> {
     const snapshot = store.snapshot();
     const task = snapshot.tasks.find((item) => item.id === taskId);
@@ -144,6 +166,7 @@ async function advanceCouncilRound(taskId: string): Promise<void> {
     } else if (council.stage === "synthesis") {
       store.updateCouncil(taskId, { stage: "completed" });
       store.setTaskStatus(taskId, "completed");
+      recordTaskOutcome(taskId);
     } else {
       throw new Error(`Council cannot advance from ${council.stage}`);
     }
@@ -159,7 +182,7 @@ function attachProviderViews(): void {
   automation?.dispose();
   const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
   const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) return; await finalizer.finalize(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus);
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) { recordTaskOutcome(id); return; } await finalizer.finalize(id); recordTaskOutcome(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus);
   detachContinuationWaker?.();
   detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
@@ -273,6 +296,10 @@ if (ownsInstance) app.whenReady().then(() => {
   }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
+  ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
+    const target = workspaceId ?? workspaces.activeWorkspaceId();
+    return openProjectState(target).summary(target);
+  });
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
     if (!input.title.trim() || !input.prompt.trim()) throw new Error("Title and prompt are required");
     const providerIds = [...new Set(input.providerIds)];

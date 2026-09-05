@@ -374,4 +374,5 @@ export interface BossBridge {
   setProviderViewsVisible(visible: boolean): Promise<void>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
+  projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;
 }

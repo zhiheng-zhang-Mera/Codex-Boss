@@ -1,6 +1,7 @@
 import { taskPresentation } from "../shared/task-presentation";
 import { timelineForTask } from "../shared/task-timeline";
 import { currentFinalResponse } from "../shared/final-response";
+import type { ProjectStateSummary } from "../shared/project-tree";
 import { HistoryNameDialog, type HistoryDialogState } from "./components/HistoryNameDialog";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -10,6 +11,10 @@ import { executionLabel, type ReviewMode } from "../shared/execution";
 import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
 import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
+
+function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalView }) {
+  return <li><span className={`goal-status goal-${goal.status}`}>{goal.status}</span> {goal.title}{goal.children.length > 0 && <ul>{goal.children.map((child) => <GoalNodeView key={child.id} goal={child} />)}</ul>}</li>;
+}
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
@@ -23,6 +28,7 @@ function App() {
   const [historyDialog, setHistoryDialog] = useState<HistoryDialogState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
+  const [projectState, setProjectState] = useState<ProjectStateSummary | null>(null);
   const [historyCollapsed, setHistoryCollapsed] = useState(() => window.localStorage.getItem("codex-boss:history-collapsed") === "true");
   const [controllerWidth, setControllerWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("codex-boss:controller-width"));
@@ -42,7 +48,8 @@ function App() {
 
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
-    return window.boss.onSnapshot(setSnapshot);
+    void window.boss.projectState().then(setProjectState).catch(() => {});
+    return window.boss.onSnapshot((next) => { setSnapshot(next); void window.boss.projectState().then(setProjectState).catch(() => {}); });
   }, []);
 
   useEffect(() => {
@@ -278,6 +285,7 @@ function App() {
           <summary><b>Runtime Status</b><span>Main Commander 本地持有任务状态</span></summary>
           <div className="runtime-status-grid">{snapshot.runtimeStatuses.map((runtime) => <form key={runtime.runtimeId} onSubmit={(event) => void saveRuntimeControl(event, runtime.runtimeId)}><span className={`runtime-${runtime.availability.toLowerCase()}`}><i />{runtime.label}<small>{runtime.availability} · {runtime.budget}</small></span><label><input name="enabled" type="checkbox" defaultChecked={runtime.enabled} /> 启用</label><label>优先级 <input name="priority" type="number" min="0" max="999" defaultValue={runtime.priority} /></label><button type="submit">保存</button></form>)}</div>
           <div className="role-route-grid">{snapshot.roleRoutes.map((route) => <form key={route.role} onSubmit={(event) => void saveRoleRoute(event, route)}><b>{route.role}</b><select name="primary" defaultValue={route.runtimeIds[0]}>{snapshot.runtimeStatuses.filter((runtime) => runtime.enabled).map((runtime) => <option key={runtime.runtimeId} value={runtime.runtimeId}>{runtime.label}</option>)}</select><label><input name="fallback" type="checkbox" defaultChecked={route.fallback} /> fallback</label><button type="submit">设为首选</button></form>)}</div>
+          {projectState && <div className="goal-tree-panel"><b>目标树</b><span>{projectState.tree}</span>{projectState.goals.length > 0 && <ul>{projectState.goals.map((goal) => <GoalNodeView key={goal.id} goal={goal} />)}</ul>}{projectState.openQuestions.length > 0 && <small>待决问题：{projectState.openQuestions.join("；")}</small>}{projectState.nextActions.length > 0 && <small>下一步：{projectState.nextActions.join("；")}</small>}</div>}
         </details>
 
         {activeTasks.map((task) => {

@@ -33,6 +33,7 @@ const bridge: BossBridge = {
   layoutViews: (layout: Partial<Record<ProviderId, ViewBounds>>) => ipcRenderer.invoke("boss:layout-views", layout),
   setProviderViewsVisible: (visible: boolean) => ipcRenderer.invoke("boss:set-provider-views-visible", visible),
   updateTask: (taskId: string, status: TaskStatus) => ipcRenderer.invoke("boss:update-task", taskId, status),
+  projectState: (workspaceId?: string) => ipcRenderer.invoke("boss:project-state", workspaceId),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, snapshot: AppSnapshot) => listener(snapshot);
     ipcRenderer.on("boss:snapshot-updated", wrapped);
