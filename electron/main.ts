@@ -54,6 +54,7 @@ app.setPath("sessionData", path.join(dataRoot, "Session Data"));
 
 const ownsInstance = app.requestSingleInstanceLock();
 const isSmokeTest = process.argv.includes("--codex-boss-smoke-test");
+if (isSmokeTest) app.disableHardwareAcceleration();
 
 if (!ownsInstance) {
   app.quit();

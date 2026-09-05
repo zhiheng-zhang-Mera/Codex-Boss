@@ -7,7 +7,7 @@ $dataPath = Join-Path $projectRoot "artifacts/smoke-$runId"
 $stdout = Join-Path $projectRoot "artifacts/smoke-$runId.stdout.log"
 $stderr = Join-Path $projectRoot "artifacts/smoke-$runId.stderr.log"
 $executable = Join-Path $PackagePath 'Codex Boss.exe'
-$arguments = @('--codex-boss-smoke-test', ('--boss-data-dir="' + $dataPath + '"'))
+$arguments = @('--disable-gpu', '--disable-software-rasterizer', '--codex-boss-smoke-test', ('--boss-data-dir="' + $dataPath + '"'))
 $process = Start-Process -FilePath $executable -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
 $null = $process.Handle
 if (-not $process.WaitForExit(30000)) { Stop-Process -Id $process.Id -Force; throw 'Packaged smoke timed out' }

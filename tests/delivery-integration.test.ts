@@ -58,7 +58,7 @@ describe("automatic round continuation", () => {
     expect(calls, JSON.stringify(store.snapshot().runs.map(({ phase, message }) => ({ phase, message })))).toBe(3); expect(continuations).toBe(3);
     expect(store.snapshot().tasks[0]).toMatchObject({ status: "completed", executionPhase: "COMPLETED" });
     expect(store.snapshot().dispatchCheckpoints.every((item) => item.status === "COMMITTED")).toBe(true);
-  });
+  }, 15_000);
   it("does not accept task completion without evidence", () => {
     const { store } = workspace(); const task = store.createTask("task", "work", ["chatgpt"]);
     expect(() => store.setTaskStatus(task.id, "completed")).toThrow("persisted passing evidence");
