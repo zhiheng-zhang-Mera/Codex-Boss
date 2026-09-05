@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import fs from "node:fs";
 import { compileIntent, validateGraph, type TaskIR, type TaskStep } from "../../src/shared/task-ir";
+import { scanRepo } from "../engineering/repo-inspector";
 import { workspacePath } from "../engineering/native-tools";
 export type Planner = (prompt: string) => Promise<string>;
 export function needsPlanning(goal: string): boolean {
@@ -19,7 +20,7 @@ export class PlanCompiler {
       if (fs.statSync(file).size > 100000) throw new Error("Plan document exceeds context budget");
       planText = fs.readFileSync(file, "utf8");
     }
-    const inventory = workspace ? fs.readdirSync(workspace, { withFileTypes: true }).filter((item) => !item.name.startsWith(".") && !["node_modules", "artifacts", "runtime-data"].includes(item.name)).slice(0, 100).map((item) => item.name + (item.isDirectory() ? "/" : "")).join("\n") : "unavailable";
+    const inventory = workspace ? (() => { const snapshot = scanRepo(workspace); return snapshot.files.slice(0, 100).join("\n") || "unavailable"; })() : "unavailable";
     const prompt = this.prompt(goal, planText) + "\nObserved workspace entries (do not invent package.json or other config):\n" + inventory;
     const response = await this.planner(prompt);
     try { return this.parse(response, goal); }
