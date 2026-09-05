@@ -38,6 +38,12 @@ export interface TaskLedgerRecord {
   providerState?: import("../../src/shared/provider-state").ProviderStateRecord;
   /** Per-limit provenance (plan §7 explainable config), e.g. { modelCalls: "task" }. */
   limitsSource?: Partial<Record<"modelCalls" | "retries" | "toolCalls", ConfigLayerName>>;
+  /**
+   * Policy decision chosen for this task (plan §29): recorded when the plan
+   * is compiled so degradation selection can consume the chosen worker
+   * count / context budget instead of fixed per-mode constants.
+   */
+  policy?: { complexity: "L0" | "L1" | "L2" | "L3"; decision: import("../../src/shared/policy").PolicyDecision; optimizer: string; decidedAt: string };
 }
 
 /** Operational budget a task may override from the task config layer (plan §7). */

@@ -38,6 +38,7 @@ import type { CircuitBreaker } from "./circuit-breaker";
 import { buildReproductionSnapshot } from "../repro-snapshot";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 import { resourceProfile } from "../../src/shared/software-session";
+import { applyTaskPolicy } from "./task-policy";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; }
 
@@ -92,6 +93,9 @@ export class MainCommander {
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     this.ledger?.create(task.id, input.objective, input.constraints, input.budget);
+    // AP29b: record the policy decision chosen for this plan so degradation
+    // selection consumes per-complexity worker/context/verification budgets.
+    if (this.ledger) applyTaskPolicy(this.ledger, task.id, plan.estimatedComplexity);
     return task;
   }
 
@@ -136,6 +140,9 @@ export class MainCommander {
       throw error;
     }
     this.store.setTaskPlan(taskId, plan);
+    // AP29b: keep the policy decision current with the compiled complexity
+    // (replans may change L2↔L3); idempotent when unchanged.
+    if (this.ledger) applyTaskPolicy(this.ledger, taskId, plan.estimatedComplexity);
     if (plan.steps.some((step) => step.kind === "edit")) {
       const savedWorkspace = this.ledger.load(taskId)?.workspace;
       const isolated = savedWorkspace ?? await prepareWorkspace(workspace, taskId, plan.riskLevel, plan.estimatedComplexity === "L3");
