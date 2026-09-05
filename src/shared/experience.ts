@@ -4,10 +4,18 @@ export type ExperienceLevel = "task" | "workspace" | "domain" | "global";
 
 export const EXPERIENCE_LEVEL_ORDER: readonly ExperienceLevel[] = ["task", "workspace", "domain", "global"];
 
+/** Worker contribution metric (plan §16): how this observation's worker performed. */
+export interface ExperienceContribution {
+  outcome: "success" | "failure";
+  /** 1.0 default; runtime cost/token normalization may scale it later. */
+  weight?: number;
+}
+
 export interface ExperienceObservation {
   level: ExperienceLevel;
   at: string;
   source: string;   // task or workspace id
+  contribution?: ExperienceContribution;
 }
 
 export interface ExperienceEntry {
@@ -53,4 +61,11 @@ export function decidePromotion(entry: ExperienceEntry, thresholds: { workspaceO
     default:
       return { nextLevel: null, reasons: [] };
   }
+}
+
+/** Contribution stats over an entry's observations (plan §16 worker contribution metrics). */
+export function contributionStats(entry: Pick<ExperienceEntry, "observations">): { success: number; failure: number; rate: number | null } {
+  const success = entry.observations.filter((observation) => observation.contribution?.outcome === "success").length;
+  const failure = entry.observations.filter((observation) => observation.contribution?.outcome === "failure").length;
+  return { success, failure, rate: success + failure > 0 ? success / (success + failure) : null };
 }

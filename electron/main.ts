@@ -29,6 +29,7 @@ import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
 import { ExperienceStore } from "./experience/experience-store";
+import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
 import { MainCommander } from "./commander/main-commander";
@@ -216,12 +217,12 @@ if (ownsInstance) app.whenReady().then(() => {
   const runtimeRegistry = new RuntimeRegistry();
   budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
   const domainEvents = new DomainEventBus();
-  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));
-  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
+  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
   const projectStates = new ProjectStateStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "project-state.json")));
   const experiences = new ExperienceStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "experience.json")));
+  attachExperienceRecorder(domainEvents, experiences, { sourceFor: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.workspaceId ?? taskId });
   const softwareLeases = new SoftwareLeaseRegistry();
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
     for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
