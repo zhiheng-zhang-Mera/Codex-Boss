@@ -340,6 +340,12 @@ if (ownsInstance) app.whenReady().then(() => {
   });
   ipcMain.handle("boss:research-status", (_event, id: string) => researchLedgers?.load(id) ?? null);
   ipcMain.handle("boss:research-step", async (_event, id: string) => researchSupervisor?.step(id) ?? null);
+  ipcMain.handle("boss:research-wait", (_event, input: { id: string; kind: InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => {
+    const { id, ...rest } = input;
+    researchSupervisor?.wait(id, "WAITING_FOR_USER", rest.question);
+    const raised = humanGuidance?.raise({ taskId: id, ...rest, contextSummary: rest.contextSummary ?? rest.question.slice(0, 300) });
+    return raised ?? null;
+  });
   ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => researchProtocols?.freeze(id, protocol));
   ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
     const target = workspaceId ?? workspaces.activeWorkspaceId();

@@ -352,6 +352,7 @@ export interface BossBridge {
   researchStart(input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }): Promise<unknown>;
   researchStatus(id: string): Promise<unknown>;
   researchStep(id: string): Promise<unknown>;
+  researchWait(input: { id: string; kind: import("./intervention").InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }): Promise<unknown>;
   researchProtocolFreeze(id: string, protocol: import("./research-protocol").ResearchProtocol): Promise<unknown>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
