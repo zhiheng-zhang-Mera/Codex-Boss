@@ -44,6 +44,19 @@ export class CitationSourceStore {
     return status;
   }
 
+  /**
+   * Verifies a citation where `sourceAcquired` is derived from this store's own
+   * content-addressed cache (round 30): if the record's sourceRef was saved via
+   * saveSource(), the ladder advances past UNSUPPORTED to at least
+   * SOURCE_RETRIEVED deterministically. Metadata/passage flags are still caller
+   * evidence — a cached file alone never fabricates claim support.
+   */
+  verifySource(id: string, evidence: { metadataVerified: boolean; passageLocated?: boolean; passageSupports?: boolean; passageContradicts?: boolean; passages?: Array<{ quote: string; page?: string }> }): CitationStatus {
+    const record = this.require(id);
+    const sourceAcquired = !!record.sourceRef && !!this.loadSource(record.sourceRef);
+    return this.verify(id, { sourceAcquired, metadataVerified: evidence.metadataVerified, passageLocated: evidence.passageLocated ?? false, passageSupports: evidence.passageSupports ?? false, passageContradicts: evidence.passageContradicts ?? false, passages: evidence.passages });
+  }
+
   /** Caches an acquired source by its ref (content-addressed). */
   saveSource(ref: string, text: string): CitationSource {
     const source: CitationSource = { ref, text: text.slice(0, 200000), contentHash: createHash("sha256").update(text, "utf8").digest("hex"), fetchedAt: new Date().toISOString() };

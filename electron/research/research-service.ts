@@ -106,6 +106,16 @@ export class ResearchService {
     return this.protocols.amendments(id);
   }
 
+  /**
+   * Verifies one citation where source acquisition is derived from the citation
+   * store's content-addressed cache (round 30): a saved source advances the
+   * ladder to ≥ SOURCE_RETRIEVED deterministically; passage support is still
+   * caller evidence. Fail-closed on unknown citation ids.
+   */
+  verifyCitation(id: string, evidence: { metadataVerified: boolean; passageLocated?: boolean; passageSupports?: boolean; passageContradicts?: boolean; passages?: Array<{ quote: string; page?: string }> }): import("../../src/shared/research-citation").CitationStatus {
+    return this.citations.verifySource(id, evidence);
+  }
+
   recordRun(id: string, run: PrimaryRunRecord): void { this.evidence.addRun(id, run); }
 
   /**

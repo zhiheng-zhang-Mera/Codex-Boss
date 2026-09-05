@@ -109,6 +109,20 @@ describe("research service facade (Phase 5-11 glue)", () => {
     expect(() => service.startLevelA({ id: "levela2", goal: "g", workspace: dir, reviewers: ["web:gemini"], plan: bad as never })).toThrow(/replication/i);
   });
 
+  it("verifies a citation via the store cache through the service (round 30)", () => {
+    const dir = root();
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "a.ts"), "export const a = 1;");
+    const service = new ResearchService({ root: path.join(dir, ".boss"), executor: new DefaultLevelBExecutor() });
+    service.start(ir(dir));
+    service.citations.put({ id: "cite:real", proposedTitle: "Paper", sourceRef: "https://x.test/paper.pdf", status: "UNSUPPORTED", reasons: [], updatedAt: new Date(0).toISOString() });
+    service.citations.saveSource("https://x.test/paper.pdf", "full source text");
+    // A cached source advances the ladder to SOURCE_RETRIEVED without fabrication.
+    expect(service.verifyCitation("cite:real", { metadataVerified: true })).toBe("SOURCE_RETRIEVED");
+    expect(service.verifyCitation("cite:real", { metadataVerified: true, passageLocated: true, passageSupports: true, passages: [{ quote: "supports" }] })).toBe("CLAIM_SUPPORTED");
+    expect(() => service.verifyCitation("ghost", { metadataVerified: true })).toThrow(/Unknown/);
+  });
+
   it("writes evidence graph runs and exposes the protocol hash helper", () => {
     const dir = root();
     fs.mkdirSync(path.join(dir, "src"), { recursive: true });

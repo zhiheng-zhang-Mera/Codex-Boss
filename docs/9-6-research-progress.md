@@ -332,6 +332,14 @@ cores plus live web-AI novelty review.
 - Tests: `research-figures` (3) + `research-manuscript` (4) + `citation-audit` (6) +
   `research-artifact-tree` (2) green; handoff `docs/9-6-research-round29-paper-figures.md`.
 
+## Round 30 — Source acquisition derived from the citation cache (done)
+
+- `CitationSourceStore.verifySource` derives `sourceAcquired` from the content-addressed cache
+  (saved source → ≥ SOURCE_RETRIEVED; uncached stays ≤ METADATA_ONLY); service
+  `verifyCitation` facade.
+- Tests: `research-citation` (5) + `research-service` (6) + `citation-audit` (6) green; handoff
+  `docs/9-6-research-round30-source-cache.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

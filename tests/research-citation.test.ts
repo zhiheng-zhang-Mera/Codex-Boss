@@ -49,6 +49,20 @@ describe("citation source store (Phase 9)", () => {
     expect(reloaded.loadSource("https://example.test/paper.pdf")?.contentHash).toBe(saved.contentHash);
   });
 
+  it("derives sourceAcquired from its own cache (round 30): cached source reaches SOURCE_RETRIEVED", () => {
+    const dir = root();
+    const store = new CitationSourceStore(dir);
+    store.put(citation({ id: "c2", sourceRef: "https://example.test/a.pdf" }));
+    store.put(citation({ id: "c3", sourceRef: "https://example.test/absent.pdf" }));
+    store.saveSource("https://example.test/a.pdf", "real source text");
+    // Cached source + metadata verified → at least SOURCE_RETRIEVED.
+    expect(store.verifySource("c2", { metadataVerified: true })).toBe("SOURCE_RETRIEVED");
+    expect(store.verifySource("c2", { metadataVerified: true, passageLocated: true, passageSupports: true })).toBe("CLAIM_SUPPORTED");
+    // No cached source → cannot advance past METADATA_ONLY (never fabricate acquisition).
+    expect(store.verifySource("c3", { metadataVerified: true })).toBe("METADATA_ONLY");
+    expect(store.list().find((item) => item.id === "c2")?.status).toBe("CLAIM_SUPPORTED");
+  });
+
   it("fails closed on corrupt store and unknown citation verify", () => {
     const dir = root();
     const store = new CitationSourceStore(dir);
