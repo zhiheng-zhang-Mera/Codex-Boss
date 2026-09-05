@@ -155,6 +155,13 @@ cores plus live web-AI novelty review.
 - Tests: `research-supervisor` (7) + `research-service` (3) + `levelb-executor` (2) +
   `levelb-pipeline` (2) green; handoff `docs/9-6-research-round8-gate-pause.md`.
 
+## Round 9 — Resume control for paused research runs (done)
+
+- `BossBridge.researchResume(id)` + IPC `boss:research-resume` (publishes HUMAN_APPROVED on a
+  real resume) + preload bridge; Research view shows "恢复研究（回到待办阶段）" for runs parked
+  at WAITING_FOR_PROVIDER / WAITING_FOR_USER / RECOVERING instead of a no-op step button.
+- typecheck + build:renderer + build:electron PASS; handoff `docs/9-6-research-round9-resume-ipc.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

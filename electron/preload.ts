@@ -11,6 +11,7 @@ const bridge: BossBridge = {
   researchStatus: (id: string) => ipcRenderer.invoke("boss:research-status", id),
   researchList: () => ipcRenderer.invoke("boss:research-list"),
   researchStep: (id: string) => ipcRenderer.invoke("boss:research-step", id),
+  researchResume: (id: string) => ipcRenderer.invoke("boss:research-resume", id),
   researchWait: (input: { id: string; kind: import("../src/shared/intervention").InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => ipcRenderer.invoke("boss:research-wait", input),
   researchProtocolFreeze: (id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => ipcRenderer.invoke("boss:research-protocol-freeze", id, protocol),
   createTask: (input: CreateTaskInput) => ipcRenderer.invoke("boss:create-task", input),

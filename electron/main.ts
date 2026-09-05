@@ -346,6 +346,13 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:research-status", (_event, id: string) => researchLedgers?.load(id) ?? null);
   ipcMain.handle("boss:research-list", () => researchLedgers?.list() ?? []);
   ipcMain.handle("boss:research-step", async (_event, id: string) => researchSupervisor?.step(id) ?? null);
+  ipcMain.handle("boss:research-resume", (_event, id: string) => {
+    const resumed = researchSupervisor?.resume(id) ?? false;
+    // A run parked at WAITING_FOR_PROVIDER by a reviewer gate (round 8) or at
+    // WAITING_FOR_USER by research-wait is now back at its pending stage.
+    if (resumed) domainEvents.publish({ type: "HUMAN_APPROVED", taskId: id, message: "research run resumed to its pending stage" });
+    return resumed;
+  });
   ipcMain.handle("boss:research-wait", (_event, input: { id: string; kind: InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => {
     const { id, ...rest } = input;
     researchSupervisor?.wait(id, "WAITING_FOR_USER", rest.question);

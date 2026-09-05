@@ -229,6 +229,24 @@ function App() {
     }
   }
 
+  /** Resumes a run parked at a control state (reviewer gate / guidance wait) to its pending stage. */
+  async function resumeResearch() {
+    if (!researchStatus || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      const resumed = await window.boss.researchResume(researchStatus.id);
+      if (!resumed) setError("该研究未处于可恢复的等待状态");
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string } } | null;
+      if (refreshed) setResearchStatus({ id: researchStatus.id, state: refreshed.ir.state });
+      void window.boss.researchList().then(setResearchRuns).catch(() => {});
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
   function createFolder() { setHistoryDialog({ mode: "create-folder", value: "新文件夹" }); }
   function createConversation(folderId = activeConversation?.folderId ?? snapshot.folders[0]?.id) {
     if (folderId) setHistoryDialog({ mode: "create-conversation", folderId, value: "新对话" });
@@ -469,7 +487,7 @@ function App() {
           <label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
           <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
           <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
-          {researchStatus && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}</span><button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button></div>}
+          {researchStatus && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}</span>{["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(researchStatus.state) ? <button type="button" disabled={sending} onClick={() => void resumeResearch()}>恢复研究（回到待办阶段）</button> : <button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button>}</div>}
           {researchRuns.length > 0 && <section className="research-runs"><b>已有研究</b>{researchRuns.slice(0, 20).map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 60)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string } }).ir.state })).catch(() => {})}>查看</button></div>)}</section>}
         </form> : <>
         <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}

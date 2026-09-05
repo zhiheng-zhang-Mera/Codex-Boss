@@ -353,6 +353,8 @@ export interface BossBridge {
   researchStatus(id: string): Promise<unknown>;
   researchList(): Promise<Array<{ id: string; goal: string; state: string; revision: number; updatedAt: string }>>;
   researchStep(id: string): Promise<unknown>;
+  /** Resumes a control-paused research run to its pending stage; true when it actually resumed. */
+  researchResume(id: string): Promise<boolean>;
   researchWait(input: { id: string; kind: import("./intervention").InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }): Promise<unknown>;
   researchProtocolFreeze(id: string, protocol: import("./research-protocol").ResearchProtocol): Promise<unknown>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
