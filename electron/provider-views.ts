@@ -2,17 +2,23 @@ import { BrowserWindow, WebContentsView } from "electron";
 import type { DownloadItem, Event as ElectronEvent, Session } from "electron";
 import type { Provider, ProviderId, ViewBounds } from "../src/shared/contracts";
 import { AccountSessionManager } from "./account-sessions";
+import { profileFor, zoomForPaneWidth, type ProviderDisplayProfile } from "../src/shared/provider-view-profile";
 
 export class ProviderViews {
   private readonly views = new Map<ProviderId, WebContentsView>();
   private readonly downloadListeners = new Map<ProviderId, { session: Session; listener: (event: ElectronEvent, item: DownloadItem) => void }>();
+  /** Provider-specific zoom profiles (plan Phase 2); applied on every layout. */
+  private readonly profiles: ProviderDisplayProfile[];
 
   constructor(
     private readonly host: BrowserWindow,
     private readonly onState: (providerId: ProviderId, open: boolean) => void,
     private readonly accounts: AccountSessionManager,
-    private readonly downloadPathFor: (providerId: ProviderId, suggestedName: string) => string
-  ) {}
+    private readonly downloadPathFor: (providerId: ProviderId, suggestedName: string) => string,
+    profiles: ProviderDisplayProfile[] = []
+  ) {
+    this.profiles = profiles;
+  }
 
   open(provider: Provider, loadInitialPage = true): WebContentsView {
     const existing = this.views.get(provider.id);
@@ -76,6 +82,13 @@ export class ProviderViews {
         width: Math.max(1, Math.round(bounds.width)),
         height: Math.max(1, Math.round(bounds.height))
       });
+      // Phase 2 auto zoom: zoom to the real pane width against the provider's
+      // target CSS width (clamped). Never CSS transform — the renderer paints
+      // 1:1 and the WebContentsView scales the page itself.
+      try {
+        const zoom = zoomForPaneWidth(profileFor(this.profiles, providerId), bounds.width);
+        if (Math.abs((view.webContents.getZoomFactor() ?? 1) - zoom) > 0.001) view.webContents.setZoomFactor(zoom);
+      } catch { /* a not-yet-ready or closing view keeps its current zoom */ }
     }
   }
 

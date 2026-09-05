@@ -87,9 +87,9 @@ describe("provider input focus policy", () => {
 });
 
 describe("layout policy styles", () => {
-  it("defines vertical thirds and a five-provider six-cell workspace", () => {
+  it("defines horizontal thirds (1×3 full-height AI columns) and a five-provider six-cell workspace", () => {
     const css = fs.readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-    expect(css).toContain(".provider-grid.count-3 { grid-template-columns: 1fr; grid-template-rows: repeat(3");
+    expect(css).toContain(".provider-grid.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr);");
     expect(css).toContain(".layout-five .chat-half { grid-column: 3; grid-row: 1;");
     expect(css).toContain(".layout-five .provider-grid.count-5 .provider-pane:nth-child(5) { grid-column: 4; grid-row: 2;");
   });

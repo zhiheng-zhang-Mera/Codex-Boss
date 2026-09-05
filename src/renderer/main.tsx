@@ -48,6 +48,32 @@ function App() {
   const openProviders = snapshot.providers.filter((provider) => provider.windowOpen);
   const selectedProviders = openProviders.map((provider) => provider.id);
   const openKey = openProviders.map((provider) => provider.id).join(",");
+  // Phase 2: provider pane display order (open order → left → right), persisted.
+  const [displayOrder, setDisplayOrder] = useState<ProviderId[]>(() => {
+    const saved = window.localStorage.getItem("codex-boss:provider-display-order");
+    if (saved) { try { const parsed = JSON.parse(saved) as ProviderId[]; if (Array.isArray(parsed) && parsed.every((id) => typeof id === "string")) return parsed; } catch { /* fall through to default */ } }
+    return openProviders.map((provider) => provider.id);
+  });
+  useEffect(() => { window.localStorage.setItem("codex-boss:provider-display-order", JSON.stringify(displayOrder)); }, [displayOrder]);
+  useEffect(() => {
+    // Newly opened providers append at the end; closed ones drop out.
+    const openIds = new Set(openProviders.map((provider) => provider.id));
+    const merged = [...displayOrder.filter((id) => openIds.has(id)), ...openProviders.filter((provider) => !displayOrder.includes(provider.id)).map((provider) => provider.id)];
+    if (merged.join(",") !== displayOrder.join(",")) setDisplayOrder(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey]);
+  const orderedOpenProviders = [...openProviders].sort((a, b) => displayOrder.indexOf(a.id) - displayOrder.indexOf(b.id));
+  function moveDisplayOrder(providerId: ProviderId, direction: -1 | 1) {
+    setDisplayOrder((current) => {
+      const index = current.indexOf(providerId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      next.splice(index, 1);
+      next.splice(target, 0, providerId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
@@ -417,8 +443,8 @@ function App() {
         <div className="snap-illustration"><span /><span /><span /></div>
         <h2>等待打开网页页面</h2><p>在主控页选中 AI 时会直接打开；取消选中或点击页面标题栏 × 会立即关闭。</p>
       </div> : <div className={`provider-grid count-${openProviders.length}`}>
-        {openProviders.map((provider) => <article className="provider-pane" key={provider.id}>
-          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div>
+        {orderedOpenProviders.map((provider, index) => <article className="provider-pane" key={provider.id}>
+          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><div className="pane-order-controls"><button disabled={index === 0 || Boolean(prompt.trim())} title="左移" onClick={() => moveDisplayOrder(provider.id, -1)}>‹</button><button disabled={index === orderedOpenProviders.length - 1 || Boolean(prompt.trim())} title="右移" onClick={() => moveDisplayOrder(provider.id, 1)}>›</button><button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div></div>
           <div className="web-surface" ref={(element) => { surfaceRefs.current[provider.id] = element; }}><span>正在载入 {provider.name}…</span></div>
         </article>)}
       </div>}
