@@ -279,6 +279,14 @@ cores plus live web-AI novelty review.
 - Tests: `research-artifact-tree` (2, asserts run→figure edges) + `graph-claims` (4) +
   `research-figures` (3) green; handoff `docs/9-6-research-round22-figure-traceability.md`.
 
+## Round 23 — Paired permutation test + doc reconcile (done)
+
+- `permutationP(..., { paired: true })` now runs a sign-flip test over within-pair differences
+  (equal length required, NaN otherwise); unpaired path unchanged; STRUCTURE research inventory
+  reconciled through round 22.
+- Tests: `research-evidence` (6) + `research-manuscript` (3) green; handoff
+  `docs/9-6-research-round23-paired-stats.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

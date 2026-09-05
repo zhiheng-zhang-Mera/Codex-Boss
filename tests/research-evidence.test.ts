@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { describe as statsDescribe, confidenceInterval, mean, median, standardDeviation, bootstrapCi, effectSize, permutationP } from "../src/shared/research-statistics";
+import { describe as statsDescribe, confidenceInterval, mean, median, standardDeviation, bootstrapCi, effectSize, permutationP, proportion } from "../src/shared/research-statistics";
 import { EvidenceGraph, type PrimaryRunRecord } from "../electron/research/evidence/evidence-graph";
 
 const dirs: string[] = [];
@@ -40,6 +40,25 @@ describe("deterministic research statistics (Phase 10)", () => {
     expect(p).toBeLessThanOrEqual(1);
     const same = permutationP([1, 2, 3], [1, 2, 3], { seed: 2, permutations: 300 });
     expect(same).toBeGreaterThan(0.01); // identical sets → high p
+  });
+
+  it("runs a deterministic paired permutation test and proportion helper", () => {
+    // Paired: before/after with a real offset → low p (deterministic seed).
+    const before = [10, 11, 9, 12, 10.5, 11.5, 9.5, 10.2, 11.2, 12.2];
+    const after = before.map((value) => value + 1.5);
+    const p = permutationP(before, after, { seed: 3, permutations: 2000, paired: true });
+    expect(p).toBeGreaterThan(0);
+    expect(p).toBeLessThan(0.05);
+    // Deterministic: same seed → same result.
+    expect(p).toBe(permutationP(before, after, { seed: 3, permutations: 2000, paired: true }));
+    // No offset → high p.
+    const noOffset = permutationP([1, 2, 3, 4, 5, 6], [1.1, 1.9, 3.2, 3.8, 5.1, 5.9], { seed: 4, permutations: 1500, paired: true });
+    expect(noOffset).toBeGreaterThan(0.01);
+    // Unequal lengths with paired → NaN (fail closed, no wrong answer).
+    expect(permutationP([1, 2, 3], [1, 2], { paired: true })).toBeNaN();
+    // Proportion helper.
+    expect(proportion(3, 10)).toBe(0.3);
+    expect(proportion(3, 0)).toBeNaN();
   });
 });
 

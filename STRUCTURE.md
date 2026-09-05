@@ -235,24 +235,31 @@ harness used to build the product.
 
 - `src/shared/research-ir.ts` / `research-protocol.ts` / `research-citation.ts` /
   `research-manuscript.ts` / `research-statistics.ts` / `research-command.ts` /
-  `research-levelb.ts` / `research-adjudicate.ts` / `intervention.ts` / `progress.ts` /
+  `research-levelb.ts` / `research-levela.ts` / `research-adjudicate.ts` /
+  `research-bibliography.ts` / `research-figures.ts` / `intervention.ts` / `progress.ts` /
   `provider-view-profile.ts`: pure research/UI contracts (state machines, protocol freeze +
-  silent-mutation guard, citation ladder, manuscript sections + evidence check, deterministic
-  statistics, structured command spec, falsifiable-RQ selection, evidence>vote adjudication,
-  human guidance, live progress, pane zoom).
+  silent-mutation guard, citation ladder + audit + deterministic references.bib, manuscript
+  sections + evidence check, deterministic statistics, structured command spec,
+  falsifiable-RQ selection, Level-A novelty gate + experiment spec, evidence>vote
+  adjudication, deterministic SVG figures, human guidance, live progress, pane zoom).
 - `electron/research/`: durable research ledger + autopilot supervisor (research-ledger.ts,
-  research-supervisor.ts), protocol manager, Level-B default executor, citation source store,
-  evidence graph (+ recorded-run analysis → stats → evidence>vote verdict), manuscript
-  assembler, structured research runtime (`runtime/` with process runner, environment manager,
-  primary-run recorder binding real runs to the frozen protocol hash).
+  research-supervisor.ts), protocol manager (freeze/amend bound to frozen hash), Level-B default
+  executor, citation source store, evidence graph (+ recorded-run analysis → stats →
+  evidence>vote verdict, reproducibility audit, graph-derived manuscript claims, figure →
+  run traceability), manuscript assembler (paper.md/tex + verified references.bib + figures +
+  audit tree), Level-A planner, structured research runtime (`runtime/` with process runner,
+  environment manager, primary-run recorder binding real runs to the frozen protocol hash,
+  fail-closed on failed runs).
 - `electron/commander/progress-recorder.ts`, `human-guidance-gate.ts`,
   `continuation-waker.ts`: event-bus surfaces feeding live progress / pauses / continuation.
 - `electron/research/runtime/`: structured spawn (no `shell:true`), allow-listed executables,
   concurrency budget, artifact capture, primary-run provenance recorder (run-recorder.ts).
 - Renderer: `Chat | Work | Research` top nav + research launcher (goal / workspace / reviewers /
-  autonomy), Research status + step control; history context menu, archived conversation
-  toggle, live progress strip, horizontal 3-AI panes with persisted order.
-- Handoffs: `docs/9-6-research-phase*.md`; progress/limits: `docs/9-6-research-progress.md`.
+  autonomy), Research status + step control with resume for control-paused runs; history context
+  menu, archived conversation toggle, live progress strip, horizontal 3-AI panes with persisted
+  order.
+- Handoffs: `docs/9-6-research-phase*.md` + `docs/9-6-research-round*.md`;
+  progress/limits: `docs/9-6-research-progress.md`.
 
 Live Level-A/Level-B E2E (real repo + web-AI reviewers + real experiments + manuscript PDF)
 remains an external GUI/live validation item per the research plan's Final Acceptance — never

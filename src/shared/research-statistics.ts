@@ -86,11 +86,36 @@ export function effectSize(left: number[], right: number[]): number {
   return (mean(left) - mean(right)) / pooled;
 }
 
-/** Simple paired/unpaired comparison p-value via permutation test (seedable, deterministic). */
-export function permutationP(left: number[], right: number[], options: { seed?: number; permutations?: number; paired?: boolean } = {}): number {
+/** Paired (sign-flip) permutation p-value: equal-n pairs, differences re-signed. */
+function permutationPairedP(differences: number[], options: { seed?: number; permutations?: number }): number {
   const permutations = options.permutations ?? 5000;
   const random = mulberry32(options.seed ?? 7);
+  const observed = Math.abs(mean(differences));
+  let extreme = 0;
+  for (let permutation = 0; permutation < permutations; permutation += 1) {
+    // Each difference is kept or flipped with equal probability (deterministic
+    // via the seeded PRNG) — a paired permutation test.
+    let sum = 0;
+    for (const difference of differences) sum += random() < 0.5 ? difference : -difference;
+    if (Math.abs(sum / differences.length) >= observed) extreme += 1;
+  }
+  return (extreme + 1) / (permutations + 1);
+}
+
+/**
+ * Paired/unpaired comparison p-value via permutation test (seedable,
+ * deterministic). Paired requires equal-length samples and flips the signs of
+ * the within-pair differences; unpaired repartitions the pooled groups.
+ */
+export function permutationP(left: number[], right: number[], options: { seed?: number; permutations?: number; paired?: boolean } = {}): number {
+  const permutations = options.permutations ?? 5000;
   if (left.length < 2 || right.length < 2) return NaN;
+  if (options.paired) {
+    if (left.length !== right.length) return NaN;
+    const differences = left.map((value, index) => value - right[index]);
+    return permutationPairedP(differences, { seed: options.seed, permutations });
+  }
+  const random = mulberry32(options.seed ?? 7);
   const observed = Math.abs(mean(left) - mean(right));
   const combined = [...left, ...right];
   let extreme = 0;
