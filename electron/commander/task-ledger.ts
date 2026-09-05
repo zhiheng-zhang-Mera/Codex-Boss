@@ -7,6 +7,7 @@ import type { RuntimeResult } from "../runtimes/runtime";
 import type { ConfigLayerName } from "../../src/shared/config-layering";
 import { resolveOperationalLimits, type OperationalLimitOverrides } from "../../src/shared/config-layering";
 import { validateReproductionSnapshot, type ReproductionSnapshot } from "../repro-snapshot";
+import { pruneTaskCheckpoints } from "./storage-budget";
 export interface Consumption { modelCalls: number; estimatedInputTokens: number; estimatedOutputTokens: number; toolCalls: number; browserActions: number; retries: number; workerRuntimeMs: number; providerWaitMs: number; }
 export interface WorkerSession {
   externalSessionId?: string;
@@ -67,6 +68,9 @@ export class TaskLedger {
     if (current && current.revision !== record.revision) throw new Error("Stale task checkpoint");
     const next = structuredClone(record); next.revision += 1; next.checkpointReason = reason;
     writeJson(path.join(this.root, validId(next.taskId), "checkpoints", `${String(next.revision).padStart(8, "0")}.json`), next);
+    // Bounded generation retention (plan §17): amortized prune so a long-running
+    // task never accumulates unbounded checkpoints; recovery only reads newest.
+    if (next.revision % 20 === 0) pruneTaskCheckpoints(this.root, next.taskId);
     return next;
   }
   update(taskId: string, reason: string, mutate: (record: TaskLedgerRecord) => void): TaskLedgerRecord {
