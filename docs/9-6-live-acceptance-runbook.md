@@ -174,6 +174,12 @@ bridge calls (or the app's live executor wiring, which replaces `DefaultLevelBEx
 
 Evidence: copy the run's `audit/` + `evidence/` JSONs.
 
+> Deterministic I/J verdict: after the run, execute
+> `node scripts/acceptance-research-audit.cjs <researchRoot> <researchId>` — it asserts the
+> snapshot/hash binding, final-audit pass, reproducibility REPRODUCED, citations ok, claim +
+> paper graph nodes, and paper.md/tex/bib + embedded figures (exit 0 = PASS). Return its JSON
+> report as part of the evidence.
+
 ---
 
 ## J. Artifact
