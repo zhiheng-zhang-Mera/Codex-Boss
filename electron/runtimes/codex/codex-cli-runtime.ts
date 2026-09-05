@@ -15,6 +15,7 @@ export class CodexCliRuntime implements RuntimeAdapter {
   readonly id = "codex:cli";
   readonly kind = "codex" as const;
   readonly capabilities = { roles: ["planning", "research", "review", "synthesis", "coding", "validation", "critique"] as const, supportsCancellation: true, supportsStreaming: false };
+  readonly compatibility = { id: "codex:cli", kind: "codex", windows: { adapter_api: { min: "1", max: "1" }, capability_contract: { min: "1", max: "1" } } } as const;
   private readonly cancelled = new Set<string>();
   private command: string | null = null;
   private readonly children = new Map<string, ReturnType<typeof spawn>>();
