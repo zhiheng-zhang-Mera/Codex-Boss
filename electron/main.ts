@@ -22,6 +22,7 @@ import { compileIntent } from "../src/shared/task-ir";
 import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
+import { DomainEventBus } from "./commander/event-bus";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
@@ -206,13 +207,14 @@ if (ownsInstance) app.whenReady().then(() => {
   remoteRelay.sync(store.snapshot().remoteChannels);
   const runtimeRegistry = new RuntimeRegistry();
   budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
+  const domainEvents = new DomainEventBus();
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
     for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
       const task = store.snapshot().tasks.find((task) => task.id === item.taskId);
       if (task && (task.recoveryAt || task.recoveryMessage !== item.error)) store.setRecoveryState(item.taskId, undefined, item.error ?? "Recovery paused");
     }
     publish();
-  });
+  }, domainEvents);
   const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
@@ -225,7 +227,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
-  } }, circuitBreaker);
+  } }, circuitBreaker, domainEvents);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();

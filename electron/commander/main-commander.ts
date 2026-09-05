@@ -58,8 +58,9 @@ export class MainCommander {
     readonly resources?: ResourceController,
     readonly recovery?: RecoveryScheduler,
     readonly computerOptions: ComputerOptions = {},
-    readonly breaker?: CircuitBreaker
-  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
+    readonly breaker?: CircuitBreaker,
+    readonly events?: import("./event-bus").DomainEventBus
+  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker, events); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
       const task = this.store.snapshot().tasks.find((item) => item.id === record.taskId);

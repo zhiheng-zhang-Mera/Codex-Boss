@@ -8,12 +8,13 @@ import { TaskLedger } from "./task-ledger";
 import { classifyInterruption, recoveryFor } from "./interruption";
 import type { CircuitBreaker } from "./circuit-breaker";
 import { providerTechnicalInterruption } from "./circuit-breaker";
+import type { DomainEventBus } from "./event-bus";
 import { pausedForProvider, stateForRecovery } from "../../src/shared/provider-state";
 import { reviewResponse } from "../../src/shared/execution";
 
 export class ExecutionSupervisor {
   private readonly active = new Map<string, Promise<RuntimeResult>>();
-  constructor(readonly ledger: TaskLedger, private readonly scheduler = new Scheduler(), private readonly resources?: ResourceController, private readonly recovery?: RecoveryScheduler, private readonly budgets?: BudgetManager, private readonly breaker?: CircuitBreaker) {}
+  constructor(readonly ledger: TaskLedger, private readonly scheduler = new Scheduler(), private readonly resources?: ResourceController, private readonly recovery?: RecoveryScheduler, private readonly budgets?: BudgetManager, private readonly breaker?: CircuitBreaker, private readonly events?: DomainEventBus) {}
   execute(request: RuntimeRequest, candidates: RuntimeAdapter[]): Promise<RuntimeResult> {
     const key = `${request.taskId}/${request.jobId}`;
     const existing = this.active.get(key); if (existing) return existing;
@@ -61,6 +62,7 @@ export class ExecutionSupervisor {
       const review = reviewResponse({ taskId: request.taskId, workerId: runtime.id, responseId: request.jobId, content: result.content ?? result.artifact?.content ?? "", outcome: result.status === "SUCCESS" ? "SUCCESS" : "RETRYABLE_FAILURE" });
       if (result.status === "SUCCESS" && review.status === "PASS") {
         this.budgets?.observeSuccess(runtime.id);
+        this.events?.publish({ type: "WORKER_COMPLETED", taskId: request.taskId, jobId: request.jobId, runtimeId: runtime.id, message: "worker completed", result });
         this.ledger.update(request.taskId, "step completed", (value) => {
           value.jobs[request.jobId].state = "COMPLETED"; value.jobs[request.jobId].result = result;
           value.completedSteps = [...new Set([...value.completedSteps, request.jobId])]; value.currentStep = null; value.nextAction = "NEXT_STEP"; value.mode = "NORMAL";
@@ -82,6 +84,7 @@ export class ExecutionSupervisor {
       this.budgets?.observeFailure(runtime.id, interruption.message, interruption.retryAt ? new Date(interruption.retryAt).toISOString() : undefined);
       if (providerTechnicalInterruption(interruption.kind)) this.breaker?.observeFailure(runtime.id);
       else this.breaker?.cancelProbe(runtime.id); // user/rate-limit states must not leave a HALF_OPEN probe consumed
+      this.events?.publish({ type: "WORKER_FAILED", taskId: request.taskId, jobId: request.jobId, runtimeId: runtime.id, retryAt: recovery.retryAt, message: interruption.message });
       this.ledger.update(request.taskId, "worker interrupted", (value) => {
         value.failureHistory.push(interruption); value.jobs[request.jobId].state = "WAITING";
         value.jobs[request.jobId].result = result; value.jobs[request.jobId].retryAt = recovery.retryAt;
