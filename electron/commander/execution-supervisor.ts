@@ -7,11 +7,13 @@ import type { RuntimeAdapter, RuntimeRequest, RuntimeResult } from "../runtimes/
 import { Scheduler } from "./scheduler";
 import { TaskLedger } from "./task-ledger";
 import { classifyInterruption, recoveryFor } from "./interruption";
+import type { CircuitBreaker } from "./circuit-breaker";
+import { providerTechnicalInterruption } from "./circuit-breaker";
 import { reviewResponse } from "../../src/shared/execution";
 
 export class ExecutionSupervisor {
   private readonly active = new Map<string, Promise<RuntimeResult>>();
-  constructor(readonly ledger: TaskLedger, private readonly scheduler = new Scheduler(), private readonly resources?: ResourceController, private readonly recovery?: RecoveryScheduler, private readonly budgets?: BudgetManager) {}
+  constructor(readonly ledger: TaskLedger, private readonly scheduler = new Scheduler(), private readonly resources?: ResourceController, private readonly recovery?: RecoveryScheduler, private readonly budgets?: BudgetManager, private readonly breaker?: CircuitBreaker) {}
   execute(request: RuntimeRequest, candidates: RuntimeAdapter[]): Promise<RuntimeResult> {
     const key = `${request.taskId}/${request.jobId}`;
     const existing = this.active.get(key); if (existing) return existing;
@@ -27,7 +29,7 @@ export class ExecutionSupervisor {
     if (old && old.state !== "COMPLETED" && ["VERIFY_SIDE_EFFECT", "HUMAN_REQUIRED"].includes(state.nextAction)) return this.defer(request, "Human reconciliation remains required", "USER_ACTION_REQUIRED");
     if (old?.state === "RUNNING" && !request.replaySafe) return this.defer(request, "Prior side effect must be verified before replay", "USER_ACTION_REQUIRED");
     if (old?.retryAt && old.retryAt > Date.now()) return this.defer(request, "Waiting for retry deadline", "RATE_LIMITED");
-    const compatible = candidates.filter((runtime) => runtime.capabilities.roles.includes(request.role) && (!this.budgets || this.budgets.eligible(runtime.id)));
+    const compatible = candidates.filter((runtime) => runtime.capabilities.roles.includes(request.role) && (!this.budgets || this.budgets.eligible(runtime.id)) && (!this.breaker || !this.breaker.isOpen(runtime.id)));
     if (!compatible.length) return this.defer(request, "No compatible backend", "UNSUPPORTED");
     for (let index = 0; index < compatible.length; index++) {
       state = this.ledger.load(request.taskId)!;
@@ -37,6 +39,8 @@ export class ExecutionSupervisor {
         return this.defer(request, "Task operational budget exhausted", "BUDGET_EXHAUSTED");
       }
       const runtime = compatible[index];
+      // A tripped provider is skipped; HALF_OPEN admits exactly one probe.
+      if (this.breaker && !this.breaker.admit(runtime.id)) continue;
       const modelCalls = runtime.capabilities.consumesModel === false ? 0 : 1;
       const session = new ProviderSessionRegistry(this.ledger).forRuntime(request.taskId, runtime.id) ?? { id: randomUUID(), taskId: request.taskId, provider: runtime.id, checkpoint: state.revision, health: "AVAILABLE", resumeStrategy: "RECONSTRUCT" as const };
       this.ledger.update(request.taskId, "step started", (value) => {
@@ -48,6 +52,7 @@ export class ExecutionSupervisor {
       });
       const result = await this.scheduler.dispatch({ request: { ...request, sessionId: session.id }, candidates: [runtime] }, { maxParallel: 1, maxRetries: 0, timeoutMs: request.timeoutMs ?? 180000, allowFallback: false, requireAll: true });
       this.resources?.record(runtime.id, result.status === "SUCCESS", modelCalls, result.metrics?.durationMs ?? 0);
+      if (result.status === "SUCCESS") this.breaker?.observeSuccess(runtime.id);
       const review = reviewResponse({ taskId: request.taskId, workerId: runtime.id, responseId: request.jobId, content: result.content ?? result.artifact?.content ?? "", outcome: result.status === "SUCCESS" ? "SUCCESS" : "RETRYABLE_FAILURE" });
       if (result.status === "SUCCESS" && review.status === "PASS") {
         this.budgets?.observeSuccess(runtime.id);
@@ -59,6 +64,7 @@ export class ExecutionSupervisor {
         return result;
       }
       if (result.status === "CANCELLED") {
+        this.breaker?.cancelProbe(runtime.id);
         this.ledger.update(request.taskId, "worker cancelled by user", (value) => {
           value.jobs[request.jobId].state = "WAITING"; value.jobs[request.jobId].result = result;
           value.nextAction = "HUMAN_REQUIRED"; value.mode = "PAUSED";
@@ -68,6 +74,8 @@ export class ExecutionSupervisor {
       const interruption = classifyInterruption(result.failure?.code ?? "UNKNOWN", result.failure?.message ?? review.retry_reason ?? "No verified response", result.failure?.retryAt);
       const recovery = recoveryFor(interruption, attempts + 1, !request.replaySafe);
       this.budgets?.observeFailure(runtime.id, interruption.message, interruption.retryAt ? new Date(interruption.retryAt).toISOString() : undefined);
+      if (providerTechnicalInterruption(interruption.kind)) this.breaker?.observeFailure(runtime.id);
+      else this.breaker?.cancelProbe(runtime.id); // user/rate-limit states must not leave a HALF_OPEN probe consumed
       this.ledger.update(request.taskId, "worker interrupted", (value) => {
         value.failureHistory.push(interruption); value.jobs[request.jobId].state = "WAITING";
         value.jobs[request.jobId].result = result; value.jobs[request.jobId].retryAt = recovery.retryAt;

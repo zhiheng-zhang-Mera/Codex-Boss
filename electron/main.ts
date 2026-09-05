@@ -21,6 +21,7 @@ import { ExecutionGate } from "./commander/execution-gate";
 import { compileIntent } from "../src/shared/task-ir";
 import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
+import { CircuitBreaker } from "./commander/circuit-breaker";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
@@ -219,11 +220,12 @@ if (ownsInstance) app.whenReady().then(() => {
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
+  const circuitBreaker = new CircuitBreaker(path.join(app.getPath("userData"), ".boss", "circuit-breaker.json"));
   commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), readBrowser: async (id) => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
-  } });
+  } }, circuitBreaker);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   createMainWindow();
   attachProviderViews();

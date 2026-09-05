@@ -34,6 +34,7 @@ import { RoleRouter, type RoleId, type RoleRoutingRequest } from "./role-router"
 import { RuntimeRegistry } from "./runtime-registry";
 import { Scheduler, type DispatchPolicy } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
+import type { CircuitBreaker } from "./circuit-breaker";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
 
@@ -55,8 +56,9 @@ export class MainCommander {
     readonly ledger?: TaskLedger,
     readonly resources?: ResourceController,
     readonly recovery?: RecoveryScheduler,
-    readonly computerOptions: ComputerOptions = {}
-  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
+    readonly computerOptions: ComputerOptions = {},
+    readonly breaker?: CircuitBreaker
+  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
       const task = this.store.snapshot().tasks.find((item) => item.id === record.taskId);
