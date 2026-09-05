@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { KnowledgeStore } from "../electron/knowledge/knowledge-store";
-import type { KnowledgeEntry } from "../src/shared/knowledge";
+import { routeKnowledgeQuery, relevanceScore, retrieveReranked, type KnowledgeEntry } from "../src/shared/knowledge";
 
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));
@@ -51,5 +51,35 @@ describe("knowledge core local backend", () => {
     const file = path.join(root(), "knowledge.json");
     fs.writeFileSync(file, JSON.stringify({ schemaVersion: 9 }));
     expect(() => new KnowledgeStore(file).list()).toThrow(/Invalid/);
+  });
+});
+
+describe("domain router + rerank (AP10 seam)", () => {
+  it("routes a goal to the matching domain and shelves out irrelevant domains", () => {
+    const entries = [
+      entry("e1", { domain: "blender", shelf: "3d", tags: ["render", "mesh"] }),
+      entry("e2", { domain: "research", shelf: "science", tags: ["statistics"] })
+    ];
+    const routed = routeKnowledgeQuery("render a mesh with blender", entries);
+    expect(routed.domain).toBe("blender");
+    expect(routed.tags).toEqual(expect.arrayContaining(["render", "mesh"]));
+  });
+
+  it("scores title/tags/domain/content relevance deterministically", () => {
+    const relevant = entry("hit", { domain: "blender", tags: ["render"], title: "blender render settings", content: "mesh render output quality" });
+    const irrelevant = entry("miss", { domain: "research", tags: ["papers"], title: "citation formats", content: "bibliography style guides" });
+    expect(relevanceScore(relevant, "render a blender mesh")).toBeGreaterThan(relevanceScore(irrelevant, "render a blender mesh"));
+  });
+
+  it("retrieves reranked within the budget and store.retrieveForGoal routes automatically", () => {
+    const store = new KnowledgeStore(path.join(root(), "knowledge.json"));
+    const relevant = entry("hit", { domain: "blender", tags: ["render"], title: "render guide", content: "x".repeat(300), trust: "LOW" });
+    const irrelevant = entry("miss", { domain: "research", tags: ["papers"], title: "citation formats", content: "y".repeat(300), trust: "HIGH" });
+    store.put(relevant); store.put(irrelevant);
+    const reranked = store.retrieveForGoal("how do I render a mesh", { maxChars: 400 });
+    expect(reranked[0].id).toBe("hit");
+    expect(reranked.reduce((sum, item) => sum + item.content.length, 0)).toBeLessThanOrEqual(600);
+    const pure = retrieveReranked([relevant, irrelevant], { maxChars: 400 }, "how do I render a mesh");
+    expect(pure[0].id).toBe("hit");
   });
 });

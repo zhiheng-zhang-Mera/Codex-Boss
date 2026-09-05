@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import type { ClaimRecord, DisputeRecord } from "../../src/shared/contracts";
+import type { KnowledgeEntry } from "../../src/shared/knowledge";
 import type { RoleId } from "./role-router";
 import { readEnvelope, migrateJsonFile, schemaMigrations, type VersionedEnvelope } from "./schema-migration";
 import { compileContextCapsule, capsuleCacheKeyInput, type ContextCapsule, type ContextCapsuleLevel } from "../../src/shared/context-capsule";
@@ -42,7 +43,15 @@ schemaMigrations.register(CONTEXT_SCHEMA, {
 
 export class ContextManager {
   private readonly contexts = new Map<string, TaskContext>();
-  constructor(private readonly filePath?: string) { this.restore(); }
+  /** Optional knowledge provider (plan AP10 seam): routes domain knowledge into capsules. */
+  private knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[];
+  constructor(private readonly filePath?: string, knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]) {
+    this.knowledgeProvider = knowledgeProvider;
+    this.restore();
+  }
+
+  /** Attach (or replace) the knowledge provider after construction (AP10 domain routing). */
+  setKnowledgeProvider(provider: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]): void { this.knowledgeProvider = provider; }
 
   save(context: TaskContext): void { this.contexts.set(context.taskId, structuredClone(context)); this.persist(); }
   get(taskId: string): TaskContext | undefined { const value = this.contexts.get(taskId); return value && structuredClone(value); }
@@ -83,7 +92,14 @@ export class ContextManager {
   capsule(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number, architecture?: Record<string, string>): ContextCapsule {
     const context = this.get(taskId);
     if (!context) throw new Error(`Unknown task context: ${taskId}`);
-    return compileContextCapsule({ role, objective: context.objective, files, architecture, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars });
+    const dependencies: Record<string, string> = { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) };
+    const knowledge = this.knowledgeProvider?.(taskId, role, maxChars ?? 24000);
+    if (knowledge?.length) {
+      for (const entry of knowledge) {
+        dependencies[`knowledge:${entry.shelf}:${entry.id}`] = JSON.stringify({ title: entry.title, content: entry.content, trust: entry.trust, source: entry.source });
+      }
+    }
+    return compileContextCapsule({ role, objective: context.objective, files, architecture, dependencies, maxChars });
   }
 
   /** Returns the content-addressed cache key for a compiled capsule (plan §13.4 hash+version+policy). */
