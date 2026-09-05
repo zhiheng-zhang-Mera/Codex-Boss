@@ -99,9 +99,9 @@ describe("research service manuscriptClaims (integration)", () => {
     await svc.runExperiment(id, { experimentId: "exp", protocolHash: frozen, spec: experiment(7), seed: 2 });
     svc.analyzeRuns(id, { claimId: "claim:accuracy", metric: "accuracy", protocolHash: frozen, votes: [{ reviewerId: "r1", claimId: "claim:accuracy", stance: "supports" }] });
     const derived = svc.manuscriptClaims(id);
-    // The analyzer records claim node ids as `claim:<claimId>` (claimId here is
-    // "claim:accuracy"), so the derived claim carries that graph node id.
-    const accuracy = derived.claims.find((claim) => claim.id === "claim:claim:accuracy")!;
+    // The analyzer records a claim node id equal to the claim id itself
+    // ("claim:accuracy"), so the derived claim carries that graph node id.
+    const accuracy = derived.claims.find((claim) => claim.id === "claim:accuracy")!;
     expect(accuracy.evidenceIds.length).toBeGreaterThanOrEqual(3); // ≥2 runs + statistic
     expect(derived.evidenceIds.some((evidence) => evidence.startsWith("run:exp-"))).toBe(true);
     // All derived evidence ids actually exist in the graph (no invented nodes).

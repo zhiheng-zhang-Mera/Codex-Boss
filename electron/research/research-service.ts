@@ -5,6 +5,7 @@ import { ResearchLedger, type ResearchLedgerFile, type ResearchDecisionEntry } f
 import { ResearchSupervisor, protocolHash } from "./research-supervisor";
 import { ProtocolManager } from "./protocol-manager";
 import { EvidenceGraph, type PrimaryRunRecord } from "./evidence/evidence-graph";
+import { CitationSourceStore } from "./literature/source-store";
 import { assembleManuscript, type ManuscriptOptions } from "./manuscript/manuscript-assembler";
 import type { ResearchStageExecutor } from "./research-supervisor";
 import { ResearchRuntime } from "./runtime/research-runtime";
@@ -34,6 +35,7 @@ export class ResearchService {
   readonly supervisor: ResearchSupervisor;
   readonly protocols: ProtocolManager;
   readonly evidence: EvidenceGraph;
+  readonly citations: CitationSourceStore;
   readonly runtime: ResearchRuntime | undefined;
 
   constructor(private readonly options: ResearchServiceOptions) {
@@ -41,6 +43,7 @@ export class ResearchService {
     this.ledger = new ResearchLedger(path.join(root, "ledger"));
     this.protocols = new ProtocolManager(path.join(root, "protocols"));
     this.evidence = new EvidenceGraph(path.join(root, "evidence"));
+    this.citations = new CitationSourceStore(path.join(root, "citations"));
     this.supervisor = new ResearchSupervisor({ ledger: this.ledger, executor: options.executor });
     this.runtime = options.runtime;
   }

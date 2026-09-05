@@ -213,6 +213,18 @@ cores plus live web-AI novelty review.
 - Tests: `citation-audit` (3) + `research-citation` (4) + `research-manuscript` (3) green;
   handoff `docs/9-6-research-round14-citation-audit.md`.
 
+## Round 15 — Offline artifact-tree E2E + clean claim node ids (done)
+
+- `ResearchService` owns a durable `CitationSourceStore`; claim node ids normalized (no
+  `claim:claim:` double prefix) in `analyzeRecordedRuns`.
+- `tests/research-artifact-tree.test.ts` (2): full offline E2E — freeze → real runs → analysis
+  → repro audit → citation audit → graph-derived claims → manuscript tree
+  (`paper.md/.tex/.bib` + `audit/citations|reproducibility|final-audit.json`) with truthful
+  integrity flags (passes when all citations verify, fails closed on UNSUPPORTED).
+- Tests: `research-artifact-tree` (2) + `run-analysis` (5) + `graph-claims` (4) +
+  `repro-audit` (4) + `citation-audit` (3) green; handoff
+  `docs/9-6-research-round15-artifact-tree.md`.
+
 ## Open / next
 
 - **Live Final Acceptance (GUI/tools; never replaced by mocks):** Level-A / Level-B E2E on

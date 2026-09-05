@@ -50,8 +50,12 @@ export function analyzeRecordedRuns(evidence: EvidenceGraph, researchId: string,
   const verdict = adjudicateClaim({ votes: options.votes ?? [], evidence: claimEvidence, requiredVotes: options.requiredVotes ?? 1 });
 
   // Traceability: run → statistic → claim nodes + edges in the evidence graph.
+  // Node ids are namespaced exactly once: `stat:<claimId>` (matches the
+  // pipeline's `stat:claim:pipeline` evidence refs) and the claim node id is
+  // the claim id itself when already prefixed (claim:accuracy), prefixed once
+  // otherwise.
   const statId = `stat:${options.claimId}`;
-  const claimIdNode = `claim:${options.claimId}`;
+  const claimIdNode = options.claimId.startsWith("claim:") ? options.claimId : `claim:${options.claimId}`;
   evidence.addNode(researchId, { id: statId, kind: "statistic", label: `${options.metric} mean=${describe.mean.toFixed(3)}` });
   evidence.addNode(researchId, { id: claimIdNode, kind: "claim", label: options.claimId });
   for (const run of eligible) evidence.addEdge(researchId, `run:${run.runId}`, statId);

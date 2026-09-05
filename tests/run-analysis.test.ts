@@ -55,9 +55,9 @@ describe("recorded-run analysis (Phase 10→8)", () => {
     // Claim traceability: statistic + claim nodes, run → statistic → claim edges.
     const graphFile = graph.graph("an1");
     expect(graphFile.nodes.some((node) => node.id === "stat:claim:accuracy" && node.kind === "statistic")).toBe(true);
-    expect(graphFile.nodes.some((node) => node.id === "claim:claim:accuracy")).toBe(true);
+    expect(graphFile.nodes.some((node) => node.id === "claim:accuracy")).toBe(true);
     expect(graphFile.edges.some((edge) => edge.from === "run:run-1" && edge.to === "stat:claim:accuracy")).toBe(true);
-    expect(graphFile.edges.some((edge) => edge.from === "stat:claim:accuracy" && edge.to === "claim:claim:accuracy")).toBe(true);
+    expect(graphFile.edges.some((edge) => edge.from === "stat:claim:accuracy" && edge.to === "claim:accuracy")).toBe(true);
   });
 
   it("never adopts without independent replication, even with unanimous votes", () => {
