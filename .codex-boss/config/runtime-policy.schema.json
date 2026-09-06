@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["maxParallel", "roles"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "maxParallel": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planner", "researcher", "reviewer", "synthesizer", "coder", "validator", "critic"],
+      "properties": {
+        "planner": { "$ref": "#/$defs/route" },
+        "researcher": { "$ref": "#/$defs/route" },
+        "reviewer": { "$ref": "#/$defs/route" },
+        "synthesizer": { "$ref": "#/$defs/route" },
+        "coder": { "$ref": "#/$defs/route" },
+        "validator": { "$ref": "#/$defs/route" },
+        "critic": { "$ref": "#/$defs/route" }
+      }
+    }
+  },
+  "$defs": {
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preferred", "fallback"],
+      "properties": {
+        "preferred": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^(web|codex|api|local):[^:]+$" } },
+        "fallback": { "type": "boolean" }
+      }
+    }
+  }
+}

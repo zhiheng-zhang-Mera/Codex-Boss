@@ -1,0 +1,13 @@
+{
+  "$schema": "./runtime-policy.schema.json",
+  "maxParallel": 5,
+  "roles": {
+    "planner": { "preferred": ["web:chatgpt", "web:claude", "codex:cli"], "fallback": true },
+    "researcher": { "preferred": ["web:perplexity", "web:chatgpt", "web:gemini"], "fallback": true },
+    "reviewer": { "preferred": ["web:claude", "web:gemini", "codex:cli"], "fallback": true },
+    "synthesizer": { "preferred": ["web:chatgpt", "web:claude"], "fallback": true },
+    "coder": { "preferred": ["codex:cli", "web:chatgpt"], "fallback": true },
+    "validator": { "preferred": ["codex:cli", "web:claude"], "fallback": true },
+    "critic": { "preferred": ["web:claude", "web:gemini"], "fallback": true }
+  }
+}
