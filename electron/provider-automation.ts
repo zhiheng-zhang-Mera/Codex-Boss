@@ -143,7 +143,14 @@ export class ProviderAutomation {
     let current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
     if (prepareFailures.length > 0) {
-      this.store.rollbackDispatch(checkpoint.id, baseline, prepareFailures, false, "至少一个网页未能完成预填；未执行任何发送");
+      // Keep the per-run failure reason visible: rollback restores run rows to
+      // their pre-dispatch baseline, so the reason must ride on the checkpoint.
+      const reasons = current.filter((run) => run.phase !== "prepared").map((run) => {
+        const label = this.resolveProvider(run.providerId).name;
+        return run.message ? `${label}：${run.message}` : label;
+      });
+      const summary = reasons.length ? reasons.join("；") : "至少一个运行未能完成预填";
+      this.store.rollbackDispatch(checkpoint.id, baseline, prepareFailures, false, `${summary}；未执行任何发送`);
       this.publish();
       return;
     }
@@ -201,6 +208,18 @@ export class ProviderAutomation {
     if (run.transport === "api") {
       try {
         this.api.validate(run.providerId);
+        // U1 P0 (no false success): the API request body is text-only today, so
+        // a task carrying file attachments can never deliver them over an API
+        // transport. Fail the run closed with the exact reason instead of
+        // letting dispatch send a text-only prompt and claim completion.
+        if (this.attachments) {
+          const attached = resolveUploadsForTask(this.store, this.attachments, run.taskId);
+          if (attached.length) {
+            const names = attached.map((file) => file.originalName).join("、");
+            this.store.updateRun(run.id, "blocked", "UNSUPPORTED", `附件无法经 API 通道发送（不会静默丢弃）：${names}。请改用网页通道，或移除附件后重试。`, "api/preflight-v1");
+            return;
+          }
+        }
         this.store.updateRun(run.id, "prepared", "SUCCESS", "API 设置和加密密钥已通过预检", "api/preflight-v1");
       } catch (error) {
         this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", `API 预检失败：${String(error)}`, "api/preflight-v1");

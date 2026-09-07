@@ -126,19 +126,37 @@ export class ProjectStateStore {
    * decision, marks the goal it advanced (by title match or explicit goal id)
    * done, and appends next actions. Deterministic; used by the completion
    * recorder (AP15 seam).
+   *
+   * Idempotent (U1 P1): re-recording the same taskId (Boss restarts and repeat
+   * capture/release re-fire onTaskComplete) must NOT duplicate decision /
+   * research rows. The whole record is one atomic load → mutate → save so a
+   * crash mid-sequence never leaves a partial goal-tree update.
    */
-  recordTaskCompletion(workspaceId: string, input: { taskId: string; title: string; goalId?: string; findings: string; nextActions?: string[] }): { decision: DecisionRecord; research: ResearchLedgerEntry } {
+  recordTaskCompletion(workspaceId: string, input: { taskId: string; title: string; goalId?: string; findings: string; nextActions?: string[] }): { decision: DecisionRecord; research: ResearchLedgerEntry; alreadyRecorded: boolean } {
     const state = this.load(workspaceId);
-    const goal = input.goalId ? state.goals.find((item) => item.id === input.goalId) : state.goals.find((item) => item.title.toLocaleLowerCase() === input.title.toLocaleLowerCase());
-    if (goal) { goal.status = "done"; this.save(state); }
-    const decision = this.appendDecision(workspaceId, { decision: `Task completed: ${input.title}`, outcome: "accepted", reason: input.findings.slice(0, 400), evidenceRefs: [input.taskId] });
-    const research = this.appendResearch(workspaceId, { question: input.title, findings: input.findings.slice(0, 2000), changedDecisionIds: [decision.id] });
-    if (input.nextActions?.length) {
-      const state2 = this.load(workspaceId);
-      state2.nextActions = [...new Set([...state2.nextActions, ...input.nextActions])].slice(0, 100);
-      this.save(state2);
+    // U1 P1 dedupe: taskId is recorded as an evidenceRef on the decision row.
+    const existing = state.decisions.find((item) => item.evidenceRefs.includes(input.taskId));
+    if (existing) {
+      const research = state.research.find((item) => item.changedDecisionIds.includes(existing.id));
+      if (research) return { decision: existing, research, alreadyRecorded: true };
+      // Partial crash after the decision save but before the research save:
+      // repair by appending the missing research row for the same decision,
+      // never a second decision row.
+      const repaired: ResearchLedgerEntry = { id: `research-${Date.now()}-${state.research.length}`, question: input.title, investigatedAt: new Date().toISOString(), findings: input.findings.slice(0, 2000), changedDecisionIds: [existing.id] };
+      state.research.push(repaired);
+      if (input.nextActions?.length) state.nextActions = [...new Set([...state.nextActions, ...input.nextActions])].slice(0, 100);
+      this.save(state);
+      return { decision: existing, research: repaired, alreadyRecorded: true };
     }
-    return { decision, research };
+    const goal = input.goalId ? state.goals.find((item) => item.id === input.goalId) : state.goals.find((item) => item.title.toLocaleLowerCase() === input.title.toLocaleLowerCase());
+    if (goal) goal.status = "done";
+    const decision: DecisionRecord = { id: `decision-${Date.now()}-${state.decisions.length}`, decision: `Task completed: ${input.title}`, outcome: "accepted", reason: input.findings.slice(0, 400), evidenceRefs: [input.taskId], at: new Date().toISOString() };
+    state.decisions.push(decision);
+    const research: ResearchLedgerEntry = { id: `research-${Date.now()}-${state.research.length}`, question: input.title, investigatedAt: new Date().toISOString(), findings: input.findings.slice(0, 2000), changedDecisionIds: [decision.id] };
+    state.research.push(research);
+    if (input.nextActions?.length) state.nextActions = [...new Set([...state.nextActions, ...input.nextActions])].slice(0, 100);
+    this.save(state);
+    return { decision, research, alreadyRecorded: false };
   }
 }
 
