@@ -78,6 +78,21 @@ export class MainCommander {
       if (result.status === "SUCCESS" && task?.workspacePath && needsPlanning(task.prompt)) await this.executePlan(task.id, task.workspacePath);
       const job = this.ledger?.load(record.taskId)?.jobs[payload.request.jobId];
       return result.status === "SUCCESS" ? { done: true } : { done: false, retryAt: job?.retryAt, error: result.failure?.message };
+    });
+    // U2 closure (CODEX_REQUIRED auto-retry): when required synthesis cannot
+    // run because the synthesis runtime is unavailable, Boss schedules a
+    // bounded retry instead of making the user click "retry". The recovery
+    // scheduler caps attempts (default 3, backoff), then parks at WAITING_USER.
+    recovery?.register("finalize", async (record) => {
+      const task = this.store.snapshot().tasks.find((item) => item.id === record.taskId);
+      if (!task) return { done: true };
+      if (this.store.finalResponseForTask(task.id)) return { done: true };
+      if (["cancelled", "paused", "failed"].includes(task.status)) return { done: true };
+      await this.finalizeTask(task.id);
+      const after = this.store.snapshot().tasks.find((item) => item.id === record.taskId);
+      const final = this.store.finalResponseForTask(record.taskId);
+      if (final || !after?.finalizationBlocker) return { done: true };
+      return { done: false, retryAt: Date.now() + Math.min(60000, 5000 * 2 ** record.attempts), error: "Required synthesis runtime still unavailable; scheduled retry" };
     }); }
 
   createTask(input: CommanderTaskInput): BossTask {
@@ -278,7 +293,24 @@ export class MainCommander {
       finalizer = new TaskFinalizer(this.store, () => {}, (id) => this.synthesizeAccepted(id));
       this.finalizers.set(taskId, finalizer);
     }
-    return finalizer.finalize(taskId).then((result) => { publish(); return result; }).finally(() => this.finalizers.delete(taskId));
+    return finalizer.finalize(taskId).then((result) => {
+      publish();
+      // U2 closure: required synthesis that cannot run right now (runtime
+      // unavailable) leaves a finalizationBlocker. Schedule a bounded recovery
+      // retry so the task clears by itself once the runtime returns — no user
+      // "retry" click needed on the normal path. Idempotent schedule (the
+      // recovery record dedupes by id) and capped attempts by the scheduler.
+      const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+      if (!result && task?.finalizationBlocker && task.status === "waiting" && this.recovery
+        // No duplicate auto-retry: when another WAITING recovery for this task
+        // is already pending (e.g. a rate-limited synthesis retry), that record
+        // drives finalization on success — do not stack a second timer.
+        && !this.recovery.list().some((record) => record.taskId === taskId && record.state !== "PAUSED")
+        && !this.recovery.list().some((record) => record.id === `finalize:${taskId}` && record.state !== "PAUSED")) {
+        this.recovery.schedule({ id: `finalize:${taskId}`, taskId, kind: "finalize", retryAt: Date.now() + 10000, payload: {} });
+      }
+      return result;
+    }).finally(() => this.finalizers.delete(taskId));
   }
 
   async synthesizeAccepted(taskId: string): Promise<string | undefined> {
