@@ -45,7 +45,7 @@ import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { checkpointRecord, rollbackToCheckpoint } from "../engineering/change-points";
 import { workspaceStrategy } from "../engineering/verification";
-import type { EngineeringFinding, EngineeringGoalContract } from "../../src/shared/engineering-loop";
+import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot } from "../../src/shared/engineering-loop";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; }
 
@@ -445,6 +445,17 @@ export class MainCommander {
       return { ...summary, changedFiles: [] }; // nothing landed; history stays in the loop store
     }
     return summary;
+  }
+
+  /**
+   * U10: durable goal-status read-model for the start surface. Returns the
+   * aggregated snapshot of the frozen engineering goal (or an empty snapshot
+   * when none has been frozen yet).
+   */
+  engineeringGoalStatus(): EngineeringGoalSnapshot {
+    if (!this.ledger) throw new Error("Autonomous engineering requires a durable ledger");
+    const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
+    return loopStore.status();
   }
 
   private transition(taskId: string, status: TaskStatus): void {

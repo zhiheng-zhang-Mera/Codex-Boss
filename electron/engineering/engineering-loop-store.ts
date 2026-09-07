@@ -1,5 +1,8 @@
 import { readJson, writeJson } from "../commander/durable-json";
-import { validateEngineeringGoalContract, type EngineeringGoalContract, type EngineeringIterationRecord } from "../../src/shared/engineering-loop";
+import {
+  validateEngineeringGoalContract, summarizeEngineeringLoop,
+  type EngineeringGoalContract, type EngineeringGoalSnapshot, type EngineeringIterationRecord
+} from "../../src/shared/engineering-loop";
 
 /**
  * Durable store for the autonomous engineering loop (plan §26–§41). One frozen
@@ -81,6 +84,16 @@ export class EngineeringLoopStore {
   setCleanRounds(cleanRounds: number): void {
     this.fileValue.cleanRounds = Math.max(0, cleanRounds);
     this.persist();
+  }
+
+  /** Deterministic UI-facing snapshot of the frozen goal + its ledger. */
+  status(): EngineeringGoalSnapshot {
+    return summarizeEngineeringLoop({
+      goal: this.fileValue.goal,
+      iterations: this.fileValue.iterations,
+      acceptedRisks: this.fileValue.acceptedRisks,
+      cleanRounds: this.fileValue.cleanRounds
+    });
   }
 
   private read(): EngineeringLoopFile {

@@ -212,3 +212,60 @@ export function iterationConverged(record: EngineeringIterationRecord, requiredC
   });
   return result.state === "ENGINEERING_CONVERGED" || result.state === "OPTIONAL_IMPROVEMENTS";
 }
+
+/* ------------------------------------------ goal status read-model (UI) */
+
+/**
+ * Deterministic UI-facing snapshot of one engineering goal (plan §26–§41 start
+ * surface). Pure aggregation of the durable store state — the renderer/start
+ * surface renders this without reading raw iteration rows.
+ */
+export interface EngineeringGoalSnapshot {
+  goalId?: string;
+  objective?: string;
+  workspace?: string;
+  agentCount: number;
+  iterations: number;
+  cleanRounds: number;
+  cleanRoundsRequired: number;
+  acceptedRiskCount: number;
+  /** Stage of the most recent iteration. */
+  lastStage?: string;
+  /** Terminal/nominal status of the most recent iteration. */
+  lastStatus?: string;
+  /** Last recorded run state (from remainingRisk when set, else lastStatus). */
+  lastRisk: string;
+  /** Every file touched across iterations (stable order, deduped). */
+  changedFiles: string[];
+  /** Findings still open from the newest iteration that are not accepted risks. */
+  openFindings: EngineeringFinding[];
+  /** True when a goal has converged or stopped on optional improvements. */
+  settled: boolean;
+}
+
+export function summarizeEngineeringLoop(input: {
+  goal?: EngineeringGoalContract;
+  iterations: readonly EngineeringIterationRecord[];
+  acceptedRisks?: readonly string[];
+  cleanRounds?: number;
+}): EngineeringGoalSnapshot {
+  const iterations = [...input.iterations].sort((a, b) => a.iteration - b.iteration);
+  const last = iterations.length ? iterations[iterations.length - 1] : undefined;
+  const changedFiles = [...new Set(iterations.flatMap((item) => item.changedFiles))];
+  const accepted = new Set(input.acceptedRisks ?? []);
+  const openFindings = last ? last.findings.filter((finding) => !accepted.has(finding.id)) : [];
+  const settled = last?.status === "CONVERGED" || last?.status === "OPTIONAL_IMPROVEMENTS";
+  return {
+    ...(input.goal ? { goalId: input.goal.id, objective: input.goal.objective, workspace: input.goal.workspace } : {}),
+    agentCount: input.goal?.agentCount ?? 1,
+    iterations: iterations.length,
+    cleanRounds: input.cleanRounds ?? 0,
+    cleanRoundsRequired: input.goal?.convergencePolicy.cleanRoundsRequired ?? 1,
+    acceptedRiskCount: accepted.size,
+    ...(last ? { lastStage: last.stage, lastStatus: last.status } : {}),
+    lastRisk: last?.remainingRisk ?? "",
+    changedFiles,
+    openFindings,
+    settled
+  };
+}
