@@ -73,7 +73,11 @@ exactly: OK"). Evidence gate closed live: the built bundle reports
 `decision: "PASS"` with 1 resolved claim (§2.3). This live-proves the product
 core path end-to-end: fresh
 conversation (§12.1) → provider automation prefill/send on the visible page →
-answer artifact → evidence-gated posture (§2.3).
+answer artifact → evidence-gated posture (§2.3). A second real task
+(`78c0b93b-6332-417b-b1a8-d469daf41805`, CHAT mode, `fresh=false`, same
+conversation `a3afce54…`) answered `["PONG"]` without opening a new
+conversation — the §12.1 contrast (WORK = fresh conversation, CHAT = continues
+the visible one) verified live on a real logged-in provider.
 
 ## Remaining (live-GUI / provider-session bound, now live-verifiable)
 
