@@ -830,6 +830,15 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     providerViews.layout(safeLayout);
   });
+  // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED
+  // the open web-AI panes move into window B beside the Boss window; provider
+  // sessions survive the transition.
+  ipcMain.handle("boss:set-workspace-view", (_event, view: string) => {
+    if (view !== "MERGED" && view !== "DETACHED") throw new Error("Invalid workspace view");
+    providerViews.setWorkspaceView(view);
+    return { view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() };
+  });
+  ipcMain.handle("boss:get-workspace-view", () => ({ view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() }));
   ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
   // U4 §9.2: per-pane manual zoom override (zoom buttons in the pane title).
   // The override wins over auto-fit until the view is closed or the override

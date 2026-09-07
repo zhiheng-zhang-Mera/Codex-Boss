@@ -61,6 +61,8 @@ const bridge: BossBridge = {
   setProviderViewsVisible: (visible: boolean) => ipcRenderer.invoke("boss:set-provider-views-visible", visible),
   setProviderZoom: (providerId: string, factor: number) => ipcRenderer.invoke("boss:set-provider-zoom", providerId, factor),
   reloadProvider: (providerId: string) => ipcRenderer.invoke("boss:reload-provider", providerId),
+  setWorkspaceView: (view: "MERGED" | "DETACHED") => ipcRenderer.invoke("boss:set-workspace-view", view),
+  getWorkspaceView: () => ipcRenderer.invoke("boss:get-workspace-view"),
   updateTask: (taskId: string, status: TaskStatus) => ipcRenderer.invoke("boss:update-task", taskId, status),
   projectState: (workspaceId?: string) => ipcRenderer.invoke("boss:project-state", workspaceId),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {
