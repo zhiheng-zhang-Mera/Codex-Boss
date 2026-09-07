@@ -221,6 +221,8 @@ export interface ApiProviderSetting {
   baseUrl: string;
   model: string;
   hasApiKey: boolean;
+  /** Last 4 chars of the stored key for masked display (sk-••••42A9). Never the full key. */
+  keyTail?: string;
   updatedAt: string;
 }
 

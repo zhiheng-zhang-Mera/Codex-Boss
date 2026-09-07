@@ -25,7 +25,18 @@ export class ApiSettingsStore {
   snapshot(providerIds: ProviderId[]): ApiProviderSetting[] {
     return providerIds.map((providerId) => {
       const stored = this.findOrDefault(providerId);
-      return { providerId, enabled: stored.enabled, protocol: stored.protocol, baseUrl: stored.baseUrl, model: stored.model, hasApiKey: Boolean(stored.encryptedApiKey), updatedAt: stored.updatedAt };
+      // U5/security: expose only a masked tail for display (sk-••••42A9), never
+      // the full key to the renderer.
+      let keyTail: string | undefined;
+      if (stored.encryptedApiKey) {
+        try {
+          const plain = this.unprotect(stored.encryptedApiKey).trim();
+          keyTail = plain.slice(-4);
+        } catch {
+          keyTail = undefined;
+        }
+      }
+      return { providerId, enabled: stored.enabled, protocol: stored.protocol, baseUrl: stored.baseUrl, model: stored.model, hasApiKey: Boolean(stored.encryptedApiKey), keyTail, updatedAt: stored.updatedAt };
     });
   }
 
