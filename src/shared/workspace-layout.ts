@@ -10,8 +10,10 @@
  * Inside a provider area, N full-height panes line up horizontally
  * (plan §9.1): 1 AI = one full column, 3 AI = three columns, 5 AI = five
  * columns — never two rows. This module computes deterministic pane bounds for
- * any viewport + pane count, and models zoom/fit so pane sizing recomputes on
- * resize.
+ * any viewport + pane count, models zoom/fit so pane sizing recomputes on
+ * resize, and provides the split-merge geometry that maps either view state
+ * onto window regions (MERGED: boss gutter + web region in one window;
+ * DETACHED: boss window A and web-pane window B from one total screen region).
  */
 
 export type WorkspaceViewState = "MERGED" | "DETACHED";
@@ -21,6 +23,23 @@ export const WORKSPACE_VIEW_STATES: readonly WorkspaceViewState[] = ["MERGED", "
 export function isWorkspaceViewState(value: unknown): value is WorkspaceViewState {
   return value === "MERGED" || value === "DETACHED";
 }
+
+/** Integer pixel region on a window/screen (origin top-left). */
+export interface RegionBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface LayoutArea {
+  width: number;
+  height: number;
+}
+
+/** Boss share of total width is clamped so neither side becomes unusable. */
+export const MIN_BOSS_SHARE = 0.15;
+export const MAX_BOSS_SHARE = 0.75;
 
 export interface PaneBounds {
   providerId: string;
@@ -95,4 +114,50 @@ export function expectedPanesForWork(agentCount: number): number {
 export function effectiveZoom(manualZoom: Record<string, number>, providerId: string, autoZoom: number): number {
   const override = manualZoom[providerId];
   return override !== undefined && Number.isFinite(override) && override > 0 ? override : autoZoom;
+}
+
+function clampBossShare(share: number): number {
+  if (!Number.isFinite(share)) return MIN_BOSS_SHARE;
+  return Math.min(MAX_BOSS_SHARE, Math.max(MIN_BOSS_SHARE, share));
+}
+
+/**
+ * Splits a total screen/window area into a vertical Boss region (window A) and
+ * a web-AI region (window B in DETACHED, the provider area in MERGED) for
+ * plan §9. Both regions keep full height; `gap` is the pixel gutter between
+ * them. `bossShare` is clamped to [MIN_BOSS_SHARE, MAX_BOSS_SHARE] and the web
+ * region always keeps ≥ 1px (degenerate totals yield empty-but-consistent
+ * regions rather than negative widths).
+ */
+export function splitRegions(total: LayoutArea, bossShare: number, gap = 0): { boss: RegionBounds; web: RegionBounds } {
+  const width = Number.isFinite(total.width) ? Math.max(0, Math.floor(total.width)) : 0;
+  const height = Number.isFinite(total.height) ? Math.max(0, Math.floor(total.height)) : 0;
+  const gutter = Number.isFinite(gap) ? Math.max(0, Math.floor(gap)) : 0;
+  const bossWidth = width === 0 ? 0 : Math.max(1, Math.min(width, Math.round(width * clampBossShare(bossShare))));
+  const webWidth = Math.max(0, width - bossWidth - gutter);
+  return {
+    boss: { x: 0, y: 0, width: bossWidth, height },
+    web: { x: bossWidth + gutter, y: 0, width: webWidth, height }
+  };
+}
+
+/**
+ * MERGED-view mapping: within one window the web-AI area sits to the right of
+ * the Boss gutter (history/controller column), like the current desktop shell.
+ */
+export function mergedPanesRegion(total: LayoutArea, bossGutter: number): RegionBounds {
+  const width = Number.isFinite(total.width) ? Math.max(0, Math.floor(total.width)) : 0;
+  const height = Number.isFinite(total.height) ? Math.max(0, Math.floor(total.height)) : 0;
+  const gutter = Number.isFinite(bossGutter) ? Math.max(0, Math.floor(bossGutter)) : 0;
+  return { x: gutter, y: 0, width: Math.max(0, width - gutter), height };
+}
+
+/**
+ * Lays `orderedProviders` out inside an absolute region (offsets are relative
+ * to the region origin, so `x` starts at `region.x`). Reuses the deterministic
+ * full-height horizontal column geometry of §9.1.
+ */
+export function layoutPanesInRegion(orderedProviders: readonly string[], region: RegionBounds): PaneBounds[] {
+  const bounds = layoutProviderPanes(orderedProviders, region.width, region.height);
+  return bounds.map((pane) => ({ ...pane, x: region.x + pane.x, y: region.y + pane.y }));
 }
