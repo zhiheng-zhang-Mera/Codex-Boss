@@ -51,6 +51,10 @@ export interface BossTask {
   inputObjectIds?: string[];
   /** Chat→Work escalation lifecycle (plan 9-7 §2.4). CHAT by default. */
   interactionMode?: InteractionMode;
+  /** U6 §12.1: run this task's web rounds in a fresh external conversation.
+   *  Defaults ON for WORK automation tasks (Boss owns per-task conversations);
+   *  CHAT keeps the visible conversation. Repair/continue reuses sessionUrl. */
+  freshWebConversation?: boolean;
   /** Pending or approved Chat→Work transition (one-time user confirmation). */
   modeTransition?: ModeTransition;
   /** Work cognitive/review pool size 1|3|5 (plan §6). Set only for WORK tasks; absent = 3 default. */

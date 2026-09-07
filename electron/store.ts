@@ -68,7 +68,7 @@ export class StateStore {
     const conversation = this.conversation(conversationId);
     const normalizedTransports = Object.fromEntries(providerIds.map((providerId) => [providerId, appMode === "chat" ? "web" : transportByProvider[providerId] ?? "web"])) as Record<ProviderId, RunTransport>;
     const boundInputs = this.resolveBoundInputs(conversation, inputObjectIds);
-    const task: BossTask = { id: randomUUID(), parentTaskId, runtimeJobId, conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
+    const task: BossTask = { id: randomUUID(), parentTaskId, runtimeJobId, conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now, ...(appMode === "work" ? { freshWebConversation: true } : {}) };
     if (boundInputs.length) task.inputObjectIds = boundInputs;
     this.snapshotValue.tasks.unshift(task);
     if (!parentTaskId) conversation.taskIds.push(task.id);
@@ -478,6 +478,9 @@ export class StateStore {
     task.modeTransition.approvedAt = new Date().toISOString();
     task.interactionMode = "WORK";
     task.appMode = "work";
+    // U6 §12.1: once escalated to WORK the task runs in its own fresh external
+    // conversation (Boss automation, not the user's visible chat page).
+    task.freshWebConversation = true;
     task.nextAction = undefined;
     task.updatedAt = new Date().toISOString();
     this.event("task.status", "已确认升级到 Work；原消息、附件与上下文全部继承", { taskId });

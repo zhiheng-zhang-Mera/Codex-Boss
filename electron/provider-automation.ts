@@ -244,7 +244,14 @@ export class ProviderAutomation {
     this.preparingProviders.set(run.providerId, run.taskId);
     try {
       const task = this.store.snapshot().tasks.find((item) => item.id === run.taskId);
-      if (task?.parentTaskId && !run.sessionUrl) await view.webContents.loadURL(this.resolveProvider(run.providerId).url);
+      // U6 §12.1 fresh external conversation: a new WORK task (or a child
+      // worker) with no recorded session navigates to a brand-new conversation
+      // instead of reusing whatever the provider page shows; repair/continue
+      // restores the recorded sessionUrl (see web-recovery + resumePending) and
+      // never navigates away.
+      if (!run.sessionUrl && (task?.parentTaskId || task?.freshWebConversation)) {
+        await view.webContents.loadURL(definition.newConversationUrl ?? this.resolveProvider(run.providerId).url);
+      }
       const probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
       if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.deferRecovery(run, "RETRY_UNSENT"); return; }
