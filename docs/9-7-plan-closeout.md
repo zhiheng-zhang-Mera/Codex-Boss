@@ -69,7 +69,9 @@ conversation): the task navigated a new ChatGPT conversation, ChatGPT answered,
 and the answer was captured as an artifact. Evidence: task
 `f58b6f68-4e98-4148-a19b-ba1fdaf84e99` status `completed` / phase COMPLETED /
 next REPORT_EVIDENCE with artifact content `["OK"]` (prompt: "Reply with
-exactly: OK"). This live-proves the product core path end-to-end: fresh
+exactly: OK"). Evidence gate closed live: the built bundle reports
+`decision: "PASS"` with 1 resolved claim (§2.3). This live-proves the product
+core path end-to-end: fresh
 conversation (§12.1) → provider automation prefill/send on the visible page →
 answer artifact → evidence-gated posture (§2.3).
 
