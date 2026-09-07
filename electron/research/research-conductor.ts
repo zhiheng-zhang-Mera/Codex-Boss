@@ -520,11 +520,18 @@ export class ResearchConductor implements ResearchStageExecutor {
     const claim = derived.claims.find((item) => item.id === claimId);
     if (!claim) throw new Error(`No traceable claim ${claimId} in the evidence graph`);
     const analysis = this.readExtra<{ mean?: number; ci?: { lower?: number; upper?: number }; n?: number; metric?: string; votes?: ReviewerVote[] }>(ir.id, "analysis.json");
+    // U1 P1 (statistics → manuscript consistency): ANALYSIS runs before
+    // REPLICATION, so analysis.json snapshots the primary-run-only numbers
+    // (n=1). The paper text must bind the SAME full-set deterministic numbers
+    // the reproducibility audit reports, or the export contradicts itself.
     const repro = svc.reproducibility(ir.id, { claimId: plan.experimentId, metric: plan.metric, protocolHash: ir.protocolHash!, baseline: Number(protocol.protocol.baseline), votes: analysis?.votes ?? [], requiredVotes: (analysis?.votes?.length ?? 0) > 0 ? 1 : 0 });
     const runs = svc.evidence.runs(ir.id).filter((run) => run.experimentId === plan.experimentId);
+    const fullSetMean = repro.mean ?? analysis?.mean;
+    const fullSetCi = repro.ci ?? analysis?.ci;
+    const fullSetN = repro.runsAnalyzed ?? analysis?.n ?? runs.length;
     const figureSvg = metricFigureSvg(runs.map((run, index) => ({ label: `run ${index + 1}`, value: Number(run.metrics[plan.metric] ?? 0) })), { title: `${plan.metric} by recorded run`, yLabel: plan.metric });
     const figureName = `figure-${plan.experimentId}.svg`;
-    const writer = makeSectionWriter({ question: this.researchQuestion(ir), hypothesis: ir.hypotheses[0] ?? "", protocol: protocol.protocol, metric: plan.metric, mean: analysis?.mean, ciLower: analysis?.ci?.lower, ciUpper: analysis?.ci?.upper, n: analysis?.n ?? runs.length, claimId, experimentId: plan.experimentId, baseline: protocol.protocol.baseline, sample: protocol.protocol.sampleDefinition, criterion: protocol.protocol.evaluationCriterion, runs: runs.map((run) => ({ seed: run.seed, value: Number(run.metrics[plan.metric]), passed: run.passed })) });
+    const writer = makeSectionWriter({ question: this.researchQuestion(ir), hypothesis: ir.hypotheses[0] ?? "", protocol: protocol.protocol, metric: plan.metric, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, claimId, experimentId: plan.experimentId, baseline: protocol.protocol.baseline, sample: protocol.protocol.sampleDefinition, criterion: protocol.protocol.evaluationCriterion, runs: runs.map((run) => ({ seed: run.seed, value: Number(run.metrics[plan.metric]), passed: run.passed })) });
     const citations = svc.citations.list().filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status));
     const output = await svc.manuscript(ir.id, {
       title: `Evidence-weighted adjudication vs majority voting (${plan.experimentId})`,
