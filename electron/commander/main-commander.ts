@@ -43,6 +43,7 @@ import { isWorkAgentCount } from "../../src/shared/work-mode";
 import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineering/engineering-loop-driver";
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
+import { checkpointRecord, rollbackToCheckpoint } from "../engineering/change-points";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract } from "../../src/shared/engineering-loop";
 
@@ -415,7 +416,11 @@ export class MainCommander {
    * actual allowed commands; implementation requires an injected coding editor
    * (production wires the ProposalRunner + coder dispatch used by edit plans;
    * callers that pass none get an honest ABORT — the loop never fabricates
-   * changes). Returns the durable summary.
+   * changes). §38: the working tree is checkpointed before the goal starts and
+   * rolled back when the loop terminates without converging (ABORTED/STAGNANT),
+   * so a failed goal never leaves the repo worse than it found it; CONVERGED
+   * and OPTIONAL_IMPROVEMENTS keep their build/test-verified changes. Returns
+   * the durable summary.
    */
   async runEngineeringGoal(input: {
     goal: Omit<EngineeringGoalContract, "schemaVersion" | "id" | "createdAt"> & { id?: string };
@@ -429,9 +434,17 @@ export class MainCommander {
     const goal: EngineeringGoalContract = { schemaVersion: 1, id: input.goal.id ?? `eng-${TaskLedger.fingerprint(input.goal.objective).slice(0, 12)}`, createdAt: now, ...input.goal };
     const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
     loopStore.freezeGoal(goal);
+    // §38 checkpoint: snapshot pre-goal state so a non-converged goal can be
+    // fully reverted. Non-git workspaces proceed without rollback capability.
+    const checkpoint = await checkpointRecord(input.workspace).catch(() => undefined);
     const operations = createRepoEngineeringOperations({ workspace: input.workspace, implement: input.implement, review: input.review });
     const driver = new EngineeringLoopDriver({ store: loopStore, operations, maxIterations: input.maxIterations });
-    return driver.run();
+    const summary = await driver.run();
+    if (checkpoint && (summary.state === "ABORTED" || summary.state === "STAGNANT")) {
+      await rollbackToCheckpoint(input.workspace, checkpoint);
+      return { ...summary, changedFiles: [] }; // nothing landed; history stays in the loop store
+    }
+    return summary;
   }
 
   private transition(taskId: string, status: TaskStatus): void {
