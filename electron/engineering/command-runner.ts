@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
@@ -26,10 +27,13 @@ export async function runAllowedCommand(root: string, command: AllowedCommand, f
     // that masquerades as a successful/absent gate.
     return { command, args: [], passed: false, exitCode: null, output: String(error) };
   }
-  // Run in the developer's real environment (inherited TEMP etc.): audit/build
-  // evidence must match what a human sees when running the same command by
-  // hand. ELECTRON_RUN_AS_NODE marks nested invocations for re-entry guards.
-  // Generous timeout/buffer: a real repo's full test suite can run for minutes
-  // and emit a large transcript — killing it mid-run would fake a failure.
-  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
+  // Run in the developer's real environment: child scratch goes to the OS temp
+  // dir (NOT the app's workspace cache — the running app points TEMP at
+  // <workspace>/.cache/tmp, which makes nested suites create temp repos inside
+  // the audited repo). ELECTRON_RUN_AS_NODE marks nested invocations for
+  // re-entry guards. Generous timeout/buffer: a real repo's full test suite can
+  // run for minutes and emit a large transcript — killing it mid-run would fake
+  // a failure.
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-cmd-"));
+  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", TEMP: temp, TMP: temp, TMPDIR: temp } }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
 }
