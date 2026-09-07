@@ -21,7 +21,7 @@ Full evidence: `Update-Plan/audit/U0/completion-report.md` (close-out section).
 | U1 broken/partial feature fixes | CLOSED | `4b01fc1 c8aac22 085f77c 9cd02b4 8892297 6be60b8` |
 | U2 sequential auto-continuation + closure | CLOSED | `b1a6261` |
 | U3 1/3/5 Work Mode + roles + evidence>vote | CLOSED | `190daf2 b38113c d6e8d9b aba5494` |
-| U4 layout/panes/live-state | MOSTLY (DETACHED window mode needs live Electron validation) | `c99eb0e 4be8035` |
+| U4 layout/panes/live-state/split-merge | MOSTLY (deterministic split-merge geometry core done `7dd376a`; DETACHED window wiring needs live Electron validation) | `c99eb0e 4be8035 7dd376a` |
 | U5 Web-AI/API/Profile-Account managers | PART (masked-key done; UI surfaces + SecretVault decision recorded) | `33ca489` |
 | U6 session lifecycle (archive default, manual-only delete, fresh conversation) | MOSTLY (retryable archive automation is a live-navigation seam) | `99b0d5f 9091fda 493ed6b` |
 | U7 research registry + manuscript depth + tables/visual gate | MOSTLY (PDF-embedded figures need the live pipeline) | `cfea2e5 84dcd44 7b62849` |
