@@ -135,7 +135,18 @@ export class ResearchService {
     if (!review || review.sectionsRevised !== true) reasons.push("manuscript review not passed");
     for (const file of ["paper.md", "paper.tex", "references.bib"]) if (!fs.existsSync(path.join(manuscriptDir, file))) reasons.push(`${file} missing`);
     const figures = fs.existsSync(path.join(manuscriptDir, "figures")) ? fs.readdirSync(path.join(manuscriptDir, "figures")).filter((name) => /\.(svg|png|pdf|jpg)$/i.test(name)) : [];
-    if (figures.length === 0) reasons.push("no manuscript figure present");
+    // U7 §21.2: a quantitative run must embed meaningful visual evidence in the
+    // COMPILED artifact. Tables are embedded as LaTeX tabular; a png/pdf/jpg
+    // figure is also embeddable. An SVG file alone is NOT embeddable by
+    // pdflatex/xelatex and never counts as compiled visual evidence.
+    const hasQuantitative = Boolean(artifactExtra("primary-runs.json"));
+    if (hasQuantitative) {
+      const texPath = path.join(manuscriptDir, "paper.tex");
+      const tex = fs.existsSync(texPath) ? fs.readFileSync(texPath, "utf8") : "";
+      const embeddableInTex = tex.includes("\\begin{table}") || /\\includegraphics/.test(tex);
+      if (!embeddableInTex) reasons.push("MANUSCRIPT_VISUAL_EVIDENCE_INSUFFICIENT: quantitative run with no result table or embeddable figure in paper.tex");
+    }
+    if (figures.length === 0 && !hasQuantitative) reasons.push("no manuscript figure present");
     // 9. Compile audit PASS + a real paper.pdf.
     const compile = readFile(path.join(auditDir, "compile.json")) as { status?: string } | undefined;
     if (!compile || compile.status !== "PASS") reasons.push("compile audit not PASS");

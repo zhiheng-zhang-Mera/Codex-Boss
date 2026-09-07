@@ -155,6 +155,69 @@ export function antiPrematureClosure(input: { claims: Array<{ id: string; text: 
   return { premature: undiscussedClaims.length > 0 || undiscussedEvidence.length > 0 || resultWithoutInterpretation, undiscussedClaims, undiscussedEvidence, resultWithoutInterpretation };
 }
 
+/** A results row = one recorded run / condition with typed metric cells. */
+export interface ResultTableRow {
+  label: string;
+  cells: Array<{ value: number; raw?: string }>;
+}
+
+export interface ResultTableColumn {
+  /** Metric/column name, e.g. accuracy or condition. */
+  name: string;
+  unit?: string;
+}
+
+export interface ResultTable {
+  title: string;
+  columns: ResultTableColumn[];
+  rows: ResultTableRow[];
+  /** Optional statistics footnote (mean ± SD / CI) rendered under the table. */
+  footnote?: string;
+}
+
+function escapeLatexCell(value: string): string {
+  return value.replace(/([\\{}_$&%#])/g, "\\$1").replace(/~/g, "\\textasciitilde{}").replace(/\^/g, "\\textasciicircum{}");
+}
+
+function escapeMarkdownCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+/**
+ * Deterministic LaTeX table from recorded metrics (U7 §21). Pure: same rows →
+ * same tabular bytes. Each cell is a real number; nothing is invented.
+ */
+export function resultTableToLatex(table: ResultTable): string {
+  const headers = ["", ...table.columns.map((column) => column.unit ? `${escapeLatexCell(column.name)} (${escapeLatexCell(column.unit)})` : escapeLatexCell(column.name))];
+  const columnCount = headers.length;
+  const format = "l" + "r".repeat(Math.max(0, columnCount - 1));
+  const headerRow = headers.map((header) => `\\textbf{${header}}`).join(" & ");
+  const body = table.rows.map((row) => [escapeLatexCell(row.label), ...row.cells.map((cell) => cell.raw ?? cell.value.toFixed(3))].join(" & ")).join(" \\\\\n");
+  const footnote = table.footnote ? `\\footnotesize ${escapeLatexCell(table.footnote)}` : "";
+  return `\\begin{table}[h]\n\\centering\n\\caption{${escapeLatexCell(table.title)}}\n\\begin{tabular}{${format}}\n\\hline\n${headerRow} \\\\\n\\hline\n${body} \\\\\n\\hline\n\\end{tabular}\n${footnote}\n\\end{table}`;
+}
+
+/** Deterministic markdown mirror of the same table (for paper.md). */
+export function resultTableToMarkdown(table: ResultTable): string {
+  const headers = ["Run", ...table.columns.map((column) => column.name)];
+  const headerLine = headers.join(" | ");
+  const divider = headers.map(() => "---").join(" | ");
+  const body = table.rows.map((row) => [escapeMarkdownCell(row.label), ...row.cells.map((cell) => cell.raw ?? cell.value.toFixed(3))].join(" | "));
+  const footnote = table.footnote ? `\n\n_${escapeMarkdownCell(table.footnote)}_` : "";
+  return `### ${table.title}\n\n${headerLine}\n${divider}\n${body.join("\n")}${footnote}`;
+}
+
+/**
+ * §21.2 quantitative visual-evidence verdict: a quantitative manuscript must
+ * embed at least one meaningful result table (or a LaTeX-embeddable figure) in
+ * the compiled artifact — decorative-only assets never count.
+ */
+export function quantitativeVisualEvidenceVerdict(input: { hasQuantitativeResults: boolean; resultTableCount: number; embeddableFigureCount: number }): { ok: boolean; reason?: string } {
+  if (!input.hasQuantitativeResults) return { ok: true };
+  if (input.resultTableCount > 0 || input.embeddableFigureCount > 0) return { ok: true };
+  return { ok: false, reason: "MANUSCRIPT_VISUAL_EVIDENCE_INSUFFICIENT: quantitative results with 0 result tables and 0 PDF-embeddable figures" };
+}
+
 function purposeOf(section: ManuscriptSection): string {
   return { abstract: "state the question, method, and primary finding", introduction: "motivate the question with verified background", methods: "describe the deterministic protocol and experiment", results: "report statistics computed from raw data", discussion: "interpret results strictly within evidence", conclusion: "summarize supported claims and limitations" }[section];
 }

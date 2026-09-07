@@ -46,6 +46,7 @@ import { LatexCompiler, type LatexCompileAudit } from "./manuscript/latex-compil
 import type { SectionBrief } from "../../src/shared/research-manuscript";
 import { MANUSCRIPT_SECTIONS } from "../../src/shared/research-manuscript";
 import { antiPrematureClosure, sectionSufficiency } from "../../src/shared/research-manuscript";
+import type { ResultTable } from "../../src/shared/research-manuscript";
 import { planResearchCapabilities } from "../../src/shared/research-capability-registry";
 
 /** Role-based semantic worker: returns raw text/JSON for one stage. */
@@ -533,6 +534,15 @@ export class ResearchConductor implements ResearchStageExecutor {
     const fullSetN = repro.runsAnalyzed ?? analysis?.n ?? runs.length;
     const figureSvg = metricFigureSvg(runs.map((run, index) => ({ label: `run ${index + 1}`, value: Number(run.metrics[plan.metric] ?? 0) })), { title: `${plan.metric} by recorded run`, yLabel: plan.metric });
     const figureName = `figure-${plan.experimentId}.svg`;
+    // U7 §21: deterministic result table over the recorded runs — every row is
+    // a real recorded run, so the compiled PDF carries meaningful visual
+    // evidence even when SVG charts cannot be embedded by a TeX engine.
+    const table: ResultTable = {
+      title: `${plan.metric} by recorded run (frozen protocol ${(ir.protocolHash ?? "").slice(0, 8)})`,
+      columns: [{ name: plan.metric }, { name: "seed" }, { name: "passed" }],
+      rows: runs.map((run) => ({ label: `run ${run.runId.slice(0, 8)}`, cells: [{ value: Number(run.metrics[plan.metric] ?? 0) }, { value: Number(run.seed) }, { value: run.passed === false ? 0 : 1 }] })),
+      footnote: `n = ${runs.length}; mean ${plan.metric} = ${fullSetMean?.toFixed(3) ?? "n/a"}; 95% CI [${fullSetCi?.lower?.toFixed(3) ?? "n/a"}, ${fullSetCi?.upper?.toFixed(3) ?? "n/a"}]`
+    };
     const writer = makeSectionWriter({ question: this.researchQuestion(ir), hypothesis: ir.hypotheses[0] ?? "", protocol: protocol.protocol, metric: plan.metric, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, claimId, experimentId: plan.experimentId, baseline: protocol.protocol.baseline, sample: protocol.protocol.sampleDefinition, criterion: protocol.protocol.evaluationCriterion, runs: runs.map((run) => ({ seed: run.seed, value: Number(run.metrics[plan.metric]), passed: run.passed })) });
     const citations = svc.citations.list().filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status));
     const output = await svc.manuscript(ir.id, {
@@ -544,7 +554,8 @@ export class ResearchConductor implements ResearchStageExecutor {
       reviewer: { async review() { return { approved: true, notes: [] }; } },
       reproducibility: repro,
       citations,
-      figures: [{ name: figureName, svg: figureSvg }]
+      figures: [{ name: figureName, svg: figureSvg }],
+      tables: [table]
     });
     const figureNode = svc.registerFigure(ir.id, plan.experimentId, runs.map((run) => `run:${run.runId}`), `${plan.metric} by run`);
     svc.syncEvidenceChain(ir.id);
