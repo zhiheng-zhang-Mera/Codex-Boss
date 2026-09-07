@@ -420,6 +420,8 @@ export interface BossBridge {
   releaseReview(taskId: string): Promise<AppSnapshot>;
   advanceCouncil(taskId: string): Promise<AppSnapshot>;
   buildEvidence(taskId: string): Promise<AppSnapshot>;
+  /** Operator explicitly accepts the held (DISPUTED/INSUFFICIENT) evidence and finalizes (U3 §2.3). */
+  acceptEvidence(taskId: string): Promise<AppSnapshot>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;
   runCodexReview(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;

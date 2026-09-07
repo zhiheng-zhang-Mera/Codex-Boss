@@ -716,6 +716,15 @@ export class StateStore {
     this.persist();
   }
 
+  /** Overrides an evidence-bundle decision (U3 evidence>vote publication gate). */
+  setEvidenceDecision(bundleId: string, decision: EvidenceBundle["decision"]): void {
+    const bundle = this.snapshotValue.evidenceBundles.find((item) => item.id === bundleId);
+    if (!bundle) throw new Error(`Unknown evidence bundle: ${bundleId}`);
+    bundle.decision = decision;
+    this.event("evidence.built", `证据决策更新：${decision}`, { taskId: bundle.taskId, evidenceRef: bundle.id });
+    this.persist();
+  }
+
   recordRehydration(taskId: string): void {
     this.event("evidence.rehydration", "已创建选择性证据回填轮次", { taskId });
     this.persist();

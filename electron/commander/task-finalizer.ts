@@ -6,6 +6,24 @@ import { buildEvidenceBundle } from "../evidence-engine";
 import type { StateStore } from "../store";
 import { continuationFor } from "./continuation-router";
 
+/**
+ * U3 (plan §2.3/§4, Evidence>Vote): an auto-published final response may never
+ * carry unresolved structured claims (DISPUTED / INSUFFICIENT) or unresolved
+ * disputes as if adjudicated. When the evidence bundle over the accepted
+ * artifacts is HOLD_FOR_REVIEW for those reasons, finalization parks the task
+ * at READY_FOR_USER_REVIEW instead of writing a completed final; the operator
+ * either rehydrates (resolve the claims) or explicitly accepts the held
+ * evidence (store.setEvidenceDecision → PASS) before publication.
+ *
+ * Direct single/multi-provider answers (no structured claims) and clean
+ * councils keep the existing auto-publish behavior — their bundles decide
+ * PASS because no claim is DISPUTED/INSUFFICIENT and no dispute remains.
+ */
+function evidenceHoldsUnresolvedClaims(bundle: import("../../src/shared/contracts").EvidenceBundle): boolean {
+  if (bundle.decision !== "HOLD_FOR_REVIEW") return false;
+  return bundle.disputes.length > 0 || bundle.claims.some((claim) => claim.status === "DISPUTED" || claim.status === "INSUFFICIENT");
+}
+
 /** Publishes accepted output, optionally synthesized by the controller; never executes worker instructions. */
 export class TaskFinalizer {
   private readonly pending = new Map<string, Promise<FinalResponse | undefined>>();
@@ -35,6 +53,15 @@ export class TaskFinalizer {
     const council = snapshot.councils.find((item) => item.taskId === taskId);
     let bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId && accepted.every(artifact => item.manifest.some(entry => entry.artifactId === artifact.id)));
     if (!bundle) { bundle = buildEvidenceBundle(task, snapshot.artifacts, council); this.store.saveEvidence(bundle); }
+    // U3 Evidence>Vote gate: never auto-publish a final while the accepted
+    // evidence bundle still holds unresolved structured claims or disputes.
+    if (evidenceHoldsUnresolvedClaims(bundle)) {
+      this.store.setEvidenceDecision(bundle.id, "READY_FOR_USER_REVIEW");
+      this.store.setFinalizationPolicy(taskId, policy ?? task.finalizationPolicy ?? "DIRECT", "证据存在未决争议（DISPUTED/INSUFFICIENT claims 或 disputes）。请先选择性回填，或明确确认接收当前证据后再交付最终答复。");
+      this.store.setTaskStatus(taskId, "waiting");
+      this.publish();
+      return;
+    }
     const effectivePolicy = policy ?? task.finalizationPolicy ?? (accepted.length === 1 ? "DIRECT" : "CODEX_IF_AVAILABLE");
     this.store.setFinalizationPolicy(taskId, effectivePolicy);
     let synthesis: string | undefined;

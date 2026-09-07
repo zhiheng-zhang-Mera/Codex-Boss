@@ -879,6 +879,20 @@ if (ownsInstance) app.whenReady().then(() => {
     if (status === "running" && store.snapshot().tasks.find((item) => item.id === taskId)?.finalizationBlocker) await commander.finalizeTask(taskId, publish);
     return publish();
   });
+  // U3 Evidence>Vote (§2.3/§4): when auto-finalization parked a task because
+  // its evidence bundle holds DISPUTED/INSUFFICIENT claims or disputes, the
+  // operator may explicitly accept the held evidence (records PASS) and then
+  // Boss finalizes — never auto-published, never silently dropped.
+  ipcMain.handle("boss:accept-evidence", async (_event, taskId: string) => {
+    const snapshot = store.snapshot();
+    const task = snapshot.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    const bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId && ["HOLD_FOR_REVIEW", "READY_FOR_USER_REVIEW"].includes(item.decision));
+    if (!bundle) throw new Error("当前任务没有待接收的未决证据包");
+    store.setEvidenceDecision(bundle.id, "PASS");
+    await commander.finalizeTask(taskId, publish);
+    return publish();
+  });
 
   app.on("second-instance", () => {
     if (mainWindow?.isMinimized()) mainWindow.restore();

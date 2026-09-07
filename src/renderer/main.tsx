@@ -500,7 +500,7 @@ function App() {
     catch (reason) { setError(String(reason)); }
   }
 
-  async function taskAction(taskId: string, action: "dispatch" | "capture" | "advance" | "evidence" | "rehydrate" | "codex") {
+  async function taskAction(taskId: string, action: "dispatch" | "capture" | "advance" | "evidence" | "accept" | "rehydrate" | "codex") {
     setError("");
     setSending(true);
     try {
@@ -508,8 +508,9 @@ function App() {
         : action === "capture" ? await window.boss.captureTask(taskId)
             : action === "advance" ? await window.boss.advanceCouncil(taskId)
               : action === "evidence" ? await window.boss.buildEvidence(taskId)
-                : action === "rehydrate" ? await window.boss.rehydrateEvidence(taskId)
-                  : await window.boss.runCodexReview(taskId);
+                : action === "accept" ? await window.boss.acceptEvidence(taskId)
+                  : action === "rehydrate" ? await window.boss.rehydrateEvidence(taskId)
+                    : await window.boss.runCodexReview(taskId);
       setSnapshot(next);
     } catch (reason) { setError(String(reason)); }
     finally { setSending(false); }
@@ -603,7 +604,7 @@ function App() {
               </div>
               {runs.some((run) => run.review?.status === "HUMAN_REQUIRED") && <button onClick={() => void window.boss.releaseReview(task.id).then(setSnapshot).catch((reason) => setError(String(reason)))}>确认接收回答</button>}
               {council && (council.conflicts.length > 0 || council.minorityOpinions.length > 0) && <div className="council-findings"><b>保留的争议</b><span>{council.conflicts.length} 个冲突 · {council.minorityOpinions.length} 个少数意见</span></div>}
-              {evidence && <div className="evidence-card"><div><b>{evidence.decision}</b><code>{evidence.integrityRoot.slice(0, 12)}</code></div><span>{evidence.manifest.length} artifacts · {evidence.claims.length} claims · {evidence.disputes.length} disputes · 缺失 {evidence.missingProviderIds.length}</span><small>Codex review: {evidence.codexReview.status}</small>{evidence.codexReview.content && <p>{evidence.codexReview.content.slice(0, 500)}</p>}</div>}
+              {evidence && <div className="evidence-card"><div><b>{evidence.decision}</b><code>{evidence.integrityRoot.slice(0, 12)}</code></div><span>{evidence.manifest.length} artifacts · {evidence.claims.length} claims · {evidence.disputes.length} disputes · 缺失 {evidence.missingProviderIds.length}</span><small>Codex review: {evidence.codexReview.status}</small>{evidence.codexReview.content && <p>{evidence.codexReview.content.slice(0, 500)}</p>}{evidence.decision !== "PASS" && <button onClick={() => void taskAction(task.id, "accept")} disabled={sending} title="确认接收当前证据为最终答复（DISPUTED/INSUFFICIENT claims 将由操作者裁决）">确认接收当前证据</button>}</div>}
               </details>
               <small>{shortTime(task.updatedAt)} · {task.plan?.estimatedComplexity === "L0" ? "本地工具" : task.providerIds.length + " 个独立页面"} · {artifactCount} 份原始证据</small>
             </div>
