@@ -430,6 +430,10 @@ export interface BossBridge {
   acceptEvidence(taskId: string): Promise<AppSnapshot>;
   /** Lists durable external web-session archive records (U6 §14; read-only). */
   externalSessionList(): Promise<Array<import("./external-session").ExternalSessionRecord>>;
+  /** U10 §26–§41: durable autonomous-engineering goal status read-model for the start surface. */
+  engineeringGoalStatus(): Promise<import("./engineering-loop").EngineeringGoalSnapshot>;
+  /** U10 §26–§41: starts one autonomous engineering goal run against a workspace (fail-closed without a coding editor). */
+  engineeringGoalRun(input: EngineeringGoalRunInput): Promise<EngineeringGoalRunResult>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;
   runCodexReview(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
@@ -443,4 +447,28 @@ export interface BossBridge {
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
   projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;
+}
+
+/** U10 §27: renderer → main input to start one autonomous engineering goal. */
+export interface EngineeringGoalRunInput {
+  goal: {
+    objective: string;
+    workspace: string;
+    protectedProductBehavior: string[];
+    allowedChangeScope: string[];
+    forbiddenChangeScope: string[];
+    verificationPolicy: "standard" | "strict";
+    agentCount: import("./work-mode").WorkAgentCount;
+    convergencePolicy: { cleanRoundsRequired: number; maxIterations?: number };
+  };
+  workspace: string;
+  maxIterations?: number;
+}
+
+/** U10 §26–§41: summary of one engineering goal run (structural mirror of the driver's close). */
+export interface EngineeringGoalRunResult {
+  state: "ENGINEERING_CONVERGED" | "OPTIONAL_IMPROVEMENTS" | "STAGNANT" | "ABORTED";
+  iterations: number;
+  changedFiles: string[];
+  findings: Array<{ id: string; severity: string; description: string; evidence?: string }>;
 }

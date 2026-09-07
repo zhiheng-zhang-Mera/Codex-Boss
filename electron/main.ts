@@ -940,6 +940,13 @@ if (ownsInstance) app.whenReady().then(() => {
   // deletes, only shows archive lifecycle so a failed external archive stays
   // visible and retryable).
   ipcMain.handle("boss:external-session-list", () => externalSessions?.list() ?? []);
+  // U10 §26–§41: autonomous engineering goal surface. Status is the durable
+  // read-model; run starts one goal loop over the real allowed commands (an
+  // unconfigured coding editor yields an honest ABORT, never a fabricated fix).
+  ipcMain.handle("boss:engineering-goal-status", () => commander.engineeringGoalStatus());
+  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number }) => {
+    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations });
+  });
 
   app.on("second-instance", () => {
     if (mainWindow?.isMinimized()) mainWindow.restore();
