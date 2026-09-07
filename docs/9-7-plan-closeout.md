@@ -77,7 +77,11 @@ answer artifact → evidence-gated posture (§2.3). A second real task
 (`78c0b93b-6332-417b-b1a8-d469daf41805`, CHAT mode, `fresh=false`, same
 conversation `a3afce54…`) answered `["PONG"]` without opening a new
 conversation — the §12.1 contrast (WORK = fresh conversation, CHAT = continues
-the visible one) verified live on a real logged-in provider.
+the visible one) verified live on a real logged-in provider. Live §14 ledger
+also confirmed: both real tasks appear as `ARCHIVE_PENDING` external-session
+rows (completion defers, never fake-archived, never deleted); the CHAT
+conversation is not yet auto-archived because its task still holds
+`next: REPORT_EVIDENCE` (archive fires after full task finalization).
 
 ## Remaining (live-GUI / provider-session bound, now live-verifiable)
 
