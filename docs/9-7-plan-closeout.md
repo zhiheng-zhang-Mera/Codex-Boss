@@ -45,6 +45,15 @@ Remaining GUI units are now implementable and live-verifiable through this chann
 (DETACHED two-window mode, manager/goal React panels, live archive attempts,
 coder-backed goal runs against the open ChatGPT session).
 
+## Computer permission gate (user-prioritized, `8962d8b`)
+
+Desktop-mutation side-effect gate wired (§17/§18): `desktopMutationGate` fails
+closed unless `computer:<action>` is allow-listed by the workspace permission
+manifest; reads always pass. `ComputerOptions.permissionForWorkspace` + check in
+`runNative` before any backend runs + `PermissionManifestStore` injected from
+main.ts. 3 gate tests; suite 147 files / 738 tests green; app rebuilt and
+running with the gate.
+
 ## In-app autonomous audit findings (rounds 11–13)
 
 Repeated `engineeringGoalRun` against this repo from the running app (via CDP)
