@@ -45,6 +45,7 @@ import { runStructuredProcess } from "./runtime/process-runner";
 import { LatexCompiler, type LatexCompileAudit } from "./manuscript/latex-compiler";
 import type { SectionBrief } from "../../src/shared/research-manuscript";
 import { MANUSCRIPT_SECTIONS } from "../../src/shared/research-manuscript";
+import { antiPrematureClosure, sectionSufficiency } from "../../src/shared/research-manuscript";
 
 /** Role-based semantic worker: returns raw text/JSON for one stage. */
 export interface ResearchSemanticProvider {
@@ -552,7 +553,13 @@ export class ResearchConductor implements ResearchStageExecutor {
     }
     svc.snapshotArtifacts(ir.id);
     const sectionsOk = Object.values(output.sections).every((section) => section.status === "REVISED");
-    this.record(ir.id, "MANUSCRIPT", `manuscript assembled: ${output.figures.length} figure(s), ${sectionsOk ? "all sections revised" : "some sections not revised"}`, "manuscript-review.json", [claimId, figureNode], { sectionsRevised: sectionsOk, figures: output.figures, auditPassed: output.audit.passed });
+    // U7 (§18/§19): record the deterministic section-sufficiency and
+    // anti-premature-closure verdicts as audit data so the pipeline never
+    // *claims* approval it did not check, even though stage advancement keeps
+    // the existing reviewer gate. Recorded evidence > vote.
+    const sufficiencyVerdicts = MANUSCRIPT_SECTIONS.map((section) => sectionSufficiency(output.sections[section].content, section, { claimIds: output.sections[section].allowedEvidenceIds, evidenceIds: derived.evidenceIds, metric: plan.metric, runCount: runs.length }));
+    const closure = antiPrematureClosure({ claims: derived.claims.map((claim) => ({ id: claim.id, text: claim.id })), evidenceIds: derived.evidenceIds, sections: output.sections, plan: { id: ir.id, claimsToSections: { [claimId]: ["abstract", "results", "discussion", "conclusion"] } } });
+    this.record(ir.id, "MANUSCRIPT", `manuscript assembled: ${output.figures.length} figure(s), ${sectionsOk ? "all sections revised" : "some sections not revised"}`, "manuscript-review.json", [claimId, figureNode], { sectionsRevised: sectionsOk, figures: output.figures, auditPassed: output.audit.passed, sectionSufficiency: sufficiencyVerdicts.map((verdict) => ({ section: verdict.section, passed: verdict.passed, unmet: verdict.unmet })), antiPrematureClosure: closure });
     if (!sectionsOk) return { summary: "manuscript sections not all revised", fail: { reason: "manuscript section review did not pass (evidence check failed)" } };
     return { summary: `manuscript assembled: paper.md/.tex/.bib + ${output.figures.length} figure(s)`, evidenceRefs: [claimId, figureNode] };
   }
