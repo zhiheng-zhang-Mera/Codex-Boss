@@ -14,7 +14,10 @@ export async function runAllowedCommand(root: string, command: AllowedCommand, f
   let args: string[];
   try {
     if (command === "test") {
-      if (fs.existsSync(path.join(cwd, "node_modules/vitest/vitest.mjs"))) args = [local("node_modules/vitest/vitest.mjs"), "run", ...targets];
+      // --maxWorkers=2 bounds parallel contention: the same full suite also runs
+      // inside the live app (autonomous-loop audits), where the git/process-heavy
+      // files otherwise fight the app's own processes and flake.
+      if (fs.existsSync(path.join(cwd, "node_modules/vitest/vitest.mjs"))) args = [local("node_modules/vitest/vitest.mjs"), "run", "--maxWorkers=2", ...targets];
       else args = ["--test", ...targets];
     } else if (command === "lint") args = [local("node_modules/eslint/bin/eslint.js"), ...targets.length ? targets : [cwd]];
     else args = [local("node_modules/typescript/bin/tsc"), ...(command === "typecheck" ? ["--noEmit"] : ["--build"])];
