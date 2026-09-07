@@ -45,6 +45,23 @@ Remaining GUI units are now implementable and live-verifiable through this chann
 (DETACHED two-window mode, manager/goal React panels, live archive attempts,
 coder-backed goal runs against the open ChatGPT session).
 
+## In-app autonomous audit findings (rounds 11–13)
+
+Repeated `engineeringGoalRun` against this repo from the running app (via CDP)
+proved the loop end-to-end inside the product: real typecheck + full-suite
+audits, honest ABORTs with durable evidence in `runtime-data/.boss/engineering-loop.json`,
+rollback keeping the tree clean. Full-suite greenness *inside the app* remains
+environment-dependent (nested electron-as-node vitest), so in-app runs kept
+surfacing real, varying test failures. Hardening shipped:
+
+- `dad5c11` — vitest default timeout 5s → 60s (suite also runs in-app).
+- `897a022` — nested audit vitest bounded to 2 workers.
+- `f25853e` — child scratch redirected to an OS temp dir (the running app points
+  TEMP into the workspace `.cache`, which made nested suites behave differently).
+
+Headless full suite stays green (**147 files / 735 tests**) and the headless U11
+dogfood converges. In-app full-green convergence remains an open tuning item.
+
 ## Remaining (live-GUI / provider-session bound, now live-verifiable)
 
 DETACHED two-window mode; Web-AI/Profile-Account manager UI; U6 retryable external-archive
