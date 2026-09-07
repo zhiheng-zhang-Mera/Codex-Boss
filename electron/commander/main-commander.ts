@@ -151,11 +151,13 @@ export class MainCommander {
     if (!this.ledger) throw new Error("Plan execution requires durable ledger");
     this.store.setTaskWorkspace(taskId, workspace);
     if (!this.ledger.load(taskId)?.projectMemoryOwner) this.ledger.update(taskId, "project memory scope selected", (record) => { record.projectMemoryOwner = TaskLedger.fingerprint(fs.realpathSync(workspace).toLowerCase()); });
+    const snapshotTask = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    const workerCap = snapshotTask?.workAgentCount === 5 ? 5 : snapshotTask?.workAgentCount === 3 ? 3 : undefined;
     const compiler = new PlanCompiler(async (prompt) => {
       const result = await this.dispatchRole(taskId, "planner", prompt);
       if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? "Planner unavailable");
       return result.content;
-    });
+    }, workerCap);
     let plan: import("../../src/shared/task-ir").TaskIR;
     try {
       plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);

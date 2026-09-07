@@ -34,7 +34,10 @@ export class EngineeringRuntime {
   constructor(private readonly ledger: TaskLedger) {}
   async run(taskId: string, plan: TaskIR, executor: GraphExecutor): Promise<GraphResult> {
     validateGraph(plan.steps);
-    if (!Number.isInteger(plan.maxWorkers) || plan.maxWorkers < 1 || plan.maxWorkers > 3) throw new Error("Invalid worker limit");
+    // Worker cap 1..5 (plan §6.4/§35): a 5-AI Work pool may widen engineering
+    // parallelism; 3 remains the default compiled cap when the goal does not
+    // request a wider pool.
+    if (!Number.isInteger(plan.maxWorkers) || plan.maxWorkers < 1 || plan.maxWorkers > 5) throw new Error("Invalid worker limit");
     if (this.running.has(taskId)) throw new Error("Graph already executing");
     this.running.add(taskId);
     try { return await this.execute(taskId, plan, executor); } finally { this.running.delete(taskId); }
@@ -55,7 +58,7 @@ export class EngineeringRuntime {
         else return { status: "FAILED", evidence: [...evidence, this.evidence(step.id, output, false)] };
       } else if (previous?.state === "RUNNING" && !executor.readOnly) throw new Error(`Interrupted step ${step.id} requires side-effect reconciliation`);
     }
-    const width = plan.estimatedComplexity === "L3" ? Math.max(1, Math.min(3, plan.maxWorkers)) : 1;
+    const width = plan.estimatedComplexity === "L3" ? Math.max(1, Math.min(plan.maxWorkers, 5)) : 1;
     while (completed.size < plan.steps.length) {
       const ready = plan.steps.filter((step) => !completed.has(step.id) && step.dependencies.every((id) => completed.has(id)));
       // Concurrent workers must own disjoint file scopes. Unknown scope is serialized.
