@@ -25,7 +25,7 @@ Full evidence: `Update-Plan/audit/U0/completion-report.md` (close-out section).
 | U5 Web-AI/API/Profile-Account managers | PART (masked-key done; UI surfaces + SecretVault decision recorded) | `33ca489` |
 | U6 session lifecycle (archive default, manual-only delete, fresh conversation) | MOSTLY (retryable archive automation pass done `3b0e550`; live page-state attempt + recovery trigger need the running app) | `99b0d5f 9091fda 493ed6b 3b0e550` |
 | U7 research registry + manuscript depth + tables/visual gate | MOSTLY (PDF-embedded figures need the live pipeline) | `cfea2e5 84dcd44 7b62849` |
-| U8–U10 autonomous engineering loop | DONE headless (goal contract, boundary, iteration machine, convergence/stagnation, §38 checkpoint/rollback, real-env audit commands) | `0db171e b0476af 93c9c94 fd55af0` |
+| U8–U10 autonomous engineering loop | DONE headless (goal contract, boundary, iteration machine, convergence/stagnation, §38 checkpoint/rollback, real-env audit commands, durable status read-model `2834ee3`) | `0db171e b0476af 93c9c94 fd55af0 2834ee3` |
 | U11 E2E dogfood + full regression | DONE headless | `7d5738b` |
 
 ## Remaining (live-GUI / provider-session / display bound)
