@@ -428,6 +428,10 @@ export interface BossBridge {
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
   layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;
   setProviderViewsVisible(visible: boolean): Promise<void>;
+  /** U4 §9.2: force a manual zoom factor on one provider pane. */
+  setProviderZoom(providerId: ProviderId, factor: number): Promise<void>;
+  /** U4 §9.2: reload one provider pane (visible session reset). */
+  reloadProvider(providerId: ProviderId): Promise<void>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
   projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;

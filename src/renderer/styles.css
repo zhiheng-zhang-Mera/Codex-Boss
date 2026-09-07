@@ -105,41 +105,34 @@ button { color: inherit; }
 .snap-illustration { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 3px; width: 96px; height: 72px; margin-bottom: 19px; padding: 5px; border: 1px solid #3a3e40; border-radius: 10px; background: #141719; box-shadow: 0 14px 40px #0007; }.snap-illustration span { border-radius: 4px; background: #252b23; }.snap-illustration span:first-child { grid-row: 1 / -1; background: #344027; }.snap-illustration span:last-child { background: #202427; }
 .browser-empty h2 { margin: 0; font-size: 14px; }.browser-empty p { max-width: 300px; margin: 8px 0; color: #747a7d; font-size: 10px; line-height: 1.6; }
 .provider-grid { display: grid; min-width: 0; min-height: 0; gap: 4px; padding: 4px; background: #070809; }
-.provider-grid.count-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.provider-grid.count-2 { grid-template-columns: 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+/* U4 §9.1: every pane is full-height; N AI = N horizontal full-height columns
+   (never two rows). Auto zoom in the host adapts narrow panes. */
+.provider-grid.count-1 { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); }
+.provider-grid.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
 .provider-grid.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
-.provider-grid.count-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
-.provider-grid.count-5 { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
-.provider-grid.count-5 .provider-pane { grid-column: span 2; }
-.provider-grid.count-5 .provider-pane:nth-child(n+4) { grid-column: span 3; }
+.provider-grid.count-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+.provider-grid.count-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
 .provider-pane { display: grid; grid-template-rows: 36px 1fr; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #2e3234; border-radius: 7px; background: #111315; }
 .pane-title { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 0 10px; border-bottom: 1px solid #303436; background: #1a1d1f; }
 .pane-title > div { display: flex; align-items: center; gap: 7px; min-width: 0; }.pane-title i { width: 7px; height: 7px; border-radius: 50%; }.pane-title strong { font-size: 10px; }.pane-title span { color: #666c6f; font-size: 8px; }.pane-title button { border: 0; background: transparent; color: #707679; font-size: 15px; cursor: pointer; }
 .web-surface { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #111315; }.web-surface > span { position: absolute; inset: 0; display: grid; place-items: center; color: #62686b; font-size: 9px; }
 
-.desktop-shell.layout-five { display: grid; grid-template-columns: clamp(220px, 16vw, 300px) repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #070809; }
-.desktop-shell.layout-five.history-collapsed { grid-template-columns: 40px repeat(3, minmax(0, 1fr)); }
-.layout-five .history-sidebar { grid-column: 1; grid-row: 1 / -1; grid-template-rows: 52px minmax(0, 1fr); }
-.layout-five .chat-half { grid-column: 3; grid-row: 1; grid-template-rows: 52px minmax(0, 1fr) auto; border: 1px solid #394032; border-radius: 7px; overflow: hidden; }
-.layout-five .chat-header { height: 52px; padding-inline: 12px; }.layout-five .app-brand small, .layout-five .workspace-pill, .layout-five .controller-pill { display: none; }.layout-five .header-status { gap: 4px; }
-.layout-five .history-folder > header button, .layout-five .history-conversation select, .layout-five .history-sidebar footer { display: none; }.layout-five .conversation { padding: 10px 8px; }.layout-five .welcome-card { display: none; }.layout-five .conversation-turn { margin-bottom: 12px; }
-.layout-five .composer-zone { padding: 8px 7px 10px; }.layout-five .mode-switch span, .layout-five .picker-label span { display: none; }.layout-five .prompt-composer textarea { min-height: 58px; max-height: 100px; }
-.layout-five .browser-half, .layout-five .provider-grid.count-5 { display: contents; }
-.layout-five .browser-header { display: none; }
-.layout-five .provider-grid.count-5 .provider-pane { grid-column: auto; }
-.layout-five .provider-grid.count-5 .provider-pane:nth-child(1) { grid-column: 2; grid-row: 1; }
-.layout-five .provider-grid.count-5 .provider-pane:nth-child(2) { grid-column: 4; grid-row: 1; }
-.layout-five .provider-grid.count-5 .provider-pane:nth-child(3) { grid-column: 2; grid-row: 2; }
-.layout-five .provider-grid.count-5 .provider-pane:nth-child(4) { grid-column: 3; grid-row: 2; }
-.layout-five .provider-grid.count-5 .provider-pane:nth-child(5) { grid-column: 4; grid-row: 2; }
+/* U4 §9.1: 5-AI merged mode keeps the same history | controller | provider
+   shell as 3-AI; the provider area then holds five full-height panes in one
+   horizontal row (never two rows). Auto zoom fits narrow panes. */
+.desktop-shell.layout-five { grid-template-columns: clamp(220px, 16vw, 300px) var(--controller-width, 30vw) minmax(0, 1fr); }
+.desktop-shell.layout-five.history-collapsed { grid-template-columns: 40px var(--controller-width, 30vw) minmax(0, 1fr); }
+.layout-five .chat-half { grid-column: 2; grid-row: 1; grid-template-rows: 52px minmax(0, 1fr) auto; border-right: 4px solid #070809; }
+.layout-five .chat-header { height: 52px; padding-inline: 12px; }.layout-five .app-brand small, .layout-five .workspace-pill { display: none; }.layout-five .header-status { gap: 4px; }
+.layout-five .browser-half { grid-column: 3; grid-row: 1 / -1; }
 
 @media (max-width: 1180px) {
   .desktop-shell { grid-template-columns: clamp(220px, 16vw, 300px) minmax(0, 1fr) minmax(0, 1fr); }
   .desktop-shell.history-collapsed { grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); }
   .desktop-shell.layout-three { grid-template-columns: clamp(220px, 16vw, 300px) var(--controller-width, 30vw) minmax(0, 1fr); }
   .desktop-shell.layout-three.history-collapsed { grid-template-columns: 40px var(--controller-width, 30vw) minmax(0, 1fr); }
-  .desktop-shell.layout-five { grid-template-columns: clamp(220px, 16vw, 300px) repeat(3, minmax(0, 1fr)); }
-  .desktop-shell.layout-five.history-collapsed { grid-template-columns: 40px repeat(3, minmax(0, 1fr)); }
+  .desktop-shell.layout-five { grid-template-columns: clamp(200px, 14vw, 260px) var(--controller-width, 26vw) minmax(0, 1fr); }
+  .desktop-shell.layout-five.history-collapsed { grid-template-columns: 40px var(--controller-width, 26vw) minmax(0, 1fr); }
   .conversation { padding-inline: 24px; }
   .composer-zone { padding-inline: 18px; }
 }

@@ -56,6 +56,8 @@ const bridge: BossBridge = {
   closeProvider: (providerId: ProviderId) => ipcRenderer.invoke("boss:close-provider", providerId),
   layoutViews: (layout: Partial<Record<ProviderId, ViewBounds>>) => ipcRenderer.invoke("boss:layout-views", layout),
   setProviderViewsVisible: (visible: boolean) => ipcRenderer.invoke("boss:set-provider-views-visible", visible),
+  setProviderZoom: (providerId: string, factor: number) => ipcRenderer.invoke("boss:set-provider-zoom", providerId, factor),
+  reloadProvider: (providerId: string) => ipcRenderer.invoke("boss:reload-provider", providerId),
   updateTask: (taskId: string, status: TaskStatus) => ipcRenderer.invoke("boss:update-task", taskId, status),
   projectState: (workspaceId?: string) => ipcRenderer.invoke("boss:project-state", workspaceId),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {

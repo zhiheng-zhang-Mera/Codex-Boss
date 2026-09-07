@@ -81,6 +81,17 @@ function App() {
     if (saved) { try { const parsed = JSON.parse(saved) as ProviderId[]; if (Array.isArray(parsed) && parsed.every((id) => typeof id === "string")) return parsed; } catch { /* fall through to default */ } }
     return openProviders.map((provider) => provider.id);
   });
+  // U4 §9.2: persisted manual zoom per pane (≈ zoom applied to the visible page).
+  const [manualZooms, setManualZooms] = useState<Record<ProviderId, number>>(() => {
+    const saved = window.localStorage.getItem("codex-boss:provider-zoom");
+    if (saved) { try { const parsed = JSON.parse(saved) as Record<string, number>; if (parsed && typeof parsed === "object") return parsed; } catch { /* fall through */ } }
+    return {};
+  });
+  const displayZoom = (providerId: ProviderId): number | undefined => {
+    const zoom = manualZooms[providerId];
+    return zoom && Number.isFinite(zoom) && zoom > 0 ? Math.round(zoom * 100) / 100 : undefined;
+  };
+  useEffect(() => { window.localStorage.setItem("codex-boss:provider-zoom", JSON.stringify(manualZooms)); }, [manualZooms]);
   useEffect(() => { window.localStorage.setItem("codex-boss:provider-display-order", JSON.stringify(displayOrder)); }, [displayOrder]);
   useEffect(() => {
     // Newly opened providers append at the end; closed ones drop out.
@@ -663,7 +674,13 @@ function App() {
         <h2>等待打开网页页面</h2><p>在主控页选中 AI 时会直接打开；取消选中或点击页面标题栏 × 会立即关闭。</p>
       </div> : <div className={`provider-grid count-${openProviders.length}`}>
         {orderedOpenProviders.map((provider, index) => <article className="provider-pane" key={provider.id}>
-          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><div className="pane-order-controls"><button disabled={index === 0 || Boolean(prompt.trim())} title="左移" onClick={() => moveDisplayOrder(provider.id, -1)}>‹</button><button disabled={index === orderedOpenProviders.length - 1 || Boolean(prompt.trim())} title="右移" onClick={() => moveDisplayOrder(provider.id, 1)}>›</button><button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div></div>
+          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>{displayZoom(provider.id) ? `缩放 ${displayZoom(provider.id)}×` : "独立会话"}</span></div><div className="pane-order-controls">
+            <button disabled={Boolean(prompt.trim())} title="缩小" onClick={() => { const current = displayZoom(provider.id) ?? 1; const next = Math.round(Math.max(0.4, current - 0.15) * 100) / 100; setManualZooms((zoom) => ({ ...zoom, [provider.id]: next })); void window.boss.setProviderZoom(provider.id, next); }}>−</button>
+            <button disabled={Boolean(prompt.trim())} title="放大" onClick={() => { const current = displayZoom(provider.id) ?? 1; const next = Math.round(Math.min(3, current + 0.15) * 100) / 100; setManualZooms((zoom) => ({ ...zoom, [provider.id]: next })); void window.boss.setProviderZoom(provider.id, next); }}>＋</button>
+            <button disabled={Boolean(prompt.trim())} title="重载页面" onClick={() => void window.boss.reloadProvider(provider.id)}>↻</button>
+            <button disabled={index === 0 || Boolean(prompt.trim())} title="左移" onClick={() => moveDisplayOrder(provider.id, -1)}>‹</button>
+            <button disabled={index === orderedOpenProviders.length - 1 || Boolean(prompt.trim())} title="右移" onClick={() => moveDisplayOrder(provider.id, 1)}>›</button>
+            <button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => { setManualZooms((zoom) => { const next = { ...zoom }; delete next[provider.id]; return next; }); void window.boss.closeProvider(provider.id); }}>×</button></div></div>
           <div className="web-surface" ref={(element) => { surfaceRefs.current[provider.id] = element; }}><span>正在载入 {provider.name}…</span></div>
         </article>)}
       </div>}

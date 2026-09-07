@@ -7,6 +7,8 @@ import { profileFor, zoomForPaneWidth, type ProviderDisplayProfile } from "../sr
 export class ProviderViews {
   private readonly views = new Map<ProviderId, WebContentsView>();
   private readonly downloadListeners = new Map<ProviderId, { session: Session; listener: (event: ElectronEvent, item: DownloadItem) => void }>();
+  /** Manual zoom overrides (U4 §9.2); when set, auto-fit zoom is skipped. */
+  private readonly manualZoom = new Map<ProviderId, number>();
   /** Provider-specific zoom profiles (plan Phase 2); applied on every layout. */
   private readonly profiles: ProviderDisplayProfile[];
 
@@ -66,6 +68,7 @@ export class ProviderViews {
     const download = this.downloadListeners.get(providerId);
     if (download) download.session.off("will-download", download.listener);
     this.downloadListeners.delete(providerId);
+    this.manualZoom.delete(providerId);
     if (!this.host.isDestroyed()) this.host.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
     this.views.delete(providerId);
@@ -82,14 +85,26 @@ export class ProviderViews {
         width: Math.max(1, Math.round(bounds.width)),
         height: Math.max(1, Math.round(bounds.height))
       });
-      // Phase 2 auto zoom: zoom to the real pane width against the provider's
-      // target CSS width (clamped). Never CSS transform — the renderer paints
-      // 1:1 and the WebContentsView scales the page itself.
+      // U4 §9.2: a manual zoom override wins; otherwise auto-fit by pane width.
       try {
-        const zoom = zoomForPaneWidth(profileFor(this.profiles, providerId), bounds.width);
+        const override = this.manualZoom.get(providerId);
+        const zoom = override ?? zoomForPaneWidth(profileFor(this.profiles, providerId), bounds.width);
         if (Math.abs((view.webContents.getZoomFactor() ?? 1) - zoom) > 0.001) view.webContents.setZoomFactor(zoom);
       } catch { /* a not-yet-ready or closing view keeps its current zoom */ }
     }
+  }
+
+  /** Sets a manual zoom override for one pane (persisted for the session). */
+  setManualZoom(providerId: ProviderId, factor: number): void {
+    if (!Number.isFinite(factor) || factor <= 0 || factor > 3) throw new Error("Zoom factor must be within (0, 3]");
+    this.manualZoom.set(providerId, factor);
+    const view = this.views.get(providerId);
+    if (view && !view.webContents.isDestroyed()) view.webContents.setZoomFactor(factor);
+  }
+
+  /** Clears the manual override; the next layout applies auto-fit again. */
+  clearManualZoom(providerId: ProviderId): void {
+    this.manualZoom.delete(providerId);
   }
 
   setVisible(visible: boolean): void {

@@ -800,6 +800,18 @@ if (ownsInstance) app.whenReady().then(() => {
     providerViews.layout(safeLayout);
   });
   ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
+  // U4 §9.2: per-pane manual zoom override (zoom buttons in the pane title).
+  // The override wins over auto-fit until the view is closed or the override
+  // is cleared.
+  ipcMain.handle("boss:set-provider-zoom", (_event, providerId: string, factor: number) => {
+    provider(providerId);
+    providerViews.setManualZoom(providerId, Number(factor));
+  });
+  ipcMain.handle("boss:reload-provider", (_event, providerId: string) => {
+    const view = providerViews.get(providerId);
+    if (!view) throw new Error(`Unknown provider view: ${providerId}`);
+    view.webContents.reload();
+  });
   ipcMain.handle("boss:launch-task", (_event, taskId: string) => {
     const task = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);
