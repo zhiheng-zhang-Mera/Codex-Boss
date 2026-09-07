@@ -62,6 +62,17 @@ surfacing real, varying test failures. Hardening shipped:
 Headless full suite stays green (**147 files / 735 tests**) and the headless U11
 dogfood converges. In-app full-green convergence remains an open tuning item.
 
+## Live E2E with a real logged-in provider (ChatGPT, web)
+
+Driven over CDP on the running app (`dispatchTask`, WORK mode, 1 agent, fresh
+conversation): the task navigated a new ChatGPT conversation, ChatGPT answered,
+and the answer was captured as an artifact. Evidence: task
+`f58b6f68-4e98-4148-a19b-ba1fdaf84e99` status `completed` / phase COMPLETED /
+next REPORT_EVIDENCE with artifact content `["OK"]` (prompt: "Reply with
+exactly: OK"). This live-proves the product core path end-to-end: fresh
+conversation (§12.1) → provider automation prefill/send on the visible page →
+answer artifact → evidence-gated posture (§2.3).
+
 ## Remaining (live-GUI / provider-session bound, now live-verifiable)
 
 DETACHED two-window mode; Web-AI/Profile-Account manager UI; U6 retryable external-archive
