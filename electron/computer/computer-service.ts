@@ -5,6 +5,7 @@ import path from "node:path";
 import { SemanticRuntime } from "./semantic-runtime";
 import { WindowsUiaBackend, type ApplicationSpec } from "./backends/windows-uia";
 import { StructuredApplicationsBackend, type StructuredOptions } from "./backends/structured-apps";
+import type { PermissionManifest } from "../../src/shared/permission";
 export function findVSCodeExecutable(): string | undefined {
   const candidates = [
     process.env.CODEX_BOSS_VSCODE_PATH,
@@ -17,7 +18,12 @@ export function findVSCodeExecutable(): string | undefined {
   ];
   return candidates.find((file): file is string => Boolean(file && fs.existsSync(file) && resolveVSCodeCli(file)));
 }
-export interface ComputerOptions extends StructuredOptions { visionSurface?: VisionSurface; authorizeVision?: (proposal: VisionProposal) => Promise<boolean>; }
+export interface ComputerOptions extends StructuredOptions {
+  visionSurface?: VisionSurface;
+  authorizeVision?: (proposal: VisionProposal) => Promise<boolean>;
+  /** Resolves the workspace permission manifest for desktop side-effect gating (plan §17/§18). */
+  permissionForWorkspace?: (workspace: string) => PermissionManifest | undefined;
+}
 export function createComputerRuntime(workspace: string, stateFile: string, options: ComputerOptions = {}): SemanticRuntime {
   const windows = process.env.WINDIR ?? "C:\\Windows";
   const vscode = options.vscodeExecutable ?? findVSCodeExecutable();

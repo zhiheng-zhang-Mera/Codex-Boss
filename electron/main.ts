@@ -523,7 +523,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
-  } }, circuitBreaker, domainEvents, workspaces, softwareLeases);
+  }, permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId()) }, circuitBreaker, domainEvents, workspaces, softwareLeases);
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   // Headless mode still creates the (hidden) main window: provider views are
   // attached to it and ProviderAutomation dispatches through those views.

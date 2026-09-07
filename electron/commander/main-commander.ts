@@ -44,6 +44,7 @@ import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineeri
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { checkpointRecord, rollbackToCheckpoint } from "../engineering/change-points";
+import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot } from "../../src/shared/engineering-loop";
 
@@ -372,6 +373,12 @@ export class MainCommander {
     const target = "computer:" + fs.realpathSync(workspace);
     if (this.leases?.canAccess(target, profile.mode)) this.leases.acquire({ owner_task: taskId, target, mode: profile.mode, leaseMs: 60000 });
     try {
+      // §17/§18 side-effect gate: desktop mutations (click/type/submit/launch)
+      // must be allow-listed as `computer:<action>` by the workspace permission
+      // manifest; reads always pass. Denied mutations throw before any backend
+      // runs — fail-closed, mirroring the software runtime's authorize().
+      const verdict = desktopMutationGate(this.computerOptions.permissionForWorkspace?.(workspace), operation.action.name);
+      if (!verdict.allowed) throw new Error(verdict.reason ?? `Permission gate denied computer ${operation.action.name}`);
       const runtime = createComputerRuntime(workspace, path.join(this.ledger.root, "..", "computer-pending.json"), { ...this.computerOptions, authorizeVision: async () => {
         const task = this.store.snapshot().tasks.find(item => item.id === taskId);
         const explicit = task ? compileIntent(task.prompt) : undefined;
