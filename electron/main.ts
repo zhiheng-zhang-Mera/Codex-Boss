@@ -16,6 +16,7 @@ import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProvi
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
+import { roleBriefsForWorkerOrder } from "../src/shared/work-mode";
 import { ProviderAutomation } from "./provider-automation";
 import { CodexCliRuntime } from "./runtimes/codex/codex-cli-runtime";
 import { ProviderRuntimeAdapter } from "./runtimes/web/provider-runtime-adapter";
@@ -230,14 +231,18 @@ async function advanceCouncilRound(taskId: string): Promise<void> {
     const roundRuns = snapshot.runs.filter((run) => run.taskId === taskId && run.round === council.round);
     if (roundRuns.length !== council.providerIds.length || !roundRuns.every((run) => run.phase === "completed" && run.artifactId)) throw new Error("当前 Council 阶段尚未收齐全部可验证回答");
     const artifacts = roundRuns.map((run) => snapshot.artifacts.find((artifact) => artifact.id === run.artifactId)).filter((artifact) => artifact !== undefined);
+    // U3: role-briefed reviewers — each AI in the pool gets a distinct review
+    // duty (Architecture/Correctness/QA/Security/Performance) instead of N
+    // identical reviewers (plan §6.2/§34).
+    const roleBriefs = roleBriefsForWorkerOrder(council.providerIds);
     if (council.stage === "proposals") {
-      store.addCouncilRound(taskId, buildPeerReviewPrompts(task.prompt, artifacts, council.providerIds), "peer_review");
+      store.addCouncilRound(taskId, buildPeerReviewPrompts(task.prompt, artifacts, council.providerIds, roleBriefs), "peer_review");
       await automation.dispatchTask(taskId);
     } else if (council.stage === "peer_review") {
       const allProposals = snapshot.artifacts.filter((artifact) => artifact.taskId === taskId && artifact.kind === "proposal");
       const analysis = extractCouncilFindings(artifacts);
       store.updateCouncil(taskId, analysis);
-      store.addCouncilRound(taskId, buildSynthesisPrompts(task.prompt, allProposals, artifacts, council.providerIds, analysis), "synthesis");
+      store.addCouncilRound(taskId, buildSynthesisPrompts(task.prompt, allProposals, artifacts, council.providerIds, analysis, roleBriefs), "synthesis");
       await automation.dispatchTask(taskId);
     } else if (council.stage === "synthesis") {
       store.updateCouncil(taskId, { stage: "completed" });
