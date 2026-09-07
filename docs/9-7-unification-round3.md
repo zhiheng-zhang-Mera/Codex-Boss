@@ -1,4 +1,4 @@
-# Codex-Boss 统一收口 — Round-3 handoff (U6 fresh conversation, U7 tables/gates, U10 §38 checkpoint/rollback)
+# Codex-Boss 统一收口 — Round-3 handoff (U6–U11: fresh conversation, tables/gates, §38 rollback, audit env, E2E dogfood)
 
 Branch `9-7`. Supersedes `docs/9-7-unification-u4-u10-round2.md` for the items below.
 
@@ -48,17 +48,52 @@ Branch `9-7`. Supersedes `docs/9-7-unification-u4-u10-round2.md` for the items b
   OPTIONAL_IMPROVEMENTS keep their build/test-verified changes. Non-git
   workspaces proceed without rollback capability (no fabricated safety).
 - New `tests/change-points.test.ts` (5 deterministic git-repo unit tests,
-  `core.autocrlf=false` for byte-exact assertions) and two real-git facade
-  integration tests in `tests/engineering-facade.test.ts`: ABORT rolls back a
-  crashed editor's change; STAGNANT rolls back recurring-failure rounds.
-- Electron typecheck clean; engineering regression set green.
+  `core.autocrlf=false` for byte-exact assertions; the outside-git case uses a
+  bogus `.git` marker so it stays deterministic even when `os.tmpdir()` sits
+  inside a git worktree) and two real-git facade integration tests in
+  `tests/engineering-facade.test.ts`: ABORT rolls back a crashed editor's
+  change; STAGNANT rolls back recurring-failure rounds.
+
+## U11 — E2E dogfood: audit-env fixes the dogfood surfaced
+
+Running the autonomous goal against this repo surfaced two real faults in
+`runAllowedCommand` (the audit's evidence seam), fixed in `fd55af0`:
+
+- **Real environment**: child commands no longer get `TEMP` redirected into the
+  workspace `.boss/tmp`. The redirected temp made the nested full-suite audit
+  run with `os.tmpdir()` inside the repo, breaking three repo tests that assert
+  non-git-workspace semantics — audit evidence must match a human's own
+  `pnpm test`, so commands now inherit the developer's environment.
+- **Generous caps**: the 120 s timeout + 1 MB buffer killed the nested full
+  suite mid-run (~141 s), faking a test failure every round. Raised to
+  15 min / 32 MB.
+
+The repo's own process/git-heavy tests also received explicit timeouts so the
+full suite stays green under parallel load (the same class of flake already
+fixed for github-resolver and cli-process-recovery).
+
+## U11 — E2E dogfood result (headless, against this repo)
+
+`tests/u11-dogfood.test.ts` (gitignored; runs only with `BOSS_DOGFOOD=1`, and
+no-ops inside the nested audit via the `ELECTRON_RUN_AS_NODE` guard so a goal
+run never recurses into itself) drives `MainCommander.runEngineeringGoal`
+against the Codex-Boss repo itself:
+
+- **Result: PASS.** `ENGINEERING_CONVERGED`, iterations 1, findings `[]`,
+  changedFiles `[]` — the loop audited the real repo with the real typecheck +
+  full 145-file/721-test suite (two full passes: audit then verify), converged,
+  and left the working tree untouched. Runtime ~9.7 min.
+- This is honest E2E evidence for the loop's audit/convergence machinery on a
+  non-toy repo. A coder-backed `implement`/`review` requires a live provider
+  session and remains the one loop stage not exercised headlessly.
 
 ## Verification
 
 - Electron typecheck: green after every commit.
-- Full suite at round end: **144 files / 720 tests green** (was 142/709 at
-  round 2; +2 files / +11 tests from change-points, research-tables, and the
-  facade rollback integration).
+- Full suite under the audit environment (`ELECTRON_RUN_AS_NODE=1`):
+  **145 files / 721 tests green** — the exact environment the autonomous loop
+  audits with now matches a normal developer run.
+- Full suite at round end (normal env): **145 files / 721 tests green**.
 
 ## Remaining (rounds 4+)
 
@@ -71,8 +106,7 @@ Branch `9-7`. Supersedes `docs/9-7-unification-u4-u10-round2.md` for the items b
 - U6 §14: retryable external-archive *automation* (RecoveryScheduler) + council
   fresh-context navigation seam — live-GUI behavior surfaces.
 - U10: live coder-backed implement/reviewer operations (requires a provider
-  session), UI start surface for goals, regression ladder reporting.
-- U11: E2E dogfooding of the autonomous engineering goal against a real repo +
-  final full-suite regression + completion-matrix refresh.
+  session) + UI start surface for goals.
+- Final wrap-up: completion-matrix refresh + report close-out.
 
 Backlog + per-domain evidence: `Update-Plan/audit/U0/completion-report.md`.
