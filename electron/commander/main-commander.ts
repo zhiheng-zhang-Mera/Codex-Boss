@@ -40,6 +40,11 @@ import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 import { resourceProfile } from "../../src/shared/software-session";
 import { applyTaskPolicy } from "./task-policy";
 import { isWorkAgentCount } from "../../src/shared/work-mode";
+import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineering/engineering-loop-driver";
+import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
+import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
+import { workspaceStrategy } from "../engineering/verification";
+import type { EngineeringFinding, EngineeringGoalContract } from "../../src/shared/engineering-loop";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; }
 
@@ -402,6 +407,31 @@ export class MainCommander {
       inputArtifactHashes: this.store.snapshot().artifacts.filter((artifact) => artifact.taskId === taskId).map((artifact) => artifact.contentHash ?? "").filter(Boolean)
     });
     this.ledger.saveReproduction(taskId, snapshot);
+  }
+
+  /**
+   * U8–U10: run one autonomous engineering goal (plan §26–§41) against a real
+   * workspace. The goal contract is frozen durably; audit/build/test run the
+   * actual allowed commands; implementation requires an injected coding editor
+   * (production wires the ProposalRunner + coder dispatch used by edit plans;
+   * callers that pass none get an honest ABORT — the loop never fabricates
+   * changes). Returns the durable summary.
+   */
+  async runEngineeringGoal(input: {
+    goal: Omit<EngineeringGoalContract, "schemaVersion" | "id" | "createdAt"> & { id?: string };
+    workspace: string;
+    maxIterations?: number;
+    implement?: (finding: EngineeringFinding) => Promise<{ changedFiles: string[]; error?: string }>;
+    review?: (finding: EngineeringFinding, changedFiles: string[]) => Promise<{ findings: string[] }>;
+  }): Promise<EngineeringLoopSummary> {
+    if (!this.ledger) throw new Error("Autonomous engineering requires a durable ledger");
+    const now = new Date().toISOString();
+    const goal: EngineeringGoalContract = { schemaVersion: 1, id: input.goal.id ?? `eng-${TaskLedger.fingerprint(input.goal.objective).slice(0, 12)}`, createdAt: now, ...input.goal };
+    const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
+    loopStore.freezeGoal(goal);
+    const operations = createRepoEngineeringOperations({ workspace: input.workspace, implement: input.implement, review: input.review });
+    const driver = new EngineeringLoopDriver({ store: loopStore, operations, maxIterations: input.maxIterations });
+    return driver.run();
   }
 
   private transition(taskId: string, status: TaskStatus): void {
