@@ -5,7 +5,7 @@ Full evidence: `Update-Plan/audit/U0/completion-report.md` (close-out section).
 
 ## Final verification
 
-- Full test suite: **145 files / 721 tests green** — both in the normal developer
+- Full test suite: **147 files / 735 tests green** — both in the normal developer
   environment and in the autonomous-loop audit environment (`ELECTRON_RUN_AS_NODE=1`).
 - Electron typecheck: PASS.
 - U11 headless E2E dogfood: `MainCommander.runEngineeringGoal` against this repo →
