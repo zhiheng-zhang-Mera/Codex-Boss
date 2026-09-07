@@ -60,6 +60,7 @@ import { researchIdFor } from "../src/shared/research-input";
 import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
+import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { AccountSessionManager } from "./account-sessions";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
@@ -263,7 +264,24 @@ function attachProviderViews(): void {
   automation?.dispose();
   const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
   const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) { recordTaskOutcome(id); return; } await finalizer.finalize(id); recordTaskOutcome(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore);
+  const onTaskComplete = async (id: string) => {
+    if (!store.finalResponseForTask(id)) await finalizer.finalize(id);
+    recordTaskOutcome(id);
+    for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId);
+    // U6 §13/§51: a conversation with no remaining active task auto-archives
+    // (flag only, never delete) once its last task has a final response. The
+    // currently-selected conversation is left in place so the user can read
+    // the result they just produced; finished background conversations tidy
+    // themselves automatically.
+    try {
+      const decision = autoArchiveDecision(store.snapshot(), id);
+      if (decision.archive) {
+        const task = store.snapshot().tasks.find((item) => item.id === id)!;
+        if (store.snapshot().activeConversationId !== task.conversationId) store.setConversationArchived(task.conversationId, true);
+      }
+    } catch { /* auto-archive is best-effort; conversation stays visible otherwise */ }
+  };
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, onTaskComplete, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore);
   detachContinuationWaker?.();
   detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
