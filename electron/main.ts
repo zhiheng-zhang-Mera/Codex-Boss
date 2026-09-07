@@ -645,7 +645,7 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
     const { appMode, transports } = taskTransports(input, providerIds);
-    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: input.inputObjectIds });
+    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: input.inputObjectIds, workAgentCount: input.workAgentCount });
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
@@ -661,7 +661,7 @@ if (ownsInstance) app.whenReady().then(() => {
     // materialize once and bind it so WORK can scan real code.
     const githubInput = await materializeGithubInput(conversationId, input.prompt);
     const inputObjectIds = [...new Set([...(input.inputObjectIds ?? []), ...(githubInput ? [githubInput.id] : [])])];
-    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined });
+    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined, workAgentCount: input.workAgentCount });
     // Phase E: Chat is the default entry. When a chat request actually needs
     // WORK capability, propose once instead of firing web providers blindly.
     if (appMode === "chat" && escalateDecisionFor(task).escalate) {

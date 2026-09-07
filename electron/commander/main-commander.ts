@@ -39,8 +39,9 @@ import { buildReproductionSnapshot } from "../repro-snapshot";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 import { resourceProfile } from "../../src/shared/software-session";
 import { applyTaskPolicy } from "./task-policy";
+import { isWorkAgentCount } from "../../src/shared/work-mode";
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -102,6 +103,14 @@ export class MainCommander {
     this.store.setTaskPlan(task.id, plan);
     if (input.finalizationPolicy) this.store.setFinalizationPolicy(task.id, input.finalizationPolicy);
     if (input.reviewPolicy) this.store.setReviewPolicy(task.id, input.reviewPolicy);
+    // U3 (plan §6/§6.4): record the Work pool configuration on WORK tasks so
+    // the engine never has to guess the agent count from the provider list
+    // later, and orchestration stays decoupled from a fixed 3-AI assumption.
+    // Explicit count wins; otherwise the deterministic default mapping applies.
+    if (task.appMode === "work" || input.workAgentCount) {
+      const effective = input.workAgentCount ?? (task.providerIds.length <= 1 ? 1 : task.providerIds.length <= 3 ? 3 : 5);
+      if (isWorkAgentCount(effective)) this.store.setWorkConfig(task.id, { agentCount: effective });
+    }
     // AP01a: every task belongs to a workspace. Default/scratch shim keeps
     // current single-repo behavior when no registry is configured.
     if (this.workspaces) this.store.setTaskWorkspaceId(task.id, DEFAULT_WORKSPACE_ID);

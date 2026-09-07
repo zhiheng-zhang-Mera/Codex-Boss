@@ -441,6 +441,21 @@ export class StateStore {
   }
 
   /**
+   * Records the Work pool configuration (plan §6/§6.4): agent count 1|3|5 plus
+   * explicit roles (default auto mapping when omitted). Persisted so a later
+   * UI/engine can reason about the pool without guessing from provider count.
+   */
+  setWorkConfig(taskId: string, config: { agentCount: import("../src/shared/work-mode").WorkAgentCount; roles?: import("../src/shared/work-mode").WorkRole[] }): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.workAgentCount = config.agentCount;
+    if (config.roles?.length) task.workRoles = [...config.roles];
+    else delete task.workRoles;
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /**
    * Stages a one-time Chat→Work proposal (plan §2.3). The task stays queued
    * (nothing dispatched) until the user approves or declines; approval is
    * recorded so a later resume never asks again.

@@ -1,6 +1,7 @@
 import type { ExecutionPhase, ReviewPolicy, ReviewResult, WorkerResponse } from "./execution";
 import type { InputObjectRef } from "./input-object";
 import type { InteractionMode, ModeTransition } from "./capability-needs";
+import type { WorkAgentCount, WorkRole } from "./work-mode";
 export type ProviderId = string;
 export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
@@ -52,6 +53,10 @@ export interface BossTask {
   interactionMode?: InteractionMode;
   /** Pending or approved Chat→Work transition (one-time user confirmation). */
   modeTransition?: ModeTransition;
+  /** Work cognitive/review pool size 1|3|5 (plan §6). Set only for WORK tasks; absent = 3 default. */
+  workAgentCount?: WorkAgentCount;
+  /** Explicit work-role list in provider order (plan §6.4); absent = default auto mapping. */
+  workRoles?: WorkRole[];
   providerIds: ProviderId[];
   status: TaskStatus;
   mode: TaskMode;
@@ -331,6 +336,8 @@ export interface CreateTaskInput {
   prompt: string;
   /** Input objects bound to this task; ids must already exist on the conversation. */
   inputObjectIds?: string[];
+  /** Optional explicit work pool size 1|3|5 (defaults: 1 for 1 worker, else 3 for ≤3, 5 for >3). */
+  workAgentCount?: import("./work-mode").WorkAgentCount;
   providerIds: ProviderId[];
   mode?: TaskMode;
   appMode?: AppMode;
