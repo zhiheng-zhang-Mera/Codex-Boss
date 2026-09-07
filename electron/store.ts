@@ -962,7 +962,17 @@ const roles: RoleRouteView["role"][] = ["planner", "researcher", "reviewer", "sy
 
 function mergeRuntimeStatuses(providers: Provider[], controller: ControllerState, saved: RuntimeStatusView[] = []): RuntimeStatusView[] {
   const defaults: RuntimeStatusView[] = [
-    ...providers.map((provider, index) => ({ runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web" as const, availability: provider.windowOpen ? "AVAILABLE" as const : "DOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 10, message: provider.windowOpen ? "Visible session open" : "Visible session closed" })),
+    ...providers.flatMap((provider, index) => [
+      { runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web" as const, availability: provider.windowOpen ? "AVAILABLE" as const : "DOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 10, message: provider.windowOpen ? "Visible session open" : "Visible session closed" },
+      // U1 P1 (runtime control surface): every provider also has an API plane
+      // (ApiRuntime registered as api:<provider> in main.ts). Persist a status
+      // row so update-runtime-control / role-route / availability UI can
+      // address it instead of treating api:* as invisible.
+      { runtimeId: `api:${provider.id}`, label: `${provider.name} API`, kind: "api" as const, availability: "UNKNOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 20, message: "API 通道；未配置密钥时健康检查会报告 AUTH_REQUIRED" }
+    ]),
+    // U1 P1: local:native (NativeRuntime) is a first-class execution plane but
+    // had no persisted status row either.
+    { runtimeId: "local:native", label: "本地确定性工具", kind: "local", availability: "AVAILABLE", budget: "UNKNOWN", enabled: true, priority: 5, message: "本地只读/测试工具" },
     { runtimeId: "codex:cli", label: "Codex CLI", kind: "codex", availability: controller.accountMode === "CHATGPT" ? "AVAILABLE" : controller.accountMode === "NOT_AUTHENTICATED" ? "AUTH_REQUIRED" : "DOWN", budget: "UNKNOWN", enabled: true, priority: 50, message: controller.message }
   ];
   return defaults.map((fallback) => ({ ...fallback, ...(saved.find((item) => item.runtimeId === fallback.runtimeId) ?? {}), availability: fallback.availability, message: fallback.message }));

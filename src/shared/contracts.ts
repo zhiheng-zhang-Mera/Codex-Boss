@@ -177,7 +177,7 @@ export interface RuntimeStatusView {
   runtimeId: string;
   label: string;
   kind: "web" | "codex" | "api" | "local";
-  availability: "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN";
+  availability: "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN" | "UNKNOWN";
   budget: "UNKNOWN" | "OK" | "LOW" | "EXHAUSTED";
   enabled: boolean;
   priority: number;
