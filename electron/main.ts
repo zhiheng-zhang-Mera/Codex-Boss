@@ -13,6 +13,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { migrateBrowserProfile, migrateLegacyPersistentData } from "./runtime-paths";
 import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
+import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
@@ -493,7 +494,18 @@ if (ownsInstance) app.whenReady().then(() => {
   createMainWindow();
   attachProviderViews();
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ProviderRuntimeAdapter("web:" + item.id, {
-    async healthCheck() { return { runtimeId: "web:" + item.id, availability: providerViews.get(item.id) ? "AVAILABLE" : "DOWN", message: "Visible provider session", checkedAt: new Date().toISOString() }; },
+    // U1 P1: window-open is visibility, not health. Availability follows the
+    // last account probe (READY/GUEST_READY usable; AUTH_REQUIRED blocks; no
+    // window or no probe yet → DOWN), so the role router never picks an
+    // auth-blocked page as "available".
+    async healthCheck() {
+      const open = Boolean(providerViews.get(item.id));
+      if (!open) return { runtimeId: "web:" + item.id, availability: "DOWN", message: "Visible provider session closed", checkedAt: new Date().toISOString() };
+      const account = store.snapshot().accounts.find((entry) => entry.providerId === item.id);
+      const mode = account?.mode ?? "UNKNOWN";
+      const availability: RuntimeAvailability = mode === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : mode === "UNKNOWN" ? "UNKNOWN" : "AVAILABLE";
+      return { runtimeId: "web:" + item.id, availability, message: account?.message ?? "Visible provider session", checkedAt: new Date().toISOString() };
+    },
     execute: (request, signal) => automation.executeWorker(item.id, request, signal)
   }));
   const resumeLocalTasks = async () => {

@@ -265,7 +265,7 @@ export class ProviderAutomation {
       if (!result.ok) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", `输入区域在预填时失效：${result.reason ?? "unknown"}`, definition.version);
       this.baselines.set(run.id, probe.latestResponse);
       this.store.setRunSession(run.id, probe.latestResponse, probe.sourceUrl);
-      this.store.updateRun(run.id, "prepared", "SUCCESS", "提示词已在可见页面预填；等待用户确认发送", definition.version);
+      this.store.updateRun(run.id, "prepared", "SUCCESS", "提示词已在可见页面预填；整组准备完成后自动发送", definition.version);
     } catch (error) {
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `页面适配器执行失败：${String(error)}`, definition.version);
     } finally {
