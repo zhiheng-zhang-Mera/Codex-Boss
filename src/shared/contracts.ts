@@ -398,9 +398,10 @@ export interface BossBridge {
   moveConversation(conversationId: string, folderId: string): Promise<AppSnapshot>;
   selectConversation(conversationId: string): Promise<AppSnapshot>;
   archiveConversation(conversationId: string, archived: boolean): Promise<AppSnapshot>;
-  deleteConversation(conversationId: string): Promise<AppSnapshot>;
-  /** Bulk-deletes several conversations in one action (multi-select history). */
-  deleteConversations(conversationIds: string[]): Promise<AppSnapshot>;
+  /** Deletes a conversation (tasks/runs/evidence/final answers + history files). Requires explicit user confirmation (U1 P1 §13). */
+  deleteConversation(conversationId: string, userConfirmed: boolean): Promise<AppSnapshot>;
+  /** Bulk-deletes several conversations in one action (multi-select history); requires explicit user confirmation. */
+  deleteConversations(conversationIds: string[], userConfirmed: boolean): Promise<AppSnapshot>;
   duplicateConversation(conversationId: string): Promise<AppSnapshot>;
   exportConversation(conversationId: string): Promise<string>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;

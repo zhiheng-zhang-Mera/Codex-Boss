@@ -386,7 +386,7 @@ function App() {
 
   async function deleteConversation(conversationId: string) {
     if (!window.confirm("删除后该对话的任务、运行记录、原始证据与最终回答将一并删除（历史文件同步清理），且不可恢复。确认删除？")) return;
-    setSnapshot(await window.boss.deleteConversation(conversationId));
+    setSnapshot(await window.boss.deleteConversation(conversationId, true));
   }
 
   function toggleMultiSelect() {
@@ -399,7 +399,7 @@ function App() {
     if (!selectedConversationIds.length) return;
     if (!window.confirm(`删除所选 ${selectedConversationIds.length} 个对话？其任务/运行/证据/最终回答将一并删除且不可恢复。`)) return;
     try {
-      setSnapshot(await window.boss.deleteConversations(selectedConversationIds));
+      setSnapshot(await window.boss.deleteConversations(selectedConversationIds, true));
       setSelectedConversationIds([]);
       setMultiSelectMode(false);
     } catch (reason) { setError(String(reason)); }

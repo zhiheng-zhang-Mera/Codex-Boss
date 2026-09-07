@@ -225,34 +225,74 @@ export class StateStore {
   }
 
   /**
-   * Duplicate a conversation: new conversation id + new storage name, and
-   * fresh tasks/runs/artifacts mirroring the visible history. Old ids are
-   * never reused (plan: no shared run/checkpoint ids).
+   * Duplicate a conversation: new conversation id + new storage name, and a
+   * faithful copy of the whole history under fresh ids — tasks, runs,
+   * artifacts, councils, dispatch checkpoints, evidence bundles and final
+   * responses all ride along (U1 P1: deep duplicate). Old ids are never reused
+   * (plan: no shared run/checkpoint ids). Copied runs are reset to queued and
+   * copied tasks to queued/CHAT so the copy is a re-runnable snapshot, never a
+   * live duplicate of in-flight external state.
    */
   duplicateConversation(conversationId: string): BossConversation {
     const source = this.conversation(conversationId);
     const now = new Date().toISOString();
-    // Input objects are conversation-scoped registries; the copy mirrors the
-    // source's refs so duplicated tasks keep a resolvable binding set.
-    const copiedInputs = (source.inputObjects ?? []).map((ref) => structuredClone(ref));
-    const copy: BossConversation = { id: randomUUID(), folderId: source.folderId, title: `${source.title} 副本`, storageName: this.uniqueConversationStorageName(source.folderId, `${source.title} 副本`), taskIds: [], createdAt: now, updatedAt: now };
-    if (copiedInputs.length) copy.inputObjects = copiedInputs;
+    const copy: BossConversation = { id: randomUUID(), folderId: source.folderId, title: `${source.title} 副本`, storageName: this.uniqueConversationStorageName(source.folderId, `${source.title} 副本`), taskIds: [], createdAt: now, updatedAt: now, ...(source.archived ? { archived: true } : {}) };
+    if ((source.inputObjects ?? []).length) copy.inputObjects = (source.inputObjects ?? []).map((ref) => structuredClone(ref));
     this.snapshotValue.conversations.unshift(copy);
+
     const taskIdMap = new Map<string, string>();
     for (const task of this.snapshotValue.tasks.filter((item) => item.conversationId === source.id)) {
       const newId = randomUUID();
       taskIdMap.set(task.id, newId);
-      this.snapshotValue.tasks.unshift({ ...structuredClone(task), id: newId, conversationId: copy.id, createdAt: now, updatedAt: now, status: "queued", parentTaskId: undefined, runtimeJobId: undefined });
+      this.snapshotValue.tasks.unshift({ ...structuredClone(task), id: newId, conversationId: copy.id, createdAt: now, updatedAt: now, status: "queued", executionPhase: undefined, nextAction: undefined, recoveryAt: undefined, recoveryMessage: undefined, finalizationBlocker: undefined, parentTaskId: undefined, runtimeJobId: undefined, modeTransition: undefined, interactionMode: "CHAT" });
       copy.taskIds.push(newId);
     }
-    const runIds = new Map<string, string>();
+    const runIdMap = new Map<string, string>();
+    const artifactIdMap = new Map<string, string>();
     for (const run of this.snapshotValue.runs.filter((item) => taskIdMap.has(item.taskId))) {
-      const newId = randomUUID();
-      runIds.set(run.id, newId);
-      this.snapshotValue.runs.push({ ...structuredClone(run), id: newId, taskId: taskIdMap.get(run.taskId)!, createdAt: now, updatedAt: now, phase: "queued", outcome: null, review: undefined, response: undefined, artifactId: undefined });
+      const newRunId = randomUUID();
+      runIdMap.set(run.id, newRunId);
+      this.snapshotValue.runs.push({ ...structuredClone(run), id: newRunId, taskId: taskIdMap.get(run.taskId)!, createdAt: now, updatedAt: now, phase: "queued", outcome: null, review: undefined, response: undefined, artifactId: undefined });
     }
     for (const artifact of this.snapshotValue.artifacts.filter((item) => taskIdMap.has(item.taskId))) {
-      this.snapshotValue.artifacts.push({ ...structuredClone(artifact), id: randomUUID(), taskId: taskIdMap.get(artifact.taskId)!, runId: runIds.get(artifact.runId) ?? randomUUID(), capturedAt: now });
+      const newArtifactId = randomUUID();
+      artifactIdMap.set(artifact.id, newArtifactId);
+      this.snapshotValue.artifacts.push({ ...structuredClone(artifact), id: newArtifactId, taskId: taskIdMap.get(artifact.taskId)!, runId: runIdMap.get(artifact.runId) ?? randomUUID(), capturedAt: now });
+    }
+    // Map a source artifact id to its duplicated id (idempotent, falls back to
+    // the input when no copy exists so optional fields stay well-formed).
+    const mappedArtifact = (artifactId: string | undefined): string | undefined => (artifactId && artifactIdMap.get(artifactId)) || artifactId;
+
+    for (const council of this.snapshotValue.councils.filter((item) => taskIdMap.has(item.taskId))) {
+      this.snapshotValue.councils.push({ ...structuredClone(council), id: randomUUID(), taskId: taskIdMap.get(council.taskId)!, round: 1, stage: "proposals", conflicts: [], minorityOpinions: [], finalArtifactId: undefined, createdAt: now, updatedAt: now });
+    }
+    for (const checkpoint of this.snapshotValue.dispatchCheckpoints.filter((item) => taskIdMap.has(item.taskId))) {
+      this.snapshotValue.dispatchCheckpoints.push({ ...structuredClone(checkpoint), id: randomUUID(), taskId: taskIdMap.get(checkpoint.taskId)!, status: "PREPARING", successfulProviderIds: [], failedProviderIds: [], requiresReconciliation: false, createdAt: now, updatedAt: now });
+    }
+    const bundleIdMap = new Map<string, string>();
+    for (const bundle of this.snapshotValue.evidenceBundles.filter((item) => taskIdMap.has(item.taskId))) {
+      const copiedBundle: EvidenceBundle = structuredClone(bundle);
+      const newBundleId = randomUUID();
+      bundleIdMap.set(bundle.id, newBundleId);
+      copiedBundle.id = newBundleId;
+      copiedBundle.taskId = taskIdMap.get(bundle.taskId)!;
+      copiedBundle.createdAt = now;
+      copiedBundle.manifest = copiedBundle.manifest.map((entry) => ({ ...entry, artifactId: mappedArtifact(entry.artifactId) ?? entry.artifactId }));
+      for (const claim of copiedBundle.claims) claim.evidenceArtifactIds = claim.evidenceArtifactIds.map((id) => mappedArtifact(id) ?? id);
+      for (const dispute of copiedBundle.disputes) dispute.evidenceArtifactIds = dispute.evidenceArtifactIds.map((id) => mappedArtifact(id) ?? id);
+      copiedBundle.codexReview = { status: "NOT_RUN" };
+      this.snapshotValue.evidenceBundles.push(copiedBundle);
+    }
+    const mappedBundle = (bundleId: string | undefined): string | undefined => (bundleId && bundleIdMap.get(bundleId)) || bundleId;
+    for (const response of this.snapshotValue.finalResponses.filter((item) => taskIdMap.has(item.taskId))) {
+      const copiedResponse = structuredClone(response);
+      copiedResponse.id = randomUUID();
+      copiedResponse.taskId = taskIdMap.get(response.taskId)!;
+      copiedResponse.conversationId = copy.id;
+      copiedResponse.sourceArtifactIds = response.sourceArtifactIds.map((id) => mappedArtifact(id) ?? id);
+      copiedResponse.evidenceBundleId = mappedBundle(response.evidenceBundleId);
+      copiedResponse.finalizedAt = now;
+      this.snapshotValue.finalResponses.push(copiedResponse);
     }
     this.event("conversation.duplicated", `已复制对话“${source.title}”`, {});
     this.snapshotValue.activeConversationId = copy.id;

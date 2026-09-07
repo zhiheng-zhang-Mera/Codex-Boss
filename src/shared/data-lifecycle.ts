@@ -61,6 +61,15 @@ export interface StorageBudgetPolicy {
   enforceTtl: boolean;
   /** When enforced, families in this list are never pruned (e.g. ledger-backed tasks). */
   protectedFamilies?: string[];
+  /**
+   * U1 P1 (§13 hard rule): destructive pruning removes completed-task history
+   * (runs/artifacts/evidence/final responses). Boss must NEVER delete that
+   * history automatically for cleanup/space/completion reasons — only an
+   * explicit user action with confirmation may. `userAuthorizedDelete` is the
+   * only flag that enables destructive pruning; it must be set by a caller
+   * that just received explicit user consent. Absent/false = no-op.
+   */
+  userAuthorizedDelete?: boolean;
 }
 
 export const DEFAULT_STORAGE_BUDGET: StorageBudgetPolicy = { maxCompletedTasksPerConversation: 0, maxRunsPerTask: 0, enforceTtl: false };

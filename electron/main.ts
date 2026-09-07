@@ -707,12 +707,17 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:move-conversation", (_event, conversationId: string, folderId: string) => { store.moveConversation(conversationId, folderId); return publish(); });
   ipcMain.handle("boss:select-conversation", (_event, conversationId: string) => { store.selectConversation(conversationId); return publish(); });
   ipcMain.handle("boss:archive-conversation", (_event, conversationId: string, archived: boolean) => { store.setConversationArchived(conversationId, Boolean(archived)); return publish(); });
-  ipcMain.handle("boss:delete-conversation", (_event, conversationId: string) => {
+  ipcMain.handle("boss:delete-conversation", (_event, conversationId: string, userConfirmed: boolean) => {
+    // U1 P1 (§13.1): delete requires an explicit user confirmation on the main
+    // process too — never trust a renderer-triggered cascade delete alone.
+    if (userConfirmed !== true) throw new Error("删除需要明确确认（该操作不可恢复）");
     store.deleteConversation(conversationId);
     attachmentStore?.removeConversation(conversationId);
     return publish();
   });
-  ipcMain.handle("boss:delete-conversations", (_event, conversationIds: string[]) => {
+  ipcMain.handle("boss:delete-conversations", (_event, conversationIds: string[], userConfirmed: boolean) => {
+    // U1 P1 (§13.1): bulk delete also requires an explicit confirmed flag.
+    if (userConfirmed !== true) throw new Error("批量删除需要明确确认（该操作不可恢复）");
     for (const conversationId of [...new Set((conversationIds ?? []).filter(Boolean))]) {
       try { store.deleteConversation(conversationId); attachmentStore?.removeConversation(conversationId); } catch { /* keep deleting the rest */ }
     }
