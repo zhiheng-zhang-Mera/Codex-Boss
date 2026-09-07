@@ -424,6 +424,8 @@ export interface BossBridge {
   buildEvidence(taskId: string): Promise<AppSnapshot>;
   /** Operator explicitly accepts the held (DISPUTED/INSUFFICIENT) evidence and finalizes (U3 §2.3). */
   acceptEvidence(taskId: string): Promise<AppSnapshot>;
+  /** Lists durable external web-session archive records (U6 §14; read-only). */
+  externalSessionList(): Promise<Array<import("./external-session").ExternalSessionRecord>>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;
   runCodexReview(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;

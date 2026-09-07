@@ -50,6 +50,7 @@ const bridge: BossBridge = {
   advanceCouncil: (taskId: string) => ipcRenderer.invoke("boss:advance-council", taskId),
   buildEvidence: (taskId: string) => ipcRenderer.invoke("boss:build-evidence", taskId),
   acceptEvidence: (taskId: string) => ipcRenderer.invoke("boss:accept-evidence", taskId),
+  externalSessionList: () => ipcRenderer.invoke("boss:external-session-list"),
   rehydrateEvidence: (taskId: string) => ipcRenderer.invoke("boss:rehydrate-evidence", taskId),
   runCodexReview: (taskId: string) => ipcRenderer.invoke("boss:run-codex-review", taskId),
   openProvider: (providerId: ProviderId) => ipcRenderer.invoke("boss:open-provider", providerId),

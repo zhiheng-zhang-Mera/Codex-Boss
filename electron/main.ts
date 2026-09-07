@@ -61,6 +61,7 @@ import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
+import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { AccountSessionManager } from "./account-sessions";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
@@ -90,6 +91,7 @@ let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
 let capabilityRegistry: ProviderCapabilityRegistry | undefined;
 let githubResolver: GithubResolver | undefined;
+let externalSessions: ExternalSessionLedger | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -268,6 +270,16 @@ function attachProviderViews(): void {
     if (!store.finalResponseForTask(id)) await finalizer.finalize(id);
     recordTaskOutcome(id);
     for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId);
+    // U6 §14: record the external web conversations this task drove and mark
+    // their archive as ARCHIVE_PENDING (retryable). ARCHIVED is only ever
+    // written by a verified page-state archive path — never assumed here.
+    try {
+      const runs = store.runsForTask(id);
+      for (const run of runs.filter((item) => item.transport === "web" && item.sessionUrl && item.review?.status === "PASS")) {
+        externalSessions?.upsert({ taskId: id, providerId: run.providerId, remoteConversationUrl: run.sessionUrl });
+        externalSessions?.deferArchive(id, run.providerId, "task finished; external archive pending page-state verification");
+      }
+    } catch { /* external-session tracking is advisory and must never block completion */ }
     // U6 §13/§51: a conversation with no remaining active task auto-archives
     // (flag only, never delete) once its last task has a final response. The
     // currently-selected conversation is left in place so the user can read
@@ -458,6 +470,7 @@ if (ownsInstance) app.whenReady().then(() => {
   providerApi = new ProviderApiClient(apiSettings);
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   accountSessions = new AccountSessionManager(store, publish);
+  externalSessions = new ExternalSessionLedger(path.join(app.getPath("userData"), ".boss", "external-sessions.json"));
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
     (channel, status, message) => { store.setRemoteChannelRuntime(channel, status, message); publish(); },
@@ -923,6 +936,10 @@ if (ownsInstance) app.whenReady().then(() => {
     await commander.finalizeTask(taskId, publish);
     return publish();
   });
+  // U6 §14: surface the external web-session archive ledger (read-only; never
+  // deletes, only shows archive lifecycle so a failed external archive stays
+  // visible and retryable).
+  ipcMain.handle("boss:external-session-list", () => externalSessions?.list() ?? []);
 
   app.on("second-instance", () => {
     if (mainWindow?.isMinimized()) mainWindow.restore();
