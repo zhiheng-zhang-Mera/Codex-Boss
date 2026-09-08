@@ -151,6 +151,34 @@ function provider(id: ProviderId) {
   return match;
 }
 
+let autoLayoutTimer: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * Continuous AI-processor layout monitor: whenever MORE than three web-AI
+ * pages are open/selected the workspace switches to the second-window
+ * (DETACHED) mode; three or fewer stay in the single-window (MERGED)
+ * workspace. Called on every open/close change and on a lightweight periodic
+ * tick so selection state is always reflected (idempotent when unchanged).
+ */
+function autoLayoutForOpenWebProviders(reason: string): void {
+  try {
+    if (!providerViews) return;
+    const openWeb = store.snapshot().providers.filter((item) => item.windowOpen).length;
+    const wanted = openWeb > 3 ? "DETACHED" : "MERGED";
+    if (providerViews.workspaceView() !== wanted) {
+      providerViews.setWorkspaceView(wanted);
+      console.log(`[auto-layout] ${reason}: ${openWeb} web AI open -> ${wanted}`);
+    }
+  } catch (error) {
+    console.error("[auto-layout] monitor failed", error);
+  }
+}
+function startAutoLayoutMonitor(): void {
+  if (autoLayoutTimer) clearInterval(autoLayoutTimer);
+  autoLayoutTimer = setInterval(() => autoLayoutForOpenWebProviders("monitor"), 5000);
+  autoLayoutTimer.unref?.();
+}
+
 /**
  * Production external-archive attempt (Overcomplete §11.3/§11.4): fail-closed
  * page-state gate + optional per-provider adapter seam. Never fake-archives.
@@ -281,6 +309,9 @@ function attachProviderViews(): void {
   providerViews = new ProviderViews(mainWindow, (id, open) => {
     store.setWindow(id, open);
     publish();
+    // Continuous monitoring: opening a 4th (or 5th) AI page immediately pops
+    // the processors into the second window; closing back to ≤3 returns MERGED.
+    autoLayoutForOpenWebProviders("window-toggle");
   }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
   const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
@@ -339,6 +370,7 @@ function attachProviderViews(): void {
   detachContinuationWaker?.();
   detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
+  startAutoLayoutMonitor();
 }
 
 function createMainWindow(): void {
