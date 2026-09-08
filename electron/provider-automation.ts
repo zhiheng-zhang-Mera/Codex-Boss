@@ -412,6 +412,7 @@ export class ProviderAutomation {
       if (!definition || !view) { if (!view) this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
       try {
         const probe = await this.readPage(run.providerId, probeScript(definition));
+        this.log("poll.probe", { taskId, providerId: run.providerId, manual, sourceUrlChanged: probe.sourceUrl !== run.sessionUrl, rateLimited: probe.rateLimited, busy: probe.busy, latestLen: (probe.latestResponse || "").length, sessionUrl: run.sessionUrl, sourceUrl: probe.sourceUrl });
         if (probe.sourceUrl !== run.sessionUrl) this.store.setRunSession(run.id, run.responseBaseline ?? "", probe.sourceUrl);
         if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
         if (probe.busy) { this.stability.delete(run.id); return; }

@@ -1,0 +1,9 @@
+﻿{
+    "at":  "2026-09-08T19:43:48.5802427Z",
+    "taskA":  "LIVE-chat-seqA final=CHAT-CONT-A session=c/6aa0647e-5c44-83ec-8ae3-c7b9b2d5d068",
+    "provider":  "chatgpt",
+    "semantics":  "Chat continues the visible conversation; Work opens fresh conversations (previous evidence: distinct remoteConversationUrls per Work task)",
+    "taskB":  "LIVE-chat-seqB final=CHAT-CONT-B CHAT-CONT-A same session url (continued conversation, context memory proven)",
+    "kind":  "LIVE_CHAT_CONTINUATION",
+    "status":  "PASS"
+}
