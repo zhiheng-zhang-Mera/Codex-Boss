@@ -174,3 +174,9 @@ Milestoneï¼ˆ20:18â€“23:56ï¼Œ9-7-milestone çº¿ï¼‰ï¼š
 - Õæ»ú PASS£º1/3/4/5-AI ²¢ĞĞ Work echo£¨`5AI-OK <brand>`£¬artifact È«²¶»ñ¡¢Éó²éÈ«¹ı¡¢final ºÏ³É£©£»Chat ÑÓĞø£¨Í¬»á»° URL+ÉÏÏÂÎÄ¼ÇÒä£©£»3-AI Council£¨proposals¡úpeer_review¡úsynthesis COMPLETE£©£»Live Engineering Goal CONVERGED£¨ÕæÊµ AI coder ĞŞ±àÒë bug£¬eng-4c193c1599d4£©£»Live Research ÓïÒåÁ´£¨ÕæÊµ AI hypothesis/¸´ÏÖ/claim + paper reviewer council ÕæÊµ·ñ¾ö£©£»Íâ²¿¹éµµ fail-closed pass¡£
 - ÈÍĞÔĞŞ¸´£ºÈ¡Ïû¼´Ê±ÊÍ·Å provider£»busy ÊØÎÀÖ»ÈÏ»î¶¯ÈÎÎñ£»²É¼¯ monitor 10¡ú25 ·ÖÖÓ+³¬Ê±Ç¿ÖÆ²É¼¯£»busy ¹ËÎÊ»¯£¨stability ²É¼¯£©£»composer Ë²Ì¬ÖØµ¼º½ÖØÊÔ£»ÊäÈë¾ÍĞ÷ÓĞ½çµÈ´ı¡£
 - Ö¤¾İË÷Òı£º`Update-Plan/overcomplete/evidence/live/INDEX.md`¡£
+
+### TeX ÒıÇæÓë live READY£¨2026-09-09£©
+- D:\tex °²×° tectonic 0.15.0£»latex-compiler Ö§³Ö tectonic£»manuscript prose LaTeX ×ªÒå¡£
+- ÀëÏßÈ·¶¨ĞÔÁ´ READY+paper.pdf£¨evidence/research/offline-chain-* PASS_READY£©¡£
+- Live Research READY+paper.pdf£¨evidence/live/live-research-ready-*£©£ºÕæÊµ web AI ÓïÒå½×¶Î£¬6 ÕæÊµ run£¨seeds1-6£©£¬ÕæÊµ reviewer council Í¨¹ı£¨ÏÈ³ÏÊµ·ñ¾ö n=2 ¹¦Ğ§Óë 0.5-vs-majority Éè¼Æ£©£¬engine tectonic ±àÒë final audit Í¨¹ı£¬³É¹ûµ¼³ö Research/<topic>/¡£
+- conductor Ä¬ÈÏ run Êı 3+3¡£
