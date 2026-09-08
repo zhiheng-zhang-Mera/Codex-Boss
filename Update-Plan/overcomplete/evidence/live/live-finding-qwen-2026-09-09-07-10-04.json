@@ -3,3 +3,5 @@
     "at":  "2026-09-08T21:10:04.2332784Z",
     "kind":  "LIVE_FINDING_QWEN_SEND_UNRESOLVED"
 }
+
+-- round2 non-visual: geometry/aria/text/icon scans around the composer found only voice/header controls; no send affordance discoverable. Recorded limitation.

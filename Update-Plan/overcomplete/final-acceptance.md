@@ -83,3 +83,8 @@
 - 20.4 Research：live 语义链到 manuscript + real reviewer-council veto（live-research-chain-*）；paper.pdf 仍需 TeX（NOT-RUN, honest）；三域 READY/soak 仍在限制列表。
 - Known Limitations 更新：Qwen 发送控件未解析（缺口，可人工使用）；TeX 缺失（paper.pdf/READY live 不可达）；multi-hour soak 与 UI rail 未在本环境实跑；live 验收依赖已登录 provider 会话环境。
 - 详细索引：Update-Plan/overcomplete/evidence/live/INDEX.md。
+
+## TeX/PDF 更新（2026-09-09）
+- D 盘安装 tectonic 0.15.0（D:\tex\bin）；latex-compiler 支持 tectonic 参数；manuscript prose 加 LaTeX 转义（metric 下划线/百分号等）。
+- 离线确定性研究链 **READY + paper.pdf**（state READY、compile PASS、engine tectonic、final audit PASS）→ 论文功能链全通（evidence/research/offline-chain-* status PASS_READY）。
+- live READY 待更高功效 run（reviewer council 曾因 n=2 真实否决）；TeX 不再是 READY 阻塞（离线已证）。
