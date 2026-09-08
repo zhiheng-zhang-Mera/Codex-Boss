@@ -47,19 +47,23 @@
 
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
-- vitest 全量快速套件：100/100 PASS。
+- vitest 全量快速套件：110/110 PASS（24 文件，含 Round 3 新增 6 例）。
 - seeded acceptance：A/B/C/D PASS（见 evidence JSON）。
 - build（typecheck+vite+tsc electron）：PASS。
+
+## Round 3 追加（2026-09-08）
+- **P1.5 域无关 manuscript（§9.15）**：`makeSectionWriter` abstract/intro/methods/discussion/conclusion 全部改为由真实 RQ/假设/指标/baseline/CI/protocol 推导，删除硬编码 “AI 评审 vs majority-vote benchmark” 叙事；标题由问题生成（`headlineFor`）。测试 3 例。
+- **P1.5 paper reviewer council（§9.16）**：manuscript 阶段先跑独立 reviewer（fresh turn，method/evidence/writing 视角，对 digest 表决）；真实 veto → 阶段失败关闭；reviewer 缺失/不可解析 → 记录 not-attempted，绝不当作通过；结论持久化 `manuscript-review.json (aiCouncil)`。
+- **P1.7 wait read-model（§12.3）**：`renderer/state` 提供 `nextActionLabel` + `waitingLine`；任务行统一显示 `原因 · 等待到 <time> · 下一动作`。测试 3 例。
 
 ## 已知限制（诚实记录，§27）
 - 生产 implement/review 需可用 runtime（Web 登录会话 / API key / Codex CLI）；本环境无真实 provider 会话，live AI-coder E2E 需 GUI 登录态（live acceptance runner 模式）。
 - 外部归档的真实“点击归档+页面验证”需每 provider DOM 适配器；未实现适配器时记录保持 ARCHIVE_PENDING（可见、不假归档）。
-- experimentCoder 尚未在 main.ts 注入 role-coder worker（确定性 seam + 测试已覆盖；GUI 环境需 wiring）。
-- §9.16 paper reviewer council（替换恒真 reviewer）与域无关 manuscript writer 泛化、Bug E、restart-during-loop、5-AI council、Research 三域 READY、multi-hour soak 属后续轮次/需真实会话。
+- experimentCoder / paper council 需 live provider 注入（确定性 seam + 测试已覆盖；GUI wiring 待做）。
+- Bug E、restart-during-loop、5-AI council、Research 三域 READY、multi-hour soak 属后续轮次/需真实会话。
 
 ## 下一优先级（按 §23 顺序）
-1. P1.5 manuscript 域无关 writer + reviewer council（§9.15/9.16）
-2. P1.7 timer/suspend UI 读模型（§12.3）
-3. P2.1 右侧 rail/panel 收纳 + Research UI 折叠（§15）
-4. P2.2 CI tier + restart smoke（§17.3/17.4）
-5. Final Acceptance Matrix + 文档/README/Update-Log + 推送分支
+1. P2.1 右侧 rail/panel 收纳 + Research UI 折叠（§15）
+2. P2.2 CI tier + restart smoke（§17.3/17.4）+ Phase 5 evaluation registry（§10）
+3. 失败注入/soak（§22）
+4. Final Acceptance Matrix + 文档/README/Update-Log + 推送分支
