@@ -63,6 +63,25 @@ export class ProviderAutomation {
     this.events?.publish({ type: "TOOL_RESULT_READY", taskId, jobId: runId, message: "provider round answers collected" });
   }
 
+  /**
+   * Cancelling a task must immediately free its providers: without this, runs
+   * that were mid-dispatch/monitor keep a `waiting` phase and the busy guard
+   * blocks every later task on that provider for up to the 10-minute monitor
+   * timeout. Mark such runs terminal + drop the monitor right away.
+   */
+  cancelRuns(taskId: string): void {
+    this.log("cancelRuns", { taskId });
+    const timer = this.monitors.get(taskId);
+    if (timer) clearInterval(timer);
+    this.monitors.delete(taskId);
+    this.stability.clear();
+    for (const run of this.latestRuns(taskId)) {
+      if (["waiting", "sending", "prepared", "queued"].includes(run.phase)) {
+        this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "任务已取消；该 provider 已释放，可重新发起任务", "cancel/v1");
+      }
+    }
+  }
+
   async dispatchTask(taskId: string): Promise<void> {
     if (this.dispatching.has(taskId)) return;
     this.dispatching.add(taskId);
@@ -158,8 +177,9 @@ export class ProviderAutomation {
     if (allRuns.some((run) => run.review?.status === "HUMAN_REQUIRED" || run.review?.status === "FAILED")) return;
     const latestCheckpoint = this.store.snapshot().dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === allRuns[0]?.round);
     if (latestCheckpoint?.requiresReconciliation) throw new Error("请先核对上一次发送结果，避免重复提交");
-    const otherActive = this.store.snapshot().runs.some((run) => run.taskId !== taskId && allRuns.some((item) => item.providerId === run.providerId) && ["sending", "waiting", "prepared"].includes(run.phase));
-    if (otherActive) throw new Error("所选 AI 正在处理另一任务，请等待其完成");
+    const activeTaskIds = new Set(this.store.snapshot().tasks.filter((item) => ["queued", "running", "waiting"].includes(item.status)).map((item) => item.id));
+    const otherActive = this.store.snapshot().runs.some((run) => activeTaskIds.has(run.taskId) && run.taskId !== taskId && allRuns.some((item) => item.providerId === run.providerId) && ["sending", "waiting", "prepared"].includes(run.phase));
+    if (otherActive) { this.log("dispatch.busy_guard", { taskId, providers: allRuns.map((run) => run.providerId) }); throw new Error("所选 AI 正在处理另一任务，请等待其完成"); }
     if (allRuns.some((run) => ["sending", "waiting"].includes(run.phase))) { this.startMonitor(taskId); return; }
     const runs = allRuns.filter((run) => run.phase !== "completed");
     if (runs.length === 0) return;

@@ -970,6 +970,7 @@ if (ownsInstance) app.whenReady().then(() => {
   });
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
     store.setTaskStatus(taskId, status);
+    if (status === "cancelled") automation?.cancelRuns(taskId);
     if (status === "running" && recoveryScheduler.resumeTask(taskId)) {
       const deadline = Math.min(...recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt));
       store.setRecoveryState(taskId, deadline, "用户已继续任务；按记录的时间恢复原会话");
