@@ -45,6 +45,11 @@
 - conductor probe 解析声明；`baseline-provenance.json` 落盘。
 - 测试：`tests/unit/research-protocol-provenance.test.ts`。
 
+## Round 4 追加（2026-09-08）
+- **P2.2/§17.2 分层落地**：15 个根级测试全部迁入 `tests/unit/`（vitest include `tests/**/*.test.ts` 不变）；acceptor runner 不再删目录，嵌套审计直接跑全量入库套件（110 例）。迁移后 Bug A 实跑 PASS（commit 546c797，证据已存）。
+- **§17.6 脚本**：`pnpm run test:seeded`。
+- **§10.4 blind evaluation pack**：`buildBlindEvaluationPack`（匿名 + seed 乱序 + rubric + reviewer form + 解码键）与 `summarizeBlindScores`（Boss vs single-AI 解码汇总），测试 3 例。
+
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
 - vitest 全量快速套件：110/110 PASS（24 文件，含 Round 3 新增 6 例）。
