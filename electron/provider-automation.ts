@@ -170,6 +170,7 @@ export class ProviderAutomation {
     let current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
     if (prepareFailures.length > 0) {
+      this.log("dispatch.prepare_failed", { taskId, providers: prepareFailures });
       // Keep the per-run failure reason visible: rollback restores run rows to
       // their pre-dispatch baseline, so the reason must ride on the checkpoint.
       const reasons = current.filter((run) => run.phase !== "prepared").map((run) => {
@@ -189,6 +190,7 @@ export class ProviderAutomation {
     current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const sendFailures = current.filter((run) => run.phase !== "waiting").map((run) => run.providerId);
     if (sendFailures.length > 0) {
+      this.log("dispatch.send_failed", { taskId, providers: sendFailures });
       const partialExternalEffect = current.some((run) => run.phase === "waiting");
       this.store.rollbackDispatch(checkpoint.id, baseline, sendFailures, partialExternalEffect, partialExternalEffect ? "部分页面可能已经发送；本地记录已回退，必须人工核对后再操作" : "所有页面均未进入等待状态；本地记录已回退");
       this.publish();
@@ -224,6 +226,7 @@ export class ProviderAutomation {
   }
 
   private async readPage(providerId: string, script: string): Promise<PageProbe> {
+    this.log("readPage.start", { providerId });
     const view = this.views.get(providerId);
     if (!view) throw new Error("Browser unavailable");
     const result = await new SemanticRuntime([{ kind: "dom", supports: (action) => action.name === "read_page", async execute() { return { status: "SUCCESS", evidence: await view.webContents.executeJavaScript(script) }; } }]).execute({ name: "read_page", target: providerId });
@@ -289,12 +292,14 @@ export class ProviderAutomation {
         if (uploadBlocked) return;
       }
       let result = await view.webContents.executeJavaScript(prepareScript(definition, run.inputPrompt)) as { ok: boolean; reason?: string };
+      this.log("prepare.executed", { providerId: run.providerId, ok: result.ok, reason: result.reason });
       if (definition.providerId === "grok" || (!result.ok && result.reason === "value-not-applied")) {
         view.webContents.focus();
         await view.webContents.executeJavaScript(prepareScript(definition, ""));
         await view.webContents.insertText(run.inputPrompt);
         await new Promise((resolve) => setTimeout(resolve, 300));
         result = await view.webContents.executeJavaScript(verifyPromptScript(definition, run.inputPrompt)) as { ok: boolean; reason?: string };
+        this.log("prepare.verified", { providerId: run.providerId, ok: result.ok, reason: result.reason });
       }
       if (!result.ok) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", `输入区域在预填时失效：${result.reason ?? "unknown"}`, definition.version);
       this.baselines.set(run.id, probe.latestResponse);
@@ -439,19 +444,20 @@ export class ProviderAutomation {
     }
     try {
       if (definition.sendMode === "enter") {
-        // Composer with no send button (DeepSeek verified live): submit from
-        // the VISIBLE text input with a trusted Enter key event, then confirm
-        // the input actually cleared (a real submission) before advancing.
+        this.log("send.enter.start", { providerId: run.providerId, taskId: run.taskId });
         await view.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
         await view.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
         await new Promise((resolve) => setTimeout(resolve, 1500));
         const cleared = await view.webContents.executeJavaScript("(()=>{const el=document.querySelector('textarea,[contenteditable=true]');return el ? ((el.value!==undefined?(el.value):(el.innerText||'')).trim().length===0) : true;})()") as boolean;
+        this.log("send.enter.done", { providerId: run.providerId, cleared });
         if (cleared !== true) {
           this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "回车未完成提交（enter-did-not-submit）；整组不会进入下一步", definition.version);
           return;
         }
       } else {
+        this.log("send.click.start", { providerId: run.providerId, taskId: run.taskId });
         const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
+        this.log("send.click.done", { providerId: run.providerId, ok: result.ok });
         if (!result.ok) {
           this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮；整组不会进入下一步", definition.version);
           return;
@@ -459,6 +465,7 @@ export class ProviderAutomation {
       }
       this.store.updateRun(run.id, "waiting", null, "已一次提交；等待独立并发采集回答", definition.version);
     } catch (error) {
+      this.log("send.error", { providerId: run.providerId, error: String(error) });
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `发送失败：${String(error)}`, definition.version);
     }
   }
