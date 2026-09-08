@@ -12,6 +12,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import type { GithubTarget } from "../../src/shared/github-url";
 import { githubCacheKey } from "../../src/shared/github-url";
+import { removeTree } from "../fs-util";
 
 export interface GithubResolveResult {
   /** Materialized repo checkout directory (contains .git). */
@@ -68,15 +69,17 @@ export class GithubResolver {
     }
 
     const staging = path.join(this.cacheRoot, `.staging-${key}-${process.pid}-${Date.now()}`);
-    fs.rmSync(staging, { recursive: true, force: true });
-    if (fs.existsSync(checkoutDir)) fs.rmSync(checkoutDir, { recursive: true, force: true });
+    // git writes read-only objects; plain fs.rmSync EPERMs under Electron on
+    // Windows, so deletions go through removeTree (attribute-clear + retry).
+    removeTree(staging);
+    if (fs.existsSync(checkoutDir)) removeTree(checkoutDir);
     try {
       // Shallow clone of the requested ref where possible; fall back to full
       // clone + local checkout when the ref is not a branch/tag name git knows.
       if (target.ref) {
         try { await this.runGit(["clone", "--quiet", "--depth", "1", "--branch", target.ref, origin, staging]); }
         catch {
-          fs.rmSync(staging, { recursive: true, force: true });
+          removeTree(staging);
           await this.runGit(["clone", "--quiet", origin, staging]);
           await this.checkoutRef(staging, origin, target.ref);
         }
@@ -87,7 +90,7 @@ export class GithubResolver {
       this.writeMarker(checkoutDir, origin, target.ref);
       return { checkoutDir, target, reusedCache: false };
     } finally {
-      if (fs.existsSync(staging)) fs.rmSync(staging, { recursive: true, force: true });
+      if (fs.existsSync(staging)) removeTree(staging);
     }
   }
 

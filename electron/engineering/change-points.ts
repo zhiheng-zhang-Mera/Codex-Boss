@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
+import { removeTree } from "../fs-util";
 
 /**
  * Git checkpoint / rollback for change sets (plan §38). Pure process helpers.
@@ -92,7 +93,7 @@ export async function rollbackToCheckpoint(root: string, checkpoint: CheckpointS
     if (Object.prototype.hasOwnProperty.call(checkpoint.snapshots, file)) {
       const target = workspacePath(base, file);
       if (checkpoint.snapshots[file] === null) {
-        if (fs.existsSync(target)) { fs.rmSync(target, { recursive: true, force: true }); restored.push(file); }
+        if (fs.existsSync(target)) { removeTree(target); restored.push(file); }
       } else {
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, checkpoint.snapshots[file] as string);
@@ -109,7 +110,7 @@ export async function rollbackToCheckpoint(root: string, checkpoint: CheckpointS
   for (const file of await untrackedFiles(base)) {
     if (preExisting.has(file)) continue;
     const target = workspacePath(base, file);
-    if (fs.existsSync(target)) { fs.rmSync(target, { recursive: true, force: true }); removed.push(file); }
+    if (fs.existsSync(target)) { removeTree(target); removed.push(file); }
   }
   return { restored, removed };
 }

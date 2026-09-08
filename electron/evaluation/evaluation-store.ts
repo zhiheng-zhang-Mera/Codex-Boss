@@ -4,6 +4,7 @@ import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
 import { compileIntent } from "../../src/shared/task-ir";
 import { executeNative } from "../engineering/native-tools";
+import { removeTree } from "../fs-util";
 import type { EvaluationRecord, GoldenTask } from "../../src/shared/evaluation";
 import { summarizeBaseline, EXIT_TARGETS } from "../../src/shared/evaluation";
 
@@ -58,7 +59,7 @@ export async function runDeterministicGolden(store: EvaluationStore, golden: Gol
       const passed = evidence.output.includes(golden.expectedContains);
       return recordFor(golden, passed ? "PASS" : "FAIL", started);
     } finally {
-      if (ownsFixture) fs.rmSync(root, { recursive: true, force: true });
+      if (ownsFixture) removeTree(root);
     }
   } catch {
     return recordFor(golden, "FAIL", started);
