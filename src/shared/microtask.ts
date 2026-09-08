@@ -6,9 +6,42 @@ import { validateGraph, type TaskIR, type TaskStep } from "./task-ir";
  * a bounded sub-DAG of microtasks (read → propose → verify) while preserving
  * the parent contract. Pure and deterministic; the executor (EngineeringRuntime)
  * can consume the flattened graph unchanged.
+ *
+ * Overcomplete §7.1 widens the vocabulary from the edit-only decomposition
+ * kinds to the semantic task kinds the planner may emit: inspect / search /
+ * research / design / read / propose / edit / build / test / review / verify /
+ * document / package / wait. Read-like kinds may run in parallel; write-like
+ * kinds must pass the scheduler's file-conflict gate (§7.3/§7.4).
  */
 
-export type MicrotaskKind = "read" | "propose" | "verify" | "join";
+export type MicrotaskKind =
+  | "inspect" | "search" | "research" | "design"
+  | "read" | "propose" | "edit" | "build" | "test"
+  | "review" | "verify" | "join" | "document" | "package" | "wait";
+
+/** Kinds that mutate the workspace (or externally visible state). */
+export const WRITE_MICROTASK_KINDS: readonly MicrotaskKind[] = ["propose", "edit", "build", "test", "document", "package", "verify"];
+
+/** Kinds that only observe; safe to run concurrently with each other. */
+export const READ_MICROTASK_KINDS: readonly MicrotaskKind[] = ["inspect", "search", "research", "design", "read", "review", "wait"];
+
+export function isReadMicrotask(microtask: Microtask): boolean {
+  return READ_MICROTASK_KINDS.includes(microtask.kind);
+}
+
+export function isWriteMicrotask(microtask: Microtask): boolean {
+  return WRITE_MICROTASK_KINDS.includes(microtask.kind);
+}
+
+/** Whether two write microtasks own overlapping file scopes (must serialize). */
+export function fileScopesOverlap(a: readonly string[], b: readonly string[]): boolean {
+  if (!a.length || !b.length) return true; // unknown/global scope: serialize
+  return a.some((file) => b.some((other) => {
+    const left = file.replace(/\\/g, "/").toLowerCase();
+    const right = other.replace(/\\/g, "/").toLowerCase();
+    return left === right || left.startsWith(right + "/") || right.startsWith(left + "/");
+  }));
+}
 
 export interface Microtask {
   id: string;

@@ -255,7 +255,10 @@ export function parseReviewerFindings(raw: string): { findings: ReviewerFinding[
             return { severity: ENGINEERING_SEVERITIES.includes(severity) ? severity : severityFromReviewLine(summary), summary };
           })
           .filter((item): item is ReviewerFinding => item !== undefined);
-        if (findings.length) return { findings, raw: text };
+        // An explicit JSON envelope is authoritative — including an EMPTY
+        // findings list (a clean review). Never fall back to line
+        // classification of a machine-envelope answer.
+        return { findings, raw: text };
       }
     } catch { /* fall through to line classification */ }
   }

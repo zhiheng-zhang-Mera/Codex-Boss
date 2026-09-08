@@ -38,15 +38,17 @@ function seededFiles(bug) {
   const d1 = "// SEEDED_BUG_D\nexport const flags = { strict: false };\n";
   const d2 = "export const strictEnabled = false;\n";
   const d3 = "import { flags } from \"./__seeded_d1\";\nimport { strictEnabled } from \"./__seeded_d2\";\nexport const effectiveStrict = flags.strict || strictEnabled;\n";
-  const dt = "// SEEDED_BUG_DT\nimport { it, expect } from \"vitest\";\nimport { effectiveStrict } from \"../electron/software/__seeded_d3\";\nit(\"seeded cross-module contract holds\", () => { expect(effectiveStrict).toBe(true); });\n";
+  const dt = "// SEEDED_BUG_DT\nimport { it, expect } from \"vitest\";\nimport { effectiveStrict } from \"../src/shared/__seeded_d3\";\nit(\"seeded cross-module contract holds\", () => { expect(effectiveStrict).toBe(true); });\n";
+  // The audit typecheck compiles src/shared + renderer (tsconfig.json), so the
+  // compile regression must live under src/shared to be a REAL typecheck signal.
   switch (bug) {
-    case "A": return [{ relative: "electron/software/__seeded_a.ts", content: a, expect: (ws) => !fs.readFileSync(path.join(ws, "electron", "software", "__seeded_a.ts"), "utf8").includes('"not-a-number"') }];
+    case "A": return [{ relative: "src/shared/__seeded_a.ts", content: a, expect: (ws) => !fs.readFileSync(path.join(ws, "src", "shared", "__seeded_a.ts"), "utf8").includes('"not-a-number"') }];
     case "B": return [{ relative: "tests/__seeded_b.test.ts", content: b, expect: (ws) => fs.readFileSync(path.join(ws, "tests", "__seeded_b.test.ts"), "utf8").includes(".toBe(2)") }];
     case "C": return [{ relative: "tests/__seeded_c.test.ts", content: c, expect: (ws) => fs.readFileSync(path.join(ws, "tests", "__seeded_c.test.ts"), "utf8").includes("toEqual([2])") }];
     case "D": return [
-      { relative: "electron/software/__seeded_d1.ts", content: d1, expect: (ws) => fs.readFileSync(path.join(ws, "electron", "software", "__seeded_d1.ts"), "utf8").includes("strict: true") },
-      { relative: "electron/software/__seeded_d2.ts", content: d2, expect: () => true },
-      { relative: "electron/software/__seeded_d3.ts", content: d3, expect: () => true },
+      { relative: "src/shared/__seeded_d1.ts", content: d1, expect: (ws) => fs.readFileSync(path.join(ws, "src", "shared", "__seeded_d1.ts"), "utf8").includes("strict: true") },
+      { relative: "src/shared/__seeded_d2.ts", content: d2, expect: () => true },
+      { relative: "src/shared/__seeded_d3.ts", content: d3, expect: () => true },
       { relative: "tests/__seeded_d.test.ts", content: dt, expect: () => true }
     ];
     default: throw new Error("Unknown bug class " + bug);

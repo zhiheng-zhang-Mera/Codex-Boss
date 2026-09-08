@@ -1,0 +1,50 @@
+{
+  "kind": "SEEDED_ENGINEERING_REPAIR",
+  "bug": "A",
+  "startedAt": "2026-09-08T11:50:50.834Z",
+  "commitSha": "f06c20251bfc773aa76a2e6dce67e6e2ca3ae587",
+  "status": "PASS",
+  "summary": {
+    "state": "ENGINEERING_CONVERGED",
+    "iterations": 2,
+    "telemetry": {
+      "repeatedIssueCount": 0,
+      "sameTestFailCount": 0,
+      "noImprovementRounds": 0
+    },
+    "changedFiles": [
+      "src/shared/__seeded_a.ts"
+    ],
+    "findings": []
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "stage": "CONVERGENCE_CHECK",
+      "status": "RUNNING",
+      "buildPassed": true,
+      "testsPassed": true,
+      "changedFiles": [
+        "src/shared/__seeded_a.ts"
+      ],
+      "reviewFindings": [
+        "MEDIUM: {\"findings\":[]}"
+      ],
+      "remainingRisk": "review clean"
+    },
+    {
+      "iteration": 2,
+      "stage": "CONVERGENCE_CHECK",
+      "status": "CONVERGED",
+      "buildPassed": true,
+      "testsPassed": true,
+      "changedFiles": [],
+      "reviewFindings": [],
+      "remainingRisk": "converged"
+    }
+  ],
+  "finishedAt": "2026-09-08T11:52:23.151Z",
+  "changedFiles": [
+    "src/shared/__seeded_a.ts"
+  ]
+}

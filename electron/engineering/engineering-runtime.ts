@@ -78,14 +78,14 @@ export class EngineeringRuntime {
       if (!batch.length) return { status: "FAILED", evidence };
       const results = await Promise.all(batch.map(async (step) => {
         const key = `graph_${step.id}`;
-        this.ledger.update(taskId, "step started", (state) => { state.currentStep = step.id; state.jobs[key] = { id: key, fingerprint: TaskLedger.fingerprint(step), state: "RUNNING", sessionId: `${taskId}_${step.id}`, attempts: (state.jobs[key]?.attempts ?? 0) + 1 }; });
+        this.ledger.update(taskId, "step started", (state) => { state.currentStep = step.id; state.jobs[key] = { id: key, fingerprint: TaskLedger.fingerprint(step), state: "RUNNING", sessionId: `${taskId}_${step.id}`, attempts: (state.jobs[key]?.attempts ?? 0) + 1, startedAt: new Date().toISOString() }; });
         let output = ""; let passed = false; let deferred = false;
         try {
           if (executor.microtasks) {
             const micro = executor.microtasks.decompose(step);
             if (micro?.length) {
               const runtime = new MicrotaskRuntime(this.ledger);
-              const result = await runtime.runStep(taskId, step, micro, { execute: executor.microtasks.execute, verify: executor.microtasks.verify });
+              const result = await runtime.runStep(taskId, step, micro, { execute: executor.microtasks.execute, verify: executor.microtasks.verify }, { concurrency: Math.max(1, Math.min(plan.maxWorkers, 5)), parallelReads: true });
               if (result.status === "WAITING") { deferred = true; output = "Microtask graph waiting for runtime"; }
               else if (result.status === "FAILED") { output = `Microtask ${result.failedMicrotask ?? "?"} failed`; }
               else { output = executor.microtasks.join ? await executor.microtasks.join(result.outputs) : Object.values(result.outputs).join("\n"); passed = await executor.verify(step, output); }
@@ -98,6 +98,7 @@ export class EngineeringRuntime {
         this.ledger.update(taskId, "verification finished", (state) => {
           state.jobs[key].state = passed ? "COMPLETED" : deferred ? "WAITING" : "FAILED";
           state.jobs[key].result = { runtimeId: "engineering", jobId: step.id, status: passed ? "SUCCESS" : "PERMANENT_FAILURE", content: output };
+          if (passed || deferred) state.jobs[key].completedAt = new Date().toISOString();
           if (passed) { state.completedSteps = [...new Set([...state.completedSteps, step.id])]; state.pendingSteps = state.pendingSteps.filter((id) => id !== step.id); }
           state.verificationState = passed ? "PASS" : "FAILED";
         }); return item;
@@ -107,7 +108,7 @@ export class EngineeringRuntime {
       if (results.some((item) => !item.passed)) { this.ledger.update(taskId, "verification failed", (state) => { state.verificationState = "FAILED"; state.nextAction = "REPAIR_OR_REPLAN"; }); return { status: "FAILED", evidence }; }
       results.forEach((item) => completed.add(item.stepId));
     }
-    this.ledger.update(taskId, "task completed", (state) => { state.jobs.graph.state = "COMPLETED"; state.currentStep = null; state.nextAction = "REPORT_EVIDENCE"; state.verificationState = "PASS"; });
+    this.ledger.update(taskId, "task completed", (state) => { state.jobs.graph.state = "COMPLETED"; state.jobs.graph.completedAt = new Date().toISOString(); state.currentStep = null; state.nextAction = "REPORT_EVIDENCE"; state.verificationState = "PASS"; });
     return { status: "COMPLETED", evidence };
   }
   private evidence(stepId: string, output: string, passed: boolean): StepEvidence { return { stepId, output, passed, sha256: createHash("sha256").update(output).digest("hex") }; }
