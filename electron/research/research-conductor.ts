@@ -61,6 +61,14 @@ export interface ResearchConductorOptions {
   provider: ResearchSemanticProvider;
   /** LaTeX compile entry (defaults to the real engine detector). */
   compile?: (manuscriptDir: string) => Promise<LatexCompileAudit>;
+  /**
+   * Overcomplete §9.3: HOST-backed literature retrieval. When present,
+   * LITERATURE_REVIEW first runs a real host pass (search → metadata verify →
+   * acquire → passage locate); only when the host returns nothing does the
+   * AI-supplied intake run (and its text is advisory, never an external
+   * source). Absent for the deterministic CI path or offline runs.
+   */
+  hostLiterature?: (ir: ResearchIR) => Promise<{ records: Array<import("./literature/host-retrieval").HostSourceRecord>; note?: string }>;
 }
 
 /** Durable experiment plan (written by EXPERIMENT_GENERATION, read by execution). */
@@ -85,12 +93,14 @@ export class ResearchConductor implements ResearchStageExecutor {
   private readonly service: () => ResearchService;
   private readonly provider: ResearchSemanticProvider;
   private readonly compile: (manuscriptDir: string) => Promise<LatexCompileAudit>;
+  private readonly hostLiterature?: ResearchConductorOptions["hostLiterature"];
   private readonly providerCalls = new Map<string, number>();
 
   constructor(options: ResearchConductorOptions) {
     this.service = options.service;
     this.provider = options.provider;
     this.compile = options.compile ?? (async (dir) => new LatexCompiler().compile(dir));
+    this.hostLiterature = options.hostLiterature;
   }
 
   async run(input: { ir: ResearchIR; stage: ResearchState; workspace: string }): Promise<StageOutcome> {
@@ -195,11 +205,29 @@ export class ResearchConductor implements ResearchStageExecutor {
     return { summary: `inspected repo: ${snapshot.files.length} files, fingerprint ${snapshot.fingerprint.slice(0, 12)}`, evidenceRefs: [`repo:${snapshot.fingerprint.slice(0, 16)}`] };
   }
 
-  /** LITERATURE_REVIEW: bounded provider intake → stored sources (never bare prose). */
+  /** LITERATURE_REVIEW: host retrieval first (§9.3), AI intake as fallback only. */
   private async literatureReview(ir: ResearchIR): Promise<StageOutcome> {
     const existing = this.readExtra<{ sources: unknown[] }>(ir.id, "literature-map.json");
     const sources = existing?.sources;
     if (!sources) {
+      // §9.3: run the REAL host pass first. Only when the host returns no
+      // acquired source does the AI-supplied intake run — and its sourceText
+      // is advisory content, never treated as an externally verified source.
+      let hostOutcome: { records: Array<import("./literature/host-retrieval").HostSourceRecord>; note?: string } = { records: [] };
+      if (this.hostLiterature) {
+        try {
+          hostOutcome = await this.hostLiterature(ir);
+        } catch (error) {
+          hostOutcome = { records: [], note: `host retrieval failed: ${String(error instanceof Error ? error.message : error).slice(0, 300)}` };
+        }
+      }
+      if (hostOutcome.records.length > 0) {
+        for (const raw of hostOutcome.records) this.ingestSource(ir.id, raw as unknown as Record<string, unknown>);
+        const refs = hostOutcome.records.map((record) => record.id);
+        this.record(ir.id, "LITERATURE_REVIEW", `literature intake: ${hostOutcome.records.length} host-verified source(s) acquired by real retrieval`, "literature-map.json", refs, { sources: hostOutcome.records, note: hostOutcome.note ?? "", hostRetrieved: true });
+        return { summary: `literature intake: ${hostOutcome.records.length} host-verified source(s) stored from real retrieval`, evidenceRefs: [] };
+      }
+      const hostEmptyNote = hostOutcome.note ? `host pass empty: ${hostOutcome.note}` : "host pass empty (offline or no accessible sources)";
       let list: unknown[] = [];
       let note = "";
       try {
@@ -214,8 +242,8 @@ export class ResearchConductor implements ResearchStageExecutor {
         list = [];
       }
       for (const raw of list) this.ingestSource(ir.id, raw as Record<string, unknown>);
-      this.record(ir.id, "LITERATURE_REVIEW", note ? `literature intake empty (provider could not supply verifiable JSON sources): ${note}` : `literature intake: ${list.length} source(s) acquired and stored`, "literature-map.json", list.map((_, index) => `cite:s${index + 1}`), { sources: list, note });
-      return { summary: note ? "literature intake empty (no verifiable sources; none fabricated); proceeding" : `literature intake: ${list.length} source(s) stored (bounded pass 1)`, evidenceRefs: [] };
+      this.record(ir.id, "LITERATURE_REVIEW", note ? `literature intake empty (provider could not supply verifiable JSON sources): ${note} ${hostEmptyNote}` : `literature intake: ${list.length} AI-advisory source(s) (host empty: ${hostEmptyNote})`, "literature-map.json", list.map((_, index) => `cite:s${index + 1}`), { sources: list, note, hostEmptyNote });
+      return { summary: note ? `literature intake empty (${hostEmptyNote}; no verifiable sources; none fabricated); proceeding` : `literature intake: ${list.length} AI-advisory source(s) stored (host empty; AI text is not an external source)`, evidenceRefs: [] };
     }
     return { summary: `literature intake already recorded: ${sources.length} source(s)`, evidenceRefs: sources.map((_, index) => `cite:s${index + 1}`) };
   }

@@ -54,6 +54,7 @@ import { DefaultLevelBExecutor } from "./research/default-levelb-executor";
 import { LiveResearchExecutor } from "./research/live-research-executor";
 import { ResearchConductor } from "./research/research-conductor";
 import { createLiveResearchProvider } from "./research/live-research-provider";
+import { runHostLiteraturePass, createOpenAlexLiteratureDeps } from "./research/literature/host-retrieval";
 import type { ResearchStageExecutor } from "./research/research-supervisor";
 import type { ResearchIR } from "../src/shared/research-ir";
 import type { HumanDefinedResearchInput } from "../src/shared/research-input";
@@ -416,7 +417,11 @@ function liveResearchExecutor(): ResearchStageExecutor {
         if (!research) throw new Error("research service not ready");
         return research;
       },
-      provider
+      provider,
+      // Overcomplete §9.3: REAL host literature retrieval (OpenAlex) before any
+      // AI advisory intake. Offline/empty results degrade honestly to the
+      // provider fallback inside the conductor.
+      hostLiterature: async (ir) => runHostLiteraturePass({ rq: ir.researchQuestions[0] ?? ir.goal }, createOpenAlexLiteratureDeps())
     })
   });
 }
