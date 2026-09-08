@@ -51,6 +51,7 @@ const bridge: BossBridge = {
   buildEvidence: (taskId: string) => ipcRenderer.invoke("boss:build-evidence", taskId),
   acceptEvidence: (taskId: string) => ipcRenderer.invoke("boss:accept-evidence", taskId),
   externalSessionList: () => ipcRenderer.invoke("boss:external-session-list"),
+  externalArchiveRun: () => ipcRenderer.invoke("boss:external-archive-run"),
   engineeringGoalStatus: () => ipcRenderer.invoke("boss:engineering-goal-status"),
   engineeringGoalRun: (input: import("../src/shared/contracts").EngineeringGoalRunInput) => ipcRenderer.invoke("boss:engineering-goal-run", input),
   rehydrateEvidence: (taskId: string) => ipcRenderer.invoke("boss:rehydrate-evidence", taskId),

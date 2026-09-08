@@ -63,6 +63,8 @@ import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
+import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
+import { createLiveExternalArchiveAttempt, type AccountMode as ArchiveAccountMode } from "./workspace/live-external-archive";
 import { AccountSessionManager } from "./account-sessions";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
@@ -146,6 +148,21 @@ function provider(id: ProviderId) {
   const match = store.snapshot().providers.find((item) => item.id === id);
   if (!match) throw new Error(`Unknown provider: ${id}`);
   return match;
+}
+
+/**
+ * Production external-archive attempt (Overcomplete §11.3/§11.4): fail-closed
+ * page-state gate + optional per-provider adapter seam. Never fake-archives.
+ */
+function liveArchiveAttempt() {
+  return createLiveExternalArchiveAttempt({
+    windowOpen: (providerId) => Boolean(providerViews.get(providerId)),
+    accountMode: (providerId): ArchiveAccountMode => {
+      const account = store?.snapshot().accounts.find((entry) => entry.providerId === providerId);
+      const mode = account?.mode;
+      return mode === "READY" || mode === "GUEST_READY" ? mode : mode === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : "UNKNOWN";
+    }
+  });
 }
 
 function taskTransports(input: CreateTaskInput, providerIds: ProviderId[]) {
@@ -281,6 +298,14 @@ function attachProviderViews(): void {
         externalSessions?.deferArchive(id, run.providerId, "task finished; external archive pending page-state verification");
       }
     } catch { /* external-session tracking is advisory and must never block completion */ }
+    // Overcomplete §11.3: task finalized ⇒ ARCHIVE_PENDING ⇒ schedule a
+    // bounded background archive pass (navigate/archive/verify later). The
+    // pass only ever marks ARCHIVED from verified page state; failures keep
+    // the ledger row pending and visible.
+    try {
+      const hasPending = externalSessions?.forTask(id).some((record) => record.status === "ARCHIVE_PENDING");
+      if (hasPending && recoveryScheduler) recoveryScheduler.schedule({ id: `external-archive:${id}`, taskId: id, kind: "external-archive", retryAt: Date.now() + 15000, payload: {} });
+    } catch { /* scheduling is advisory */ }
     // U6 §13/§51: a conversation with no remaining active task auto-archives
     // (flag only, never delete) once its last task has a final response. The
     // currently-selected conversation is left in place so the user can read
@@ -295,6 +320,21 @@ function attachProviderViews(): void {
     } catch { /* auto-archive is best-effort; conversation stays visible otherwise */ }
   };
   automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, onTaskComplete, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore);
+  // Overcomplete §11.3/§11.4: production archive recovery handler — each wake
+  // retries pending external archives with the live fail-closed attempt; if
+  // anything stays pending (provider offline / rate-limited / page changed),
+  // the wake is re-armed with a long backoff. Attempts are bounded by the
+  // recovery scheduler; exhausted rows stay ARCHIVE_PENDING (visible, never
+  // auto-deleted) until a later pass or a manual archive.
+  if (recoveryScheduler) {
+    recoveryScheduler.register("external-archive", async () => {
+      const result = await automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 });
+      if (result.remainingPending > 0) {
+        return { done: false, retryAt: Date.now() + 20 * 60 * 1000, error: `${result.remainingPending} external archive(s) still pending; will retry` };
+      }
+      return { done: true };
+    });
+  }
   detachContinuationWaker?.();
   detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
@@ -950,6 +990,9 @@ if (ownsInstance) app.whenReady().then(() => {
   // deletes, only shows archive lifecycle so a failed external archive stays
   // visible and retryable).
   ipcMain.handle("boss:external-session-list", () => externalSessions?.list() ?? []);
+  // Overcomplete §11.3: run one bounded external-archive pass on demand
+  // (manual retry surface; fail-closed — never fake-archives).
+  ipcMain.handle("boss:external-archive-run", async () => automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 }));
   // U10 §26–§41 (+ Overcomplete §6.1/§6.4): autonomous engineering goal surface.
   // Status is the durable read-model; run starts one goal loop over the real
   // allowed commands with the PRODUCTION coder/reviewer wired in-process (the

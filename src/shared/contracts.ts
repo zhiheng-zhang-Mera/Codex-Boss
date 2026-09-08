@@ -430,6 +430,8 @@ export interface BossBridge {
   acceptEvidence(taskId: string): Promise<AppSnapshot>;
   /** Lists durable external web-session archive records (U6 §14; read-only). */
   externalSessionList(): Promise<Array<import("./external-session").ExternalSessionRecord>>;
+  /** Overcomplete §11.3: run one bounded external-archive pass (manual retry surface, never fake-archives). */
+  externalArchiveRun(): Promise<{ attempted: number; archived: number; deferred: number; remainingPending: number }>;
   /** U10 §26–§41: durable autonomous-engineering goal status read-model for the start surface. */
   engineeringGoalStatus(): Promise<import("./engineering-loop").EngineeringGoalSnapshot>;
   /** U10 §26–§41: starts one autonomous engineering goal run against a workspace (fail-closed without a coding editor). */

@@ -42,11 +42,17 @@ function resolveCandidate(root: string, token: string): string | undefined {
   }
 }
 
+/** Matches failure-y transcript lines (vitest FAIL rows / tsc diagnostics / assertions). */
+const FAILURE_LINE = /FAIL|AssertionError|error TS\d|(?:^|[^\w])×|failed|not converged|expected/i;
+
 /**
  * Candidate files deterministically tied to the finding. Order:
- * 1. Paths named in the finding evidence/description that exist in the repo.
- * 2. Tests affected by those files (import edges) when the finding is about
- *    code; the failing test file itself when the finding is a test failure.
+ * 1. Paths named on FAILURE lines of the finding evidence (a full-suite
+ *    transcript names many passing files — only failing rows are scope).
+ *    When no failure row exists (e.g. a reviewer summary), every path named
+ *    anywhere in the evidence is used.
+ * 2. Tests affected by those files (import edges); the failing test file
+ *    itself when the finding is a test failure.
  * 3. Dependency closure of the named files, capped (context, never permission).
  *
  * `extraContextPaths` lets callers seed scope from files the reviewer actually
@@ -59,12 +65,17 @@ export function candidateFilesForFinding(
 ): string[] {
   const maxFiles = Math.max(1, options.maxFiles ?? 40);
   const text = `${finding.area}\n${finding.description}\n${finding.evidence ?? ""}\n${(options.extraContextPaths ?? []).join("\n")}`;
-  const tokens = new Set<string>();
-  for (const match of text.matchAll(CODE_PATH_TOKEN)) {
-    const candidate = resolveCandidate(root, match[1] ?? "");
-    if (candidate) tokens.add(candidate);
+  const lines = text.split(/\r?\n/);
+  const failureTokens = new Set<string>();
+  const anyTokens = new Set<string>();
+  for (const line of lines) {
+    const target = FAILURE_LINE.test(line) ? failureTokens : anyTokens;
+    for (const match of line.matchAll(CODE_PATH_TOKEN)) {
+      const candidate = resolveCandidate(root, match[1] ?? "");
+      if (candidate) target.add(candidate);
+    }
   }
-  const named = [...tokens].sort((a, b) => a.localeCompare(b));
+  const named = [...new Set([...failureTokens, ...(failureTokens.size ? [] : anyTokens)])].sort((a, b) => a.localeCompare(b));
   if (!named.length) return [];
 
   const snapshot = scanRepo(root);
