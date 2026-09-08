@@ -375,13 +375,23 @@ export class ProviderAutomation {
     if (this.monitors.has(taskId)) return;
     const startedAt = Date.now();
     const timer = setInterval(() => {
-      if (Date.now() - startedAt > 10 * 60 * 1000) {
+      if (Date.now() - startedAt > 25 * 60 * 1000) {
         clearInterval(timer);
         this.monitors.delete(taskId);
         const runs = this.latestRuns(taskId);
         const round = runs[0]?.round ?? 0;
-        this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 10 分钟，未达到全员成功条件");
-        this.publish();
+        // Slow providers (e.g. ChatGPT under load) can take >10 minutes to
+        // settle; before failing the collection, force one final capture pass
+        // so an answer that already appeared on the page is still collected.
+        void this.poll(taskId, true).then(() => {
+          const after = this.latestRuns(taskId);
+          if (after.every((run) => ["completed", "failed", "blocked"].includes(run.phase))) return;
+          this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 25 分钟，未达到全员成功条件");
+          this.publish();
+        }).catch(() => {
+          this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 25 分钟，未达到全员成功条件");
+          this.publish();
+        });
         return;
       }
       if (this.pollingTasks.has(taskId)) return;
