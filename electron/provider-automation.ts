@@ -12,6 +12,26 @@ import { AccountSessionManager } from "./account-sessions";
 import { isDispatchGroupSize } from "../src/shared/provider-policy";
 import { ProviderHttpError, ProviderApiClient, type ApiCompletion } from "./provider-api";
 import type { DomainEventBus } from "./commander/event-bus";
+import fs from "node:fs";
+import path from "node:path";
+
+/**
+ * Live diagnostic journal (direction 1 的纯程序替代): every automation step
+ * (dispatch/prepare/send/poll/monitor/worker) appends one timestamped line to
+ * a file so a wedged main process can be analyzed offline — the last entry
+ * before the hang shows exactly where the event loop stopped. Writes are
+ * best-effort and never throw into the automation path.
+ */
+function automationLogFile(): string {
+  return process.env.LIVE_AUTOMATION_LOG ?? path.join(process.cwd(), "runtime-data", ".boss", "live-automation.log");
+}
+function appendLog(entry: Record<string, unknown>): void {
+  try {
+    const file = automationLogFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${new Date().toISOString()} ${JSON.stringify(entry)}\n`, "utf8");
+  } catch { /* journaling must never break automation */ }
+}
 
 type ProbeState = { content: string; stableCount: number };
 
@@ -63,6 +83,7 @@ export class ProviderAutomation {
   }
 
   async executeWorker(providerId: string, request: RuntimeRequest, signal?: AbortSignal): Promise<RuntimeResult> {
+    this.log("executeWorker.enter", { providerId, taskId: request.taskId, jobId: request.jobId });
     if (signal?.aborted) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
     const parent = this.store.snapshot().tasks.find((item) => item.id === request.taskId);
     const existing = this.store.snapshot().tasks.find((item) => item.parentTaskId === request.taskId && item.runtimeJobId === request.jobId && item.providerIds.includes(providerId));
@@ -87,6 +108,7 @@ export class ProviderAutomation {
       this.store.setTaskStatus(task.id, "cancelled");
       return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
     } finally {
+      this.log("executeWorker.finally", { providerId, taskId: request.taskId, jobId: request.jobId });
       const timer = this.monitors.get(task.id); if (timer) clearInterval(timer); this.monitors.delete(task.id);
     }
   }
@@ -124,8 +146,13 @@ export class ProviderAutomation {
     this.publish();
   }
 
+  private log(step: string, detail: Record<string, unknown> = {}): void {
+    appendLog({ step, ...detail, at: Date.now() });
+  }
+
   private async dispatch(taskId: string): Promise<void> {
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    this.log("dispatch.start", { taskId, exists: Boolean(task), status: task?.status });
     if (!task || ["cancelled", "paused"].includes(task.status)) return;
     const allRuns = this.latestRuns(taskId);
     if (allRuns.some((run) => run.review?.status === "HUMAN_REQUIRED" || run.review?.status === "FAILED")) return;
@@ -319,6 +346,7 @@ export class ProviderAutomation {
   }
 
   private startMonitor(taskId: string): void {
+    this.log("monitor.schedule", { taskId });
     if (this.monitors.has(taskId)) return;
     const startedAt = Date.now();
     const timer = setInterval(() => {
@@ -339,6 +367,7 @@ export class ProviderAutomation {
   }
 
   private async poll(taskId: string, manual: boolean): Promise<void> {
+    this.log("poll.head", { taskId, manual });
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task || ["cancelled", "paused"].includes(task.status)) return;
     const runs = this.latestRuns(taskId).filter((run) => run.phase === "waiting");
@@ -377,6 +406,7 @@ export class ProviderAutomation {
       if (timer) clearInterval(timer);
       this.monitors.delete(taskId);
     }
+    this.log("poll.tail", { taskId, manual });
     await this.continueIfReady(taskId);
   }
 

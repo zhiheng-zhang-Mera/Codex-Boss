@@ -36,8 +36,22 @@ const definitions: Record<string, AdapterDefinition> = {
   deepseek: { providerId: "deepseek", version: "deepseek-web/2026-09-v2", inputSelectors: commonInputs, responseSelectors: [".ds-markdown", ...commonResponses], stopSelectors: ["button[aria-label*='停止']", "button[aria-label*='Stop']"], sendLabels: ["send", "发送"], sendMode: "enter", fileInputSelectors: ["input[type='file']"], attachmentSelectors: ["[data-testid*='file']", "[class*='file']"], uploadKinds: ["IMAGE", "PDF", "DOCUMENT"], newConversationUrl: "https://chat.deepseek.com/" },
   qwen: { providerId: "qwen", version: "qwen-web/2026-09-v2", inputSelectors: ["textarea.message-input-textarea", ...commonInputs], responseSelectors: [".qwen-markdown", ...commonResponses], stopSelectors: ["button[aria-label*='停止']", "button[aria-label*='Stop']"], sendLabels: ["send", "发送"], sendMode: "enter", newConversationUrl: "https://chat.qwen.ai/" },
   kimi: { providerId: "kimi", version: "kimi-web/2026-09-v1", inputSelectors: commonInputs, responseSelectors: [".segment-content", ...commonResponses], stopSelectors: ["button[aria-label*='停止']", "button[aria-label*='Stop']"], sendLabels: ["send", "发送"], newConversationUrl: "https://www.kimi.com/" },
-  grok: { providerId: "grok", version: "grok-web/2026-09-v2", inputSelectors: ["div.ProseMirror[contenteditable='true']", "div[contenteditable='true'][role='textbox']", "div[contenteditable='true'][data-placeholder]", "textarea[placeholder*='Ask']", "textarea[aria-label*='Ask']", ...commonInputs], responseSelectors: ["[data-testid*='assistant']", "[data-testid*='message'] .markdown", ".markdown", ...commonResponses], stopSelectors: ["button[aria-label*='Stop']", "button[aria-label*='停止']"], sendLabels: ["send", "submit", "发送", "提交"], fileInputSelectors: ["input[type='file']"], attachmentSelectors: ["[data-testid*='attachment']", "[class*='attachment']"], uploadKinds: ["IMAGE", "PDF"], newConversationUrl: "https://grok.com/" }
+  grok: { providerId: "grok", version: "grok-web/2026-09-v2", inputSelectors: ["div.ProseMirror[contenteditable='true']", "div[contenteditable='true'][role='textbox']", "div[contenteditable='true'][data-placeholder]", "textarea[placeholder*='Ask']", "textarea[aria-label*='Ask']", ...commonInputs], responseSelectors: ["[data-testid*='assistant']", "[data-testid*='message'] .markdown", ".markdown", ...commonResponses], stopSelectors: ["button[aria-label*='Stop']", "button[aria-label*='停止']"], sendLabels: ["send", "submit", "发送", "提交"], fileInputSelectors: ["input[type='file']"], attachmentSelectors: ["[data-testid*='attachment']", "[class*='attachment']"], uploadKinds: ["IMAGE", "PDF"], newConversationUrl: "https://grok.com/" },
+  copilot: { providerId: "copilot", version: "copilot-web/2026-09-v1", inputSelectors: ["textarea#userInput", "textarea[placeholder*='Message']", ...commonInputs], responseSelectors: ["[data-content*='ai-message']", ".content", ".message-content", ".ac-container .message", ...commonResponses], stopSelectors: ["button[aria-label*='Stop']", "button[aria-label*='停止']"], sendLabels: ["send", "发送", "提交"], sendMode: "enter", newConversationUrl: "https://copilot.microsoft.com/" },
+  mistral: genericDefinition("mistral", "https://chat.mistral.ai/"),
+  perplexity: genericDefinition("perplexity", "https://www.perplexity.ai/"),
+  doubao: genericDefinition("doubao", "https://www.doubao.com/chat/")
 };
+
+/**
+ * Default generic rules for built-in providers without a hand-tuned adapter
+ * (Overcomplete live 方向3): common visible text inputs, common response
+ * containers, and an honest "enter" send mode with a cleared-input check — the
+ * safest default (fails closed instead of mis-clicking unknown controls).
+ */
+function genericDefinition(providerId: string, newConversationUrl: string): AdapterDefinition {
+  return { providerId, version: `generic-${providerId}/2026-09-v1`, inputSelectors: commonInputs, responseSelectors: commonResponses, stopSelectors: ["button[aria-label*='停止']", "button[aria-label*='Stop']"], sendLabels: ["send", "发送", "提交"], sendMode: "enter", newConversationUrl };
+}
 
 export function adapterFor(provider: Provider): AdapterDefinition | null {
   if (provider.isCustom) return null;
