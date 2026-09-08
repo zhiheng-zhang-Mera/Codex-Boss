@@ -70,19 +70,16 @@ export function candidateFilesForFinding(
   const snapshot = scanRepo(root);
   const isTest = (file: string) => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file);
   const sources = named.filter((file) => !isTest(file));
-  const namedTests = named.filter(isTest);
 
   // A compile diagnostic can point at a generated/derived file; keep the
-  // direct name, but for tests also bring in the source they exercise.
+  // direct name. The dependency closure of EVERY named file (tests included)
+  // is part of the reasoning scope so a failing test can reach the module
+  // that actually carries the bug; affected tests of sources are the
+  // regression surface.
   const candidates = new Set<string>(named);
-  if (sources.length) {
-    const closure = dependencyClosure(snapshot, sources, maxFiles);
-    closure.forEach((file) => candidates.add(file));
+  if (named.length) {
+    dependencyClosure(snapshot, named, maxFiles).forEach((file) => candidates.add(file));
     affectedTests(snapshot, sources).forEach((file) => candidates.add(file));
-  }
-  if (namedTests.length) {
-    // Tests referencing the named test or its sources are the regression set.
-    affectedTests(snapshot, [...namedTests, ...sources]).forEach((file) => candidates.add(file));
   }
   const ordered = [...candidates].sort((a, b) => a.localeCompare(b));
   return ordered.length > maxFiles ? ordered.slice(0, maxFiles) : ordered;
