@@ -55,6 +55,25 @@ export interface ResearchSemanticProvider {
   ask(input: { researchId: string; stage: ResearchState; role: ResearchRole; question: string }): Promise<string>;
 }
 
+/**
+ * Overcomplete §9.9: a bound implementation spec handed to the experiment
+ * coder when the workspace has no pre-existing benchmark. The host decides the
+ * metric/baseline/sample from the FROZEN protocol; the coder only writes code
+ * that obeys the output contract. A generated implementation is dry-run by the
+ * host and fails closed unless it really emits the required numeric metric.
+ */
+export interface ExperimentImplementationSpec {
+  researchQuestion: string;
+  hypothesis: string;
+  metric: string;
+  baselineValue: string;
+  sampleDefinition: string;
+  workspace: string;
+  seedArgument: string;
+}
+
+export type ExperimentCoder = (spec: ExperimentImplementationSpec) => Promise<string>;
+
 export interface ResearchConductorOptions {
   /** Accessor for the composed ResearchService (avoids constructor cycles). */
   service: () => ResearchService;
@@ -70,6 +89,13 @@ export interface ResearchConductorOptions {
    * source). Absent for the deterministic CI path or offline runs.
    */
   hostLiterature?: (ir: ResearchIR) => Promise<{ records: Array<import("./literature/host-retrieval").HostSourceRecord>; note?: string }>;
+  /**
+   * Overcomplete §9.9: writes an experiment implementation from the frozen
+   * protocol spec when <workspace>/experiments/ has no runnable benchmark yet.
+   * Absent ⇒ RQ→READY without a pre-existing implementation fails closed with
+   * explicit guidance (never fabricated).
+   */
+  experimentCoder?: ExperimentCoder;
 }
 
 /** Durable experiment plan (written by EXPERIMENT_GENERATION, read by execution). */
@@ -95,6 +121,7 @@ export class ResearchConductor implements ResearchStageExecutor {
   private readonly provider: ResearchSemanticProvider;
   private readonly compile: (manuscriptDir: string) => Promise<LatexCompileAudit>;
   private readonly hostLiterature?: ResearchConductorOptions["hostLiterature"];
+  private readonly experimentCoder?: ResearchConductorOptions["experimentCoder"];
   private readonly providerCalls = new Map<string, number>();
 
   constructor(options: ResearchConductorOptions) {
@@ -102,6 +129,7 @@ export class ResearchConductor implements ResearchStageExecutor {
     this.provider = options.provider;
     this.compile = options.compile ?? (async (dir) => new LatexCompiler().compile(dir));
     this.hostLiterature = options.hostLiterature;
+    this.experimentCoder = options.experimentCoder;
   }
 
   async run(input: { ir: ResearchIR; stage: ResearchState; workspace: string }): Promise<StageOutcome> {
@@ -365,17 +393,41 @@ export class ResearchConductor implements ResearchStageExecutor {
       // commands or paths here — that removed the refusal/malformed-JSON class
       // of live failures while keeping the design bound to the frozen protocol.
       const candidates = listImplCandidates(ir.scope.workspace);
-      if (candidates.length === 0) throw new Error("No executable implementation found under <workspace>/experiments/ — add a benchmark that prints `METRICS <json>`");
-      const implFile = candidates[0];
-      const metricKeys = await probeMetricKeys(implFile);
+      const frozenProtocol = svc.protocols.load(ir.id);
+      let implFile: string | undefined;
+      let generated = false;
+      if (candidates.length === 0) {
+        // §9.9: no pre-existing benchmark → the experiment coder writes one from
+        // the FROZEN protocol spec; the host dry-runs it and fails closed unless
+        // it really emits the required numeric metric.
+        if (!this.experimentCoder || !frozenProtocol) {
+          throw new Error("No executable implementation found under <workspace>/experiments/ and no experiment coder (or frozen protocol) is available — RQ→READY without a benchmark requires a coder worker or a pre-existing implementation that prints `METRICS <json>`");
+        }
+        implFile = await generateExperimentImplementation(ir.scope.workspace, {
+          researchQuestion: this.researchQuestion(ir),
+          hypothesis: ir.hypotheses[0] ?? this.researchQuestion(ir),
+          metric: frozenProtocol.protocol.primaryMetric,
+          baselineValue: frozenProtocol.protocol.baseline,
+          sampleDefinition: frozenProtocol.protocol.sampleDefinition,
+          workspace: ir.scope.workspace,
+          seedArgument: "--seed"
+        }, this.experimentCoder);
+        generated = true;
+      } else {
+        implFile = candidates[0];
+      }
+      const metricKeys = await probeMetricKeys(implFile!);
       if (metricKeys.length === 0) throw new Error(`Implementation ${implFile} printed no numeric METRICS keys on a probe run`);
+      if (generated && (!frozenProtocol || metricKeys[0] !== frozenProtocol.protocol.primaryMetric)) {
+        throw new Error(`Generated experiment emits metric '${metricKeys[0]}' but the frozen protocol fixed '${frozenProtocol?.protocol.primaryMetric}' — generation failed the metric contract (fail-closed)`);
+      }
       plan = {
-        experimentId: `bench-${path.basename(implFile, path.extname(implFile)).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 24)}`,
+        experimentId: `bench-${path.basename(implFile!, path.extname(implFile!)).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 24)}`,
         metric: metricKeys[0],
-        implFile,
+        implFile: implFile!,
         executable: process.execPath,
-        args: [implFile, "--seed", "{seed}"],
-        cwd: path.dirname(implFile),
+        args: [implFile!, "--seed", "{seed}"],
+        cwd: path.dirname(implFile!),
         // Under Electron, process.execPath is electron.exe: ELECTRON_RUN_AS_NODE
         // makes it execute the script as plain Node (ignored by real node).
         environment: { ELECTRON_RUN_AS_NODE: "1" },
@@ -391,7 +443,7 @@ export class ResearchConductor implements ResearchStageExecutor {
         plan = { ...plan, primaryRuns: Math.min(plan.primaryRuns, budget - 1), replicationRuns: budget - Math.min(plan.primaryRuns, budget - 1) };
         planClamped = true;
       }
-      this.record(ir.id, "EXPERIMENT_GENERATION", `host-decided experiment ${plan.experimentId} on ${plan.implFile} (metric ${plan.metric}, probed)${planClamped ? `; run counts clamped to budget ${budget}` : ""}`, "experiment-plan.json", [], { plan, planClamped });
+      this.record(ir.id, "EXPERIMENT_GENERATION", `host-decided experiment ${plan.experimentId} on ${plan.implFile} (metric ${plan.metric}, probed)${planClamped ? `; run counts clamped to budget ${budget}` : ""}`, "experiment-plan.json", [], { plan, planClamped, ...(generated ? { generated: true } : {}) });
     }
     const runsDir = path.join(this.artifactRoot(ir.id), "..", "experiments");
     fs.mkdirSync(path.join(runsDir, "configs"), { recursive: true });
@@ -715,6 +767,38 @@ async function probeImplDeclaration(implFile: string): Promise<ImplDeclaration> 
     }
     return { metricKeys: keys, ...(meta && Object.keys(meta).length ? { meta } : {}) };
   } catch { return { metricKeys: [] }; }
+}
+
+/**
+ * §9.9: writes the experiment coder's implementation under
+ * <workspace>/experiments/ and dry-runs it. The host requires the generated
+ * source to actually emit the FROZEN primary metric as a numeric METRICS key —
+ * otherwise generation is rejected (fail closed, nothing fabricated).
+ */
+export async function generateExperimentImplementation(workspace: string, spec: ExperimentImplementationSpec, coder: ExperimentCoder): Promise<string> {
+  const experimentsDir = path.join(workspace, "experiments");
+  fs.mkdirSync(experimentsDir, { recursive: true });
+  const slug = `${spec.metric.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30)}-${createHash8(spec.metric + spec.hypothesis)}`;
+  const implFile = path.join(experimentsDir, `bench-${slug}.js`);
+  const source = await coder(spec);
+  if (!source || !source.trim()) throw new Error("Experiment coder returned no implementation source");
+  fs.writeFileSync(implFile, source, "utf8");
+  const probe = await probeImplDeclaration(implFile);
+  if (probe.metricKeys.length === 0) {
+    fs.rmSync(implFile, { force: true });
+    throw new Error("Generated experiment printed no numeric METRICS keys on its dry run (fail-closed)");
+  }
+  if (!probe.metricKeys.includes(spec.metric)) {
+    fs.rmSync(implFile, { force: true });
+    throw new Error(`Generated experiment emits ${probe.metricKeys.join(", ")} but the frozen protocol fixed '${spec.metric}' — generation failed the metric contract`);
+  }
+  return implFile;
+}
+
+function createHash8(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36).padStart(6, "0").slice(0, 6);
 }
 
 /**
