@@ -96,10 +96,6 @@ async function cloneWorkspace() {
     ? `corepack pnpm install --offline --ignore-scripts "--store-dir=${storeDir}"`
     : "corepack pnpm install --ignore-scripts";
   run("powershell", ["-NoProfile", "-Command", install], ws);
-  for (const dir of ["tests/e2e", "tests/unit"]) {
-    const target = path.join(ws, ...dir.split("/"));
-    if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
-  }
   return { parent, ws };
 }
 

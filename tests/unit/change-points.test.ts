@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkpointRecord, rollbackToCheckpoint } from "../electron/engineering/change-points";
+import { checkpointRecord, rollbackToCheckpoint } from "../../electron/engineering/change-points";
 
 const dirs: string[] = [];
 // electron-as-node's fs.rmSync cannot delete git's read-only object files

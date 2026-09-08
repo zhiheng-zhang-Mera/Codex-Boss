@@ -2,10 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileIntent } from "../src/shared/task-ir";
-import { TaskLedger } from "../electron/commander/task-ledger";
-import { EngineeringRuntime } from "../electron/engineering/engineering-runtime";
-import { applyScopedChanges, digest, verifyAndRepair } from "../electron/engineering/verification";
+import { compileIntent } from "../../src/shared/task-ir";
+import { TaskLedger } from "../../electron/commander/task-ledger";
+import { EngineeringRuntime } from "../../electron/engineering/engineering-runtime";
+import { applyScopedChanges, digest, verifyAndRepair } from "../../electron/engineering/verification";
 describe("engineering evidence and isolation", () => {
   it("runs three independent scopes, verifies and resumes without repetition", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "boss-graph-"));

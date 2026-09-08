@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileIntent, shouldReplan, validateGraph } from "../src/shared/task-ir";
-import { executeNative, workspacePath } from "../electron/engineering/native-tools";
+import { compileIntent, shouldReplan, validateGraph } from "../../src/shared/task-ir";
+import { executeNative, workspacePath } from "../../electron/engineering/native-tools";
 describe("progressive intent compilation", () => {
   it("keeps simple tasks at L0/L1 without planner calls", () => {
     const tasks = ["git status", "查看 git 状态", "list files", "read file README.md", "解释这段代码", "修复按钮", "summarize this", "write an email draft", "implement a parser", "review the answer"];

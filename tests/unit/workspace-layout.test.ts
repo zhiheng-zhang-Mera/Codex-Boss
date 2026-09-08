@@ -10,7 +10,7 @@ import {
   paneLayout,
   splitRegions,
   WORKSPACE_VIEW_STATES
-} from "../src/shared/workspace-layout";
+} from "../../src/shared/workspace-layout";
 
 describe("workspace layout model (plan §4/§9)", () => {
   it("models MERGED and DETACHED states", () => {

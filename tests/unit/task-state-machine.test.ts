@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ExecutionGate } from "../electron/commander/execution-gate";
-import { TaskStateMachine } from "../electron/commander/task-state-machine";
+import { ExecutionGate } from "../../electron/commander/execution-gate";
+import { TaskStateMachine } from "../../electron/commander/task-state-machine";
 
 describe("deterministic commander gates", () => {
   it("owns lifecycle transitions", () => { const machine = new TaskStateMachine(); expect(machine.transition("queued", "running")).toBe("running"); expect(() => machine.transition("completed", "running")).toThrow(/Invalid/); });

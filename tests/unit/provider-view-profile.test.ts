@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DISPLAY_PROFILE, clampZoom, moveProviderSlot, orderedProviderIds, profileFor, zoomForPaneWidth, type ProviderViewSlot } from "../src/shared/provider-view-profile";
+import { DEFAULT_DISPLAY_PROFILE, clampZoom, moveProviderSlot, orderedProviderIds, profileFor, zoomForPaneWidth, type ProviderViewSlot } from "../../src/shared/provider-view-profile";
 
 const slots = (ids: string[]): ProviderViewSlot[] => ids.map((id, order) => ({ providerId: id, order, openedAt: `2026-09-06T00:00:0${order}.000Z` }));
 

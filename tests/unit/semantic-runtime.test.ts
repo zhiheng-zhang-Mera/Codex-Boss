@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { SemanticRuntime } from "../electron/computer/semantic-runtime";
-import { ResourceController, ScopedMemory, degradedMode } from "../electron/commander/resource-controller";
+import { SemanticRuntime } from "../../electron/computer/semantic-runtime";
+import { ResourceController, ScopedMemory, degradedMode } from "../../electron/commander/resource-controller";
 describe("semantic and long-horizon runtime", () => {
   it("uses DOM before vision and never repeats an uncertain submit", async () => {
     let vision = 0;

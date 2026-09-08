@@ -3,17 +3,17 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { PlanRunner } from "../electron/commander/plan-runner";
-import { TaskLedger } from "../electron/commander/task-ledger";
-import { MainCommander } from "../electron/commander/main-commander";
-import { StateStore } from "../electron/store";
-import { RuntimeRegistry } from "../electron/commander/runtime-registry";
-import { BudgetManager } from "../electron/commander/budget-manager";
-import { RoleRouter } from "../electron/commander/role-router";
-import { Scheduler } from "../electron/commander/scheduler";
-import { ContextManager } from "../electron/commander/context-manager";
-import { ExecutionGate } from "../electron/commander/execution-gate";
-import { compileIntent, type TaskStep } from "../src/shared/task-ir";
+import { PlanRunner } from "../../electron/commander/plan-runner";
+import { TaskLedger } from "../../electron/commander/task-ledger";
+import { MainCommander } from "../../electron/commander/main-commander";
+import { StateStore } from "../../electron/store";
+import { RuntimeRegistry } from "../../electron/commander/runtime-registry";
+import { BudgetManager } from "../../electron/commander/budget-manager";
+import { RoleRouter } from "../../electron/commander/role-router";
+import { Scheduler } from "../../electron/commander/scheduler";
+import { ContextManager } from "../../electron/commander/context-manager";
+import { ExecutionGate } from "../../electron/commander/execution-gate";
+import { compileIntent, type TaskStep } from "../../src/shared/task-ir";
 
 const dirs: string[] = [];
 // electron-as-node's fs.rmSync cannot delete git's read-only object files

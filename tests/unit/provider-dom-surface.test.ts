@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { providerDomSurface } from "../electron/computer/backends/provider-dom-surface";
+import { providerDomSurface } from "../../electron/computer/backends/provider-dom-surface";
 
 interface FakeView { webContents: { id: number; isDestroyed(): boolean; isCrashed(): boolean; executeJavaScript(script: string): Promise<unknown> }; }
 function fakeViews(pages: Record<string, FakeView | undefined>) {

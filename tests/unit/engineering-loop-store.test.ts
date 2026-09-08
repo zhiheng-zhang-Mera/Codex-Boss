@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { EngineeringLoopStore } from "../electron/engineering/engineering-loop-store";
-import type { EngineeringGoalContract } from "../src/shared/engineering-loop";
+import { EngineeringLoopStore } from "../../electron/engineering/engineering-loop-store";
+import type { EngineeringGoalContract } from "../../src/shared/engineering-loop";
 
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));

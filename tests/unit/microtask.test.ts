@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decomposeStep, readyMicrotasks, validateMicrotasks } from "../src/shared/microtask";
-import type { TaskStep } from "../src/shared/task-ir";
+import { decomposeStep, readyMicrotasks, validateMicrotasks } from "../../src/shared/microtask";
+import type { TaskStep } from "../../src/shared/task-ir";
 
 const edit: TaskStep = { id: "edit-1", kind: "edit", description: "fix a and b", dependencies: [], requiredFiles: ["src/a.ts", "src/b.ts"] };
 

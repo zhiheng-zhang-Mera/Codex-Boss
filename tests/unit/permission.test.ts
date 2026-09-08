@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { EMPTY_MANIFEST, desktopMutationGate, manifestAllows, manifestNarrow, type PermissionManifest } from "../src/shared/permission";
-import { PermissionManifestStore } from "../electron/security/permission-manifest";
+import { EMPTY_MANIFEST, desktopMutationGate, manifestAllows, manifestNarrow, type PermissionManifest } from "../../src/shared/permission";
+import { PermissionManifestStore } from "../../electron/security/permission-manifest";
 
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));

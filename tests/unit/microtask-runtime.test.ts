@@ -2,11 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileIntent } from "../src/shared/task-ir";
-import { singleMicrotask } from "../src/shared/microtask";
-import { TaskLedger } from "../electron/commander/task-ledger";
-import { EngineeringRuntime } from "../electron/engineering/engineering-runtime";
-import { MicrotaskRuntime } from "../electron/engineering/microtask-runtime";
+import { compileIntent } from "../../src/shared/task-ir";
+import { singleMicrotask } from "../../src/shared/microtask";
+import { TaskLedger } from "../../electron/commander/task-ledger";
+import { EngineeringRuntime } from "../../electron/engineering/engineering-runtime";
+import { MicrotaskRuntime } from "../../electron/engineering/microtask-runtime";
 
 function rootDir() { return fs.mkdtempSync(path.join(os.tmpdir(), "boss-microtask-")); }
 

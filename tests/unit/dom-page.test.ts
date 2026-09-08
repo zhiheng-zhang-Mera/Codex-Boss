@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DomPageBackend } from "../electron/computer/backends/dom-page";
-import { SemanticRuntime } from "../electron/computer/semantic-runtime";
+import { DomPageBackend } from "../../electron/computer/backends/dom-page";
+import { SemanticRuntime } from "../../electron/computer/semantic-runtime";
 
 describe("DOM semantic tier (§8.2 dom-page)", () => {
   it("supports dom:-targeted mutations and reads, nothing else", () => {
