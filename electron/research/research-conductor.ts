@@ -36,6 +36,7 @@ import type { ResearchRole } from "../../src/shared/research-roles";
 import type { ResearchStageExecutor, StageOutcome } from "./research-supervisor";
 import type { ResearchService } from "./research-service";
 import type { ResearchProtocol } from "../../src/shared/research-protocol";
+import { inferBaselineProvenance, type BaselineProvenance } from "../../src/shared/research-protocol";
 import type { ResearchCommandSpec } from "../../src/shared/research-command";
 import type { ReviewerVote } from "../../src/shared/research-adjudicate";
 import { metricFigureSvg } from "../../src/shared/research-figures";
@@ -308,19 +309,28 @@ export class ResearchConductor implements ResearchStageExecutor {
     if (!store) {
       const candidates = listImplCandidates(ir.scope.workspace);
       if (candidates.length === 0) throw new Error("No executable implementation found under <workspace>/experiments/ — add a benchmark that prints `METRICS <json>`");
-      const metricKeys = await probeMetricKeys(candidates[0]);
-      if (metricKeys.length === 0) throw new Error(`Implementation ${candidates[0]} printed no numeric METRICS keys on a probe run`);
-      const metric = metricKeys[0];
+      const declaration = await probeImplDeclaration(candidates[0]);
+      if (declaration.metricKeys.length === 0) throw new Error(`Implementation ${candidates[0]} printed no numeric METRICS keys on a probe run`);
+      const metric = declaration.metricKeys[0];
+      // §9.8: baseline always carries provenance. The implementation may declare
+      // a real baseline (METRICS_META); otherwise a proportion-like metric gets
+      // the named random-chance baseline; anything else fails closed instead of
+      // freezing an unexplained constant.
+      const baselineInfo: BaselineProvenance = inferBaselineProvenance(metric, declaration.meta);
+      if (baselineInfo.kind === "host-heuristic") {
+        throw new Error(`cannot freeze protocol: metric '${metric}' is not proportion-like and the implementation declares no baseline with provenance (declare via METRICS_META); ${baselineInfo.reason}`);
+      }
       const protocol: ResearchProtocol = {
         schemaVersion: 1,
         hypothesis: ir.hypotheses[0] ?? this.researchQuestion(ir),
         primaryMetric: metric,
-        baseline: "0.5", // chance level for accuracy-type metrics
+        baseline: baselineInfo.value,
         sampleDefinition: `fixed benchmark ${path.basename(candidates[0])} tasks × seeds 1..N`,
         evaluationCriterion: `mean ${metric} > baseline`,
         createdAt: new Date().toISOString()
       };
       svc.freeze(ir.id, protocol);
+      this.recordBaselineProvenance(ir.id, baselineInfo);
     } else if (!ir.protocolHash) {
       // Crash between protocol write and IR hash checkpoint: repair the hash.
       svc.ledger.checkpoint(ir.id, (next) => { next.ir.protocolHash = store.protocolHash; next.ir.state = "PROTOCOL_FROZEN"; next.ir.updatedAt = new Date().toISOString(); }, "protocol hash repaired after crash");
@@ -328,6 +338,11 @@ export class ResearchConductor implements ResearchStageExecutor {
     const frozenHash = svc.ledger.load(ir.id)!.ir.protocolHash!;
     this.record(ir.id, "PROTOCOL_DRAFT", `protocol frozen: hash ${frozenHash.slice(0, 12)} (host schema validation passed)`, "protocol-review.json", [`protocol:${frozenHash.slice(0, 16)}`], { reviewed: true, method: "host schema validation", hash: frozenHash });
     return { summary: `protocol frozen (${frozenHash.slice(0, 12)}); scientific core cannot change silently`, evidenceRefs: [`protocol:${frozenHash.slice(0, 16)}`] };
+  }
+
+  /** Persists the §9.8 baseline provenance alongside the frozen protocol. */
+  private recordBaselineProvenance(id: string, provenance: BaselineProvenance): void {
+    this.svc().saveStageArtifact(id, { stage: "PROTOCOL_DRAFT", summary: `baseline provenance: ${provenance.kind}`, evidenceRefs: [], file: "baseline-provenance.json", extra: { provenance } });
   }
 
   /** PROTOCOL_FROZEN (restart edge): verify the frozen hash exists, else fail closed. */
@@ -659,20 +674,47 @@ function slugOf(text: string): string {
 
 /** Probes one real implementation run (TEST purpose, never recorded) for its numeric METRICS keys. */
 async function probeMetricKeys(implFile: string): Promise<string[]> {
+  return (await probeImplDeclaration(implFile)).metricKeys;
+}
+
+interface ImplDeclaration { metricKeys: string[]; meta?: { baseline?: number; source?: string }; }
+
+/**
+ * Probes one real implementation (TEST purpose, never recorded) for numeric
+ * METRICS keys AND an optional METRICS_META declaration:
+ * `METRICS_META {"baseline":0.5,"source":"known-benchmark"}`. Declaring a
+ * baseline with provenance is how a benchmark with a real control/known
+ * benchmark supplies its comparison point (Overcomplete §9.8).
+ */
+async function probeImplDeclaration(implFile: string): Promise<ImplDeclaration> {
   try {
     const result = await runStructuredProcess({ executable: process.execPath, args: [implFile, "--seed", "1"], cwd: path.dirname(implFile), environment: { ELECTRON_RUN_AS_NODE: "1" }, purpose: "TEST", timeoutMs: 60000 });
-    if (result.code !== 0) return [];
+    if (result.code !== 0) return { metricKeys: [] };
     const keys: string[] = [];
+    let meta: ImplDeclaration["meta"];
     for (const line of result.output.split(/\r?\n/)) {
-      const match = /^METRICS (.*)$/.exec(line.trim());
-      if (!match) continue;
-      try {
-        const value = JSON.parse(match[1]) as Record<string, unknown>;
-        if (value && typeof value === "object") for (const [key, entry] of Object.entries(value)) if (typeof entry === "number") keys.push(key);
-      } catch { /* skip malformed line */ }
+      const metrics = /^METRICS (.*)$/.exec(line.trim());
+      if (metrics) {
+        try {
+          const value = JSON.parse(metrics[1]) as Record<string, unknown>;
+          if (value && typeof value === "object") for (const [key, entry] of Object.entries(value)) if (typeof entry === "number") keys.push(key);
+        } catch { /* skip malformed line */ }
+      }
+      const declared = /^METRICS_META (.*)$/.exec(line.trim());
+      if (declared) {
+        try {
+          const value = JSON.parse(declared[1]) as { baseline?: unknown; source?: unknown };
+          if (value && typeof value === "object") {
+            meta = {
+              ...(typeof value.baseline === "number" && Number.isFinite(value.baseline) ? { baseline: value.baseline } : {}),
+              ...(typeof value.source === "string" ? { source: value.source.slice(0, 120) } : {})
+            };
+          }
+        } catch { /* malformed declaration ignored (baseline falls back to inference) */ }
+      }
     }
-    return keys;
-  } catch { return []; }
+    return { metricKeys: keys, ...(meta && Object.keys(meta).length ? { meta } : {}) };
+  } catch { return { metricKeys: [] }; }
 }
 
 /**
