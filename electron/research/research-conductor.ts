@@ -502,7 +502,7 @@ export class ResearchConductor implements ResearchStageExecutor {
       requiredVotes: votes.length > 0 ? 1 : 0
     };
     const result = svc.analyzeRuns(ir.id, options);
-    this.record(ir.id, "ANALYSIS", `deterministic analysis: n=${result.values.length} mean=${result.mean.toFixed(3)} ci=[${result.ci.lower.toFixed(3)},${result.ci.upper.toFixed(3)}] verdict=${result.verdict.adopted ? "adopted" : "not adopted"}`, "analysis.json", [`stat:${plan.experimentId}`, `claim:${plan.experimentId}`], { metric: plan.metric, baseline: options.baseline, mean: result.mean, ci: { lower: result.ci.lower, upper: result.ci.upper }, n: result.values.length, independentReplication: result.independentReplication, verdict: result.verdict, votes });
+    this.record(ir.id, "ANALYSIS", `deterministic analysis: n=${result.values.length} mean=${result.mean.toFixed(3)} ci=[${result.ci.lower.toFixed(3)},${result.ci.upper.toFixed(3)}] verdict=${result.verdict.adopted ? "adopted" : "not adopted"}`, "analysis.json", [`stat:${plan.experimentId}`, `claim:${plan.experimentId}`], { metric: plan.metric, baseline: options.baseline, mean: result.mean, ci: { lower: result.ci.lower, upper: result.ci.upper }, n: result.values.length, independentReplication: result.independentReplication, effectSize: result.effectSize, permutationP: result.permutationP, verdict: result.verdict, votes });
     return { summary: `analysis: mean ${result.mean.toFixed(3)} over ${result.values.length} run(s); ${result.verdict.adopted ? "claim adopted" : "claim not adopted"}`, evidenceRefs: [`stat:${plan.experimentId}`] };
   }
 

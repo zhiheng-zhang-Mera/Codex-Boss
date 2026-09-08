@@ -1,7 +1,7 @@
 import type { PrimaryRunRecord, EvidenceGraph } from "./evidence-graph";
 import type { ReviewerVote } from "../../../src/shared/research-adjudicate";
 import { adjudicateClaim } from "../../../src/shared/research-adjudicate";
-import { describe as statsDescribe, confidenceInterval, mean, type DescriptiveStats, type ConfidenceInterval } from "../../../src/shared/research-statistics";
+import { describe as statsDescribe, confidenceInterval, mean, oneSampleEffectSize, oneSamplePermutationP, type DescriptiveStats, type ConfidenceInterval } from "../../../src/shared/research-statistics";
 
 /**
  * Recorded-run analysis (plan 9-6 Phase 10→8 glue). Turns the real primary-run
@@ -32,6 +32,10 @@ export interface RunAnalysisResult {
   describe: DescriptiveStats;
   ci: ConfidenceInterval;
   mean: number;
+  /** §9.12: one-sample effect size against the frozen baseline. */
+  effectSize: number;
+  /** §9.12: deterministic one-sample sign-permutation p against the baseline. */
+  permutationP: number;
   independentReplication: boolean;
   verdict: ReturnType<typeof adjudicateClaim>;
 }
@@ -64,5 +68,5 @@ export function analyzeRecordedRuns(evidence: EvidenceGraph, researchId: string,
   for (const run of eligible) evidence.addEdge(researchId, `run:${run.runId}`, statId);
   evidence.addEdge(researchId, statId, claimIdNode);
 
-  return { eligibleRuns: eligible, values, describe, ci, mean: describe.mean, independentReplication, verdict };
+  return { eligibleRuns: eligible, values, describe, ci, mean: describe.mean, effectSize: oneSampleEffectSize(values, baseline), permutationP: oneSamplePermutationP(values, baseline), independentReplication, verdict };
 }
