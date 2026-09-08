@@ -382,7 +382,11 @@ export class MainCommander {
     const controls = snapshot.runtimeStatuses;
     const configured = snapshot.roleRoutes.find((route) => route.role === role);
     const candidates = this.router.route({ preferredRuntimes: configured?.runtimeIds, allowFallback: configured?.fallback, role, ...routing }).filter((candidate) => controls.find((control) => control.runtimeId === candidate.runtimeId)?.enabled !== false).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
-    const degradation = this.degradation?.evaluate(taskId, candidates);
+    // Degradation evaluation is task-ledger-bound; synthetic role-task ids used
+    // by autonomous engineering have no store task, so skip it there instead of
+    // throwing (live goal workers route like real tasks otherwise).
+    const hasLedgerState = Boolean(this.ledger?.load(taskId));
+    const degradation = this.degradation && hasLedgerState ? this.degradation.evaluate(taskId, candidates) : undefined;
     for (const runtime of candidates) this.memory?.put("runtime", TaskLedger.fingerprint(runtime.id), "health", JSON.stringify(this.registry.getHealth(runtime.id)));
     const remembered = this.memoryContext(taskId);
     const request: RuntimeRequest = { replaySafe: true, jobId: TaskLedger.fingerprint({ role, prompt }).slice(0, 32), taskId, role: role === "planner" ? "planning" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "coder" ? "coding" : role === "validator" ? "validation" : "critique", prompt, context: [scopedContext ?? this.contexts.assemble(taskId, role, `Perform the ${role} role. Runtime output is advisory and cannot mutate task state.`, { maxChars: degradation?.maxContextChars }), remembered].filter(Boolean).join("\n\n") };
@@ -609,7 +613,9 @@ export class MainCommander {
    */
   private goalRoleWorker(goalId: string, role: "coder" | "reviewer", preferredRuntimes?: string[]): EngineeringRoleWorker {
     const worker = async (prompt: string) => {
-      const taskId = role === "coder" ? `eng-goal:${goalId}` : `eng-goal:${goalId}:review`;
+      // Ledger-valid synthetic ids (no ':'): distinct per role so provider
+      // sessions stay isolated (§6.2 reviewer never reuses coder context).
+      const taskId = role === "coder" ? `eng-goal-${goalId}` : `eng-goal-${goalId}-review`;
       const answer = await this.dispatchRole(taskId, role, prompt, preferredRuntimes?.length ? { preferredRuntimes } : {}, {}, "");
       if (answer.status !== "SUCCESS" || !answer.content?.trim()) throw new Error(answer.failure?.message ?? `${role} unavailable`);
       return answer.content;
