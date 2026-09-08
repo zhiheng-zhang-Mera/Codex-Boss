@@ -41,5 +41,6 @@ function getJson(pathname) {
     return;
   }
   const value = result.result?.result?.value;
-  process.stdout.write(typeof value === "string" ? value : JSON.stringify(value, null, 2));
+  if (value === undefined) process.stdout.write("undefined");
+  else process.stdout.write(typeof value === "string" ? value : JSON.stringify(value, null, 2));
 })().catch((error) => { console.error(String(error)); process.exitCode = 1; });
