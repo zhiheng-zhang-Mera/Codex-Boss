@@ -31,22 +31,35 @@
 ### P2.2 测试分层入库（§17.1/§17.2）
 - 取消 `/tests/` gitignore；确定性子套件分层入库（`tests/unit/**`）；CI 现跑 89+ 用例。
 
+### P1.1 Host-backed literature retrieval（§9.3–§9.5）
+- `electron/research/literature/host-retrieval.ts` — 真实检索（OpenAlex/Crossref，注入 fetch 可离线确定性测试）、元数据校验、摘要/文本获取、机械 passage 定位（禁止 AI 自证引用 §3.7）；失败诚实记录、绝不编造。
+- `research-conductor` LITERATURE_REVIEW：先跑 host pass，仅 host 无结果时 AI 兜底（AI 文本只是 advisory，不当作外部来源）；`main.ts` 已接 OpenAlex。
+- 测试：`tests/unit/host-literature.test.ts`；真实网络冒烟 200 OK。
+
+### P1.2/1.3 Experiment generation coder seam（§9.9）
+- `research-conductor` EXPERIMENT_GENERATION：无预置 benchmark 时由 experimentCoder 依据冻结协议 spec 生成 `experiments/bench-*.js`，host dry-run 校验必须真实输出冻结主指标（metric contract fail-closed，毒化文件删除）。
+- 测试：`tests/unit/experiment-generation.test.ts`。
+
+### P1.4 Baseline provenance 泛化（§9.8）
+- `shared/research-protocol.inferBaselineProvenance`：实现可 `METRICS_META {"baseline","source"}` 声明真实基准；proportion 类指标用命名 random-chance 0.5；其余一律 fail-closed，不再无解释固定 0.5。
+- conductor probe 解析声明；`baseline-provenance.json` 落盘。
+- 测试：`tests/unit/research-protocol-provenance.test.ts`。
+
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
-- vitest 全量快速套件：89/89 PASS（`--exclude tests/e2e/**`；tests/e2e 目录保留为占位）。
+- vitest 全量快速套件：100/100 PASS。
 - seeded acceptance：A/B/C/D PASS（见 evidence JSON）。
 - build（typecheck+vite+tsc electron）：PASS。
 
 ## 已知限制（诚实记录，§27）
 - 生产 implement/review 需可用 runtime（Web 登录会话 / API key / Codex CLI）；本环境无真实 provider 会话，live AI-coder E2E 需 GUI 登录态（live acceptance runner 模式）。
 - 外部归档的真实“点击归档+页面验证”需每 provider DOM 适配器；未实现适配器时记录保持 ARCHIVE_PENDING（可见、不假归档）。
-- Bug E、restart-during-loop、5-AI council、Research 三域 E2E、multi-hour soak 属后续轮次/需真实会话。
+- experimentCoder 尚未在 main.ts 注入 role-coder worker（确定性 seam + 测试已覆盖；GUI 环境需 wiring）。
+- §9.16 paper reviewer council（替换恒真 reviewer）与域无关 manuscript writer 泛化、Bug E、restart-during-loop、5-AI council、Research 三域 READY、multi-hour soak 属后续轮次/需真实会话。
 
 ## 下一优先级（按 §23 顺序）
-1. P1.1 Research host-backed literature retrieval（§9.3–9.5）
-2. P1.2/1.3 experiment designer + coder 生成（§9.9）
-3. P1.4 统计（effect size/permutation）+ baseline provenance（§9.8）
-4. P1.5 research reviewer council + 域无关 manuscript（§9.15/9.16）
-5. P1.7 timer/suspend UI 读模型（§12.3）
-6. P2.1 右侧 rail/panel 收纳 + Research UI 折叠（§15）
-7. Final Acceptance Matrix + 文档/README/Update-Log + 推送分支
+1. P1.5 manuscript 域无关 writer + reviewer council（§9.15/9.16）
+2. P1.7 timer/suspend UI 读模型（§12.3）
+3. P2.1 右侧 rail/panel 收纳 + Research UI 折叠（§15）
+4. P2.2 CI tier + restart smoke（§17.3/17.4）
+5. Final Acceptance Matrix + 文档/README/Update-Log + 推送分支
