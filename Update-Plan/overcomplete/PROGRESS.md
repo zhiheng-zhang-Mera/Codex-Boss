@@ -1,6 +1,9 @@
 # Overcomplete 工程进度跟踪（分支 9-8-overcomplete）
 
-> 本文件随每个开发轮次更新；最终以分支 `<完成日期>-overcomplete` 推送。
+## Live 验收阶段（Round 11+，provider 已登录）
+- 2026-09-08：用户打开 Codex-Boss（ChatGPT/Gemini/DeepSeek/Qwen/Grok/Microsoft Copilot 登录）。实例无远程调试 → 以相同 `runtime-data`（保留持久登录）重启并开启 `--remote-debugging-port=9222`；`scripts/live-cdp.cjs` 经 CDP 求值驱动主控 renderer。
+- 实况快照：ChatGPT/Gemini/DeepSeek/Qwen/Grok 账户 **READY**；`web:chatgpt` AVAILABLE；**`codex:cli` AVAILABLE（已用 ChatGPT 账户登录）**；Copilot UNKNOWN（待开窗探测）。证据 `evidence/live/live-cdp-connect-*.json`。
+
 > 基准：`9-8` @ `3aefdd8`。基线记录见 `baseline.md`。
 
 ## 完成单位（每项含确定性证据）
