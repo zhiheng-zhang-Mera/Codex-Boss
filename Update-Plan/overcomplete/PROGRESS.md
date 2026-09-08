@@ -50,11 +50,19 @@
 - **§17.6 脚本**：`pnpm run test:seeded`。
 - **§10.4 blind evaluation pack**：`buildBlindEvaluationPack`（匿名 + seed 乱序 + rubric + reviewer form + 解码键）与 `summarizeBlindScores`（Boss vs single-AI 解码汇总），测试 3 例。
 
+## Round 5 追加（2026-09-08）
+- **发布门禁本地全绿（§27/§20.7）**：full build PASS（修正 build 脚本不再嵌套调用 pnpm，避免无 PATH shim 环境失败）；`package:portable` 产物 + `smoke-portable.ps1` **PACKAGED_SMOKE_PASS**；`acceptance-restart.cjs` **CONTROLLED_ELECTRON_RESTART PASS**（evidence/restart）；Electron 应用启动冒烟 PASS（rendererLoaded/nativeCompleted/completionVisible，evidence/restart/app-smoke-*）。
+- **RecoveryScheduler 单测**（§12）：持久化、3 次 attempt→PAUSED、resumeTask 重挂、done 记录清除。
+- **验收/交付文档**：`final-acceptance.md`（Final Acceptance Matrix）、README 状态与能力条目、Update-Log Overcomplete 小节、Round5 进度。
+
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
-- vitest 全量快速套件：110/110 PASS（24 文件，含 Round 3 新增 6 例）。
-- seeded acceptance：A/B/C/D PASS（见 evidence JSON）。
-- build（typecheck+vite+tsc electron）：PASS。
+- vitest 全量确定性套件：**116/116 PASS（27 文件，全部 `tests/unit/`，含 git/进程重型用例）**。
+- seeded acceptance：A/B/C/D PASS（evidence/engineering/seeded-*.json）。
+- build（typecheck + vite + tsc electron）：PASS。
+- packaged portable smoke：PACKAGED_SMOKE_PASS（evidence/release/）。
+- Electron 受控重启 smoke：CONTROLLED_ELECTRON_RESTART PASS（evidence/restart/）。
+- Electron 应用启动冒烟：rendererLoaded/nativeCompleted/completionVisible PASS（evidence/restart/app-smoke-*）。
 
 ## Round 3 追加（2026-09-08）
 - **P1.5 域无关 manuscript（§9.15）**：`makeSectionWriter` abstract/intro/methods/discussion/conclusion 全部改为由真实 RQ/假设/指标/baseline/CI/protocol 推导，删除硬编码 “AI 评审 vs majority-vote benchmark” 叙事；标题由问题生成（`headlineFor`）。测试 3 例。

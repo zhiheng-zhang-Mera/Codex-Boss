@@ -67,7 +67,7 @@
 | full deterministic tests PASS | ✅ 113/113（tests/unit/*，含 git/嵌套重型用例） |
 | build PASS（vite + tsc electron） | ✅ |
 | seeded regression（§17.6） | ✅ A–D PASS |
-| portable + smoke / restart smoke | ✅ 本分支已重验：`scripts/acceptance-restart.cjs` CONTROLLED_ELECTRON_RESTART PASS（独立进程、attempts 1、final 可见）；portable/打包沿用 9-8 CI | evidence/restart/restart-*.json |
+| portable + smoke / restart smoke | ✅ 本分支已重验：`package:portable` 成功 + `smoke-portable.ps1` **PACKAGED_SMOKE_PASS**；`scripts/acceptance-restart.cjs` **CONTROLLED_ELECTRON_RESTART PASS**（独立进程、attempts 1、final 可见）；应用启动冒烟 PASS | evidence/restart/*.json、evidence/release/*.json |
 | Zero critical known defects | ✅（无 P0 类静默数据丢失/假完成路径；归档与 citation 均 fail-closed） |
 | Known limitations | ⚪ 见下节（live provider、per-provider DOM 归档、TeX、soak、多域 READY） |
 
