@@ -641,12 +641,16 @@ export class ResearchConductor implements ResearchStageExecutor {
     const writer = makeSectionWriter({ question: this.researchQuestion(ir), hypothesis: ir.hypotheses[0] ?? "", protocol: protocol.protocol, metric: plan.metric, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, claimId, experimentId: plan.experimentId, baseline: protocol.protocol.baseline, sample: protocol.protocol.sampleDefinition, criterion: protocol.protocol.evaluationCriterion, runs: runs.map((run) => ({ seed: run.seed, value: Number(run.metrics[plan.metric]), passed: run.passed })) });
     const citations = svc.citations.list().filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status));
     const output = await svc.manuscript(ir.id, {
-      title: `Evidence-weighted adjudication vs majority voting (${plan.experimentId})`,
+      title: `${headlineFor(this.researchQuestion(ir))} — empirical evaluation of ${plan.metric}`,
       plan: { id: ir.id, claimsToSections: { [claimId]: ["abstract", "results", "discussion", "conclusion"] } },
       claims: derived.claims,
       evidenceIds: derived.evidenceIds,
       writer,
-      reviewer: { async review() { return { approved: true, notes: [] }; } },
+      // §9.16 honesty: until an independent AI reviewer council is wired in a
+      // live session, the manuscript gate is the HOST evidence gate (sections
+      // must pass anti-premature-closure + section sufficiency below) — never a
+      // silent claim of human-style approval.
+      reviewer: { async review() { return { approved: true, notes: ["host evidence gate (deterministic section sufficiency + anti-premature closure); independent AI reviewer council not configured in this session"] }; } },
       reproducibility: repro,
       citations,
       figures: [{ name: figureName, svg: figureSvg }],
@@ -719,9 +723,17 @@ function range(from: number, count: number): number[] {
 }
 
 /** ASCII title-folder from the research question (Research/<Title>/, no timestamps). */
-function slugOf(text: string): string {
-  const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+function slugOf(text: string): string {  const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   return (tokens.slice(0, 6).join("-") || "research").slice(0, 60);
+}
+
+/** Domain-neutral paper headline derived from the research question (§9.15). */
+export function headlineFor(question: string): string {
+  const cleaned = question.replace(/\s+/g, " ").replace(/[?:.!]+$/, "").trim();
+  if (cleaned.length <= 100) return cleaned;
+  const words = cleaned.slice(0, 100).split(" ");
+  words.pop();
+  return (words.join(" ").trim() || cleaned.slice(0, 100)).replace(/[,;:\s]+$/, "");
 }
 
 /** Probes one real implementation run (TEST purpose, never recorded) for its numeric METRICS keys. */
@@ -879,18 +891,18 @@ export function makeSectionWriter(digest: {
       switch (brief.section) {
         case "abstract": {
           return [
-            `Automated code review increasingly relies on multiple AI judges whose individual decisions disagree. When judges disagree, a controller must combine their opinions, and the combination rule determines the quality of the final review. This paper investigates whether a reliability-aware (evidence-weighted) combination rule reduces review errors relative to a plain majority-vote rule on a fixed software-engineering review benchmark.`,
-            `We froze a single falsifiable protocol before any measurement: the primary metric is ${digest.metric}; the baseline is ${baseline}; and the decision rule is that the hypothesis is supported only when the mean ${digest.metric} over independently seeded runs exceeds the baseline (criterion: ${criterion}).`,
-            `All results come from real, recorded executions of the benchmark. Two independent runs under the frozen protocol (seeds ${runs.map((run) => run.seed).join(" and ") || "n/a"}) produced mean ${digest.metric} = ${mean} (95% CI ${ci}). The recorded evidence is ${supported ? "consistent with the hypothesis" : "not consistent with the hypothesis"} that evidence-weighted adjudication reduces review errors relative to majority voting on this benchmark.`,
+            `This paper reports a controlled, pre-registered empirical study of the research question: "${digest.question}" A falsifiable hypothesis and a complete protocol — primary metric, baseline, sample definition and decision rule — were frozen before any measurement, so the scientific claims could not change silently after the fact.`,
+            `The primary metric was ${digest.metric}; the baseline was ${baseline}; the decision rule was that the hypothesis is supported only when the mean ${digest.metric} over independently seeded runs exceeds the baseline (criterion: ${criterion}).`,
+            `All results come from real, recorded executions of the benchmark under the frozen protocol. ${runs.length ? `${runs.length >= 2 ? "Independent runs" : "The recorded run"} under the frozen protocol (seed${runs.length > 1 ? "s" : ""} ${runs.map((run) => run.seed).join(", ")}) produced` : "The recorded runs produced"} mean ${digest.metric} = ${mean} (95% CI ${ci}). The recorded evidence is ${supported ? "consistent with the hypothesis" : "not consistent with the hypothesis"}.`,
             `The full experimental protocol, per-run records, deterministic statistics, and a reproducibility audit accompany this paper so every claim remains traceable to the underlying evidence.`
           ].join("\n\n");
         }
         case "introduction": {
           return [
             `The research question studied here is: "${digest.question}"`,
-            `Software engineering decisions — code review outcomes, bug triage, test selection — are increasingly delegated to automated systems. When several autonomous review agents return conflicting verdicts, the aggregating procedure becomes the deciding component of the system. Majority voting is the simplest and most common aggregation rule, but it treats every judge as equally reliable. If judge reliability varies, weighting each opinion by an estimate of its reliability — evidence-weighted adjudication — may reduce the probability that the aggregated decision is wrong.`,
-            `Prior empirical work on review accuracy (outside the controlled setting used here) frequently reports that aggregation quality depends on judge diversity and calibration rather than on the number of judges alone. This motivates a controlled comparison: hold the judges, the tasks, and the data fixed, and vary only the combination rule, so any difference in error rate is attributable to the rule itself.`,
-            `Because the benchmark, the judges' reliabilities, and the sampling seeds are all fixed by the protocol, every measurement in this paper is reproducible: rerunning a seed under the frozen protocol yields the same recorded ${digest.metric}.`,
+            `Automated decision and evaluation pipelines increasingly combine multiple signals or judgments; a rule that ignores how much each input should be trusted can amplify error. The exact definition of the measured quantity and of the decision rule can therefore change an empirical conclusion, and honest comparison requires a controlled design in which the benchmark, inputs and seeds are held fixed while only the quantity of interest varies.`,
+            `This study therefore tests the hypothesis under a single frozen protocol: the benchmark implementation, the primary metric, the baseline, the sample definition and the evaluation criterion were all fixed before any experiment ran, so recorded differences are attributable to the measured quantity rather than to uncontrolled variation.`,
+            `Because the benchmark and the sampling seeds are fixed by the protocol, every measurement in this paper is reproducible: rerunning a seed under the frozen protocol yields the same recorded ${digest.metric}.`,
             `The remainder of the paper states the hypothesis, describes the frozen protocol and the benchmark, reports the recorded runs and the deterministic statistics, and discusses what the evidence does and does not show.`
           ].join("\n\n");
         }
@@ -898,9 +910,9 @@ export function makeSectionWriter(digest: {
           return [
             `Hypothesis. ${digest.hypothesis}`,
             `Protocol. A protocol was frozen before any experiment ran (frozen hash ${digest.protocol ? "recorded in the run ledger" : "n/a"}). Freezing means that the hypothesis, primary metric, baseline, sample definition and evaluation criterion could not change silently while the study was running. The frozen protocol specifies: primary metric ${digest.metric}; baseline ${baseline}; sample definition "${sample}"; evaluation criterion "${criterion}".`,
-            `Benchmark and adjudication rules. The benchmark is a fixed set of review tasks with a known ground truth. For each task a panel of ${digest.runs?.length ? "recorded" : "scheduled"} judges produces a verdict, and the benchmark compares two combination rules: (1) majority voting, in which the aggregated verdict is the opinion held by more than half of the judges; and (2) evidence-weighted adjudication, in which each judge's opinion is weighted by a reliability estimate before aggregation, so that low-confidence judges cannot overturn a decision supported by reliable evidence.`,
+            `Benchmark. The benchmark is the real implementation selected from the authorized workspace and recorded in the experiment plan; per run it emits a METRICS record with the numeric primary metric. The sample definition "${sample}" and the frozen protocol bound what is measured and compared.`,
             `Executions and recording. Every experiment run was executed as a real spawned process on the recorded host environment, seeded deterministically, and stored with full provenance (protocol hash, command, environment fingerprint, seed, timestamps and the emitted METRICS record). A failed process was recorded as failed and excluded from the statistics; no run, number or metric was produced by the model or invented by the pipeline.`,
-            `Statistics. The deterministic statistics module computed the sample mean, the sample standard deviation and a 95% confidence interval from the recorded per-run values. No AI participated in the arithmetic; the numbers below are computed directly from the recorded METRICS output of the real runs.`,
+            `Statistics. The deterministic statistics module computed the sample mean, the sample standard deviation, a 95% confidence interval, an effect size against the frozen baseline and a deterministic permutation p-value from the recorded per-run values. No AI participated in the arithmetic; the numbers below are computed directly from the recorded METRICS output of the real runs.`,
             `Reproducibility. Independent replication requires at least two runs with distinct seeds under the same frozen protocol. The reproducibility audit reports whether the recorded runs reproduce the primary finding.`
           ].join("\n\n");
         }
@@ -915,19 +927,19 @@ export function makeSectionWriter(digest: {
         }
         case "discussion": {
           return [
-            `Interpretation bounded by evidence. The recorded evidence shows mean ${digest.metric} = ${mean} (95% CI ${ci}) over ${digest.n} independent runs, which ${supported ? "is consistent with" : "does not support"} the hypothesis that evidence-weighted adjudication reduces review errors on this benchmark.`,
-            `Why the rule might matter. Majority voting discards information about who is reliable. When reliability is heterogeneous, a single low-reliability judge can tip a close majority; weighting opinions by reliability is intended to prevent that. The controlled design isolates exactly this mechanism because the task set, judge behavior and seeds are identical across the comparison conditions.`,
+            `Interpretation bounded by evidence. The recorded evidence shows mean ${digest.metric} = ${mean} (95% CI ${ci}) over ${digest.n} independent run(s) under the frozen protocol, which ${supported ? "is consistent with" : "does not support"} the hypothesis.`,
+            `Why the measured quantity might behave this way. The controlled design holds the benchmark, inputs and seeds fixed, so the recorded value of ${digest.metric} isolates the measured quantity from uncontrolled variation. Any inference beyond this controlled setting is an extrapolation and is labelled as such.`,
             `Effect magnitude and uncertainty. With ${digest.n} run(s), the confidence interval remains wide (${ci}); the point estimate alone should not be over-interpreted. Replication with additional seeds would tighten the interval and strengthen the comparison.`,
-            `Limitations (threats to validity). (1) The benchmark is a single, fixed task distribution; results may not transfer to other review workloads. (2) ${digest.n} run(s) provide limited power. (3) The reliability estimates used by the weighted rule are static; adaptive estimation could change the results. (4) All judges are simulated within the benchmark, so human-judge behavior is out of scope. These limitations are reported rather than hidden.`,
+            `Limitations (threats to validity). (1) The benchmark is a single, fixed task distribution; results may not transfer to other workloads. (2) ${digest.n} run(s) provide limited power. (3) ${supported ? "The evidence supports the hypothesis only within this controlled benchmark." : "The evidence does not support the hypothesis in this controlled benchmark."} These limitations are reported rather than hidden.`,
             `Relation to the claim. The adjudicated claim ${digest.claimId} is supported only to the degree that the recorded evidence supports it; the manuscript review and the final audit enforce that no unsupported claim enters the paper.`
           ].join("\n\n");
         }
         case "conclusion": {
           return [
-            `This study compared evidence-weighted adjudication with majority voting on a fixed software-engineering review benchmark, under a frozen falsifiable protocol and with fully recorded, reproducible runs.`,
-            `The recorded evidence — ${digest.n} independent run(s), mean ${digest.metric} = ${mean} (95% CI ${ci}), reproducibility ${supported ? "REPRODUCED" : "NOT_REPRODUCED"} — ${supported ? "is consistent with the hypothesis" : "does not support the hypothesis"} that evidence-weighted adjudication reduces review errors relative to majority voting on this benchmark.`,
+            `This study tested the hypothesis "${digest.hypothesis}" (research question: "${digest.question}") under a frozen falsifiable protocol with fully recorded, reproducible runs.`,
+            `The recorded evidence — ${digest.n} independent run(s), mean ${digest.metric} = ${mean} (95% CI ${ci}), reproducibility ${supported ? "REPRODUCED" : "NOT_REPRODUCED"} — ${supported ? "is consistent with the hypothesis" : "does not support the hypothesis"} under the pre-registered criterion (${criterion}).`,
             `The contribution is methodological as much as empirical: the full chain from research question and frozen protocol to real runs, deterministic statistics, evidence adjudication, citation audit and a compiled paper is automated, and every artifact is auditable.`,
-            `Future work should extend the benchmark distribution, increase the number of replicated seeds, and compare against additional combination rules under the same fail-closed protocol discipline.`
+            `Future work should extend the benchmark distribution, increase the number of replicated seeds, and study additional variants under the same fail-closed protocol discipline.`
           ].join("\n\n");
         }
         default:
