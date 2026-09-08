@@ -87,10 +87,46 @@ github-resolver, …), plus per-test timeouts under in-app contention.
   (`engineering-tools` 15 s → 60 s; `github-resolver` clone tests 20 s → 60 s).
 - `.cache/tmp` leftovers from the pre-fix rounds purged.
 
+### Second in-app finding: read-only git objects under Electron
+
+Reproducing the audit env headless (`electron-as-node` + `--maxWorkers=2`) isolated a
+second, independent cause: **Electron's bundled Node cannot `fs.rmSync` a tree that
+contains git's read-only object files** (plain `node.exe` can). Fixture cleanup and
+real product deletions of materialized repos threw `EPERM` — this affects real Windows
+users of the app, not only the audit.
+
+- `electron/fs-util.ts` (new) — `removeTree()` clears read-only attributes (files and
+  trees), retries transient locks, then deletes; propagates the final error.
+- Adopted in every repo-tree deletion site that can hold git objects:
+  `github-resolver` (clone staging / stale checkout), `change-points` (§38 rollback of
+  untracked trees), `evaluation-store` (fixture reset).
+- Git-fixture test cleanups (local tests) now clear attributes before removal.
+- Verified green under the exact audit env on all previously failing git-fixture files
+  (github-resolver, change-points, merge-coordinator, evaluation, engineering-facade,
+  plan-integration, plan-microtask-spine): **electron-as-node subset 28/28 PASS**.
+
 Headless full suite after all changes: **150 files / 752 tests green**; Electron typecheck
 PASS; renderer + electron builds PASS.
 
 ## Live in-app goal run (evidence)
 
-(Result appended when the run settles — `runtime-data/.boss/engineering-loop.json` +
-`Update-Plan/live-cdp/goal-run-live.out.json`.)
+Goal `eng-251ec4b77388` ("Verify the Codex-Boss repository stays green and internally
+consistent") driven through the U10 launch panel in the running app (CDP-real UI), audit =
+real typecheck + full suite under the app's own environment (`electron-as-node`):
+
+| iteration | started (local) | result | why |
+|---|---|---|---|
+| 1 | 10:48 | ABORTED (REVIEW) | pre-hardening build: fixture-cleanup EPERM class (read-only git objects) |
+| 2 | 11:04 | ABORTED (REVIEW) | pre-fix build still running old dist + heavy parallel vitest load → EPERM persisted |
+| 3 | 11:17 | **CONVERGED** (CONVERGENCE_CHECK) | fixed build + read-only-safe cleanup + robust removeTree |
+
+Iteration 3: 0 findings, `cleanRounds 1/1`, `changedFiles 0`, audit typecheck + full
+suite passed inside the running app → **ENGINEERING_CONVERGED** at 11:32. Durable ledger:
+`runtime-data/.boss/engineering-loop.json`; old goal ledgers archived to
+`engineering-loop-eng-2b9bec037a7a.json` (4 iterations preserved, never deleted).
+
+Headless full suite (final, same working tree): **150 files / 752 tests green**;
+Electron typecheck PASS; `dist` builds PASS. The audit environment subset that used to
+fail in-app (github-resolver, change-points, merge-coordinator, engineering-facade,
+plan-integration, plan-microtask-spine, evaluation, repro-snapshot) is green under the
+exact `electron-as-node --maxWorkers=2` environment (28/28 targeted).
