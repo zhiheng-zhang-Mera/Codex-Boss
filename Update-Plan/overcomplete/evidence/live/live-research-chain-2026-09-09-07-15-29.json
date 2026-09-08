@@ -1,0 +1,24 @@
+﻿{
+    "at":  "2026-09-08T21:15:29.7892990Z",
+    "run":  "does-evidence-weighted-adjudication-reduce-review-d120ad2c4905",
+    "stages":  [
+                   "SCOPING",
+                   "PROJECT_INSPECTION",
+                   "LITERATURE_REVIEW(host empty -\u003e 0 sources, none fabricated)",
+                   "QUESTION_FORMULATION(real AI hypothesis)",
+                   "PROTOCOL_DRAFT frozen 379dd9560f25",
+                   "EXPERIMENT_GENERATION",
+                   "EXPERIMENT_EXECUTION seed1 real run",
+                   "ANALYSIS mean 0.696",
+                   "REPLICATION seed2 REPRODUCED",
+                   "CLAIM SUPPORTED",
+                   "MANUSCRIPT"
+               ],
+    "final":  "FAILED via real paper-reviewer-council veto: sample size n=2 severely underpowered (honest rejection; TeX also unavailable for BUILD)",
+    "kind":  "LIVE_RESEARCH_CHAIN",
+    "providers":  [
+                      "chatgpt",
+                      "gemini"
+                  ],
+    "status":  "FAILED_AT_COUNCIL_OR_BUILD_HONEST"
+}
