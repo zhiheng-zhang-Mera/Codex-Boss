@@ -733,6 +733,15 @@ if (ownsInstance) app.whenReady().then(() => {
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
+    // Auto workspace layout (Overcomplete live): a dispatch to MORE than three
+    // web AI pages pops the processors into the second (DETACHED) window so
+    // five pages don't crowd the controller; three or fewer stay merged in the
+    // single-window workspace.
+    try {
+      const webCount = providerIds.filter((id) => (transports[id] ?? "web") === "web").length;
+      const wanted = webCount > 3 ? "DETACHED" : "MERGED";
+      if (providerViews.workspaceView() !== wanted) providerViews.setWorkspaceView(wanted);
+    } catch (error) { /* layout is advisory; never block dispatch */ console.error("Auto workspace layout failed", error); }
     const conversationId = input.conversationId ?? store.snapshot().activeConversationId;
     // Phase F: a GitHub URL in the message is an input object, not prose —
     // materialize once and bind it so WORK can scan real code.
