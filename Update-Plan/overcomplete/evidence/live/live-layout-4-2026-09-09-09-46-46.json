@@ -1,0 +1,15 @@
+﻿{
+    "at":  "2026-09-08T23:46:46.6426324Z",
+    "rule":  [
+                 "4-AI grid = 2x2 田字 (unit: workspace-layout layoutProviderPanes)",
+                 "\u003e3 AI forced DETACHED; provider WebContentsViews move to window B and are removed from the Boss host window (host does not load AI pages)"
+             ],
+    "case4":  {
+                  "dispatch":  "4 providers",
+                  "view":  "DETACHED",
+                  "webWindow":  "x1586 y49 800x600"
+              },
+    "kind":  "LIVE_LAYOUT_4_2x2_AND_FORCE_DETACH",
+    "status":  "PASS",
+    "mainWindow":  "no provider views attached in DETACHED (detachFromEverywhere then host contentView only in MERGED)"
+}

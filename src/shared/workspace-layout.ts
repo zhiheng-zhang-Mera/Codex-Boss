@@ -62,6 +62,21 @@ export function layoutProviderPanes(orderedProviders: readonly string[], areaWid
   if (!Array.isArray(orderedProviders) || orderedProviders.length === 0) return [];
   if (!Number.isFinite(areaWidth) || areaWidth <= 0 || !Number.isFinite(areaHeight) || areaHeight <= 0) return [];
   if (orderedProviders.length > 5) throw new Error("At most 5 web-AI panes are supported");
+  // Four web-AI panes lay out as a 2×2 "田字" grid so each stays usable in a
+  // second window; 1/2/3/5 keep the full-height column stack.
+  if (orderedProviders.length === 4) {
+    const columns = 2;
+    const rows = 2;
+    const cellWidth = Math.max(MIN_PANE_WIDTH, Math.floor(areaWidth / columns));
+    const cellHeight = Math.max(1, Math.floor(areaHeight / rows));
+    return orderedProviders.map((providerId, index) => ({
+      providerId,
+      x: (index % columns) * cellWidth,
+      y: Math.floor(index / columns) * cellHeight,
+      width: cellWidth,
+      height: cellHeight
+    }));
+  }
   const width = Math.max(MIN_PANE_WIDTH, Math.floor(areaWidth / orderedProviders.length));
   return orderedProviders.map((providerId, index) => ({
     providerId,

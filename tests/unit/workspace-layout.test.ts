@@ -37,6 +37,17 @@ describe("workspace layout model (plan §4/§9)", () => {
     expect(five.every((pane) => pane.y === 0)).toBe(true);
   });
 
+  it("lays out four panes as a 2x2 tian-zi grid (田字)", () => {
+    const four = layoutProviderPanes(["a", "b", "c", "d"], 1000, 800);
+    expect(four).toHaveLength(4);
+    const cell = 500;
+    expect(four[0]).toEqual({ providerId: "a", x: 0, y: 0, width: cell, height: 400 });
+    expect(four[1]).toEqual({ providerId: "b", x: 500, y: 0, width: cell, height: 400 });
+    expect(four[2]).toEqual({ providerId: "c", x: 0, y: 400, width: cell, height: 400 });
+    expect(four[3]).toEqual({ providerId: "d", x: 500, y: 400, width: cell, height: 400 });
+    expect(new Set(four.map((pane) => pane.y)).size).toBe(2); // two rows
+  });
+
   it("keeps panes full-height and reports the fit verdict", () => {
     const wide = paneLayout(["a", "b"], 1400, 700);
     expect(wide.fits).toBe(true);
