@@ -373,6 +373,50 @@ export class ResearchConductor implements ResearchStageExecutor {
     this.svc().saveStageArtifact(id, { stage: "PROTOCOL_DRAFT", summary: `baseline provenance: ${provenance.kind}`, evidenceRefs: [], file: "baseline-provenance.json", extra: { provenance } });
   }
 
+  /**
+   * §9.16 paper reviewer council. One independent reviewer in a fresh turn
+   * reviews the digest (question, hypothesis, frozen protocol, recorded
+   * statistics, traceable claim, citation set, reproducibility status) across
+   * method / evidence / writing lenses and returns {"approved":boolean,
+   * "notes":[{"role","summary"}]}. A real veto fails the stage closed; a
+   * missing/unparseable reviewer is recorded as not-attempted — never
+   * fabricated approval.
+   */
+  private async paperCouncil(ir: ResearchIR, digest: {
+    plan: ExperimentPlan;
+    protocol: { protocol: ResearchProtocol };
+    claim: { id: string };
+    mean?: number;
+    ciLower?: number;
+    ciUpper?: number;
+    n?: number;
+    metric: string;
+    reproStatus: string;
+    citations: Array<{ id: string; status: string }>;
+  }): Promise<{ attempted: boolean; approved?: boolean; notes: Array<{ role: string; summary: string }>; error?: string }> {
+    const question = this.researchQuestion(ir);
+    try {
+      const answer = await this.ask(ir, "MANUSCRIPT", "reviewer", [
+        `Act as an independent paper reviewer for the manuscript about: "${question}"`,
+        `Hypothesis: ${ir.hypotheses[0] ?? ""}`,
+        `Frozen protocol: metric=${digest.protocol.protocol.primaryMetric}; baseline=${digest.protocol.protocol.baseline}; sample="${digest.protocol.protocol.sampleDefinition}"; criterion=${digest.protocol.protocol.evaluationCriterion}`,
+        `Recorded evidence: metric ${digest.metric} mean=${digest.mean?.toFixed(3) ?? "n/a"} (95% CI [${digest.ciLower?.toFixed(3) ?? "n/a"}, ${digest.ciUpper?.toFixed(3) ?? "n/a"}]), n=${digest.n ?? "?"}, reproducibility=${digest.reproStatus}`,
+        `Claim node: ${digest.claim.id}`,
+        `Verified citations bound: ${digest.citations.length} (${digest.citations.map((item) => item.status).join(",")})`,
+        "Review the method, evidence quality and writing soundness. Respond ONLY with strict JSON: {\"approved\":true|false,\"notes\":[{\"role\":\"method|evidence|writing\",\"summary\":\"...\"}]}. Reject when the evidence does not support the claim or the method is unsound — never rubber-stamp."
+      ].join("\n"));
+      const parsed = answer as { approved?: unknown; notes?: unknown } | null;
+      const notes = Array.isArray(parsed?.notes)
+        ? (parsed.notes as Array<{ role?: unknown; summary?: unknown }>).map((note) => ({ role: typeof note?.role === "string" && ["method", "evidence", "writing"].includes(note.role) ? note.role : "writing", summary: typeof note?.summary === "string" ? note.summary.slice(0, 500) : "" })).filter((note) => note.summary)
+        : [];
+      if (typeof parsed?.approved !== "boolean") throw new Error("reviewer response missing boolean 'approved'");
+      return { attempted: true, approved: parsed.approved, notes };
+    } catch (error) {
+      // Honest degradation: no council verdict is ever treated as approval.
+      return { attempted: false, notes: [], error: String(error instanceof Error ? error.message : error).slice(0, 300) };
+    }
+  }
+
   /** PROTOCOL_FROZEN (restart edge): verify the frozen hash exists, else fail closed. */
   private protocolFrozen(ir: ResearchIR): StageOutcome {
     if (!ir.protocolHash || !this.svc().protocols.load(ir.id)) {
@@ -640,17 +684,25 @@ export class ResearchConductor implements ResearchStageExecutor {
     };
     const writer = makeSectionWriter({ question: this.researchQuestion(ir), hypothesis: ir.hypotheses[0] ?? "", protocol: protocol.protocol, metric: plan.metric, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, claimId, experimentId: plan.experimentId, baseline: protocol.protocol.baseline, sample: protocol.protocol.sampleDefinition, criterion: protocol.protocol.evaluationCriterion, runs: runs.map((run) => ({ seed: run.seed, value: Number(run.metrics[plan.metric]), passed: run.passed })) });
     const citations = svc.citations.list().filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status));
+    // §9.16 paper reviewer council (1-AI fresh review by default): a genuine
+    // veto gate over the digest (question/hypothesis/protocol/statistics/
+    // claim/citations). When the reviewer is absent or unparseable the council
+    // is recorded as not-attempted (honest), never as approval.
+    const council = await this.paperCouncil(ir, { plan, protocol, claim, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, citations, reproStatus: repro.status, metric: plan.metric });
+    if (council.approved === false) {
+      const notes = council.notes.map((note) => `${note.role}: ${note.summary}`).join(" | ");
+      this.record(ir.id, "MANUSCRIPT", `paper reviewer council rejected: ${notes.slice(0, 300)}`, "manuscript-review.json", [claimId], { council });
+      return { summary: "paper reviewer council rejected the manuscript", fail: { reason: `paper reviewer council: ${notes.slice(0, 600)}` } };
+    }
     const output = await svc.manuscript(ir.id, {
       title: `${headlineFor(this.researchQuestion(ir))} — empirical evaluation of ${plan.metric}`,
       plan: { id: ir.id, claimsToSections: { [claimId]: ["abstract", "results", "discussion", "conclusion"] } },
       claims: derived.claims,
       evidenceIds: derived.evidenceIds,
       writer,
-      // §9.16 honesty: until an independent AI reviewer council is wired in a
-      // live session, the manuscript gate is the HOST evidence gate (sections
-      // must pass anti-premature-closure + section sufficiency below) — never a
-      // silent claim of human-style approval.
-      reviewer: { async review() { return { approved: true, notes: ["host evidence gate (deterministic section sufficiency + anti-premature closure); independent AI reviewer council not configured in this session"] }; } },
+      // The independent veto ran above (paperCouncil); this object only marks
+      // the deterministic section gates inside the assembler.
+      reviewer: { async review() { return { approved: true, notes: ["deterministic section gates inside assembler; independent council verdict recorded on manuscript-review.json"] }; } },
       reproducibility: repro,
       citations,
       figures: [{ name: figureName, svg: figureSvg }],
@@ -672,7 +724,7 @@ export class ResearchConductor implements ResearchStageExecutor {
     const sufficiencyVerdicts = MANUSCRIPT_SECTIONS.map((section) => sectionSufficiency(output.sections[section].content, section, { claimIds: output.sections[section].allowedEvidenceIds, evidenceIds: derived.evidenceIds, metric: plan.metric, runCount: runs.length }));
     const closure = antiPrematureClosure({ claims: derived.claims.map((claim) => ({ id: claim.id, text: claim.id })), evidenceIds: derived.evidenceIds, sections: output.sections, plan: { id: ir.id, claimsToSections: { [claimId]: ["abstract", "results", "discussion", "conclusion"] } } });
     const capabilityPlan = planResearchCapabilities({ hasQuantitativeExperiments: runs.length > 0, bindsCitations: citations.length > 0, hasFormalProtocol: true, hasMultipleReviewers: true });
-    this.record(ir.id, "MANUSCRIPT", `manuscript assembled: ${output.figures.length} figure(s), ${sectionsOk ? "all sections revised" : "some sections not revised"}`, "manuscript-review.json", [claimId, figureNode], { sectionsRevised: sectionsOk, figures: output.figures, auditPassed: output.audit.passed, sectionSufficiency: sufficiencyVerdicts.map((verdict) => ({ section: verdict.section, passed: verdict.passed, unmet: verdict.unmet })), antiPrematureClosure: closure, capabilityPlan });
+    this.record(ir.id, "MANUSCRIPT", `manuscript assembled: ${output.figures.length} figure(s), ${sectionsOk ? "all sections revised" : "some sections not revised"}`, "manuscript-review.json", [claimId, figureNode], { sectionsRevised: sectionsOk, figures: output.figures, auditPassed: output.audit.passed, sectionSufficiency: sufficiencyVerdicts.map((verdict) => ({ section: verdict.section, passed: verdict.passed, unmet: verdict.unmet })), antiPrematureClosure: closure, capabilityPlan, aiCouncil: council });
     if (!sectionsOk) return { summary: "manuscript sections not all revised", fail: { reason: "manuscript section review did not pass (evidence check failed)" } };
     return { summary: `manuscript assembled: paper.md/.tex/.bib + ${output.figures.length} figure(s)`, evidenceRefs: [claimId, figureNode] };
   }
