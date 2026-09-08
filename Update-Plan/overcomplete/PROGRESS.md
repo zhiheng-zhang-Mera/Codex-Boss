@@ -62,6 +62,14 @@
 ## Round 7 追加（2026-09-08）
 - **离线全链 Research acceptance（§9，P1）PASS**：`scripts/acceptance-research-offline.cjs`——真实本地 bench（子进程真跑 METRICS + METRICS_META）+ 仅 5 个最小语义 JSON 的 fixture provider + host 文献离线空结果诚实记录；推进 RQ→冻结协议→实验生成/真执行（2 种子真运行）→确定性分析/复现/claim→域无关手稿+审计；止于无 TeX 的 BUILD 门（paper.md/.tex/.bib+figure 已产出）。证据 `evidence/research/offline-chain-*.json`；云端 `origin/9-8-overcomplete` @ `565de1a`。
 
+## Round 8 追加（2026-09-08）
+- **Ledger 可靠性单测**（§16.2/16.3）：陈旧 checkpoint 拒绝、create 幂等/purge 全新、job 时序持久化 —— 已推送 `e4c8ef6`。
+
+## Round 9 追加（2026-09-08）
+- **Mini-soak（§22 子集）**：seeded Bug A 连续两轮独立重跑均 PASS（`soak-A-run-1/2-*`，evidence/engineering/），无重复副作用。
+- **Malformed-response 容错测试**（§22）：semantic-json 对 prose/fence/坏 JSON 的提取与 fail-closed（`e51e535`）。
+- 全量快照：**29 文件 / 122 测试 PASS**，full build PASS。
+
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
 - vitest 全量确定性套件：**116/116 PASS（27 文件，全部 `tests/unit/`，含 git/进程重型用例）**。
