@@ -1,0 +1,5 @@
+﻿{
+    "observation":  "Direct CDP type+Enter on the visible ChatGPT new-chat composer did not start a conversation across repeated attempts; ProviderAutomation dispatch to ChatGPT succeeded earlier for Work fresh conversations (1AI/3AI/4AI), so the failure is specific to the continuation/manual-send path rather than the provider",
+    "at":  "2026-09-08T15:10:38.2092047Z",
+    "kind":  "LIVE_FINDING_CHATGPT_MANUAL_SEND_UNRELIABLE"
+}
