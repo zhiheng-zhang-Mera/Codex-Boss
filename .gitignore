@@ -23,5 +23,6 @@ secrets/
 
 /tests/
 /live-acceptance/
-/Update-Plan/
+/Update-Plan/*
+!/Update-Plan/overcomplete/
 /research-output/
