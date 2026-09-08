@@ -59,6 +59,9 @@
 - **CI Tier2 restart smoke（§17.4）**：`.github/workflows/ci.yml` 在 portable smoke 后新增 `node scripts/acceptance-restart.cjs`（本机同路径已 PASS，控制重启不重复副作用）。
 - 云端分支已推送：`origin/9-8-overcomplete` @ `adda4f7`。
 
+## Round 7 追加（2026-09-08）
+- **离线全链 Research acceptance（§9，P1）PASS**：`scripts/acceptance-research-offline.cjs`——真实本地 bench（子进程真跑 METRICS + METRICS_META）+ 仅 5 个最小语义 JSON 的 fixture provider + host 文献离线空结果诚实记录；推进 RQ→冻结协议→实验生成/真执行（2 种子真运行）→确定性分析/复现/claim→域无关手稿+审计；止于无 TeX 的 BUILD 门（paper.md/.tex/.bib+figure 已产出）。证据 `evidence/research/offline-chain-*.json`；云端 `origin/9-8-overcomplete` @ `565de1a`。
+
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
 - vitest 全量确定性套件：**116/116 PASS（27 文件，全部 `tests/unit/`，含 git/进程重型用例）**。
