@@ -408,10 +408,24 @@ export class ProviderAutomation {
       return;
     }
     try {
-      const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
-      if (!result.ok) {
-        this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮；整组不会进入下一步", definition.version);
-        return;
+      if (definition.sendMode === "enter") {
+        // Composer with no send button (DeepSeek verified live): submit from
+        // the VISIBLE text input with a trusted Enter key event, then confirm
+        // the input actually cleared (a real submission) before advancing.
+        await view.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
+        await view.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const cleared = await view.webContents.executeJavaScript("(()=>{const el=document.querySelector('textarea,[contenteditable=true]');return el ? ((el.value!==undefined?(el.value):(el.innerText||'')).trim().length===0) : true;})()") as boolean;
+        if (cleared !== true) {
+          this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "回车未完成提交（enter-did-not-submit）；整组不会进入下一步", definition.version);
+          return;
+        }
+      } else {
+        const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
+        if (!result.ok) {
+          this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮；整组不会进入下一步", definition.version);
+          return;
+        }
       }
       this.store.updateRun(run.id, "waiting", null, "已一次提交；等待独立并发采集回答", definition.version);
     } catch (error) {
