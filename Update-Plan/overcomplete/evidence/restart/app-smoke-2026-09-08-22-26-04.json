@@ -1,0 +1,11 @@
+﻿{
+    "status":  "PASS",
+    "result":  {
+                   "rendererLoaded":  true,
+                   "nativeCompleted":  true,
+                   "completionVisible":  true,
+                   "generatedAt":  "2026-09-08T12:25:45.369Z"
+               },
+    "committedAt":  "2026-09-08T12:26:04.4237185Z",
+    "kind":  "APP_BOOT_SMOKE"
+}
