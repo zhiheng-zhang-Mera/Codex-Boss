@@ -23,12 +23,10 @@ describe("microtask parallel scheduler (Overcomplete §7.3/§7.4)", () => {
       async execute() { active++; peak = Math.max(peak, active); await sleep(50); active--; return "ok"; },
       async verify() { return true; }
     };
-    const started = Date.now();
     const result = await new MicrotaskRuntime(ledgerAt()).runStep("task", STEP, microtasks, executor, { concurrency: 4, parallelReads: true });
     expect(result.status).toBe("COMPLETED");
+    // Peak concurrency 4 proves the four reads overlapped (serial never peaks above 1).
     expect(peak).toBe(4);
-    // Parallel reads complete well under the serial 200ms floor (4 × 50ms).
-    expect(Date.now() - started).toBeLessThan(260);
   });
 
   it("serializes write-like microtasks that own overlapping files (no silent race)", async () => {
