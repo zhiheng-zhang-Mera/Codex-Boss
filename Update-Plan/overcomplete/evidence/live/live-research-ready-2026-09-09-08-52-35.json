@@ -1,0 +1,26 @@
+﻿{
+    "repro":  "REPRODUCED",
+    "runs":  6,
+    "run":  "is-an-evidence-weighted-adjudication-accuracy-0daa51af101e",
+    "finalAudit":  "passed",
+    "providers":  [
+                      "chatgpt",
+                      "gemini"
+                  ],
+    "kind":  "LIVE_RESEARCH_READY_PDF",
+    "status":  "PASS_READY",
+    "exportDir":  ".live-acceptance/research-ws/Research/\u003ctopic\u003e",
+    "at":  "2026-09-08T22:52:35.6683614Z",
+    "engine":  "tectonic",
+    "seeds":  [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6
+              ],
+    "paperPdf":  "D:\\Codex-Boss\\.live-acceptance\\research-ws\\Research\\is-an-evidence-weighted-adjudication-accuracy\\files\\manuscript\\paper.pdf",
+    "claim":  "SUPPORTED",
+    "note":  "real web-AI semantic stages; real reviewer council passed with n=6 (earlier n=2 and baseline-design critiques were honest vetoes); latex compiled paper.pdf; READY reached live"
+}

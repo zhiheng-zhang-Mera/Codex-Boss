@@ -475,8 +475,11 @@ export class ResearchConductor implements ResearchStageExecutor {
         // Under Electron, process.execPath is electron.exe: ELECTRON_RUN_AS_NODE
         // makes it execute the script as plain Node (ignored by real node).
         environment: { ELECTRON_RUN_AS_NODE: "1" },
-        primaryRuns: 1,
-        replicationRuns: 1,
+        // 3 primary + 3 replication seeds by default: real reviewer councils
+        // correctly reject n=2 as underpowered, so give studies enough runs to
+        // be honestly evaluable while staying inside the frozen budget clamp.
+        primaryRuns: 3,
+        replicationRuns: 3,
         timeoutMs: 60000
       };
       if (!fs.existsSync(plan.implFile)) throw new Error(`Experiment implementation missing: ${plan.implFile}`);
