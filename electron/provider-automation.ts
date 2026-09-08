@@ -187,6 +187,26 @@ export class ProviderAutomation {
     const round = runs[0]?.round ?? 0;
     const { checkpoint, baseline } = this.store.beginDispatch(taskId, round, allRuns.map((run) => run.providerId));
     for (const run of runs) await this.prepareRun(run);
+    // One resilience pass: a provider that transiently fails to expose its
+    // composer (page still loading / landed on a different route, e.g. Grok)
+    // gets a fresh navigation + a single re-prepare before the group rolls
+    // back, instead of failing the whole group on a page race.
+    for (let attempt = 0; attempt < 1; attempt += 1) {
+      const before = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
+      const retryable = before.filter((run) => run.transport === "web" && run.phase !== "prepared" && /未找到|页面可能已变化|input-not-found/i.test(run.message ?? ""));
+      if (!retryable.length) break;
+      for (const run of retryable) {
+        const retryDef = adapterFor(this.resolveProvider(run.providerId));
+        const retryView = this.views.get(run.providerId);
+        if (!retryDef || !retryView) continue;
+        this.log("prepare.retry_navigate", { providerId: run.providerId, taskId });
+        try {
+          await retryView.webContents.loadURL(retryDef.newConversationUrl ?? this.resolveProvider(run.providerId).url);
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          await this.prepareRun(run);
+        } catch (error) { this.log("prepare.retry_error", { providerId: run.providerId, error: String(error) }); }
+      }
+    }
     let current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
     if (prepareFailures.length > 0) {
@@ -302,8 +322,17 @@ export class ProviderAutomation {
       if (!run.sessionUrl && (task?.parentTaskId || task?.freshWebConversation)) {
         await view.webContents.loadURL(definition.newConversationUrl ?? this.resolveProvider(run.providerId).url);
       }
-      const probe = await this.readPage(run.providerId, probeScript(definition));
+      let probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
+      // Bounded input-readiness wait: pages (especially after a fresh
+      // navigation) can take seconds to render their composer; probe up to
+      // ~12s before treating a missing input area as a page change.
+      for (let wait = 0; !probe.inputFound && !probe.loginLikely && !probe.rateLimited && wait < 8; wait += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        probe = await this.readPage(run.providerId, probeScript(definition));
+        this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
+      }
+      this.log("prepare.probe", { providerId: run.providerId, inputFound: probe.inputFound, loginLikely: probe.loginLikely, rateLimited: probe.rateLimited });
       if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.deferRecovery(run, "RETRY_UNSENT"); return; }
       if (probe.loginLikely && !probe.inputFound) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
       if (!probe.inputFound) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "未找到已版本化的输入区域，页面可能已变化", definition.version);
@@ -415,7 +444,11 @@ export class ProviderAutomation {
         this.log("poll.probe", { taskId, providerId: run.providerId, manual, sourceUrlChanged: probe.sourceUrl !== run.sessionUrl, rateLimited: probe.rateLimited, busy: probe.busy, latestLen: (probe.latestResponse || "").length, sessionUrl: run.sessionUrl, sourceUrl: probe.sourceUrl });
         if (probe.sourceUrl !== run.sessionUrl) this.store.setRunSession(run.id, run.responseBaseline ?? "", probe.sourceUrl);
         if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
-        if (probe.busy) { this.stability.delete(run.id); return; }
+        // NOTE: `busy` (a visible stop button) is NOT a hard skip. ChatGPT can
+        // keep its stop affordance rendered after the final answer is on the
+        // page, which previously left the run waiting forever; stability
+        // (identical content twice) already prevents capturing mid-stream
+        // partial text, so the busy flag is advisory only.
         const baseline = this.baselines.get(run.id) ?? run.responseBaseline ?? "";
         if (!probe.latestResponse || probe.latestResponse === baseline) {
           if (manual) this.store.updateRun(run.id, "waiting", "FORMAT_INVALID", "尚未发现可验证的新回答，可稍后重试或手动完成", definition.version);
