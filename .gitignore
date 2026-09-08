@@ -25,3 +25,4 @@ secrets/
 /Update-Plan/*
 !/Update-Plan/overcomplete/
 /research-output/
+.live-acceptance/
