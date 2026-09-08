@@ -55,6 +55,10 @@
 - **RecoveryScheduler 单测**（§12）：持久化、3 次 attempt→PAUSED、resumeTask 重挂、done 记录清除。
 - **验收/交付文档**：`final-acceptance.md`（Final Acceptance Matrix）、README 状态与能力条目、Update-Log Overcomplete 小节、Round5 进度。
 
+## Round 6 追加（2026-09-08）
+- **CI Tier2 restart smoke（§17.4）**：`.github/workflows/ci.yml` 在 portable smoke 后新增 `node scripts/acceptance-restart.cjs`（本机同路径已 PASS，控制重启不重复副作用）。
+- 云端分支已推送：`origin/9-8-overcomplete` @ `adda4f7`。
+
 ## 验证快照（本工作区）
 - typecheck：PASS（双 tsconfig）。
 - vitest 全量确定性套件：**116/116 PASS（27 文件，全部 `tests/unit/`，含 git/进程重型用例）**。

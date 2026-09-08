@@ -27,3 +27,6 @@ jobs:
       - run: pnpm run benchmark
       - run: pnpm run package:portable
       - run: powershell -NoProfile -File scripts/smoke-portable.ps1
+      # Overcomplete §17.4 Tier 2: controlled Electron restart smoke — the app
+      # is killed mid-task and must resume without duplicating side effects.
+      - run: node scripts/acceptance-restart.cjs
