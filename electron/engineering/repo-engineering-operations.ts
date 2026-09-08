@@ -1,8 +1,7 @@
 import fs from "node:fs";
-import path from "node:path";
 import { runAllowedCommand } from "./command-runner";
-import type { EngineeringFinding, EngineeringGoalContract } from "../../src/shared/engineering-loop";
-import type { EngineeringLoopOperations } from "./engineering-loop-driver";
+import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
+import type { EngineeringLoopOperations, EngineeringReviewEvidence } from "./engineering-loop-driver";
 
 /**
  * Real repo-backed operations for the autonomous engineering loop (plan §26+).
@@ -21,7 +20,7 @@ export interface RepoEngineeringOptions {
   /** Optional editor used to apply a bounded change for one finding. */
   implement?: (finding: EngineeringFinding) => Promise<{ changedFiles: string[]; error?: string }>;
   /** Optional independent reviewer of the merged diff. */
-  review?: (finding: EngineeringFinding, changedFiles: string[]) => Promise<{ findings: string[] }>;
+  review?: (finding: EngineeringFinding, changedFiles: string[], evidence: EngineeringReviewEvidence) => Promise<{ findings: ReviewerFinding[]; raw?: string }>;
 }
 
 /** Map a command failure into a deterministic engineering finding. */
@@ -74,9 +73,9 @@ export function createRepoEngineeringOperations(options: RepoEngineeringOptions)
       if (!options.implement) return { changedFiles: [], error: "no coding editor configured for this goal" };
       return options.implement(finding);
     },
-    async review(goal, finding, changedFiles) {
+    async review(goal, finding, changedFiles, evidence) {
       if (!options.review) return { findings: [] };
-      return options.review(finding, changedFiles);
+      return options.review(finding, changedFiles, evidence);
     }
   };
 }

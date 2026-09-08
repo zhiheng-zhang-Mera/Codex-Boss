@@ -469,6 +469,12 @@ export interface EngineeringGoalRunInput {
   maxIterations?: number;
   /** Explicit operator replace: archive the frozen goal ledger, start fresh (never deletes). */
   replace?: boolean;
+  /** Overcomplete §6.4: restrict the live coder/reviewer role routing to specific runtime ids. */
+  workerRuntimes?: { implement?: string[]; review?: string[] };
+  /** Fail-closed switch: run the goal without the production coder even when one is available. */
+  disableCoder?: boolean;
+  /** Fail-closed switch: run the goal without the production reviewer even when one is available. */
+  disableReviewer?: boolean;
 }
 
 /** U10 §26–§41: summary of one engineering goal run (structural mirror of the driver's close). */

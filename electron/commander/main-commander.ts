@@ -44,10 +44,11 @@ import { isWorkAgentCount } from "../../src/shared/work-mode";
 import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineering/engineering-loop-driver";
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
+import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
 import { checkpointRecord, rollbackToCheckpoint } from "../engineering/change-points";
 import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
-import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot } from "../../src/shared/engineering-loop";
+import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
 
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; }
 
@@ -522,16 +523,23 @@ export class MainCommander {
   }
 
   /**
-   * U8–U10: run one autonomous engineering goal (plan §26–§41) against a real
-   * workspace. The goal contract is frozen durably; audit/build/test run the
-   * actual allowed commands; implementation requires an injected coding editor
-   * (production wires the ProposalRunner + coder dispatch used by edit plans;
-   * callers that pass none get an honest ABORT — the loop never fabricates
-   * changes). §38: the working tree is checkpointed before the goal starts and
-   * rolled back when the loop terminates without converging (ABORTED/STAGNANT),
-   * so a failed goal never leaves the repo worse than it found it; CONVERGED
-   * and OPTIONAL_IMPROVEMENTS keep their build/test-verified changes. Returns
-   * the durable summary.
+   * U8–U10 + Overcomplete §6.1/§6.4: run one autonomous engineering goal (plan
+   * §26–§41) against a real workspace. The goal contract is frozen durably;
+   * audit/build/test run the actual allowed commands.
+   *
+   * Production implement/review are wired by DEFAULT through the live role
+   * router (createLiveEngineeringOperations): a real coder role produces a
+   * bounded ProposalRunner patch over scope inferred from the finding, and an
+   * independent reviewer role reflows HIGH/significant-MEDIUM findings into
+   * the next triage round. Explicit `implement`/`review` closures may still be
+   * injected (deterministic tests); when neither a closure nor a supervisor
+   * exists the loop returns an honest ABORT — it never fabricates changes.
+   *
+   * §38: the working tree is checkpointed before the goal starts and rolled
+   * back when the loop terminates without converging (ABORTED/STAGNANT), so a
+   * failed goal never leaves the repo worse than it found it; CONVERGED and
+   * OPTIONAL_IMPROVEMENTS keep their build/test-verified changes. Returns the
+   * durable summary.
    */
   async runEngineeringGoal(input: {
     goal: Omit<EngineeringGoalContract, "schemaVersion" | "id" | "createdAt"> & { id?: string };
@@ -539,8 +547,16 @@ export class MainCommander {
     maxIterations?: number;
     /** Explicit operator replace: archives any frozen goal ledger, starts fresh. */
     replace?: boolean;
+    /** Deterministic injection point (tests). Absent ⇒ live role-router coder. */
     implement?: (finding: EngineeringFinding) => Promise<{ changedFiles: string[]; error?: string }>;
-    review?: (finding: EngineeringFinding, changedFiles: string[]) => Promise<{ findings: string[] }>;
+    /** Deterministic injection point (tests). Absent ⇒ live role-router reviewer. */
+    review?: (finding: EngineeringFinding, changedFiles: string[], evidence: { buildPassed: boolean; testsPassed: boolean }) => Promise<{ findings: ReviewerFinding[]; raw?: string }>;
+    /** Restrict the live coder/reviewer routing to specific runtime ids. */
+    workerRuntimes?: { implement?: string[]; review?: string[] };
+    /** Fail-closed switch: disable the production coder even when available. */
+    disableCoder?: boolean;
+    /** Fail-closed switch: disable the production reviewer even when available. */
+    disableReviewer?: boolean;
   }): Promise<EngineeringLoopSummary> {
     if (!this.ledger) throw new Error("Autonomous engineering requires a durable ledger");
     const now = new Date().toISOString();
@@ -550,7 +566,32 @@ export class MainCommander {
     // §38 checkpoint: snapshot pre-goal state so a non-converged goal can be
     // fully reverted. Non-git workspaces proceed without rollback capability.
     const checkpoint = await checkpointRecord(input.workspace).catch(() => undefined);
-    const operations = createRepoEngineeringOperations({ workspace: input.workspace, implement: input.implement, review: input.review });
+
+    // §6.1/§6.4 production wiring: when no deterministic closures are injected
+    // and a durable supervisor exists, run the real coder/reviewer roles. The
+    // implement and review worker use SEPARATE synthetic task ids so provider
+    // sessions (fresh conversation per task id) and job fingerprints stay
+    // isolated — the reviewer never inherits the coder's context (§6.2).
+    let implement = input.implement;
+    let review = input.review;
+    if (!implement && !input.disableCoder && this.supervisor) {
+      const live = createLiveEngineeringOperations({
+        workspace: input.workspace,
+        goal,
+        worker: this.goalRoleWorker(goal.id, "coder", input.workerRuntimes?.implement)
+      });
+      implement = (finding) => live.implement(goal, finding);
+    }
+    if (!review && !input.disableReviewer && this.supervisor) {
+      const live = createLiveEngineeringOperations({
+        workspace: input.workspace,
+        goal,
+        worker: this.goalRoleWorker(goal.id, "reviewer", input.workerRuntimes?.review)
+      });
+      review = (finding, changedFiles, evidence) => live.review(goal, finding, changedFiles, evidence);
+    }
+
+    const operations = createRepoEngineeringOperations({ workspace: input.workspace, implement, review });
     const driver = new EngineeringLoopDriver({ store: loopStore, operations, maxIterations: input.maxIterations });
     const summary = await driver.run();
     if (checkpoint && (summary.state === "ABORTED" || summary.state === "STAGNANT")) {
@@ -558,6 +599,22 @@ export class MainCommander {
       return { ...summary, changedFiles: [] }; // nothing landed; history stays in the loop store
     }
     return summary;
+  }
+
+  /**
+   * Role worker over the production role router for autonomous engineering.
+   * Each goal/finding uses a stable synthetic task id so repeated identical
+   * prompts are replay-safe (job fingerprint dedupe) while distinct findings
+   * open distinct provider sessions. Reviewer turns never reuse coder turns.
+   */
+  private goalRoleWorker(goalId: string, role: "coder" | "reviewer", preferredRuntimes?: string[]): EngineeringRoleWorker {
+    const worker = async (prompt: string) => {
+      const taskId = role === "coder" ? `eng-goal:${goalId}` : `eng-goal:${goalId}:review`;
+      const answer = await this.dispatchRole(taskId, role, prompt, preferredRuntimes?.length ? { preferredRuntimes } : {}, {}, "");
+      if (answer.status !== "SUCCESS" || !answer.content?.trim()) throw new Error(answer.failure?.message ?? `${role} unavailable`);
+      return answer.content;
+    };
+    return { ask: (askedRole, prompt) => (askedRole === role ? worker(prompt) : Promise.reject(new Error("role mismatch"))) };
   }
 
   /**

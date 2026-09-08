@@ -950,12 +950,14 @@ if (ownsInstance) app.whenReady().then(() => {
   // deletes, only shows archive lifecycle so a failed external archive stays
   // visible and retryable).
   ipcMain.handle("boss:external-session-list", () => externalSessions?.list() ?? []);
-  // U10 §26–§41: autonomous engineering goal surface. Status is the durable
-  // read-model; run starts one goal loop over the real allowed commands (an
-  // unconfigured coding editor yields an honest ABORT, never a fabricated fix).
+  // U10 §26–§41 (+ Overcomplete §6.1/§6.4): autonomous engineering goal surface.
+  // Status is the durable read-model; run starts one goal loop over the real
+  // allowed commands with the PRODUCTION coder/reviewer wired in-process (the
+  // role router dispatches to configured web/API/Codex runtimes; deterministic
+  // closures can be forced off via disableCoder/disableReviewer).
   ipcMain.handle("boss:engineering-goal-status", () => commander.engineeringGoalStatus());
-  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number; replace?: boolean }) => {
-    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations, replace: input.replace });
+  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number; replace?: boolean; workerRuntimes?: { implement?: string[]; review?: string[] }; disableCoder?: boolean; disableReviewer?: boolean }) => {
+    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations, replace: input.replace, workerRuntimes: input.workerRuntimes, disableCoder: input.disableCoder, disableReviewer: input.disableReviewer });
   });
 
   app.on("second-instance", () => {

@@ -16,3 +16,23 @@ export function requiredEngineeringChecks(root: string, sourceFiles: string[]): 
   checks.push({ kind: "test", files: tests.length <= 50 ? tests : [] }, { kind: "diff" });
   return checks;
 }
+
+/**
+ * Verification checks for an engineering change with a graceful fallback when
+ * the workspace has no executable tests: typecheck (when a tsconfig exists),
+ * syntax for plain-JS edits and a whitespace diff check. This keeps a
+ * repository with no test harness honestly verifiable instead of failing the
+ * loop before a fix is attempted — but test-less workspaces are still bounded
+ * and never reported as more verified than they are.
+ */
+export function engineeringChecksFor(root: string, sourceFiles: string[]): CheckSpec[] {
+  try {
+    return requiredEngineeringChecks(root, sourceFiles);
+  } catch (error) {
+    if (!String(error).includes("No test files discovered")) throw error;
+    const checks: CheckSpec[] = sourceFiles.filter((file) => /\.[cm]?js$/.test(file)).map((file) => ({ kind: "syntax", file }));
+    if (fs.existsSync(path.join(root, "tsconfig.json"))) checks.push({ kind: "typecheck" });
+    checks.push({ kind: "diff" });
+    return checks;
+  }
+}
