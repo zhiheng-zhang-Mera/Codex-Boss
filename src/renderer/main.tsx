@@ -16,7 +16,7 @@ import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, P
 import { compileIntent } from "../shared/task-ir";
 import { executionLabel, type ReviewMode } from "../shared/execution";
 import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
-import { emptySnapshot, shortTime } from "./state";
+import { emptySnapshot, shortTime, waitingLine } from "./state";
 import "./styles.css";
 
 function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalView }) {
@@ -595,7 +595,7 @@ function App() {
             <div><strong className="task-state" data-task-state={presentation.state} role="status">{presentation.label}</strong>
               <span className="task-provider-label">{task.plan?.estimatedComplexity === "L0" ? "本地任务" : "已分派到"} {task.providerIds.filter((id) => id !== "native:tools").map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</span>
               <details className="task-technical-summary"><summary>任务信息</summary><p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p></details>
-              {task.recoveryMessage && <p role="status">{task.recoveryMessage}{task.recoveryAt ? " · " + new Date(task.recoveryAt).toLocaleString() : ""}</p>}
+              {waitingLine(task) && <p className="wait-readout" role="status">{waitingLine(task)}</p>}
               {task.modeTransition && task.interactionMode === "WORK_PROPOSED" && !task.modeTransition.approvedAt && <section className="mode-escalation-card" role="alert" aria-live="polite">
                 <p><b>是否升级到 Work？</b> {task.modeTransition.reason}{task.modeTransition.requiredCapabilities.length > 0 && <small> 需要能力：{task.modeTransition.requiredCapabilities.join("、")}</small>}</p>
                 <div><button type="button" className="confirm-send" disabled={sending} onClick={() => { setSending(true); window.boss.resolveModeProposal(task.id, true).then(setSnapshot).catch((reason) => setError(String(reason))).finally(() => setSending(false)); }}>继续到 Work</button><button type="button" disabled={sending} onClick={() => { setSending(true); window.boss.resolveModeProposal(task.id, false).then(setSnapshot).catch((reason) => setError(String(reason))).finally(() => setSending(false)); }}>保持 Chat</button></div>
