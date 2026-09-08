@@ -74,3 +74,12 @@
 ## Known Limitationsï¼ˆÂ§27ï¼Œè¯šå®è®°å½•ï¼‰
 1. Live AI-coder/council E2Eã€å¤–éƒ¨ç½‘é¡µâ€œç‚¹å‡»å½’æ¡£â€è‡ªåŠ¨åŒ–ã€paper.pdf ç¼–è¯‘ã€å¤šåŸŸ Research READYã€multi-hour soak éœ€è¦çœŸå®ç™»å½•çš„ provider ä¼šè¯ä¸ GUI ç¯å¢ƒï¼›æœ¬å·¥ä½œåŒºä»…èƒ½ç¡®å®šæ€§éªŒè¯å…¶ seam ä¸çŠ¶æ€æœºï¼ˆå‡å·²æµ‹è¯•ï¼‰ã€‚
 2. æ—  GUI ç¯å¢ƒçš„ restart/portable smoke æŒ‰ç¯å¢ƒè®°å½•ï¼›9-8 äº‘ç«¯ CI å·²ç»¿ã€‚
+
+## Live ÑéÊÕ¸üĞÂ£¨2026-09-09£¬supersede ÉÏÃæ±ê¼ÇÎª NOT-RUN/live µÄĞĞ£©
+- 20.2 Autonomous Engineering£ºreal AI coder E2E ? CONVERGED£¨eng-4c193c1599d4£¬evidence/live/live-engineering-goal-*£©£»reviewer/second-round ÓïÒåÔÚ goal Óë council Êµ¿ö³ÉÁ¢¡£
+- 20.3/1-3-4-5 AI£º1/3/4/5-AI Work ²¢ĞĞÕæ»úÈ« PASS£¨evidence/live/live-{1ai,3ai,4ai,5ai}-*£©¡£
+- 20.5 History£ºChat ÑÓĞø ?£¨Í¬»á»°+ÉÏÏÂÎÄ¼ÇÒä£¬live-chat-continuation-*£©£»Work fresh ?£¨live-chat-vs-work-*£©£»Íâ²¿¹éµµ½ÓÏß ? fail-closed£¨live-external-archive-*£©¡£
+- 20.6 Recovery£ºwedged ÊµÀı¾­ journal ¶¨Î»²¢ĞŞ¸´£¨cancel ÊÍ·Å/busy ÊØÎÀ/²É¼¯ monitor/¾ÍĞ÷µÈ´ıµÈ£¬evidence/live/live-finding-* Óë live-research/council ¼ÇÂ¼£©¡£
+- 20.4 Research£ºlive ÓïÒåÁ´µ½ manuscript + real reviewer-council veto£¨live-research-chain-*£©£»paper.pdf ÈÔĞè TeX£¨NOT-RUN, honest£©£»ÈıÓò READY/soak ÈÔÔÚÏŞÖÆÁĞ±í¡£
+- Known Limitations ¸üĞÂ£ºQwen ·¢ËÍ¿Ø¼şÎ´½âÎö£¨È±¿Ú£¬¿ÉÈË¹¤Ê¹ÓÃ£©£»TeX È±Ê§£¨paper.pdf/READY live ²»¿É´ï£©£»multi-hour soak Óë UI rail Î´ÔÚ±¾»·¾³ÊµÅÜ£»live ÑéÊÕÒÀÀµÒÑµÇÂ¼ provider »á»°»·¾³¡£
+- ÏêÏ¸Ë÷Òı£ºUpdate-Plan/overcomplete/evidence/live/INDEX.md¡£

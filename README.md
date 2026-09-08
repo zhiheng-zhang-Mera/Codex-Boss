@@ -127,9 +127,9 @@ Standalone smoke verification uses an isolated data directory:
 
 - The deterministic test suite is committed with the repository under `tests/unit/`
   (layered layout; includes git/process-heavy integration cases). Snapshot on this branch:
-  **29 files / 122 tests green** + typecheck + full build PASS.
+  **30 files / 125 tests green** + typecheck + full build PASS.
   确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
-  本分支快照：**29 文件 / 122 测试全绿**，typecheck 与完整 build PASS。
+  本分支快照：**30 文件 / 125 测试全绿**，typecheck 与完整 build PASS。
 - GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke — green on
   `9-7` and `9-8`; the `9-8-overcomplete` branch adds seeded-bug autonomous repair acceptance
   (`pnpm run test:seeded` → `scripts/acceptance-seeded-engineering.cjs`).
@@ -139,6 +139,14 @@ Standalone smoke verification uses an isolated data directory:
   `eng-251ec4b77388` iteration 3 `CONVERGED`, 0 findings.
   应用内自主目标审计（应用内跑真实 typecheck + 全量套件）已收敛：
   `eng-251ec4b77388` 第 3 迭代 `CONVERGED`，0 发现。
+- Live verifications on this branch (logged-in web providers, evidence under `Update-Plan/overcomplete/evidence/live/`):
+  1/3/4/5-AI parallel Work echoes PASS, Chat continuation with context memory PASS, 3-AI Council
+  COMPLETE, live Engineering Goal CONVERGED (real AI coder patch), live Research semantic chain with a
+  real reviewer-council veto, and fail-closed external-archive pass.
+  本分支实况验证（已登录网页 provider，证据见 `Update-Plan/overcomplete/evidence/live/`）：
+  1/3/4/5-AI 并行 Work echo PASS、Chat 延续+上下文记忆 PASS、3-AI Council COMPLETE、
+  Live 工程 Goal CONVERGED（真实 AI coder 补丁）、Live Research 语义链含真实 reviewer-council 否决、
+  外部归档 fail-closed pass。
 
 ---
 

@@ -167,3 +167,10 @@ Milestoneï¼ˆ20:18â€“23:56ï¼Œ9-7-milestone çº¿ï¼‰ï¼š
 - éƒ¨åˆ†é˜¶æ®µå­˜åœ¨åŒå/å¹¶è¡Œæäº¤ï¼ˆå¦‚ç ”ç©¶ roundsã€AP ç³»åˆ—ã€docs å¿«ç…§ï¼‰ï¼Œå·²åˆå¹¶ä¸ºä¸»é¢˜æ¡ç›®ï¼Œæœªé€æ¡å±•å¼€å…¨éƒ¨æäº¤ã€‚
 - åˆ†æ”¯çº¦å®šï¼šç¡®å®šæ€§æµ‹è¯•éšä»“åº“æäº¤äº `tests/unit/`ï¼ˆåˆ†å±‚å¸ƒå±€ï¼‰ï¼›`9-8` å†å²æäº¤ä¸­çš„â€œ150/752 æœ¬åœ°å…¨é‡ gitignoredâ€å£å¾„è‡ª overcomplete åˆ†æ”¯èµ·ä¸å†é€‚ç”¨ï¼ˆåŒä¸€å¥—ä»¶å·²å…¥åº“ï¼‰ã€‚
 - åç»­æ¯æ—¥æ›´æ–°ï¼šç›´æ¥åœ¨å¯¹åº”æ—¥æœŸè¿½åŠ å°èŠ‚ï¼›è·¨å¤©åˆ™æ–°å¢ `## YYYY-MM-DD` å°èŠ‚å¹¶æ›´æ–°é¡¶éƒ¨æ±‡æ€»è¡¨ã€‚
+
+### Live ÑéÊÕ£¨2026-09-08 Ò¹¡ª09£¬ÒÑµÇÂ¼ provider Êµ¿ö£©
+- »ù´¡ÉèÊ©£ºCDP Çı¶¯ÔËĞĞÊµÀı£¨`scripts/live-cdp.cjs`£©¡¢×Ô¶¯»¯ journal£¨`runtime-data/.boss/live-automation.log`£¬´¿³ÌĞòÀëÏßÕï¶Ï£©¡£
+- ÊÊÅäÆ÷£ºDeepSeek `sendMode=enter`¡¢Microsoft Copilot£¨`#userInput`£©ÏÔÊ½ÊÊÅäÆ÷¡¢ÄÚÖÃÎ´¸²¸Ç provider µÄÍ¨ÓÃÄ¬ÈÏ¹æÔò£¨mistral/perplexity/doubao£©£»Qwen ·¢ËÍ¿Ø¼şÎ´½âÎö£¨¼ÇÂ¼È±¿Ú£©¡£
+- Õæ»ú PASS£º1/3/4/5-AI ²¢ĞĞ Work echo£¨`5AI-OK <brand>`£¬artifact È«²¶»ñ¡¢Éó²éÈ«¹ı¡¢final ºÏ³É£©£»Chat ÑÓĞø£¨Í¬»á»° URL+ÉÏÏÂÎÄ¼ÇÒä£©£»3-AI Council£¨proposals¡úpeer_review¡úsynthesis COMPLETE£©£»Live Engineering Goal CONVERGED£¨ÕæÊµ AI coder ĞŞ±àÒë bug£¬eng-4c193c1599d4£©£»Live Research ÓïÒåÁ´£¨ÕæÊµ AI hypothesis/¸´ÏÖ/claim + paper reviewer council ÕæÊµ·ñ¾ö£©£»Íâ²¿¹éµµ fail-closed pass¡£
+- ÈÍĞÔĞŞ¸´£ºÈ¡Ïû¼´Ê±ÊÍ·Å provider£»busy ÊØÎÀÖ»ÈÏ»î¶¯ÈÎÎñ£»²É¼¯ monitor 10¡ú25 ·ÖÖÓ+³¬Ê±Ç¿ÖÆ²É¼¯£»busy ¹ËÎÊ»¯£¨stability ²É¼¯£©£»composer Ë²Ì¬ÖØµ¼º½ÖØÊÔ£»ÊäÈë¾ÍĞ÷ÓĞ½çµÈ´ı¡£
+- Ö¤¾İË÷Òı£º`Update-Plan/overcomplete/evidence/live/INDEX.md`¡£
