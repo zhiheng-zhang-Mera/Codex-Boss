@@ -1,0 +1,119 @@
+{
+  "kind": "OFFLINE_RESEARCH_CHAIN",
+  "status": "PASS_PIPELINE",
+  "startedAt": "2026-09-08T22:41:56.626Z",
+  "root": "D:\\DS-Hns\\temp\\boss-research-offline-6THDR6",
+  "workspace": "D:\\DS-Hns\\temp\\boss-research-offline-6THDR6\\workspace",
+  "researchId": "does-evidence-weighted-adjudication-reduce-review-0d7018c18d6b",
+  "outcome": {
+    "state": "FAILED",
+    "steps": 14
+  },
+  "stages": [
+    {
+      "decision": "scoping",
+      "reason": "[planner/research-question] scoping complete: RQ anchored, workspace + reviewers + budget recorded"
+    },
+    {
+      "decision": "project_inspection",
+      "reason": "[coder/repo-scan] inspected repo: 1 files, fingerprint 47fc5beab8c4"
+    },
+    {
+      "decision": "literature_review",
+      "reason": "[literature/literature-notes] literature intake: 0 AI-advisory source(s) stored (host empty; AI text is not an external source)"
+    },
+    {
+      "decision": "question_formulation",
+      "reason": "[planner/research-question] hypothesis recorded: Evidence-weighted adjudication reduces review errors in a controlled software-engineering benchmark."
+    },
+    {
+      "decision": "protocol_draft",
+      "reason": "[planner/protocol] protocol frozen (4b0be7d28b03); scientific core cannot change silently"
+    },
+    {
+      "decision": "experiment_generation",
+      "reason": "[experiment/experiment-design] experiment bench-bench-accuracy implementation validated against frozen protocol"
+    },
+    {
+      "decision": "experiment_execution",
+      "reason": "[coder/experiment-run] primary experiment executed: 1 recorded run(s), seeds [1]"
+    },
+    {
+      "decision": "analysis",
+      "reason": "[analyst/statistic] analysis: mean 0.696 over 1 run(s); claim not adopted"
+    },
+    {
+      "decision": "replication",
+      "reason": "[analyst/analysis] replication: 2 distinct seeds under the frozen protocol; status REPRODUCED"
+    },
+    {
+      "decision": "claim_review",
+      "reason": "[reviewer/claim] claim bench-bench-accuracy adjudicated: SUPPORTED"
+    },
+    {
+      "decision": "manuscript",
+      "reason": "[reporter/manuscript-section] manuscript assembled: paper.md/.tex/.bib + 1 figure(s)"
+    },
+    {
+      "decision": "citation_audit",
+      "reason": "[reviewer/citation-audit] citation audit ok: 0/0 verified"
+    },
+    {
+      "decision": "repro_audit",
+      "reason": "[reviewer/repro-audit] reproducibility REPRODUCED (2 distinct seeds)"
+    },
+    {
+      "decision": "failed:BUILD",
+      "reason": "latex compile FAIL: pass 1: Fontconfig error: Cannot load default config file: No such file: (null)\r\nerror: paper.tex:5: Missing $ inserted\nerror: halted on pot"
+    }
+  ],
+  "state": "FAILED",
+  "message": "offline deterministic research chain passed pipeline (PDF/BUILD not reached) (state=FAILED)",
+  "artifacts": {
+    "analysis": true,
+    "reproducibility": true,
+    "manuscriptMd": true,
+    "manuscriptTex": true,
+    "baselineProvenance": true,
+    "paperPdf": false,
+    "compileAudit": true,
+    "finalAudit": true
+  },
+  "compile": {
+    "status": "FAIL",
+    "engine": "tectonic",
+    "pdf": null
+  },
+  "finalAudit": {
+    "passed": true,
+    "sections": {
+      "abstract": "REVISED",
+      "introduction": "REVISED",
+      "methods": "REVISED",
+      "results": "REVISED",
+      "discussion": "REVISED",
+      "conclusion": "REVISED"
+    },
+    "reproducibility": "REPRODUCED",
+    "citations": {
+      "ok": true,
+      "verified": 0,
+      "unsupported": [],
+      "contradicted": []
+    }
+  },
+  "recordedRuns": [
+    {
+      "seed": 1,
+      "metrics": {
+        "answer_accuracy": 0.6960999999999999
+      }
+    },
+    {
+      "seed": 2,
+      "metrics": {
+        "answer_accuracy": 0.6426
+      }
+    }
+  ]
+}

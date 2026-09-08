@@ -89,18 +89,32 @@ const fixtureProvider = {
   // Durable artifact assertions: real recorded runs, stats, repro audit,
   // manuscript tree present.
   const artifactRoot = research.artifactDir(researchId);
+  const manuscriptDir = path.join(path.dirname(artifactRoot), "manuscript");
+  const auditDir = path.join(path.dirname(artifactRoot), "audit");
   evidence.artifacts = {
     analysis: fs.existsSync(path.join(artifactRoot, "analysis.json")),
-    reproducibility: fs.existsSync(path.join(path.dirname(artifactRoot), "audit", "reproducibility.json")),
-    manuscriptMd: fs.existsSync(path.join(path.dirname(artifactRoot), "manuscript", "paper.md")),
-    manuscriptTex: fs.existsSync(path.join(path.dirname(artifactRoot), "manuscript", "paper.tex")),
-    baselineProvenance: fs.existsSync(path.join(artifactRoot, "baseline-provenance.json"))
+    reproducibility: fs.existsSync(path.join(auditDir, "reproducibility.json")),
+    manuscriptMd: fs.existsSync(path.join(manuscriptDir, "paper.md")),
+    manuscriptTex: fs.existsSync(path.join(manuscriptDir, "paper.tex")),
+    baselineProvenance: fs.existsSync(path.join(artifactRoot, "baseline-provenance.json")),
+    paperPdf: fs.existsSync(path.join(manuscriptDir, "paper.pdf")),
+    compileAudit: fs.existsSync(path.join(auditDir, "compile.json")),
+    finalAudit: fs.existsSync(path.join(auditDir, "final-audit.json"))
   };
+  try {
+    const compile = JSON.parse(fs.readFileSync(path.join(auditDir, "compile.json"), "utf8"));
+    evidence.compile = { status: compile.status, engine: compile.engine, pdf: compile.pdf };
+    if (fs.existsSync(path.join(auditDir, "final-audit.json"))) {
+      const finalAudit = JSON.parse(fs.readFileSync(path.join(auditDir, "final-audit.json"), "utf8"));
+      evidence.finalAudit = finalAudit;
+    }
+  } catch { /* optional */ }
   const runs = research.evidence.runs(researchId);
   evidence.recordedRuns = runs.map((run) => ({ seed: run.seed, metrics: run.metrics }));
   const ok = evidence.artifacts.analysis && evidence.artifacts.reproducibility && evidence.artifacts.manuscriptMd && evidence.artifacts.manuscriptTex && evidence.artifacts.baselineProvenance && runs.length >= 2;
   if (!ok) throw new Error("Offline research chain artifacts incomplete: " + JSON.stringify(evidence.artifacts) + " runs=" + runs.length);
-  evidence.status = "PASS";
+  evidence.status = evidence.artifacts.paperPdf && evidence.compile?.status === "PASS" && ledgerRecord.ir.state === "READY" ? "PASS_READY" : "PASS_PIPELINE";
+  evidence.message = (evidence.status === "PASS_READY" ? "offline deterministic research chain READY with paper.pdf" : "offline deterministic research chain passed pipeline (PDF/BUILD not reached)") + (state ? " (state=" + state + ")" : "");
   console.log(JSON.stringify(evidence, null, 2));
 })().catch((error) => { evidence.status = "FAILED"; evidence.error = String(error); console.error(JSON.stringify(evidence, null, 2)); process.exitCode = 1; }).finally(() => {
   const outDir = path.join(__dirname, "..", "Update-Plan", "overcomplete", "evidence", "research");
