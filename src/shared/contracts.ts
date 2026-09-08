@@ -467,6 +467,8 @@ export interface EngineeringGoalRunInput {
   };
   workspace: string;
   maxIterations?: number;
+  /** Explicit operator replace: archive the frozen goal ledger, start fresh (never deletes). */
+  replace?: boolean;
 }
 
 /** U10 §26–§41: summary of one engineering goal run (structural mirror of the driver's close). */

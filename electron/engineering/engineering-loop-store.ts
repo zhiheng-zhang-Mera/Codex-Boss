@@ -1,4 +1,5 @@
 import { readJson, writeJson } from "../commander/durable-json";
+import path from "node:path";
 import {
   validateEngineeringGoalContract, summarizeEngineeringLoop,
   type EngineeringGoalContract, type EngineeringGoalSnapshot, type EngineeringIterationRecord
@@ -38,6 +39,22 @@ export class EngineeringLoopStore {
   freezeGoal(goal: EngineeringGoalContract): EngineeringGoalContract {
     if (!validateEngineeringGoalContract(goal)) throw new Error("Invalid engineering goal contract");
     if (this.fileValue.goal && this.fileValue.goal.id !== goal.id) throw new Error("An engineering goal is already frozen; start a new one to replace it");
+    this.fileValue.goal = structuredClone(goal);
+    this.persist();
+    return structuredClone(this.fileValue.goal);
+  }
+
+  /**
+   * Explicit operator replacement (U10 start surface): the current goal ledger
+   * is archived to a sidecar `engineering-loop-<goalId>.json` beside this file
+   * — never deleted (plan §13) — then a fresh ledger starts for the new goal.
+   */
+  replaceGoal(goal: EngineeringGoalContract): EngineeringGoalContract {
+    if (!validateEngineeringGoalContract(goal)) throw new Error("Invalid engineering goal contract");
+    if (this.fileValue.goal && this.fileValue.goal.id !== goal.id) {
+      try { writeJson(path.join(path.dirname(this.filePath), `engineering-loop-${this.fileValue.goal.id}.json`), this.fileValue); } catch { /* archive best-effort; the live file still switches */ }
+      this.fileValue = { schemaVersion: 1, iterations: [], acceptedRisks: [], cleanRounds: 0, updatedAt: new Date().toISOString() };
+    }
     this.fileValue.goal = structuredClone(goal);
     this.persist();
     return structuredClone(this.fileValue.goal);

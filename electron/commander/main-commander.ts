@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { createComputerRuntime } from "../computer/computer-service";
 import type { ComputerOptions } from "../computer/computer-service";
+import { parseDomTarget } from "../computer/backends/dom-page";
 import type { NativeOperation } from "../../src/shared/task-ir";
 import type { NativeEvidence } from "../engineering/native-tools";
 import path from "node:path";
@@ -189,6 +190,79 @@ export class MainCommander {
       const previous = this.ledger.load(taskId)?.jobs["graph_" + step.id];
       if (previous?.state === "COMPLETED" && previous.result?.content) outputs[step.id] = previous.result.content;
     }
+    // AP12 recursive microtask wiring in the Commander spine (plan §5.1/§12a):
+    // edit steps whose scope spans many files run as a bounded read → propose
+    // micro-DAG (one coder proposal per file group) instead of one monolithic
+    // proposal. Small steps and L3 per-step-isolated workspaces keep the exact
+    // single-step path below (decompose → undefined). Microtask jobs persist
+    // per group (`graph_<stepId>_microtask_*`), and the join hook emits one
+    // canonical ProposalResult so every downstream consumer is unchanged.
+    const DECOMPOSE_MIN_FILES = 6;
+    const DECOMPOSE_GROUP_SIZE = 5;
+    const coderWorker = async (prompt: string) => {
+      const answer = await this.dispatchRole(taskId, "coder", prompt, {}, {}, "");
+      if (answer.status !== "SUCCESS" || !answer.content) throw new Error(answer.failure?.message ?? "Coder unavailable");
+      return answer.content;
+    };
+    const runEditProposal = async (files: string[], description: string): Promise<string> => {
+      const checks = requiredEngineeringChecks(workspace, files);
+      const result = await new ProposalRunner(coderWorker).run(workspace, task!.prompt + "\n" + description, files, checks);
+      this.ledger!.update(taskId, "engineering proposal verified", (record) => { record.modifiedFiles = [...new Set([...record.modifiedFiles, ...result.changes.map((item) => item.path)])]; record.usage.toolCalls += result.checks.length; });
+      return JSON.stringify(result);
+    };
+    const decomposeEditStep = (step: import("../../src/shared/task-ir").TaskStep): import("../../src/shared/microtask").Microtask[] | undefined => {
+      if (step.kind !== "edit" || step.requiredFiles.length <= DECOMPOSE_MIN_FILES || plan.estimatedComplexity === "L3") return undefined;
+      const microtasks: import("../../src/shared/microtask").Microtask[] = [];
+      for (let index = 0; index < step.requiredFiles.length; index += DECOMPOSE_GROUP_SIZE) {
+        const files = step.requiredFiles.slice(index, index + DECOMPOSE_GROUP_SIZE);
+        microtasks.push({ id: `${step.id}_read_${index / DECOMPOSE_GROUP_SIZE}`, kind: "read", parentStepId: step.id, description: `Read scope of ${step.id}`, dependencies: [], requiredFiles: files });
+        microtasks.push({ id: `${step.id}_propose_${index / DECOMPOSE_GROUP_SIZE}`, kind: "propose", parentStepId: step.id, description: `Propose change for scope of ${step.id}`, dependencies: [`${step.id}_read_${index / DECOMPOSE_GROUP_SIZE}`], requiredFiles: files });
+      }
+      return microtasks;
+    };
+    const executeEditMicrotask = async (microtask: import("../../src/shared/microtask").Microtask): Promise<string> => {
+      if (microtask.kind === "read") {
+        const contents: Record<string, string | null> = {};
+        for (const file of microtask.requiredFiles) {
+          const target = workspacePath(workspace, file);
+          if (!fs.existsSync(target) || !fs.statSync(target).isFile()) { contents[file] = null; continue; }
+          if (fs.statSync(target).size > 100000) throw new Error("Step file exceeds read budget");
+          contents[file] = fs.readFileSync(target, "utf8");
+        }
+        return JSON.stringify(contents);
+      }
+      if (microtask.kind === "propose") return runEditProposal(microtask.requiredFiles, microtask.description);
+      throw new Error(`Microtask kind not supported: ${microtask.kind}`);
+    };
+    const verifyEditMicrotask = async (microtask: import("../../src/shared/microtask").Microtask, output: string): Promise<boolean> => {
+      if (microtask.kind === "read") {
+        const previous = JSON.parse(output) as Record<string, string | null>;
+        return Object.entries(previous).every(([file, expected]) => {
+          const target = workspacePath(workspace, file);
+          const current = fs.existsSync(target) && fs.statSync(target).isFile() ? fs.readFileSync(target, "utf8") : null;
+          return current === expected;
+        });
+      }
+      if (microtask.kind === "propose") {
+        const result = JSON.parse(output) as ProposalResult;
+        if (result.status !== "PASS") return false;
+        const latest = new Map(result.changes.map((change) => [change.path, change.after]));
+        return [...latest].every(([file, hash]) => fs.existsSync(workspacePath(workspace, file)) && digest(fs.readFileSync(workspacePath(workspace, file), "utf8")) === hash);
+      }
+      return false;
+    };
+    const joinEditProposals = async (microtaskOutputs: Record<string, string>): Promise<string> => {
+      const proposals = Object.entries(microtaskOutputs).filter(([key]) => /_propose_\d+$/.test(key)).map(([, value]) => JSON.parse(value) as ProposalResult);
+      const aggregate: ProposalResult = proposals.length ? {
+        status: proposals.every((item) => item.status === "PASS") ? "PASS" : "FAIL",
+        changes: proposals.flatMap((item) => item.changes),
+        checks: proposals.flatMap((item) => item.checks),
+        repairs: proposals.reduce((sum, item) => sum + item.repairs, 0),
+        diff: (await executeNative(workspace, { kind: "git_diff" })).output,
+        verificationHistory: proposals.flatMap((item) => item.verificationHistory ?? [])
+      } : { status: "FAIL", changes: [], checks: [], repairs: 0, diff: "", verificationHistory: [] };
+      return JSON.stringify(aggregate);
+    };
     const result = await new PlanRunner(this.ledger).run(taskId, plan, {
       parallelism: () => this.degradation?.get(taskId)?.maxWorkers ?? plan.maxWorkers,
       readOnly: !plan.steps.some((step) => step.kind === "edit" || step.operation?.kind === "computer" || step.operation?.kind.startsWith("run_")),
@@ -200,11 +274,7 @@ export class MainCommander {
         if (step.kind === "edit") {
           const checks = requiredEngineeringChecks(workspace, step.requiredFiles);
           const stepWorkspace = plan.estimatedComplexity === "L3" ? await prepareStepWorkspace(workspace, taskId + "_" + step.id, [...new Set([...step.requiredFiles, ...plan.steps.filter((item) => step.dependencies.includes(item.id)).flatMap((item) => item.requiredFiles)])]) : workspace;
-          const result = await new ProposalRunner(async (prompt) => {
-            const answer = await this.dispatchRole(taskId, "coder", prompt, {}, {}, "");
-            if (answer.status !== "SUCCESS" || !answer.content) throw new Error(answer.failure?.message ?? "Coder unavailable");
-            return answer.content;
-          }).run(stepWorkspace, task!.prompt + "\n" + step.description, step.requiredFiles, checks);
+          const result = await new ProposalRunner(coderWorker).run(stepWorkspace, task!.prompt + "\n" + step.description, step.requiredFiles, checks);
           if (stepWorkspace !== workspace && result.status === "PASS") { const merged = await this.mergeCoordinator.merge(workspace, stepWorkspace, result, step.requiredFiles, checks, async (incoming, failure) => new ProposalRunner(async (prompt) => { const answer = await this.dispatchRole(taskId, "coder", prompt, {}, {}, ""); if (answer.status !== "SUCCESS" || !answer.content) throw new Error("Conflict resolver unavailable"); return answer.content; }).run(workspace, "Resolve this merge conflict while preserving both verified changes. " + failure + "\nIncoming proposal: " + JSON.stringify(incoming), step.requiredFiles, checks)); result.changes = merged.changes; result.checks = merged.checks; }
           this.ledger!.update(taskId, "engineering proposal verified", (record) => { record.modifiedFiles = [...new Set([...record.modifiedFiles, ...result.changes.map((item) => item.path)])]; record.usage.toolCalls += result.checks.length; });
           outputs[step.id] = JSON.stringify(result); return outputs[step.id];
@@ -221,7 +291,26 @@ export class MainCommander {
         }
         outputs[step.id] = answer.content; return answer.content;
       },
-      verify: async (step, output) => step.kind === "verify" && plan.steps.some((item) => item.kind === "edit") ? JSON.parse(output).status === "PASS" : step.kind === "edit" ? (() => { const result = JSON.parse(output) as ProposalResult; const latest = new Map(result.changes.map((change) => [change.path, change.after])); return result.status === "PASS" && [...latest].every(([file, hash]) => fs.existsSync(workspacePath(workspace, file)) && digest(fs.readFileSync(workspacePath(workspace, file), "utf8")) === hash); })() : step.operation?.kind === "computer" ? JSON.parse(output).status === "SUCCESS" : step.operation?.kind.startsWith("run_") ? JSON.parse(output).passed === true : step.operation ? output === ((await executeNative(workspace, step.operation)).output || "Empty native result") : Boolean(output.trim())
+      verify: async (step, output) => {
+        if (step.kind === "verify" && plan.steps.some((item) => item.kind === "edit")) return JSON.parse(output).status === "PASS";
+        if (step.kind === "edit") {
+          const result = JSON.parse(output) as ProposalResult;
+          const latest = new Map(result.changes.map((change) => [change.path, change.after]));
+          const ok = result.status === "PASS" && [...latest].every(([file, hash]) => fs.existsSync(workspacePath(workspace, file)) && digest(fs.readFileSync(workspacePath(workspace, file), "utf8")) === hash);
+          if (ok) outputs[step.id] = output; // decomposed microtask steps never run execute(); keep the outputs consumer contract
+          return ok;
+        }
+        if (step.operation?.kind === "computer") return JSON.parse(output).status === "SUCCESS";
+        if (step.operation?.kind.startsWith("run_")) return JSON.parse(output).passed === true;
+        if (step.operation) return output === ((await executeNative(workspace, step.operation)).output || "Empty native result");
+        return Boolean(output.trim());
+      },
+      microtasks: {
+        decompose: (step) => decomposeEditStep(step),
+        execute: (microtask) => executeEditMicrotask(microtask),
+        verify: (microtask, output) => verifyEditMicrotask(microtask, output),
+        join: (microtaskOutputs) => joinEditProposals(microtaskOutputs)
+      }
     }, (previous, completed, failure) => compiler.replan(previous, completed, failure), (next) => this.store.setTaskPlan(taskId, next));
     if (result.status === "WAITING") {
       const deadlines = Object.values(this.ledger.load(taskId)!.jobs).filter((job) => job.state === "WAITING" && job.retryAt).map((job) => job.retryAt!);
@@ -367,6 +456,21 @@ export class MainCommander {
   private async runNative(taskId: string, workspace: string, operation: NativeOperation): Promise<NativeEvidence> {
     if (operation.kind !== "computer") return executeNative(workspace, operation);
     if (!this.ledger) throw new Error("Desktop actions require a durable ledger");
+    // §8.2 DOM tier over a visible provider page: a dom: target without an
+    // explicit providerId is bound deterministically — the task's open provider
+    // set when it names exactly one, else the single open pane; otherwise fail
+    // closed with guidance instead of guessing among several pages.
+    const action = operation.action;
+    if (action.target.startsWith("dom:")) {
+      const dom = parseDomTarget(action.target);
+      if (dom && !dom.providerId) {
+        const open = new Set(this.store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
+        const candidates = (this.store.snapshot().tasks.find((item) => item.id === taskId)?.providerIds ?? []).filter((id) => open.has(id));
+        const target = candidates.length === 1 ? candidates[0] : open.size === 1 ? [...open][0] : undefined;
+        if (!target) throw new Error(`DOM action needs a dom: providerId in its target (task providers ∩ open pages: ${candidates.length}, open pages: ${open.size})`);
+        operation = { kind: "computer", action: { ...action, target: `dom:${JSON.stringify({ ...dom, providerId: target })}` } };
+      }
+    }
     // AP19/§16: desktop targets are mutex-protected — shared-read for reads,
     // exclusive for mutations — so two tasks never mutate the same software.
     const profile = resourceProfile(operation.action.name);
@@ -433,6 +537,8 @@ export class MainCommander {
     goal: Omit<EngineeringGoalContract, "schemaVersion" | "id" | "createdAt"> & { id?: string };
     workspace: string;
     maxIterations?: number;
+    /** Explicit operator replace: archives any frozen goal ledger, starts fresh. */
+    replace?: boolean;
     implement?: (finding: EngineeringFinding) => Promise<{ changedFiles: string[]; error?: string }>;
     review?: (finding: EngineeringFinding, changedFiles: string[]) => Promise<{ findings: string[] }>;
   }): Promise<EngineeringLoopSummary> {
@@ -440,7 +546,7 @@ export class MainCommander {
     const now = new Date().toISOString();
     const goal: EngineeringGoalContract = { schemaVersion: 1, id: input.goal.id ?? `eng-${TaskLedger.fingerprint(input.goal.objective).slice(0, 12)}`, createdAt: now, ...input.goal };
     const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
-    loopStore.freezeGoal(goal);
+    if (input.replace) loopStore.replaceGoal(goal); else loopStore.freezeGoal(goal);
     // §38 checkpoint: snapshot pre-goal state so a non-converged goal can be
     // fully reverted. Non-git workspaces proceed without rollback capability.
     const checkpoint = await checkpointRecord(input.workspace).catch(() => undefined);

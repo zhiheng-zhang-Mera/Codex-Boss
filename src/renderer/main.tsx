@@ -7,6 +7,8 @@ import { ConversationContextMenu, type ConversationMenuState } from "./component
 import { HumanInterventionCard } from "./components/HumanInterventionCard";
 import { ResearchProgress } from "./components/ResearchProgress";
 import { AttachmentTray } from "./components/AttachmentTray";
+import { ManagerPanel } from "./components/ManagerPanel";
+import { GoalRunPanel } from "./components/GoalRunPanel";
 import type { HumanInterventionRequest } from "../shared/intervention";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -38,6 +40,7 @@ function App() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedConversationIds, setSelectedConversationIds] = useState<string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [projectState, setProjectState] = useState<ProjectStateSummary | null>(null);
   const [historyCollapsed, setHistoryCollapsed] = useState(() => window.localStorage.getItem("codex-boss:history-collapsed") === "true");
@@ -49,7 +52,7 @@ function App() {
   const [customUrl, setCustomUrl] = useState("https://");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  const [view, setView] = useState<"chat" | "work" | "research">("chat");
+  const [view, setView] = useState<"chat" | "work" | "research" | "goal">("chat");
   const [researchGoal, setResearchGoal] = useState("");
   const [researchWorkspace, setResearchWorkspace] = useState("");
   const [researchAutonomy, setResearchAutonomy] = useState<"AUTOPILOT" | "GUIDED">("AUTOPILOT");
@@ -149,9 +152,9 @@ function App() {
   }, [openKey]);
 
   useEffect(() => {
-    void window.boss.setProviderViewsVisible(!settingsOpen && !historyDialog);
-    return () => { if (settingsOpen || historyDialog) void window.boss.setProviderViewsVisible(true); };
-  }, [settingsOpen, historyDialog]);
+    void window.boss.setProviderViewsVisible(!settingsOpen && !managerOpen && !historyDialog);
+    return () => { if (settingsOpen || managerOpen || historyDialog) void window.boss.setProviderViewsVisible(true); };
+  }, [settingsOpen, managerOpen, historyDialog]);
 
   useEffect(() => {
     window.localStorage.setItem("codex-boss:history-collapsed", String(historyCollapsed));
@@ -552,7 +555,7 @@ function App() {
     <section className="chat-half">
       <header className="chat-header">
         <div className="app-brand"><span>C</span><div><strong>Controller</strong><small>CODEX BOSS · LOCAL COMMANDER</small></div></div>
-        <div className="header-status"><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
+        <div className="header-status"><button className="settings-button" onClick={() => setManagerOpen(true)}>管理</button><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
 
       <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
@@ -624,7 +627,7 @@ function App() {
       </div>
 
       <div className="composer-zone">
-        <div className="top-view-nav"><button className={view === "chat" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("chat"); setAppMode("chat"); } }}>Chat</button><button className={view === "work" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("work"); setAppMode("work"); } }}>Work</button><button className={view === "research" ? "active" : ""} onClick={() => { if (!prompt.trim()) setView("research"); }}>Research</button></div>
+        <div className="top-view-nav"><button className={view === "chat" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("chat"); setAppMode("chat"); } }}>Chat</button><button className={view === "work" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("work"); setAppMode("work"); } }}>Work</button><button className={view === "research" ? "active" : ""} onClick={() => { if (!prompt.trim()) setView("research"); }}>Research</button><button className={view === "goal" ? "active" : ""} onClick={() => { if (!prompt.trim()) setView("goal"); }} title="自主工程目标（U10）">工程目标</button></div>
         {view === "research" ? <form className="research-launcher" onSubmit={startResearch}>
           <label>Research Goal <textarea aria-label="研究目标" value={researchGoal} maxLength={20000} onChange={(event) => setResearchGoal(event.target.value)} rows={2} placeholder="例如：研究 Codex Boss 的证据化多 AI 决策 vs 多数投票，完成真实实验并写 pre-print" /></label>
           <label>Workspace <input aria-label="研究仓库" value={researchWorkspace} onChange={(event) => setResearchWorkspace(event.target.value)} placeholder="本地仓库目录" /></label>
@@ -635,7 +638,7 @@ function App() {
           {researchStatus && researchStatus.protocolHash && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}{researchStatus.protocolHash ? ` · 协议已冻结 ${researchStatus.protocolHash.slice(0, 8)}` : ""}</span>{["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(researchStatus.state) ? <button type="button" disabled={sending} onClick={() => void resumeResearch()}>恢复研究（回到待办阶段）</button> : <button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button>}<button type="button" disabled={sending} title="自动推进到 READY/FAILED 或第一个真实阻塞点" onClick={() => void autopilotResearch()}>自动推进</button><button type="button" disabled={sending} title="编译 manuscript/paper.tex → paper.pdf" onClick={() => void compileResearchPdf(researchStatus.id)}>编译 PDF</button></div>}
           {compileResult && <div className={`research-status compile-result compile-${compileResult.status.toLowerCase()}`} role="status"><b>LaTeX {compileResult.status === "PASS" ? "编译成功" : "编译失败"}</b>{compileResult.pdf && <span>PDF: {compileResult.pdf}</span>}{compileResult.tex && <span>TEX: {compileResult.tex}</span>}{compileResult.cache && <span>Research cache: {compileResult.cache}</span>}{compileResult.message && <small>{compileResult.message}</small>}</div>}
           {researchRuns.length > 0 && <details className="research-runs"><summary><b>已有研究（{researchRuns.length}）</b><span className="research-runs-hint">已完成的成果已自动导出到 工作区 Research/主题/ 下；旧研究不参与新研究，展开后可单独查看/编译/处理</span></summary><div className="research-run-list">{researchRuns.map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 80)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}{run.protocolHash ? " · 已冻结" : ""}{run.pendingStage ? ` · 待办 ${run.pendingStage}` : ""}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string; protocolHash?: string } }).ir.state, protocolHash: (record as { ir: { state: string; protocolHash?: string } }).ir.protocolHash })).catch(() => {})}>查看</button><button type="button" onClick={() => void compileResearchPdf(run.id)}>编译 PDF</button></div>)}</div></details>}
-        </form> : <>
+        </form> : view === "goal" ? <GoalRunPanel busy={sending} onBusyChange={setSending} onError={(message) => setError(message)} /> : <>
         <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>
         <div className="provider-picker">
@@ -662,6 +665,7 @@ function App() {
         </form>
         {error && <div className="inline-error">{error}</div>}
       </div>
+      {managerOpen && <ManagerPanel snapshot={snapshot} onClose={() => setManagerOpen(false)} onChanged={(next) => setSnapshot(next)} onError={(message) => setError(message)} />}
       {settingsOpen && <div className="settings-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-panel"><header><div><strong>Codex Boss 设置</strong><span>API Key 加密保存；微信/QQ 指令仅从本机可见窗口读取</span></div><button onClick={() => setSettingsOpen(false)}>×</button></header><div className="api-settings-list"><section className="remote-settings"><div className="settings-section-title"><b>PC 远程指令</b><span>先登录桌面客户端；仅识别前缀消息并进入人工确认队列</span></div>{snapshot.remoteChannels.map((setting) => <form key={`${setting.channel}-${setting.updatedAt}`} className="remote-setting-card" onSubmit={(event) => void saveRemoteChannel(event, setting.channel)}><div><b>{setting.channel === "wechat" ? "微信" : "QQ"}</b><i className={`remote-status status-${setting.status}`} /> <span>{setting.status}</span><small>{setting.message}</small></div><label>前缀 <input name="commandPrefix" defaultValue={setting.commandPrefix} pattern="/[^\\s]{1,19}" required /></label><label><input name="enabled" type="checkbox" defaultChecked={setting.enabled} /> 启用</label><button type="submit">保存</button></form>)}</section>{snapshot.providers.map((provider) => { const setting = snapshot.apiSettings.find((item) => item.providerId === provider.id); return <form key={`${provider.id}-${setting?.updatedAt ?? "new"}`} onSubmit={(event) => void saveApiSetting(event, provider.id)} className="api-setting-card"><div className="api-setting-title"><b>{provider.name}</b><span>{setting?.hasApiKey ? (setting.keyTail ? `密钥已保存 · sk-••••••••${setting.keyTail}` : "密钥已保存") : "未保存密钥"}</span><label><input name="enabled" type="checkbox" defaultChecked={setting?.enabled} /> 启用</label></div><div className="api-setting-fields"><select name="protocol" defaultValue={setting?.protocol ?? "openai-compatible"}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select><input name="baseUrl" type="url" required defaultValue={setting?.baseUrl ?? "https://"} placeholder="API Base URL" /><input name="model" required defaultValue={setting?.model ?? ""} placeholder="模型名称" /><input name="apiKey" type="password" placeholder={setting?.hasApiKey ? "留空保留现有密钥" : "API Key"} /></div><div className="api-setting-actions"><label><input name="clearApiKey" type="checkbox" /> 清除已有密钥</label><button type="submit">保存</button></div></form>; })}</div></section></div>}
     </section>
 

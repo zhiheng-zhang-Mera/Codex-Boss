@@ -1,4 +1,5 @@
 import { providerVisionSurface } from "./computer/backends/provider-vision-surface";
+import { providerDomSurface } from "./computer/backends/provider-dom-surface";
 import { RecoveryScheduler } from "./commander/recovery-scheduler";
 import { WebRecovery } from "./commander/web-recovery";
 import { AttachmentStore } from "./input/attachment-store";
@@ -519,7 +520,7 @@ if (ownsInstance) app.whenReady().then(() => {
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
   const circuitBreaker = new CircuitBreaker(path.join(app.getPath("userData"), ".boss", "circuit-breaker.json"));
-  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), readBrowser: async (id) => {
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), domPageSurface: providerDomSurface(() => providerViews), readBrowser: async (id) => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
@@ -953,8 +954,8 @@ if (ownsInstance) app.whenReady().then(() => {
   // read-model; run starts one goal loop over the real allowed commands (an
   // unconfigured coding editor yields an honest ABORT, never a fabricated fix).
   ipcMain.handle("boss:engineering-goal-status", () => commander.engineeringGoalStatus());
-  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number }) => {
-    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations });
+  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number; replace?: boolean }) => {
+    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations, replace: input.replace });
   });
 
   app.on("second-instance", () => {

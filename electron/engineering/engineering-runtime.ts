@@ -5,7 +5,8 @@ import { validateGraph } from "../../src/shared/task-ir";
 import type { Microtask } from "../../src/shared/microtask";
 import { TaskLedger } from "../commander/task-ledger";
 import { MicrotaskRuntime } from "./microtask-runtime";
-export class GraphDeferred extends Error {}
+import { GraphDeferred } from "./deferred";
+export { GraphDeferred } from "./deferred";
 export interface StepEvidence { deferred?: boolean; stepId: string; passed: boolean; output: string; sha256: string; }
 export interface GraphResult { status: "COMPLETED" | "FAILED" | "WAITING"; evidence: StepEvidence[]; }
 export interface GraphExecutor {
@@ -26,6 +27,12 @@ export interface GraphExecutor {
     decompose(step: TaskStep): Microtask[] | undefined;
     execute(microtask: Microtask): Promise<string>;
     verify(microtask: Microtask, output: string): Promise<boolean>;
+    /**
+     * Optional aggregation of a step's microtask outputs. When absent, outputs
+     * are concatenated (historical behavior). The joined text becomes the
+     * step's evidence and is revalidated by the outer executor.verify.
+     */
+    join?(outputs: Record<string, string>): Promise<string> | string;
   };
 }
 // The caller supplies executors for an authorized graph; model text is never an executor.
@@ -81,7 +88,7 @@ export class EngineeringRuntime {
               const result = await runtime.runStep(taskId, step, micro, { execute: executor.microtasks.execute, verify: executor.microtasks.verify });
               if (result.status === "WAITING") { deferred = true; output = "Microtask graph waiting for runtime"; }
               else if (result.status === "FAILED") { output = `Microtask ${result.failedMicrotask ?? "?"} failed`; }
-              else { output = Object.values(result.outputs).join("\n"); passed = await executor.verify(step, output); }
+              else { output = executor.microtasks.join ? await executor.microtasks.join(result.outputs) : Object.values(result.outputs).join("\n"); passed = await executor.verify(step, output); }
             } else {
               output = await executor.execute(step); passed = await executor.verify(step, output);
             }

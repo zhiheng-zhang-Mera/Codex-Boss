@@ -33,8 +33,20 @@ function commandFinding(command: "typecheck" | "test", evidence: { passed: boole
     description: command === "typecheck"
       ? `typecheck failure in ${evidence.output.slice(0, 300).replace(/\s+/g, " ")}`
       : `test failure (see evidence)`,
-    evidence: evidence.output.slice(0, 2000)
+    evidence: failureTail(evidence.output)
   };
+}
+
+/**
+ * Failure text of a vitest/tsc transcript lives at the END of the output
+ * (the pretty report is printed top-down). Slice the tail so the stored
+ * evidence actually carries the failing test names/assertions.
+ */
+function failureTail(output: string, budget = 2500): string {
+  if (output.length <= budget) return output;
+  const tail = output.slice(-budget);
+  const marker = tail.indexOf("\n");
+  return `…(${output.length - budget} chars trimmed from head)\n${marker === -1 ? tail : tail.slice(marker + 1)}`;
 }
 
 export function createRepoEngineeringOperations(options: RepoEngineeringOptions): EngineeringLoopOperations {

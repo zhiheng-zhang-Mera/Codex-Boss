@@ -8,12 +8,20 @@ import type { SemanticAction, SemanticBackend, SemanticResult } from "../semanti
  * `dom:{"selector":"#prompt-textarea"}`. Scripts are built from JSON.stringify
  * so selectors/text can never break out of the evaluated script.
  */
+export interface DomPageRef {
+  /** Open provider pane whose visible page executes the script (production: its WebContentsView). */
+  providerId?: string;
+}
 export interface DomPageSurface {
-  /** Evaluates JS inside the visible page (like WebContentsView.executeJavaScript). */
-  evaluate<T>(script: string): Promise<T>;
+  /**
+   * Evaluates JS inside a visible page (like WebContentsView.executeJavaScript).
+   * `page` selects which provider pane runs the script; surfaces without a
+   * page concept may ignore it. Existing one-argument fakes stay assignable.
+   */
+  evaluate<T>(script: string, page?: DomPageRef): Promise<T>;
 }
 
-interface DomTarget { selector?: string; text?: string }
+interface DomTarget { selector?: string; text?: string; providerId?: string }
 interface DomOutcome { ok: boolean; reason?: string; text?: string }
 
 export const DOM_TARGET_PREFIX = "dom:";
@@ -23,6 +31,15 @@ export const DOM_READS: readonly SemanticAction["name"][] = ["read_page", "verif
 function parseTarget(target: string): DomTarget | undefined {
   if (!target.startsWith(DOM_TARGET_PREFIX)) return undefined;
   try { return JSON.parse(target.slice(DOM_TARGET_PREFIX.length)) as DomTarget; } catch { return undefined; }
+}
+
+/** Parses a dom: target and returns it with `providerId` filled when present. */
+export function parseDomTarget(target: string): { providerId?: string; selector?: string; text?: string } | undefined {
+  const parsed = parseTarget(target);
+  if (!parsed) return undefined;
+  const { providerId, selector, text } = parsed;
+  if (providerId !== undefined && !/^[a-zA-Z0-9_-]+$/.test(providerId)) throw new Error("Invalid dom target providerId");
+  return { providerId, selector, text };
 }
 
 export class DomPageBackend implements SemanticBackend {
@@ -36,12 +53,13 @@ export class DomPageBackend implements SemanticBackend {
   }
 
   async execute(action: SemanticAction, _signal: AbortSignal): Promise<SemanticResult> {
-    const target = parseTarget(action.target);
+    const target = parseDomTarget(action.target);
     if (!target || !target.selector) return { status: "UNSUPPORTED", message: `DOM action requires dom: target with a selector (got ${String(action.target).slice(0, 60)})` };
     const selector = target.selector;
+    const page = target.providerId ? { providerId: target.providerId } : undefined;
     try {
       if (action.name === "click_control") {
-        const outcome = await this.surface.evaluate<DomOutcome>(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return { ok: false, reason: "not-found" }; el.click(); return { ok: true }; })()`) ?? { ok: false };
+        const outcome = await this.surface.evaluate<DomOutcome>(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return { ok: false, reason: "not-found" }; el.click(); return { ok: true }; })()`, page) ?? { ok: false };
         return outcome.ok ? { status: "SUCCESS" } : { status: "FAILED", message: outcome.reason ?? "click failed" };
       }
       if (action.name === "enter_text") {
@@ -58,7 +76,7 @@ export class DomPageBackend implements SemanticBackend {
           } else if (el.isContentEditable) { el.textContent = ${JSON.stringify(value)}; el.dispatchEvent(new Event("input", { bubbles: true })); }
           else return { ok: false, reason: "unsupported-element" };
           return { ok: true };
-        })()`) ?? { ok: false };
+        })()`, page) ?? { ok: false };
         return outcome.ok ? { status: "SUCCESS" } : { status: "FAILED", message: outcome.reason ?? "enter_text failed" };
       }
       if (action.name === "submit") {
@@ -68,16 +86,16 @@ export class DomPageBackend implements SemanticBackend {
           el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
           el.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
           return { ok: true };
-        })()`) ?? { ok: false };
+        })()`, page) ?? { ok: false };
         return outcome.ok ? { status: "SUCCESS" } : { status: "FAILED", message: outcome.reason ?? "submit failed" };
       }
       if (action.name === "read_page") {
-        const outcome = await this.surface.evaluate<DomOutcome>(`(() => ({ ok: true, text: (document.body?.innerText ?? "").slice(0, 30000) }))()`);
+        const outcome = await this.surface.evaluate<DomOutcome>(`(() => ({ ok: true, text: (document.body?.innerText ?? "").slice(0, 30000) }))()`, page);
         return outcome?.ok ? { status: "SUCCESS", evidence: { text: outcome.text ?? "" } } : { status: "FAILED", message: outcome?.reason ?? "read failed" };
       }
       if (action.name === "verify_state") {
         const expected = action.expected ?? action.value;
-        const outcome = await this.surface.evaluate<DomOutcome>(`(() => ({ ok: true, text: (document.body?.innerText ?? "") }))()`);
+        const outcome = await this.surface.evaluate<DomOutcome>(`(() => ({ ok: true, text: (document.body?.innerText ?? "") }))()`, page);
         const found = expected === undefined || (outcome?.text ?? "").includes(expected);
         return found ? { status: "SUCCESS", evidence: { verified: true } } : { status: "FAILED", message: `expected state not found: ${expected}` };
       }
