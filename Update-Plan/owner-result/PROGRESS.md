@@ -500,7 +500,7 @@
 - 验证快照（Round 39）：typecheck PASS · vitest **49 文件 / 248 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-39/`。
 
-## Round 40（2026-09-09，P1-x §17/§38 自迭代隔离 battery，owner-result）
+## Round 40（2026-09-09，P1-x §17/§38 自迭代隔离 battery，owner-result @ 6255a7e）
 - **背景**：§17『Self-Iteration 与 Stable 隔离 / rollback』与 §38『非收敛目标回滚工作树』的完整决策路径
   （runEngineeringGoal：ABORTED/STAGNANT ⇒ rollbackToCheckpoint；CONVERGED ⇒ 保留）无 tracked 端到端证据。
 - **tests/unit/engineering-goal-rollback.test.ts（新，+2）**：
