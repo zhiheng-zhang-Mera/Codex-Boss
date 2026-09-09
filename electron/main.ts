@@ -66,6 +66,7 @@ import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
 import { loginScan } from "../src/shared/login-scan";
+import { probeNetwork } from "../src/shared/network-policy";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
@@ -678,6 +679,15 @@ if (ownsInstance) app.whenReady().then(() => {
     const result = nodeRegistry?.refresh("desktop", probe);
     const status = nodeRegistry?.status("desktop");
     return { state: result?.state ?? "UNINITIALIZED", reason: result?.reason ?? "not inspected yet", verdicts: status?.verdicts ?? [], sampledAt: probe.sampledAt, loggedIn };
+  });
+  ipcMain.handle("boss:network-status", () => {
+    // R-501/R-502: per-node network capability probe + route surface. Direct
+    // reachability comes from observed logged-in providers; proxies from the
+    // operator's environment configuration (system/user). Pure decision logic
+    // lives in shared/network-policy.ts.
+    const direct = store.snapshot().accounts.filter((account) => account.mode === "READY").map((account) => account.providerId);
+    const proxyEnv = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.ALL_PROXY || process.env.http_proxy || process.env.https_proxy;
+    return probeNetwork({ nodeId: "desktop", directReachableProviders: direct, userProxyConfigured: Boolean(proxyEnv) });
   });
   ipcMain.handle("boss:owner-dashboard", () => {
     const interventions = humanGuidance?.list() ?? [];

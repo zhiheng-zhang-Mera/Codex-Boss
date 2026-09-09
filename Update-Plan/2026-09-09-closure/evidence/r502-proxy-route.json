@@ -1,0 +1,13 @@
+{
+  "requirement": "R-502",
+  "phase": "E",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "per task x provider x node route policy: direct-first; proxy failure ladder never stops Boss",
+  "implementation": [
+    "src/shared/network-policy.ts resolveRoute (DIRECT unless proxy required or no direct reachability; next available proxy otherwise) and fallbackAfterFailure (DIRECT→SYSTEM→USER→REGIONAL→PROVIDER→DEGRADE_PROVIDER, never repeats)",
+    "shared decision consumed by boss:network-status; pure & deterministic"
+  ],
+  "tests": ["tests/unit/network-policy.test.ts (+3): direct used when possible; proxy only when required; no egress ⇒ DEGRADE_PROVIDER (never Boss-down); fallback never repeats"],
+  "gates": { "typecheck": "PASS", "vitest_unit": "62 files / 296 tests PASS", "full_build": "PASS" }
+}
