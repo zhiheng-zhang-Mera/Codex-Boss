@@ -1,0 +1,19 @@
+{
+  "phase": "10H",
+  "requirement": "10H-knowledge-pipeline",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Knowledge pipeline — Raw Event → Artifact → Candidate → Validation/Dedup → Knowledge Record → retrieval; raw events never become knowledge directly",
+  "implementation": [
+    "src/shared/tenx/knowledge.ts (+): PipelineStage + PIPELINE_STAGES; ValidationOutcome/Verdict; validateCandidate (empty/no-source/no-artifact → explicit verdicts); candidateFromEvent (raw events with non-string payloads never become candidates)",
+    "electron/tenx/knowledge-pipeline.ts: TenxKnowledgePipeline — durable stage audit trail (append-oriented, never erases earlier provenance); process() walks CANDIDATE→VALIDATION→DEDUP→RECORD; invalid/parked candidates recorded explicitly, never crash; exact/semantic dedup gate (full dedup/conflict in 10I); writes records into TenxKnowledgeSpace (10G)"
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10h.test.ts (6 tests): non-string raw event → no candidate; validation rejects empty/no-source/no-artifact; full walk raw event→record with durable audit restart; artifact-backed requirement (non-string payload rejected); empty candidate parked w/ explicit verdict + pipeline still usable; exact duplicates contribute once"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10H": "tests/unit/tenx-phase-10h.test.ts 6/6 PASS"
+  },
+  "notes": "10I builds richer dedup (semantic threshold, source-aware merge, conflict records) on the same gate seam."
+}

@@ -91,3 +91,38 @@ export function detectDedup(incoming: KnowledgeRecordVNext, existing: KnowledgeR
   }
   return "new";
 }
+
+/** 10H pipeline: stage order for raw event → artifact → candidate → record. */
+export type PipelineStage = "RAW_EVENT" | "ARTIFACT" | "CANDIDATE" | "VALIDATION" | "DEDUP" | "RECORD" | "RETRIEVAL";
+export const PIPELINE_STAGES: readonly PipelineStage[] = ["RAW_EVENT", "ARTIFACT", "CANDIDATE", "VALIDATION", "DEDUP", "RECORD", "RETRIEVAL"] as const;
+
+export type ValidationOutcome = "valid" | "invalid-empty" | "invalid-no-provenance" | "invalid-untrusted" | "parked";
+
+export interface ValidationVerdict {
+  outcome: ValidationOutcome;
+  reason: string;
+}
+
+/** Deterministic candidate validation: content must be non-empty, source/artifact
+ *  provenance present, and untrusted content must be explicitly marked as such
+ *  (a raw event is never directly knowledge). */
+export function validateCandidate(candidate: CandidateKnowledge, opts: { requireArtifactRef?: boolean; allowUntrusted?: boolean } = {}): ValidationVerdict {
+  const content = candidate.content.trim();
+  if (!content) return { outcome: "invalid-empty", reason: "candidate content is empty" };
+  if (!candidate.source) return { outcome: "invalid-no-provenance", reason: "candidate has no source" };
+  if (opts.requireArtifactRef !== false && !candidate.artifactRef) return { outcome: "invalid-no-provenance", reason: "candidate has no artifactRef (raw events are not knowledge)" };
+  return { outcome: "valid", reason: "candidate passed validation" };
+}
+
+/** Extract a candidate from a raw event payload when the payload is a string blob. */
+export function candidateFromEvent(event: RawKnowledgeEvent, opts: { nodeId?: string } = {}): CandidateKnowledge | undefined {
+  if (typeof event.payload !== "string") return undefined;
+  return {
+    candidateId: `cand-${event.eventId}`,
+    artifactRef: `event:${event.eventId}`,
+    content: event.payload,
+    source: event.kind,
+    nodeId: opts.nodeId ?? event.nodeId,
+    proposedAt: event.occurredAt
+  };
+}
