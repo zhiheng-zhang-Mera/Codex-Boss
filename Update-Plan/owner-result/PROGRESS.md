@@ -323,6 +323,12 @@
 - 12 轮 seeded soak 运行中（artifacts/rev2-soak-r25.json，下轮采集）。
 - 证据 `Update-Plan/owner-result/evidence/round-26/`。
 
+## Round 27（2026-09-09，12 轮全链 soak PASS）
+- 顺序 12 轮 seeded 工程修复验收（Bug A，fresh clone 全链 audit→implement→build/test→review→
+  converge）**12/12 PASS**，总时长 ~35 min（2111351 ms）；无回归、无重复副作用。
+- 每轮确定性证据：`overcomplete/evidence/engineering/seeded-A-2026-09-09-06:59..07:31-*.json`（12 份）。
+- 证据 `Update-Plan/owner-result/evidence/round-27/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
