@@ -194,6 +194,19 @@
 - 里程碑合并：`owner-result` → `main`（主干保持最新）。
 - 证据 `Update-Plan/owner-result/evidence/round-11/`。
 
+## Round 12（2026-09-09，P1-4 §33/§34 Research 泛化电池，owner-result @ ad77fe1）
+- `src/shared/research-battery.ts`（纯 + 共享）：
+  - 五域终态裁决器：software-engineering / multi-agent / reliability /
+    writing-evaluation / negative-null-result；终态 READY / REJECTED /
+    INCONCLUSIVE / INSUFFICIENT_EVIDENCE / REPLICATION_FAILED；
+  - 规则（§33）：**正确拒绝 = PASS**（null/negative + reviewer 通过 + 复现记录 = 诚实科学）；
+    **假 READY = FAIL**（缺 manuscript/review/citation 等 §34 链 → 降级 INSUFFICIENT_EVIDENCE）；
+    hypothesis 声称支持却标记 REJECTED 不放行；REPLICATION_FAILED 有失败记录 = PASS；
+  - `buildResearchBattery()`（6 场景覆盖五域 + 诚实否定/不足证据）+ `runResearchBattery()`。
+- 测试：`tests/unit/research-battery.test.ts`（8 用例）。
+- 验证快照（Round 12）：typecheck PASS；vitest 全量 **41 文件 / 216 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-12/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
