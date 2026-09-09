@@ -419,7 +419,7 @@
 - 验证快照（Round 33）：typecheck PASS · vitest **44 文件 / 232 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-33/`。
 
-## Round 34（2026-09-09，P1-5 §38 Scenario G / §39 多故障隔离 battery，owner-result）
+## Round 34（2026-09-09，P1-5 §38 Scenario G / §39 多故障隔离 battery，owner-result @ 366962d）
 - **背景**：§38 Scenario G（Qwen FAILED + KB DEGRADED + Node offline + Proxy unavailable 同时发生，其余能力
   继续处理）与 §39「多故障同时发生测试」需要多故障同时注入证据；既有确定性覆盖以单故障类为主（R6/R7），
   且 circuit-breaker 行为无 tracked 测试。
