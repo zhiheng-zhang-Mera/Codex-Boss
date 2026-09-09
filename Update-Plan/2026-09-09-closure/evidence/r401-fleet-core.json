@@ -1,0 +1,14 @@
+{
+  "requirement": "R-401",
+  "phase": "D",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "fleet core — FederationCoordinator + heartbeat/dropout/checkpoint-transfer/reassign modules",
+  "implementation": [
+    "src/shared/fleet.ts (pure): FleetNode lifecycle (READY→DEGRADED→OFFLINE by heartbeat age), TaskAssignmentRouter (first-fit onto nodes that can accept work + have the capability), handleNodeDropout (checkpoint transfer / unrelated untouched / unsafe uncheckpointed fails honestly), routeTask",
+    "electron/fleet/federation-coordinator.ts: durable coordinator (join/heartbeat/refreshStates/enqueue/checkpoint/mark/reassignAfterDropout; fail-closed restore)"
+  ],
+  "tests": ["tests/unit/fleet.test.ts (+5)"],
+  "gates": { "typecheck": "PASS", "vitest_unit": "60 files / 292 tests PASS", "full_build": "PASS" },
+  "notes": "R-402 two-real-node run remains; desktop participation IPC can be added with it."
+}

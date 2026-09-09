@@ -50,3 +50,16 @@
 4. R-902/903 Phase I（UI）；R-901 >2h soak（LIVE）；
 5. R-1001/1002 Phase J；R-1003 Acceptance Report。
 
+
+## Phase D - R-401/R-403 Fleet core + protocol (2026-09-09)
+- PASS R-401: shared/fleet.ts (node state machine READY->DEGRADED->OFFLINE, first-fit TaskAssignmentRouter, handleNodeDropout checkpoint transfer/unrelated untouched/unsafe uncheckpointed FAILED) + electron/fleet/federation-coordinator.ts (durable join/heartbeat/refresh/enqueue/checkpoint/mark/reassignAfterDropout, fail-closed).
+- PASS R-403: platform-neutral serializable core protocol (no OS/path coupling).
+- Tests: fleet(+5). Gates: typecheck PASS, vitest 60 files / 292 tests PASS, full build PASS. Evidence: evidence/r401-fleet-core.json, evidence/r403-fleet-protocol.json.
+- Note: requirement-manifest.json rewritten ASCII-safe after historical encoding corruption (validated, 50 entries).
+
+## Next
+1. R-402 two-node run (independent processes; B drops mid-run; unrelated continues; checkpoint transfer/reroute);
+2. R-501/502 Phase E; R-601-604 Phase F;
+3. R-701-705 Phase G; R-801 Phase H;
+4. R-902/903 Phase I; R-901 >2h soak (LIVE);
+5. R-1001/1002 Phase J; R-1003 Acceptance Report.
