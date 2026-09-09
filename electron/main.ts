@@ -67,6 +67,7 @@ import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
 import { loginScan } from "../src/shared/login-scan";
 import { probeNetwork } from "../src/shared/network-policy";
+import { ResearchContractStore, auditRun } from "./research/research-contract-store";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
@@ -688,6 +689,20 @@ if (ownsInstance) app.whenReady().then(() => {
     const direct = store.snapshot().accounts.filter((account) => account.mode === "READY").map((account) => account.providerId);
     const proxyEnv = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.ALL_PROXY || process.env.http_proxy || process.env.https_proxy;
     return probeNetwork({ nodeId: "desktop", directReachableProviders: direct, userProxyConfigured: Boolean(proxyEnv) });
+  });
+  ipcMain.handle("boss:research-contract-record", (_event, id: string, contract: import("../src/shared/research-contract").ResearchContract) => {
+    // R-701: persist the Research Contract for a run (durable; paper expansion
+    // and the sufficiency gate read it from here).
+    const store = new ResearchContractStore(path.join(app.getPath("userData"), ".boss", "research-contracts"));
+    store.save(id, contract);
+    return store.load(id);
+  });
+  ipcMain.handle("boss:research-contract-audit", (_event, id: string) => {
+    // R-702: sufficiency gate over the durable ledger decisions vs the contract.
+    const store = new ResearchContractStore(path.join(app.getPath("userData"), ".boss", "research-contracts"));
+    const record = research?.ledger.load(id);
+    const decisions = (record?.decisions ?? []).map((entry) => ({ stepId: entry.stepId, evidenceRefs: entry.evidenceRefs ?? [], decision: entry.decision }));
+    return auditRun(store.load(id), decisions);
   });
   ipcMain.handle("boss:owner-dashboard", () => {
     const interventions = humanGuidance?.list() ?? [];
