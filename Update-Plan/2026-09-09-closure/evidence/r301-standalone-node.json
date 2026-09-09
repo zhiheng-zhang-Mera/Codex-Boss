@@ -1,0 +1,13 @@
+{
+  "requirement": "R-301",
+  "phase": "C",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "single node (no Fleet) runs complete local tasks; desktop node self-reports usable state",
+  "implementation": [],
+  "tests": [
+    "tests/unit/standalone-node.test.ts (+1): full local engineering task (real MainCommander + durable ledger + capability registry + local worker) completes end-to-end with a final response and ZERO fleet components; NodeCapabilityRegistry refresh reports the desktop node READY/DEGRADED with observed web-ai/compute READY and exactly one local node record"
+  ],
+  "gates": { "typecheck": "PASS", "vitest_unit": "59 files / 287 tests PASS", "full_build": "PASS" },
+  "notes": "Phase C closed (R-301/R-302/R-303 PASS). Next: Phase D Fleet."
+}
