@@ -110,6 +110,20 @@ async function findTarget(pattern, timeoutMs = 30_000) {
     }
     log("dom-probe", { dom: domProbe });
 
+    const probeOnly = process.env.LIVE_QWEN_PROBE_ONLY === "1";
+    if (probeOnly) {
+      // Read-only response-region census (no send, no task): sample the
+      // conversation containers the capture monitor would need to key on.
+      const census = await evaluate(qwenTarget, `(() => { const seen = new Set(); const els = [...document.querySelectorAll('[class*="message"], [class*="conversation"] *, [class*="chat-content"] *, main *')].slice(0,6000); const out = []; for (const el of els) { const c = String(el.className||''); if (c && c.length<90 && el.children.length<=2) { const key = el.tagName+'.'+c.split(/\\s+/)[0]; if (!seen.has(key)) { seen.add(key); if (/\\b(msg|message|answer|markdown|content|assistant|user|thread|turn|role|bubble)\\b/i.test(c)) { const t=(el.textContent||'').trim().slice(0,60); out.push({ k: key, len: t.length }); } } } } return JSON.stringify({ samples: out.slice(0,30) }); })()`).catch((error) => `CENSUS_ERROR ${String(error).slice(0,200)}`);
+      log("dom-census", { census });
+      evidence.status = "COMPLETED";
+      evidence.finishedAt = new Date().toISOString();
+      fs.mkdirSync(path.dirname(outFile), { recursive: true });
+      fs.writeFileSync(outFile, JSON.stringify(evidence, null, 2), "utf8");
+      console.log("EVIDENCE_WRITTEN", outFile);
+      return;
+    }
+
     // 2) Stabilize the page before sending: the operator reported sends going
     // out before the Qwen chat page finished loading. Wait longer and re-check
     // the composer is still present (and no chat-loading banner) right before

@@ -278,6 +278,15 @@
   不宣称 capture 自动完成。
 - 证据 `Update-Plan/owner-result/evidence/round-20/`。
 
+## Round 21（2026-09-09，Qwen 响应区域只读普查（INCONCLUSIVE，诚实记录））
+- `live-qwen-probe.cjs` 新增 `LIVE_QWEN_PROBE_ONLY` 只读模式（启动→读 DOM→退出，零副作用）。
+- 空会话页普查仅见 composer 容器（message-input / -container / -right-button-send）——
+  响应/对话容器仅在有内容时渲染，故本普查 INCONCLUSIVE；
+  采集侧硬化的真实依据是 graduation-3 的页面级可见回复（innerText 含 QWEN-OK）。
+- 唯一 OPEN live 项维持：一次不受干扰 ≥25 分钟采集（工具就绪），或对**含内容的会话**做
+  响应区域定向普查。
+- 证据 `Update-Plan/owner-result/evidence/round-21/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
