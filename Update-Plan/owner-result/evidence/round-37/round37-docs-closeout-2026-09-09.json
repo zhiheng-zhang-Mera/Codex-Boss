@@ -1,0 +1,23 @@
+{
+  "round": 37,
+  "date": "2026-09-09",
+  "branch": "owner-result",
+  "scope": "P2 收尾 — README / Update-Log / CLOSEOUT-44 状态文档同步至 R36（代码零改动，47/241 复证）",
+  "problem": "README Status 仍写 41/216（R16 快照）、Update-Log 停在 R1–R12、CLOSEOUT-44 无 R31–R36 续篇记录 —— 与 47 文件/241 测试及 R31–R36 接线事实不一致，用户可见文档失真。",
+  "changes": [
+    "README.md：Status 段刷新 —— 47 files/241 tests + typecheck/full build PASS；Rev.2 特性清单补 §18 双 raise 拦截、运行时验证门、WebRecovery R6 guarded slot、§38/§39 电池、36 轮 soak；owner-result/main 同步至 R36",
+    "Update-Log.md：记录区间与 2026-09-09 汇总表更新；新增「续篇 R26–R36」小节（R31–R36 逐轮要点 + 47/241）",
+    "Update-Plan/owner-result/CLOSEOUT-44.md：追加续篇 R31–R36 终态段 + 续篇后已知限制/优先级（P0-6 live 接线、seam v2、长期实证项）",
+    "Update-Plan/owner-result/PROGRESS.md：Round 37 条目"
+  ],
+  "design": "纯文档/证据收口轮：文档事实与仓库证据一致；复跑 typecheck + vitest（47 文件/241 测试 PASS，代码与 R36 相同故 full build 沿用 R36 PASS）。",
+  "gates": {
+    "typecheck": "PASS (re-run @R37)",
+    "vitest_unit": "47 files / 241 tests PASS (re-run @R37)",
+    "full_build": "PASS (code identical to R36 gate; R36 build PASS)"
+  },
+  "evidence_refs": [
+    "Update-Plan/owner-result/evidence/round-37/round37-docs-closeout-2026-09-09.json",
+    "README.md / Update-Log.md / Update-Plan/owner-result/CLOSEOUT-44.md / PROGRESS.md"
+  ]
+}

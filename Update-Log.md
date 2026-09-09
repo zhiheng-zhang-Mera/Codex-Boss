@@ -1,8 +1,8 @@
 # Codex Boss — 开发日志（Update Log）
 
-> 记录区间：2026-09-01（项目创建）→ 2026-09-09（Owner-Result Rev.2 施工轮 R1–R12 + 合入 main）
-> 依据：git 全仓库提交史（`git log --all --no-merges`），按提交日期逐日汇总（截至 2026-09-09 共 292 条提交）。
-> 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8 → 9-8-overcomplete → owner-result(Rev.2)` 顺序推进；2026-09-09 已按序合并入 `main`（此后随 `owner-result` 分支施工，里程碑合并回 `main`，日期分支保留于云端）。
+> 记录区间：2026-09-01（项目创建）→ 2026-09-09（Owner-Result Rev.2 施工轮 R1–R12 + 续篇 R31–R36，均合入 main）
+> 依据：git 全仓库提交史（`git log --all --no-merges`），按提交日期逐日汇总（截至 2026-09-09 共 292+ 条提交）。
+> 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8 → 9-8-overcomplete → owner-result(Rev.2)` 顺序推进；2026-09-09 已按序合并入 `main`（此后随 `owner-result` 分支施工，每轮里程碑合并回 `main`，日期分支保留于云端）。
 
 | 日期 | 提交数 | 阶段主题 |
 |---|---|---|
@@ -14,7 +14,7 @@
 | 2026-09-06 | 110 | AP 收尾 / 研究管线全链 / 9-7 Phases A–L / milestone live E2E |
 | 2026-09-07 | 20 | 9-7 milestone 基线 / U0 审计 / U1–U3 统一收口启动 |
 | 2026-09-08 | 47 | U4–U10 面板与收口 / CDP 真机验证 / DOM 真机接线 / 应用内收敛 / 9-8 同步 |
-| 2026-09-09 | 58 | live 真机验收 / tectonic READY / DETACHED 布局收口 / 全部 9-x 并入 main / **Owner-Result Rev.2 施工轮 R1–R12（owner-result 分支，24 提交）** |
+| 2026-09-09 | 58+12 | live 真机验收 / tectonic READY / DETACHED 布局收口 / 全部 9-x 并入 main / **Owner-Result Rev.2 施工轮 R1–R12 + 续篇 R31–R36（owner-result 分支，36 提交+）** |
 
 ---
 
@@ -34,6 +34,28 @@
 - **R17–R24 Qwen live 实证链**：send live-PASS ×N + 页面级回复；登录（HB1，经 Operator 配合）；采集诊断定案（`.qwen-markdown` 完成态可用；27.5 分钟终态 FORMAT_INVALID 诚实、无无限等待）。
 - **R25 P0-7 → P1-1 Qwen Graduation ✅LIVE**：修复 `provider-automation` send.enter（Enter 后校验 prompt 可见；不可见 → DOM 级 Enter 有界重试）；干净会话全链路 `completed / SUCCESS / finalPreview QWEN-OK / evidenceDecision PASS`。
 - 测试规模：overcomplete 收口 34 文件/176 → **41 文件/216 测试 PASS**；Owner 技术决策次数 = 0、盲等 = 0。
+
+### 续篇 R26–R36（owner-result，2026-09-09 同日）
+
+§44 closeout（R30：36/36 轮 fresh-clone 全链 soak ≈106 min + DS-Hns 92/92）后按 `Update-Plan/9-9-owner.md` 持续推进的运行时接线与验收轮（`Update-Plan/owner-result/evidence/round-{31..36}/`）：
+
+- **R31 §20–§22 Verification Contract seam v1（默认 OFF，additive）**：`BossTask.verification` +
+  durable 证据/裁决；runPlan 完成点 fail-closed 验证门（缺门 ⇒ REWORK parked waiting，绝不假完成）；
+  TaskFinalizer verificationGate 兜底一切 finalize 入口。测试：真实 MainCommander+ledger 集成 + 对照组。
+- **R32 §18 research WAITING_FOR_USER raise 前拦截**：`research-wait-policy.ts`（AUTOPILOT⇒OWNER_RESULT /
+  GUIDED⇒ASSISTED）+ supervisor `requestGuidance`（DECIDABLE 自动决策入 durable research ledger、不空停；
+  HB 才上浮）。真实 ResearchLedger 集成测试。
+- **R33 §18 任务级能力路由拦截（Chat→WORK）**：`workEscalationVerdict`（OWNER_RESULT ⇒ 先入 §38 台账再
+  AUTO_APPROVE 并直接执行；ASSISTED/AUTONOMOUS/HB 文本 ⇒ 保留人工门）。Owner Dashboard 台账计数随之上真。
+- **R34 §38 Scenario G / §39 多故障隔离 battery**：真实 ExecutionSupervisor + CircuitBreaker + TaskLedger
+  三 provider 并行 —— 健康完成、故障方诚实停放、breaker 隔离 + 新任务重路由，Boss 存活。
+- **R35 §38 Scenario D research 部分失败 battery**：EXPERIMENT_GENERATION fail-closed ⇒ FAILED 但
+  RP/literature/method/协议决策与证据全部保留、跨 reopen 可读。
+- **R36 P0-6 guarded R6 slot（WebRecovery）**：RETRY_UNSENT 恢复梯接 §26/§28 Computer-Use 修复位
+  （`classifyRepairNeed` 先行；REPAIRED/SKIP ⇒ 原重发；NEEDS_HUMAN/FAILED ⇒ 诚实暂停；无 hook/非 CU ⇒ 旧路径
+  逐字节不变）；`FINAL-ACCEPTANCE.md` 矩阵刷新至 R36。
+- 测试规模：**47 文件 / 241 测试 PASS**（typecheck + full build 每轮全绿）；每轮证据 JSON +
+  PROGRESS.md 追加；owner-result 与 main 同步推送（现 @ 2026-09-09 R36）。
 
 ---
 

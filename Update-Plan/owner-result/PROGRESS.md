@@ -463,3 +463,15 @@
   PAUSED / FAILED⇒dispatch×0 不自动重发 / 无 hook⇒legacy dispatch×1 / 非 CU 失败⇒hook 不调用+dispatch×1）。
 - 验证快照（Round 36）：typecheck PASS · vitest **47 文件 / 241 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-36/`。
+
+## Round 37（2026-09-09，P2 收尾：README / Update-Log / CLOSEOUT-44 文档同步至 R36，owner-result）
+- **背景**：README Status 仍写 41/216（R16 快照）、Update-Log 停在 R1–R12、CLOSEOUT-44 无续篇记录，
+  与 47/241 及 R31–R36 事实不一致。
+- **README.md**：Status 刷新 —— **47 files / 241 tests** + typecheck/full build PASS；Rev.2 清单补 §18
+  双 raise 拦截、运行时验证门、WebRecovery R6 guarded slot、§38/§39 电池、36 轮 soak；owner-result/main
+  同步至 R36。
+- **Update-Log.md**：记录区间 + 汇总表更新；新增「续篇 R26–R36」小节（R31–R36 逐轮要点）。
+- **CLOSEOUT-44.md**：追加续篇 R31–R36 终态段 + 续篇后已知限制/优先级（P0-6 live 接线、seam v2、长期项）。
+- 验证快照（Round 37，文档轮）：typecheck PASS · vitest **47 文件 / 241 测试 PASS**（复跑；代码与 R36
+  相同，full build 沿用 R36 PASS）。
+  证据 `Update-Plan/owner-result/evidence/round-37/`。
