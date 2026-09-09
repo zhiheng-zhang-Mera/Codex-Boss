@@ -1,0 +1,135 @@
+{
+  "kind": "LIVE_QWEN_CU_PROBE",
+  "startedAt": "2026-09-09T04:59:13.672Z",
+  "status": "COMPLETED",
+  "steps": [
+    {
+      "step": "launch",
+      "at": "2026-09-09T04:59:13.706Z",
+      "dataDir": "D:\\Codex-Boss\\.cache\\browser-profile"
+    },
+    {
+      "step": "renderer-ready",
+      "at": "2026-09-09T04:59:15.243Z",
+      "title": "Codex Boss"
+    },
+    {
+      "step": "open-qwen",
+      "at": "2026-09-09T04:59:15.357Z",
+      "open": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:20.376Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:25.401Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:30.418Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:35.440Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:40.455Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:45.472Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:50.492Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T04:59:55.503Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:00.516Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:05.530Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:10.551Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:15.558Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:20.579Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:25.602Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:30.615Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:35.630Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:40.649Z",
+      "auth": true
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:00:45.656Z",
+      "auth": true
+    },
+    {
+      "step": "dom-probe",
+      "at": "2026-09-09T05:00:45.657Z",
+      "dom": "{\"host\":\"chat.qwen.ai\",\"href\":\"https://chat.qwen.ai/auth\",\"auth\":true}"
+    },
+    {
+      "step": "cleanup-stale",
+      "at": "2026-09-09T05:00:45.713Z",
+      "cleanup": "{\"cancelled\":[\"5f3da8ce-bd18-4dfb-bb83-f27a2eba49b9\",\"2edab492-44d8-423d-8c1b-1b803b9aba0f\",\"70d0df8d-ccc6-4598-ab68-e8ef223f3af2\",\"6cb79b74-6b7d-4426-a0b3-0479038a0af3\"]}"
+    },
+    {
+      "step": "dispatch",
+      "at": "2026-09-09T05:00:54.560Z",
+      "dispatch": "{\"taskId\":\"881cbc4c-a2a8-41a1-827f-1a9d4fa29ff6\",\"status\":\"waiting\"}"
+    },
+    {
+      "step": "final-outcome",
+      "at": "2026-09-09T05:00:59.577Z",
+      "outcome": "{\"status\":\"waiting\",\"nextAction\":null,\"recoveryMessage\":null,\"phases\":\"queued\",\"outcomes\":\"\",\"message\":\"等待可见预填\",\"finalPreview\":null,\"evidenceDecision\":null}",
+      "replySeenAt": null,
+      "pageTail": null
+    }
+  ],
+  "finishedAt": "2026-09-09T05:00:59.578Z"
+}

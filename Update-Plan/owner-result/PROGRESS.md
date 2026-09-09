@@ -250,6 +250,15 @@
 - composer selector 已固化证据 → 后续如需 adapter 硬化补丁可复用（patch+live 复验）。
 - 证据 `Update-Plan/owner-result/evidence/round-17/`（3 个 probe JSON + 汇总）。
 
+## Round 18（2026-09-09，Qwen 长时采集运行 → HB1 登录过期，诚实记录）
+- `live-qwen-probe.cjs` LONG 模式：页面级助手回复侦测 + ≤27.5 分钟采集窗。
+- 长时运行证据：Qwen 会话过期 → `/auth` 全程驻留；dispatch 停在 queued（“等待可见预填”），
+  未发送、未伪造 → §32 LOGIN_EXPIRED / **HB1**（无可用凭据，可能含 CAPTCHA）；
+  stall-breaker 已尽（今日 4 次冷启动 + 90s 认证等待）。
+- 当日 P0-7 send live-PASS ×3 保持；capture graduation 现被 HB1（需 Operator 重登 Qwen 分区）
+  阻塞；按 HB1 允许上浮，不宣称假完成。
+- 证据 `Update-Plan/owner-result/evidence/round-18/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

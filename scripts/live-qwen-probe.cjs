@@ -115,17 +115,36 @@ async function findTarget(pattern, timeoutMs = 30_000) {
     log("dispatch", { dispatch });
 
     // 3) Poll the durable run state for the honest outcome (longer horizon:
-    // capture can take minutes on a live page).
+    // capture can take minutes on a live page; LONG mode additionally watches
+    // the Qwen page itself for the assistant reply text).
+    const longMode = process.env.LIVE_QWEN_LONG === "1";
+    const replyText = "QWEN-OK";
     let outcome = null;
-    for (let i = 0; i < 96 && !outcome; i += 1) {
+    let replySeenAt = null;
+    let pageTail = null;
+    // 5s per tick: ~8 min normal; ~27.5 min in LONG mode (capture monitor bound).
+    const maxIterations = longMode ? 330 : 96;
+    for (let i = 0; i < maxIterations && !outcome; i += 1) {
       await sleep(5000);
+      if (longMode && !replySeenAt && i % 2 === 0) {
+        const pageText = await evaluate(qwenTarget, `(() => JSON.stringify({ href: location.href.slice(0,120), hasReply: (document.body.innerText||'').includes(${JSON.stringify(replyText)}), tail: (document.body.innerText||'').slice(-500) }))()`).catch(() => null);
+        if (pageText) {
+          const parsed = JSON.parse(pageText);
+          if (parsed.hasReply) {
+            replySeenAt = new Date().toISOString();
+            pageTail = parsed.tail;
+            log("assistant-reply-visible", { tail: pageTail.slice(-220) });
+          }
+        }
+      }
       outcome = await evaluate(renderer, `window.boss.snapshot().then(s => { const t = s.tasks.find(x => x.title === ${JSON.stringify(TASK_TITLE)}); if (!t) return null; const runs = s.runs.filter(r => r.taskId === t.id); const final = s.finalResponses.find(f => f.taskId === t.id); return JSON.stringify({ status: t.status, nextAction: t.nextAction || null, recoveryMessage: t.recoveryMessage || null, phases: runs.map(r => r.phase).join(','), outcomes: runs.map(r => r.outcome).join(','), message: (runs.map(r => r.message).find(Boolean) || '').slice(0,300), finalPreview: final ? final.content.slice(0, 200) : null, evidenceDecision: (s.evidenceBundles.filter(b => b.taskId === t.id).sort((a,b)=> b.createdAt.localeCompare(a.createdAt))[0]?.decision) ?? null }); })`).catch(() => null);
       if (outcome) {
         const parsed = JSON.parse(outcome);
         if (parsed && (parsed.status === "completed" || parsed.status === "failed" || parsed.finalPreview)) break;
       }
+      if (replySeenAt && !longMode) break;
     }
-    log("final-outcome", { outcome });
+    log("final-outcome", { outcome, replySeenAt, pageTail: pageTail ? pageTail.slice(-220) : null });
     evidence.status = "COMPLETED";
     evidence.finishedAt = new Date().toISOString();
     fs.mkdirSync(path.dirname(outFile), { recursive: true });
