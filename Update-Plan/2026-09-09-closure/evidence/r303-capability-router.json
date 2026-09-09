@@ -1,0 +1,16 @@
+{
+  "requirement": "R-303",
+  "phase": "C",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "capability-aware scheduler routing — never dispatch to runtimes lacking the capability or in FAILED/DISABLED/RECOVERING",
+  "implementation": [
+    "src/shared/capability-router.ts (pure): ModuleState vocabulary; eligibleCandidates excludes FAILED/DISABLED/RECOVERING and capability-less candidates (reasons recorded), admits DEGRADED (tracked in degraded[])",
+    "electron/commander/main-commander.ts dispatchRole: runtime status views → ModuleState mapping (enabled=false ⇒ DISABLED; DOWN ⇒ FAILED; RATE_LIMITED/BUDGET_EXHAUSTED/AUTH_REQUIRED ⇒ DEGRADED) and eligibility filtering before supervisor dispatch"
+  ],
+  "tests": [
+    "tests/unit/capability-router.test.ts (+3): FAILED/DISABLED blocked with reasons; capability requirement enforced; DEGRADED admitted+tracked"
+  ],
+  "gates": { "typecheck": "PASS", "vitest_unit": "58 files / 286 tests PASS", "full_build": "PASS" },
+  "notes": "Phase C remains R-301 (standalone-node evidence) before Phase D Fleet."
+}

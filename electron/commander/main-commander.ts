@@ -32,6 +32,7 @@ import { verifyResult, verificationPlanFor, type VerificationContract } from "..
 import { collectVerificationEvidence } from "./verification-collector";
 import { runRepoGate, type RepoGate } from "../engineering/gate-runner";
 import { conversationPolicyFor, type ConversationPolicy } from "../../src/shared/conversation-policy";
+import { eligibleCandidates, type ModuleState } from "../../src/shared/capability-router";
 import type { StateStore } from "../store";
 import { BudgetManager } from "./budget-manager";
 import { ContextManager, type TaskContext } from "./context-manager";
@@ -452,7 +453,27 @@ export class MainCommander {
     const snapshot = this.store.snapshot();
     const controls = snapshot.runtimeStatuses;
     const configured = snapshot.roleRoutes.find((route) => route.role === role);
-    const candidates = this.router.route({ preferredRuntimes: configured?.runtimeIds, allowFallback: configured?.fallback, role, ...routing }).filter((candidate) => controls.find((control) => control.runtimeId === candidate.runtimeId)?.enabled !== false).map((candidate) => this.registry.get(candidate.runtimeId)).filter((runtime) => runtime !== undefined);
+    // R-303 capability-aware routing: never dispatch to a runtime whose observed
+    // module state cannot accept work (FAILED/DISABLED/RECOVERING) or that lacks
+    // the required role capability; DEGRADED runtimes are admitted (tracked) and
+    // the breaker/budget layers still gate them downstream.
+    const requiredCapability = role === "planner" ? "planning" : role === "coder" ? "coding" : role === "researcher" ? "research" : role === "reviewer" ? "review" : role === "synthesizer" ? "synthesis" : role === "validator" ? "validation" : "critique";
+    const states: Record<string, ModuleState> = {};
+    for (const control of controls) {
+      states[control.runtimeId] = control.enabled === false ? "DISABLED"
+        : control.availability === "DOWN" ? "FAILED"
+          : control.availability === "RATE_LIMITED" || control.availability === "BUDGET_EXHAUSTED" || control.availability === "AUTH_REQUIRED" ? "DEGRADED"
+            : "READY";
+    }
+    const routedInstances = this.router.route({ preferredRuntimes: configured?.runtimeIds, allowFallback: configured?.fallback, role, ...routing })
+      .map((candidate) => this.registry.get(candidate.runtimeId))
+      .filter((runtime): runtime is import("../runtimes/runtime").RuntimeAdapter => runtime !== undefined);
+    const eligibility = eligibleCandidates(
+      routedInstances.map((runtime) => ({ id: runtime.id, capabilities: runtime.capabilities.roles as string[] })),
+      states,
+      [requiredCapability]
+    );
+    const candidates = routedInstances.filter((runtime) => eligibility.selected.includes(runtime.id));
     // Degradation evaluation is task-ledger-bound; synthetic role-task ids used
     // by autonomous engineering have no store task, so skip it there instead of
     // throwing (live goal workers route like real tasks otherwise).
