@@ -488,3 +488,14 @@
     attempts 耗尽后记录 PAUSED（attempts≥3）。
 - 验证快照（Round 38）：typecheck PASS · vitest **48 文件 / 243 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-38/`。
+
+## Round 39（2026-09-09，P1-x §0.4/§11/§29 DegradedController battery，owner-result）
+- **背景**：DegradedController（FULL/REDUCED/LIGHTWEIGHT/DETERMINISTIC/PAUSED 分级状态机 +
+  分级 worker/context 预算 + §29 policy 驱动并行度/验证级别）被 scheduler/UI 读取，此前无 tracked 测试。
+- **tests/unit/degraded-controller-battery.test.ts（新，真实 DegradedController + TaskLedger +
+  BudgetManager，+5）**：双 eligible⇒FULL（池+maxWorkers+durable 持久化）/ 单 eligible⇒REDUCED(16000) /
+  全 LOW⇒LIGHTWEIGHT(8000) / 预算耗尽⇒nativeAvailable?DETERMINISTIC:PAUSED（fail-closed 绝不 FULL）/
+  applyTaskPolicy(L2) 后 evaluate 幂等（同输入同状态）+ policy.complexity 记录 + LOW 仍 eligible
+  （仅 EXHAUSTED 出局）。
+- 验证快照（Round 39）：typecheck PASS · vitest **49 文件 / 248 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-39/`。
