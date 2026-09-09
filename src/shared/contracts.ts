@@ -67,6 +67,9 @@ export interface BossTask {
   /** Rev.2 §20–§22: when present, MODEL_DONE may not complete the task until the
    *  risk-gated verification plan passes with evidence (fail-closed REWORK). */
   verification?: import("./result-validator").VerificationContract;
+  /** R-204: how this task treats its provider conversation (default deterministic:
+   *  chat PERSISTENT, automated WORK fresh TEMPORARY). */
+  conversationPolicy?: import("./conversation-policy").ConversationPolicy;
   /** Gates that actually passed with evidence during the last completion claim. */
   verificationEvidence?: import("./result-validator").GateResult[];
   /** Durable last verdict of the verification plan (PASS or REWORK + missing). */
@@ -359,6 +362,8 @@ export interface CreateTaskInput {
   /** Optional §20–§22 verification contract: when set, the task may only complete
    *  after its risk-gated verification plan passes (MODEL_DONE ≠ COMPLETED). */
   verification?: import("./result-validator").VerificationContract;
+  /** Optional R-204 conversation policy; absent → deterministic default. */
+  conversationPolicy?: import("./conversation-policy").ConversationPolicy;
   providerIds: ProviderId[];
   mode?: TaskMode;
   appMode?: AppMode;

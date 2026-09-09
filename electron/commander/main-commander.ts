@@ -31,6 +31,7 @@ import { defaultRunModeForTask, effectiveRunMode, runTaskKindFor, type RunMode }
 import { verifyResult, verificationPlanFor, type VerificationContract } from "../../src/shared/result-validator";
 import { collectVerificationEvidence } from "./verification-collector";
 import { runRepoGate, type RepoGate } from "../engineering/gate-runner";
+import { conversationPolicyFor, type ConversationPolicy } from "../../src/shared/conversation-policy";
 import type { StateStore } from "../store";
 import { BudgetManager } from "./budget-manager";
 import { ContextManager, type TaskContext } from "./context-manager";
@@ -54,7 +55,7 @@ import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; /** Rev.2 §20–§22: when set, MODEL_DONE may not complete the task until its risk-gated verification plan passes. */ verification?: VerificationContract; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; /** Rev.2 §20–§22: when set, MODEL_DONE may not complete the task until its risk-gated verification plan passes. */ verification?: VerificationContract; /** R-204: explicit conversation policy; absent → deterministic default. */ conversationPolicy?: ConversationPolicy; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -134,6 +135,10 @@ export class MainCommander {
     // Rev.2 §20–§22: persist an explicit verification contract when supplied so
     // every later completion point enforces MODEL_DONE → VERIFYING → PASS/REWORK.
     if (input.verification) this.store.setVerificationContract(task.id, input.verification);
+    // R-204: record the conversation policy (explicit wins; deterministic default
+    // keeps the product behavior: fresh automated WORK conversations stay
+    // TEMPORARY, chat conversations stay PERSISTENT).
+    this.store.setConversationPolicy(task.id, input.conversationPolicy ?? conversationPolicyFor({ appMode: task.appMode, freshWebConversation: task.freshWebConversation === true }));
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     this.ledger?.create(task.id, input.objective, input.constraints, input.budget);

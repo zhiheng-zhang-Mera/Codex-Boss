@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { isRunMode } from "../src/shared/owner-result";
 import { isVerificationContract } from "../src/shared/result-validator";
+import { isConversationPolicy } from "../src/shared/conversation-policy";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { validateInputObjectRef, uniqueInputObjectRefs, type InputObject, type InputObjectRef } from "../src/shared/input-object";
 import { HistoryRepository, safeSegment } from "./history-repository";
@@ -482,6 +483,16 @@ export class StateStore {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
     task.verification = { domain: contract.domain, risk: contract.risk };
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /** R-204: persists the task's conversation policy (TEMPORARY/REUSABLE/PERSISTENT/AUTO_DELETE). */
+  setConversationPolicy(taskId: string, policy: import("../src/shared/conversation-policy").ConversationPolicy): void {
+    if (!isConversationPolicy(policy)) throw new Error("Invalid conversation policy");
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.conversationPolicy = policy;
     task.updatedAt = new Date().toISOString();
     this.persist();
   }
