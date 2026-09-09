@@ -30,7 +30,10 @@
 - **R6/R7 P1-5/P1-6**：ExecutionSupervisor 故障注入套件（auth/timeout/quota/malformed）+ Long Soak mini（§36 不变量）。
 - **R10 P1-3 §32 Self-Healing Battery**（10 场景目录 + §35 停滞检测）；**R12 P1-4 §33/§34 Research 5 域电池**（正确拒绝=PASS、假 READY=FAIL）。
 - **R11 发布门**：受控 Electron 重启 acceptance PASS；`FINAL-ACCEPTANCE.md`（§41/§42/§44 矩阵）。
-- 测试规模：从 overcomplete 收口时的 34 文件/176 测试 → **41 文件/216 测试 PASS**；Owner 技术决策次数 = 0、盲等 = 0。
+- **R13–R16 发布/准备**：GitHub CI 全绿（runs 73/75/76/77 success）、portable 打包 + PACKAGED_SMOKE_PASS、README Rev.2 状态、`LIVE-ROUND-PLAN.md`。
+- **R17–R24 Qwen live 实证链**：send live-PASS ×N + 页面级回复；登录（HB1，经 Operator 配合）；采集诊断定案（`.qwen-markdown` 完成态可用；27.5 分钟终态 FORMAT_INVALID 诚实、无无限等待）。
+- **R25 P0-7 → P1-1 Qwen Graduation ✅LIVE**：修复 `provider-automation` send.enter（Enter 后校验 prompt 可见；不可见 → DOM 级 Enter 有界重试）；干净会话全链路 `completed / SUCCESS / finalPreview QWEN-OK / evidenceDecision PASS`。
+- 测试规模：overcomplete 收口 34 文件/176 → **41 文件/216 测试 PASS**；Owner 技术决策次数 = 0、盲等 = 0。
 
 ---
 
