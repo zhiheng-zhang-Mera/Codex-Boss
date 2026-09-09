@@ -3,6 +3,7 @@ import type { AppSnapshot, BossBridge, CreateConversationInput, CreateTaskInput,
 
 const bridge: BossBridge = {
   snapshot: () => ipcRenderer.invoke("boss:snapshot"),
+  nodeStatus: () => ipcRenderer.invoke("boss:node-status"),
   progress: () => ipcRenderer.invoke("boss:progress"),
   ownerDashboard: () => ipcRenderer.invoke("boss:owner-dashboard"),
   activeIntervention: (taskId: string) => ipcRenderer.invoke("boss:active-intervention", taskId),

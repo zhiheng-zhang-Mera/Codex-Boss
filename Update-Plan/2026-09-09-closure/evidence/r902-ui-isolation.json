@@ -1,0 +1,1 @@
+﻿{"requirement":"R-902","phase":"I","date":"2026-09-09","status":"PASS","summary":"UI isolation: background work never depends on UI lifecycle; reconnect reads durable state","tests":["tests/unit/ui-isolation.test.ts (+2)"],"gates":{"typecheck":"PASS","vitest_unit":"67 files / 310 tests PASS","full_build":"PASS"}}

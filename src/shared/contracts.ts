@@ -390,6 +390,8 @@ export interface ViewBounds {
 
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
+  /** R-302/R-903: current node capability state shown in the Owner strip. */
+  nodeStatus(): Promise<{ state: string; reason: string; verdicts: Array<{ id: string; status: string }>; loggedIn: string[]; sampledAt?: string }>;
   progress(): Promise<import("./progress").ProgressSummary[]>;
   /** Rev.2 §37/§38/§44: Owner dashboard read-model (GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER). */
   ownerDashboard(): Promise<import("./owner-dashboard").OwnerDashboardSummary>;
