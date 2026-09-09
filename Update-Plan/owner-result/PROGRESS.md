@@ -446,3 +446,20 @@
   - 对照组：全绿 executor 单步后进入 PROJECT_INSPECTION，SCOPING 决策入账。
 - 验证快照（Round 35）：typecheck PASS · vitest **46 文件 / 236 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-35/`。
+
+## Round 36（2026-09-09，P0-6 guarded R6 slot：WebRecovery Computer-Use 修复位，owner-result）
+- **背景**：§45 #2（P0-6 guarded 接线）未落地——WebRecovery 恢复梯没有 Computer-Use 修复位；CU_REPAIR 类失败
+  （send/input affordance 丢失）只能直接重发或暂停；R8 已备 DOM 执行器但无接线位。
+- **electron/commander/web-recovery.ts**：
+  - 新类型 `WebRecoveryRepair`（§26/§28 guarded hook）：{taskId,providerId,runId,reason} ⇒
+    {REPAIRED|NEEDS_HUMAN|FAILED|SKIP}；构造函数可选注入（默认无 ⇒ 行为逐字节不变）。
+  - `resume()` RETRY_UNSENT 分支新增 **R6 slot**：对持久 run.message 用 shared `classifyRepairNeed`
+    分类——仅 **CU_REPAIR 且 hook 存在**才调用；NEEDS_HUMAN/FAILED ⇒ pause（绝不自动重发到未验证页面）；
+    REPAIRED/SKIP ⇒ 落到原重发路径；非 CU 失败/无 hook ⇒ 旧路径（回归证明）。
+- **FINAL-ACCEPTANCE.md**：R11 矩阵刷新至 R36（research battery / 36 轮 soak / Qwen graduation /
+  R31–R36 接缝行 + P0-6 guarded ✅DET 行），收口待办同步。
+- 测试：`tests/unit/web-recovery-r6.test.ts`（+5，真实 StateStore+RecoveryScheduler+BudgetManager + fake
+  views/automation 集成：REPAIRED⇒repair×1+dispatch×1+记录清除 / NEEDS_HUMAN⇒dispatch×0+人工暂停+队列
+  PAUSED / FAILED⇒dispatch×0 不自动重发 / 无 hook⇒legacy dispatch×1 / 非 CU 失败⇒hook 不调用+dispatch×1）。
+- 验证快照（Round 36）：typecheck PASS · vitest **47 文件 / 241 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-36/`。

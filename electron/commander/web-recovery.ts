@@ -4,13 +4,25 @@ import type { ProviderViews } from "../provider-views";
 import type { ProviderAutomation } from "../provider-automation";
 import { adapterFor } from "../adapters/registry";
 import { probeScript, type PageProbe } from "../adapters/page-scripts";
+import { classifyRepairNeed } from "../../src/shared/computer-recovery";
 import { BudgetManager } from "./budget-manager";
 import { RecoveryScheduler, type RecoveryResult, type RecoveryWakeup } from "./recovery-scheduler";
 export type WebRecoveryStrategy = "CAPTURE_EXISTING" | "RETRY_UNSENT";
+
+/**
+ * §26/§28 guarded Computer-Use repair hook (P0-6 R6 slot). Injected by the
+ * composition root when Computer-Use page repair is available; consulted only
+ * when the failing run's message classifies as a CU_REPAIR need (§26). The
+ * hook runs read-then-mutate plans under its own authorization gate; WebRecovery
+ * treats NEEDS_HUMAN/FAILED as a genuine pause — never an auto re-send.
+ */
+export type WebRecoveryRepair = (input: { taskId: string; providerId: string; runId: string; reason: string }) => Promise<{ status: "REPAIRED" | "NEEDS_HUMAN" | "FAILED" | "SKIP"; message?: string }>;
+
 export class WebRecovery {
   constructor(private readonly store: StateStore, private readonly views: ProviderViews,
     private readonly automation: () => ProviderAutomation, private readonly provider: (id: string) => Provider,
-    private readonly queue: RecoveryScheduler, private readonly budgets: BudgetManager) {
+    private readonly queue: RecoveryScheduler, private readonly budgets: BudgetManager,
+    private readonly repair?: WebRecoveryRepair) {
     queue.register("web", (record) => this.resume(record));
   }
   defer(run: ProviderRun, strategy: WebRecoveryStrategy, retryAt = Date.now() + 60000): void {
@@ -56,6 +68,19 @@ export class WebRecovery {
     else {
       const checkpoint = this.store.snapshot().dispatchCheckpoints.find((item) => item.taskId === task.id && item.round === round);
       if (checkpoint?.requiresReconciliation) return this.pause(task.id, "上次提交有不确定结果，不能自动重发");
+      // P0-6 R6 slot (§26/§28): when the failing send/input is a CU_REPAIR need
+      // and a guarded Computer-Use repair hook is configured, repair the page
+      // ONCE before the retried dispatch. NEEDS_HUMAN/FAILED pause honestly —
+      // the recovery never auto-re-sends over an unverified page state.
+      const failed = runs.find((item) => item.id === payload.runId);
+      const need = classifyRepairNeed({ outcome: failed?.outcome ?? null, reason: failed?.message ?? "" });
+      if (failed && need.verdict === "CU_REPAIR" && this.repair) {
+        const repair = await this.repair({ taskId: task.id, providerId: failed.providerId, runId: failed.id, reason: failed.message ?? "" });
+        if (repair.status === "NEEDS_HUMAN" || repair.status === "FAILED") {
+          return this.pause(task.id, repair.message ?? "Computer-Use 页面修复未完成；不会自动重发，需人工核对");
+        }
+        // REPAIRED → fall through to the normal retried dispatch; SKIP → legacy path.
+      }
       await this.automation().dispatchTask(task.id);
       if (this.store.snapshot().tasks.find((item) => item.id === task.id)?.recoveryAt) return { done: false, retryAt: Date.now() + 60000, error: "Provider still unavailable" };
     }

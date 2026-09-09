@@ -1,50 +1,52 @@
-# Owner-Result Rev.2 — Final Acceptance Matrix（§41/§42/§44 映射）
+# Owner-Result Rev.2 — Final Acceptance Matrix（§41/§42/§44，refresh @ R36 2026-09-09）
 
-> 分支 owner-result（自 main @ 3d8233a）；每项标注：状态 + 收敛方式/证据位置。
-> 口径：`MODEL_DONE ≠ COMPLETED`；只有确定性测试 + 证据门 PASS 才算完成；
-> live 项需真实 provider 会话（既有分区 `.cache/browser-profile/Partitions/codex-boss-*`）。
+> 契约：`Update-Plan/Owner-Result.md`（Rev.2）。口径：`MODEL_DONE ≠ COMPLETED`；
+> 只有确定性测试 + 证据门 PASS 才算完成；live 项需真实 provider 会话。
 > 状态：✅DET = 确定性验收通过；✅LIVE = 实况证据通过；⚠️LIVE-TODO = 需 live 轮；📋 = 文档/矩阵承载。
+> 本矩阵在 R11 基础上随 R12–R36 刷新（research battery、36 轮 soak、Qwen graduation、R31–R36 运行时接缝）。
 
-## §41 Boss Final Acceptance 映射（产品侧）
+## §41 Boss Final Acceptance 映射（产品侧，owner-result / main 同步至 R36）
 
 | 项 | 状态 | 证据 |
 |---|---|---|
-| 1 AI / 3 AI / 5 AI 并行 | ✅LIVE（overcomplete） | evidence/live/live-{1,3,5}ai-* |
+| 1 AI / 3 AI / 5 AI 并行 | ✅LIVE | evidence/live/live-{1,3,5}ai-*（overcomplete） |
 | Chat continuation / Work fresh | ✅LIVE | live-chat-vs-work / live-chat-continuation |
-| non-blocking waiting（不占调度/不盲等） | ✅DET + live 基础 | R2 runMode、R3 DSH continuation-controller、R7 soak（§17 slot 释放、hard horizon） |
-| provider recovery | ✅DET + live 基础 | R6 fault injection（auth/timeout/quota/defer）、既有 web-recovery live |
-| Computer Use fallback（§24–§29） | ✅DET 核心 + ✅LIVE（Qwen 加固链路） | R4 planner、R8 DOM 执行器、R10 healing、R25 provider-automation send.enter 可见性校验 + DOM-Enter 兜底 |
-| Qwen repair（P0-7）→ graduation | ✅LIVE（R25 全链路 PASS） | round-25 live-qwen-clean-capture-2（completed/SUCCESS/finalPreview QWEN-OK/evidenceDecision PASS） |
-| engineering loop | ✅DET/LIVE | overcomplete seeded A–E / live-engineering-goal |
-| self-repair（Boss 自愈） | ✅DET 核心 + ⚠️接线 | R10 battery |
-| restart recovery | ✅DET（本轮 acceptance-restart）+ 既有 live | round-11 restart 证据；evidence/restart/* |
-| multi-domain research | ⚠️部分 live + 确定性链 | overcomplete offline-chain / live-research-ready |
-| READY PDF / veto / null / insufficient | ✅LIVE（overcomplete 单域） / ⚠️多域电池 | live-research-ready / veto 记录；P1-4 battery TODO |
-| long soak | ✅DET mini + ⚠️长时 live | R7 soak（§36 不变量） |
-| CI / portable / restart smoke | ✅（本仓库 CI 绿；本轮 restart smoke） | .github/workflows/ci.yml；round-11 |
-| Owner dashboard（§37/§38/§44） | ✅DET + UI smoke | R5 read-model、R9 UI + electron smoke |
+| non-blocking waiting（不占调度/不盲等） | ✅DET + live 基础 | R2 runMode、R3 DSH continuation-controller、R7 soak、R30 36/36 soak |
+| provider recovery | ✅DET + live 基础 | R6 fault injection；web-recovery live |
+| Computer Use fallback（§24–§29） | ✅DET 核心 + ✅LIVE 链路 | R4 planner、R8 DOM executor、R10 healing、R25 send 加固、**R36 WebRecovery R6 guarded slot（✅DET；live DOM executor 待专属会话）** |
+| Qwen repair（P0-7）→ graduation | ✅LIVE（R25 全链路 PASS） | round-25 live-qwen-clean-capture-2（completed/SUCCESS/finalPreview QWEN-OK） |
+| engineering loop | ✅DET/LIVE | overcomplete seeded A–E；live-engineering-goal |
+| self-repair（Boss 自愈） | ✅DET 核心 | R10 battery；R31–R33 runtime seams |
+| restart recovery | ✅DET + live | round-11 restart；evidence/restart/* |
+| multi-domain research | ✅DET（§33 5 域 battery）+ ⚠️多域 live 论文 | R12 research-battery（正确拒绝=PASS、假 READY=FAIL）；overcomplete offline-chain / live-research-ready |
+| READY PDF / veto / null / insufficient | ✅LIVE 单域 + ✅DET 电池 | live-research-ready / veto；R12 |
+| §20 MODEL_DONE≠COMPLETED 运行时验证门 | ✅DET（R31 seam v1，契约默认 OFF）+ ⚠️ seam v2 默认开 | verification-contract.test.ts（fail-closed REWORK 无假完成） |
+| §18 raise 前拦截（research WAITING_FOR_USER / Chat→WORK / escalation） | ✅DET（R32/R33 seams） | research-wait-policy.test.ts；work-escalation-verdict.test.ts |
+| §38 Scenario G / §39 多故障隔离 | ✅DET（R34） | multi-fault-isolation.test.ts（真实 supervisor+breaker+ledger） |
+| §38 Scenario D research 部分失败保留 | ✅DET（R35） | research-partial-failure.test.ts |
+| long soak | ✅DET mini + ✅36 轮全链（~106 min） | R7 soak；R30 36/36（6,386,634 ms） |
+| CI / portable / restart smoke | ✅（CI runs 73–81 success；portable smoke PASS） | .github/workflows/ci.yml；round-14/19/26 |
+| Owner dashboard（§37/§38/§44） | ✅DET + UI smoke | R5 read-model、R9 UI、R33 真实台账（escalation auto-approve 入账） |
 
-## §42 DS-Hns Final Acceptance 映射（harness 侧，分支 owner-result-autonomy @ 8e24b7d）
+## §42 DS-Hns Final Acceptance 映射（harness 侧，分支 owner-result-autonomy @ 8e24b7d 合入 main）
 
 | 项 | 状态 | 证据 |
 |---|---|---|
-| Pure Alien regression | ✅（本轮修复后 92/92） | DS-Hns tests/unit（installer-contract §42 契约修复） |
-| official renderer untouched | ✅（修复后契约） | installer-contract.test.js（官方视图无 preload） |
-| OWNER_RESULT / question interception / auto decision | ✅DET（autonomy 模块） | autonomy/question-interceptor.js + tests |
-| non-blocking episode supervision | ✅DET | autonomy/{progress-observer,stall-detector,episode-supervisor}.js |
-| progress / stall detection | ✅DET | 同上 + tests |
-| auto steer / auto retry / automatic continuation | ✅DET | continuation-controller.js（bounded/backoff/deadline） |
-| result verification / automatic rework | ✅DET | result-validator.js + continuation REWORK |
-| restart recovery / headless / official session | ✅ 既有 alien | scheduler（headless/official-session）；autonomy 受控集成默认 OFF |
-| decision ledger | ✅DET | autonomy/decision-ledger.js（durable、fail-closed） |
+| Pure Alien regression | ✅（92/92） | DS-Hns tests/unit |
+| official renderer untouched | ✅ | installer-contract.test.js |
+| OWNER_RESULT / question interception / auto decision | ✅DET | autonomy/*.js + tests |
+| non-blocking episode supervision / stall detection / auto steer-retry-continuation | ✅DET | autonomy/{progress-observer,stall-detector,episode-supervisor,continuation-controller}.js |
+| result verification / automatic rework / decision ledger | ✅DET | result-validator.js、decision-ledger.js |
+| restart recovery / headless / official session | ✅ | scheduler（autonomy 默认 OFF 受控集成） |
 
 ## §44 终态呈现（Owner 视角）
-默认只显示 GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER：
-- read-model：`src/shared/owner-dashboard.ts`（R5）
-- UI：OwnerSummary strip（R9）；内部决策计数来自 durable decision ledger（R1/R5）
-- Owner 技术决策次数：本程序全部轮次 = 0；盲等 = 0（无 HARD_BLOCKER 上报）
+- read-model：`src/shared/owner-dashboard.ts`；UI：OwnerSummary strip（R9）；内部决策计数来自 durable
+  decision-ledger（R1/R5/R33 escalation 台账真实落账）。
+- Owner 技术决策次数：本程序全部轮次 = 0；盲等 = 0。
 
-## 收口待办（后续轮）
-1. P0-6 guarded 接线 + live（真实 provider 窗口）修复证据（Qwen send 接管 = P0-7）。
-2. P1-4 research 5 域电池确定性状态机（REJECTED/INCONCLUSIVE/INSUFFICIENT_EVIDENCE/REPLICATION_FAILED 正确拒绝=PASS；假 READY=FAIL）。
-3. P2 收尾：README/Update-Log 增补、portable 打包 smoke、CI 复核、owner-result 合 main。
+## 收口待办（R31–R36 后）
+1. P0-6 live：真实 provider 窗口里把 R36 R6 guarded slot 接上 DOM-tier Computer-Use 执行器
+   （planner→executor 已备：R4/R8），产出 REPAIRED live 证据；无 session 时保持 NEEDS_HUMAN 诚实记录。
+2. P0-5 seam v2：OWNER_RESULT 工程任务默认带 verification 契约 + requiredEngineeringChecks 补齐真实
+   build/integration/acceptance 门执行后再默认开（当前契约默认 OFF 兼容 47 文件/241 测试全回归）。
+3. 长期实证项（非验收缺口）：§34 多域 live READY 论文、>2h 单次连续 soak、UI 视觉/多语言微调。
