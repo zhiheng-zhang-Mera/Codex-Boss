@@ -1,0 +1,29 @@
+{
+  "kind": "OWNER_RESULT_ROUND23_24_QWEN_CAPTURE_TERMINAL_TRUTH",
+  "round": "23-24",
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§31 Qwen capture-side: selector census + full-horizon terminal truth)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T17:20:00.000Z",
+  "finishedAt": "2026-09-09T18:10:00.000Z",
+  "commitSha": "HEAD-on-owner-result",
+  "branch": "owner-result",
+  "status": "DIAGNOSED_WITH_TERMINAL_TRUTH",
+  "verification": {
+    "rawSendReply": "PASS (direct DOM send; assistant 'QWEN-OK.' in main chat)",
+    "selectorAtCompletion": "PASS (.qwen-markdown matched the completed answer; earlier count=0 was mid-stream sampling)",
+    "fullHorizonCapture": "TERMINATED HONESTLY at ~27.5 min: outcome FORMAT_INVALID / '尚未发现可验证的新回答…' — never waits forever",
+    "rootCauseOfEmptyPageRuns": "test-env contention: several historical waiting tasks + fresh-work conversation reuse fight over the single Qwen pane => message not visible in the pane we monitor"
+  },
+  "summary": {
+    "delivered": [
+      "Raw-send census proved the Qwen response container matches .qwen-markdown once rendering completes (adapter responseSelectors are usable)",
+      "Full-horizon run established the honest terminal: no infinite wait; FORMAT_INVALID with a clear retry/manual message when no new verifiable answer appears",
+      "Qwen send + page-level reply remain live-PASS; full auto-capture for Qwen not falsified as a product bug — the failing runs were contending multi-task environments (stale waiting tasks + fresh-conversation reuse)"
+    ]
+  },
+  "evidence": {
+    "censuses": "evidence/round-23/qwen-raw-send-census{,,-2,-3}-2026-09-09.json (reply + .qwen-markdown hit)",
+    "terminal": "evidence/round-24/live-qwen-capture-full-2026-09-09.json (FORMAT_INVALID honest terminal at ~27.5min)",
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Rounds 23-24)"]
+  }
+}

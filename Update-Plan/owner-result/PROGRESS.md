@@ -296,6 +296,16 @@
   会话做内容普查 → 据实修 adapter responseSelectors → 短时 live 复验采集自动收口。
 - 证据 `Update-Plan/owner-result/evidence/round-22/`。
 
+## Round 23–24（2026-09-09，Qwen 采集诊断定案：selector 可用 + 终态诚实）
+- **RAW-SEND 模式**（不经 app 任务系统直发）两次复现：主对话区完成态下 `.qwen-markdown`
+  命中且内容为 `QWEN-OK.`（早前 count=0 是流式中途采样）→ adapter responseSelectors 可用，
+  假设（selector 不匹配）被**证伪**。
+- **全时长采集（~27.5 分钟）终态**：app 端诚实终止——`outcome FORMAT_INVALID` /
+  “尚未发现可验证的新回答，可稍后重试或手动完成”；**不会无限等待**。
+- 失败根因（空页面运行）= 测试环境争用：历史 waiting 任务 + fresh-work 会话复用争抢单一
+  Qwen pane → 发送未落在被监视页面；非产品采集 bug（页面含回复时 send→reply 通路已证）。
+- 证据：`evidence/round-23/`（raw-send census ×3）、`evidence/round-24/`（full-capture 终态 + 汇总）。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

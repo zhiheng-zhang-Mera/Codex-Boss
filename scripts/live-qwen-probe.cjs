@@ -138,6 +138,47 @@ async function findTarget(pattern, timeoutMs = 30_000) {
       return;
     }
 
+    // 2a) RAW-SEND mode: send one echo directly through the page DOM (no app
+    // task system, no capture monitor), wait for the assistant reply, then
+    // census the REAL answer containers. This is the clean way to learn the
+    // selectors the capture monitor needs.
+    if (process.env.LIVE_QWEN_RAW_SEND === "1") {
+      await sleep(10_000); // let the fresh chat settle
+      const sent = await evaluate(qwenTarget, `(() => {
+        const input = document.querySelector('textarea.message-input-textarea');
+        if (!input) return JSON.stringify({ ok: false, reason: 'input-not-found' });
+        const value = 'Reply with exactly: QWEN-OK.';
+        input.focus();
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        if (setter) setter.call(input, value); else input.value = value;
+        input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+        return JSON.stringify({ ok: true, value: input.value.slice(0, 40) });
+      })()`).catch((error) => `RAW_SEND_ERROR ${String(error).slice(0,200)}`);
+      log("raw-send", { sent });
+      let rawReply = null;
+      for (let i = 0; i < 24 && !rawReply; i += 1) {
+        await sleep(5000);
+        const probe = await evaluate(qwenTarget, `(() => JSON.stringify({ hasReply: (document.body.innerText||'').includes('QWEN-OK'), hasPrompt: (document.body.innerText||'').includes('Reply with exactly') }))()`).catch(() => null);
+        if (probe) {
+          const parsed = JSON.parse(probe);
+          if (parsed.hasReply) {
+            rawReply = probe;
+            log("raw-reply-visible", { probe });
+          } else if (i % 3 === 0) log("raw-waiting", { probe });
+        }
+      }
+      const rawCensus = await evaluate(qwenTarget, `(() => { const text = (document.body.innerText||''); const leafWalk = (() => { const root = document.querySelector('.chat-messages, .chat-messages-container') || document.body; const leaves = [...root.querySelectorAll('p, span, div, pre')].filter(e => (e.textContent||'').trim() === 'QWEN-OK'); const out = []; for (const leaf of leaves.slice(0,3)) { const chain = []; let n = leaf; for (let i = 0; i < 6 && n && n !== root && n !== document.body; i += 1) { const c = String(n.className||''); chain.push(n.tagName + (c ? '.' + c.split(/\\s+/).slice(0,4).join('.') : '')); n = n.parentElement; } out.push(chain.join(' < ')); } return out; })(); const hits = ['.qwen-markdown','.markdown','[data-message-author-role="assistant"]','[data-message-author-role="user"]','[class*="chat-message"]'].map(s => { const els = [...document.querySelectorAll(s)].filter(e => e.getClientRects().length > 0); return { s, count: els.length, sample: els.at(-1)?.innerText?.trim().slice(0,100) || '' }; }); const seen = new Set(); const out = []; for (const el of [...document.querySelectorAll('main *')]) { const c = String(el.className||''); if (c && c.length<110 && el.children.length<=3) { const key = el.tagName+'.'+c; if (!seen.has(key) && (el.textContent||'').trim().length > 3) { seen.add(key); if (/(msg|message|markdown|answer|assistant|user|bubble|content)/i.test(c)) out.push({ k: key.slice(0,100), len: (el.textContent||'').trim().length }); } } } return JSON.stringify({ hasQWENOK: text.includes('QWEN-OK'), tail: text.slice(-300), leafWalk, selectorHits: hits, contentClasses: out.slice(0,30) }); })()`).catch((error) => `RAW_CENSUS_ERROR ${String(error).slice(0,200)}`);
+      log("raw-census", { rawCensus });
+      evidence.status = "COMPLETED";
+      evidence.finishedAt = new Date().toISOString();
+      fs.mkdirSync(path.dirname(outFile), { recursive: true });
+      fs.writeFileSync(outFile, JSON.stringify(evidence, null, 2), "utf8");
+      console.log("EVIDENCE_WRITTEN", outFile);
+      return;
+    }
+
     // 2) Stabilize the page before sending: the operator reported sends going
     // out before the Qwen chat page finished loading. Wait longer and re-check
     // the composer is still present (and no chat-loading banner) right before
