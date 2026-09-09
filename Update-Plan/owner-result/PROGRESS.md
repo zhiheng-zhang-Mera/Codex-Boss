@@ -512,7 +512,7 @@
 - 验证快照（Round 40）：typecheck PASS · vitest **50 文件 / 250 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-40/`。
 
-## Round 41（2026-09-09，P1-x HumanGuidanceGate durable battery，owner-result）
+## Round 41（2026-09-09，P1-x HumanGuidanceGate durable battery，owner-result @ 5b30a32）
 - **背景**：HumanGuidanceGate 是真实 raise/resolve seam（R32 research interception 之下真正需要 Operator 的
   决策入口），此前无 tracked 测试。
 - **tests/unit/human-guidance-gate.test.ts（新，+4）**：raise 持久化 + 跨 reopen 存活（checkpoint-before-pause）/
