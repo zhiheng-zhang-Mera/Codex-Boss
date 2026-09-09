@@ -116,6 +116,20 @@ async function findTarget(pattern, timeoutMs = 30_000) {
       // conversation containers the capture monitor would need to key on.
       const census = await evaluate(qwenTarget, `(() => { const seen = new Set(); const els = [...document.querySelectorAll('[class*="message"], [class*="conversation"] *, [class*="chat-content"] *, main *')].slice(0,6000); const out = []; for (const el of els) { const c = String(el.className||''); if (c && c.length<90 && el.children.length<=2) { const key = el.tagName+'.'+c.split(/\\s+/)[0]; if (!seen.has(key)) { seen.add(key); if (/\\b(msg|message|answer|markdown|content|assistant|user|thread|turn|role|bubble)\\b/i.test(c)) { const t=(el.textContent||'').trim().slice(0,60); out.push({ k: key, len: t.length }); } } } } return JSON.stringify({ samples: out.slice(0,30) }); })()`).catch((error) => `CENSUS_ERROR ${String(error).slice(0,200)}`);
       log("dom-census", { census });
+      // Open the most recent conversation (benign navigation) so the census can
+      // see real content classes; verify the post-condition (content present).
+      const contentCensus = await evaluate(qwenTarget, `(async () => {
+        const clickable = [...document.querySelectorAll('button, li, div[role="button"], a')];
+        const candidate = clickable.find(el => { const t = (el.textContent||'').trim(); return t.includes('QWEN-OK') || t.includes('Reply with exactly'); })
+          || clickable.filter(el => (el.textContent||'').trim().length > 3 && (el.textContent||'').trim().length < 60 && /Qwen3|Qwen\\s|\\u65b0\\u5efa|\\u5386\\u53f2/i.test((el.textContent||'').trim())).slice(-1)[0];
+        if (!candidate) return JSON.stringify({ opened: false });
+        candidate.click();
+        return JSON.stringify({ opened: true, label: (candidate.textContent||'').trim().slice(0,60) });
+      })()`).catch(() => JSON.stringify({ opened: false, error: "click failed" }));
+      log("content-open", { contentCensus });
+      await sleep(4000);
+      const contentCensusAfter = await evaluate(qwenTarget, `(() => { const text = (document.body.innerText||''); const hits = ['.qwen-markdown','.markdown','[data-message-author-role="assistant"]','[data-message-author-role="user"]'].map(s => { const els = [...document.querySelectorAll(s)].filter(e => e.getClientRects().length > 0); return { s, count: els.length, sample: els.at(-1)?.innerText?.trim().slice(0,120) || '' }; }); const seen = new Set(); const out = []; for (const el of [...document.querySelectorAll('main *')]) { const c = String(el.className||''); if (c && c.length<100 && el.children.length<=3 && /(msg|message|markdown|answer|assistant|user|bubble|content)/i.test(c)) { const key = el.tagName+'.'+c; if (!seen.has(key) && (el.textContent||'').trim().length > 4) { seen.add(key); out.push({ k: key.slice(0,90), len: (el.textContent||'').trim().length }); } } } return JSON.stringify({ hasQWENOK: text.includes('QWEN-OK'), selectorHits: hits, contentClasses: out.slice(0,25) }); })()`).catch((error) => `CONTENT_ERROR ${String(error).slice(0,200)}`);
+      log("content-census", { contentCensusAfter });
       evidence.status = "COMPLETED";
       evidence.finishedAt = new Date().toISOString();
       fs.mkdirSync(path.dirname(outFile), { recursive: true });

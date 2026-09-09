@@ -287,6 +287,15 @@
   响应区域定向普查。
 - 证据 `Update-Plan/owner-result/evidence/round-21/`。
 
+## Round 22（2026-09-09，采集诊断假设 + 含内容普查尝试（INCONCLUSIVE，诚实））
+- **代码级诊断假设**：Qwen adapter `responseSelectors = ['.qwen-markdown', common]` 可能与真实
+  回答容器不匹配 → `probe.latestResponse` 恒空 → 采集 monitor 等到 25 分钟强制采集上界。
+- probe-only 模式扩展为尝试打开最近会话做含内容普查；本轮点击落到品牌/导航节点（空内容），
+  真实回答容器 class 仍未取得 —— INCONCLUSIVE。
+- 两条确定路径仍就绪：① 不受干扰 ≥25 分钟采集；② 定向打开“Reply with exactly: QWEN-OK.”
+  会话做内容普查 → 据实修 adapter responseSelectors → 短时 live 复验采集自动收口。
+- 证据 `Update-Plan/owner-result/evidence/round-22/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
