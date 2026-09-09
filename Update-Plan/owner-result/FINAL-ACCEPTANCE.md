@@ -1,11 +1,11 @@
-# Owner-Result Rev.2 — Final Acceptance Matrix（§41/§42/§44，refresh @ R36 2026-09-09）
+# Owner-Result Rev.2 — Final Acceptance Matrix（§41/§42/§44，refresh @ R41 2026-09-09）
 
 > 契约：`Update-Plan/Owner-Result.md`（Rev.2）。口径：`MODEL_DONE ≠ COMPLETED`；
 > 只有确定性测试 + 证据门 PASS 才算完成；live 项需真实 provider 会话。
 > 状态：✅DET = 确定性验收通过；✅LIVE = 实况证据通过；⚠️LIVE-TODO = 需 live 轮；📋 = 文档/矩阵承载。
-> 本矩阵在 R11 基础上随 R12–R36 刷新（research battery、36 轮 soak、Qwen graduation、R31–R36 运行时接缝）。
+> 本矩阵在 R11 基础上随 R12–R41 刷新（research battery、36 轮 soak、Qwen graduation、R31–R41 运行时接缝与电池）。
 
-## §41 Boss Final Acceptance 映射（产品侧，owner-result / main 同步至 R36）
+## §41 Boss Final Acceptance 映射（产品侧，owner-result / main 同步至 R41）
 
 | 项 | 状态 | 证据 |
 |---|---|---|
@@ -24,6 +24,10 @@
 | §18 raise 前拦截（research WAITING_FOR_USER / Chat→WORK / escalation） | ✅DET（R32/R33 seams） | research-wait-policy.test.ts；work-escalation-verdict.test.ts |
 | §38 Scenario G / §39 多故障隔离 | ✅DET（R34） | multi-fault-isolation.test.ts（真实 supervisor+breaker+ledger） |
 | §38 Scenario D research 部分失败保留 | ✅DET（R35） | research-partial-failure.test.ts |
+| §33/§39 恢复续跑（checkpoint/resume 不重启） | ✅DET（R38） | recovery-resume-battery.test.ts（同一 job 恢复后续跑；有界耗尽 PAUSED） |
+| §0.4/§11/§29 能力降级状态机 | ✅DET（R39） | degraded-controller-battery.test.ts（FULL…PAUSED + policy caps） |
+| §17/§38 自迭代隔离（rollback） | ✅DET（R40） | engineering-goal-rollback.test.ts（ABORTED 全量回滚、CONVERGED 保留） |
+| 人工决策门（raise/resolve/durable） | ✅DET（R41） | human-guidance-gate.test.ts（single-active、fail-closed restore） |
 | long soak | ✅DET mini + ✅36 轮全链（~106 min） | R7 soak；R30 36/36（6,386,634 ms） |
 | CI / portable / restart smoke | ✅（CI runs 73–81 success；portable smoke PASS） | .github/workflows/ci.yml；round-14/19/26 |
 | Owner dashboard（§37/§38/§44） | ✅DET + UI smoke | R5 read-model、R9 UI、R33 真实台账（escalation auto-approve 入账） |
@@ -44,9 +48,9 @@
   decision-ledger（R1/R5/R33 escalation 台账真实落账）。
 - Owner 技术决策次数：本程序全部轮次 = 0；盲等 = 0。
 
-## 收口待办（R31–R36 后）
+## 收口待办（R31–R41 后）
 1. P0-6 live：真实 provider 窗口里把 R36 R6 guarded slot 接上 DOM-tier Computer-Use 执行器
    （planner→executor 已备：R4/R8），产出 REPAIRED live 证据；无 session 时保持 NEEDS_HUMAN 诚实记录。
 2. P0-5 seam v2：OWNER_RESULT 工程任务默认带 verification 契约 + requiredEngineeringChecks 补齐真实
-   build/integration/acceptance 门执行后再默认开（当前契约默认 OFF 兼容 47 文件/241 测试全回归）。
+   build/integration/acceptance 门执行后再默认开（当前契约默认 OFF 兼容 51 文件/254 测试全回归）。
 3. 长期实证项（非验收缺口）：§34 多域 live READY 论文、>2h 单次连续 soak、UI 视觉/多语言微调。

@@ -1,0 +1,23 @@
+{
+  "round": 42,
+  "date": "2026-09-09",
+  "branch": "owner-result",
+  "scope": "P2 收尾 — 状态文档二次收敛至 R41（README / Update-Log / CLOSEOUT-44 / FINAL-ACCEPTANCE），51/254 复证",
+  "problem": "R37 文档同步停在 R36（47/241）；R38–R41 又新增 4 个电池文件（+7 测试）至 51 文件/254 测试，用户可见文档再次失真。",
+  "changes": [
+    "README.md：Status 刷新 —— 51 files / 254 tests、owner-result/main 同步至 R41；能力清单补 recovery-resume / degraded-controller / self-iteration-rollback / guidance-gate 电池（R31–R41）",
+    "Update-Log.md：记录区间 + 2026-09-09 汇总表 → R31–R41；新增「续篇 R37–R41」小节（R37 文档 / R38 恢复续跑 / R39 降级控制 / R40 自迭代回滚 / R41 人工决策门）",
+    "Update-Plan/owner-result/CLOSEOUT-44.md：续篇标题/哈希 → R41 @ a164f8e，补 R37–R41 条目与 51/254 门快照",
+    "Update-Plan/owner-result/FINAL-ACCEPTANCE.md：refresh @ R41，§41 增补 R38–R41 四行电池行，收口待办同步（兼容 51/254）",
+    "Update-Plan/owner-result/PROGRESS.md：Round 42 条目"
+  ],
+  "gates": {
+    "typecheck": "PASS (re-run @R42)",
+    "vitest_unit": "51 files / 254 tests PASS (re-run @R42)",
+    "full_build": "PASS (code identical to R41 gate; R41 build PASS)"
+  },
+  "evidence_refs": [
+    "Update-Plan/owner-result/evidence/round-42/round42-docs-converge-r41-2026-09-09.json",
+    "README.md / Update-Log.md / CLOSEOUT-44.md / FINAL-ACCEPTANCE.md / PROGRESS.md"
+  ]
+}

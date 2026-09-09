@@ -31,10 +31,10 @@
 
 ---
 
-# 续篇 R31–R36（同日收尾追加，owner-result & main @ 33eec51 / 后续轮次续推）
+# 续篇 R31–R41（同日收尾追加，owner-result & main @ a164f8e / 后续轮次续推）
 
 按 `Update-Plan/9-9-owner.md` 在 closeout 基底上继续推进的确定性接线与验收轮（逐轮证据
-`Update-Plan/owner-result/evidence/round-{31..36}/`，PROGRESS.md 已追加）：
+`Update-Plan/owner-result/evidence/round-{31..41}/`，PROGRESS.md 已追加）：
 
 - **R31** §20–§22 运行时验证门 seam v1（默认 OFF）：MODEL_DONE ≠ COMPLETED fail-closed REWORK，
   真实 MainCommander 集成测试 + 对照组（legacy 不变）。
@@ -44,13 +44,18 @@
 - **R34** §38 Scenario G / §39 多故障隔离 battery（真实 supervisor+circuit-breaker+ledger）。
 - **R35** §38 Scenario D research 部分失败保留 battery。
 - **R36** P0-6 guarded R6 slot（WebRecovery Computer-Use 修复位）+ FINAL-ACCEPTANCE 矩阵刷新。
-- 门：typecheck · vitest **47 文件 / 241 测试 PASS** · full build 每轮全绿；owner-result/main 同步推送。
+- **R37** P2 收尾（README/Update-Log/CLOSEOUT 文档同步）。
+- **R38** §33/§39 恢复续跑 battery（同一 job 恢复后续跑完成；有界耗尽 PAUSED）。
+- **R39** §0.4/§11/§29 DegradedController battery（多级降级状态机 + policy caps）。
+- **R40** §17/§38 自迭代隔离 battery（ABORTED 候选完全回滚、CONVERGED 保留）。
+- **R41** HumanGuidanceGate durable battery（raise/resolve/single-active/fail-closed restore）。
+- 门：typecheck · vitest **51 文件 / 254 测试 PASS** · full build 每轮全绿；owner-result/main 同步推送。
 
 ## 续篇后的已知限制 / 后续优先级（诚实记录）
 1. **P0-6 live 执行器接线**：R36 guarded slot 就绪，需真实 provider 窗口把 R4 planner + R8 DOM 执行器
    注入组合根并产出 REPAIRED live 证据；无会话时维持 NEEDS_HUMAN 诚实记录（绝不伪造修复）。
 2. **P0-5 seam v2**：OWNER_RESULT 工程任务默认附带 verification 契约，需先让 requiredEngineeringChecks
-   补齐真实 build/integration/acceptance 门执行（契约当前默认 OFF，兼容 47/241 全回归）。
+   补齐真实 build/integration/acceptance 门执行（契约当前默认 OFF，兼容 51/254 全回归）。
 3. **长期实证项照旧**：§34 多域 live READY 论文、>2h 单次连续 soak、UI 视觉/多语言微调。
 
 ## 终态（续篇后）

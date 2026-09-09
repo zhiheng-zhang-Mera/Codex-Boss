@@ -1,6 +1,6 @@
 # Codex Boss — 开发日志（Update Log）
 
-> 记录区间：2026-09-01（项目创建）→ 2026-09-09（Owner-Result Rev.2 施工轮 R1–R12 + 续篇 R31–R36，均合入 main）
+> 记录区间：2026-09-01（项目创建）→ 2026-09-09（Owner-Result Rev.2 施工轮 R1–R12 + 续篇 R31–R41，均合入 main）
 > 依据：git 全仓库提交史（`git log --all --no-merges`），按提交日期逐日汇总（截至 2026-09-09 共 292+ 条提交）。
 > 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8 → 9-8-overcomplete → owner-result(Rev.2)` 顺序推进；2026-09-09 已按序合并入 `main`（此后随 `owner-result` 分支施工，每轮里程碑合并回 `main`，日期分支保留于云端）。
 
@@ -14,7 +14,7 @@
 | 2026-09-06 | 110 | AP 收尾 / 研究管线全链 / 9-7 Phases A–L / milestone live E2E |
 | 2026-09-07 | 20 | 9-7 milestone 基线 / U0 审计 / U1–U3 统一收口启动 |
 | 2026-09-08 | 47 | U4–U10 面板与收口 / CDP 真机验证 / DOM 真机接线 / 应用内收敛 / 9-8 同步 |
-| 2026-09-09 | 58+12 | live 真机验收 / tectonic READY / DETACHED 布局收口 / 全部 9-x 并入 main / **Owner-Result Rev.2 施工轮 R1–R12 + 续篇 R31–R36（owner-result 分支，36 提交+）** |
+| 2026-09-09 | 58+20 | live 真机验收 / tectonic READY / DETACHED 布局收口 / 全部 9-x 并入 main / **Owner-Result Rev.2 施工轮 R1–R12 + 续篇 R31–R41（owner-result 分支）** |
 
 ---
 
@@ -56,6 +56,21 @@
   逐字节不变）；`FINAL-ACCEPTANCE.md` 矩阵刷新至 R36。
 - 测试规模：**47 文件 / 241 测试 PASS**（typecheck + full build 每轮全绿）；每轮证据 JSON +
   PROGRESS.md 追加；owner-result 与 main 同步推送（现 @ 2026-09-09 R36）。
+
+### 续篇 R37–R41（owner-result，2026-09-09 同日）
+
+- **R37 P2 收尾（文档）**：README Status → 47/241；Update-Log 记录区间/汇总表更新；CLOSEOUT-44 追加续篇段。
+- **R38 §33/§39 恢复续跑 battery**：真实 supervisor+ledger+RecoveryScheduler —— 技术失败 ⇒ 有界 recovery，
+  同一 job（相同 fingerprint）恢复后续跑 COMPLETED（非从零重启）；恒定失败 ⇒ 有界 attempts 耗尽 PAUSED、
+  绝不 COMPLETED。
+- **R39 §0.4/§11/§29 DegradedController battery**：FULL/REDUCED/LIGHTWEIGHT/DETERMINISTIC/PAUSED 分级状态机
+  + worker/context 预算 + policy（幂等、LOW 仍 eligible）。
+- **R40 §17/§38 自迭代隔离 battery**：真实 runEngineeringGoal —— ABORTED 候选（先改坏再报错）⇒ 工作树
+  完全回滚（changedFiles=[]、git 干净）；CONVERGED 保留改动。
+- **R41 HumanGuidanceGate durable battery**：raise 持久化跨 reopen / 每 task+kind 单一 active / resolve
+  append / 损坏存储 fail-closed。
+- 测试规模：**51 文件 / 254 测试 PASS**（typecheck + full build 每轮全绿）；每轮证据 JSON + PROGRESS.md
+  追加；owner-result 与 main 同步（现 @ 2026-09-09 R41，commit a164f8e）。
 
 ---
 

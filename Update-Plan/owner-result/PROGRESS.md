@@ -520,3 +520,15 @@
   restart from scratch；重复 resolve 抛错）/ 损坏存储 ⇒ fail-closed throw（未决暂停绝不静默丢失）。
 - 验证快照（Round 41）：typecheck PASS · vitest **51 文件 / 254 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-41/`。
+
+## Round 42（2026-09-09，P2 收尾：状态文档二次收敛至 R41，owner-result）
+- **背景**：R37 文档同步停在 R36（47/241）；R38–R41 新增 4 个电池文件至 51/254，README/Update-Log/
+  CLOSEOUT/FINAL-ACCEPTANCE 再次失真。
+- **README.md**：Status → **51 files / 254 tests**、owner-result/main 同步至 R41；能力清单补
+  recovery-resume / degraded-controller / self-iteration-rollback / guidance-gate 电池（R31–R41）。
+- **Update-Log.md**：记录区间 + 汇总表 → R31–R41；新增「续篇 R37–R41」小节。
+- **CLOSEOUT-44.md**：续篇标题/哈希 → R41 @ a164f8e；补 R37–R41 条目与 51/254 门快照。
+- **FINAL-ACCEPTANCE.md**：refresh @ R41；§41 增补 R38–R41 四行电池；收口待办同步（兼容 51/254）。
+- 验证快照（Round 42，文档轮）：typecheck PASS · vitest **51 文件 / 254 测试 PASS**（复跑；代码与 R41
+  相同，full build 沿用 R41 PASS）。
+  证据 `Update-Plan/owner-result/evidence/round-42/`。

@@ -126,11 +126,11 @@ Standalone smoke verification uses an isolated data directory:
 
 - The deterministic test suite is committed with the repository under `tests/unit/`
   (layered layout; includes git/process-heavy integration cases). Trunk snapshot
-  (Owner-Result branch `owner-result`, merged into `main` — both at R36, 2026-09-09):
-  **47 files / 241 tests green** + typecheck + full build + benchmark PASS.
+  (Owner-Result branch `owner-result`, merged into `main` — both at R41, 2026-09-09):
+  **51 files / 254 tests green** + typecheck + full build + benchmark PASS.
   确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
-  主干快照（Owner-Result 分支 `owner-result`，与 `main` 同步至 R36，2026-09-09）：
-  **47 文件 / 241 测试全绿**，typecheck / 完整 build / benchmark PASS。
+  主干快照（Owner-Result 分支 `owner-result`，与 `main` 同步至 R41，2026-09-09）：
+  **51 文件 / 254 测试全绿**，typecheck / 完整 build / benchmark PASS。
 - Owner-Result Rev.2 (2026-09-09): autonomous execution contract per
   `Update-Plan/Owner-Result.md` — run modes (ASSISTED/AUTONOMOUS/OWNER_RESULT),
   HB1–HB4 hard-blocker classification, question interception & auto-decision
@@ -139,7 +139,8 @@ Standalone smoke verification uses an isolated data directory:
   the runtime verification-contract gate), Computer-Use provider-recovery
   planner + DOM executor + guarded WebRecovery R6 repair slot, decision ledger,
   self-healing battery, research battery (correct rejection = PASS),
-  §38/§39 fault-isolation & multi-fault & research partial-failure batteries,
+  §38/§39 fault-isolation & multi-fault & research partial-failure & recovery-
+  resume & self-iteration-rollback & degraded-controller batteries (R31–R41),
   36-round fresh-clone full-chain soak, long-soak invariants, and an Owner
   dashboard read-model + UI (GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER).
   Evidence per round under `Update-Plan/owner-result/evidence/round-N/`;
@@ -149,7 +150,8 @@ Standalone smoke verification uses an isolated data directory:
   ——运行模式、HB1–HB4 硬阻塞分类、问题拦截与自动决策（research raise 点 + Chat→WORK 升级）、
   停滞/heartbeat 监督、结果验证（含运行时验证门）、Computer-Use 恢复规划器 + DOM 执行器 +
   WebRecovery R6 守卫修复位、决策台账、自愈电池、Research 电池（正确拒绝=PASS）、
-  故障隔离/多故障/Research 部分失败电池、36 轮 fresh-clone 全链 soak、Owner 看板读模型与 UI。
+  故障隔离/多故障/Research 部分失败/恢复续跑/自迭代回滚/降级控制电池（R31–R41）、
+  36 轮 fresh-clone 全链 soak、Owner 看板读模型与 UI。
   每轮证据见 `Update-Plan/owner-result/evidence/round-N/`；DS-Hns autonomy 模块在
   `owner-result-autonomy` 分支（92/92 测试绿）。Owner 决策次数=0，盲等=0。
 - GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke / restart
