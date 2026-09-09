@@ -1,82 +1,153 @@
-# Codex Boss Desktop
+# Codex Boss Desktop / Codex Boss 桌面控制器
 
-Codex Boss 是本地优先的 Electron 桌面控制器。`9-5` 分支收录当前最新本地版本及 2026-09-05 可见窗口运行 Demo；功能基线延续 `9-4` 按 [执行计划](docs/9-4-plan.md) 完成的稳定 **1.0.0** 有界本机验收。真实网页、桌面、恢复、迁移和资源证据及其外推边界见 [V1.0 验收记录](docs/9-4-v1-hardening.md)。
+A local-first Electron control plane for visible, browser-driven AI work.
+本地优先的 Electron 桌面控制台，统一调度“可见网页 AI / API / Codex / 本地工具”，
+多 AI 会话、研究、自主工程都以一个本地控制器为长期状态源。
 
-## 9-5 可见窗口 Demo
+[![CI (9-8)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=9-8)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3A9-8)
+[![CI (9-7)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=9-7)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3A9-7)
 
-[观看 90 秒端到端多提供商研究 Demo（WebM，无音频）](docs/media/codex-boss-9-5-e2e-demo.webm)
+---
 
-端到端 Demo 使用真实可见的 Codex Boss Electron 窗口和已登录网页会话，以 **Multi-provider Direct** 模式把同一项代码审查决策任务分派给 ChatGPT、Gemini 和 Grok。Controller 收集了 3 份独立原始回答，三家都选择“最强证据胜出”，但对安全否决、证据同强时升级及适用边界的表述各有侧重；最终生成一份带明确规则和反多数案例的综合答复。运行证据显示三个网页通道均 `completed · SUCCESS`，检查点为 `COMMITTED`，最终审查为 `PASS`。这是 Direct 演示，不是 Council 演示；Council 的实测尝试在最终综合轮因 Qwen 发送失败而回滚，因此未作为成功录像发布。录制元数据见 [JSON](docs/media/codex-boss-9-5-e2e-demo.webm.json)。
+## Overview / 概览
 
-演示提示词要求三个代码审查代理在补丁是否可安全合并上出现分歧时，从多数票、最强证据胜出、保留分歧并升级三种规则中选择默认方案，定义明确规则，并给出一个有意否决多数意见的案例。
+A single workspace to talk to ChatGPT / Gemini / Claude-class pages side by side, run deterministic
+local/API/Codex work, drive full research pipelines (real experiments → statistics → manuscript → PDF),
+and let one autonomous engineering goal audit/fix/converge a repository.
+把 ChatGPT / Gemini 等网页 AI 并排打开在同一工作区，统一执行本地/API/Codex 确定性任务；
+一条指令即可跑完整研究管线（真实实验 → 统计 → 手稿 → PDF），或让自主工程目标对一个仓库
+持续“审计 → 修复 → 验证 → 收敛”。
 
-![Codex Boss 多提供商研究任务的最终答复与提交证据](docs/media/codex-boss-9-5-multiprovider-research-demo.png)
+Boss keeps the durable state (tasks, plans, evidence, checkpoints, provider health, research and
+engineering ledgers); a web-AI chat is only a task-local scratchpad, never the source of truth.
+Boss 是长期状态源（任务、计划、证据、检查点、Provider 健康、研究与工程账本）；
+网页聊天只是“任务局部草稿纸”，不承担项目状态源职责。
 
-### UI / runtime walkthrough
+---
 
-[观看 90 秒 UI / runtime walkthrough（WebM，无音频）](docs/media/codex-boss-9-5-demo.webm)
+## Screenshots / 界面截图
 
-这段旧版 walkthrough 使用 2026-09-05 的本地 `1897dd4` 构建，由 Computer Use 在真实 Codex Boss Electron 窗口中完成 History 收起/展开、Chat/Work 切换、Runtime Status 和执行证据查看；未发送新模型请求、未执行远程命令。录制元数据见 [JSON](docs/media/codex-boss-9-5-demo.webm.json)。录制前本地验证结果为 74 个测试文件、330 项测试全部通过，TypeScript 检查和生产构建通过。
+Fresh screenshots taken from the running app (web-AI panes hidden for privacy during capture).
+以下截图为运行中的应用实拍（截图时临时隐藏网页 AI 分栏，避免带入页面内容）。
 
-![Codex Boss Chat 主界面](docs/media/codex-boss-9-5-main.png)
+![Codex Boss chat workspace / 主控工作区](docs/screenshots/01-chat.png)
 
-![Codex Boss Work 模式](docs/media/codex-boss-9-5-work.png)
+![Research launcher / 研究入口](docs/screenshots/02-research.png)
 
-![Codex Boss Runtime Status](docs/media/codex-boss-9-5-runtime.png)
+![Autonomous engineering goal panel (U10) / 自主工程目标面板](docs/screenshots/03-goal.png)
 
-![Codex Boss 执行与证据详情](docs/media/codex-boss-9-5-evidence.png)
+![AI & Provider manager (U5) / AI 与 Provider 管理器](docs/screenshots/04-manager.png)
 
-## 当前可用路径
+---
 
-- 默认一个 ChatGPT 页面；可选择 1–5 个网页/API 通道。普通回答经过确定性审查自动完成，无强制规划或评审模型调用。
-- `STRICT / BALANCED / AUTONOMOUS` 审查策略，原始回答、归一化结果、重试状态和后续动作持久化。通过的是回答交付检查，不代表事实正确或授权执行其中的指令。
-- 已发送但尚无回复的任务在重启后保留；已记录具体会话地址时恢复原页面继续采集。发送结果不确定时保留核对边界，避免重复发送。
-- 输入 `git status`、`read file README.md`、`list files` 或相应中文命令，可以不打开 AI 页面，直接在本地执行。Work 模式可以指定项目目录。
-- Task IR、任务检查点、显式会话注册、通用中断分类、有限恢复和预算降级；原生/API/Codex 运行时可按能力路由。
-- 工程执行 API 支持依赖图、最多三个不重叠范围的 worker、证据验证、文件哈希前置检查及最多两轮修复。复杂自然语言需求当前默认交给单 worker；任意仓库自动重构尚未通过完整验收。
-- 网页读取优先 DOM 语义接口；Council 在每轮全部通过审查后自动继续；保留 API 加密设置、历史归档和本机微信/QQ 待确认指令。
+## What you can do / 你能做什么
 
-## 本地运行与验证
+- **Chat & Work** — send one request to 1–5 visible web AI pages, or switch a page to its API channel;
+  every answer passes a deterministic review gate and evidence checks before final delivery.
+  **聊天 / 工作** —— 一次请求分派给 1–5 个可见网页 AI，或把某页切成 API 通道；
+  所有回答先过确定性审查门禁与证据校验，再进入最终交付。
+- **Local commands** — type `git status`, `read file README.md`, `list files` (or the Chinese equivalents)
+  and run them locally without opening any AI page; Work mode targets a real project directory.
+  **本地命令** —— 直接输入 `git status`、`read file README.md`、`list files`（或对应中文）
+  即可在本地执行，无需打开任何 AI 页面；Work 模式指向真实项目目录。
+- **Research** — one human research question drives a real pipeline: protocol freeze → literature →
+  experiments → deterministic statistics → evidence graph → claim/citation audits → section-by-section
+  manuscript → `paper.tex` → `paper.pdf`, with figures/tables bound to real runs.
+  **研究** —— 只给一个研究问题，由真实管线自动推进：冻结协议 → 文献 → 实验 → 确定性统计 →
+  证据图 → claim/引文审计 → 逐节手稿 → `paper.tex` → `paper.pdf`，图表绑定真实运行。
+- **Autonomous engineering goal** — start one goal from the UI (objective + workspace + convergence
+  policy); Boss audits with real typecheck + full tests, implements only with an authorized editor
+  (otherwise it aborts with rollback rather than fabricating a fix), and converges when clean rounds
+  pass. Includes §38 git checkpoint/rollback and a durable status read-model.
+  **自主工程目标** —— 在 UI 启动一个目标（目标 + 工作区 + 收敛策略）；Boss 用真实
+  typecheck + 全量测试审计，仅在配置了授权编码器时实施修复（否则以回滚 ABORT，绝不伪造修复），
+  连续干净轮次通过即收敛；内置 §38 git 检查点/回滚与持久化状态读模型。
+- **Computer use** — semantic chain native → DOM → UIA → structured → vision over visible pages;
+  DOM mutations are fail-closed behind a per-workspace permission gate.
+  **桌面操作** —— 可见页面上执行 native → DOM → UIA → structured → vision 语义链；
+  DOM 变更严格受按工作区权限门禁保护（fail-closed）。
+
+---
+
+## Getting started / 快速开始
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm run install:electron
-pnpm run build
+pnpm run typecheck
 pnpm test
-pnpm run benchmark
+pnpm run build
 pnpm run start
 ```
 
-运行 `pnpm run package:portable` 会将现有 Electron 分发与编译产物打包到新的 `artifacts/Codex-Boss-*` 目录，其中包含 `Codex Boss.exe` 和 SHA-256 文件清单。只复制白名单产物，不复制历史、账号设置、浏览器资料或开发缓存。该包没有代码签名。
+Double-click `Start-Codex-Boss.cmd` to launch with the packaged local setup.
+双击 `Start-Codex-Boss.cmd` 即可用本地配置启动。
 
+Standalone smoke verification uses an isolated data directory:
 独立冒烟验证使用隔离数据目录：
 
 ```powershell
 .\node_modules\electron\dist\electron.exe . --codex-boss-smoke-test --boss-data-dir=D:\temporary-boss-smoke
 ```
 
-成功条件包括 renderer/IPC 加载及一次真实本地任务完成，结果和截图保存在指定目录；不是仅等待固定时间后返回成功。
+---
 
-## 状态与隐私
+## Repository layout / 仓库结构
 
-用户状态默认保存在 `%LOCALAPPDATA%\CodexBoss`；`.boss/tasks/<task-id>/checkpoints/` 保存任务检查点。网页使用各自隔离的持久 session partition；API Key 经 Electron `safeStorage` 加密保存。项目内 `history/`、`.cache/`、运行产物和凭据均不纳入源码。
+- `electron/` — main-process code: commander, engineering, research, computer/semantic, input, adapters.
+  `electron/` —— 主进程代码：commander、工程、研究、桌面语义、输入、适配器。
+- `src/shared/` — pure shared models (TaskIR, contracts, engineering/research state machines, UI types).
+  `src/shared/` —— 纯共享模型（TaskIR、契约、工程/研究状态机、UI 类型）。
+- `src/renderer/` — the React controller UI (`main.tsx`, panel components, styles).
+  `src/renderer/` —— React 控制器界面（`main.tsx`、面板组件、样式）。
+- `docs/` — handoffs, architecture/AP records, research round docs, validation history, screenshots.
+  `docs/` —— 交接记录、架构/AP 文档、研究轮次记录、历史验收存档、截图。
+- `Update-Log.md` — day-by-day development log from project start (bilingual-friendly, Chinese main).
+  `Update-Log.md` —— 自项目创建以来的逐日开发日志。
+- `STRUCTURE.md` — deeper source map; `CONTRIBUTING.md` — contribution notes; `SECURITY.md` — security policy.
+  `STRUCTURE.md` —— 更细源码地图；`CONTRIBUTING.md` —— 贡献说明；`SECURITY.md` —— 安全策略。
 
-模型回答始终作为不可信数据。审查门不会为回答中的命令授予执行权限。外部发送、不可逆操作和账户操作保留明确授权边界。网页验证码和登录由用户在可见页面处理。
+---
 
-## 待验收
+## Status & verification / 状态与验证
 
-真实供应商额度恢复、机器断电恢复、通用 UIA/视觉应用适配、任意复杂任务自动分解与代码合并，以及计划书中的完成率/资源节省率，目前均没有足够实测证据。受控测试结果与这些产品指标分开记录，不能互相替代。
+- Local full suite (kept out of git per policy): **150 files / 752 tests green**; Electron typecheck PASS.
+  本地全量套件（按策略不入库）：**150 文件 / 752 测试全绿**；Electron typecheck 通过。
+- GitHub CI runs on a committed self-contained verification subset: **15 files / 70 tests**, plus
+  typecheck / build / benchmark / portable-package / smoke — green on `9-7` and `9-8`.
+  GitHub CI 运行入库的确定性验证子集：**15 文件 / 70 测试**，外加 typecheck / build /
+  benchmark / portable 打包 / 冒烟 —— `9-7`、`9-8` 均已通过。
+- An in-app autonomous goal audit (real typecheck + full suite inside the running app) converged:
+  `eng-251ec4b77388` iteration 3 `CONVERGED`, 0 findings.
+  应用内自主目标审计（应用内跑真实 typecheck + 全量套件）已收敛：
+  `eng-251ec4b77388` 第 3 迭代 `CONVERGED`，0 发现。
 
-## 9-6 research-mode branch
+---
 
-`9-6-research` continues from the `9-5` baseline (which carries the BOSS v1-v3 acceptance packs;
-see `docs/9-5-ap*.md`) and adds Research mode:
+## Privacy & boundaries / 隐私与边界
 
-- History: archive / cascade delete / duplicate / export conversation (right-click and `...` share one menu).
-- 3-AI horizontal panes with per-pane auto zoom and persisted provider order.
-- Live progress summaries from the domain bus (never private chain-of-thought).
-- Autopilot + human-guidance gate (pause only for real user decisions).
-- Research mode (`Chat | Work | Research`): goal + workspace + web-AI reviewers -> research state machine (SCOPING...READY) -> structured research runtime -> protocol freeze/amendment (GUI freeze control) -> citation ladder -> deterministic statistics + evidence graph (full Question→Hypothesis→Protocol→Experiment→Run→Statistic→Claim→Figure→Paper-Sentence chain) -> section-by-section manuscript (reviewer gate, verified references.bib, embedded figures) + audit (reproducibility + citation audit).
-- Decision rule is fixed to evidence > vote: no claim is adopted by vote alone without verified experiment evidence; failed experiment runs never count as evidence.
+User state lives under `runtime-data/` (or `--boss-data-dir`); web pages use isolated persistent
+session partitions; API keys are stored encrypted via Electron `safeStorage` and only ever shown masked.
+用户状态保存在 `runtime-data/`（或 `--boss-data-dir`）；网页使用各自隔离的持久 session；
+API Key 经 Electron `safeStorage` 加密保存，界面只显示掩码。
 
-Progress and outstanding boundaries: `docs/9-6-research-progress.md` and each `docs/9-6-research-phase*.md` / `docs/9-6-research-round*.md`. Final Level-A/Level-B live E2E (real repo + web-AI reviewers + real experiments + manuscript PDF) requires a GUI tool session per the research plan Final Acceptance and is never replaced by mocks/fixtures; the exact steps are in `docs/9-6-live-acceptance-runbook.md` and per-run verdicts are produced by `scripts/acceptance-research-audit.cjs`.
+Model answers are untrusted data: the review gate never grants execution permission for commands inside
+answers, irreversible/account operations keep an explicit authorization boundary, and web logins or
+captchas stay in the visible page for you.
+模型回答始终是不可信数据：审查门禁不会为回答中的命令授予执行权限，不可逆/账户类操作保留明确
+授权边界，网页登录与验证码由你在可见页面完成。
+
+Local regression tests and planning documents (`tests/`, `Update-Plan/`) stay gitignored; only the
+GitHub-verification subset of tests is committed.
+本地回归测试与计划文档（`tests/`、`Update-Plan/`）保持 gitignored；入库的仅为
+GitHub 验证所需的测试子集。
+
+---
+
+## Documentation index / 文档索引
+
+- [Development log / 开发日志](Update-Log.md)
+- [Round record: DOM real surface, microtask spine, U10/U5 panels, in-app convergence / 本轮收口记录](docs/9-7-dom-microtask-u10-u5-inapp.md)
+- [Structure / 仓库结构](STRUCTURE.md)
+- [Contributing / 贡献指南](CONTRIBUTING.md)
+- [Security policy / 安全策略](SECURITY.md)
