@@ -63,6 +63,8 @@ import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
+import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
+import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
 import { createLiveExternalArchiveAttempt, type AccountMode as ArchiveAccountMode } from "./workspace/live-external-archive";
@@ -91,6 +93,7 @@ let domainEventBus: DomainEventBus | undefined;
 let detachContinuationWaker: (() => void) | undefined;
 let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] | undefined;
 let humanGuidance: HumanGuidanceGate | undefined;
+let decisionLedger: DecisionLedgerStore | undefined;
 let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
 let capabilityRegistry: ProviderCapabilityRegistry | undefined;
@@ -561,6 +564,7 @@ if (ownsInstance) app.whenReady().then(() => {
   domainEventBus = domainEvents;
   progressAggregator = attachProgressRecorder(domainEvents).aggregator;
   humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
+  decisionLedger = new DecisionLedgerStore(path.join(app.getPath("userData"), ".boss", "decision-ledger.json"));
   // Milestone §3/§6: ONE research composition root. ResearchService owns the
   // durable ledger, protocol manager, evidence graph, citation store, autopilot
   // supervisor and structured runtime; every boss:research-* IPC handler below
@@ -649,6 +653,17 @@ if (ownsInstance) app.whenReady().then(() => {
   }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
+  ipcMain.handle("boss:owner-dashboard", () => {
+    const interventions = humanGuidance?.list() ?? [];
+    const snapshot = store.snapshot();
+    return buildOwnerDashboard({
+      snapshot,
+      interventions: interventions.map(({ taskId, kind, question, resolvedAt }) => ({ taskId, kind, question, resolvedAt })),
+      ledgerEntries: decisionLedger?.list() ?? [],
+      activeInterventionTaskIds: interventions.filter((item) => !item.resolvedAt).map((item) => item.taskId),
+      now: () => new Date().toISOString()
+    });
+  });
   ipcMain.handle("boss:progress", () => progressAggregator?.summaries() ?? []);
   ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
   ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);

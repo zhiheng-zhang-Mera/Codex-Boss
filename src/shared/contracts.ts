@@ -376,6 +376,8 @@ export interface ViewBounds {
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
   progress(): Promise<import("./progress").ProgressSummary[]>;
+  /** Rev.2 §37/§38/§44: Owner dashboard read-model (GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER). */
+  ownerDashboard(): Promise<import("./owner-dashboard").OwnerDashboardSummary>;
   activeIntervention(taskId: string): Promise<import("./intervention").HumanInterventionRequest | undefined>;
   listInterventions(taskId?: string): Promise<import("./intervention").HumanInterventionRequest[]>;
   resolveIntervention(taskId: string, kind: import("./intervention").InterventionKind, answer: string): Promise<import("./intervention").HumanInterventionRequest>;
