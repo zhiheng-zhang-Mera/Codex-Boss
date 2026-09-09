@@ -62,3 +62,49 @@ export function canReplay(state: Pick<TaskLeaseState, "replaySafety" | "checkpoi
   if (state.replaySafety === "unknown") return false;
   return state.checkpoint !== undefined;
 }
+
+/** 10D: heartbeat cadence defaults for controller-side health derivation. */
+export const FLEET10_HEARTBEAT_INTERVAL_MS = 5000;
+export const FLEET10_DEGRADED_AFTER_MS = 2 * FLEET10_HEARTBEAT_INTERVAL_MS;
+export const FLEET10_OFFLINE_AFTER_MS = 6 * FLEET10_HEARTBEAT_INTERVAL_MS;
+
+/** Deterministic controller node state from last heartbeat (READY → DEGRADED → OFFLINE). */
+export function controllerNodeStateFor(now: number, member: Pick<FleetMemberRecord, "lastHeartbeatAt" | "state">): ControllerNodeState {
+  if (member.state === "FAILED" || member.state === "DISABLED") return member.state;
+  const age = now - member.lastHeartbeatAt;
+  if (age >= FLEET10_OFFLINE_AFTER_MS) return "OFFLINE";
+  if (age >= FLEET10_DEGRADED_AFTER_MS) return "DEGRADED";
+  return "READY";
+}
+
+/** Deterministic dropout detection: which members transitioned to OFFLINE between refresh ticks. */
+export function detectDropouts(now: number, members: FleetMemberRecord[]): string[] {
+  return members.filter((member) => member.state !== "OFFLINE" && controllerNodeStateFor(now, member) === "OFFLINE").map((member) => member.nodeId);
+}
+
+/** 10E: takeover from the most recent durable checkpoint (must not blindly replay unsafe tasks). */
+export interface TakeoverPlan {
+  taskId: string;
+  fromNode: string;
+  toNode: string;
+  fromCheckpoint: boolean; // true when a durable checkpoint exists
+  allowed: boolean;
+  reason: string;
+}
+
+export function planTakeover(now: number, lease: TaskLeaseState, targetNode: string): TakeoverPlan {
+  if (lease.state === "COMPLETED" || lease.state === "FAILED") {
+    return { taskId: lease.taskId, fromNode: lease.ownerNode, toNode: targetNode, fromCheckpoint: false, allowed: false, reason: `task ${lease.state.toLowerCase()} cannot be taken over` };
+  }
+  if (isLeaseValid(lease, now)) {
+    return { taskId: lease.taskId, fromNode: lease.ownerNode, toNode: targetNode, fromCheckpoint: false, allowed: false, reason: "lease still valid" };
+  }
+  if (!lease.takeoverAllowed) {
+    return { taskId: lease.taskId, fromNode: lease.ownerNode, toNode: targetNode, fromCheckpoint: false, allowed: false, reason: "takeover not allowed" };
+  }
+  if (!canReplay(lease)) {
+    return { taskId: lease.taskId, fromNode: lease.ownerNode, toNode: targetNode, fromCheckpoint: false, allowed: false, reason: "replay-unsafe task without durable checkpoint" };
+  }
+  return { taskId: lease.taskId, fromNode: lease.ownerNode, toNode: targetNode, fromCheckpoint: lease.checkpoint !== undefined, allowed: true, reason: lease.checkpoint ? "resume from durable checkpoint" : "replay-safe task" };
+}
+
