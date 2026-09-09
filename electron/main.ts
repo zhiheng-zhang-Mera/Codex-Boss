@@ -65,6 +65,7 @@ import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine"
 import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
+import { loginScan } from "../src/shared/login-scan";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
@@ -96,6 +97,7 @@ let detachContinuationWaker: (() => void) | undefined;
 let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] | undefined;
 let humanGuidance: HumanGuidanceGate | undefined;
 let decisionLedger: DecisionLedgerStore | undefined;
+let sessionLifecycleLedger: SessionLifecycleLedger | undefined;
 let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
 let capabilityRegistry: ProviderCapabilityRegistry | undefined;
@@ -552,7 +554,8 @@ if (ownsInstance) app.whenReady().then(() => {
   );
   providerApi = new ProviderApiClient(apiSettings);
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
-  accountSessions = new AccountSessionManager(store, publish, new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json")));
+  sessionLifecycleLedger = new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json"));
+  accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
   externalSessions = new ExternalSessionLedger(path.join(app.getPath("userData"), ".boss", "external-sessions.json"));
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
@@ -655,6 +658,14 @@ if (ownsInstance) app.whenReady().then(() => {
   }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
+  ipcMain.handle("boss:login-scan", () => {
+    // R-205 fast-login scan: Boss-side status scan + guidance. MFA/CAPTCHA and
+    // account authorization remain genuine operator steps (externalOnly).
+    const accounts = store.snapshot().accounts.map((account) => ({ providerId: account.providerId, mode: account.mode as import("../src/shared/contracts").ProviderAccountMode | undefined }));
+    const lifecycles: Record<string, import("../src/shared/session-lifecycle").SessionLifecycle> = {};
+    for (const record of sessionLifecycleLedger?.list() ?? []) lifecycles[record.providerId] = record.state;
+    return loginScan(accounts, lifecycles);
+  });
   ipcMain.handle("boss:owner-dashboard", () => {
     const interventions = humanGuidance?.list() ?? [];
     const snapshot = store.snapshot();
