@@ -372,3 +372,14 @@ button { color: inherit; }
 .desktop-shell.view-detached.layout-five { grid-template-columns: clamp(220px, 16vw, 300px) minmax(0, 1fr); }
 .desktop-shell.view-detached.layout-five.history-collapsed { grid-template-columns: 40px minmax(0, 1fr); }
 .desktop-shell.view-detached .controller-resizer { display: none; }
+
+/* Rev.2 §37 Owner summary strip */
+.owner-summary { margin: 6px 14px 0; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+.owner-summary summary { cursor: pointer; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.owner-summary-body { display: grid; gap: 6px; margin-top: 6px; }
+.owner-card { display: grid; gap: 2px; border-top: 1px dashed rgba(128,128,128,0.25); padding-top: 6px; }
+.owner-card.owner-blocker { border-left: 3px solid #d94a4a; padding-left: 8px; }
+.owner-status, .owner-blocker { font-weight: 600; }
+.owner-blocker { color: #ff9d9d; }
+.owner-more { opacity: 0.7; }
+

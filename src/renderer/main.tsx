@@ -9,6 +9,7 @@ import { ResearchProgress } from "./components/ResearchProgress";
 import { AttachmentTray } from "./components/AttachmentTray";
 import { ManagerPanel } from "./components/ManagerPanel";
 import { GoalRunPanel } from "./components/GoalRunPanel";
+import { OwnerSummary } from "./components/OwnerSummary";
 import type { HumanInterventionRequest } from "../shared/intervention";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -566,6 +567,8 @@ function App() {
         <div className="app-brand"><span>C</span><div><strong>Controller</strong><small>CODEX BOSS · LOCAL COMMANDER</small></div></div>
         <div className="header-status"><button className="settings-button" onClick={() => setManagerOpen(true)}>管理</button><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
+
+      <OwnerSummary />
 
       <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
         {interventions.length > 0 && <div className="intervention-stack">{interventions.slice(0, 3).map((request) => <HumanInterventionCard key={request.id} request={request} onResolve={(kind, answer) => resolveIntervention({ ...request, kind }, answer)} />)}</div>}
