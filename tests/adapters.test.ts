@@ -63,6 +63,7 @@ describe("versioned visible adapters", () => {
     expect(script).toContain("composer-submit-button");
     expect(script).toContain("attempt < 20");
     expect(prepareScript(definition!, "hello")).toContain("requestAnimationFrame");
+    expect(prepareScript(definition!, "hello")).toContain("Promise.race");
     expect(verifyPromptScript(definition!, "hello")).toContain("value-not-applied");
     expect(verifyPromptScript(definition!, "hello")).toContain("\\u200B-\\u200D");
     expect(verifyPromptScript(definition!, "hello")).toContain("\\u00A0");

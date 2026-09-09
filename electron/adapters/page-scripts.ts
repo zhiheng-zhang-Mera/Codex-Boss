@@ -65,7 +65,12 @@ export function prepareScript(definition: AdapterDefinition, prompt: string): st
     input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     input.style.outline = '2px solid #d9f99d';
     input.style.outlineOffset = '3px';
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    // Chromium can suspend requestAnimationFrame for an occluded provider
+    // view. Keep the visual-settle hint, but never let preparation hang.
+    await Promise.race([
+      new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      new Promise((resolve) => setTimeout(resolve, 250))
+    ]);
     await new Promise((resolve) => setTimeout(resolve, 120));
     const current = input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement
       ? input.value

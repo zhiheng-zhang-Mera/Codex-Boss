@@ -2,8 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { decidePromotion } from "../src/shared/experience";
+import { contributionStats, decidePromotion } from "../src/shared/experience";
 import { ExperienceStore } from "../electron/experience/experience-store";
+import { attachExperienceRecorder } from "../electron/experience/experience-recorder";
+import { DomainEventBus } from "../electron/commander/event-bus";
 
 const dirs: string[] = [];
 afterEach(() => dirs.splice(0).forEach((dir) => fs.rmSync(dir, { recursive: true, force: true })));
@@ -46,5 +48,29 @@ describe("experience store", () => {
     const file = path.join(root(), "experience.json");
     fs.writeFileSync(file, JSON.stringify({ schemaVersion: 9 }));
     expect(() => new ExperienceStore(file).list()).toThrow(/Invalid/);
+  });
+});
+
+describe("experience recorder (AP16 seam)", () => {
+  it("records worker contribution metrics from completed/failed domain events", () => {
+    const file = path.join(root(), "experience.json");
+    const events = new DomainEventBus();
+    const store = new ExperienceStore(file);
+    const detach = attachExperienceRecorder(events, store, { sourceFor: (taskId) => "ws:" + taskId });
+    events.publish({ type: "WORKER_COMPLETED", taskId: "t1", jobId: "j1", runtimeId: "codex:cli", result: { runtimeId: "codex:cli", jobId: "j1", status: "SUCCESS" } });
+    events.publish({ type: "WORKER_FAILED", taskId: "t2", jobId: "j2", runtimeId: "web:chatgpt", message: "quota", result: { runtimeId: "web:chatgpt", jobId: "j2", status: "PERMANENT_FAILURE", failure: { code: "BUDGET_EXHAUSTED", message: "quota", retryable: false } } });
+    detach();
+    const entries = new ExperienceStore(file).list();
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    const routing = entries.find((entry) => entry.id.includes("codex:cli serves"));
+    expect(routing).toBeDefined();
+    expect(routing!.observations[0].contribution?.outcome).toBe("success");
+    const stats = contributionStats(routing!);
+    expect(stats.success).toBe(1);
+    expect(stats.failure).toBe(0);
+    const failureEntry = entries.find((entry) => entry.id.includes("chatgpt outcome failure"));
+    expect(failureEntry?.observations[0].contribution?.outcome).toBe("failure");
+    // Sources are workspace-mapped, so two distinct tasks do not fabricate cross-workspace evidence.
+    expect(routing!.observations[0].source).toBe("ws:t1");
   });
 });

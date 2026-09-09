@@ -32,5 +32,5 @@ it("isolates two workers inside the project and merges their real verified files
     let resolved = false;
     await merge.merge(parent.path, workers[0].directory, workers[0].proposal, ["a.js"], [{ kind: "syntax", file: "a.js" }], async () => { resolved = true; const changes = applyScopedChanges(parent.path, [{ path: "a.js", expectedSha256: digest("const value=2;"), content: "const value=3;" }], ["a.js"]); return { status: "PASS", changes, checks: [await runCheck(parent.path, { kind: "syntax", file: "a.js" })], repairs: 0, diff: "" }; });
     expect(resolved).toBe(true);
-  } finally { fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
+  } finally { fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); }
 }, 30000);

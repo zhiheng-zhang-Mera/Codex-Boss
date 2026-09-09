@@ -7,6 +7,7 @@ import { HistoryRepository, safeSegment } from "./history-repository";
 
 import { writeJson } from "./commander/durable-json";
 import { TaskLedger } from "./commander/task-ledger";
+import { applyStateStorageBudget, type LifecyclePruneReport } from "./commander/state-budget";
 import { sessionKindForResumeStrategy } from "../src/shared/session-state";
 import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
 
@@ -42,6 +43,23 @@ export class StateStore {
 
   snapshot(): AppSnapshot {
     return structuredClone(this.snapshotValue);
+  }
+
+  /**
+   * Applies the state.json storage budget (plan §17 seam): prunes terminal
+   * tasks beyond the per-conversation cap, cascade-removes orphaned rows, and
+   * optionally enforces TTL / run-history caps. Active work is never touched.
+   * Callers that pass a non-default policy must have already flushed their
+   * ledger checkpoints (ledger rows are keyed by taskId and are not pruned
+   * here). Idempotent.
+   */
+  applyStorageBudget(policy: Parameters<typeof applyStateStorageBudget>[1] = { maxCompletedTasksPerConversation: 0, maxRunsPerTask: 0, enforceTtl: false }): LifecyclePruneReport {
+    const { snapshot, report } = applyStateStorageBudget(this.snapshotValue, policy);
+    if (report.removed.length) {
+      this.snapshotValue = snapshot;
+      this.persist();
+    }
+    return report;
   }
 
   createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId, parentTaskId?: string, runtimeJobId?: string): BossTask {
@@ -119,6 +137,73 @@ export class StateStore {
     this.snapshotValue.activeConversationId = conversation.id;
     this.event("conversation.selected", `已切换到对话“${conversation.title}”`, {});
     this.persist();
+  }
+
+  /** Archive/restore a conversation (hidden from the default list; never delete). */
+  setConversationArchived(conversationId: string, archived: boolean): void {
+    const conversation = this.conversation(conversationId);
+    if ((conversation.archived ?? false) === archived) return;
+    if (archived) conversation.archived = true;
+    else delete conversation.archived;
+    conversation.updatedAt = new Date().toISOString();
+    this.event("conversation.archived", `对话“${conversation.title}”已${archived ? "归档" : "取消归档"}`, {});
+    this.persist();
+  }
+
+  /** Cascade delete: conversation + all linked tasks/runs/councils/artifacts/evidence/final responses/checkpoints + ledger rows. */
+  deleteConversation(conversationId: string): void {
+    const conversation = this.conversation(conversationId);
+    const taskIds = new Set(this.snapshotValue.tasks.filter((task) => task.conversationId === conversationId).map((task) => task.id));
+    const filterRows = (key: "tasks" | "runs" | "councils" | "artifacts" | "evidenceBundles" | "finalResponses" | "dispatchCheckpoints", idOf: (item: { taskId?: string; id?: string }) => string) => {
+      this.snapshotValue[key] = (this.snapshotValue[key] as Array<{ taskId?: string; id?: string }>).filter((item) => !taskIds.has(idOf(item))) as never;
+    };
+    filterRows("tasks", (item) => item.id!);
+    filterRows("runs", (item) => item.taskId!);
+    filterRows("councils", (item) => item.taskId!);
+    filterRows("artifacts", (item) => item.taskId!);
+    filterRows("evidenceBundles", (item) => item.taskId!);
+    filterRows("finalResponses", (item) => item.taskId!);
+    filterRows("dispatchCheckpoints", (item) => item.taskId!);
+    for (const taskId of taskIds) this.ledger.purgeTask(taskId);
+    this.snapshotValue.conversations = this.snapshotValue.conversations.filter((item) => item.id !== conversationId);
+    if (this.snapshotValue.activeConversationId === conversationId) {
+      const remaining = this.snapshotValue.conversations.filter((item) => item.folderId === conversation.folderId);
+      this.snapshotValue.activeConversationId = remaining[0]?.id ?? this.snapshotValue.conversations[0]?.id ?? "";
+    }
+    this.event("conversation.deleted", `已删除对话“${conversation.title}”`, {});
+    this.persist();
+  }
+
+  /**
+   * Duplicate a conversation: new conversation id + new storage name, and
+   * fresh tasks/runs/artifacts mirroring the visible history. Old ids are
+   * never reused (plan: no shared run/checkpoint ids).
+   */
+  duplicateConversation(conversationId: string): BossConversation {
+    const source = this.conversation(conversationId);
+    const now = new Date().toISOString();
+    const copy: BossConversation = { id: randomUUID(), folderId: source.folderId, title: `${source.title} 副本`, storageName: this.uniqueConversationStorageName(source.folderId, `${source.title} 副本`), taskIds: [], createdAt: now, updatedAt: now };
+    this.snapshotValue.conversations.unshift(copy);
+    const taskIdMap = new Map<string, string>();
+    for (const task of this.snapshotValue.tasks.filter((item) => item.conversationId === source.id)) {
+      const newId = randomUUID();
+      taskIdMap.set(task.id, newId);
+      this.snapshotValue.tasks.unshift({ ...structuredClone(task), id: newId, conversationId: copy.id, createdAt: now, updatedAt: now, status: "queued", parentTaskId: undefined, runtimeJobId: undefined });
+      copy.taskIds.push(newId);
+    }
+    const runIds = new Map<string, string>();
+    for (const run of this.snapshotValue.runs.filter((item) => taskIdMap.has(item.taskId))) {
+      const newId = randomUUID();
+      runIds.set(run.id, newId);
+      this.snapshotValue.runs.push({ ...structuredClone(run), id: newId, taskId: taskIdMap.get(run.taskId)!, createdAt: now, updatedAt: now, phase: "queued", outcome: null, review: undefined, response: undefined, artifactId: undefined });
+    }
+    for (const artifact of this.snapshotValue.artifacts.filter((item) => taskIdMap.has(item.taskId))) {
+      this.snapshotValue.artifacts.push({ ...structuredClone(artifact), id: randomUUID(), taskId: taskIdMap.get(artifact.taskId)!, runId: runIds.get(artifact.runId) ?? randomUUID(), capturedAt: now });
+    }
+    this.event("conversation.duplicated", `已复制对话“${source.title}”`, {});
+    this.snapshotValue.activeConversationId = copy.id;
+    this.persist();
+    return structuredClone(copy);
   }
 
   updateRemoteChannel(channel: RemoteChannel, enabled: boolean, commandPrefix: string): void {

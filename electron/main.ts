@@ -23,14 +23,25 @@ import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
+import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { durableFileFor } from "./workspace/durable-roots";
+import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
 import { ExperienceStore } from "./experience/experience-store";
+import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
+import { attachProgressRecorder } from "./commander/progress-recorder";
+import { HumanGuidanceGate } from "./commander/human-guidance-gate";
+import { ResearchLedger } from "./research/research-ledger";
+import { ProtocolManager } from "./research/protocol-manager";
+import { ResearchSupervisor } from "./research/research-supervisor";
+import { DefaultLevelBExecutor } from "./research/default-levelb-executor";
+import type { ResearchIR } from "../src/shared/research-ir";
+import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { AccountSessionManager } from "./account-sessions";
@@ -54,6 +65,13 @@ let apiSettings: ApiSettingsStore;
 let providerApi: ProviderApiClient;
 let historyRepository: HistoryRepository;
 let remoteRelay: RemoteCommandRelay;
+let domainEventBus: DomainEventBus | undefined;
+let detachContinuationWaker: (() => void) | undefined;
+let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] | undefined;
+let humanGuidance: HumanGuidanceGate | undefined;
+let researchLedgers: ResearchLedger | undefined;
+let researchProtocols: ProtocolManager | undefined;
+let researchSupervisor: ResearchSupervisor | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -118,6 +136,27 @@ function openProviderWithinLimit(providerId: ProviderId): void {
   providerViews.open(target);
 }
 
+function openProjectState(workspaceId: string): ProjectStateStore {
+  return new ProjectStateStore(durableFileFor(app.getPath("userData"), workspaceId, path.join(".boss", "project-state.json")));
+}
+
+/** Records a durable task completion into its workspace's project state (AP15 seam). */
+function recordTaskOutcome(taskId: string): void {
+  const snapshot = store.snapshot();
+  const task = snapshot.tasks.find((item) => item.id === taskId);
+  const final = store.finalResponseForTask(taskId);
+  if (!task || !final) return;
+  const workspaceId = task.workspaceId ?? DEFAULT_WORKSPACE_ID;
+  try {
+    openProjectState(workspaceId).recordTaskCompletion(workspaceId, {
+      taskId: task.id,
+      title: task.title,
+      findings: final.content.slice(0, 2000),
+      nextActions: task.plan && task.plan.steps.some((step) => step.kind === "edit") ? ["verify merged changes with the full test suite"] : undefined
+    });
+  } catch { /* project state recording is advisory; never blocks completion */ }
+}
+
 async function advanceCouncilRound(taskId: string): Promise<void> {
     const snapshot = store.snapshot();
     const task = snapshot.tasks.find((item) => item.id === taskId);
@@ -140,6 +179,7 @@ async function advanceCouncilRound(taskId: string): Promise<void> {
     } else if (council.stage === "synthesis") {
       store.updateCouncil(taskId, { stage: "completed" });
       store.setTaskStatus(taskId, "completed");
+      recordTaskOutcome(taskId);
     } else {
       throw new Error(`Council cannot advance from ${council.stage}`);
     }
@@ -155,7 +195,9 @@ function attachProviderViews(): void {
   automation?.dispose();
   const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
   const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) return; await finalizer.finalize(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt));
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, async (id) => { if (store.finalResponseForTask(id)) { recordTaskOutcome(id); return; } await finalizer.finalize(id); recordTaskOutcome(id); for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId); }, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus);
+  detachContinuationWaker?.();
+  detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
 }
 
@@ -216,12 +258,18 @@ if (ownsInstance) app.whenReady().then(() => {
   const runtimeRegistry = new RuntimeRegistry();
   budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
   const domainEvents = new DomainEventBus();
-  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));
-  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
+  domainEventBus = domainEvents;
+  progressAggregator = attachProgressRecorder(domainEvents).aggregator;
+  humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
+  researchLedgers = new ResearchLedger(path.join(app.getPath("userData"), ".boss", "research"));
+  researchProtocols = new ProtocolManager(path.join(app.getPath("userData"), ".boss", "research-protocols"));
+  researchSupervisor = new ResearchSupervisor({ ledger: researchLedgers, executor: new DefaultLevelBExecutor() });
+  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
   const projectStates = new ProjectStateStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "project-state.json")));
   const experiences = new ExperienceStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "experience.json")));
+  attachExperienceRecorder(domainEvents, experiences, { sourceFor: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.workspaceId ?? taskId });
   const softwareLeases = new SoftwareLeaseRegistry();
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
     for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
@@ -266,6 +314,72 @@ if (ownsInstance) app.whenReady().then(() => {
   }
 
   ipcMain.handle("boss:snapshot", () => store.snapshot());
+  ipcMain.handle("boss:progress", () => progressAggregator?.summaries() ?? []);
+  ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
+  ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);
+  ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => {
+    const resolved = humanGuidance?.resolve(taskId, kind, answer);
+    // If the paused task is a research run, resume it from its control state.
+    if (resolved && researchSupervisor?.resume(taskId)) domainEvents.publish({ type: "HUMAN_APPROVED", taskId, message: "intervention answered; research resumed" });
+    return resolved;
+  });
+
+  // Research mode (plan 9-6 Phase 5+): durable ledger + protocol manager surface.
+  ipcMain.handle("boss:research-start", (_event, input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }) => {
+    if (!input.goal.trim() || !input.workspace.trim()) throw new Error("Research goal and workspace are required");
+    if (!input.reviewers.length) throw new Error("Research requires at least one reviewer");
+    const ir: ResearchIR = {
+      schemaVersion: 1,
+      id: input.id ?? `research-${Date.now()}`,
+      goal: input.goal.trim(),
+      scope: { workspace: input.workspace.trim(), allowedDomains: [], reviewers: input.reviewers, autonomy: input.autonomy ?? "AUTOPILOT", budget: { maxExperiments: input.maxExperiments ?? 5, maxSteps: input.maxSteps ?? 100 } },
+      state: "SCOPING",
+      researchQuestions: [],
+      hypotheses: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const record = researchLedgers!.create(ir);
+    domainEvents.publish({ type: "TOOL_RESULT_READY", taskId: ir.id, message: `research ${ir.id} started` });
+    return record;
+  });
+  ipcMain.handle("boss:research-status", (_event, id: string) => researchLedgers?.load(id) ?? null);
+  ipcMain.handle("boss:research-list", () => researchLedgers?.list() ?? []);
+  ipcMain.handle("boss:research-step", async (_event, id: string) => researchSupervisor?.step(id) ?? null);
+  ipcMain.handle("boss:research-resume", (_event, id: string) => {
+    const resumed = researchSupervisor?.resume(id) ?? false;
+    // A run parked at WAITING_FOR_PROVIDER by a reviewer gate (round 8) or at
+    // WAITING_FOR_USER by research-wait is now back at its pending stage.
+    if (resumed) domainEvents.publish({ type: "HUMAN_APPROVED", taskId: id, message: "research run resumed to its pending stage" });
+    return resumed;
+  });
+  ipcMain.handle("boss:research-wait", (_event, input: { id: string; kind: InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => {
+    const { id, ...rest } = input;
+    researchSupervisor?.wait(id, "WAITING_FOR_USER", rest.question);
+    const raised = humanGuidance?.raise({ taskId: id, ...rest, contextSummary: rest.contextSummary ?? rest.question.slice(0, 300) });
+    return raised ?? null;
+  });
+  ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => {
+    const result = researchProtocols?.freeze(id, protocol);
+    if (!result) return null;
+    // Mirror ResearchService.freeze: record the canonical hash on the run IR and
+    // move the run to PROTOCOL_FROZEN so later experiment/analysis steps bind to
+    // the frozen protocol (round 16 consistency fix). Only when the ledger run
+    // exists (started via boss:research-start).
+    if (researchLedgers?.load(id)) {
+      researchLedgers.checkpoint(id, (record) => {
+        record.ir.protocolHash = result.hash;
+        record.ir.state = "PROTOCOL_FROZEN";
+        delete record.ir.pendingStage;
+        record.ir.updatedAt = new Date().toISOString();
+      }, "protocol frozen (hash recorded)");
+    }
+    return result;
+  });
+  ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
+    const target = workspaceId ?? workspaces.activeWorkspaceId();
+    return openProjectState(target).summary(target);
+  });
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
     if (!input.title.trim() || !input.prompt.trim()) throw new Error("Title and prompt are required");
     const providerIds = [...new Set(input.providerIds)];
@@ -313,6 +427,16 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:rename-conversation", (_event, conversationId: string, title: string) => { store.renameConversation(conversationId, title); return publish(); });
   ipcMain.handle("boss:move-conversation", (_event, conversationId: string, folderId: string) => { store.moveConversation(conversationId, folderId); return publish(); });
   ipcMain.handle("boss:select-conversation", (_event, conversationId: string) => { store.selectConversation(conversationId); return publish(); });
+  ipcMain.handle("boss:archive-conversation", (_event, conversationId: string, archived: boolean) => { store.setConversationArchived(conversationId, Boolean(archived)); return publish(); });
+  ipcMain.handle("boss:delete-conversation", (_event, conversationId: string) => { store.deleteConversation(conversationId); return publish(); });
+  ipcMain.handle("boss:duplicate-conversation", (_event, conversationId: string) => { store.duplicateConversation(conversationId); return publish(); });
+  ipcMain.handle("boss:export-conversation", async (_event, conversationId: string) => {
+    const exportRoot = path.join(app.getPath("userData"), "exports");
+    const destination = historyRepository.exportConversation(store.snapshot(), conversationId, exportRoot);
+    const { shell } = await import("electron");
+    shell.showItemInFolder(destination);
+    return destination;
+  });
   ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
     const normalized = normalizeCustomProviderInput(input);
     store.addCustomProvider(normalized.name, normalized.url);
@@ -361,7 +485,7 @@ if (ownsInstance) app.whenReady().then(() => {
     await automation.sendTask(taskId);
     return publish();
   });
-  ipcMain.handle("boss:release-review", async (_event, taskId: string) => { store.releaseReview(taskId); await automation.continueIfReady(taskId); return publish(); });
+  ipcMain.handle("boss:release-review", async (_event, taskId: string) => { store.releaseReview(taskId); domainEvents.publish({ type: "HUMAN_APPROVED", taskId, message: "operator approved the review gate" }); await automation.continueIfReady(taskId); return publish(); });
   ipcMain.handle("boss:capture-task", async (_event, taskId: string) => {
     await automation.captureTask(taskId);
     return publish();
@@ -456,6 +580,10 @@ if (ownsInstance) app.whenReady().then(() => {
         const ledger = commander.ledger!.load(task.id)!;
         if (ledger.jobs.graph_execute.attempts !== 1) throw new Error("Restart repeated native execution");
         if (snapshot.artifacts.filter((item) => item.taskId === task.id).length !== 1) throw new Error("Restart duplicated artifact");
+        // A resumed task can finish before the renderer subscribes to snapshot
+        // updates. Re-publish after the durable assertions so the restored
+        // final response is observable in the newly-created window as well.
+        publish();
         let visible = false;
         for (let i = 0; i < 30; i++) {
           visible = await mainWindow.webContents.executeJavaScript('Boolean(document.querySelector(".final-response")?.textContent.includes("BOSS_RESTART_EVIDENCE"))');

@@ -1,5 +1,5 @@
 import { readJson, writeJson } from "../commander/durable-json";
-import type { ExperienceEntry, ExperienceLevel, ExperienceObservation } from "../../src/shared/experience";
+import type { ExperienceContribution, ExperienceEntry, ExperienceLevel, ExperienceObservation } from "../../src/shared/experience";
 import { decidePromotion } from "../../src/shared/experience";
 
 /**
@@ -16,14 +16,14 @@ export interface ExperienceFile {
 export class ExperienceStore {
   constructor(private readonly file: string) {}
 
-  observe(claim: string, domain: string, observation: Omit<ExperienceObservation, "level" | "at"> & { level?: ExperienceLevel }, now = Date.now): { entry: ExperienceEntry; promotion: ExperienceLevel | null } {
+  observe(claim: string, domain: string, observation: Omit<ExperienceObservation, "level" | "at"> & { level?: ExperienceLevel; contribution?: ExperienceContribution }, now = Date.now): { entry: ExperienceEntry; promotion: ExperienceLevel | null } {
     const file = this.read();
     let entry = file.entries.find((item) => item.id === claim);
     if (!entry) {
       entry = { id: claim, claim, domain, level: "task", observations: [], createdAt: new Date(now()).toISOString(), updatedAt: new Date(now()).toISOString() };
       file.entries.push(entry);
     }
-    entry.observations = [...entry.observations, { level: observation.level ?? "task", source: observation.source, at: new Date(now()).toISOString() }].slice(-200);
+    entry.observations = [...entry.observations, { level: observation.level ?? "task", source: observation.source, at: new Date(now()).toISOString(), ...(observation.contribution ? { contribution: observation.contribution } : {}) }].slice(-200);
     const decision = decidePromotion(entry);
     let promotion: ExperienceLevel | null = null;
     if (decision.nextLevel) {

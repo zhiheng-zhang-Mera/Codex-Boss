@@ -1,9 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import type { ClaimRecord, DisputeRecord } from "../../src/shared/contracts";
+import type { KnowledgeEntry } from "../../src/shared/knowledge";
 import type { RoleId } from "./role-router";
 import { readEnvelope, migrateJsonFile, schemaMigrations, type VersionedEnvelope } from "./schema-migration";
-import { compileContextCapsule, type ContextCapsule } from "../../src/shared/context-capsule";
+import { compileContextCapsule, capsuleCacheKeyInput, type ContextCapsule, type ContextCapsuleLevel } from "../../src/shared/context-capsule";
+
+/** Content-addressed key (plan §13.4): scope|kind|version|input hash. */
+function cacheKeyFor(scope: string, fingerprint: string, level: ContextCapsuleLevel): string {
+  return createHash("sha256").update([scope, "context-capsule", "2", level, fingerprint].join("|"), "utf8").digest("hex");
+}
 
 export interface ContextSummary { id: string; text: string; createdAt: string; }
 export interface ExecutionRef { id: string; status: string; }
@@ -36,7 +43,15 @@ schemaMigrations.register(CONTEXT_SCHEMA, {
 
 export class ContextManager {
   private readonly contexts = new Map<string, TaskContext>();
-  constructor(private readonly filePath?: string) { this.restore(); }
+  /** Optional knowledge provider (plan AP10 seam): routes domain knowledge into capsules. */
+  private knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[];
+  constructor(private readonly filePath?: string, knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]) {
+    this.knowledgeProvider = knowledgeProvider;
+    this.restore();
+  }
+
+  /** Attach (or replace) the knowledge provider after construction (AP10 domain routing). */
+  setKnowledgeProvider(provider: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]): void { this.knowledgeProvider = provider; }
 
   save(context: TaskContext): void { this.contexts.set(context.taskId, structuredClone(context)); this.persist(); }
   get(taskId: string): TaskContext | undefined { const value = this.contexts.get(taskId); return value && structuredClone(value); }
@@ -73,11 +88,28 @@ export class ContextManager {
     return sections.join("\n\n").slice(0, maxChars);
   }
 
-  /** C0/C1 capsule for a task+role with scoped files (AP09); the fingerprint is a cache-invalidation key. */
-  capsule(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number): ContextCapsule {
+  /** C0/C1/C2 capsule for a task+role with scoped files (AP09); the fingerprint is a cache-invalidation key. */
+  capsule(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number, architecture?: Record<string, string>): ContextCapsule {
     const context = this.get(taskId);
     if (!context) throw new Error(`Unknown task context: ${taskId}`);
-    return compileContextCapsule({ role, objective: context.objective, files, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars });
+    const dependencies: Record<string, string> = { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) };
+    const knowledge = this.knowledgeProvider?.(taskId, role, maxChars ?? 24000);
+    if (knowledge?.length) {
+      for (const entry of knowledge) {
+        dependencies[`knowledge:${entry.shelf}:${entry.id}`] = JSON.stringify({ title: entry.title, content: entry.content, trust: entry.trust, source: entry.source });
+      }
+    }
+    return compileContextCapsule({ role, objective: context.objective, files, architecture, dependencies, maxChars });
+  }
+
+  /** Returns the content-addressed cache key for a compiled capsule (plan §13.4 hash+version+policy). */
+  capsuleCacheKey(taskId: string, role: RoleId, files?: Record<string, string>, maxChars?: number, architecture?: Record<string, string>): { key: string; scope: string; fingerprint: string; level: ContextCapsuleLevel } {
+    const context = this.get(taskId);
+    if (!context) throw new Error(`Unknown task context: ${taskId}`);
+    const input = { role, objective: context.objective, files, architecture, dependencies: { openDisputes: JSON.stringify(context.openDisputes), summaries: JSON.stringify(context.summaries) }, maxChars };
+    const meta = capsuleCacheKeyInput(input);
+    const scope = `task-context:${taskId}`;
+    return { key: cacheKeyFor(scope, meta.fingerprint, meta.level), scope, fingerprint: meta.fingerprint, level: meta.level };
   }
 
   private restore(): void {

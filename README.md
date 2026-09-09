@@ -66,3 +66,17 @@ pnpm run start
 ## 待验收
 
 真实供应商额度恢复、机器断电恢复、通用 UIA/视觉应用适配、任意复杂任务自动分解与代码合并，以及计划书中的完成率/资源节省率，目前均没有足够实测证据。受控测试结果与这些产品指标分开记录，不能互相替代。
+
+## 9-6 research-mode branch
+
+`9-6-research` continues from the `9-5` baseline (which carries the BOSS v1-v3 acceptance packs;
+see `docs/9-5-ap*.md`) and adds Research mode:
+
+- History: archive / cascade delete / duplicate / export conversation (right-click and `...` share one menu).
+- 3-AI horizontal panes with per-pane auto zoom and persisted provider order.
+- Live progress summaries from the domain bus (never private chain-of-thought).
+- Autopilot + human-guidance gate (pause only for real user decisions).
+- Research mode (`Chat | Work | Research`): goal + workspace + web-AI reviewers -> research state machine (SCOPING...READY) -> structured research runtime -> protocol freeze/amendment (GUI freeze control) -> citation ladder -> deterministic statistics + evidence graph (full Question→Hypothesis→Protocol→Experiment→Run→Statistic→Claim→Figure→Paper-Sentence chain) -> section-by-section manuscript (reviewer gate, verified references.bib, embedded figures) + audit (reproducibility + citation audit).
+- Decision rule is fixed to evidence > vote: no claim is adopted by vote alone without verified experiment evidence; failed experiment runs never count as evidence.
+
+Progress and outstanding boundaries: `docs/9-6-research-progress.md` and each `docs/9-6-research-phase*.md` / `docs/9-6-research-round*.md`. Final Level-A/Level-B live E2E (real repo + web-AI reviewers + real experiments + manuscript PDF) requires a GUI tool session per the research plan Final Acceptance and is never replaced by mocks/fixtures; the exact steps are in `docs/9-6-live-acceptance-runbook.md` and per-run verdicts are produced by `scripts/acceptance-research-audit.cjs`.

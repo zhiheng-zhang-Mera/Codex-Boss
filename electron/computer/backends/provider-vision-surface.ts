@@ -16,7 +16,22 @@ export function providerVisionSurface(views: () => ProviderViews, directory: str
  return {
   async capture(surfaceId, signal) {
    if (signal.aborted) throw new Error("Visual capture cancelled");
-   const before = get(surfaceId); const image = await before.view.webContents.capturePage();
+   const before = get(surfaceId);
+   let image;
+   let lastError: unknown;
+   for (let attempt = 0; attempt < 3 && !signal.aborted; attempt++) {
+    try {
+     // Keep Chromium's capturer active even when another desktop window
+     // occludes the provider. Without this, Windows can return
+     // UnknownVizError before any frame reaches the OCR pipeline.
+     image = await before.view.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true });
+     if (!image.isEmpty()) break;
+     lastError = new Error("Visual capture returned an empty image");
+    } catch (error) { lastError = error; }
+    before.view.webContents.invalidate();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+   }
+   if (!image || image.isEmpty()) throw lastError ?? new Error("Visual capture failed");
    if (get(surfaceId).revision !== before.revision) throw new Error("Visual surface changed during capture");
    fs.mkdirSync(directory, { recursive: true }); const imagePath = path.join(directory, randomUUID() + ".png");
    fs.writeFileSync(imagePath, image.toPNG());

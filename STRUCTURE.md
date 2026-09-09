@@ -226,3 +226,48 @@ Phase 4 基础验收：类型检查、证据引擎单测、production build、�
 - `electron/commander/resource-controller.ts`: separated memory scopes, measured routing observations and degraded modes.
 - `scripts/benchmark.cjs`, `package-portable.cjs`: controlled benchmark and whitelisted portable packaging.
 - `docs/9-4-validation.md`: implementation checkpoints and outstanding release evidence.
+
+## 9-6 research mode (branch 9-6-research)
+
+Research mode is additive on top of the 9-5 control plane. Main Commander keeps task/state/
+permission ownership; the research runtimes never replace it and never depend on the external
+harness used to build the product.
+
+- `src/shared/research-ir.ts` / `research-protocol.ts` / `research-citation.ts` /
+  `research-manuscript.ts` / `research-statistics.ts` / `research-command.ts` /
+  `research-levelb.ts` / `research-levela.ts` / `research-adjudicate.ts` /
+  `research-bibliography.ts` / `research-figures.ts` / `intervention.ts` / `progress.ts` /
+  `provider-view-profile.ts`: pure research/UI contracts (state machines, protocol freeze +
+  silent-mutation guard, citation ladder + audit + deterministic references.bib, manuscript
+  sections + evidence check, deterministic statistics, structured command spec,
+  falsifiable-RQ selection, Level-A novelty gate + experiment spec, evidence>vote
+  adjudication, deterministic SVG figures, human guidance, live progress, pane zoom).
+- `electron/research/`: durable research ledger + autopilot supervisor (research-ledger.ts,
+  research-supervisor.ts) with reviewer-gate pauses + resume-to-pending-stage; protocol manager
+  (freeze/amend bound to frozen hash, freeze recorded on the run IR); Level-B default executor,
+  citation source store (cache-derived source acquisition), evidence graph (full chain
+  Question → Hypothesis → Protocol → Experiment → Run → Statistic → Claim → Figure → Paper
+  Sentence; recorded-run analysis → stats → evidence>vote verdict; reproducibility audit;
+  graph-derived manuscript claims; figure → run traceability), manuscript assembler
+  (paper.md/tex with embedded figures + verified references.bib + reviewer gate + audit tree),
+  Level-A planner (startLevelA seeds a run IR), structured research runtime (`runtime/` with
+  process runner, environment manager, primary-run recorder binding real runs to the frozen
+  protocol hash, fail-closed on failed runs); `ResearchService` facade exposes
+  runExperiment / analyzeRuns / reproducibility / amend / manuscriptClaims / registerFigure /
+  registerPaperSection / syncEvidenceChain / snapshotArtifacts / verifyCitation / startLevelA.
+- `electron/commander/progress-recorder.ts`, `human-guidance-gate.ts`,
+  `continuation-waker.ts`: event-bus surfaces feeding live progress / pauses / continuation.
+- `electron/research/runtime/`: structured spawn (no `shell:true`), allow-listed executables,
+  concurrency budget, artifact capture, primary-run provenance recorder (run-recorder.ts).
+- Renderer: `Chat | Work | Research` top nav + research launcher (goal / workspace / reviewers /
+  autonomy), Research status + step control with resume for control-paused runs; history context
+  menu, archived conversation toggle, live progress strip, horizontal 3-AI panes with persisted
+  order.
+- Live acceptance tooling: `scripts/acceptance-research-audit.cjs` (Final Acceptance I+J per-run
+  verdict), `docs/9-6-live-acceptance-runbook.md` (A–J GUI runbook).
+- Handoffs: `docs/9-6-research-phase*.md` + `docs/9-6-research-round*.md`;
+  progress/limits: `docs/9-6-research-progress.md`.
+
+Live Level-A/Level-B E2E (real repo + web-AI reviewers + real experiments + manuscript PDF)
+remains an external GUI/live validation item per the research plan's Final Acceptance — never
+replaced by mocks/fixtures in the deterministic suites above.

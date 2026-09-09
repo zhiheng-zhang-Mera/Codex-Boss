@@ -1,6 +1,6 @@
 import { readJson, writeJson } from "../commander/durable-json";
 import type { KnowledgeEntry, KnowledgeQuery } from "../../src/shared/knowledge";
-import { retrieveWithinBudget, taxonomyOf } from "../../src/shared/knowledge";
+import { retrieveWithinBudget, retrieveReranked, routeKnowledgeQuery, taxonomyOf } from "../../src/shared/knowledge";
 
 /**
  * Local knowledge backend (plan AP10). A catalog of KnowledgeEntry records
@@ -33,6 +33,13 @@ export class KnowledgeStore {
 
   retrieve(query: KnowledgeQuery): KnowledgeEntry[] {
     return retrieveWithinBudget(this.list(), query);
+  }
+
+  /** Retrieves the domain-routed, goal-reranked slice (plan AP10 seam). */
+  retrieveForGoal(goal: string, query: KnowledgeQuery = {}): KnowledgeEntry[] {
+    const entries = this.list(query.shelf);
+    const routed = { ...query, ...routeKnowledgeQuery(goal, entries) };
+    return retrieveReranked(entries, routed, goal);
   }
 
   private read(): KnowledgeFile {

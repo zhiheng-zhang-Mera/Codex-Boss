@@ -1,7 +1,12 @@
 import { taskPresentation } from "../shared/task-presentation";
 import { timelineForTask } from "../shared/task-timeline";
 import { currentFinalResponse } from "../shared/final-response";
+import type { ProjectStateSummary } from "../shared/project-tree";
 import { HistoryNameDialog, type HistoryDialogState } from "./components/HistoryNameDialog";
+import { ConversationContextMenu, type ConversationMenuState } from "./components/ConversationContextMenu";
+import { HumanInterventionCard } from "./components/HumanInterventionCard";
+import { ResearchProgress } from "./components/ResearchProgress";
+import type { HumanInterventionRequest } from "../shared/intervention";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
@@ -11,8 +16,14 @@ import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-po
 import { emptySnapshot, shortTime } from "./state";
 import "./styles.css";
 
+function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalView }) {
+  return <li><span className={`goal-status goal-${goal.status}`}>{goal.status}</span> {goal.title}{goal.children.length > 0 && <ul>{goal.children.map((child) => <GoalNodeView key={child.id} goal={child} />)}</ul>}</li>;
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
+  const [progress, setProgress] = useState<Array<import("../shared/progress").ProgressSummary>>([]);
+  const [interventions, setInterventions] = useState<HumanInterventionRequest[]>([]);
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<TaskMode>("direct");
   const [appMode, setAppMode] = useState<AppMode>("chat");
@@ -21,8 +32,11 @@ function App() {
   const [workspacePath, setWorkspacePath] = useState("");
   const [transportChoices, setTransportChoices] = useState<Record<ProviderId, RunTransport>>({});
   const [historyDialog, setHistoryDialog] = useState<HistoryDialogState | null>(null);
+  const [conversationMenu, setConversationMenu] = useState<ConversationMenuState | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
+  const [projectState, setProjectState] = useState<ProjectStateSummary | null>(null);
   const [historyCollapsed, setHistoryCollapsed] = useState(() => window.localStorage.getItem("codex-boss:history-collapsed") === "true");
   const [controllerWidth, setControllerWidth] = useState(() => {
     const saved = Number(window.localStorage.getItem("codex-boss:controller-width"));
@@ -32,6 +46,13 @@ function App() {
   const [customUrl, setCustomUrl] = useState("https://");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [view, setView] = useState<"chat" | "work" | "research">("chat");
+  const [researchGoal, setResearchGoal] = useState("");
+  const [researchWorkspace, setResearchWorkspace] = useState("");
+  const [researchAutonomy, setResearchAutonomy] = useState<"AUTOPILOT" | "GUIDED">("AUTOPILOT");
+  const [researchStatus, setResearchStatus] = useState<{ id: string; state: string; protocolHash?: string } | null>(null);
+  const [protocolDraft, setProtocolDraft] = useState({ hypothesis: "", primaryMetric: "accuracy", baseline: "0.5", sampleDefinition: "sample", evaluationCriterion: "mean >= baseline" });
+  const [researchRuns, setResearchRuns] = useState<Array<{ id: string; goal: string; state: string; updatedAt: string; protocolHash?: string; pendingStage?: string }>>([]);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const conversationRef = useRef<HTMLDivElement | null>(null);
   const followLatestRef = useRef(true);
@@ -39,10 +60,41 @@ function App() {
   const openProviders = snapshot.providers.filter((provider) => provider.windowOpen);
   const selectedProviders = openProviders.map((provider) => provider.id);
   const openKey = openProviders.map((provider) => provider.id).join(",");
+  // Phase 2: provider pane display order (open order → left → right), persisted.
+  const [displayOrder, setDisplayOrder] = useState<ProviderId[]>(() => {
+    const saved = window.localStorage.getItem("codex-boss:provider-display-order");
+    if (saved) { try { const parsed = JSON.parse(saved) as ProviderId[]; if (Array.isArray(parsed) && parsed.every((id) => typeof id === "string")) return parsed; } catch { /* fall through to default */ } }
+    return openProviders.map((provider) => provider.id);
+  });
+  useEffect(() => { window.localStorage.setItem("codex-boss:provider-display-order", JSON.stringify(displayOrder)); }, [displayOrder]);
+  useEffect(() => {
+    // Newly opened providers append at the end; closed ones drop out.
+    const openIds = new Set(openProviders.map((provider) => provider.id));
+    const merged = [...displayOrder.filter((id) => openIds.has(id)), ...openProviders.filter((provider) => !displayOrder.includes(provider.id)).map((provider) => provider.id)];
+    if (merged.join(",") !== displayOrder.join(",")) setDisplayOrder(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey]);
+  const orderedOpenProviders = [...openProviders].sort((a, b) => displayOrder.indexOf(a.id) - displayOrder.indexOf(b.id));
+  function moveDisplayOrder(providerId: ProviderId, direction: -1 | 1) {
+    setDisplayOrder((current) => {
+      const index = current.indexOf(providerId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      next.splice(index, 1);
+      next.splice(target, 0, providerId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     void window.boss.snapshot().then(setSnapshot).catch((reason) => setError(String(reason)));
-    return window.boss.onSnapshot(setSnapshot);
+    void window.boss.projectState().then(setProjectState).catch(() => {});
+    const refreshProgress = () => { void window.boss.progress().then(setProgress).catch(() => {}); void window.boss.listInterventions().then((items) => setInterventions(items.filter((item) => !item.resolvedAt))).catch(() => {}); void window.boss.researchList().then(setResearchRuns).catch(() => {}); };
+    refreshProgress();
+    const timer = window.setInterval(refreshProgress, 1500);
+    const unsubscribe = window.boss.onSnapshot((next) => { setSnapshot(next); void window.boss.projectState().then(setProjectState).catch(() => {}); });
+    return () => { window.clearInterval(timer); unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -91,6 +143,12 @@ function App() {
   }, [snapshot.finalResponses, snapshot.activeConversationId, activeTasks.length]);
   useEffect(() => { followLatestRef.current = true; const pane = conversationRef.current; if (pane) pane.scrollTop = pane.scrollHeight; }, [snapshot.activeConversationId]);
   const pendingRemoteCommands = snapshot.remoteCommands.filter((command) => command.status === "pending");
+  const activeProgress = progress.filter((item) => snapshot.tasks.some((task) => task.id === item.taskId && !["cancelled", "paused", "completed", "failed"].includes(task.status)));
+
+  async function resolveIntervention(request: HumanInterventionRequest, answer: string) {
+    await window.boss.resolveIntervention(request.taskId, request.kind, answer);
+    setInterventions((current) => current.filter((item) => item.id !== request.id));
+  }
 
   async function toggleProvider(providerId: ProviderId) {
     setError("");
@@ -140,6 +198,74 @@ function App() {
     }
   }
 
+  async function startResearch(event: React.FormEvent) {
+    event.preventDefault();
+    if (!researchGoal.trim() || !researchWorkspace.trim() || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      if (!selectedProviders.length) throw new Error("Research 需要至少一个已打开的网页 AI 作为 reviewer");
+      const record = await window.boss.researchStart({ goal: researchGoal.trim(), workspace: researchWorkspace.trim(), reviewers: selectedProviders, autonomy: researchAutonomy }) as { ir: { id: string; state: string; protocolHash?: string } };
+      setResearchStatus({ id: record.ir.id, state: record.ir.state, protocolHash: record.ir.protocolHash });
+      setResearchGoal("");
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function advanceResearch() {
+    if (!researchStatus || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      const next = await window.boss.researchStep(researchStatus.id) as { state: string } | null;
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string; protocolHash?: string } } | null;
+      setResearchStatus(next ? { id: researchStatus.id, state: next.state, protocolHash: researchStatus.protocolHash } : refreshed ? { id: researchStatus.id, state: refreshed.ir.state, protocolHash: refreshed.ir.protocolHash } : researchStatus);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  /** Resumes a run parked at a control state (reviewer gate / guidance wait) to its pending stage. */
+  async function resumeResearch() {
+    if (!researchStatus || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      const resumed = await window.boss.researchResume(researchStatus.id);
+      if (!resumed) setError("该研究未处于可恢复的等待状态");
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string; protocolHash?: string } } | null;
+      if (refreshed) setResearchStatus({ id: researchStatus.id, state: refreshed.ir.state, protocolHash: refreshed.ir.protocolHash });
+      void window.boss.researchList().then(setResearchRuns).catch(() => {});
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  /** Freezes the research protocol via IPC (round 16 semantics: hash + PROTOCOL_FROZEN). */
+  async function freezeProtocol(event: React.FormEvent) {
+    event.preventDefault();
+    if (!researchStatus || sending) return;
+    if (!protocolDraft.hypothesis.trim()) { setError("Protocol 需要 hypothesis"); return; }
+    setSending(true);
+    setError("");
+    try {
+      const frozen = await window.boss.researchProtocolFreeze(researchStatus.id, { schemaVersion: 1, hypothesis: protocolDraft.hypothesis.trim(), primaryMetric: protocolDraft.primaryMetric.trim(), baseline: protocolDraft.baseline.trim(), sampleDefinition: protocolDraft.sampleDefinition.trim(), evaluationCriterion: protocolDraft.evaluationCriterion.trim(), createdAt: new Date().toISOString() }) as { hash?: string } | null;
+      const refreshed = await window.boss.researchStatus(researchStatus.id) as { ir: { state: string; protocolHash?: string } } | null;
+      if (refreshed) setResearchStatus({ id: researchStatus.id, state: refreshed.ir.state, protocolHash: refreshed.ir.protocolHash ?? frozen?.hash });
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSending(false);
+    }
+  }
+
   function createFolder() { setHistoryDialog({ mode: "create-folder", value: "新文件夹" }); }
   function createConversation(folderId = activeConversation?.folderId ?? snapshot.folders[0]?.id) {
     if (folderId) setHistoryDialog({ mode: "create-conversation", folderId, value: "新对话" });
@@ -155,6 +281,47 @@ function App() {
       case "rename-conversation": setSnapshot(await window.boss.renameConversation(historyDialog.targetId!, value)); break;
     }
   }
+
+  const visibleConversations = useMemo(() => snapshot.conversations.filter((conversation) => showArchived || !conversation.archived), [snapshot.conversations, showArchived]);
+
+  async function archiveConversation(conversationId: string) {
+    const target = snapshot.conversations.find((item) => item.id === conversationId);
+    if (!target) return;
+    const next = await window.boss.archiveConversation(conversationId, !target.archived);
+    setSnapshot(next);
+    if (next.activeConversationId !== conversationId) return;
+  }
+
+  async function deleteConversation(conversationId: string) {
+    if (!window.confirm("删除后该对话的任务、运行记录、原始证据与最终回答将一并删除（历史文件同步清理），且不可恢复。确认删除？")) return;
+    setSnapshot(await window.boss.deleteConversation(conversationId));
+  }
+
+  function openConversationMenu(event: React.MouseEvent, conversationId: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    setConversationMenu({ conversationId, x: event.clientX, y: event.clientY });
+  }
+
+  async function duplicateConversation(conversationId: string) {
+    const next = await window.boss.duplicateConversation(conversationId);
+    setSnapshot(next);
+    setPrompt("");
+  }
+
+  async function exportConversation(conversationId: string) {
+    try { await window.boss.exportConversation(conversationId); }
+    catch (reason) { setError(String(reason)); }
+  }
+
+  const menuActions = conversationMenu ? {
+    rename: (id: string) => { const conversation = snapshot.conversations.find((item) => item.id === id); if (conversation) renameConversation(id, conversation.title); },
+    move: (id: string) => { const conversation = snapshot.conversations.find((item) => item.id === id); const current = snapshot.folders.findIndex((item) => item.id === conversation?.folderId); const next = snapshot.folders[(current + 1) % snapshot.folders.length]; if (conversation && next) void window.boss.moveConversation(id, next.id).then(setSnapshot).catch((reason) => setError(String(reason))); },
+    duplicate: (id: string) => void duplicateConversation(id),
+    export: (id: string) => void exportConversation(id),
+    archive: (id: string) => void archiveConversation(id),
+    delete: (id: string) => void deleteConversation(id)
+  } : null;
 
   function toggleTransport(providerId: ProviderId) {
     if (prompt.trim()) return;
@@ -248,14 +415,15 @@ function App() {
 
   return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""}`}>
     {historyDialog && <HistoryNameDialog state={historyDialog} onSubmit={saveHistoryName} onClose={() => setHistoryDialog(null)} />}
+    {conversationMenu && menuActions && <ConversationContextMenu state={conversationMenu} actions={menuActions} onClose={() => setConversationMenu(null)} />}
     <aside className="history-sidebar" aria-label="对话历史">
       <div className="history-toolbar">
         {!historyCollapsed && <div className="app-mode-switch"><button className={appMode === "chat" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("chat")}>Chat</button><button className={appMode === "work" ? "active" : ""} onClick={() => !prompt.trim() && setAppMode("work")}>Work</button></div>}
         <button className="history-toggle" title={historyCollapsed ? "展开历史记录" : "收起历史记录"} aria-label={historyCollapsed ? "展开历史记录" : "收起历史记录"} aria-expanded={!historyCollapsed} aria-controls="history-content" onClick={() => setHistoryCollapsed((value) => !value)}>{historyCollapsed ? "›" : "‹"}</button>
       </div>
       {!historyCollapsed && <div id="history-content" className="history-content">
-        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" aria-label="新建文件夹" onClick={() => void createFolder()}>▣</button></div>
-        <div className="history-folders">{snapshot.folders.map((folder) => <section key={folder.id} className="history-folder"><header><b>{folder.name}</b><button onClick={() => void createConversation(folder.id)}>＋</button><button onClick={() => void renameFolder(folder.id, folder.name)}>···</button></header>{snapshot.conversations.filter((conversation) => conversation.folderId === folder.id).map((conversation) => <div key={conversation.id} className={`history-conversation ${conversation.id === snapshot.activeConversationId ? "active" : ""}`}><button className="conversation-select" onClick={() => void window.boss.selectConversation(conversation.id).then(setSnapshot).catch((reason) => setError(String(reason)))}><span>{conversation.title}</span><small>{conversation.taskIds.length} 条任务</small></button><button className="conversation-rename" title="重命名" onClick={() => void renameConversation(conversation.id, conversation.title)}>✎</button><select title="移动到文件夹" value={conversation.folderId} onChange={(event) => void window.boss.moveConversation(conversation.id, event.target.value).then(setSnapshot).catch((reason) => setError(String(reason)))}>{snapshot.folders.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></div>)}</section>)}</div>
+        <div className="history-actions"><button onClick={() => void createConversation()}>＋ 新对话</button><button title="新建文件夹" aria-label="新建文件夹" onClick={() => void createFolder()}>▣</button><button title={showArchived ? "隐藏已归档" : "显示已归档"} aria-label={showArchived ? "隐藏已归档" : "显示已归档"} className={showArchived ? "archive-toggle active" : "archive-toggle"} onClick={() => setShowArchived((value) => !value)}>🗄</button></div>
+        <div className="history-folders">{snapshot.folders.map((folder) => <section key={folder.id} className="history-folder"><header><b>{folder.name}</b><button onClick={() => void createConversation(folder.id)}>＋</button><button onClick={() => void renameFolder(folder.id, folder.name)}>···</button></header>{visibleConversations.filter((conversation) => conversation.folderId === folder.id).map((conversation) => <div key={conversation.id} className={`history-conversation ${conversation.archived ? "archived" : ""} ${conversation.id === snapshot.activeConversationId ? "active" : ""}`} onContextMenu={(event) => openConversationMenu(event, conversation.id)}><button className="conversation-select" onClick={() => void window.boss.selectConversation(conversation.id).then(setSnapshot).catch((reason) => setError(String(reason)))}><span>{conversation.title}</span><small>{conversation.taskIds.length} 条任务{conversation.archived ? " · 已归档" : ""}</small></button><button className="conversation-menu-button" title="对话操作" aria-label={`${conversation.title} 操作`} onClick={(event) => openConversationMenu(event, conversation.id)}>···</button></div>)}</section>)}</div>
         <footer>本地：history/{snapshot.folders.find((folder) => folder.id === activeConversation?.folderId)?.storageName ?? ""}/{activeConversation?.storageName ?? ""}</footer>
       </div>}
     </aside>
@@ -267,6 +435,8 @@ function App() {
       </header>
 
       <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
+        {interventions.length > 0 && <div className="intervention-stack">{interventions.slice(0, 3).map((request) => <HumanInterventionCard key={request.id} request={request} onResolve={(kind, answer) => resolveIntervention({ ...request, kind }, answer)} />)}</div>}
+        <ResearchProgress summaries={activeProgress} />
         {activeTasks.length === 0 && <div className="welcome-card">
           <div className="welcome-mark">⌘</div>
           <h1>{activeConversation?.title ?? "今天要处理什么？"}</h1>
@@ -278,6 +448,7 @@ function App() {
           <summary><b>Runtime Status</b><span>Main Commander 本地持有任务状态</span></summary>
           <div className="runtime-status-grid">{snapshot.runtimeStatuses.map((runtime) => <form key={runtime.runtimeId} onSubmit={(event) => void saveRuntimeControl(event, runtime.runtimeId)}><span className={`runtime-${runtime.availability.toLowerCase()}`}><i />{runtime.label}<small>{runtime.availability} · {runtime.budget}</small></span><label><input name="enabled" type="checkbox" defaultChecked={runtime.enabled} /> 启用</label><label>优先级 <input name="priority" type="number" min="0" max="999" defaultValue={runtime.priority} /></label><button type="submit">保存</button></form>)}</div>
           <div className="role-route-grid">{snapshot.roleRoutes.map((route) => <form key={route.role} onSubmit={(event) => void saveRoleRoute(event, route)}><b>{route.role}</b><select name="primary" defaultValue={route.runtimeIds[0]}>{snapshot.runtimeStatuses.filter((runtime) => runtime.enabled).map((runtime) => <option key={runtime.runtimeId} value={runtime.runtimeId}>{runtime.label}</option>)}</select><label><input name="fallback" type="checkbox" defaultChecked={route.fallback} /> fallback</label><button type="submit">设为首选</button></form>)}</div>
+          {projectState && <div className="goal-tree-panel"><b>目标树</b><span>{projectState.tree}</span>{projectState.goals.length > 0 && <ul>{projectState.goals.map((goal) => <GoalNodeView key={goal.id} goal={goal} />)}</ul>}{projectState.openQuestions.length > 0 && <small>待决问题：{projectState.openQuestions.join("；")}</small>}{projectState.nextActions.length > 0 && <small>下一步：{projectState.nextActions.join("；")}</small>}</div>}
         </details>
 
         {activeTasks.map((task) => {
@@ -328,7 +499,18 @@ function App() {
       </div>
 
       <div className="composer-zone">
-        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div>
+        <div className="top-view-nav"><button className={view === "chat" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("chat"); setAppMode("chat"); } }}>Chat</button><button className={view === "work" ? "active" : ""} onClick={() => { if (!prompt.trim()) { setView("work"); setAppMode("work"); } }}>Work</button><button className={view === "research" ? "active" : ""} onClick={() => { if (!prompt.trim()) setView("research"); }}>Research</button></div>
+        {view === "research" ? <form className="research-launcher" onSubmit={startResearch}>
+          <label>Research Goal <textarea aria-label="研究目标" value={researchGoal} maxLength={20000} onChange={(event) => setResearchGoal(event.target.value)} rows={2} placeholder="例如：研究 Codex Boss 的证据化多 AI 决策 vs 多数投票，完成真实实验并写 pre-print" /></label>
+          <label>Workspace <input aria-label="研究仓库" value={researchWorkspace} onChange={(event) => setResearchWorkspace(event.target.value)} placeholder="本地仓库目录" /></label>
+          <label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
+          <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
+          <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
+          {researchStatus && !researchStatus.protocolHash && <form className="research-status research-status-freeze" onSubmit={(event) => void freezeProtocol(event)}><b>冻结协议（实验前必填；冻结后不可静默修改）</b><label>Hypothesis <input aria-label="协议假设" value={protocolDraft.hypothesis} maxLength={2000} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, hypothesis: event.target.value }))} placeholder="H: 可证伪假设" /></label><label>Primary metric <input aria-label="主指标" value={protocolDraft.primaryMetric} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, primaryMetric: event.target.value }))} /></label><label>Baseline <input aria-label="基线" value={protocolDraft.baseline} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, baseline: event.target.value }))} /></label><label>Sample definition <input aria-label="样本定义" value={protocolDraft.sampleDefinition} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, sampleDefinition: event.target.value }))} /></label><label>Evaluation criterion <input aria-label="评估标准" value={protocolDraft.evaluationCriterion} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, evaluationCriterion: event.target.value }))} /></label><button type="submit" disabled={sending || !protocolDraft.hypothesis.trim()}>冻结协议</button></form>}
+          {researchStatus && researchStatus.protocolHash && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}{researchStatus.protocolHash ? ` · 协议已冻结 ${researchStatus.protocolHash.slice(0, 8)}` : ""}</span>{["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(researchStatus.state) ? <button type="button" disabled={sending} onClick={() => void resumeResearch()}>恢复研究（回到待办阶段）</button> : <button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button>}</div>}
+          {researchRuns.length > 0 && <section className="research-runs"><b>已有研究</b>{researchRuns.slice(0, 20).map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 60)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}{run.protocolHash ? " · 已冻结" : ""}{run.pendingStage ? ` · 待办 ${run.pendingStage}` : ""}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string; protocolHash?: string } }).ir.state, protocolHash: (record as { ir: { state: string; protocolHash?: string } }).ir.protocolHash })).catch(() => {})}>查看</button></div>)}</section>}
+        </form> : <>
+        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>
         <div className="provider-picker">
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>
@@ -364,8 +546,8 @@ function App() {
         <div className="snap-illustration"><span /><span /><span /></div>
         <h2>等待打开网页页面</h2><p>在主控页选中 AI 时会直接打开；取消选中或点击页面标题栏 × 会立即关闭。</p>
       </div> : <div className={`provider-grid count-${openProviders.length}`}>
-        {openProviders.map((provider) => <article className="provider-pane" key={provider.id}>
-          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div>
+        {orderedOpenProviders.map((provider, index) => <article className="provider-pane" key={provider.id}>
+          <div className="pane-title"><div><i style={{ background: provider.accent }} /><strong>{provider.name}</strong><span>独立会话</span></div><div className="pane-order-controls"><button disabled={index === 0 || Boolean(prompt.trim())} title="左移" onClick={() => moveDisplayOrder(provider.id, -1)}>‹</button><button disabled={index === orderedOpenProviders.length - 1 || Boolean(prompt.trim())} title="右移" onClick={() => moveDisplayOrder(provider.id, 1)}>›</button><button disabled={Boolean(prompt.trim())} title={prompt.trim() ? "任务已有输入，窗口选择已锁定" : "关闭"} onClick={() => void window.boss.closeProvider(provider.id)}>×</button></div></div>
           <div className="web-surface" ref={(element) => { surfaceRefs.current[provider.id] = element; }}><span>正在载入 {provider.name}…</span></div>
         </article>)}
       </div>}

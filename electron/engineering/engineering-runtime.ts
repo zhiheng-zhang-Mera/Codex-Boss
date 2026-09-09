@@ -2,7 +2,9 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import type { TaskIR, TaskStep } from "../../src/shared/task-ir";
 import { validateGraph } from "../../src/shared/task-ir";
+import type { Microtask } from "../../src/shared/microtask";
 import { TaskLedger } from "../commander/task-ledger";
+import { MicrotaskRuntime } from "./microtask-runtime";
 export class GraphDeferred extends Error {}
 export interface StepEvidence { deferred?: boolean; stepId: string; passed: boolean; output: string; sha256: string; }
 export interface GraphResult { status: "COMPLETED" | "FAILED" | "WAITING"; evidence: StepEvidence[]; }
@@ -11,6 +13,20 @@ export interface GraphExecutor {
   parallelism?: () => number;
   execute(step: TaskStep): Promise<string>;
   verify(step: TaskStep, output: string): Promise<boolean>;
+  /**
+   * Optional recursive microtask mode (plan AP12): when declared, eligible
+   * steps run as a bounded read → propose → verify micro-DAG through the
+   * MicrotaskRuntime instead of the single-step path. The step's output is the
+   * joined microtask outputs; persisted jobs and revalidation are handled by
+   * the runtime. Executors that do not declare `microtasks` keep the exact
+   * single-step behavior.
+   */
+  microtasks?: {
+    /** Return the micro-DAG for the step, or undefined to keep the single-step path. */
+    decompose(step: TaskStep): Microtask[] | undefined;
+    execute(microtask: Microtask): Promise<string>;
+    verify(microtask: Microtask, output: string): Promise<boolean>;
+  };
 }
 // The caller supplies executors for an authorized graph; model text is never an executor.
 export class EngineeringRuntime {
@@ -54,7 +70,20 @@ export class EngineeringRuntime {
         const key = `graph_${step.id}`;
         this.ledger.update(taskId, "step started", (state) => { state.currentStep = step.id; state.jobs[key] = { id: key, fingerprint: TaskLedger.fingerprint(step), state: "RUNNING", sessionId: `${taskId}_${step.id}`, attempts: (state.jobs[key]?.attempts ?? 0) + 1 }; });
         let output = ""; let passed = false; let deferred = false;
-        try { output = await executor.execute(step); passed = await executor.verify(step, output); } catch (error) { output = String(error); deferred = error instanceof GraphDeferred; }
+        try {
+          if (executor.microtasks) {
+            const micro = executor.microtasks.decompose(step);
+            if (micro?.length) {
+              const runtime = new MicrotaskRuntime(this.ledger);
+              const result = await runtime.runStep(taskId, step, micro, { execute: executor.microtasks.execute, verify: executor.microtasks.verify });
+              if (result.status === "WAITING") { deferred = true; output = "Microtask graph waiting for runtime"; }
+              else if (result.status === "FAILED") { output = `Microtask ${result.failedMicrotask ?? "?"} failed`; }
+              else { output = Object.values(result.outputs).join("\n"); passed = await executor.verify(step, output); }
+            } else {
+              output = await executor.execute(step); passed = await executor.verify(step, output);
+            }
+          } else { output = await executor.execute(step); passed = await executor.verify(step, output); }
+        } catch (error) { output = String(error); deferred = error instanceof GraphDeferred; }
         const item = { ...this.evidence(step.id, output, passed), ...(deferred ? { deferred: true } : {}) };
         this.ledger.update(taskId, "verification finished", (state) => {
           state.jobs[key].state = passed ? "COMPLETED" : deferred ? "WAITING" : "FAILED";

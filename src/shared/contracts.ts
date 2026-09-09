@@ -251,6 +251,8 @@ export interface BossConversation {
   taskIds: string[];
   createdAt: string;
   updatedAt: string;
+  /** Archived conversations are hidden from the default list but never deleted. */
+  archived?: boolean;
 }
 
 export interface UpdateApiSettingInput {
@@ -266,7 +268,7 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "conversation.archived" | "conversation.deleted" | "conversation.duplicated" | "conversation.exported" | "remote.channel" | "remote.command" | "runtime.policy";
   taskId?: string;
   providerId?: ProviderId;
   stepId?: string;
@@ -343,6 +345,18 @@ export interface ViewBounds {
 
 export interface BossBridge {
   snapshot(): Promise<AppSnapshot>;
+  progress(): Promise<import("./progress").ProgressSummary[]>;
+  activeIntervention(taskId: string): Promise<import("./intervention").HumanInterventionRequest | undefined>;
+  listInterventions(taskId?: string): Promise<import("./intervention").HumanInterventionRequest[]>;
+  resolveIntervention(taskId: string, kind: import("./intervention").InterventionKind, answer: string): Promise<import("./intervention").HumanInterventionRequest>;
+  researchStart(input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }): Promise<unknown>;
+  researchStatus(id: string): Promise<unknown>;
+  researchList(): Promise<Array<{ id: string; goal: string; state: string; revision: number; updatedAt: string; protocolHash?: string; pendingStage?: string }>>;
+  researchStep(id: string): Promise<unknown>;
+  /** Resumes a control-paused research run to its pending stage; true when it actually resumed. */
+  researchResume(id: string): Promise<boolean>;
+  researchWait(input: { id: string; kind: import("./intervention").InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }): Promise<unknown>;
+  researchProtocolFreeze(id: string, protocol: import("./research-protocol").ResearchProtocol): Promise<unknown>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
@@ -357,6 +371,10 @@ export interface BossBridge {
   renameConversation(conversationId: string, title: string): Promise<AppSnapshot>;
   moveConversation(conversationId: string, folderId: string): Promise<AppSnapshot>;
   selectConversation(conversationId: string): Promise<AppSnapshot>;
+  archiveConversation(conversationId: string, archived: boolean): Promise<AppSnapshot>;
+  deleteConversation(conversationId: string): Promise<AppSnapshot>;
+  duplicateConversation(conversationId: string): Promise<AppSnapshot>;
+  exportConversation(conversationId: string): Promise<string>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
   removeCustomProvider(providerId: ProviderId): Promise<AppSnapshot>;
   launchTask(taskId: string): Promise<AppSnapshot>;
@@ -374,4 +392,5 @@ export interface BossBridge {
   setProviderViewsVisible(visible: boolean): Promise<void>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
+  projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;
 }

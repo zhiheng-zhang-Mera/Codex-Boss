@@ -88,6 +88,12 @@ export class TaskLedger {
     writeJson(path.join(this.root, validId(taskId), "repro.json"), snapshot);
   }
 
+  /** Removes all durable ledger state for a task (used by conversation cascade delete). */
+  purgeTask(taskId: string): void {
+    const directory = path.join(this.root, validId(taskId));
+    if (fs.existsSync(directory)) fs.rmSync(directory, { recursive: true, force: true });
+  }
+
   /** Latest saved reproduction snapshot for a task, fail-closed on corruption. */
   loadReproduction(taskId: string): ReproductionSnapshot | undefined {
     const value = readJson<unknown>(path.join(this.root, validId(taskId), "repro.json"));

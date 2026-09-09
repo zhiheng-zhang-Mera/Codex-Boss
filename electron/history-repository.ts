@@ -56,8 +56,24 @@ export class HistoryRepository {
     }
   }
 
-  generatedFilePath(snapshot: AppSnapshot, conversationId: string, providerId: string, suggestedName: string): string {
+  /**
+   * Exports a conversation (messages.md + artifacts/ + evidence/) into a
+   * timestamped directory under `exportRoot` and returns its path. Reuses the
+   * canonical sync writer so the export always matches the live snapshot.
+   */
+  exportConversation(snapshot: AppSnapshot, conversationId: string, exportRoot: string): string {
     const conversation = snapshot.conversations.find((item) => item.id === conversationId);
+    if (!conversation) throw new Error(`Unknown conversation: ${conversationId}`);
+    const folder = snapshot.folders.find((item) => item.id === conversation.folderId);
+    if (!folder) throw new Error(`Unknown conversation folder: ${conversation.folderId}`);
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const destination = path.join(exportRoot, safeSegment(folder.storageName), `${safeSegment(conversation.storageName)}-${stamp}`);
+    fs.mkdirSync(destination, { recursive: true });
+    this.writeConversation(snapshot, folder, conversation, destination);
+    return destination;
+  }
+
+  generatedFilePath(snapshot: AppSnapshot, conversationId: string, providerId: string, suggestedName: string): string {    const conversation = snapshot.conversations.find((item) => item.id === conversationId);
     if (!conversation) throw new Error(`Unknown conversation: ${conversationId}`);
     const folder = snapshot.folders.find((item) => item.id === conversation.folderId);
     if (!folder) throw new Error(`Unknown conversation folder: ${conversation.folderId}`);

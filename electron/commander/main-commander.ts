@@ -180,7 +180,7 @@ export class MainCommander {
         const files: Record<string, string> = {};
         for (const file of step.requiredFiles) { const target = workspacePath(workspace, file); if (fs.existsSync(target) && fs.statSync(target).isFile()) { if (fs.statSync(target).size > 100000) throw new Error("Step file exceeds read budget"); files[file] = fs.readFileSync(target, "utf8"); } }
         const prompt = this.contexts.assembleStep(taskId, step, outputs, files);
-        const answer = await this.dispatchRole(taskId, step.kind === "verify" ? "validator" : "researcher", prompt, {}, {}, "");
+        const answer = await this.dispatchRole(taskId, step.kind === "verify" ? "validator" : "researcher", prompt, { capabilityTokens: plan.requiredCapabilities }, {}, "");
         if (answer.status !== "SUCCESS" || !answer.content?.trim()) {
           const waiting = Object.values(this.ledger!.load(taskId)!.jobs).some((job) => job.state === "WAITING" && job.retryAt);
           if (waiting) throw new GraphDeferred(answer.failure?.message ?? "Runtime waiting");
