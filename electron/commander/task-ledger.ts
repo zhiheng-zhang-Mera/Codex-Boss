@@ -23,7 +23,7 @@ export interface WorkerSession {
   /** Workspace the session belongs to (AP07a binding); resolved from task workspace. */
   workspaceId?: string;
 }
-export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; }
+export interface LedgerJob { id: string; fingerprint: string; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; sessionId: string; attempts: number; result?: RuntimeResult; retryAt?: number; /** Durable timing (§7.5/§16.1): when the job entered RUNNING. */ startedAt?: string; /** Durable timing: when the job reached a terminal state. */ completedAt?: string; }
 export interface TaskLedgerRecord {
   projectMemoryOwner?: string;
   degradation?: import("./degraded-controller").DegradationState;

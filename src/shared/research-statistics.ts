@@ -86,6 +86,38 @@ export function effectSize(left: number[], right: number[]): number {
   return (mean(left) - mean(right)) / pooled;
 }
 
+/**
+ * One-sample effect size against a reference value (Overcomplete §9.12):
+ * (mean − baseline) / sd — how far the recorded mean sits from the frozen
+ * baseline in sample-standard-deviation units. NaN when underpowered.
+ */
+export function oneSampleEffectSize(values: number[], baseline: number): number {
+  const stats = describe(values);
+  if (stats.n < 2 || Number.isNaN(stats.sd) || stats.sd === 0) return NaN;
+  return (stats.mean - baseline) / stats.sd;
+}
+
+/**
+ * One-sample sign-permutation p-value against a reference value (§9.12):
+ * each centered value (value − baseline) is kept or sign-flipped with equal
+ * probability; the p-value is the seeded fraction of permutations whose mean
+ * magnitude is at least the observed mean magnitude. Deterministic.
+ */
+export function oneSamplePermutationP(values: number[], baseline: number, options: { seed?: number; permutations?: number } = {}): number {
+  if (values.length < 2) return NaN;
+  const permutations = options.permutations ?? 5000;
+  const centered = values.map((value) => value - baseline);
+  const random = mulberry32(options.seed ?? 11);
+  const observed = Math.abs(mean(centered));
+  let extreme = 0;
+  for (let permutation = 0; permutation < permutations; permutation += 1) {
+    let sum = 0;
+    for (const value of centered) sum += random() < 0.5 ? value : -value;
+    if (Math.abs(sum / centered.length) >= observed) extreme += 1;
+  }
+  return (extreme + 1) / (permutations + 1);
+}
+
 /** Paired (sign-flip) permutation p-value: equal-n pairs, differences re-signed. */
 function permutationPairedP(differences: number[], options: { seed?: number; permutations?: number }): number {
   const permutations = options.permutations ?? 5000;

@@ -169,7 +169,7 @@ function assembleLatex(options: ManuscriptOptions, sections: Record<string, Sect
   // Plan §32: never stuff Introduction/Methods/Results/… into the abstract.
   const body = MANUSCRIPT_SECTIONS.map((section) => {
     const spec = MANUSCRIPT_TO_LATEX[section];
-    const content = sections[section].content;
+    const content = latexEscapeText(sections[section].content);
     return spec.isAbstract
       ? `\\begin{abstract}\n${content}\n\\end{abstract}`
       : `\\section{${spec.title}}\n${content}`;
@@ -178,7 +178,26 @@ function assembleLatex(options: ManuscriptOptions, sections: Record<string, Sect
   // U7 §21: result tables embed into paper.tex as real LaTeX tabular blocks.
   const tableBlock = (options.tables ?? []).map((table) => resultTableToLatex(table)).join("\n\n");
   const bibliography = options.citations ? "\n\\bibliographystyle{plain}\n\\bibliography{references}" : "";
-  return ["\\documentclass{article}", "\\usepackage{graphicx}", "\\begin{document}", `\\title{${options.title}}`, "\\maketitle", body, figureBlock, tableBlock, bibliography, "\\end{document}"].join("\n");
+  return ["\\documentclass{article}", "\\usepackage{graphicx}", "\\begin{document}", `\\title{${latexEscapeText(options.title)}}`, "\\maketitle", body, figureBlock, tableBlock, bibliography, "\\end{document}"].join("\n");
+}
+
+/**
+ * Escapes plain prose for LaTeX text mode so metric names like
+ * `answer_accuracy`, percentages and Unicode punctuation cannot break
+ * compilation ("Missing $ inserted" etc). Writer content is pure text, never
+ * LaTeX commands, so escaping is safe.
+ */
+function latexEscapeText(text: string): string {
+  const SENTINEL = "\uFFFE"; // backslash placeholder (prose never contains this)
+  return text
+    .replace(/\\/g, SENTINEL)
+    .replace(/([{}_#$%&])/g, "\\$1")
+    .replace(/\^/g, "\\textasciicircum{}")
+    .replace(/~/g, "\\textasciitilde{}")
+    .replace(/×/g, "x")
+    .replace(/—/g, "--")
+    .replace(/–/g, "--")
+    .replace(new RegExp(SENTINEL, "g"), "\\textbackslash{}");
 }
 
 /**

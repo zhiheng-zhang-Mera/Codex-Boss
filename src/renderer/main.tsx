@@ -16,7 +16,7 @@ import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, P
 import { compileIntent } from "../shared/task-ir";
 import { executionLabel, type ReviewMode } from "../shared/execution";
 import { isDispatchGroupSize, MAX_ACTIVE_PROVIDERS } from "../shared/provider-policy";
-import { emptySnapshot, shortTime } from "./state";
+import { emptySnapshot, shortTime, waitingLine } from "./state";
 import "./styles.css";
 
 function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalView }) {
@@ -25,6 +25,7 @@ function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalVie
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
+  const [workspaceView, setWorkspaceViewUi] = useState<"MERGED" | "DETACHED">("MERGED");
   const [progress, setProgress] = useState<Array<import("../shared/progress").ProgressSummary>>([]);
   const [interventions, setInterventions] = useState<HumanInterventionRequest[]>([]);
   const [prompt, setPrompt] = useState("");
@@ -103,6 +104,14 @@ function App() {
     if (merged.join(",") !== displayOrder.join(",")) setDisplayOrder(merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openKey]);
+  // DETACHED (second-window) mode: main window must give the interaction area
+  // the full width and no longer reserve a web-processor module.
+  useEffect(() => {
+    let live = true;
+    window.boss.getWorkspaceView().then((view) => { if (live) setWorkspaceViewUi(view.view); }).catch(() => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot, openKey]);
   const orderedOpenProviders = [...openProviders].sort((a, b) => displayOrder.indexOf(a.id) - displayOrder.indexOf(b.id));
   function moveDisplayOrder(providerId: ProviderId, direction: -1 | 1) {
     setDisplayOrder((current) => {
@@ -536,7 +545,7 @@ function App() {
     return runs.filter((run) => run.round === round);
   }
 
-  return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""}`}>
+  return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""} ${workspaceView === "DETACHED" ? "view-detached" : ""}`}>
     {historyDialog && <HistoryNameDialog state={historyDialog} onSubmit={saveHistoryName} onClose={() => setHistoryDialog(null)} />}
     {conversationMenu && menuActions && <ConversationContextMenu state={conversationMenu} actions={menuActions} onClose={() => setConversationMenu(null)} />}
     <aside className="history-sidebar" aria-label="对话历史">
@@ -595,7 +604,7 @@ function App() {
             <div><strong className="task-state" data-task-state={presentation.state} role="status">{presentation.label}</strong>
               <span className="task-provider-label">{task.plan?.estimatedComplexity === "L0" ? "本地任务" : "已分派到"} {task.providerIds.filter((id) => id !== "native:tools").map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</span>
               <details className="task-technical-summary"><summary>任务信息</summary><p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p></details>
-              {task.recoveryMessage && <p role="status">{task.recoveryMessage}{task.recoveryAt ? " · " + new Date(task.recoveryAt).toLocaleString() : ""}</p>}
+              {waitingLine(task) && <p className="wait-readout" role="status">{waitingLine(task)}</p>}
               {task.modeTransition && task.interactionMode === "WORK_PROPOSED" && !task.modeTransition.approvedAt && <section className="mode-escalation-card" role="alert" aria-live="polite">
                 <p><b>是否升级到 Work？</b> {task.modeTransition.reason}{task.modeTransition.requiredCapabilities.length > 0 && <small> 需要能力：{task.modeTransition.requiredCapabilities.join("、")}</small>}</p>
                 <div><button type="button" className="confirm-send" disabled={sending} onClick={() => { setSending(true); window.boss.resolveModeProposal(task.id, true).then(setSnapshot).catch((reason) => setError(String(reason))).finally(() => setSending(false)); }}>继续到 Work</button><button type="button" disabled={sending} onClick={() => { setSending(true); window.boss.resolveModeProposal(task.id, false).then(setSnapshot).catch((reason) => setError(String(reason))).finally(() => setSending(false)); }}>保持 Chat</button></div>
@@ -631,8 +640,9 @@ function App() {
         {view === "research" ? <form className="research-launcher" onSubmit={startResearch}>
           <label>Research Goal <textarea aria-label="研究目标" value={researchGoal} maxLength={20000} onChange={(event) => setResearchGoal(event.target.value)} rows={2} placeholder="例如：研究 Codex Boss 的证据化多 AI 决策 vs 多数投票，完成真实实验并写 pre-print" /></label>
           <label>Workspace <input aria-label="研究仓库" value={researchWorkspace} onChange={(event) => setResearchWorkspace(event.target.value)} placeholder="本地仓库目录" /></label>
-          <label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
+          <details className="research-advanced"><summary>高级选项（自主度 / Web AI reviewers）</summary><label>Autonomy <select aria-label="自主度" value={researchAutonomy} onChange={(event) => setResearchAutonomy(event.target.value as "AUTOPILOT" | "GUIDED")}><option value="AUTOPILOT">Autopilot</option><option value="GUIDED">Guided</option></select></label>
           <div className="research-reviewers">Web AI reviewers：{openProviders.length ? openProviders.map((provider) => provider.name).join("、") : "未打开任何网页 AI"}</div>
+          </details>
           <button type="submit" disabled={!researchGoal.trim() || !researchWorkspace.trim() || sending || !openProviders.length}>启动 Research（证据 &gt; 投票）</button>
           {researchStatus && !researchStatus.protocolHash && <form className="research-status research-status-freeze" onSubmit={(event) => void freezeProtocol(event)}><b>冻结协议（实验前必填；冻结后不可静默修改）</b><label className="protocol-preset">协议模板（下拉或自定义）<select aria-label="协议模板" value={protocolPreset} onChange={(event) => applyProtocolPreset(event.target.value)}><option value="standard">标准：accuracy vs 0.5</option><option value="accuracy-0.6">accuracy vs 0.6</option><option value="custom">自定义（下方手填）</option></select></label><label>Hypothesis <input aria-label="协议假设" value={protocolDraft.hypothesis} maxLength={2000} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, hypothesis: event.target.value }))} placeholder="H: 可证伪假设" /></label><label>Primary metric <input aria-label="主指标" value={protocolDraft.primaryMetric} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, primaryMetric: event.target.value }))} /></label><label>Baseline <input aria-label="基线" value={protocolDraft.baseline} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, baseline: event.target.value }))} /></label><label>Sample definition <input aria-label="样本定义" value={protocolDraft.sampleDefinition} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, sampleDefinition: event.target.value }))} /></label><label>Evaluation criterion <input aria-label="评估标准" value={protocolDraft.evaluationCriterion} onChange={(event) => setProtocolDraft((draft) => ({ ...draft, evaluationCriterion: event.target.value }))} /></label><button type="submit" disabled={sending || !protocolDraft.hypothesis.trim()}>冻结协议</button></form>}
           {researchStatus && researchStatus.protocolHash && <div className="research-status" role="status"><span>研究 {researchStatus.id} · 当前阶段 {researchStatus.state}{researchStatus.protocolHash ? ` · 协议已冻结 ${researchStatus.protocolHash.slice(0, 8)}` : ""}</span>{["WAITING_FOR_PROVIDER", "WAITING_FOR_USER", "RECOVERING"].includes(researchStatus.state) ? <button type="button" disabled={sending} onClick={() => void resumeResearch()}>恢复研究（回到待办阶段）</button> : <button type="button" disabled={sending} onClick={() => void advanceResearch()}>推进下一阶段</button>}<button type="button" disabled={sending} title="自动推进到 READY/FAILED 或第一个真实阻塞点" onClick={() => void autopilotResearch()}>自动推进</button><button type="button" disabled={sending} title="编译 manuscript/paper.tex → paper.pdf" onClick={() => void compileResearchPdf(researchStatus.id)}>编译 PDF</button></div>}

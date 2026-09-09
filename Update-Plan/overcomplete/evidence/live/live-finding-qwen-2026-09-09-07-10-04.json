@@ -1,0 +1,7 @@
+﻿{
+    "observation":  "Qwen chat.qwen.ai submits nothing on Enter (input clears, page stays on home, latestLen 0 for 10 min); the right-button-send container only shows a voice-mode control after typing and no labelled/icon send affordance could be statically located. Adapter stays as a documented gap; the provider is excluded from group runs until the UI affordance is understood or used manually",
+    "at":  "2026-09-08T21:10:04.2332784Z",
+    "kind":  "LIVE_FINDING_QWEN_SEND_UNRESOLVED"
+}
+
+-- round2 non-visual: geometry/aria/text/icon scans around the composer found only voice/header controls; no send affordance discoverable. Recorded limitation.

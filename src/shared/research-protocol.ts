@@ -85,3 +85,51 @@ export function validateAmendment(amendment: ProtocolAmendment): void {
     if (typeof change.reason !== "string" || !change.reason.trim()) throw new Error("Amendment change requires a reason");
   }
 }
+
+/* ----------------------------------------- baseline provenance (Overcomplete §9.8) */
+
+export type BaselineProvenanceKind =
+  | "known-benchmark" | "control-implementation" | "random-chance"
+  | "previous-system" | "ablation" | "literature" | "implementation-declared" | "host-heuristic";
+
+export interface BaselineProvenance {
+  /** Numeric baseline recorded on the frozen protocol. */
+  value: string;
+  kind: BaselineProvenanceKind;
+  reason: string;
+}
+
+/** Metric names that behave like a bounded proportion (chance = 0.5). */
+const PROPORTION_TOKENS = ["accuracy", "precision", "recall", "f1", "agreement", "hit", "pass@", "coverage", "accept", "correct", "match"];
+/** Metric names that behave like an error/loss quantity where lower is better. */
+const ERROR_TOKENS = ["error", "loss", "cost", "latency", "time", "delay", "reject"];
+
+/**
+ * Host-deterministic baseline decision (Overcomplete §9.8): a baseline is never
+ * an unexplained constant. The implementation may DECLARE a baseline with
+ * provenance (`METRICS_META {"baseline":…,"source":"known-benchmark"}`); when
+ * none is declared the host infers a named provenance from the metric name and
+ * records the reasoning. `direction` documents how the statistic compares.
+ */
+export function inferBaselineProvenance(
+  metric: string,
+  declared?: { baseline?: number; source?: string }
+): BaselineProvenance {
+  const lower = metric.toLowerCase();
+  if (declared && typeof declared.baseline === "number" && Number.isFinite(declared.baseline)) {
+    return {
+      value: String(declared.baseline),
+      kind: (["known-benchmark", "control-implementation", "random-chance", "previous-system", "ablation", "literature", "implementation-declared"] as BaselineProvenanceKind[]).includes(declared.source as BaselineProvenanceKind)
+        ? declared.source as BaselineProvenanceKind
+        : "implementation-declared",
+      reason: `implementation declared baseline ${declared.baseline} with source '${declared.source ?? "unspecified"}'`
+    };
+  }
+  if (PROPORTION_TOKENS.some((token) => lower.includes(token))) {
+    return { value: "0.5", kind: "random-chance", reason: `metric '${metric}' is proportion-like; chance level 0.5 chosen by host heuristic (no declared baseline)` };
+  }
+  if (ERROR_TOKENS.some((token) => lower.includes(token))) {
+    return { value: "0", kind: "host-heuristic", reason: `metric '${metric}' is an error/loss quantity; declare a real baseline via METRICS_META (ideal-zero is NOT a scientific baseline) — recorded for transparency` };
+  }
+  return { value: "0.5", kind: "host-heuristic", reason: `no declared baseline and metric '${metric}' does not match a proportion heuristic; 0.5 kept with explicit provenance — declare a real baseline via METRICS_META for non-proportion studies` };
+}

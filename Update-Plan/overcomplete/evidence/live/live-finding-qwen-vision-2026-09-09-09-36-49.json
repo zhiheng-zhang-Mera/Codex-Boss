@@ -1,0 +1,11 @@
+﻿{
+    "attempt":  [
+                    "screenshot captured (artifacts/qwen-vision.png)",
+                    "current model deepseek-v4-flash cannot ingest images -\u003e visual inspection not possible in-session",
+                    "DOM before/after-typing control diff found no new send control",
+                    "earlier aria/geometry/text/icon scans also negative"
+                ],
+    "conclusion":  "Qwen send affordance remains unresolved; screenshot saved for a vision-capable reviewer or GUI session",
+    "at":  "2026-09-08T23:36:48.9412377Z",
+    "kind":  "LIVE_FINDING_QWEN_VISION_ATTEMPT"
+}

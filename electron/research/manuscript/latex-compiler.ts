@@ -75,8 +75,11 @@ export class LatexCompiler {
       return audit;
     }
     const logs: string[] = [];
+    // pdflatex-family engines accept -interaction/-halt-on-error; tectonic
+    // takes the file name directly (its own flags differ).
+    const baseArgs = engine === "tectonic" ? [] : ["-interaction=nonstopmode", "-halt-on-error"];
     for (let pass = 0; pass < this.passes; pass += 1) {
-      const result = await this.runFn(engine, ["-interaction=nonstopmode", "-halt-on-error", "paper.tex"], manuscriptDir);
+      const result = await this.runFn(engine, [...baseArgs, "paper.tex"], manuscriptDir);
       logs.push(`pass ${pass + 1}: ${result.output.slice(-3000)}`);
       if (result.code !== 0) {
         const audit: LatexCompileAudit = { status: "FAIL", engine, tex, pdf: null, logTail: logs.join("\n").slice(-4000), compiledAt };

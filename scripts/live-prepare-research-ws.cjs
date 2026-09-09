@@ -1,0 +1,12 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const ws = path.resolve(".live-acceptance", "research-ws");
+fs.rmSync(ws, { recursive: true, force: true });
+fs.mkdirSync(path.join(ws, "experiments"), { recursive: true });
+fs.writeFileSync(path.join(ws, "experiments", "bench-accuracy.cjs"), `const seed = Number(process.argv[3] ?? 1);
+const noise = ((seed * 2654435761) >>> 0) % 1000 / 10000;
+const accuracy = Math.min(0.999, 0.62 + noise);
+process.stdout.write('METRICS ' + JSON.stringify({ answer_accuracy: accuracy }) + '\\n');
+process.stdout.write('METRICS_META ' + JSON.stringify({ baseline: 0.5, source: 'random-chance' }) + '\\n');
+`, "utf8");
+console.log("RESEARCH_WS_READY " + ws);

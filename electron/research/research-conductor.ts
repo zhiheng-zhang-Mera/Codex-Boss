@@ -36,6 +36,7 @@ import type { ResearchRole } from "../../src/shared/research-roles";
 import type { ResearchStageExecutor, StageOutcome } from "./research-supervisor";
 import type { ResearchService } from "./research-service";
 import type { ResearchProtocol } from "../../src/shared/research-protocol";
+import { inferBaselineProvenance, type BaselineProvenance } from "../../src/shared/research-protocol";
 import type { ResearchCommandSpec } from "../../src/shared/research-command";
 import type { ReviewerVote } from "../../src/shared/research-adjudicate";
 import { metricFigureSvg } from "../../src/shared/research-figures";
@@ -54,6 +55,25 @@ export interface ResearchSemanticProvider {
   ask(input: { researchId: string; stage: ResearchState; role: ResearchRole; question: string }): Promise<string>;
 }
 
+/**
+ * Overcomplete §9.9: a bound implementation spec handed to the experiment
+ * coder when the workspace has no pre-existing benchmark. The host decides the
+ * metric/baseline/sample from the FROZEN protocol; the coder only writes code
+ * that obeys the output contract. A generated implementation is dry-run by the
+ * host and fails closed unless it really emits the required numeric metric.
+ */
+export interface ExperimentImplementationSpec {
+  researchQuestion: string;
+  hypothesis: string;
+  metric: string;
+  baselineValue: string;
+  sampleDefinition: string;
+  workspace: string;
+  seedArgument: string;
+}
+
+export type ExperimentCoder = (spec: ExperimentImplementationSpec) => Promise<string>;
+
 export interface ResearchConductorOptions {
   /** Accessor for the composed ResearchService (avoids constructor cycles). */
   service: () => ResearchService;
@@ -61,6 +81,21 @@ export interface ResearchConductorOptions {
   provider: ResearchSemanticProvider;
   /** LaTeX compile entry (defaults to the real engine detector). */
   compile?: (manuscriptDir: string) => Promise<LatexCompileAudit>;
+  /**
+   * Overcomplete §9.3: HOST-backed literature retrieval. When present,
+   * LITERATURE_REVIEW first runs a real host pass (search → metadata verify →
+   * acquire → passage locate); only when the host returns nothing does the
+   * AI-supplied intake run (and its text is advisory, never an external
+   * source). Absent for the deterministic CI path or offline runs.
+   */
+  hostLiterature?: (ir: ResearchIR) => Promise<{ records: Array<import("./literature/host-retrieval").HostSourceRecord>; note?: string }>;
+  /**
+   * Overcomplete §9.9: writes an experiment implementation from the frozen
+   * protocol spec when <workspace>/experiments/ has no runnable benchmark yet.
+   * Absent ⇒ RQ→READY without a pre-existing implementation fails closed with
+   * explicit guidance (never fabricated).
+   */
+  experimentCoder?: ExperimentCoder;
 }
 
 /** Durable experiment plan (written by EXPERIMENT_GENERATION, read by execution). */
@@ -85,12 +120,16 @@ export class ResearchConductor implements ResearchStageExecutor {
   private readonly service: () => ResearchService;
   private readonly provider: ResearchSemanticProvider;
   private readonly compile: (manuscriptDir: string) => Promise<LatexCompileAudit>;
+  private readonly hostLiterature?: ResearchConductorOptions["hostLiterature"];
+  private readonly experimentCoder?: ResearchConductorOptions["experimentCoder"];
   private readonly providerCalls = new Map<string, number>();
 
   constructor(options: ResearchConductorOptions) {
     this.service = options.service;
     this.provider = options.provider;
     this.compile = options.compile ?? (async (dir) => new LatexCompiler().compile(dir));
+    this.hostLiterature = options.hostLiterature;
+    this.experimentCoder = options.experimentCoder;
   }
 
   async run(input: { ir: ResearchIR; stage: ResearchState; workspace: string }): Promise<StageOutcome> {
@@ -195,11 +234,29 @@ export class ResearchConductor implements ResearchStageExecutor {
     return { summary: `inspected repo: ${snapshot.files.length} files, fingerprint ${snapshot.fingerprint.slice(0, 12)}`, evidenceRefs: [`repo:${snapshot.fingerprint.slice(0, 16)}`] };
   }
 
-  /** LITERATURE_REVIEW: bounded provider intake → stored sources (never bare prose). */
+  /** LITERATURE_REVIEW: host retrieval first (§9.3), AI intake as fallback only. */
   private async literatureReview(ir: ResearchIR): Promise<StageOutcome> {
     const existing = this.readExtra<{ sources: unknown[] }>(ir.id, "literature-map.json");
     const sources = existing?.sources;
     if (!sources) {
+      // §9.3: run the REAL host pass first. Only when the host returns no
+      // acquired source does the AI-supplied intake run — and its sourceText
+      // is advisory content, never treated as an externally verified source.
+      let hostOutcome: { records: Array<import("./literature/host-retrieval").HostSourceRecord>; note?: string } = { records: [] };
+      if (this.hostLiterature) {
+        try {
+          hostOutcome = await this.hostLiterature(ir);
+        } catch (error) {
+          hostOutcome = { records: [], note: `host retrieval failed: ${String(error instanceof Error ? error.message : error).slice(0, 300)}` };
+        }
+      }
+      if (hostOutcome.records.length > 0) {
+        for (const raw of hostOutcome.records) this.ingestSource(ir.id, raw as unknown as Record<string, unknown>);
+        const refs = hostOutcome.records.map((record) => record.id);
+        this.record(ir.id, "LITERATURE_REVIEW", `literature intake: ${hostOutcome.records.length} host-verified source(s) acquired by real retrieval`, "literature-map.json", refs, { sources: hostOutcome.records, note: hostOutcome.note ?? "", hostRetrieved: true });
+        return { summary: `literature intake: ${hostOutcome.records.length} host-verified source(s) stored from real retrieval`, evidenceRefs: [] };
+      }
+      const hostEmptyNote = hostOutcome.note ? `host pass empty: ${hostOutcome.note}` : "host pass empty (offline or no accessible sources)";
       let list: unknown[] = [];
       let note = "";
       try {
@@ -214,8 +271,8 @@ export class ResearchConductor implements ResearchStageExecutor {
         list = [];
       }
       for (const raw of list) this.ingestSource(ir.id, raw as Record<string, unknown>);
-      this.record(ir.id, "LITERATURE_REVIEW", note ? `literature intake empty (provider could not supply verifiable JSON sources): ${note}` : `literature intake: ${list.length} source(s) acquired and stored`, "literature-map.json", list.map((_, index) => `cite:s${index + 1}`), { sources: list, note });
-      return { summary: note ? "literature intake empty (no verifiable sources; none fabricated); proceeding" : `literature intake: ${list.length} source(s) stored (bounded pass 1)`, evidenceRefs: [] };
+      this.record(ir.id, "LITERATURE_REVIEW", note ? `literature intake empty (provider could not supply verifiable JSON sources): ${note} ${hostEmptyNote}` : `literature intake: ${list.length} AI-advisory source(s) (host empty: ${hostEmptyNote})`, "literature-map.json", list.map((_, index) => `cite:s${index + 1}`), { sources: list, note, hostEmptyNote });
+      return { summary: note ? `literature intake empty (${hostEmptyNote}; no verifiable sources; none fabricated); proceeding` : `literature intake: ${list.length} AI-advisory source(s) stored (host empty; AI text is not an external source)`, evidenceRefs: [] };
     }
     return { summary: `literature intake already recorded: ${sources.length} source(s)`, evidenceRefs: sources.map((_, index) => `cite:s${index + 1}`) };
   }
@@ -280,19 +337,28 @@ export class ResearchConductor implements ResearchStageExecutor {
     if (!store) {
       const candidates = listImplCandidates(ir.scope.workspace);
       if (candidates.length === 0) throw new Error("No executable implementation found under <workspace>/experiments/ — add a benchmark that prints `METRICS <json>`");
-      const metricKeys = await probeMetricKeys(candidates[0]);
-      if (metricKeys.length === 0) throw new Error(`Implementation ${candidates[0]} printed no numeric METRICS keys on a probe run`);
-      const metric = metricKeys[0];
+      const declaration = await probeImplDeclaration(candidates[0]);
+      if (declaration.metricKeys.length === 0) throw new Error(`Implementation ${candidates[0]} printed no numeric METRICS keys on a probe run`);
+      const metric = declaration.metricKeys[0];
+      // §9.8: baseline always carries provenance. The implementation may declare
+      // a real baseline (METRICS_META); otherwise a proportion-like metric gets
+      // the named random-chance baseline; anything else fails closed instead of
+      // freezing an unexplained constant.
+      const baselineInfo: BaselineProvenance = inferBaselineProvenance(metric, declaration.meta);
+      if (baselineInfo.kind === "host-heuristic") {
+        throw new Error(`cannot freeze protocol: metric '${metric}' is not proportion-like and the implementation declares no baseline with provenance (declare via METRICS_META); ${baselineInfo.reason}`);
+      }
       const protocol: ResearchProtocol = {
         schemaVersion: 1,
         hypothesis: ir.hypotheses[0] ?? this.researchQuestion(ir),
         primaryMetric: metric,
-        baseline: "0.5", // chance level for accuracy-type metrics
+        baseline: baselineInfo.value,
         sampleDefinition: `fixed benchmark ${path.basename(candidates[0])} tasks × seeds 1..N`,
         evaluationCriterion: `mean ${metric} > baseline`,
         createdAt: new Date().toISOString()
       };
       svc.freeze(ir.id, protocol);
+      this.recordBaselineProvenance(ir.id, baselineInfo);
     } else if (!ir.protocolHash) {
       // Crash between protocol write and IR hash checkpoint: repair the hash.
       svc.ledger.checkpoint(ir.id, (next) => { next.ir.protocolHash = store.protocolHash; next.ir.state = "PROTOCOL_FROZEN"; next.ir.updatedAt = new Date().toISOString(); }, "protocol hash repaired after crash");
@@ -300,6 +366,55 @@ export class ResearchConductor implements ResearchStageExecutor {
     const frozenHash = svc.ledger.load(ir.id)!.ir.protocolHash!;
     this.record(ir.id, "PROTOCOL_DRAFT", `protocol frozen: hash ${frozenHash.slice(0, 12)} (host schema validation passed)`, "protocol-review.json", [`protocol:${frozenHash.slice(0, 16)}`], { reviewed: true, method: "host schema validation", hash: frozenHash });
     return { summary: `protocol frozen (${frozenHash.slice(0, 12)}); scientific core cannot change silently`, evidenceRefs: [`protocol:${frozenHash.slice(0, 16)}`] };
+  }
+
+  /** Persists the §9.8 baseline provenance alongside the frozen protocol. */
+  private recordBaselineProvenance(id: string, provenance: BaselineProvenance): void {
+    this.svc().saveStageArtifact(id, { stage: "PROTOCOL_DRAFT", summary: `baseline provenance: ${provenance.kind}`, evidenceRefs: [], file: "baseline-provenance.json", extra: { provenance } });
+  }
+
+  /**
+   * §9.16 paper reviewer council. One independent reviewer in a fresh turn
+   * reviews the digest (question, hypothesis, frozen protocol, recorded
+   * statistics, traceable claim, citation set, reproducibility status) across
+   * method / evidence / writing lenses and returns {"approved":boolean,
+   * "notes":[{"role","summary"}]}. A real veto fails the stage closed; a
+   * missing/unparseable reviewer is recorded as not-attempted — never
+   * fabricated approval.
+   */
+  private async paperCouncil(ir: ResearchIR, digest: {
+    plan: ExperimentPlan;
+    protocol: { protocol: ResearchProtocol };
+    claim: { id: string };
+    mean?: number;
+    ciLower?: number;
+    ciUpper?: number;
+    n?: number;
+    metric: string;
+    reproStatus: string;
+    citations: Array<{ id: string; status: string }>;
+  }): Promise<{ attempted: boolean; approved?: boolean; notes: Array<{ role: string; summary: string }>; error?: string }> {
+    const question = this.researchQuestion(ir);
+    try {
+      const answer = await this.ask(ir, "MANUSCRIPT", "reviewer", [
+        `Act as an independent paper reviewer for the manuscript about: "${question}"`,
+        `Hypothesis: ${ir.hypotheses[0] ?? ""}`,
+        `Frozen protocol: metric=${digest.protocol.protocol.primaryMetric}; baseline=${digest.protocol.protocol.baseline}; sample="${digest.protocol.protocol.sampleDefinition}"; criterion=${digest.protocol.protocol.evaluationCriterion}`,
+        `Recorded evidence: metric ${digest.metric} mean=${digest.mean?.toFixed(3) ?? "n/a"} (95% CI [${digest.ciLower?.toFixed(3) ?? "n/a"}, ${digest.ciUpper?.toFixed(3) ?? "n/a"}]), n=${digest.n ?? "?"}, reproducibility=${digest.reproStatus}`,
+        `Claim node: ${digest.claim.id}`,
+        `Verified citations bound: ${digest.citations.length} (${digest.citations.map((item) => item.status).join(",")})`,
+        "Review the method, evidence quality and writing soundness. Respond ONLY with strict JSON: {\"approved\":true|false,\"notes\":[{\"role\":\"method|evidence|writing\",\"summary\":\"...\"}]}. Reject when the evidence does not support the claim or the method is unsound — never rubber-stamp."
+      ].join("\n"));
+      const parsed = answer as { approved?: unknown; notes?: unknown } | null;
+      const notes = Array.isArray(parsed?.notes)
+        ? (parsed.notes as Array<{ role?: unknown; summary?: unknown }>).map((note) => ({ role: typeof note?.role === "string" && ["method", "evidence", "writing"].includes(note.role) ? note.role : "writing", summary: typeof note?.summary === "string" ? note.summary.slice(0, 500) : "" })).filter((note) => note.summary)
+        : [];
+      if (typeof parsed?.approved !== "boolean") throw new Error("reviewer response missing boolean 'approved'");
+      return { attempted: true, approved: parsed.approved, notes };
+    } catch (error) {
+      // Honest degradation: no council verdict is ever treated as approval.
+      return { attempted: false, notes: [], error: String(error instanceof Error ? error.message : error).slice(0, 300) };
+    }
   }
 
   /** PROTOCOL_FROZEN (restart edge): verify the frozen hash exists, else fail closed. */
@@ -322,22 +437,49 @@ export class ResearchConductor implements ResearchStageExecutor {
       // commands or paths here — that removed the refusal/malformed-JSON class
       // of live failures while keeping the design bound to the frozen protocol.
       const candidates = listImplCandidates(ir.scope.workspace);
-      if (candidates.length === 0) throw new Error("No executable implementation found under <workspace>/experiments/ — add a benchmark that prints `METRICS <json>`");
-      const implFile = candidates[0];
-      const metricKeys = await probeMetricKeys(implFile);
+      const frozenProtocol = svc.protocols.load(ir.id);
+      let implFile: string | undefined;
+      let generated = false;
+      if (candidates.length === 0) {
+        // §9.9: no pre-existing benchmark → the experiment coder writes one from
+        // the FROZEN protocol spec; the host dry-runs it and fails closed unless
+        // it really emits the required numeric metric.
+        if (!this.experimentCoder || !frozenProtocol) {
+          throw new Error("No executable implementation found under <workspace>/experiments/ and no experiment coder (or frozen protocol) is available — RQ→READY without a benchmark requires a coder worker or a pre-existing implementation that prints `METRICS <json>`");
+        }
+        implFile = await generateExperimentImplementation(ir.scope.workspace, {
+          researchQuestion: this.researchQuestion(ir),
+          hypothesis: ir.hypotheses[0] ?? this.researchQuestion(ir),
+          metric: frozenProtocol.protocol.primaryMetric,
+          baselineValue: frozenProtocol.protocol.baseline,
+          sampleDefinition: frozenProtocol.protocol.sampleDefinition,
+          workspace: ir.scope.workspace,
+          seedArgument: "--seed"
+        }, this.experimentCoder);
+        generated = true;
+      } else {
+        implFile = candidates[0];
+      }
+      const metricKeys = await probeMetricKeys(implFile!);
       if (metricKeys.length === 0) throw new Error(`Implementation ${implFile} printed no numeric METRICS keys on a probe run`);
+      if (generated && (!frozenProtocol || metricKeys[0] !== frozenProtocol.protocol.primaryMetric)) {
+        throw new Error(`Generated experiment emits metric '${metricKeys[0]}' but the frozen protocol fixed '${frozenProtocol?.protocol.primaryMetric}' — generation failed the metric contract (fail-closed)`);
+      }
       plan = {
-        experimentId: `bench-${path.basename(implFile, path.extname(implFile)).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 24)}`,
+        experimentId: `bench-${path.basename(implFile!, path.extname(implFile!)).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 24)}`,
         metric: metricKeys[0],
-        implFile,
+        implFile: implFile!,
         executable: process.execPath,
-        args: [implFile, "--seed", "{seed}"],
-        cwd: path.dirname(implFile),
+        args: [implFile!, "--seed", "{seed}"],
+        cwd: path.dirname(implFile!),
         // Under Electron, process.execPath is electron.exe: ELECTRON_RUN_AS_NODE
         // makes it execute the script as plain Node (ignored by real node).
         environment: { ELECTRON_RUN_AS_NODE: "1" },
-        primaryRuns: 1,
-        replicationRuns: 1,
+        // 3 primary + 3 replication seeds by default: real reviewer councils
+        // correctly reject n=2 as underpowered, so give studies enough runs to
+        // be honestly evaluable while staying inside the frozen budget clamp.
+        primaryRuns: 3,
+        replicationRuns: 3,
         timeoutMs: 60000
       };
       if (!fs.existsSync(plan.implFile)) throw new Error(`Experiment implementation missing: ${plan.implFile}`);
@@ -348,7 +490,7 @@ export class ResearchConductor implements ResearchStageExecutor {
         plan = { ...plan, primaryRuns: Math.min(plan.primaryRuns, budget - 1), replicationRuns: budget - Math.min(plan.primaryRuns, budget - 1) };
         planClamped = true;
       }
-      this.record(ir.id, "EXPERIMENT_GENERATION", `host-decided experiment ${plan.experimentId} on ${plan.implFile} (metric ${plan.metric}, probed)${planClamped ? `; run counts clamped to budget ${budget}` : ""}`, "experiment-plan.json", [], { plan, planClamped });
+      this.record(ir.id, "EXPERIMENT_GENERATION", `host-decided experiment ${plan.experimentId} on ${plan.implFile} (metric ${plan.metric}, probed)${planClamped ? `; run counts clamped to budget ${budget}` : ""}`, "experiment-plan.json", [], { plan, planClamped, ...(generated ? { generated: true } : {}) });
     }
     const runsDir = path.join(this.artifactRoot(ir.id), "..", "experiments");
     fs.mkdirSync(path.join(runsDir, "configs"), { recursive: true });
@@ -407,7 +549,7 @@ export class ResearchConductor implements ResearchStageExecutor {
       requiredVotes: votes.length > 0 ? 1 : 0
     };
     const result = svc.analyzeRuns(ir.id, options);
-    this.record(ir.id, "ANALYSIS", `deterministic analysis: n=${result.values.length} mean=${result.mean.toFixed(3)} ci=[${result.ci.lower.toFixed(3)},${result.ci.upper.toFixed(3)}] verdict=${result.verdict.adopted ? "adopted" : "not adopted"}`, "analysis.json", [`stat:${plan.experimentId}`, `claim:${plan.experimentId}`], { metric: plan.metric, baseline: options.baseline, mean: result.mean, ci: { lower: result.ci.lower, upper: result.ci.upper }, n: result.values.length, independentReplication: result.independentReplication, verdict: result.verdict, votes });
+    this.record(ir.id, "ANALYSIS", `deterministic analysis: n=${result.values.length} mean=${result.mean.toFixed(3)} ci=[${result.ci.lower.toFixed(3)},${result.ci.upper.toFixed(3)}] verdict=${result.verdict.adopted ? "adopted" : "not adopted"}`, "analysis.json", [`stat:${plan.experimentId}`, `claim:${plan.experimentId}`], { metric: plan.metric, baseline: options.baseline, mean: result.mean, ci: { lower: result.ci.lower, upper: result.ci.upper }, n: result.values.length, independentReplication: result.independentReplication, effectSize: result.effectSize, permutationP: result.permutationP, verdict: result.verdict, votes });
     return { summary: `analysis: mean ${result.mean.toFixed(3)} over ${result.values.length} run(s); ${result.verdict.adopted ? "claim adopted" : "claim not adopted"}`, evidenceRefs: [`stat:${plan.experimentId}`] };
   }
 
@@ -545,13 +687,25 @@ export class ResearchConductor implements ResearchStageExecutor {
     };
     const writer = makeSectionWriter({ question: this.researchQuestion(ir), hypothesis: ir.hypotheses[0] ?? "", protocol: protocol.protocol, metric: plan.metric, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, claimId, experimentId: plan.experimentId, baseline: protocol.protocol.baseline, sample: protocol.protocol.sampleDefinition, criterion: protocol.protocol.evaluationCriterion, runs: runs.map((run) => ({ seed: run.seed, value: Number(run.metrics[plan.metric]), passed: run.passed })) });
     const citations = svc.citations.list().filter((record) => VERIFIED_CITATION_STATUSES.includes(record.status));
+    // §9.16 paper reviewer council (1-AI fresh review by default): a genuine
+    // veto gate over the digest (question/hypothesis/protocol/statistics/
+    // claim/citations). When the reviewer is absent or unparseable the council
+    // is recorded as not-attempted (honest), never as approval.
+    const council = await this.paperCouncil(ir, { plan, protocol, claim, mean: fullSetMean, ciLower: fullSetCi?.lower ?? undefined, ciUpper: fullSetCi?.upper ?? undefined, n: fullSetN, citations, reproStatus: repro.status, metric: plan.metric });
+    if (council.approved === false) {
+      const notes = council.notes.map((note) => `${note.role}: ${note.summary}`).join(" | ");
+      this.record(ir.id, "MANUSCRIPT", `paper reviewer council rejected: ${notes.slice(0, 300)}`, "manuscript-review.json", [claimId], { council });
+      return { summary: "paper reviewer council rejected the manuscript", fail: { reason: `paper reviewer council: ${notes.slice(0, 600)}` } };
+    }
     const output = await svc.manuscript(ir.id, {
-      title: `Evidence-weighted adjudication vs majority voting (${plan.experimentId})`,
+      title: `${headlineFor(this.researchQuestion(ir))} — empirical evaluation of ${plan.metric}`,
       plan: { id: ir.id, claimsToSections: { [claimId]: ["abstract", "results", "discussion", "conclusion"] } },
       claims: derived.claims,
       evidenceIds: derived.evidenceIds,
       writer,
-      reviewer: { async review() { return { approved: true, notes: [] }; } },
+      // The independent veto ran above (paperCouncil); this object only marks
+      // the deterministic section gates inside the assembler.
+      reviewer: { async review() { return { approved: true, notes: ["deterministic section gates inside assembler; independent council verdict recorded on manuscript-review.json"] }; } },
       reproducibility: repro,
       citations,
       figures: [{ name: figureName, svg: figureSvg }],
@@ -573,7 +727,7 @@ export class ResearchConductor implements ResearchStageExecutor {
     const sufficiencyVerdicts = MANUSCRIPT_SECTIONS.map((section) => sectionSufficiency(output.sections[section].content, section, { claimIds: output.sections[section].allowedEvidenceIds, evidenceIds: derived.evidenceIds, metric: plan.metric, runCount: runs.length }));
     const closure = antiPrematureClosure({ claims: derived.claims.map((claim) => ({ id: claim.id, text: claim.id })), evidenceIds: derived.evidenceIds, sections: output.sections, plan: { id: ir.id, claimsToSections: { [claimId]: ["abstract", "results", "discussion", "conclusion"] } } });
     const capabilityPlan = planResearchCapabilities({ hasQuantitativeExperiments: runs.length > 0, bindsCitations: citations.length > 0, hasFormalProtocol: true, hasMultipleReviewers: true });
-    this.record(ir.id, "MANUSCRIPT", `manuscript assembled: ${output.figures.length} figure(s), ${sectionsOk ? "all sections revised" : "some sections not revised"}`, "manuscript-review.json", [claimId, figureNode], { sectionsRevised: sectionsOk, figures: output.figures, auditPassed: output.audit.passed, sectionSufficiency: sufficiencyVerdicts.map((verdict) => ({ section: verdict.section, passed: verdict.passed, unmet: verdict.unmet })), antiPrematureClosure: closure, capabilityPlan });
+    this.record(ir.id, "MANUSCRIPT", `manuscript assembled: ${output.figures.length} figure(s), ${sectionsOk ? "all sections revised" : "some sections not revised"}`, "manuscript-review.json", [claimId, figureNode], { sectionsRevised: sectionsOk, figures: output.figures, auditPassed: output.audit.passed, sectionSufficiency: sufficiencyVerdicts.map((verdict) => ({ section: verdict.section, passed: verdict.passed, unmet: verdict.unmet })), antiPrematureClosure: closure, capabilityPlan, aiCouncil: council });
     if (!sectionsOk) return { summary: "manuscript sections not all revised", fail: { reason: "manuscript section review did not pass (evidence check failed)" } };
     return { summary: `manuscript assembled: paper.md/.tex/.bib + ${output.figures.length} figure(s)`, evidenceRefs: [claimId, figureNode] };
   }
@@ -624,27 +778,94 @@ function range(from: number, count: number): number[] {
 }
 
 /** ASCII title-folder from the research question (Research/<Title>/, no timestamps). */
-function slugOf(text: string): string {
-  const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+function slugOf(text: string): string {  const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   return (tokens.slice(0, 6).join("-") || "research").slice(0, 60);
+}
+
+/** Domain-neutral paper headline derived from the research question (§9.15). */
+export function headlineFor(question: string): string {
+  const cleaned = question.replace(/\s+/g, " ").replace(/[?:.!]+$/, "").trim();
+  if (cleaned.length <= 100) return cleaned;
+  const words = cleaned.slice(0, 100).split(" ");
+  words.pop();
+  return (words.join(" ").trim() || cleaned.slice(0, 100)).replace(/[,;:\s]+$/, "");
 }
 
 /** Probes one real implementation run (TEST purpose, never recorded) for its numeric METRICS keys. */
 async function probeMetricKeys(implFile: string): Promise<string[]> {
+  return (await probeImplDeclaration(implFile)).metricKeys;
+}
+
+interface ImplDeclaration { metricKeys: string[]; meta?: { baseline?: number; source?: string }; }
+
+/**
+ * Probes one real implementation (TEST purpose, never recorded) for numeric
+ * METRICS keys AND an optional METRICS_META declaration:
+ * `METRICS_META {"baseline":0.5,"source":"known-benchmark"}`. Declaring a
+ * baseline with provenance is how a benchmark with a real control/known
+ * benchmark supplies its comparison point (Overcomplete §9.8).
+ */
+async function probeImplDeclaration(implFile: string): Promise<ImplDeclaration> {
   try {
     const result = await runStructuredProcess({ executable: process.execPath, args: [implFile, "--seed", "1"], cwd: path.dirname(implFile), environment: { ELECTRON_RUN_AS_NODE: "1" }, purpose: "TEST", timeoutMs: 60000 });
-    if (result.code !== 0) return [];
+    if (result.code !== 0) return { metricKeys: [] };
     const keys: string[] = [];
+    let meta: ImplDeclaration["meta"];
     for (const line of result.output.split(/\r?\n/)) {
-      const match = /^METRICS (.*)$/.exec(line.trim());
-      if (!match) continue;
-      try {
-        const value = JSON.parse(match[1]) as Record<string, unknown>;
-        if (value && typeof value === "object") for (const [key, entry] of Object.entries(value)) if (typeof entry === "number") keys.push(key);
-      } catch { /* skip malformed line */ }
+      const metrics = /^METRICS (.*)$/.exec(line.trim());
+      if (metrics) {
+        try {
+          const value = JSON.parse(metrics[1]) as Record<string, unknown>;
+          if (value && typeof value === "object") for (const [key, entry] of Object.entries(value)) if (typeof entry === "number") keys.push(key);
+        } catch { /* skip malformed line */ }
+      }
+      const declared = /^METRICS_META (.*)$/.exec(line.trim());
+      if (declared) {
+        try {
+          const value = JSON.parse(declared[1]) as { baseline?: unknown; source?: unknown };
+          if (value && typeof value === "object") {
+            meta = {
+              ...(typeof value.baseline === "number" && Number.isFinite(value.baseline) ? { baseline: value.baseline } : {}),
+              ...(typeof value.source === "string" ? { source: value.source.slice(0, 120) } : {})
+            };
+          }
+        } catch { /* malformed declaration ignored (baseline falls back to inference) */ }
+      }
     }
-    return keys;
-  } catch { return []; }
+    return { metricKeys: keys, ...(meta && Object.keys(meta).length ? { meta } : {}) };
+  } catch { return { metricKeys: [] }; }
+}
+
+/**
+ * §9.9: writes the experiment coder's implementation under
+ * <workspace>/experiments/ and dry-runs it. The host requires the generated
+ * source to actually emit the FROZEN primary metric as a numeric METRICS key —
+ * otherwise generation is rejected (fail closed, nothing fabricated).
+ */
+export async function generateExperimentImplementation(workspace: string, spec: ExperimentImplementationSpec, coder: ExperimentCoder): Promise<string> {
+  const experimentsDir = path.join(workspace, "experiments");
+  fs.mkdirSync(experimentsDir, { recursive: true });
+  const slug = `${spec.metric.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30)}-${createHash8(spec.metric + spec.hypothesis)}`;
+  const implFile = path.join(experimentsDir, `bench-${slug}.js`);
+  const source = await coder(spec);
+  if (!source || !source.trim()) throw new Error("Experiment coder returned no implementation source");
+  fs.writeFileSync(implFile, source, "utf8");
+  const probe = await probeImplDeclaration(implFile);
+  if (probe.metricKeys.length === 0) {
+    fs.rmSync(implFile, { force: true });
+    throw new Error("Generated experiment printed no numeric METRICS keys on its dry run (fail-closed)");
+  }
+  if (!probe.metricKeys.includes(spec.metric)) {
+    fs.rmSync(implFile, { force: true });
+    throw new Error(`Generated experiment emits ${probe.metricKeys.join(", ")} but the frozen protocol fixed '${spec.metric}' — generation failed the metric contract`);
+  }
+  return implFile;
+}
+
+function createHash8(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36).padStart(6, "0").slice(0, 6);
 }
 
 /**
@@ -725,18 +946,18 @@ export function makeSectionWriter(digest: {
       switch (brief.section) {
         case "abstract": {
           return [
-            `Automated code review increasingly relies on multiple AI judges whose individual decisions disagree. When judges disagree, a controller must combine their opinions, and the combination rule determines the quality of the final review. This paper investigates whether a reliability-aware (evidence-weighted) combination rule reduces review errors relative to a plain majority-vote rule on a fixed software-engineering review benchmark.`,
-            `We froze a single falsifiable protocol before any measurement: the primary metric is ${digest.metric}; the baseline is ${baseline}; and the decision rule is that the hypothesis is supported only when the mean ${digest.metric} over independently seeded runs exceeds the baseline (criterion: ${criterion}).`,
-            `All results come from real, recorded executions of the benchmark. Two independent runs under the frozen protocol (seeds ${runs.map((run) => run.seed).join(" and ") || "n/a"}) produced mean ${digest.metric} = ${mean} (95% CI ${ci}). The recorded evidence is ${supported ? "consistent with the hypothesis" : "not consistent with the hypothesis"} that evidence-weighted adjudication reduces review errors relative to majority voting on this benchmark.`,
+            `This paper reports a controlled, pre-registered empirical study of the research question: "${digest.question}" A falsifiable hypothesis and a complete protocol — primary metric, baseline, sample definition and decision rule — were frozen before any measurement, so the scientific claims could not change silently after the fact.`,
+            `The primary metric was ${digest.metric}; the baseline was ${baseline}; the decision rule was that the hypothesis is supported only when the mean ${digest.metric} over independently seeded runs exceeds the baseline (criterion: ${criterion}).`,
+            `All results come from real, recorded executions of the benchmark under the frozen protocol. ${runs.length ? `${runs.length >= 2 ? "Independent runs" : "The recorded run"} under the frozen protocol (seed${runs.length > 1 ? "s" : ""} ${runs.map((run) => run.seed).join(", ")}) produced` : "The recorded runs produced"} mean ${digest.metric} = ${mean} (95% CI ${ci}). The recorded evidence is ${supported ? "consistent with the hypothesis" : "not consistent with the hypothesis"}.`,
             `The full experimental protocol, per-run records, deterministic statistics, and a reproducibility audit accompany this paper so every claim remains traceable to the underlying evidence.`
           ].join("\n\n");
         }
         case "introduction": {
           return [
             `The research question studied here is: "${digest.question}"`,
-            `Software engineering decisions — code review outcomes, bug triage, test selection — are increasingly delegated to automated systems. When several autonomous review agents return conflicting verdicts, the aggregating procedure becomes the deciding component of the system. Majority voting is the simplest and most common aggregation rule, but it treats every judge as equally reliable. If judge reliability varies, weighting each opinion by an estimate of its reliability — evidence-weighted adjudication — may reduce the probability that the aggregated decision is wrong.`,
-            `Prior empirical work on review accuracy (outside the controlled setting used here) frequently reports that aggregation quality depends on judge diversity and calibration rather than on the number of judges alone. This motivates a controlled comparison: hold the judges, the tasks, and the data fixed, and vary only the combination rule, so any difference in error rate is attributable to the rule itself.`,
-            `Because the benchmark, the judges' reliabilities, and the sampling seeds are all fixed by the protocol, every measurement in this paper is reproducible: rerunning a seed under the frozen protocol yields the same recorded ${digest.metric}.`,
+            `Automated decision and evaluation pipelines increasingly combine multiple signals or judgments; a rule that ignores how much each input should be trusted can amplify error. The exact definition of the measured quantity and of the decision rule can therefore change an empirical conclusion, and honest comparison requires a controlled design in which the benchmark, inputs and seeds are held fixed while only the quantity of interest varies.`,
+            `This study therefore tests the hypothesis under a single frozen protocol: the benchmark implementation, the primary metric, the baseline, the sample definition and the evaluation criterion were all fixed before any experiment ran, so recorded differences are attributable to the measured quantity rather than to uncontrolled variation.`,
+            `Because the benchmark and the sampling seeds are fixed by the protocol, every measurement in this paper is reproducible: rerunning a seed under the frozen protocol yields the same recorded ${digest.metric}.`,
             `The remainder of the paper states the hypothesis, describes the frozen protocol and the benchmark, reports the recorded runs and the deterministic statistics, and discusses what the evidence does and does not show.`
           ].join("\n\n");
         }
@@ -744,9 +965,9 @@ export function makeSectionWriter(digest: {
           return [
             `Hypothesis. ${digest.hypothesis}`,
             `Protocol. A protocol was frozen before any experiment ran (frozen hash ${digest.protocol ? "recorded in the run ledger" : "n/a"}). Freezing means that the hypothesis, primary metric, baseline, sample definition and evaluation criterion could not change silently while the study was running. The frozen protocol specifies: primary metric ${digest.metric}; baseline ${baseline}; sample definition "${sample}"; evaluation criterion "${criterion}".`,
-            `Benchmark and adjudication rules. The benchmark is a fixed set of review tasks with a known ground truth. For each task a panel of ${digest.runs?.length ? "recorded" : "scheduled"} judges produces a verdict, and the benchmark compares two combination rules: (1) majority voting, in which the aggregated verdict is the opinion held by more than half of the judges; and (2) evidence-weighted adjudication, in which each judge's opinion is weighted by a reliability estimate before aggregation, so that low-confidence judges cannot overturn a decision supported by reliable evidence.`,
+            `Benchmark. The benchmark is the real implementation selected from the authorized workspace and recorded in the experiment plan; per run it emits a METRICS record with the numeric primary metric. The sample definition "${sample}" and the frozen protocol bound what is measured and compared.`,
             `Executions and recording. Every experiment run was executed as a real spawned process on the recorded host environment, seeded deterministically, and stored with full provenance (protocol hash, command, environment fingerprint, seed, timestamps and the emitted METRICS record). A failed process was recorded as failed and excluded from the statistics; no run, number or metric was produced by the model or invented by the pipeline.`,
-            `Statistics. The deterministic statistics module computed the sample mean, the sample standard deviation and a 95% confidence interval from the recorded per-run values. No AI participated in the arithmetic; the numbers below are computed directly from the recorded METRICS output of the real runs.`,
+            `Statistics. The deterministic statistics module computed the sample mean, the sample standard deviation, a 95% confidence interval, an effect size against the frozen baseline and a deterministic permutation p-value from the recorded per-run values. No AI participated in the arithmetic; the numbers below are computed directly from the recorded METRICS output of the real runs.`,
             `Reproducibility. Independent replication requires at least two runs with distinct seeds under the same frozen protocol. The reproducibility audit reports whether the recorded runs reproduce the primary finding.`
           ].join("\n\n");
         }
@@ -761,19 +982,19 @@ export function makeSectionWriter(digest: {
         }
         case "discussion": {
           return [
-            `Interpretation bounded by evidence. The recorded evidence shows mean ${digest.metric} = ${mean} (95% CI ${ci}) over ${digest.n} independent runs, which ${supported ? "is consistent with" : "does not support"} the hypothesis that evidence-weighted adjudication reduces review errors on this benchmark.`,
-            `Why the rule might matter. Majority voting discards information about who is reliable. When reliability is heterogeneous, a single low-reliability judge can tip a close majority; weighting opinions by reliability is intended to prevent that. The controlled design isolates exactly this mechanism because the task set, judge behavior and seeds are identical across the comparison conditions.`,
+            `Interpretation bounded by evidence. The recorded evidence shows mean ${digest.metric} = ${mean} (95% CI ${ci}) over ${digest.n} independent run(s) under the frozen protocol, which ${supported ? "is consistent with" : "does not support"} the hypothesis.`,
+            `Why the measured quantity might behave this way. The controlled design holds the benchmark, inputs and seeds fixed, so the recorded value of ${digest.metric} isolates the measured quantity from uncontrolled variation. Any inference beyond this controlled setting is an extrapolation and is labelled as such.`,
             `Effect magnitude and uncertainty. With ${digest.n} run(s), the confidence interval remains wide (${ci}); the point estimate alone should not be over-interpreted. Replication with additional seeds would tighten the interval and strengthen the comparison.`,
-            `Limitations (threats to validity). (1) The benchmark is a single, fixed task distribution; results may not transfer to other review workloads. (2) ${digest.n} run(s) provide limited power. (3) The reliability estimates used by the weighted rule are static; adaptive estimation could change the results. (4) All judges are simulated within the benchmark, so human-judge behavior is out of scope. These limitations are reported rather than hidden.`,
+            `Limitations (threats to validity). (1) The benchmark is a single, fixed task distribution; results may not transfer to other workloads. (2) ${digest.n} run(s) provide limited power. (3) ${supported ? "The evidence supports the hypothesis only within this controlled benchmark." : "The evidence does not support the hypothesis in this controlled benchmark."} These limitations are reported rather than hidden.`,
             `Relation to the claim. The adjudicated claim ${digest.claimId} is supported only to the degree that the recorded evidence supports it; the manuscript review and the final audit enforce that no unsupported claim enters the paper.`
           ].join("\n\n");
         }
         case "conclusion": {
           return [
-            `This study compared evidence-weighted adjudication with majority voting on a fixed software-engineering review benchmark, under a frozen falsifiable protocol and with fully recorded, reproducible runs.`,
-            `The recorded evidence — ${digest.n} independent run(s), mean ${digest.metric} = ${mean} (95% CI ${ci}), reproducibility ${supported ? "REPRODUCED" : "NOT_REPRODUCED"} — ${supported ? "is consistent with the hypothesis" : "does not support the hypothesis"} that evidence-weighted adjudication reduces review errors relative to majority voting on this benchmark.`,
+            `This study tested the hypothesis "${digest.hypothesis}" (research question: "${digest.question}") under a frozen falsifiable protocol with fully recorded, reproducible runs.`,
+            `The recorded evidence — ${digest.n} independent run(s), mean ${digest.metric} = ${mean} (95% CI ${ci}), reproducibility ${supported ? "REPRODUCED" : "NOT_REPRODUCED"} — ${supported ? "is consistent with the hypothesis" : "does not support the hypothesis"} under the pre-registered criterion (${criterion}).`,
             `The contribution is methodological as much as empirical: the full chain from research question and frozen protocol to real runs, deterministic statistics, evidence adjudication, citation audit and a compiled paper is automated, and every artifact is auditable.`,
-            `Future work should extend the benchmark distribution, increase the number of replicated seeds, and compare against additional combination rules under the same fail-closed protocol discipline.`
+            `Future work should extend the benchmark distribution, increase the number of replicated seeds, and study additional variants under the same fail-closed protocol discipline.`
           ].join("\n\n");
         }
         default:

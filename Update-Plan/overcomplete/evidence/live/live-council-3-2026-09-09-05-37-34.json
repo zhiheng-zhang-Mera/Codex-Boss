@@ -1,0 +1,17 @@
+﻿{
+    "at":  "2026-09-08T19:37:33.9849315Z",
+    "stages":  [
+                   "proposals",
+                   "peer_review",
+                   "synthesis"
+               ],
+    "runs":  9,
+    "note":  "council advanced proposals -\u003e peer_review -\u003e synthesis -\u003e completed with real provider answers; final synthesized",
+    "kind":  "LIVE_COUNCIL_3AI",
+    "providers":  [
+                      "gemini",
+                      "deepseek",
+                      "grok"
+                  ],
+    "status":  "COMPLETED"
+}

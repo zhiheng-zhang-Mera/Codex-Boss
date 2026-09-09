@@ -12,6 +12,26 @@ import { AccountSessionManager } from "./account-sessions";
 import { isDispatchGroupSize } from "../src/shared/provider-policy";
 import { ProviderHttpError, ProviderApiClient, type ApiCompletion } from "./provider-api";
 import type { DomainEventBus } from "./commander/event-bus";
+import fs from "node:fs";
+import path from "node:path";
+
+/**
+ * Live diagnostic journal (direction 1 的纯程序替代): every automation step
+ * (dispatch/prepare/send/poll/monitor/worker) appends one timestamped line to
+ * a file so a wedged main process can be analyzed offline — the last entry
+ * before the hang shows exactly where the event loop stopped. Writes are
+ * best-effort and never throw into the automation path.
+ */
+function automationLogFile(): string {
+  return process.env.LIVE_AUTOMATION_LOG ?? path.join(process.cwd(), "runtime-data", ".boss", "live-automation.log");
+}
+function appendLog(entry: Record<string, unknown>): void {
+  try {
+    const file = automationLogFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${new Date().toISOString()} ${JSON.stringify(entry)}\n`, "utf8");
+  } catch { /* journaling must never break automation */ }
+}
 
 type ProbeState = { content: string; stableCount: number };
 
@@ -43,6 +63,25 @@ export class ProviderAutomation {
     this.events?.publish({ type: "TOOL_RESULT_READY", taskId, jobId: runId, message: "provider round answers collected" });
   }
 
+  /**
+   * Cancelling a task must immediately free its providers: without this, runs
+   * that were mid-dispatch/monitor keep a `waiting` phase and the busy guard
+   * blocks every later task on that provider for up to the 10-minute monitor
+   * timeout. Mark such runs terminal + drop the monitor right away.
+   */
+  cancelRuns(taskId: string): void {
+    this.log("cancelRuns", { taskId });
+    const timer = this.monitors.get(taskId);
+    if (timer) clearInterval(timer);
+    this.monitors.delete(taskId);
+    this.stability.clear();
+    for (const run of this.latestRuns(taskId)) {
+      if (["waiting", "sending", "prepared", "queued"].includes(run.phase)) {
+        this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "任务已取消；该 provider 已释放，可重新发起任务", "cancel/v1");
+      }
+    }
+  }
+
   async dispatchTask(taskId: string): Promise<void> {
     if (this.dispatching.has(taskId)) return;
     this.dispatching.add(taskId);
@@ -63,6 +102,7 @@ export class ProviderAutomation {
   }
 
   async executeWorker(providerId: string, request: RuntimeRequest, signal?: AbortSignal): Promise<RuntimeResult> {
+    this.log("executeWorker.enter", { providerId, taskId: request.taskId, jobId: request.jobId });
     if (signal?.aborted) return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
     const parent = this.store.snapshot().tasks.find((item) => item.id === request.taskId);
     const existing = this.store.snapshot().tasks.find((item) => item.parentTaskId === request.taskId && item.runtimeJobId === request.jobId && item.providerIds.includes(providerId));
@@ -87,6 +127,7 @@ export class ProviderAutomation {
       this.store.setTaskStatus(task.id, "cancelled");
       return { runtimeId: "web:" + providerId, jobId: request.jobId, status: "CANCELLED" };
     } finally {
+      this.log("executeWorker.finally", { providerId, taskId: request.taskId, jobId: request.jobId });
       const timer = this.monitors.get(task.id); if (timer) clearInterval(timer); this.monitors.delete(task.id);
     }
   }
@@ -124,15 +165,21 @@ export class ProviderAutomation {
     this.publish();
   }
 
+  private log(step: string, detail: Record<string, unknown> = {}): void {
+    appendLog({ step, ...detail, at: Date.now() });
+  }
+
   private async dispatch(taskId: string): Promise<void> {
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
+    this.log("dispatch.start", { taskId, exists: Boolean(task), status: task?.status });
     if (!task || ["cancelled", "paused"].includes(task.status)) return;
     const allRuns = this.latestRuns(taskId);
     if (allRuns.some((run) => run.review?.status === "HUMAN_REQUIRED" || run.review?.status === "FAILED")) return;
     const latestCheckpoint = this.store.snapshot().dispatchCheckpoints.find((item) => item.taskId === taskId && item.round === allRuns[0]?.round);
     if (latestCheckpoint?.requiresReconciliation) throw new Error("请先核对上一次发送结果，避免重复提交");
-    const otherActive = this.store.snapshot().runs.some((run) => run.taskId !== taskId && allRuns.some((item) => item.providerId === run.providerId) && ["sending", "waiting", "prepared"].includes(run.phase));
-    if (otherActive) throw new Error("所选 AI 正在处理另一任务，请等待其完成");
+    const activeTaskIds = new Set(this.store.snapshot().tasks.filter((item) => ["queued", "running", "waiting"].includes(item.status)).map((item) => item.id));
+    const otherActive = this.store.snapshot().runs.some((run) => activeTaskIds.has(run.taskId) && run.taskId !== taskId && allRuns.some((item) => item.providerId === run.providerId) && ["sending", "waiting", "prepared"].includes(run.phase));
+    if (otherActive) { this.log("dispatch.busy_guard", { taskId, providers: allRuns.map((run) => run.providerId) }); throw new Error("所选 AI 正在处理另一任务，请等待其完成"); }
     if (allRuns.some((run) => ["sending", "waiting"].includes(run.phase))) { this.startMonitor(taskId); return; }
     const runs = allRuns.filter((run) => run.phase !== "completed");
     if (runs.length === 0) return;
@@ -140,9 +187,30 @@ export class ProviderAutomation {
     const round = runs[0]?.round ?? 0;
     const { checkpoint, baseline } = this.store.beginDispatch(taskId, round, allRuns.map((run) => run.providerId));
     for (const run of runs) await this.prepareRun(run);
+    // One resilience pass: a provider that transiently fails to expose its
+    // composer (page still loading / landed on a different route, e.g. Grok)
+    // gets a fresh navigation + a single re-prepare before the group rolls
+    // back, instead of failing the whole group on a page race.
+    for (let attempt = 0; attempt < 1; attempt += 1) {
+      const before = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
+      const retryable = before.filter((run) => run.transport === "web" && run.phase !== "prepared" && /未找到|页面可能已变化|input-not-found/i.test(run.message ?? ""));
+      if (!retryable.length) break;
+      for (const run of retryable) {
+        const retryDef = adapterFor(this.resolveProvider(run.providerId));
+        const retryView = this.views.get(run.providerId);
+        if (!retryDef || !retryView) continue;
+        this.log("prepare.retry_navigate", { providerId: run.providerId, taskId });
+        try {
+          await retryView.webContents.loadURL(retryDef.newConversationUrl ?? this.resolveProvider(run.providerId).url);
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          await this.prepareRun(run);
+        } catch (error) { this.log("prepare.retry_error", { providerId: run.providerId, error: String(error) }); }
+      }
+    }
     let current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
     if (prepareFailures.length > 0) {
+      this.log("dispatch.prepare_failed", { taskId, providers: prepareFailures });
       // Keep the per-run failure reason visible: rollback restores run rows to
       // their pre-dispatch baseline, so the reason must ride on the checkpoint.
       const reasons = current.filter((run) => run.phase !== "prepared").map((run) => {
@@ -162,6 +230,7 @@ export class ProviderAutomation {
     current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const sendFailures = current.filter((run) => run.phase !== "waiting").map((run) => run.providerId);
     if (sendFailures.length > 0) {
+      this.log("dispatch.send_failed", { taskId, providers: sendFailures });
       const partialExternalEffect = current.some((run) => run.phase === "waiting");
       this.store.rollbackDispatch(checkpoint.id, baseline, sendFailures, partialExternalEffect, partialExternalEffect ? "部分页面可能已经发送；本地记录已回退，必须人工核对后再操作" : "所有页面均未进入等待状态；本地记录已回退");
       this.publish();
@@ -197,6 +266,7 @@ export class ProviderAutomation {
   }
 
   private async readPage(providerId: string, script: string): Promise<PageProbe> {
+    this.log("readPage.start", { providerId });
     const view = this.views.get(providerId);
     if (!view) throw new Error("Browser unavailable");
     const result = await new SemanticRuntime([{ kind: "dom", supports: (action) => action.name === "read_page", async execute() { return { status: "SUCCESS", evidence: await view.webContents.executeJavaScript(script) }; } }]).execute({ name: "read_page", target: providerId });
@@ -252,8 +322,17 @@ export class ProviderAutomation {
       if (!run.sessionUrl && (task?.parentTaskId || task?.freshWebConversation)) {
         await view.webContents.loadURL(definition.newConversationUrl ?? this.resolveProvider(run.providerId).url);
       }
-      const probe = await this.readPage(run.providerId, probeScript(definition));
+      let probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
+      // Bounded input-readiness wait: pages (especially after a fresh
+      // navigation) can take seconds to render their composer; probe up to
+      // ~12s before treating a missing input area as a page change.
+      for (let wait = 0; !probe.inputFound && !probe.loginLikely && !probe.rateLimited && wait < 8; wait += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        probe = await this.readPage(run.providerId, probeScript(definition));
+        this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
+      }
+      this.log("prepare.probe", { providerId: run.providerId, inputFound: probe.inputFound, loginLikely: probe.loginLikely, rateLimited: probe.rateLimited });
       if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.deferRecovery(run, "RETRY_UNSENT"); return; }
       if (probe.loginLikely && !probe.inputFound) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
       if (!probe.inputFound) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "未找到已版本化的输入区域，页面可能已变化", definition.version);
@@ -262,12 +341,14 @@ export class ProviderAutomation {
         if (uploadBlocked) return;
       }
       let result = await view.webContents.executeJavaScript(prepareScript(definition, run.inputPrompt)) as { ok: boolean; reason?: string };
+      this.log("prepare.executed", { providerId: run.providerId, ok: result.ok, reason: result.reason });
       if (definition.providerId === "grok" || (!result.ok && result.reason === "value-not-applied")) {
         view.webContents.focus();
         await view.webContents.executeJavaScript(prepareScript(definition, ""));
         await view.webContents.insertText(run.inputPrompt);
         await new Promise((resolve) => setTimeout(resolve, 300));
         result = await view.webContents.executeJavaScript(verifyPromptScript(definition, run.inputPrompt)) as { ok: boolean; reason?: string };
+        this.log("prepare.verified", { providerId: run.providerId, ok: result.ok, reason: result.reason });
       }
       if (!result.ok) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", `输入区域在预填时失效：${result.reason ?? "unknown"}`, definition.version);
       this.baselines.set(run.id, probe.latestResponse);
@@ -319,16 +400,27 @@ export class ProviderAutomation {
   }
 
   private startMonitor(taskId: string): void {
+    this.log("monitor.schedule", { taskId });
     if (this.monitors.has(taskId)) return;
     const startedAt = Date.now();
     const timer = setInterval(() => {
-      if (Date.now() - startedAt > 10 * 60 * 1000) {
+      if (Date.now() - startedAt > 25 * 60 * 1000) {
         clearInterval(timer);
         this.monitors.delete(taskId);
         const runs = this.latestRuns(taskId);
         const round = runs[0]?.round ?? 0;
-        this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 10 分钟，未达到全员成功条件");
-        this.publish();
+        // Slow providers (e.g. ChatGPT under load) can take >10 minutes to
+        // settle; before failing the collection, force one final capture pass
+        // so an answer that already appeared on the page is still collected.
+        void this.poll(taskId, true).then(() => {
+          const after = this.latestRuns(taskId);
+          if (after.every((run) => ["completed", "failed", "blocked"].includes(run.phase))) return;
+          this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 25 分钟，未达到全员成功条件");
+          this.publish();
+        }).catch(() => {
+          this.store.failDispatchCollection(taskId, round, runs.find((run) => run.phase !== "completed")?.providerId ?? null, "等待回答超过 25 分钟，未达到全员成功条件");
+          this.publish();
+        });
         return;
       }
       if (this.pollingTasks.has(taskId)) return;
@@ -339,6 +431,7 @@ export class ProviderAutomation {
   }
 
   private async poll(taskId: string, manual: boolean): Promise<void> {
+    this.log("poll.head", { taskId, manual });
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task || ["cancelled", "paused"].includes(task.status)) return;
     const runs = this.latestRuns(taskId).filter((run) => run.phase === "waiting");
@@ -348,9 +441,14 @@ export class ProviderAutomation {
       if (!definition || !view) { if (!view) this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
       try {
         const probe = await this.readPage(run.providerId, probeScript(definition));
+        this.log("poll.probe", { taskId, providerId: run.providerId, manual, sourceUrlChanged: probe.sourceUrl !== run.sessionUrl, rateLimited: probe.rateLimited, busy: probe.busy, latestLen: (probe.latestResponse || "").length, sessionUrl: run.sessionUrl, sourceUrl: probe.sourceUrl });
         if (probe.sourceUrl !== run.sessionUrl) this.store.setRunSession(run.id, run.responseBaseline ?? "", probe.sourceUrl);
         if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.onRecovery?.(run, "CAPTURE_EXISTING"); return; }
-        if (probe.busy) { this.stability.delete(run.id); return; }
+        // NOTE: `busy` (a visible stop button) is NOT a hard skip. ChatGPT can
+        // keep its stop affordance rendered after the final answer is on the
+        // page, which previously left the run waiting forever; stability
+        // (identical content twice) already prevents capturing mid-stream
+        // partial text, so the busy flag is advisory only.
         const baseline = this.baselines.get(run.id) ?? run.responseBaseline ?? "";
         if (!probe.latestResponse || probe.latestResponse === baseline) {
           if (manual) this.store.updateRun(run.id, "waiting", "FORMAT_INVALID", "尚未发现可验证的新回答，可稍后重试或手动完成", definition.version);
@@ -377,6 +475,7 @@ export class ProviderAutomation {
       if (timer) clearInterval(timer);
       this.monitors.delete(taskId);
     }
+    this.log("poll.tail", { taskId, manual });
     await this.continueIfReady(taskId);
   }
 
@@ -408,13 +507,29 @@ export class ProviderAutomation {
       return;
     }
     try {
-      const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
-      if (!result.ok) {
-        this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮；整组不会进入下一步", definition.version);
-        return;
+      if (definition.sendMode === "enter") {
+        this.log("send.enter.start", { providerId: run.providerId, taskId: run.taskId });
+        await view.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
+        await view.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const cleared = await view.webContents.executeJavaScript("(()=>{const el=document.querySelector('textarea,[contenteditable=true]');return el ? ((el.value!==undefined?(el.value):(el.innerText||'')).trim().length===0) : true;})()") as boolean;
+        this.log("send.enter.done", { providerId: run.providerId, cleared });
+        if (cleared !== true) {
+          this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "回车未完成提交（enter-did-not-submit）；整组不会进入下一步", definition.version);
+          return;
+        }
+      } else {
+        this.log("send.click.start", { providerId: run.providerId, taskId: run.taskId });
+        const result = await view.webContents.executeJavaScript(sendScript(definition), true) as { ok: boolean };
+        this.log("send.click.done", { providerId: run.providerId, ok: result.ok });
+        if (!result.ok) {
+          this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "未可靠定位发送按钮；整组不会进入下一步", definition.version);
+          return;
+        }
       }
       this.store.updateRun(run.id, "waiting", null, "已一次提交；等待独立并发采集回答", definition.version);
     } catch (error) {
+      this.log("send.error", { providerId: run.providerId, error: String(error) });
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `发送失败：${String(error)}`, definition.version);
     }
   }

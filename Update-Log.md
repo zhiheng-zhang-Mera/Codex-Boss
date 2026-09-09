@@ -1,8 +1,8 @@
 # Codex Boss — 开发日志（Update Log）
 
-> 记录区间：2026-09-01（项目创建）→ 2026-09-08（9-8 分支同步）
-> 依据：git 全仓库提交史（`git log --all --no-merges`，共 239 条提交），按提交日期逐日汇总。
-> 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8` 顺序推进；本日志随 `9-8` 分支维护。
+> 记录区间：2026-09-01（项目创建）→ 2026-09-09（9-8-overcomplete 推送 + 9-3…9-8-overcomplete 按序合并入 main）
+> 依据：git 全仓库提交史（`git log --all --no-merges`），按提交日期逐日汇总（截至 2026-09-09 共 268 条提交）。
+> 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8 → 9-8-overcomplete` 顺序推进；本日志自 09-08 overcomplete 起随 `9-8-overcomplete` 分支维护，2026-09-09 已按此顺序将全部分支合并入 `main`（此后随 `main` 主干维护，日期分支保留于云端）。
 
 | 日期 | 提交数 | 阶段主题 |
 |---|---|---|
@@ -14,6 +14,7 @@
 | 2026-09-06 | 110 | AP 收尾 / 研究管线全链 / 9-7 Phases A–L / milestone live E2E |
 | 2026-09-07 | 20 | 9-7 milestone 基线 / U0 审计 / U1–U3 统一收口启动 |
 | 2026-09-08 | 47 | U4–U10 面板与收口 / CDP 真机验证 / DOM 真机接线 / 应用内收敛 / 9-8 同步 |
+| 2026-09-09 | 34 | live 真机验收 / tectonic READY / DETACHED 布局与弹窗收口 / 全部 9-x 分支按序并入 main |
 
 ---
 
@@ -129,9 +130,72 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 
 ---
 
+## 2026-09-08（overcomplete 分支实施，`9-8-overcomplete`）
+
+> 依据 `Update-Plan/Overcomplete.md` 以“Overcomplete（125–140% 工程强度）”方式在 `9-8` 之上推进；同一日期内按 Round 归组，最终以 `<完成日期>-overcomplete` 推送。完整计划进度见 `Update-Plan/overcomplete/PROGRESS.md`，证据见同目录 `evidence/`。
+
+### Round 1（P0 工程闭环主线）
+- 基线冻结与证据目录：`8cd191b` 建立 `Update-Plan/overcomplete/{baseline.md,evidence/}`（取消 /tests/ 与 /Update-Plan/overcomplete/ 的 gitignore 例外）。
+- `3492f1c` EngineeringGoal 接生产 coder/reviewer：新增 `electron/engineering/finding-scope.ts`（§6.1.2 自动作用域推断）、`live-engineering-operations.ts`（§6.1.1 bounded patch + 独立 review）、driver 将 review 置于 build/test 后并回流 reviewer finding（§6.2/6.3）；`runEngineeringGoal` 默认接 role-router worker（§6.4，IPC 暴露 workerRuntimes/disableCoder/disableReviewer）。
+- `737f889` Microtask 泛化与并行：语义 kind 全集（§7.1）、read 并行 + write 重叠作用域门（§7.3/7.4）、job startedAt/completedAt（§7.5）。
+- `f06c202`/`d172bb6`/`ad41d29` seeded-bug 自主修复验收 runner（§6.5/§17.6）：克隆→离线工具链→注入真实回归→audit/implement/build-test/review→收敛；**Bug A–D（编译/单元/逻辑/跨模块）全部 PASS**（证据 `evidence/engineering/seeded-*.json`）；确定性子套件分层入库（§17.1，取消 `/tests/` 忽略）。
+- `fa4d58b` 外部归档生产接线（§11.3/11.4）：fail-closed live attempt + 任务完成调度 recovery 归档 + 手动 IPC。
+
+### Round 2（Research 泛化 P1.1–P1.4）
+- `1316785` 真 host 文献检索（§9.3–9.5）：OpenAlex/Crossref 检索 + 元数据校验 + passage 定位；LITERATURE_REVIEW 先 host 后 AI advisory（禁止 AI 自证引用 §3.7）。
+- `b50e66e` baseline provenance（§9.8）：METRICS_META 声明优先；proportion→命名 random-chance；其余 fail-closed，废除固定 0.5。
+- `1dda043` 实验生成 coder seam（§9.9）：冻结协议 spec → 生成实验 → dry-run metric contract fail-closed。
+- `5630e14` 单样本 effect size + sign-permutation p 接入确定性统计（§9.12）。
+
+### Round 3（Research 手稿/审稿 + UI 读模型）
+- `5b76e50` manuscript 域无关 writer（§9.15）：abstract/intro/methods/discussion/conclusion 由真实 RQ/指标/CI/协议推导，删除硬编码 benchmark 叙事。
+- `d8c41f7` paper reviewer council 真门禁（§9.16）：独立 fresh reviewer veto，缺失记录 not-attempted。
+- `48188cb` 等待读模型（§12.3）：`nextActionLabel`/`waitingLine` 统一“原因 · 等待到 · 下一动作”展示。
+
+### Round 4（测试分层 + 评估包）
+- `546c797` 15 个根级测试全部迁入 `tests/unit/`（§17.2）；嵌套审计直接跑全量入库套件；迁移后 Bug A 重验 PASS。
+- `dad2b56` human-ready blind evaluation pack（§10.4）：匿名 + seed 乱序 + 解码键 + 评分汇总。
+- `57260d4` `pnpm run test:seeded`；`a35a95e` 进度文档。
+
+### Round 5（验收/交付文档化）
+- `Update-Plan/overcomplete/final-acceptance.md` 最终验收矩阵（DETERMINISTIC-PASS / LIVE-9-8 / NOT-RUN 口径，§27 限制诚实记录）；README 状态与能力条目更新；控制重启冒烟与全量 build 验证见分支收尾记录。
+
+---
+
 ## 说明与口径
 
 - 本日志依据 git 提交史撰写，按**提交（作者）日期**归日；同一天内按时间顺序排列主题。
-- 部分阶段存在同名/并行提交（如研究 rounds、AP 系列、docs 快照），已合并为主题条目，未逐条展开全部 239 条。
-- 分支约定：本地回归测试不入库（`/tests/` 等 gitignored）；`9-8` 仅含 GitHub 验证需要的 15 个测试文件，其余本地保留。
+- 部分阶段存在同名/并行提交（如研究 rounds、AP 系列、docs 快照），已合并为主题条目，未逐条展开全部提交。
+- 分支约定：确定性测试随仓库提交于 `tests/unit/`（分层布局）；`9-8` 历史提交中的“150/752 本地全量 gitignored”口径自 overcomplete 分支起不再适用（同一套件已入库）。
 - 后续每日更新：直接在对应日期追加小节；跨天则新增 `## YYYY-MM-DD` 小节并更新顶部汇总表。
+
+### Live 验收（2026-09-08 夜—09，已登录 provider 实况）
+- 基础设施：CDP 驱动运行实例（`scripts/live-cdp.cjs`）、自动化 journal（`runtime-data/.boss/live-automation.log`，纯程序离线诊断）。
+- 适配器：DeepSeek `sendMode=enter`、Microsoft Copilot（`#userInput`）显式适配器、内置未覆盖 provider 的通用默认规则（mistral/perplexity/doubao）；Qwen 发送控件未解析（记录缺口）。
+- 真机 PASS：1/3/4/5-AI 并行 Work echo（`5AI-OK <brand>`，artifact 全捕获、审查全过、final 合成）；Chat 延续（同会话 URL+上下文记忆）；3-AI Council（proposals→peer_review→synthesis COMPLETE）；Live Engineering Goal CONVERGED（真实 AI coder 修编译 bug，eng-4c193c1599d4）；Live Research 语义链（真实 AI hypothesis/复现/claim + paper reviewer council 真实否决）；外部归档 fail-closed pass。
+- 韧性修复：取消即时释放 provider；busy 守卫只认活动任务；采集 monitor 10→25 分钟+超时强制采集；busy 顾问化（stability 采集）；composer 瞬态重导航重试；输入就绪有界等待。
+- 证据索引：`Update-Plan/overcomplete/evidence/live/INDEX.md`。
+
+### TeX 引擎与 live READY（2026-09-09）
+- D:\tex 安装 tectonic 0.15.0；latex-compiler 支持 tectonic；manuscript prose LaTeX 转义。
+- 离线确定性链 READY+paper.pdf（evidence/research/offline-chain-* PASS_READY）。
+- Live Research READY+paper.pdf（evidence/live/live-research-ready-*）：真实 web AI 语义阶段，6 真实 run（seeds1-6），真实 reviewer council 通过（先诚实否决 n=2 功效与 0.5-vs-majority 设计），engine tectonic 编译 final audit 通过，成果导出 Research/<topic>/。
+- conductor 默认 run 数 3+3。
+
+### 弹窗让位 give-way + UTF-8 修复（2026-09-09）
+- >3 个 web AI 打开时强制 DETACHED 第二窗口，主窗口真正“弹窗让位”：`.view-detached` 下 `.browser-half{display:none}`、`.chat-half` 扩展至 grid-column 2/-1（主交互区占满），主窗口 embedCount=0（旧页面不加载 AI 处理页）。
+- 回落 <=3 → 自动回 MERGED，browser-half 恢复显示；开/关双向动态监测（onOpen hook + 5s monitor）实机验证 PASS。
+- 修复 PowerShell Add-Content 引入的 GBK 字节岛：`src/renderer/styles.css`（曾阻断 vite 构建）与 `Update-Log.md`、`evidence/live/INDEX.md` 全部转严格 UTF-8。
+- 实机证据：`evidence/live/live-layout-giveway-2026-09-09-10-03-11.json`（4 AI 开 → DETACHED + 让位；回落 ≤3 → MERGED 复原）。
+
+### 弹窗时主交互窗口保持打开（2026-09-09）
+- DETACHED 切换在 `ProviderViews.setWorkspaceView` 内保证主窗口不随弹窗关闭/隐藏：minimized→restore()、不可见→show()。实测：主窗口隐藏启动（visible=false），打开第 4 个 AI 触发弹窗时 host 自动 visible=false→true。
+- window B 尺寸/位置按宿主显示器 workArea 收敛，绝不被推到屏外；新增只读 `window.boss.getWindowState()`（host/webWindow 的 visible/minimized/maximized/focused/bounds）。
+- 实机证据 `evidence/live/live-window-host-open-2026-09-09-10-12-13.json`：DETACHED 下 host visible/minimized=false、主交互区（chat-half）全宽 2/-1、embedCount=0；回落 ≤3 回 MERGED 仍可见。126 tests + typecheck + full build PASS。
+
+### 分支收口：推送 9-8-overcomplete 并按序合并全部 9-x 分支至 main（2026-09-09）
+- 文档修复：上文 "Live 验收" 与 "TeX 引擎" 两小节为 PowerShell Add-Content 写入 GBK、再经不完全转码留下的乱码文本；本会话按 Git 历史中的原始字节（cp936/GB18030 解码）还原为严格 UTF-8 中文，并全文件扫描确认无乱码残留。
+- UI 收口：`.execution-options`（审查策略 / 最终答复 / 工作区 选项行）设 `max-width: 700px; margin: 0 auto`，在发送区上方居中显示，窄窗口下与 composer 同宽对齐。
+- 推送：`9-8-overcomplete` 连同上述文档与样式更新推送至云端（origin/9-8-overcomplete）。
+- 主干合并：按主开发线顺序把 `9-3 → 9-4 → 9-5 → 9-6 → 9-7 → 9-8 → 9-8-overcomplete` 全部合并入 `main`（`9-3-remote` 内容已含于 `9-4` 祖先链，不单独合并）；合并后 `main` 树与 `9-8-overcomplete` 完全一致，成为收口主干。
+- 推送 `main` 至云端；GitHub Actions（typecheck / tests / build / benchmark / portable / restart smoke）在 main 上触发。

@@ -430,6 +430,8 @@ export interface BossBridge {
   acceptEvidence(taskId: string): Promise<AppSnapshot>;
   /** Lists durable external web-session archive records (U6 §14; read-only). */
   externalSessionList(): Promise<Array<import("./external-session").ExternalSessionRecord>>;
+  /** Overcomplete §11.3: run one bounded external-archive pass (manual retry surface, never fake-archives). */
+  externalArchiveRun(): Promise<{ attempted: number; archived: number; deferred: number; remainingPending: number }>;
   /** U10 §26–§41: durable autonomous-engineering goal status read-model for the start surface. */
   engineeringGoalStatus(): Promise<import("./engineering-loop").EngineeringGoalSnapshot>;
   /** U10 §26–§41: starts one autonomous engineering goal run against a workspace (fail-closed without a coding editor). */
@@ -448,6 +450,9 @@ export interface BossBridge {
   setWorkspaceView(view: "MERGED" | "DETACHED"): Promise<WorkspaceViewStatus>;
   /** U4 §7/§9: current workspace view + DETACHED web-window bounds, if open. */
   getWorkspaceView(): Promise<WorkspaceViewStatus>;
+  /** U4 §7/§9 live check: workspace view + host/web-window open state (the
+   * main interaction window must remain open in DETACHED pop-out mode). */
+  getWindowState(): Promise<WindowStateSnapshot>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
   projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;
@@ -469,6 +474,12 @@ export interface EngineeringGoalRunInput {
   maxIterations?: number;
   /** Explicit operator replace: archive the frozen goal ledger, start fresh (never deletes). */
   replace?: boolean;
+  /** Overcomplete §6.4: restrict the live coder/reviewer role routing to specific runtime ids. */
+  workerRuntimes?: { implement?: string[]; review?: string[] };
+  /** Fail-closed switch: run the goal without the production coder even when one is available. */
+  disableCoder?: boolean;
+  /** Fail-closed switch: run the goal without the production reviewer even when one is available. */
+  disableReviewer?: boolean;
 }
 
 /** U10 §26–§41: summary of one engineering goal run (structural mirror of the driver's close). */
@@ -484,4 +495,12 @@ export interface WorkspaceViewStatus {
   view: "MERGED" | "DETACHED";
   /** Bounds of the DETACHED web window (window B), when one exists. */
   webWindow?: { x: number; y: number; width: number; height: number };
+}
+
+/** Live window-state snapshot (U4 §7/§9 verification: the main interaction
+ * window stays OPEN while the web-AI panes are popped into window B). */
+export interface WindowStateSnapshot {
+  view: "MERGED" | "DETACHED";
+  host?: { visible: boolean; minimized: boolean; maximized: boolean; focused: boolean; bounds: { x: number; y: number; width: number; height: number } };
+  webWindow?: { visible: boolean; minimized: boolean; maximized: boolean; focused: boolean; bounds: { x: number; y: number; width: number; height: number } };
 }

@@ -1,0 +1,29 @@
+﻿{
+    "status":  "PASS_PARTIAL",
+    "at":  "2026-09-08T14:18:28.9125131Z",
+    "items":  [
+                  {
+                      "provider":  "chatgpt",
+                      "result":  "PASS",
+                      "task":  "698585b6-4ef3-4300-bf1b-19f4f47ecf09",
+                      "id":  "1AI_WORK_ECHO",
+                      "final":  "1AI-OK OpenAI"
+                  },
+                  {
+                      "result":  "BLOCKED_BY_ADAPTER",
+                      "id":  "3AI_WORK_ECHO",
+                      "cause":  "deepseek: 发送按钮定位不可靠 -\u003e 整组回滚待人工核对（安全设计）"
+                  },
+                  {
+                      "result":  "UNRESOLVED",
+                      "id":  "QWEN_PROBE",
+                      "cause":  "页面/自动化卡顿后实例重启"
+                  },
+                  {
+                      "result":  "PASS",
+                      "id":  "INSTANCE_RECOVERY",
+                      "cause":  "wedged instance killed -\u003e same runtime-data relaunch; logins preserved; CDP healthy"
+                  }
+              ],
+    "kind":  "LIVE_ROUND1_SUMMARY"
+}

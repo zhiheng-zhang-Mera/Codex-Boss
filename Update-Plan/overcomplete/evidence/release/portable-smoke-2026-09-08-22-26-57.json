@@ -1,0 +1,14 @@
+﻿{
+    "status":  "PASS",
+    "at":  "2026-09-08T12:26:57.1981513Z",
+    "result":  {
+                   "result":  {
+                                  "rendererLoaded":  true,
+                                  "nativeCompleted":  true,
+                                  "completionVisible":  true,
+                                  "generatedAt":  "2026-09-08T12:26:42.915Z"
+                              },
+                   "dataPath":  "D:\\Codex-Boss\\artifacts\\smoke-9f1d20aeb91e4a309b901111d6cc1ba4"
+               },
+    "kind":  "PORTABLE_PACKAGED_SMOKE"
+}

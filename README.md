@@ -4,8 +4,7 @@ A local-first Electron control plane for visible, browser-driven AI work.
 本地优先的 Electron 桌面控制台，统一调度“可见网页 AI / API / Codex / 本地工具”，
 多 AI 会话、研究、自主工程都以一个本地控制器为长期状态源。
 
-[![CI (9-8)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=9-8)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3A9-8)
-[![CI (9-7)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=9-7)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3A9-7)
+[![CI (main)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3Amain)
 
 ---
 
@@ -56,12 +55,26 @@ Fresh screenshots taken from the running app (web-AI panes hidden for privacy du
   **研究** —— 只给一个研究问题，由真实管线自动推进：冻结协议 → 文献 → 实验 → 确定性统计 →
   证据图 → claim/引文审计 → 逐节手稿 → `paper.tex` → `paper.pdf`，图表绑定真实运行。
 - **Autonomous engineering goal** — start one goal from the UI (objective + workspace + convergence
-  policy); Boss audits with real typecheck + full tests, implements only with an authorized editor
-  (otherwise it aborts with rollback rather than fabricating a fix), and converges when clean rounds
-  pass. Includes §38 git checkpoint/rollback and a durable status read-model.
+  policy); Boss audits with real typecheck + full tests, implements through the production role-router
+  coder (bounded, host-verified patches over scope inferred from the finding; deterministic closures in
+  tests) with an independent reviewer whose HIGH/MEDIUM findings re-enter the next round, and converges
+  on clean rounds. §38 git checkpoint/rollback and a durable status read-model included.
   **自主工程目标** —— 在 UI 启动一个目标（目标 + 工作区 + 收敛策略）；Boss 用真实
-  typecheck + 全量测试审计，仅在配置了授权编码器时实施修复（否则以回滚 ABORT，绝不伪造修复），
-  连续干净轮次通过即收敛；内置 §38 git 检查点/回滚与持久化状态读模型。
+  typecheck + 全量测试审计，通过生产 role-router coder 实施有界、宿主校验的修复（作用域由
+  finding 自动推断；测试用确定性闭包），独立 reviewer 的 HIGH/MEDIUM finding 回流下一轮，
+  连续干净轮次即收敛；含 §38 git 检查点/回滚与持久化读模型。
+  Seeded regressions (compile / unit / logic / cross-module) repair end-to-end without human prompts —
+  `pnpm run test:seeded`.
+  Seed 回归（编译 / 单元 / 逻辑 / 跨模块）无人干预端到端自动修复 —— `pnpm run test:seeded`。
+- **Host-backed research literature** — literature intake runs REAL OpenAlex/Crossref retrieval with
+  metadata verification, passage location and baseline provenance (never an AI self-citation);
+  experiments can be generated from the frozen protocol through a coder seam when no benchmark exists.
+  **宿主真文献检索** —— 文献摄入走真实 OpenAlex/Crossref 检索 + 元数据校验 + passage 定位 +
+  baseline provenance（绝不采用 AI 自证引用）；无预置实验时可由 coder seam 依据冻结协议生成实验。
+- **External archive automation** — web-session archives are scheduled after tasks complete and only
+  marked ARCHIVED after verified page state; failures stay pending and visible, never fake-archived.
+  **外部归档自动化** —— 任务完成后调度网页会话归档，仅页面状态验证后才置 ARCHIVED；
+  失败保持 pending 可见，绝不假归档。
 - **Computer use** — semantic chain native → DOM → UIA → structured → vision over visible pages;
   DOM mutations are fail-closed behind a per-workspace permission gate.
   **桌面操作** —— 可见页面上执行 native → DOM → UIA → structured → vision 语义链；
@@ -111,16 +124,38 @@ Standalone smoke verification uses an isolated data directory:
 
 ## Status & verification / 状态与验证
 
-- Local full suite (kept out of git per policy): **150 files / 752 tests green**; Electron typecheck PASS.
-  本地全量套件（按策略不入库）：**150 文件 / 752 测试全绿**；Electron typecheck 通过。
-- GitHub CI runs on a committed self-contained verification subset: **15 files / 70 tests**, plus
-  typecheck / build / benchmark / portable-package / smoke — green on `9-7` and `9-8`.
-  GitHub CI 运行入库的确定性验证子集：**15 文件 / 70 测试**，外加 typecheck / build /
-  benchmark / portable 打包 / 冒烟 —— `9-7`、`9-8` 均已通过。
+- The deterministic test suite is committed with the repository under `tests/unit/`
+  (layered layout; includes git/process-heavy integration cases). Trunk snapshot (`main`,
+  consolidated on 2026-09-09 by merging `9-3 → … → 9-8-overcomplete` in order):
+  **30 files / 126 tests green** + typecheck + full build PASS.
+  确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
+  主干快照（`main`，2026-09-09 将 `9-3 → … → 9-8-overcomplete` 按序合并收口）：
+  **30 文件 / 126 测试全绿**，typecheck 与完整 build PASS。
+- GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke / restart
+  smoke on every push (previously green on `9-7` / `9-8`; the 2026-09-09 merge made `main` the
+  consolidated trunk). The repo also ships a seeded-bug autonomous repair acceptance runner
+  (`pnpm run test:seeded` → `scripts/acceptance-seeded-engineering.cjs`).
+  GitHub CI 在每个 push 上运行 typecheck / 测试 / build / benchmark / portable 打包 / portable 冒烟 /
+  restart 冒烟（此前 `9-7`、`9-8` 全绿；2026-09-09 合并后 `main` 成为收口主干）。
+  仓库同时提供 seeded-bug 自主修复验收脚本（`pnpm run test:seeded`）。
+- Branch consolidation: `9-3` through `9-8-overcomplete` were merged into `main` in development
+  order on 2026-09-09 (see [Update-Log](Update-Log.md)); older date branches stay on the remote as
+  historical snapshots.
+  分支收口：2026-09-09 已将 `9-3` 至 `9-8-overcomplete` 按主开发线顺序全部合并入 `main`
+  （详见[开发日志](Update-Log.md)）；历史日期分支保留于云端作快照。
 - An in-app autonomous goal audit (real typecheck + full suite inside the running app) converged:
   `eng-251ec4b77388` iteration 3 `CONVERGED`, 0 findings.
   应用内自主目标审计（应用内跑真实 typecheck + 全量套件）已收敛：
   `eng-251ec4b77388` 第 3 迭代 `CONVERGED`，0 发现。
+- Live verifications recorded on `9-8-overcomplete` (logged-in web providers; now merged into
+  `main`, evidence under `Update-Plan/overcomplete/evidence/live/`):
+  1/3/4/5-AI parallel Work echoes PASS, Chat continuation with context memory PASS, 3-AI Council
+  COMPLETE, live Engineering Goal CONVERGED (real AI coder patch), live Research semantic chain with a
+  real reviewer-council veto, and fail-closed external-archive pass.
+  收口分支 `9-8-overcomplete`（已并入 `main`）实况验证（已登录网页 provider，证据见 `Update-Plan/overcomplete/evidence/live/`）：
+  1/3/4/5-AI 并行 Work echo PASS、Chat 延续+上下文记忆 PASS、3-AI Council COMPLETE、
+  Live 工程 Goal CONVERGED（真实 AI coder 补丁）、Live Research 语义链含真实 reviewer-council 否决、
+  外部归档 fail-closed pass。
 
 ---
 
@@ -137,10 +172,10 @@ captchas stay in the visible page for you.
 模型回答始终是不可信数据：审查门禁不会为回答中的命令授予执行权限，不可逆/账户类操作保留明确
 授权边界，网页登录与验证码由你在可见页面完成。
 
-Local regression tests and planning documents (`tests/`, `Update-Plan/`) stay gitignored; only the
-GitHub-verification subset of tests is committed.
-本地回归测试与计划文档（`tests/`、`Update-Plan/`）保持 gitignored；入库的仅为
-GitHub 验证所需的测试子集。
+Deterministic regression tests are committed under `tests/unit/`; planning/evidence snapshots used by
+this branch live under `Update-Plan/overcomplete/` (plan documents themselves stay local).
+确定性回归测试提交于 `tests/unit/`；分支使用的计划/证据快照位于 `Update-Plan/overcomplete/`
+（计划原文仍留在本地）。
 
 ---
 

@@ -54,6 +54,7 @@ import { DefaultLevelBExecutor } from "./research/default-levelb-executor";
 import { LiveResearchExecutor } from "./research/live-research-executor";
 import { ResearchConductor } from "./research/research-conductor";
 import { createLiveResearchProvider } from "./research/live-research-provider";
+import { runHostLiteraturePass, createOpenAlexLiteratureDeps } from "./research/literature/host-retrieval";
 import type { ResearchStageExecutor } from "./research/research-supervisor";
 import type { ResearchIR } from "../src/shared/research-ir";
 import type { HumanDefinedResearchInput } from "../src/shared/research-input";
@@ -63,6 +64,8 @@ import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
+import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
+import { createLiveExternalArchiveAttempt, type AccountMode as ArchiveAccountMode } from "./workspace/live-external-archive";
 import { AccountSessionManager } from "./account-sessions";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
@@ -146,6 +149,49 @@ function provider(id: ProviderId) {
   const match = store.snapshot().providers.find((item) => item.id === id);
   if (!match) throw new Error(`Unknown provider: ${id}`);
   return match;
+}
+
+let autoLayoutTimer: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * Continuous AI-processor layout monitor: whenever MORE than three web-AI
+ * pages are open/selected the workspace switches to the second-window
+ * (DETACHED) mode; three or fewer stay in the single-window (MERGED)
+ * workspace. Called on every open/close change and on a lightweight periodic
+ * tick so selection state is always reflected (idempotent when unchanged).
+ */
+function autoLayoutForOpenWebProviders(reason: string): void {
+  try {
+    if (!providerViews) return;
+    const openWeb = store.snapshot().providers.filter((item) => item.windowOpen).length;
+    const wanted = openWeb > 3 ? "DETACHED" : "MERGED";
+    if (providerViews.workspaceView() !== wanted) {
+      providerViews.setWorkspaceView(wanted);
+      console.log(`[auto-layout] ${reason}: ${openWeb} web AI open -> ${wanted}`);
+    }
+  } catch (error) {
+    console.error("[auto-layout] monitor failed", error);
+  }
+}
+function startAutoLayoutMonitor(): void {
+  if (autoLayoutTimer) clearInterval(autoLayoutTimer);
+  autoLayoutTimer = setInterval(() => autoLayoutForOpenWebProviders("monitor"), 5000);
+  autoLayoutTimer.unref?.();
+}
+
+/**
+ * Production external-archive attempt (Overcomplete §11.3/§11.4): fail-closed
+ * page-state gate + optional per-provider adapter seam. Never fake-archives.
+ */
+function liveArchiveAttempt() {
+  return createLiveExternalArchiveAttempt({
+    windowOpen: (providerId) => Boolean(providerViews.get(providerId)),
+    accountMode: (providerId): ArchiveAccountMode => {
+      const account = store?.snapshot().accounts.find((entry) => entry.providerId === providerId);
+      const mode = account?.mode;
+      return mode === "READY" || mode === "GUEST_READY" ? mode : mode === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : "UNKNOWN";
+    }
+  });
 }
 
 function taskTransports(input: CreateTaskInput, providerIds: ProviderId[]) {
@@ -263,6 +309,9 @@ function attachProviderViews(): void {
   providerViews = new ProviderViews(mainWindow, (id, open) => {
     store.setWindow(id, open);
     publish();
+    // Continuous monitoring: opening a 4th (or 5th) AI page immediately pops
+    // the processors into the second window; closing back to ≤3 returns MERGED.
+    autoLayoutForOpenWebProviders("window-toggle");
   }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
   const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
@@ -281,6 +330,14 @@ function attachProviderViews(): void {
         externalSessions?.deferArchive(id, run.providerId, "task finished; external archive pending page-state verification");
       }
     } catch { /* external-session tracking is advisory and must never block completion */ }
+    // Overcomplete §11.3: task finalized ⇒ ARCHIVE_PENDING ⇒ schedule a
+    // bounded background archive pass (navigate/archive/verify later). The
+    // pass only ever marks ARCHIVED from verified page state; failures keep
+    // the ledger row pending and visible.
+    try {
+      const hasPending = externalSessions?.forTask(id).some((record) => record.status === "ARCHIVE_PENDING");
+      if (hasPending && recoveryScheduler) recoveryScheduler.schedule({ id: `external-archive:${id}`, taskId: id, kind: "external-archive", retryAt: Date.now() + 15000, payload: {} });
+    } catch { /* scheduling is advisory */ }
     // U6 §13/§51: a conversation with no remaining active task auto-archives
     // (flag only, never delete) once its last task has a final response. The
     // currently-selected conversation is left in place so the user can read
@@ -295,9 +352,25 @@ function attachProviderViews(): void {
     } catch { /* auto-archive is best-effort; conversation stays visible otherwise */ }
   };
   automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, onTaskComplete, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore);
+  // Overcomplete §11.3/§11.4: production archive recovery handler — each wake
+  // retries pending external archives with the live fail-closed attempt; if
+  // anything stays pending (provider offline / rate-limited / page changed),
+  // the wake is re-armed with a long backoff. Attempts are bounded by the
+  // recovery scheduler; exhausted rows stay ARCHIVE_PENDING (visible, never
+  // auto-deleted) until a later pass or a manual archive.
+  if (recoveryScheduler) {
+    recoveryScheduler.register("external-archive", async () => {
+      const result = await automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 });
+      if (result.remainingPending > 0) {
+        return { done: false, retryAt: Date.now() + 20 * 60 * 1000, error: `${result.remainingPending} external archive(s) still pending; will retry` };
+      }
+      return { done: true };
+    });
+  }
   detachContinuationWaker?.();
   detachContinuationWaker = domainEventBus ? attachContinuationWaker(domainEventBus, (taskId) => automation.continueIfReady(taskId)) : undefined;
   recoveryScheduler.start();
+  startAutoLayoutMonitor();
 }
 
 function createMainWindow(): void {
@@ -376,7 +449,11 @@ function liveResearchExecutor(): ResearchStageExecutor {
         if (!research) throw new Error("research service not ready");
         return research;
       },
-      provider
+      provider,
+      // Overcomplete §9.3: REAL host literature retrieval (OpenAlex) before any
+      // AI advisory intake. Offline/empty results degrade honestly to the
+      // provider fallback inside the conductor.
+      hostLiterature: async (ir) => runHostLiteraturePass({ rq: ir.researchQuestions[0] ?? ir.goal }, createOpenAlexLiteratureDeps())
     })
   });
 }
@@ -688,6 +765,15 @@ if (ownsInstance) app.whenReady().then(() => {
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
+    // Auto workspace layout (Overcomplete live): a dispatch to MORE than three
+    // web AI pages pops the processors into the second (DETACHED) window so
+    // five pages don't crowd the controller; three or fewer stay merged in the
+    // single-window workspace.
+    try {
+      const webCount = providerIds.filter((id) => (transports[id] ?? "web") === "web").length;
+      const wanted = webCount > 3 ? "DETACHED" : "MERGED";
+      if (providerViews.workspaceView() !== wanted) providerViews.setWorkspaceView(wanted);
+    } catch (error) { /* layout is advisory; never block dispatch */ console.error("Auto workspace layout failed", error); }
     const conversationId = input.conversationId ?? store.snapshot().activeConversationId;
     // Phase F: a GitHub URL in the message is an input object, not prose —
     // materialize once and bind it so WORK can scan real code.
@@ -840,6 +926,16 @@ if (ownsInstance) app.whenReady().then(() => {
     return { view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() };
   });
   ipcMain.handle("boss:get-workspace-view", () => ({ view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() }));
+  // U4 §7/§9 live check: the main interaction window must stay OPEN while the
+  // web-AI panes are popped into window B — report host visibility/minimized
+  // state alongside the view for objective verification.
+  ipcMain.handle("boss:get-window-state", () => {
+    const state = (window: BrowserWindow | undefined) => {
+      if (!window || window.isDestroyed()) return undefined;
+      return { visible: window.isVisible(), minimized: window.isMinimized(), maximized: window.isMaximized(), focused: window.isFocused(), bounds: window.getBounds() };
+    };
+    return { view: providerViews.workspaceView(), host: state(mainWindow ?? undefined), webWindow: state(providerViews.webWindowInstance()) };
+  });
   ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
   // U4 §9.2: per-pane manual zoom override (zoom buttons in the pane title).
   // The override wins over auto-fit until the view is closed or the override
@@ -925,6 +1021,7 @@ if (ownsInstance) app.whenReady().then(() => {
   });
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
     store.setTaskStatus(taskId, status);
+    if (status === "cancelled") automation?.cancelRuns(taskId);
     if (status === "running" && recoveryScheduler.resumeTask(taskId)) {
       const deadline = Math.min(...recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt));
       store.setRecoveryState(taskId, deadline, "用户已继续任务；按记录的时间恢复原会话");
@@ -950,12 +1047,17 @@ if (ownsInstance) app.whenReady().then(() => {
   // deletes, only shows archive lifecycle so a failed external archive stays
   // visible and retryable).
   ipcMain.handle("boss:external-session-list", () => externalSessions?.list() ?? []);
-  // U10 §26–§41: autonomous engineering goal surface. Status is the durable
-  // read-model; run starts one goal loop over the real allowed commands (an
-  // unconfigured coding editor yields an honest ABORT, never a fabricated fix).
+  // Overcomplete §11.3: run one bounded external-archive pass on demand
+  // (manual retry surface; fail-closed — never fake-archives).
+  ipcMain.handle("boss:external-archive-run", async () => automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 }));
+  // U10 §26–§41 (+ Overcomplete §6.1/§6.4): autonomous engineering goal surface.
+  // Status is the durable read-model; run starts one goal loop over the real
+  // allowed commands with the PRODUCTION coder/reviewer wired in-process (the
+  // role router dispatches to configured web/API/Codex runtimes; deterministic
+  // closures can be forced off via disableCoder/disableReviewer).
   ipcMain.handle("boss:engineering-goal-status", () => commander.engineeringGoalStatus());
-  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number; replace?: boolean }) => {
-    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations, replace: input.replace });
+  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number; replace?: boolean; workerRuntimes?: { implement?: string[]; review?: string[] }; disableCoder?: boolean; disableReviewer?: boolean }) => {
+    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations, replace: input.replace, workerRuntimes: input.workerRuntimes, disableCoder: input.disableCoder, disableReviewer: input.disableReviewer });
   });
 
   app.on("second-instance", () => {

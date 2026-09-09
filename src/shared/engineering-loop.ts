@@ -199,6 +199,80 @@ export function isStagnating(signals: StagnationSignals): boolean {
     || signals.noImprovementRounds >= STAGNATION_LIMITS.noImprovementRounds;
 }
 
+/* ------------------------------------------------------- reviewer reflow (§6.2/6.3) */
+
+/**
+ * Structured finding produced by the independent engineering reviewer. The
+ * reviewer never closes its own work; HIGH / significant-MEDIUM items become
+ * new EngineeringFindings that re-enter triage → implement → verify.
+ */
+export interface ReviewerFinding {
+  severity: EngineeringSeverity;
+  summary: string;
+}
+
+const REVIEW_SEVERITY_TOKENS: Record<Exclude<EngineeringSeverity, "MEDIUM">, string[]> = {
+  CRITICAL: ["critical", "crash", "data loss", "security vulnerability", "p0"],
+  HIGH: ["high", "serious", "must fix", "incorrect", "wrong", "bug", "breaks", "security", "race"],
+  LOW: ["low", "minor", "nit", "cosmetic", "style"],
+  OPTIONAL: ["optional", "suggestion", "nitpick", "nice to have"]
+};
+
+/** Deterministic severity guess for a reviewer line when no JSON envelope exists. */
+export function severityFromReviewLine(text: string): EngineeringSeverity {
+  const lower = text.toLowerCase();
+  if (REVIEW_SEVERITY_TOKENS.CRITICAL.some((token) => lower.includes(token))) return "CRITICAL";
+  if (REVIEW_SEVERITY_TOKENS.HIGH.some((token) => lower.includes(token))) return "HIGH";
+  if (/\bmedium\b|significant|state|concurrency|data integrity|persistence|recovery/.test(lower)) return "MEDIUM";
+  if (REVIEW_SEVERITY_TOKENS.LOW.some((token) => lower.includes(token))) return "LOW";
+  if (REVIEW_SEVERITY_TOKENS.OPTIONAL.some((token) => lower.includes(token))) return "OPTIONAL";
+  // Unknown severity defaults to MEDIUM so a flagged issue is never dropped.
+  return "MEDIUM";
+}
+
+/**
+ * Parse an independent reviewer's response into structured findings. Accepts a
+ * strict JSON envelope `{"findings":[{"severity","summary"}]}` (tolerantly
+ * extracted), else falls back to line classification. Returns the raw text
+ * alongside so callers can persist original evidence.
+ */
+export function parseReviewerFindings(raw: string): { findings: ReviewerFinding[]; raw: string } {
+  const text = (raw ?? "").trim();
+  if (!text) return { findings: [], raw: text };
+  // Tolerant JSON extraction: prefer the first {...} block that contains findings.
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1)) as { findings?: unknown };
+      if (Array.isArray(parsed.findings)) {
+        const findings = parsed.findings
+          .filter((item): item is { severity?: unknown; summary?: unknown } => Boolean(item) && typeof item === "object")
+          .map((item) => {
+            const severity = typeof item.severity === "string" ? item.severity.toUpperCase() as EngineeringSeverity : "MEDIUM";
+            const summary = typeof item.summary === "string" ? item.summary.trim() : "";
+            if (!summary) return undefined;
+            return { severity: ENGINEERING_SEVERITIES.includes(severity) ? severity : severityFromReviewLine(summary), summary };
+          })
+          .filter((item): item is ReviewerFinding => item !== undefined);
+        // An explicit JSON envelope is authoritative — including an EMPTY
+        // findings list (a clean review). Never fall back to line
+        // classification of a machine-envelope answer.
+        return { findings, raw: text };
+      }
+    } catch { /* fall through to line classification */ }
+  }
+  const findings = text.split(/\n+/).map((line) => line.replace(/^[-*•\s]+/, "").trim()).filter(Boolean).map((line) => ({ severity: severityFromReviewLine(line), summary: line }));
+  return { findings, raw: text };
+}
+
+/** Whether a reviewer finding must re-enter the engineering loop (§6.3). */
+export function isReviewerReflowFinding(finding: ReviewerFinding): boolean {
+  if (finding.severity === "CRITICAL" || finding.severity === "HIGH") return true;
+  if (finding.severity === "MEDIUM") return isSignificantMedium({ id: "review", area: "review", description: finding.summary, severity: "MEDIUM" });
+  return false;
+}
+
 /** Returns whether an engineering iteration should be recorded as CONVERGED given the gate. */
 export function iterationConverged(record: EngineeringIterationRecord, requiredCleanRounds: number, acceptedRisks: string[] = []): boolean {
   const result = decideConvergence({

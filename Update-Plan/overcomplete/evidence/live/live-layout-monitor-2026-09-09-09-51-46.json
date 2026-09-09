@@ -1,0 +1,25 @@
+﻿{
+    "status":  "PASS",
+    "at":  "2026-09-08T23:51:46.6796620Z",
+    "behavior":  [
+                     "open \u003c=3 -\u003e MERGED",
+                     "opening the 4th web AI auto-switches to DETACHED second window (no dispatch needed)",
+                     "closing back to \u003c=3 auto-returns to MERGED",
+                     "periodic 5s monitor + window-toggle hook"
+                 ],
+    "cases":  [
+                  {
+                      "open":  3,
+                      "view":  "MERGED"
+                  },
+                  {
+                      "open":  4,
+                      "view":  "DETACHED"
+                  },
+                  {
+                      "open":  3,
+                      "view":  "MERGED"
+                  }
+              ],
+    "kind":  "LIVE_AUTO_LAYOUT_CONTINUOUS_MONITOR"
+}

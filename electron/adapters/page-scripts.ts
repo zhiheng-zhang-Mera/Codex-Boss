@@ -111,6 +111,18 @@ export function sendScript(definition: AdapterDefinition): string {
       ? input.value
       : (input.innerText || input.textContent || '');
     if (!current.trim()) return { ok: false, reason: 'input-empty' };
+    if (d.sendMode === 'enter') {
+      // Composer with NO send button (verified live for DeepSeek 2026): the
+      // visible text input submits on Enter. Still a user-visible action — the
+      // prompt was typed into the visible page and Enter is pressed on it.
+      input.focus();
+      const key = (type) => input.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+      key('keydown');
+      key('keyup');
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const after = input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement ? input.value : (input.innerText || '');
+      return after.trim() ? { ok: false, reason: 'enter-did-not-submit' } : { ok: true };
+    }
     const findSend = () => {
       const explicit = [
         "button[data-testid='send-button']",

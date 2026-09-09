@@ -1,0 +1,14 @@
+﻿{
+    "deferred":  10,
+    "attempted":  10,
+    "kind":  "LIVE_EXTERNAL_ARCHIVE_PASS",
+    "status":  "PASS_failclosed",
+    "at":  "2026-09-08T15:04:18.2505351Z",
+    "archived":  0,
+    "notes":  [
+                  "chatgpt: UNSUPPORTED (no archive affordance adapter) - stays pending",
+                  "others: provider window closed - deferred, stays pending",
+                  "never fake-ARCHIVED"
+              ],
+    "remainingPending":  11
+}

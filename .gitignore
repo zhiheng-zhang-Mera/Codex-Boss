@@ -21,7 +21,8 @@ secrets/
 .boss/worktrees/
 .boss/tmp/
 
-/tests/
 /live-acceptance/
-/Update-Plan/
+/Update-Plan/*
+!/Update-Plan/overcomplete/
 /research-output/
+.live-acceptance/
