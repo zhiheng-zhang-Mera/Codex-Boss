@@ -403,7 +403,7 @@
 - 验证快照（Round 32）：typecheck PASS · vitest **43 文件 / 228 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-32/`。
 
-## Round 33（2026-09-09，P0-4 §18 任务级能力路由拦截：Chat→WORK 升级 seam，owner-result）
+## Round 33（2026-09-09，P0-4 §18 任务级能力路由拦截：Chat→WORK 升级 seam，owner-result @ ee17c40）
 - **背景**：Chat→WORK 能力升级是第二个真实 raise 接缝：任何 chat 任务检测到需要代码/仓库能力时一律
   stage PROPOSE_WORK 等人批准；对 OWNER_RESULT（checkpointBudget=0）这属例行 DECIDABLE 能力路由，不该空停。
 - **src/shared/owner-result.ts**：`workEscalationVerdict(mode, reason, capability?)` —— 纯决策：reason/能力文本
