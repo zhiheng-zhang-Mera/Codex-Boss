@@ -60,3 +60,12 @@
 
 ## 终态（续篇后）
 Codex-Boss `main`/`owner-result` 与 DS-Hns `main` 三线同步；Owner 技术决策次数 = 0、盲等 = 0 保持。
+
+## 最终验收快照（R43，2026-09-09）
+- 完整门链在当前头部复验：typecheck PASS · vitest **51 文件 / 254 测试 PASS** · full build PASS
+  （owner-result = main @ 7731a2a，R31–R42 全部已推送）。
+- 确定性验收边界收敛：本仓库可实现范围内的 §38（A/G/D 确定性、F 自迭代隔离回滚）与 §39 各 bullet
+  均有电池/文档承载；KB 离线回退、多节点 Fleet、>2h 单次 soak、多域 live 论文等跨仓/长期/live 项
+  依纪律记录为 INCONCLUSIVE/live-TODO（绝不伪造完成）。
+- 收口待办（R43 后，均为 live/后续增强而非验收缺口）：P0-6 live 执行器接线、P0-5 seam v2
+  （默认契约 + 真实 build/integration/acceptance 门）、§34 多域 live 论文 / >2h soak / UI 微调。

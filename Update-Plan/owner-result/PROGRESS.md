@@ -532,3 +532,10 @@
 - 验证快照（Round 42，文档轮）：typecheck PASS · vitest **51 文件 / 254 测试 PASS**（复跑；代码与 R41
   相同，full build 沿用 R41 PASS）。
   证据 `Update-Plan/owner-result/evidence/round-42/`。
+
+## Round 43（2026-09-09，最终验收快照：完整门链复验 + §38/§39 收敛陈述，owner-result @ 7731a2a 之后）
+- 完整门链在当前头部复验：typecheck PASS · vitest **51 文件 / 254 测试 PASS** · full build PASS。
+- 收敛陈述（写入证据 JSON 与 CLOSEOUT-44）：本仓库可实现范围内 §38（A/G/D 确定性、F 自迭代隔离）与
+  §39 各 bullet 均有电池/文档承载；KB 离线回退、多节点 Fleet、>2h 单次 soak、多域 live 论文等
+  跨仓/长期/live 项按纪律记录 INCONCLUSIVE/live-TODO。
+- 证据 `Update-Plan/owner-result/evidence/round-43/round43-final-acceptance-snapshot-2026-09-09.json`。
