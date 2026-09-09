@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, AppSnapshot, AuditEvent, BossTask, CodexReview, ControllerState, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RunTransport, TaskMode, TaskStatus } from "../src/shared/contracts";
+import { HistoryRepository, safeSegment } from "./history-repository";
+
+const defaultFolderId = "folder-general";
+const defaultConversationId = "conversation-default";
 
 export const providerSeed: Provider[] = [
   { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
@@ -20,19 +24,24 @@ export const providerSeed: Provider[] = [
 export class StateStore {
   private snapshotValue: AppSnapshot;
 
-  constructor(private readonly filePath: string) {
+  constructor(private readonly filePath: string, private readonly history?: HistoryRepository) {
     this.snapshotValue = this.read();
+    this.history?.sync(this.snapshotValue);
   }
 
   snapshot(): AppSnapshot {
     return structuredClone(this.snapshotValue);
   }
 
-  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct"): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId): BossTask {
     const now = new Date().toISOString();
-    const task: BossTask = { id: randomUUID(), title, prompt, providerIds, status: "queued", mode, createdAt: now, updatedAt: now };
+    const conversation = this.conversation(conversationId);
+    const normalizedTransports = Object.fromEntries(providerIds.map((providerId) => [providerId, appMode === "chat" ? "web" : transportByProvider[providerId] ?? "web"])) as Record<ProviderId, RunTransport>;
+    const task: BossTask = { id: randomUUID(), conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
     this.snapshotValue.tasks.unshift(task);
-    this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt)));
+    conversation.taskIds.push(task.id);
+    conversation.updatedAt = now;
+    this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt, normalizedTransports[providerId])));
     if (mode === "council") {
       const council: CouncilSession = { id: randomUUID(), taskId: task.id, stage: "proposals", providerIds, round: 1, conflicts: [], minorityOpinions: [], createdAt: now, updatedAt: now };
       this.snapshotValue.councils.unshift(council);
@@ -44,6 +53,61 @@ export class StateStore {
 
   runsForTask(taskId: string): ProviderRun[] {
     return this.snapshotValue.runs.filter((run) => run.taskId === taskId);
+  }
+
+  createFolder(name: string): ConversationFolder {
+    const now = new Date().toISOString();
+    const folder: ConversationFolder = { id: randomUUID(), name: validName(name, "文件夹"), storageName: this.uniqueFolderStorageName(name), createdAt: now, updatedAt: now };
+    this.snapshotValue.folders.push(folder);
+    this.event("folder.created", `已创建历史文件夹“${folder.name}”`, {});
+    this.persist();
+    return folder;
+  }
+
+  renameFolder(folderId: string, name: string): void {
+    const folder = this.folder(folderId);
+    folder.name = validName(name, "文件夹");
+    folder.storageName = this.uniqueFolderStorageName(folder.name, folder.id);
+    folder.updatedAt = new Date().toISOString();
+    this.event("folder.renamed", `历史文件夹已重命名为“${folder.name}”`, {});
+    this.persist();
+  }
+
+  createConversation(folderId: string, title: string): BossConversation {
+    this.folder(folderId);
+    const now = new Date().toISOString();
+    const conversation: BossConversation = { id: randomUUID(), folderId, title: validName(title, "对话"), storageName: this.uniqueConversationStorageName(folderId, title), taskIds: [], createdAt: now, updatedAt: now };
+    this.snapshotValue.conversations.unshift(conversation);
+    this.snapshotValue.activeConversationId = conversation.id;
+    this.event("conversation.created", `已创建对话“${conversation.title}”`, {});
+    this.persist();
+    return conversation;
+  }
+
+  renameConversation(conversationId: string, title: string): void {
+    const conversation = this.conversation(conversationId);
+    conversation.title = validName(title, "对话");
+    conversation.storageName = this.uniqueConversationStorageName(conversation.folderId, conversation.title, conversation.id);
+    conversation.updatedAt = new Date().toISOString();
+    this.event("conversation.renamed", `对话已重命名为“${conversation.title}”`, {});
+    this.persist();
+  }
+
+  moveConversation(conversationId: string, folderId: string): void {
+    const conversation = this.conversation(conversationId);
+    this.folder(folderId);
+    conversation.folderId = folderId;
+    conversation.storageName = this.uniqueConversationStorageName(folderId, conversation.title, conversation.id);
+    conversation.updatedAt = new Date().toISOString();
+    this.event("conversation.moved", `对话“${conversation.title}”已移动`, {});
+    this.persist();
+  }
+
+  selectConversation(conversationId: string): void {
+    const conversation = this.conversation(conversationId);
+    this.snapshotValue.activeConversationId = conversation.id;
+    this.event("conversation.selected", `已切换到对话“${conversation.title}”`, {});
+    this.persist();
   }
 
   updateRun(runId: string, phase: ProviderRunPhase, outcome: AdapterOutcome | null, message: string, adapterVersion?: string): void {
@@ -80,14 +144,14 @@ export class StateStore {
   addCouncilRound(taskId: string, prompts: Map<ProviderId, string>, stage: CouncilSession["stage"]): void {
     const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
     if (!council) throw new Error(`Unknown council task: ${taskId}`);
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     council.round += 1;
     council.stage = stage;
     council.updatedAt = new Date().toISOString();
     for (const providerId of council.providerIds) {
       const prompt = prompts.get(providerId);
-      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, council.round, prompt));
+      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, council.round, prompt, task?.transportByProvider[providerId] ?? "web"));
     }
-    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (task) { task.status = "queued"; task.updatedAt = council.updatedAt; }
     this.event("council.advanced", `Council 进入 ${stage} 阶段`, { taskId });
     this.persist();
@@ -102,6 +166,12 @@ export class StateStore {
 
   setController(controller: ControllerState): void {
     this.snapshotValue.controller = controller;
+    this.persist();
+  }
+
+  setApiSettings(settings: ApiProviderSetting[]): void {
+    if (JSON.stringify(this.snapshotValue.apiSettings) === JSON.stringify(settings)) return;
+    this.snapshotValue.apiSettings = structuredClone(settings);
     this.persist();
   }
 
@@ -194,7 +264,7 @@ export class StateStore {
     const nextRound = currentRound + 1;
     for (const providerId of task.providerIds) {
       const prompt = prompts.get(providerId);
-      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, nextRound, prompt));
+      if (prompt) this.snapshotValue.runs.push(this.newRun(taskId, providerId, nextRound, prompt, task.transportByProvider[providerId] ?? "web"));
     }
     const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
     if (council) { council.round = nextRound; council.stage = "rehydration"; council.updatedAt = new Date().toISOString(); }
@@ -251,9 +321,9 @@ export class StateStore {
     this.snapshotValue.events = this.snapshotValue.events.slice(0, 200);
   }
 
-  private newRun(taskId: string, providerId: ProviderId, round: number, inputPrompt: string): ProviderRun {
+  private newRun(taskId: string, providerId: ProviderId, round: number, inputPrompt: string, transport: RunTransport = "web"): ProviderRun {
     const now = new Date().toISOString();
-    return { id: randomUUID(), taskId, providerId, round, phase: "queued", outcome: null, message: "等待可见预填", inputPrompt, adapterVersion: "unresolved", createdAt: now, updatedAt: now };
+    return { id: randomUUID(), taskId, providerId, transport, round, phase: "queued", outcome: null, message: transport === "api" ? "等待 API 预检" : "等待可见预填", inputPrompt, adapterVersion: "unresolved", createdAt: now, updatedAt: now };
   }
 
   private reconcileTask(taskId: string): void {
@@ -273,12 +343,23 @@ export class StateStore {
       const providers = [...builtins, ...custom];
       const tasks = (saved.tasks ?? []).map((task) => {
         const legacy = task as BossTask & { providerId?: ProviderId };
-        return { ...task, mode: task.mode ?? "direct", providerIds: task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]) };
+        const providerIds = task.providerIds ?? (legacy.providerId ? [legacy.providerId] : ["chatgpt"]);
+        const appMode = task.appMode ?? "chat";
+        return { ...task, conversationId: task.conversationId ?? defaultConversationId, mode: task.mode ?? "direct", appMode, providerIds, transportByProvider: task.transportByProvider ?? Object.fromEntries(providerIds.map((id) => [id, "web"])) };
       });
+      const now = new Date().toISOString();
+      const folders = saved.folders?.length ? saved.folders : [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }];
+      const conversations = saved.conversations?.length ? saved.conversations : [{ id: defaultConversationId, folderId: folders[0].id, title: tasks.length ? "既有对话" : "新对话", storageName: tasks.length ? "既有对话" : "新对话", taskIds: tasks.map((task) => task.id), createdAt: tasks.at(-1)?.createdAt ?? now, updatedAt: tasks[0]?.updatedAt ?? now }];
+      const conversationIds = new Set(conversations.map((conversation) => conversation.id));
+      for (const task of tasks) if (!conversationIds.has(task.conversationId)) task.conversationId = conversations[0].id;
+      for (const conversation of conversations) conversation.taskIds = tasks.filter((task) => task.conversationId === conversation.id).map((task) => task.id).reverse();
+      const taskById = new Map(tasks.map((task) => [task.id, task]));
+      const runs = (saved.runs ?? []).map((run) => ({ ...run, transport: run.transport ?? taskById.get(run.taskId)?.transportByProvider[run.providerId] ?? "web" }));
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
-      return { providers, tasks, runs: saved.runs ?? [], artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, apiSettings: saved.apiSettings ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
     } catch {
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], dispatchCheckpoints: [], events: [] };
+      const now = new Date().toISOString();
+      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
     }
   }
 
@@ -294,6 +375,7 @@ export class StateStore {
       fs.copyFileSync(temp, this.filePath);
       fs.unlinkSync(temp);
     }
+    this.history?.sync(this.snapshotValue);
   }
 
   private checkpoint(checkpointId: string): DispatchCheckpoint {
@@ -301,4 +383,37 @@ export class StateStore {
     if (!checkpoint) throw new Error(`Unknown dispatch checkpoint: ${checkpointId}`);
     return checkpoint;
   }
+
+  private folder(folderId: string): ConversationFolder {
+    const folder = this.snapshotValue.folders.find((item) => item.id === folderId);
+    if (!folder) throw new Error(`Unknown folder: ${folderId}`);
+    return folder;
+  }
+
+  private conversation(conversationId: string): BossConversation {
+    const conversation = this.snapshotValue.conversations.find((item) => item.id === conversationId);
+    if (!conversation) throw new Error(`Unknown conversation: ${conversationId}`);
+    return conversation;
+  }
+
+  private uniqueFolderStorageName(name: string, exceptId?: string): string {
+    return uniqueName(safeSegment(validName(name, "文件夹")), this.snapshotValue.folders.filter((item) => item.id !== exceptId).map((item) => item.storageName));
+  }
+
+  private uniqueConversationStorageName(folderId: string, title: string, exceptId?: string): string {
+    return uniqueName(safeSegment(validName(title, "对话")), this.snapshotValue.conversations.filter((item) => item.folderId === folderId && item.id !== exceptId).map((item) => item.storageName));
+  }
+}
+
+function validName(value: string, label: string): string {
+  const result = value.trim();
+  if (!result || result.length > 80) throw new Error(`${label}名称需为 1–80 个字符`);
+  return result;
+}
+
+function uniqueName(base: string, existing: string[]): string {
+  if (!existing.includes(base)) return base;
+  let suffix = 2;
+  while (existing.includes(`${base} (${suffix})`)) suffix += 1;
+  return `${base} (${suffix})`;
 }

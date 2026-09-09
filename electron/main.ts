@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import path from "node:path";
-import type { AppSnapshot, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, ViewBounds } from "../src/shared/contracts";
 import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { ProviderAutomation } from "./provider-automation";
@@ -9,6 +9,9 @@ import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine"
 import { AccountSessionManager } from "./account-sessions";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
+import { ApiSettingsStore } from "./api-settings";
+import { ProviderApiClient } from "./provider-api";
+import { HistoryRepository } from "./history-repository";
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
@@ -16,6 +19,9 @@ let providerViews: ProviderViews;
 let automation: ProviderAutomation;
 let codexController: CodexController;
 let accountSessions: AccountSessionManager;
+let apiSettings: ApiSettingsStore;
+let providerApi: ProviderApiClient;
+let historyRepository: HistoryRepository;
 
 const localAppData = process.env.LOCALAPPDATA;
 if (localAppData) {
@@ -32,6 +38,7 @@ if (!ownsInstance) {
 }
 
 function publish(): AppSnapshot {
+  store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   const snapshot = store.snapshot();
   mainWindow?.webContents.send("boss:snapshot-updated", snapshot);
   return snapshot;
@@ -41,6 +48,16 @@ function provider(id: ProviderId) {
   const match = store.snapshot().providers.find((item) => item.id === id);
   if (!match) throw new Error(`Unknown provider: ${id}`);
   return match;
+}
+
+function taskTransports(input: CreateTaskInput, providerIds: ProviderId[]) {
+  const appMode = input.appMode ?? "chat";
+  const transports = Object.fromEntries(providerIds.map((providerId) => {
+    const requested = input.transportByProvider?.[providerId] ?? "web";
+    if (requested !== "web" && requested !== "api") throw new Error(`无效执行通道：${providerId}`);
+    return [providerId, appMode === "chat" ? "web" : requested];
+  }));
+  return { appMode, transports };
 }
 
 function openProviderWithinLimit(providerId: ProviderId): void {
@@ -55,9 +72,9 @@ function attachProviderViews(): void {
   providerViews = new ProviderViews(mainWindow, (id, open) => {
     store.setWindow(id, open);
     publish();
-  }, accountSessions);
+  }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
   automation?.dispose();
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions);
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi);
 }
 
 function createMainWindow(): void {
@@ -66,6 +83,7 @@ function createMainWindow(): void {
     height: 920,
     minWidth: 1080,
     minHeight: 700,
+    title: "Codex Boss",
     backgroundColor: "#0b0d10",
     titleBarStyle: "hiddenInset",
     autoHideMenuBar: true,
@@ -91,7 +109,18 @@ function createMainWindow(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  store = new StateStore(path.join(app.getPath("userData"), "state.json"));
+  historyRepository = new HistoryRepository(path.join(app.getAppPath(), "history"));
+  store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
+  apiSettings = new ApiSettingsStore(
+    path.join(app.getPath("userData"), "api-settings.json"),
+    (plainText) => {
+      if (!safeStorage.isEncryptionAvailable()) throw new Error("当前系统安全存储不可用，无法保存 API Key");
+      return safeStorage.encryptString(plainText).toString("base64");
+    },
+    (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
+  );
+  providerApi = new ProviderApiClient(apiSettings);
+  store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   accountSessions = new AccountSessionManager(store, publish);
   codexController = new CodexController(app.getPath("userData"));
   void codexController.detect().then((controller) => { store.setController(controller); publish(); });
@@ -106,7 +135,8 @@ if (ownsInstance) app.whenReady().then(() => {
     if (providerIds.length === 0) throw new Error("At least one provider is required");
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
-    store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct");
+    const { appMode, transports } = taskTransports(input, providerIds);
+    store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", appMode, transports, input.conversationId);
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
@@ -116,11 +146,23 @@ if (ownsInstance) app.whenReady().then(() => {
     providerIds.forEach(provider);
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
-    const task = store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct");
+    const { appMode, transports } = taskTransports(input, providerIds);
+    const task = store.createTask(input.title.trim(), input.prompt.trim(), providerIds, input.mode ?? "direct", appMode, transports, input.conversationId);
     store.setTaskStatus(task.id, "running");
     await automation.dispatchTask(task.id);
     return publish();
   });
+  ipcMain.handle("boss:update-api-setting", (_event, input: UpdateApiSettingInput) => {
+    provider(input.providerId);
+    apiSettings.update(input);
+    return publish();
+  });
+  ipcMain.handle("boss:create-folder", (_event, name: string) => { store.createFolder(name); return publish(); });
+  ipcMain.handle("boss:rename-folder", (_event, folderId: string, name: string) => { store.renameFolder(folderId, name); return publish(); });
+  ipcMain.handle("boss:create-conversation", (_event, input: CreateConversationInput) => { store.createConversation(input.folderId, input.title); return publish(); });
+  ipcMain.handle("boss:rename-conversation", (_event, conversationId: string, title: string) => { store.renameConversation(conversationId, title); return publish(); });
+  ipcMain.handle("boss:move-conversation", (_event, conversationId: string, folderId: string) => { store.moveConversation(conversationId, folderId); return publish(); });
+  ipcMain.handle("boss:select-conversation", (_event, conversationId: string) => { store.selectConversation(conversationId); return publish(); });
   ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
     const normalized = normalizeCustomProviderInput(input);
     store.addCustomProvider(normalized.name, normalized.url);
@@ -150,6 +192,7 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     providerViews.layout(safeLayout);
   });
+  ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
   ipcMain.handle("boss:launch-task", (_event, taskId: string) => {
     const task = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);

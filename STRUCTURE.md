@@ -29,7 +29,7 @@ Codex Boss Desktop
 | 桌面 shell | Electron | 顶层 Chromium 窗口、持久 session partition、Windows/macOS 成熟支持 |
 | UI | React + TypeScript + Vite | 强类型 IPC、快速工作台迭代、生产构建简单 |
 | 网页处理器 | 主窗口内原生 `WebContentsView` | 不受 iframe 限制；在右半屏真实渲染并可由用户接管 |
-| 页面布局 | renderer 测量 + allowlisted IPC | 1–5 页自适应；3 页为双列加跨列，4 页为 2×2，5 页为上三下二 |
+| 页面布局 | renderer 测量 + allowlisted IPC | 3 页在右侧纵向等分；5 页为含主控上中位的 2×3 六宫格 |
 | 登录态 | `persist:codex-boss-<provider>` | 不复制 Cookie，不向主 renderer 暴露凭据 |
 | 状态 | 本地 JSON，原子 rename + Windows copy-replace 回退 | Phase 1 依赖少；后续可替换 SQLite event store |
 | 权限边界 | sandboxed renderer + allowlisted IPC | 远端网页与 Node/文件系统隔离 |
@@ -46,6 +46,9 @@ electron/
   provider-views.ts     embedded provider view supervisor
   provider-automation.ts visible prepare/send/observe/capture controller
   account-sessions.ts   isolated persistent web login-session ownership
+  api-settings.ts       encrypted local API configuration
+  provider-api.ts       OpenAI-compatible / Anthropic / Gemini clients
+  history-repository.ts project-root conversation/file persistence and rename moves
   evidence-engine.ts    manifest, claims, disputes and selective rehydration
   codex-controller.ts   optional current-account Codex CLI evidence review
   adapters/             versioned selector registry and isolated page scripts
@@ -88,6 +91,15 @@ Provider 窗口配置：
 
 ## 5. 任务与窗口状态
 
+工作方式和执行通道：
+
+```text
+Chat → all selected providers use visible web sessions
+Work → each provider freezes web | api when the task is created
+```
+
+API Key 不进入 `AppSnapshot`。设置文件只保存 Windows `safeStorage` 密文，renderer 仅看到 `hasApiKey`。API 回答与网页回答一样先成为 `untrusted: true` raw artifact，再进入统一检查点。
+
 任务状态：
 
 ```text
@@ -98,6 +110,8 @@ QUEUED → RUNNING → WAITING → COMPLETED
 Phase 1 的 `RUNNING` 只表示任务对应的可见窗口已经被调度，绝不表示提示词已提交或回答已经完成。
 
 窗口状态独立于任务状态：关闭窗口不会伪造任务失败或完成；应用只追加 `window.closed` 审计事件。再次运行会恢复相同 provider partition 的登录态并聚焦已有窗口。
+
+对话状态独立于执行状态。`folders`、`conversations` 和 `activeConversationId` 维护导航关系；每个 task 固定 `conversationId`。`HistoryRepository` 将当前对话投影到项目根目录 `history/<folder>/<conversation>/`，写出消息、运行元数据、raw artifacts 和 evidence bundles；网页 AI 下载文件写入 `generated/<provider>/` 并使用防覆盖文件名。重命名/移动通过 ID 索引定位旧目录并执行真实目录移动，不复制 API 密钥或网页登录态。
 
 ## 6. Phase 1 验收标准
 

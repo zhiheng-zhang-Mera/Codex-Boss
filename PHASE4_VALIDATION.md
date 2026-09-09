@@ -1,6 +1,6 @@
 # Phase 2–4 Validation Record
 
-Updated: 2026-09-02 (Australia/Sydney)
+Updated: 2026-09-03 (Australia/Sydney)
 
 This record separates code/build evidence from third-party service observations. A loaded page, a visible input, or a passing selector test is not reported as a successful model response.
 
@@ -11,7 +11,7 @@ This record separates code/build evidence from third-party service observations.
 | TypeScript contracts (renderer + Electron) | PASS | `pnpm run typecheck` |
 | Unit/integration tests | PASS | 7 files, 21 tests |
 | Production renderer + Electron build | PASS | `pnpm run build` |
-| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-02T02:18:12+10:00; smoke mode exits without waiting on external web loads |
+| Production launcher smoke test | PASS | `.codex-boss/launcher.log`, 2026-09-03T09:01:07+10:00; smoke mode exits without waiting on external web loads |
 | Windows split-screen render | PASS | 3-page vertical thirds and 5-page 2×3 layout both observed |
 | Current-account Codex CLI detection | PASS | App header displayed `Codex: CHATGPT`; detection reads `codex login status` and copies no credentials |
 
@@ -67,3 +67,21 @@ The original 2026-09-01 guest check used the earlier two-top/one-bottom layout. 
 ## Next live checkpoint
 
 After the user resolves the Windows firewall dialog, the next controlled checkpoint is to create one harmless Council task, visibly prefill the same prompt into Gemini/Qwen/Kimi, obtain action-time confirmation before submitting it, capture all three raw answers, advance through peer review and synthesis, then generate and review the Phase 4 evidence bundle.
+
+## 2026-09-03 Chat/Work and history revision
+
+| Check | Result | Evidence boundary |
+|---|---|---|
+| Chat mode forces web transport | PASS | Store policy test and visible Chat mode |
+| Work per-provider web/API choice | PASS | Visible Work mode showed independent WEB chips; ChatGPT was switched to API without sending |
+| Draft locks AI and transport selection | PASS (code/test) | Selector and pane close controls become disabled when the local composer is non-empty; no task submitted |
+| API settings module | PASS | Full local settings dialog visibly rendered after native web views were temporarily hidden |
+| API secret handling | PASS (code/test) | Test confirms plaintext is absent from settings file and renderer sees only `hasApiKey` |
+| API protocol adapters | PASS (mocked) | OpenAI-compatible request/parse tested; Anthropic and Gemini real endpoints NOT_RUN |
+| New/switch/continue conversations | PASS (code/test/UI) | History sidebar rendered migrated conversation and current task count |
+| Folder classification and dynamic rename/move | PASS (code/test) | Physical history directory moved and old empty parent removed |
+| Local text/artifact/evidence projection | PASS | Existing local state generated `history/常规/既有对话/` with metadata, messages, artifacts and evidence |
+| Generated-file routing | PASS (code/test) | Provider downloads resolve into active conversation `generated/<provider>/`; unsafe and duplicate names are normalized |
+| Git privacy boundary | PASS | `history/` ignored; no API key or local history staged |
+
+No real web prompt or API request was submitted during this revision. API integration tests use an in-process mock response.

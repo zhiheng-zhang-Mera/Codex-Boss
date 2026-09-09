@@ -2,7 +2,24 @@
 
 Codex Boss 是一个本地优先的独立桌面控制平面。它提供类似现代编码代理工作台的任务体验，但**不使用、嵌入或依赖 Codex 桌面端**。应用自己管理任务、状态、审计事件与网页处理器窗口；Codex CLI、OpenAI API 或其他模型能力只会作为后续可替换适配器接入。
 
-> 当前版本：`0.4.1`，包含 Phase 2 visible adapters、Phase 3 Council foundation 与 Phase 4 evidence foundation。主控输入一次提交到当前整组网页 AI，随后按固定顺序收集回答；不会绕过登录、验证码、平台限制，也不把部分成功或未采集结果伪装成整组成功。
+> 当前版本：`0.5.0`，新增 Chat / Work 双工作方式、逐 AI 网页/API 通道、加密 API 设置，以及按文件夹组织的本地多对话历史。主控输入一次提交到当前整组 AI，随后按固定顺序收集回答；不会绕过登录、验证码、平台限制，也不把部分成功或未采集结果伪装成整组成功。
+
+## Chat / Work 与任务通道
+
+- **Chat**：3 或 5 个 AI 全部使用可见网页版，保持直接对话体验。
+- **Work**：在主任务输入前，可为每个已打开 AI 单独选择 `web` 或 `api`；开始输入后，AI 集合和各自通道一起锁定，清空输入后才能切换。
+- API 设置位于主控右上角“设置”，支持 OpenAI-compatible、Anthropic 和 Gemini 协议，可分别配置启用状态、HTTPS Base URL、模型和 API Key。
+- API Key 使用 Electron `safeStorage` 调用 Windows 安全存储加密，只在 `%LOCALAPPDATA%\CodexBoss\api-settings.json` 保存密文；renderer、状态快照、`history/` 和 Git 中均不保存明文。
+- Work 可以混用网页和 API，但仍执行同一个 3/5 全员成功检查点；任一通道失败都不会解锁下一阶段。
+
+## 多对话与本地历史
+
+- 左侧历史栏支持新建、切换和延续旧对话；新任务始终追加到当前对话。
+- 对话可以放入不同文件夹、移动归类，并可动态重命名文件夹或对话。
+- 本地结构为 `history/<文件夹名>/<对话名>/`，包含 `conversation.json`、`messages.md`、`artifacts/` 和 `evidence/`。
+- 网页 AI 产生的下载文件自动保存到当前对话的 `generated/<AI>/`；重名文件添加序号，不覆盖已有文件。
+- 名称变更或移动时，系统同步移动实际目录；Windows 非法/保留名称会安全规范化，重名会附加序号。
+- `history/` 默认被 Git 忽略，仅保留在当前项目根目录，不随源代码推送。
 
 ## Phase 1 已实现
 
@@ -69,7 +86,7 @@ Start-Codex-Boss.cmd
 
 启动记录保存在本地 `.codex-boss/launcher.log`，Electron 标准输出和错误分别保存在同目录的 `electron.stdout.log` 与 `electron.stderr.log`。网页登录态和 Chromium session/cache 存放在 `%LOCALAPPDATA%\CodexBoss`，避免漫游目录权限影响页面加载。这些运行数据均不会提交 Git。
 
-启动后直接打开 ChatGPT、Gemini、Claude。网页选择状态与窗口打开状态完全一致，可从主控选择器或各网页标题栏关闭。3 个网页在右半屏按上、中、下等高排列；选择 5 个网页时，整个工作区切换为 2×3 六宫格，Codex Boss 主控位于上排中间，5 个网页占据其余单元。主控只在打开数量为 3 或 5 时允许一次提交；整组回答全部捕获并提交检查点后，Council 下一轮和 Phase 4 操作才会解锁。
+启动后直接打开 ChatGPT、Gemini、Claude。网页选择状态与窗口打开状态完全一致，可从主控选择器或各网页标题栏关闭；主任务一旦已有输入，这些选择会锁定。3 个网页在右半屏按上、中、下等高排列；选择 5 个网页时，整个工作区切换为 2×3 六宫格，Codex Boss 主控位于上排中间，5 个网页占据其余单元。主控只在打开数量为 3 或 5 时允许一次提交；整组回答全部捕获并提交检查点后，Council 下一轮和 Phase 4 操作才会解锁。
 
 ### 账户与游客模式边界
 
