@@ -418,3 +418,19 @@
   ASSISTED⇒PAUSE / AUTONOMOUS⇒PAUSE / OWNER_RESULT 但 HB 文本(付款/登录授权)⇒PAUSE）。
 - 验证快照（Round 33）：typecheck PASS · vitest **44 文件 / 232 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-33/`。
+
+## Round 34（2026-09-09，P1-5 §38 Scenario G / §39 多故障隔离 battery，owner-result）
+- **背景**：§38 Scenario G（Qwen FAILED + KB DEGRADED + Node offline + Proxy unavailable 同时发生，其余能力
+  继续处理）与 §39「多故障同时发生测试」需要多故障同时注入证据；既有确定性覆盖以单故障类为主（R6/R7），
+  且 circuit-breaker 行为无 tracked 测试。
+- **tests/unit/multi-fault-isolation.test.ts（新，真实模块 battery）**：
+  - **Scenario G**：web:a（技术失败⇒breaker OPEN）、web:b（SESSION_EXPIRED 诚实恢复）、web:c（健康）
+    三任务并行 —— 健康任务 COMPLETED；两故障任务 WAITING 绝不 COMPLETED；仅 web:a breaker OPEN（b/c
+    CLOSED）；随后新任务 pool=[broken, healthy] 被**重路由到健康方完成**（Boss 在部分节点宕机下存活，
+    隔离保持）。
+  - **Scenario A**：单故障 provider 与健康 provider 同 supervisor 并行 —— 故障隔离、健康任务完成、
+    仅故障方 breaker OPEN。
+  - 复用 R6 手法（scripted RuntimeAdapter + 真实 supervisor/ledger/scheduler）+ 真实 CircuitBreaker
+    （failureThreshold=1、注入时钟），全部以 durable 台账断言。
+- 验证快照（Round 34）：typecheck PASS · vitest **45 文件 / 234 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-34/`。

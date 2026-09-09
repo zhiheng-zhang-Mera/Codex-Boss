@@ -1,0 +1,31 @@
+{
+  "round": 34,
+  "date": "2026-09-09",
+  "contract": "Update-Plan/9-9-owner.md §38 Scenario G / §39 DoD（多故障同时发生 + 故障隔离 + 重路由）",
+  "branch": "owner-result",
+  "scope": "P1-5 §38/§39 多故障隔离 battery（真实 ExecutionSupervisor + durable TaskLedger + CircuitBreaker）",
+  "problem": "§38 Scenario G（Qwen FAILED + KB DEGRADED + Node offline + Proxy unavailable 等同时发生，其余能力继续处理任务）与 §39『多故障同时发生测试』需要多故障同时注入证据；既有确定性覆盖以单故障类为主（R6 fault-injection、R7 soak），且 circuit-breaker 行为无 tracked 测试。",
+  "changes": [
+    "tests/unit/multi-fault-isolation.test.ts(新)：真实模块多故障 battery",
+    "  - Scenario G：web:a（技术失败×2 ⇒ breaker OPEN）、web:b（SESSION_EXPIRED 诚实恢复）、web:c（健康）三任务并行 —— 健康任务 COMPLETED；两个故障任务 WAITING 且绝不 COMPLETED；仅 web:a breaker OPEN（b/c CLOSED）；随后新任务 pool=[broken, healthy] 被重路由到 healthy 完成（Boss 在部分节点宕机下存活）",
+    "  - Scenario A：单故障 provider 与健康 provider 同 supervisor 并行 —— 故障隔离、健康任务完成、仅故障方 breaker OPEN"
+  ],
+  "design": "复用 R6 fixture 手法（scripted RuntimeAdapter + 真实 supervisor/ledger/scheduler）+ 真实 CircuitBreaker（failureThreshold=1、长 cooldown、注入时钟）证明：局部失败 ≠ 全局失败、单 provider 故障不影响无关任务、breaker OPEN 后调度自动绕行（重路由），全部以 durable 台账断言而非假完成。",
+  "gates": {
+    "typecheck": "PASS",
+    "vitest_unit": "45 files / 234 tests PASS (was 44/232; +tests/unit/multi-fault-isolation.test.ts +2)",
+    "full_build": "PASS (tsc x2 + vite renderer + electron tsc emit exit=0)"
+  },
+  "tests": [
+    "Scenario G（2 tests ~4s）：健康完成 + 双故障诚实停放 + 仅技术故障方 OPEN + 新任务重路由至健康方完成 + 隔离保持",
+    "Scenario A：单故障不影响无关健康工作"
+  ],
+  "known_next": [
+    "P0-6 Computer Use 接入 WebRecovery R6 恢复梯（需真实 provider 窗口的 live 轮次）",
+    "P0-5 seam v2：OWNER_RESULT 工程默认契约 + 真实 build/integration/acceptance 门执行",
+    "§38 Scenario B（KB 降级本地回退）/ D（Research 部分失败保留）/ E（Compile 失败保留源）已有覆盖或属 live；长期项照旧"
+  ],
+  "evidence_refs": [
+    "Update-Plan/owner-result/evidence/round-34/round34-multi-fault-isolation-2026-09-09.json"
+  ]
+}
