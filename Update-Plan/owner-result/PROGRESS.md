@@ -207,6 +207,13 @@
 - 验证快照（Round 12）：typecheck PASS；vitest 全量 **41 文件 / 216 测试 PASS**；full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-12/`。
 
+## Round 13（2026-09-09，发布准备与主干同步）
+- CI-equivalent benchmark PASS（`pnpm run benchmark`）。
+- `Update-Log.md`：2026-09-09 Owner-Result Rev.2 施工段（R1–R12，24 提交）摘要与总表更新。
+- `FINAL-ACCEPTANCE.md` 已含 §33 research 电池行（✅DET）。
+- 再次同步：`owner-result` → `main`。
+- 证据 `Update-Plan/owner-result/evidence/round-13/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

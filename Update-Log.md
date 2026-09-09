@@ -1,8 +1,8 @@
 # Codex Boss — 开发日志（Update Log）
 
-> 记录区间：2026-09-01（项目创建）→ 2026-09-09（9-8-overcomplete 推送 + 9-3…9-8-overcomplete 按序合并入 main）
-> 依据：git 全仓库提交史（`git log --all --no-merges`），按提交日期逐日汇总（截至 2026-09-09 共 268 条提交）。
-> 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8 → 9-8-overcomplete` 顺序推进；本日志自 09-08 overcomplete 起随 `9-8-overcomplete` 分支维护，2026-09-09 已按此顺序将全部分支合并入 `main`（此后随 `main` 主干维护，日期分支保留于云端）。
+> 记录区间：2026-09-01（项目创建）→ 2026-09-09（Owner-Result Rev.2 施工轮 R1–R12 + 合入 main）
+> 依据：git 全仓库提交史（`git log --all --no-merges`），按提交日期逐日汇总（截至 2026-09-09 共 292 条提交）。
+> 主开发线按 `main → 9-3 → 9-4 → 9-5 → 9-6 → 9-7(9-7-milestone) → 9-8 → 9-8-overcomplete → owner-result(Rev.2)` 顺序推进；2026-09-09 已按序合并入 `main`（此后随 `owner-result` 分支施工，里程碑合并回 `main`，日期分支保留于云端）。
 
 | 日期 | 提交数 | 阶段主题 |
 |---|---|---|
@@ -14,7 +14,23 @@
 | 2026-09-06 | 110 | AP 收尾 / 研究管线全链 / 9-7 Phases A–L / milestone live E2E |
 | 2026-09-07 | 20 | 9-7 milestone 基线 / U0 审计 / U1–U3 统一收口启动 |
 | 2026-09-08 | 47 | U4–U10 面板与收口 / CDP 真机验证 / DOM 真机接线 / 应用内收敛 / 9-8 同步 |
-| 2026-09-09 | 34 | live 真机验收 / tectonic READY / DETACHED 布局与弹窗收口 / 全部 9-x 分支按序并入 main |
+| 2026-09-09 | 58 | live 真机验收 / tectonic READY / DETACHED 布局收口 / 全部 9-x 并入 main / **Owner-Result Rev.2 施工轮 R1–R12（owner-result 分支，24 提交）** |
+
+---
+
+## 2026-09-09（Owner-Result Rev.2 施工轮 R1–R12，分支 `owner-result`）
+
+按 `Update-Plan/Owner-Result.md`（Rev.2，§0–§46）以 Owner-Result 模式自主施工 12 轮并两次合入 `main`。确定性验收门（每轮）：typecheck + vitest + full build PASS，证据 JSON 落 `Update-Plan/owner-result/evidence/round-N/`。要点：
+
+- **R1 P0-1…P0-5 契约**：`owner-result.ts`（ASSISTED/AUTONOMOUS/OWNER_RESULT、HB1–HB4、问题拦截、方向停滞梯）、`autonomy-supervisor.ts`（生命周期/heartbeat/stall/recovery ladder/straggler/replacement）、`result-validator.ts`（MODEL_DONE≠COMPLETED）、`decision-ledger.ts(+store)`；48 新测试。
+- **R2 runMode 持久化 seam**：`BossTask.runMode` + `store.setRunMode` + createTask 默认解析（work/council→OWNER_RESULT）。
+- **R3 DS-Hns autonomy 模块**（`owner-result-autonomy` @ 8e24b7d）：progress-observer/stall-detector/episode-supervisor/continuation-controller/question-interceptor/result-validator/decision-ledger + scheduler 受控 headless 停滞监督；修复 installer-contract §42 契约（92/92 PASS）。
+- **R4/R8 P0-6 Computer-Use**：`computer-recovery.ts`（§24–§29 修复计划 + 权限/事后条件）与 `provider-page-repair.ts`（DOM 层执行器，§25 无盲操作）。
+- **R5/R9 P2 §37/§44 Owner Dashboard**：读模型 + `boss:owner-dashboard` bridge + OwnerSummary UI（Electron UI 冒烟 PASS）。
+- **R6/R7 P1-5/P1-6**：ExecutionSupervisor 故障注入套件（auth/timeout/quota/malformed）+ Long Soak mini（§36 不变量）。
+- **R10 P1-3 §32 Self-Healing Battery**（10 场景目录 + §35 停滞检测）；**R12 P1-4 §33/§34 Research 5 域电池**（正确拒绝=PASS、假 READY=FAIL）。
+- **R11 发布门**：受控 Electron 重启 acceptance PASS；`FINAL-ACCEPTANCE.md`（§41/§42/§44 矩阵）。
+- 测试规模：从 overcomplete 收口时的 34 文件/176 测试 → **41 文件/216 测试 PASS**；Owner 技术决策次数 = 0、盲等 = 0。
 
 ---
 
