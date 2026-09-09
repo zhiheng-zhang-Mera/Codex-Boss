@@ -1,0 +1,24 @@
+{
+  "requirement": "R-101",
+  "phase": "A",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "verification seam v2 — default autonomous engineering verification with REAL gate execution",
+  "implementation": [
+    "electron/engineering/gate-runner.ts: runRepoGate executes allow-listed commands per gate (typecheck=tsc --noEmit, build=tsc --build, unit=targeted tests, integration=full-suite sweep, acceptance/smoke=token-marked test files); gateCapability/discoveredTestFiles capability resolution; FAIL/ERROR/UNAVAILABLE statuses never throw",
+    "electron/commander/main-commander.ts runPlan: default strategy auto-attaches {domain:engineering, risk} contract to OWNER_RESULT engineering plans with real edit work; at completion the validator runs every plan gate the executed steps did not evidence, collects evidence, resolves unavailable gates, records durable verdict; REWORK parks; whole gate block try/catch isolates crashes (Boss stays RUNNING)",
+    "src/shared/result-validator.ts: VerifyInput.unavailable + VerifyVerdict.unavailable; unavailable can never satisfy plan alone (PASS requires >=1 real passed gate); plan-ordered reporting",
+    "electron/commander/main-commander.ts finalizeTask verificationGate recomputes with stored unavailable so a genuine PASS stays PASS"
+  ],
+  "tests": [
+    "tests/unit/gate-runner.test.ts (+3): JS-only repo ⇒ typecheck/build/acceptance/smoke UNAVAILABLE, unit/integration run PASS; failing test ⇒ FAIL never thrown; capability resolution",
+    "tests/unit/result-validator.test.ts (+3): unavailable-alone ⇒ REWORK; applicable-passed + unavailable ⇒ PASS; unavailable + missing ⇒ REWORK w/ gap",
+    "tests/unit/verification-contract.test.ts (seam v2): high-risk explicit contract on JS repo ⇒ real unit+integration evidence, typecheck/build UNAVAILABLE, verdict PASS + final; OWNER_RESULT work task auto-attaches contract and completes; failing acceptance-marked test in full sweep ⇒ REWORK park, no final; legacy control unchanged"
+  ],
+  "gates": {
+    "typecheck": "PASS",
+    "vitest_unit": "52 files / 262 tests PASS",
+    "full_build": "PASS"
+  },
+  "notes": "MODEL_DONE → VERIFYING → run real gates → PASS/REWORK is now the default for OWNER_RESULT engineering plans; a gate runner crash is isolated (task parked, Boss alive); missing applicable evidence can never PASS."
+}

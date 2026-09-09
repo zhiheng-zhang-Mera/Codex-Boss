@@ -27,9 +27,10 @@ import { ExecutionSupervisor } from "./execution-supervisor";
 import { reviewResponse, type ReviewPolicy } from "../../src/shared/execution";
 import type { AppMode, BossTask, FinalizationPolicy, ProviderId, RunTransport, TaskMode, TaskStatus } from "../../src/shared/contracts";
 import type { RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
-import { defaultRunModeForTask, runTaskKindFor, type RunMode } from "../../src/shared/owner-result";
-import { verifyResult, type VerificationContract } from "../../src/shared/result-validator";
+import { defaultRunModeForTask, effectiveRunMode, runTaskKindFor, type RunMode } from "../../src/shared/owner-result";
+import { verifyResult, verificationPlanFor, type VerificationContract } from "../../src/shared/result-validator";
 import { collectVerificationEvidence } from "./verification-collector";
+import { runRepoGate, type RepoGate } from "../engineering/gate-runner";
 import type { StateStore } from "../store";
 import { BudgetManager } from "./budget-manager";
 import { ContextManager, type TaskContext } from "./context-manager";
@@ -335,28 +336,65 @@ export class MainCommander {
       return true;
     }
     this.store.setRecoveryState(taskId, undefined, undefined);
-    const current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
+    let current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
     const checkpoint = this.store.beginDispatch(taskId, 1, current.providerIds).checkpoint;
     this.store.markDispatchCollecting(checkpoint.id, current.providerIds);
     const finalPlan = current.plan!;
     const sinks = finalPlan.steps.filter((step) => !finalPlan.steps.some((other) => other.dependencies.includes(step.id)));
     let content = sinks.map((step) => result.evidence.find((item) => item.stepId === step.id)?.output ?? outputs[step.id]).filter(Boolean).join("\n\n");
     const edits = finalPlan.steps.filter((step) => step.kind === "edit").map((step) => JSON.parse(outputs[step.id]) as ProposalResult);
-    // §20–§22 runtime verification gate (fail-closed): when the task carries a
-    // verification contract, MODEL_DONE is not completion — the executed host
-    // checks (typecheck/test/build…) are collected as gate evidence and the
-    // risk-gated plan must PASS. A REWORK verdict parks the task waiting with
-    // the missing gates recorded and never produces a final response.
+    // R43 Phase A (R-101) verification seam v2. Default strategy: OWNER_RESULT /
+    // autonomous engineering plans (with real edit/verify work) automatically
+    // carry a verification contract — MODEL_DONE may not complete them. The
+    // completion point executes real gates for every plan gate the executed
+    // steps did not already evidence (build / integration / acceptance /
+    // runtime-smoke and any applicable tool gate), collects the evidence,
+    // resolves capability-unavailable gates honestly and records a durable
+    // verdict. FAIL / ERROR gates and missing evidence ⇒ REWORK park; a gate
+    // runner crash is isolated (Boss stays RUNNING) and also parks the task.
+    if (!current.verification) {
+      const taskForPolicy = this.store.snapshot().tasks.find((item) => item.id === taskId);
+      const hasEdits = finalPlan.steps.some((step) => step.kind === "edit");
+      const isOwnerResult = taskForPolicy !== undefined
+        && effectiveRunMode({ runMode: taskForPolicy.runMode, kind: runTaskKindFor(taskForPolicy.appMode, taskForPolicy.mode) }) === "OWNER_RESULT";
+      if (taskForPolicy && hasEdits && isOwnerResult) {
+        const risk = finalPlan.riskLevel && ["low", "medium", "high", "critical"].includes(finalPlan.riskLevel) ? finalPlan.riskLevel : "medium";
+        this.store.setVerificationContract(taskId, { domain: "engineering", risk: risk as "low" | "medium" | "high" | "critical" });
+        current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
+      }
+    }
     if (current.verification) {
-      const evidence = collectVerificationEvidence(edits, outputs);
-      const verdict = verifyResult({ domain: current.verification.domain, risk: current.verification.risk, results: evidence });
-      this.store.recordVerification(taskId, evidence, verdict);
-      if (verdict.verdict === "REWORK") {
-        this.ledger!.update(taskId, "verification gate REWORK (fail-closed)", (value) => { value.verificationState = "FAILED"; value.nextAction = "REPAIR_OR_REPLAN"; });
-        const missing = verdict.missing.join(", ");
-        this.store.setRecoveryState(taskId, undefined, `验证门未通过（MODEL_DONE ≠ COMPLETED）：缺少 ${missing}。任务不会被标记完成。`);
+      try {
+        const contract = current.verification;
+        const stepEvidence = collectVerificationEvidence(edits, outputs);
+        const results: import("../../src/shared/result-validator").GateResult[] = [...stepEvidence];
+        const unavailable: string[] = [];
+        const have = new Set(stepEvidence.map((gate) => gate.gate));
+        for (const gate of verificationPlanFor(contract.domain, contract.risk).gates) {
+          if (have.has(gate)) continue;
+          const run = await runRepoGate(workspace, gate as RepoGate);
+          if (run.status === "PASS") results.push({ gate, evidence: run.evidence ?? `${gate} PASS` });
+          else if (run.status === "UNAVAILABLE") unavailable.push(gate);
+          else results.push({ gate, error: run.error ?? `${gate} failed` }); // FAIL/ERROR ⇒ missing ⇒ REWORK
+        }
+        const verdict = verifyResult({ domain: contract.domain, risk: contract.risk, results, unavailable });
+        this.store.recordVerification(taskId, results, verdict);
+        if (verdict.verdict === "REWORK") {
+          this.ledger!.update(taskId, "verification gate REWORK (fail-closed)", (value) => { value.verificationState = "FAILED"; value.nextAction = "REPAIR_OR_REPLAN"; });
+          const gap = [...verdict.missing].join(", ");
+          this.store.setRecoveryState(taskId, undefined, `验证门未通过（MODEL_DONE ≠ COMPLETED）：缺少 ${gap || "全部适用验证证据"}。任务不会被标记完成。`);
+          this.store.setTaskStatus(taskId, "waiting");
+          await this.captureReproduction(taskId, workspace, "verification-rework");
+          return true;
+        }
+      } catch (gateError) {
+        // §4.4 failure isolation: a validator / gate-runner crash never takes
+        // Boss down — the task parks waiting with the reason recorded.
+        this.ledger!.update(taskId, "verification gate crashed (isolated)", (value) => { value.verificationState = "FAILED"; value.nextAction = "REPAIR_OR_REPLAN"; });
+        const reason = String(gateError instanceof Error ? gateError.message : gateError).slice(0, 500);
+        this.store.setRecoveryState(taskId, undefined, `验证门执行异常（Boss 保持在线）：${reason}`);
         this.store.setTaskStatus(taskId, "waiting");
-        await this.captureReproduction(taskId, workspace, "verification-rework");
+        await this.captureReproduction(taskId, workspace, "verification-gate-error");
         return true;
       }
     }
@@ -433,7 +471,14 @@ export class MainCommander {
       finalizer = new TaskFinalizer(this.store, () => {}, (id) => this.synthesizeAccepted(id), (id) => {
         const target = this.store.snapshot().tasks.find((item) => item.id === id);
         if (!target?.verification) return undefined; // no contract → legacy path untouched
-        const verdict = verifyResult({ domain: target.verification.domain, risk: target.verification.risk, results: target.verificationEvidence ?? [] });
+        const verdict = verifyResult({
+          domain: target.verification.domain,
+          risk: target.verification.risk,
+          results: target.verificationEvidence ?? [],
+          // Capability-unavailable gates were resolved during the run and stored
+          // with the durable verdict; honor them so a genuine PASS stays PASS.
+          unavailable: target.verificationVerdict?.unavailable ? [...target.verificationVerdict.unavailable] : undefined
+        });
         return { verdict: verdict.verdict, missing: verdict.missing };
       });
       this.finalizers.set(taskId, finalizer);

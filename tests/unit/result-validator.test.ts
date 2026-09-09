@@ -72,3 +72,37 @@ describe("result-validator: MODEL_DONE != COMPLETED (§20)", () => {
     expect(verdict.verdict).toBe("REWORK");
   });
 });
+
+describe("result-validator: capability-unavailable gates (R43 Phase A / seam v2)", () => {
+  it("unavailable gates are reported but never satisfy the plan by themselves", () => {
+    const verdict = verifyResult({ domain: "engineering", risk: "high", results: [], unavailable: ["typecheck", "build", "integration", "unit"] });
+    expect(verdict.verdict).toBe("REWORK"); // all gates unavailable ⇒ no passed evidence ⇒ REWORK
+    expect(verdict.missing).toEqual([]);
+    expect(verdict.unavailable).toEqual(["typecheck", "build", "unit", "integration"]); // plan order
+  });
+
+  it("applicable passed gates + honest unavailable gates ⇒ PASS (capability-resolved)", () => {
+    const verdict = verifyResult({
+      domain: "engineering",
+      risk: "high",
+      results: [{ gate: "unit", evidence: "test PASS" }, { gate: "integration", evidence: "full sweep PASS" }],
+      unavailable: ["typecheck", "build"]
+    });
+    expect(verdict.verdict).toBe("PASS");
+    expect(verdict.missing).toEqual([]);
+    expect(verdict.unavailable).toEqual(["typecheck", "build"]);
+    expect(verdict.passed).toEqual(["unit", "integration"]);
+  });
+
+  it("an unavailable + a genuinely missing gate still forces REWORK with the gap listed", () => {
+    const verdict = verifyResult({
+      domain: "engineering",
+      risk: "high",
+      results: [{ gate: "unit", evidence: "test PASS" }],
+      unavailable: ["typecheck"]
+    });
+    expect(verdict.verdict).toBe("REWORK");
+    expect(verdict.missing).toContain("build");
+    expect(verdict.missing).toContain("integration");
+  });
+});

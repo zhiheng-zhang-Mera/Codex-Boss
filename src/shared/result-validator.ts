@@ -89,47 +89,66 @@ export interface VerifyInput {
   risk: RiskLevel;
   /** Gates that actually ran, in any order. */
   results: GateResult[];
+  /**
+   * Gates genuinely NOT applicable to this workspace/runtime (e.g. no
+   * TypeScript toolchain ⇒ typecheck/build; no acceptance harness ⇒
+   * acceptance). Capability resolution — never fake evidence: unavailable only
+   * when tooling is demonstrably absent, reported separately, and can never
+   * satisfy the plan on their own (PASS still requires ≥1 passed gate).
+   */
+  unavailable?: string[];
   /** True when the executor only got a model “done” message and nothing else yet. */
   modelDoneOnly?: boolean;
 }
 
 export interface VerifyVerdict {
   phase: VerificationPhase;
-  /** PASS only when every gate in the plan passed with evidence. */
+  /** PASS only when every applicable gate in the plan passed with evidence. */
   verdict: "PASS" | "REWORK";
   ran: readonly string[];
   plan: readonly string[];
   /** Gates the plan requires but that did not pass (fail-closed). */
   missing: readonly string[];
   passed: readonly string[];
+  /** Gates the plan requires but that are not applicable to this workspace. */
+  unavailable: readonly string[];
 }
 
 export function verifyResult(input: VerifyInput): VerifyVerdict {
   const plan = verificationPlanFor(input.domain, input.risk);
+  const unavailableInput = new Set(input.unavailable ?? []);
+  // Report unavailable gates in plan order for stable verdicts.
+  const unavailable = plan.gates.filter((gate) => unavailableInput.has(gate));
   if (input.modelDoneOnly) {
     return {
       phase: "VERIFYING",
       verdict: "REWORK",
       ran: [],
       plan: plan.gates,
-      missing: plan.gates,
-      passed: []
+      missing: plan.gates.filter((gate) => !unavailable.includes(gate)),
+      passed: [],
+      unavailable
     };
   }
   const passedMap = new Map(input.results.filter((result) => !result.error).map((result) => [result.gate, result]));
+  const unavailableSet = new Set(unavailable);
   const missing = plan.gates.filter((gate) => {
+    if (unavailableSet.has(gate)) return false;
     const result = passedMap.get(gate);
     return !result || !result.evidence || result.evidence.trim().length === 0;
   });
-  const passed = plan.gates.filter((gate) => !missing.includes(gate));
-  const allPass = missing.length === 0 && plan.gates.length > 0;
+  const passed = plan.gates.filter((gate) => !missing.includes(gate) && !unavailableSet.has(gate));
+  // FAIL-CLOSED GUARD: unavailable gates alone never produce PASS — at least
+  // one real gate must have passed with evidence (§20 no-evidence ⇒ REWORK).
+  const allPass = missing.length === 0 && plan.gates.length > 0 && passed.length > 0;
   return {
     phase: allPass ? "PASS" : "REWORK",
     verdict: allPass ? "PASS" : "REWORK",
     ran: input.results.map((result) => result.gate),
     plan: plan.gates,
     missing,
-    passed
+    passed,
+    unavailable
   };
 }
 

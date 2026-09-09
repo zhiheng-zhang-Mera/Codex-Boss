@@ -59,10 +59,18 @@ interface Harness {
   commander: MainCommander;
   goal: string;
   codingCalls: () => number;
+  task: import("../../src/shared/contracts").BossTask;
+}
+
+interface HarnessOptions {
+  appMode?: "chat" | "work";
+  verification?: { domain: "engineering"; risk: "low" | "medium" | "high" | "critical" };
+  /** Extra workspace files written before the git commit (e.g. a failing acceptance test). */
+  extraFiles?: Record<string, string>;
 }
 
 /** Real MainCommander + durable ledger over a git workspace with a fake coder (mirrors plan-microtask-spine). */
-function makeHarness(): Harness {
+function makeHarness(options: HarnessOptions = {}): Harness {
   const dir = root();
   const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, windowsHide: true });
   fs.writeFileSync(path.join(dir, ".gitignore"), ".boss/\n");
@@ -70,6 +78,7 @@ function makeHarness(): Harness {
   for (const file of FILES) fs.writeFileSync(path.join(dir, file), "module.exports=(x)=>x;");
   const requires = FILES.map((file) => `test('${file}',()=>assert.equal(require('./${file}')(7),7));`).join("");
   fs.writeFileSync(path.join(dir, "all.test.cjs"), `const test=require('node:test');const assert=require('node:assert/strict');${requires}`);
+  for (const [name, content] of Object.entries(options.extraFiles ?? {})) fs.writeFileSync(path.join(dir, name), content);
   git("init"); git("add", "."); git("-c", "user.name=Acceptance", "-c", "user.email=acceptance@example.invalid", "commit", "-m", "fixture");
 
   const store = new StateStore(path.join(dir, ".boss", "state.json"));
@@ -93,7 +102,14 @@ function makeHarness(): Harness {
   } });
   const ledger = new TaskLedger(path.join(dir, ".boss", "tasks"));
   const commander = new MainCommander(store, registry, new Scheduler(), new RoleRouter(registry, budgets), budgets, new ContextManager(), new ExecutionGate(), ledger);
-  return { dir, store, ledger, commander, goal, codingCalls: () => codingCalls };
+  const task = commander.createTask({
+    title: options.appMode === "work" ? "wide refactor (work)" : "wide refactor",
+    objective: goal,
+    providerIds: ["chatgpt"],
+    ...(options.appMode ? { appMode: options.appMode } : {}),
+    ...(options.verification ? { verification: options.verification } : {})
+  });
+  return { dir, store, ledger, commander, goal, codingCalls: () => codingCalls, task };
 }
 
 /** Pure: executed host checks map onto the standard gate vocabulary only. */
@@ -128,31 +144,57 @@ it("verification verdict is fail-closed: incomplete evidence is REWORK, full evi
   expect(full.missing).toEqual([]);
 });
 
-/** Integration: high-risk engineering contract whose plan only executed the unit gate ⇒ parked, never completed. */
-it("runtime gate: high-risk verification contract with missing gates parks the task (no fake completion)", async () => {
-  const { dir, store, ledger, commander, goal } = makeHarness();
-  const task = commander.createTask({ title: "wide refactor (verified)", objective: goal, providerIds: ["chatgpt"], verification: { domain: "engineering", risk: "high" } });
+/** Seam v2 (R-101): explicit high-risk contract on a JS-only repo runs the real
+ *  applicable gates (unit + integration sweep), resolves typecheck/build as
+ *  capability-unavailable, and PASSES with a durable verdict + final response. */
+it("seam v2: high-risk contract capability-resolves unavailable TS gates and PASSES with real unit+integration evidence", async () => {
+  const { dir, store, commander, task } = makeHarness({ verification: { domain: "engineering", risk: "high" } });
   expect(await commander.executePlan(task.id, dir)).toBe(true);
 
-  // MODEL_DONE did not become a final: the task is parked waiting with the
-  // missing gates recorded, and no final response exists.
+  const final = store.finalResponseForTask(task.id);
+  expect(final?.content).toContain("Refactor verified"); // MODEL_DONE → VERIFYING → PASS → final
+  const current = store.snapshot().tasks.find((item) => item.id === task.id)!;
+  expect(current.verificationVerdict?.verdict).toBe("PASS");
+  expect(current.verificationVerdict?.unavailable).toEqual(expect.arrayContaining(["typecheck", "build"]));
+  expect(current.verificationEvidence?.map((gate) => gate.gate)).toEqual(expect.arrayContaining(["unit", "integration"]));
+  expect(current.verificationVerdict?.missing).toEqual([]);
+}, 120000);
+
+/** Seam v2 default strategy: an OWNER_RESULT engineering plan auto-carries the
+ *  verification contract and still completes when all applicable gates pass. */
+it("seam v2 default-on: OWNER_RESULT work task auto-attaches the contract and completes on real applicable gates", async () => {
+  const { dir, store, commander, task } = makeHarness({ appMode: "work" });
+  expect(await commander.executePlan(task.id, dir)).toBe(true);
+
+  const current = store.snapshot().tasks.find((item) => item.id === task.id)!;
+  expect(current.runMode).toBe("OWNER_RESULT");
+  expect(current.verification).toBeDefined(); // default strategy attached it
+  expect(current.verificationVerdict?.verdict).toBe("PASS");
+  expect(store.finalResponseForTask(task.id)?.content).toContain("Refactor verified");
+}, 120000);
+
+/** Seam v2 failure isolation: an applicable gate that FAILS (here the full
+ *  integration sweep includes a failing acceptance-marked test) forces REWORK —
+ *  no final response, task parked, Boss keeps running. */
+it("seam v2: a failing applicable gate (failing acceptance test) forces REWORK and never finalizes", async () => {
+  const { dir, store, ledger, commander, task } = makeHarness({
+    verification: { domain: "engineering", risk: "critical" },
+    extraFiles: { "acceptance.test.cjs": "const test=require('node:test');const assert=require('node:assert/strict');test('acceptance gate',()=>{assert.fail('acceptance gate failure');});" }
+  });
+  expect(await commander.executePlan(task.id, dir)).toBe(true);
+
   expect(store.finalResponseForTask(task.id)).toBeUndefined();
   const current = store.snapshot().tasks.find((item) => item.id === task.id)!;
   expect(current.status).toBe("waiting");
-  expect(current.recoveryMessage ?? "").toContain("typecheck");
-  expect(current.recoveryMessage ?? "").toContain("build");
-  expect(current.recoveryMessage ?? "").toContain("integration");
   expect(current.verificationVerdict?.verdict).toBe("REWORK");
-  expect(current.verificationEvidence?.map((gate) => gate.gate)).toEqual(["unit"]);
+  expect(current.recoveryMessage ?? "").toContain("验证门");
   const state = ledger.load(task.id)!;
   expect(state.verificationState).toBe("FAILED");
-  expect(state.nextAction).toBe("REPAIR_OR_REPLAN");
 }, 120000);
 
 /** Control: without a verification contract the same completion path finalizes exactly as before. */
 it("runtime gate is inert without a verification contract (legacy completion preserved)", async () => {
-  const { dir, store, commander, goal } = makeHarness();
-  const task = commander.createTask({ title: "wide refactor (legacy)", objective: goal, providerIds: ["chatgpt"] });
+  const { dir, store, commander, task } = makeHarness();
   expect(await commander.executePlan(task.id, dir)).toBe(true);
   const final = store.finalResponseForTask(task.id);
   expect(final?.content).toContain("Refactor verified");
