@@ -354,7 +354,7 @@
 - §36 long soak：累计 ~1h46m 真实全链 + R7 确定性 soak（不变量）齐备；无回归/无重复副作用。
 - 证据 `Update-Plan/owner-result/evidence/round-30/`。
 
-## Round 31（2026-09-09，P0-5 §20–§22 运行时验证门 seam v1，owner-result @ 2fc37fb）
+## Round 31（2026-09-09，P0-5 §20–§22 运行时验证门 seam v1，owner-result @ 5eab9d5）
 - **背景**：`result-validator.ts` 的 §20–§22 裁决此前只存在于纯函数与单测，未接真实完成点；
   §45 下一优先级第 1 条（P0-5 运行时接线）尚未落地。
 - **§20–§22 Verification Contract（默认 OFF，additive）**：
