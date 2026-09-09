@@ -347,3 +347,9 @@
 ## Round 29（2026-09-09，soak batch-2 运行中）
 - batch-2 24 轮 seeded 全链 soak：6/24 PASS（interim）；后台继续，完成即采集（预计 +12/24、~36 全链轮 ≈105+ min 累计 §36 soak）。
 - 证据 Update-Plan/owner-result/evidence/round-29/。
+
+## Round 30（2026-09-09，累计 36 轮 soak 全 PASS）
+- batch-2 **24/24 PASS**（4,275,283 ms，~71 min）；与 batch-1 累计 **36 轮全链 / 6,386,634 ms
+  （~106 min）全部 PASS**；36 份 seeded-A fresh-clone 确定性证据（06:59–08:46）。
+- §36 long soak：累计 ~1h46m 真实全链 + R7 确定性 soak（不变量）齐备；无回归/无重复副作用。
+- 证据 `Update-Plan/owner-result/evidence/round-30/`。
