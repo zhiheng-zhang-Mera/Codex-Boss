@@ -1,4 +1,5 @@
 import { readJson, writeJson } from "./durable-json";
+import type { DomainEventBus } from "./event-bus";
 export interface RecoveryWakeup {
   id: string; taskId: string; kind: string; retryAt: number; payload: unknown;
   attempts: number; state: "WAITING" | "RUNNING" | "PAUSED"; error?: string;
@@ -11,11 +12,14 @@ export class RecoveryScheduler {
   private timer?: ReturnType<typeof setTimeout>;
   private active = false;
   private stopped = true;
-  constructor(private readonly file: string, private readonly changed: () => void = () => {}) {
+  constructor(private readonly file: string, private readonly changed: () => void = () => {}, private readonly events?: DomainEventBus) {
     for (const record of readJson<RecoveryWakeup[]>(file) ?? []) {
       if (!record.id || !Number.isFinite(record.retryAt)) throw new Error("Invalid recovery deadline");
       this.records.set(record.id, { ...record, state: record.state === "RUNNING" ? "WAITING" : record.state });
     }
+    // Event-driven wakeup (plan §13.1): a fresh due record triggers the
+    // single-flight run immediately instead of waiting for the timer tick.
+    events?.subscribe("DEPENDENCY_READY", () => { void this.runDue(); });
   }
   register(kind: string, handler: (record: RecoveryWakeup) => Promise<RecoveryResult>): void { this.handlers.set(kind, handler); }
   list(): RecoveryWakeup[] { return structuredClone([...this.records.values()]); }
@@ -23,8 +27,12 @@ export class RecoveryScheduler {
     if (!Number.isFinite(input.retryAt)) throw new Error("Invalid recovery deadline");
     const previous = this.records.get(input.id);
     if (previous?.state === "RUNNING" || previous?.state === "PAUSED") return;
+    const dueNow = previous ? previous.retryAt <= Date.now() && input.retryAt <= Date.now() : input.retryAt <= Date.now();
     this.records.set(input.id, { ...input, retryAt: previous ? Math.min(previous.retryAt, input.retryAt) : input.retryAt, attempts: previous?.attempts ?? 0, state: "WAITING" });
     this.persist(); this.arm();
+    // Emit a domain event when the wakeup is already due so subscribers can run
+    // immediately rather than wait for the next timer tick (plan §13.1).
+    if (dueNow) this.events?.publish({ type: "DEPENDENCY_READY", taskId: input.taskId, retryAt: input.retryAt, message: `recovery ${input.id} due` });
   }
   resumeTask(taskId: string, now = Date.now()): number {
     let resumed = 0;

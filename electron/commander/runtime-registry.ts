@@ -1,5 +1,6 @@
 import type { RuntimeAdapter, RuntimeCapability, RuntimeHealth, RuntimeId } from "../runtimes/runtime";
 import { isRuntimeAvailable } from "../runtimes/runtime";
+import { compatibilityIssue } from "../../src/shared/compatibility";
 
 export class RuntimeRegistry {
   private readonly runtimes = new Map<RuntimeId, RuntimeAdapter>();
@@ -7,6 +8,11 @@ export class RuntimeRegistry {
 
   register(runtime: RuntimeAdapter): void {
     if (this.runtimes.has(runtime.id)) throw new Error(`Duplicate runtime: ${runtime.id}`);
+    // Fail fast on an out-of-contract adapter (plan §6): BOSS must never assume
+    // every adapter upgraded in lockstep, so a declared window that excludes the
+    // current core version is refused instead of failing later at dispatch.
+    const issue = runtime.compatibility ? compatibilityIssue(runtime.compatibility) : null;
+    if (issue) throw new Error(issue);
     this.runtimes.set(runtime.id, runtime);
   }
 

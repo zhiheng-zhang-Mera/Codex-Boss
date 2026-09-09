@@ -9,6 +9,7 @@ export interface ProviderRuntimeHooks {
 export class ProviderRuntimeAdapter implements RuntimeAdapter {
   readonly kind = "web" as const;
   readonly capabilities: RuntimeCapabilities;
+  readonly compatibility = { id: "web", kind: "web-session", windows: { adapter_api: { min: "1", max: "1" } } } as const;
   constructor(readonly id: string, private readonly hooks: ProviderRuntimeHooks, capabilities?: Partial<RuntimeCapabilities>) {
     if (!id.startsWith("web:")) throw new Error("Web runtime id must start with web:");
     this.capabilities = { roles: ["planning", "research", "review", "synthesis", "coding", "validation", "critique"], supportsCancellation: false, supportsStreaming: false, ...capabilities };

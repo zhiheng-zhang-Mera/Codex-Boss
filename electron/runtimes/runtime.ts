@@ -1,4 +1,5 @@
 import type { RawArtifact } from "../../src/shared/contracts";
+import type { CompatibilityDeclaration } from "../../src/shared/compatibility";
 
 export type RuntimeId = string;
 export type RuntimeKind = "web" | "codex" | "api" | "local";
@@ -57,6 +58,12 @@ export interface RuntimeAdapter {
   readonly id: RuntimeId;
   readonly kind: RuntimeKind;
   readonly capabilities: RuntimeCapabilities;
+  /**
+   * Declared compatibility windows (plan §6). Absence is treated as a legacy
+   * unversioned adapter that is accepted; a declaration that does not contain
+   * the current core version is rejected at registration (fail fast).
+   */
+  readonly compatibility?: CompatibilityDeclaration;
   healthCheck(): Promise<RuntimeHealth>;
   execute(request: RuntimeRequest, signal?: AbortSignal): Promise<RuntimeResult>;
   cancel?(jobId: string): Promise<void>;

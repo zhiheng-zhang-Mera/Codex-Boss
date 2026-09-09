@@ -1,6 +1,30 @@
 # Codex Boss Desktop
 
-Codex Boss 是本地优先的 Electron 桌面控制器。`9-4` 分支已按 [执行计划](docs/9-4-plan.md) 完成稳定 **1.0.0** 的有界本机验收。真实网页、桌面、恢复、迁移和资源证据及其外推边界见 [V1.0 验收记录](docs/9-4-v1-hardening.md)。
+Codex Boss 是本地优先的 Electron 桌面控制器。`9-5` 分支收录当前最新本地版本及 2026-09-05 可见窗口运行 Demo；功能基线延续 `9-4` 按 [执行计划](docs/9-4-plan.md) 完成的稳定 **1.0.0** 有界本机验收。真实网页、桌面、恢复、迁移和资源证据及其外推边界见 [V1.0 验收记录](docs/9-4-v1-hardening.md)。
+
+## 9-5 可见窗口 Demo
+
+[观看 90 秒端到端多提供商研究 Demo（WebM，无音频）](docs/media/codex-boss-9-5-e2e-demo.webm)
+
+端到端 Demo 使用真实可见的 Codex Boss Electron 窗口和已登录网页会话，以 **Multi-provider Direct** 模式把同一项代码审查决策任务分派给 ChatGPT、Gemini 和 Grok。Controller 收集了 3 份独立原始回答，三家都选择“最强证据胜出”，但对安全否决、证据同强时升级及适用边界的表述各有侧重；最终生成一份带明确规则和反多数案例的综合答复。运行证据显示三个网页通道均 `completed · SUCCESS`，检查点为 `COMMITTED`，最终审查为 `PASS`。这是 Direct 演示，不是 Council 演示；Council 的实测尝试在最终综合轮因 Qwen 发送失败而回滚，因此未作为成功录像发布。录制元数据见 [JSON](docs/media/codex-boss-9-5-e2e-demo.webm.json)。
+
+演示提示词要求三个代码审查代理在补丁是否可安全合并上出现分歧时，从多数票、最强证据胜出、保留分歧并升级三种规则中选择默认方案，定义明确规则，并给出一个有意否决多数意见的案例。
+
+![Codex Boss 多提供商研究任务的最终答复与提交证据](docs/media/codex-boss-9-5-multiprovider-research-demo.png)
+
+### UI / runtime walkthrough
+
+[观看 90 秒 UI / runtime walkthrough（WebM，无音频）](docs/media/codex-boss-9-5-demo.webm)
+
+这段旧版 walkthrough 使用 2026-09-05 的本地 `1897dd4` 构建，由 Computer Use 在真实 Codex Boss Electron 窗口中完成 History 收起/展开、Chat/Work 切换、Runtime Status 和执行证据查看；未发送新模型请求、未执行远程命令。录制元数据见 [JSON](docs/media/codex-boss-9-5-demo.webm.json)。录制前本地验证结果为 74 个测试文件、330 项测试全部通过，TypeScript 检查和生产构建通过。
+
+![Codex Boss Chat 主界面](docs/media/codex-boss-9-5-main.png)
+
+![Codex Boss Work 模式](docs/media/codex-boss-9-5-work.png)
+
+![Codex Boss Runtime Status](docs/media/codex-boss-9-5-runtime.png)
+
+![Codex Boss 执行与证据详情](docs/media/codex-boss-9-5-evidence.png)
 
 ## 当前可用路径
 

@@ -1,12 +1,13 @@
 import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
 import { writeJson } from "./commander/durable-json";
 import { TaskLedger } from "./commander/task-ledger";
+import { sessionKindForResumeStrategy } from "../src/shared/session-state";
 import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
 
 const defaultFolderId = "folder-general";
@@ -222,6 +223,19 @@ export class StateStore {
     if (!task) throw new Error("Unknown task"); task.workspacePath = workspace; this.persist();
   }
 
+  setTaskWorkspaceId(taskId: string, workspaceId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task"); task.workspaceId = workspaceId; this.persist();
+  }
+
+  bindTaskToWorkspace(taskId: string, workspaceId: string, workspacePath?: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.workspaceId = workspaceId;
+    if (workspacePath) task.workspacePath = workspacePath;
+    this.persist();
+  }
+
   beginPlanExecution(taskId: string, workspace: string): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
@@ -263,7 +277,9 @@ export class StateStore {
     task.executionPhase = "RESPONSE_RECEIVED";
     const council = this.snapshotValue.councils.find((item) => item.taskId === run.taskId);
     const kind: RawArtifact["kind"] = council?.stage === "proposals" ? "proposal" : council?.stage === "peer_review" ? "peer_review" : council?.stage === "synthesis" ? "synthesis" : "response";
-    const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: content.slice(0, 100000), capturedAt: new Date().toISOString(), sourceUrl, untrusted: true };
+    const storedContent = content.slice(0, 100000);
+    const producer: string = run.providerId.startsWith("native:") || run.providerId === "local:plan" ? "local:native" : `${run.transport}:${run.providerId}`;
+    const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: storedContent, capturedAt: new Date().toISOString(), sourceUrl, untrusted: true, version: 1, contentHash: sha256Hex(storedContent), producer, classification: "INTERNAL" };
     this.snapshotValue.artifacts.unshift(artifact);
     run.artifactId = artifact.id;
     run.response = { taskId: run.taskId, workerId: run.providerId, responseId: artifact.id, content: artifact.content, outcome: "SUCCESS" };
@@ -647,7 +663,8 @@ export class StateStore {
         state.nextAction = task.nextAction ?? task.executionPhase ?? task.status;
         state.usage.browserActions = Math.max(state.usage.browserActions, runs.filter((run) => run.phase === "sending" || run.phase === "waiting" || run.artifactId).length);
         for (const run of runs) {
-          const session = { id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", url: run.sessionUrl, resumeStrategy: run.sessionUrl ? "RESTORE_URL" as const : "RECONSTRUCT" as const };
+          const resumeStrategy = run.sessionUrl ? "RESTORE_URL" as const : "RECONSTRUCT" as const;
+          const session = { id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", url: run.sessionUrl, resumeStrategy, kind: sessionKindForResumeStrategy(resumeStrategy), ...(task.workspacePath ? { workspaceId: TaskLedger.fingerprint(task.workspacePath.toLowerCase()) } : {}) };
           const index = state.sessions.findIndex((item) => item.id === run.id);
           if (index < 0) state.sessions.push(session); else state.sessions[index] = { ...state.sessions[index], ...session };
         }
@@ -701,6 +718,10 @@ function validCommandPrefix(value: string): string {
   const prefix = value.trim();
   if (!/^\/[^\s]{1,19}$/.test(prefix)) throw new Error("指令前缀必须以 / 开头，长度为 2–20 且不能包含空格");
   return prefix;
+}
+
+export function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function remoteChannelDefaults(now: string): RemoteChannelSetting[] {

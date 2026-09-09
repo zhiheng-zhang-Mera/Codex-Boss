@@ -6,6 +6,7 @@ import type { ProviderApiClient } from "../provider-api";
 export class NativeRuntime implements RuntimeAdapter {
   readonly id = "local:native"; readonly kind = "local" as const;
   readonly capabilities = { roles: ["validation", "research"] as const, consumesModel: false, supportsCancellation: false, supportsStreaming: false };
+  readonly compatibility = { id: "local:native", kind: "native", windows: { adapter_api: { min: "1", max: "1" } } } as const;
   constructor(private readonly workspace: string) {}
   async healthCheck() { return { runtimeId: this.id, availability: "AVAILABLE" as const, message: "Native filesystem and git tools", checkedAt: new Date().toISOString() }; }
   async execute(request: RuntimeRequest): Promise<RuntimeResult> {
@@ -19,6 +20,7 @@ export class ApiRuntime implements RuntimeAdapter {
   readonly kind = "api" as const;
   readonly id: string;
   readonly capabilities = { roles: ["planning", "research", "review", "synthesis", "coding", "validation", "critique"] as const, supportsCancellation: false, supportsStreaming: false };
+  readonly compatibility = { id: "api", kind: "api", windows: { adapter_api: { min: "1", max: "1" } } } as const;
   constructor(private readonly providerId: string, private readonly client: ProviderApiClient) { this.id = `api:${providerId}`; }
   async healthCheck() {
     try { this.client.validate(this.providerId); return { runtimeId: this.id, availability: "AVAILABLE" as const, message: "Configured API transport", checkedAt: new Date().toISOString() }; }

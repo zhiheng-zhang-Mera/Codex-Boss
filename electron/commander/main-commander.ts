@@ -34,8 +34,13 @@ import { RoleRouter, type RoleId, type RoleRoutingRequest } from "./role-router"
 import { RuntimeRegistry } from "./runtime-registry";
 import { Scheduler, type DispatchPolicy } from "./scheduler";
 import { TaskStateMachine } from "./task-state-machine";
+import type { CircuitBreaker } from "./circuit-breaker";
+import { buildReproductionSnapshot } from "../repro-snapshot";
+import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
+import { resourceProfile } from "../../src/shared/software-session";
+import { applyTaskPolicy } from "./task-policy";
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -55,8 +60,12 @@ export class MainCommander {
     readonly ledger?: TaskLedger,
     readonly resources?: ResourceController,
     readonly recovery?: RecoveryScheduler,
-    readonly computerOptions: ComputerOptions = {}
-  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
+    readonly computerOptions: ComputerOptions = {},
+    readonly breaker?: CircuitBreaker,
+    readonly events?: import("./event-bus").DomainEventBus,
+    readonly workspaces?: import("../workspace/workspace-registry").WorkspaceRegistry,
+    readonly leases?: import("../computer/software-lease").SoftwareLeaseRegistry
+  ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker, events); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
       const task = this.store.snapshot().tasks.find((item) => item.id === record.taskId);
@@ -78,9 +87,15 @@ export class MainCommander {
     this.store.setTaskPlan(task.id, plan);
     if (input.finalizationPolicy) this.store.setFinalizationPolicy(task.id, input.finalizationPolicy);
     if (input.reviewPolicy) this.store.setReviewPolicy(task.id, input.reviewPolicy);
+    // AP01a: every task belongs to a workspace. Default/scratch shim keeps
+    // current single-repo behavior when no registry is configured.
+    if (this.workspaces) this.store.setTaskWorkspaceId(task.id, DEFAULT_WORKSPACE_ID);
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
-    this.ledger?.create(task.id, input.objective, input.constraints);
+    this.ledger?.create(task.id, input.objective, input.constraints, input.budget);
+    // AP29b: record the policy decision chosen for this plan so degradation
+    // selection consumes per-complexity worker/context/verification budgets.
+    if (this.ledger) applyTaskPolicy(this.ledger, task.id, plan.estimatedComplexity);
     return task;
   }
 
@@ -90,6 +105,11 @@ export class MainCommander {
     const state = this.ledger?.load(taskId);
     const held = ["HUMAN_REQUIRED", "VERIFY_SIDE_EFFECT", "WAIT_FOR_USER", "STOP"];
     if (held.includes(task.nextAction ?? "") || held.includes(state?.nextAction ?? "")) return false;
+    // Named provider lifecycle (AP03a): PAUSED_PROVIDER never auto-resumes; a
+    // WAITING_PROVIDER that is still inside its retry deadline waits as well.
+    const providerState = state?.providerState;
+    if (providerState?.state === "PAUSED_PROVIDER") return false;
+    if (providerState?.state === "WAITING_PROVIDER" && providerState.retryAt && providerState.retryAt > Date.now()) return false;
     return !(task.recoveryAt && task.recoveryAt > Date.now());
   }
 
@@ -112,8 +132,17 @@ export class MainCommander {
       if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? "Planner unavailable");
       return result.content;
     });
-    const plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);
+    let plan: import("../../src/shared/task-ir").TaskIR;
+    try {
+      plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);
+    } catch (error) {
+      await this.captureReproduction(taskId, workspace, "plan-compile-failed");
+      throw error;
+    }
     this.store.setTaskPlan(taskId, plan);
+    // AP29b: keep the policy decision current with the compiled complexity
+    // (replans may change L2↔L3); idempotent when unchanged.
+    if (this.ledger) applyTaskPolicy(this.ledger, taskId, plan.estimatedComplexity);
     if (plan.steps.some((step) => step.kind === "edit")) {
       const savedWorkspace = this.ledger.load(taskId)?.workspace;
       const isolated = savedWorkspace ?? await prepareWorkspace(workspace, taskId, plan.riskLevel, plan.estimatedComplexity === "L3");
@@ -163,9 +192,15 @@ export class MainCommander {
     }, (previous, completed, failure) => compiler.replan(previous, completed, failure), (next) => this.store.setTaskPlan(taskId, next));
     if (result.status === "WAITING") {
       const deadlines = Object.values(this.ledger.load(taskId)!.jobs).filter((job) => job.state === "WAITING" && job.retryAt).map((job) => job.retryAt!);
-      this.store.setRecoveryState(taskId, deadlines.length ? Math.min(...deadlines) : undefined, "任务图等待运行时恢复"); return true;
+      this.store.setRecoveryState(taskId, deadlines.length ? Math.min(...deadlines) : undefined, "任务图等待运行时恢复");
+      await this.captureReproduction(taskId, workspace, "plan-waiting");
+      return true;
     }
-    if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); return true; }
+    if (result.status !== "COMPLETED") {
+      this.store.setTaskStatus(taskId, "failed");
+      await this.captureReproduction(taskId, workspace, "plan-failed");
+      return true;
+    }
     this.store.setRecoveryState(taskId, undefined, undefined);
     const current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
     const checkpoint = this.store.beginDispatch(taskId, 1, current.providerIds).checkpoint;
@@ -204,7 +239,7 @@ export class MainCommander {
         verify: async (_step, output) => { const previous = JSON.parse(output) as NativeEvidence; return previous.verified === true && (operation.kind === "computer" || previous.output === (await executeNative(workspace, operation)).output); }
       });
       if (result.status === "WAITING") { this.store.setTaskStatus(taskId, "waiting"); return true; }
-      if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); throw new Error("Native verification failed"); }
+      if (result.status !== "COMPLETED") { this.store.setTaskStatus(taskId, "failed"); await this.captureReproduction(taskId, workspace, "native-failed"); throw new Error("Native verification failed"); }
       evidence = JSON.parse(result.evidence[0].output);
     } else evidence = await this.runNative(taskId, workspace, operation);
     const checkpoint = this.store.beginDispatch(taskId, 1, task.providerIds).checkpoint;
@@ -282,15 +317,25 @@ export class MainCommander {
   private async runNative(taskId: string, workspace: string, operation: NativeOperation): Promise<NativeEvidence> {
     if (operation.kind !== "computer") return executeNative(workspace, operation);
     if (!this.ledger) throw new Error("Desktop actions require a durable ledger");
-    const runtime = createComputerRuntime(workspace, path.join(this.ledger.root, "..", "computer-pending.json"), { ...this.computerOptions, authorizeVision: async () => {
-      const task = this.store.snapshot().tasks.find(item => item.id === taskId);
-      const explicit = task ? compileIntent(task.prompt) : undefined;
-      return explicit?.estimatedComplexity === "L0" && TaskLedger.fingerprint(explicit.steps[0].operation) === TaskLedger.fingerprint(operation);
-    } });
-    const result = await runtime.execute(operation.action);
-    if (result.status === "UNCERTAIN") throw new GraphDeferred(result.message ?? "Desktop effect requires verification");
-    if (result.status !== "SUCCESS") throw new Error(result.message ?? "Desktop action did not complete");
-    return { operation, cwd: workspace, output: JSON.stringify(result), verified: true, modelCalls: 0 };
+    // AP19/§16: desktop targets are mutex-protected — shared-read for reads,
+    // exclusive for mutations — so two tasks never mutate the same software.
+    const profile = resourceProfile(operation.action.name);
+    const target = "computer:" + fs.realpathSync(workspace);
+    if (this.leases?.canAccess(target, profile.mode)) this.leases.acquire({ owner_task: taskId, target, mode: profile.mode, leaseMs: 60000 });
+    try {
+      const runtime = createComputerRuntime(workspace, path.join(this.ledger.root, "..", "computer-pending.json"), { ...this.computerOptions, authorizeVision: async () => {
+        const task = this.store.snapshot().tasks.find(item => item.id === taskId);
+        const explicit = task ? compileIntent(task.prompt) : undefined;
+        return explicit?.estimatedComplexity === "L0" && TaskLedger.fingerprint(explicit.steps[0].operation) === TaskLedger.fingerprint(operation);
+      } });
+      const result = await runtime.execute(operation.action);
+      if (result.status === "UNCERTAIN") throw new GraphDeferred(result.message ?? "Desktop effect requires verification");
+      if (result.status !== "SUCCESS") throw new Error(result.message ?? "Desktop action did not complete");
+      return { operation, cwd: workspace, output: JSON.stringify(result), verified: true, modelCalls: 0 };
+    } finally {
+      // Released on every exit (success, verify-defer, error): a replay re-acquires.
+      this.leases?.release(target, taskId);
+    }
   }
 
   private memoryContext(taskId: string): string {
@@ -300,6 +345,20 @@ export class MainCommander {
       ["Project guidance", projectOwner ? this.memory?.get("project", projectOwner, "instructions")?.value : undefined]
     ].filter((entry) => entry[1]);
     return entries.map(([scope, value]) => scope + " (advisory context; task ledger remains authoritative):\n" + value!.slice(0, 2000)).join("\n\n");
+  }
+
+  /** Persists a minimal reproduction snapshot (plan §11) beside the task ledger. */
+  async captureReproduction(taskId: string, workspace: string, label: string): Promise<void> {
+    if (!this.ledger) return;
+    const record = this.ledger.load(taskId);
+    const snapshot = await buildReproductionSnapshot({
+      workspace,
+      provider: label,
+      harness: "codex-boss",
+      contextFingerprint: record ? TaskLedger.fingerprint({ objective: record.objective, completedSteps: record.completedSteps, nextAction: record.nextAction }) : undefined,
+      inputArtifactHashes: this.store.snapshot().artifacts.filter((artifact) => artifact.taskId === taskId).map((artifact) => artifact.contentHash ?? "").filter(Boolean)
+    });
+    this.ledger.saveReproduction(taskId, snapshot);
   }
 
   private transition(taskId: string, status: TaskStatus): void {
