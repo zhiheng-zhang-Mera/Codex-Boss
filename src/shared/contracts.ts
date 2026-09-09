@@ -61,6 +61,9 @@ export interface BossTask {
   workAgentCount?: WorkAgentCount;
   /** Explicit work-role list in provider order (plan §6.4); absent = default auto mapping. */
   workRoles?: WorkRole[];
+  /** Rev.2 Owner-Result mode (§3): ASSISTED | AUTONOMOUS | OWNER_RESULT.
+   *  Absent = legacy default (advanced tasks resolve to OWNER_RESULT). */
+  runMode?: import("./owner-result").RunMode;
   providerIds: ProviderId[];
   status: TaskStatus;
   mode: TaskMode;

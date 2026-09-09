@@ -24,5 +24,6 @@ secrets/
 /live-acceptance/
 /Update-Plan/*
 !/Update-Plan/overcomplete/
+!/Update-Plan/owner-result/
 /research-output/
 .live-acceptance/
