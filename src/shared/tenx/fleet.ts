@@ -108,3 +108,18 @@ export function planTakeover(now: number, lease: TaskLeaseState, targetNode: str
   return { taskId: lease.taskId, fromNode: lease.ownerNode, toNode: targetNode, fromCheckpoint: lease.checkpoint !== undefined, allowed: true, reason: lease.checkpoint ? "resume from durable checkpoint" : "replay-safe task" };
 }
 
+/** 10E: did this lease legally leave the given node (transfer lineage)?
+ *  A recovered node must never reclaim a task that was legally transferred
+ *  while it was offline — history records every `transferred:<from>-><to>`. */
+export function wasLegallyTransferred(lease: TaskLeaseState, nodeId: string): boolean {
+  return lease.history.some((entry) => entry.startsWith(`transferred:${nodeId}->`));
+}
+
+/** 10E: at most one valid owner exists among a task's lease states. */
+export function singleOwner(leases: TaskLeaseState[], now: number, taskId: string): { owners: string[]; violated: boolean } {
+  const owners = leases
+    .filter((lease) => lease.taskId === taskId && isLeaseValid(lease, now))
+    .map((lease) => lease.ownerNode);
+  return { owners: [...new Set(owners)], violated: owners.length > 1 };
+}
+

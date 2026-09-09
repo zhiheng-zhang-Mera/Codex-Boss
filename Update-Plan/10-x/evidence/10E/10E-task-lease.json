@@ -1,0 +1,19 @@
+{
+  "phase": "10E",
+  "requirement": "10E-task-lease-ownership",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Task lease & ownership — one valid owner per task, lease timeout takeover from durable checkpoint, replay-safety, no reclaim after legal transfer (durable)",
+  "implementation": [
+    "src/shared/tenx/fleet.ts (+): wasLegallyTransferred (transfer lineage in history); singleOwner validator (one valid owner per task); planTakeover/isLeaseValid/canReplay reused from 10D",
+    "electron/tenx/task-lease-registry.ts: TenxTaskLeaseRegistry — standalone durable lease registry (no fleet controller needed for single-node use); lease() refuses a second valid owner; checkpoint() records durable checkpoint ref+blob; takeover() resumes from last durable checkpoint after expiry; refuses reclaim by a node that was legally transferred away; complete/fail/markRunning; durable restart restores"
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10e.test.ts (9 tests): pure lease validity; replay-safety gating; planTakeover gate battery; transfer-lineage reclaim guard; one-valid-owner enforcement; expiry→checkpoint takeover; old-owner reclaim refused; durable restart restore; single-node usage with no controller"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10E": "tests/unit/tenx-phase-10e.test.ts 9/9 PASS"
+  },
+  "notes": "takeoverAllowed=false tasks can never be seized; replayUnsafe tasks without a checkpoint are never blindly re-run (both proven)."
+}
