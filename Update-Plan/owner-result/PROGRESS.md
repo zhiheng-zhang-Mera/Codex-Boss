@@ -447,7 +447,7 @@
 - 验证快照（Round 35）：typecheck PASS · vitest **46 文件 / 236 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-35/`。
 
-## Round 36（2026-09-09，P0-6 guarded R6 slot：WebRecovery Computer-Use 修复位，owner-result）
+## Round 36（2026-09-09，P0-6 guarded R6 slot：WebRecovery Computer-Use 修复位，owner-result @ 23c2398）
 - **背景**：§45 #2（P0-6 guarded 接线）未落地——WebRecovery 恢复梯没有 Computer-Use 修复位；CU_REPAIR 类失败
   （send/input affordance 丢失）只能直接重发或暂停；R8 已备 DOM 执行器但无接线位。
 - **electron/commander/web-recovery.ts**：
