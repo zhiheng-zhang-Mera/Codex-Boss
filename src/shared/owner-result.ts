@@ -28,6 +28,17 @@ export function defaultRunModeForTask(kind: RunTaskKind): RunMode {
   return kind === "chat" ? "ASSISTED" : "OWNER_RESULT";
 }
 
+/** Effective mode: explicit runMode wins; otherwise the kind default applies. */
+export function effectiveRunMode(input: { runMode?: RunMode; kind: RunTaskKind }): RunMode {
+  return input.runMode ?? defaultRunModeForTask(input.kind);
+}
+
+/** Maps the legacy app/mode vocabulary onto the owner-result task-kind axis. */
+export function runTaskKindFor(appMode: string | undefined, mode: string | undefined): RunTaskKind {
+  if (appMode === "work" || mode === "council") return "work";
+  return "chat";
+}
+
 /** User decision checkpoints granted before a task may end. */
 export type CheckpointBudget = "UNLIMITED" | 0 | 1 | 3;
 

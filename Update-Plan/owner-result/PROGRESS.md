@@ -41,6 +41,19 @@
 - 验证快照（Round 1）：typecheck PASS；vitest 全量 **34 文件 / 174 测试 PASS**（其中新增 4 文件 / 48 测试）；
   full build PASS（typecheck ×2 + vite + electron tsc）。证据 `Update-Plan/owner-result/evidence/round-1/`。
 
+## Round 2（2026-09-09，P0-1 契约持久化 seam + 决策点启用准备）
+- `src/shared/owner-result.ts`：`effectiveRunMode`（显式 runMode 优先，否则按 kind 默认）+
+  `runTaskKindFor`（legacy appMode/mode → chat/work 轴）。
+- `contracts.ts`：`CreateTaskInput.runMode?`；`BossTask.runMode?`（Round 1 已加）。
+- `electron/store.ts`：`setRunMode(taskId, mode)`（校验 isRunMode，持久化 + updatedAt）。
+- `electron/commander/main-commander.ts`：`CommanderTaskInput.runMode?`；createTask 创建时落
+  `runMode = input.runMode ?? defaultRunModeForTask(runTaskKindFor(appMode, mode))`（work/council → OWNER_RESULT；
+  chat → ASSISTED）—— 之后所有决策点（intervention gate / stall ladder / auto steer）直接读 task.runMode。
+- `electron/main.ts`：create-task / dispatch-task 两个 handler 透传 `input.runMode`。
+- 测试：owner-result-contract +2 helper 用例；plan-microtask-spine（真实 StateStore+MainCommander）回归 PASS。
+- 验证快照（Round 2）：typecheck PASS；vitest 全量 **34 文件 / 176 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-2/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

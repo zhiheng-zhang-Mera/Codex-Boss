@@ -27,6 +27,7 @@ import { ExecutionSupervisor } from "./execution-supervisor";
 import { reviewResponse, type ReviewPolicy } from "../../src/shared/execution";
 import type { AppMode, BossTask, FinalizationPolicy, ProviderId, RunTransport, TaskMode, TaskStatus } from "../../src/shared/contracts";
 import type { RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
+import { defaultRunModeForTask, runTaskKindFor, type RunMode } from "../../src/shared/owner-result";
 import type { StateStore } from "../store";
 import { BudgetManager } from "./budget-manager";
 import { ContextManager, type TaskContext } from "./context-manager";
@@ -50,7 +51,7 @@ import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -123,6 +124,10 @@ export class MainCommander {
     // AP01a: every task belongs to a workspace. Default/scratch shim keeps
     // current single-repo behavior when no registry is configured.
     if (this.workspaces) this.store.setTaskWorkspaceId(task.id, DEFAULT_WORKSPACE_ID);
+    // Owner-Result §3: make the resolved run mode durable at creation so every
+    // later decision point (intervention gate / stall ladder / auto steer)
+    // reads task.runMode instead of re-deriving it.
+    this.store.setRunMode(task.id, input.runMode ?? defaultRunModeForTask(runTaskKindFor(task.appMode, task.mode)));
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     this.ledger?.create(task.id, input.objective, input.constraints, input.budget);

@@ -2,6 +2,7 @@ import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { isRunMode } from "../src/shared/owner-result";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { validateInputObjectRef, uniqueInputObjectRefs, type InputObject, type InputObjectRef } from "../src/shared/input-object";
 import { HistoryRepository, safeSegment } from "./history-repository";
@@ -451,6 +452,21 @@ export class StateStore {
     task.workAgentCount = config.agentCount;
     if (config.roles?.length) task.workRoles = [...config.roles];
     else delete task.workRoles;
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /**
+   * Records the Owner-Result run mode (Owner-Result.md §3): ASSISTED /
+   * AUTONOMOUS / OWNER_RESULT. Advanced tasks default to OWNER_RESULT at
+   * creation; this setter makes the resolved mode durable so decision points
+   * (intervention gate, stall ladder) can read it without re-deriving.
+   */
+  setRunMode(taskId: string, mode: import("../src/shared/owner-result").RunMode): void {
+    if (!isRunMode(mode)) throw new Error("Invalid run mode");
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.runMode = mode;
     task.updatedAt = new Date().toISOString();
     this.persist();
   }

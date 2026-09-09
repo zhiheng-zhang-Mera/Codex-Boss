@@ -347,6 +347,8 @@ export interface CreateTaskInput {
   inputObjectIds?: string[];
   /** Optional explicit work pool size 1|3|5 (defaults: 1 for 1 worker, else 3 for ≤3, 5 for >3). */
   workAgentCount?: import("./work-mode").WorkAgentCount;
+  /** Optional Owner-Result run mode; absent → advanced tasks default to OWNER_RESULT (Rev.2 §3). */
+  runMode?: import("./owner-result").RunMode;
   providerIds: ProviderId[];
   mode?: TaskMode;
   appMode?: AppMode;

@@ -5,10 +5,12 @@ import {
   contractForMode,
   defaultRunModeForTask,
   directionStallAction,
+  effectiveRunMode,
   inferQuestionKind,
   interceptForMode,
   ownerResultGateFor,
   pickBestOption,
+  runTaskKindFor,
   scoreOption,
   type AutoDecision,
   type QuestionInterception
@@ -34,6 +36,20 @@ describe("owner-result: modes & contract", () => {
     expect(contractForMode("ASSISTED").checkpointBudget).toBe("UNLIMITED");
     expect(contractForMode("ASSISTED").autoEscalateDirection).toBe(false);
     expect(contractForMode("AUTONOMOUS").checkpointBudget).toBe(1);
+  });
+
+  it("effectiveRunMode: explicit mode wins, otherwise the kind default applies", () => {
+    expect(effectiveRunMode({ runMode: "ASSISTED", kind: "work" })).toBe("ASSISTED");
+    expect(effectiveRunMode({ kind: "work" })).toBe("OWNER_RESULT");
+    expect(effectiveRunMode({ kind: "chat" })).toBe("ASSISTED");
+    expect(effectiveRunMode({ runMode: "OWNER_RESULT", kind: "chat" })).toBe("OWNER_RESULT");
+  });
+
+  it("runTaskKindFor maps legacy app/mode vocabulary onto the kind axis", () => {
+    expect(runTaskKindFor("work", "direct")).toBe("work");
+    expect(runTaskKindFor("chat", "council")).toBe("work");
+    expect(runTaskKindFor("chat", "direct")).toBe("chat");
+    expect(runTaskKindFor(undefined, undefined)).toBe("chat");
   });
 });
 
