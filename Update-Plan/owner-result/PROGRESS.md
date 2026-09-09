@@ -381,7 +381,7 @@
 - 说明：契约默认 OFF（兼容既有 42 文件/220 测试全部回归）；把 OWNER_RESULT 工程任务默认带上契约
   需与 requiredEngineeringChecks 补齐 build/integration/acceptance 等真实门执行一起落地（seam v2）。
 
-## Round 32（2026-09-09，P0-4 §18 raise 前分类接线：research WAITING_FOR_USER 拦截 seam，owner-result）
+## Round 32（2026-09-09，P0-4 §18 raise 前分类接线：research WAITING_FOR_USER 拦截 seam，owner-result @ 4acf042）
 - **背景**：§18 拦截逻辑此前只有纯函数 + 单测；research supervisor 的 WAITING_FOR_USER 暂停点是运行时唯一
   会把问题真正上浮给用户的 raise 接缝，但未接入拦截——任何 guidance 一律停放上浮，AUTOPILOT(=OWNER_RESULT)
   也会因 DECIDABLE 问题空停。
