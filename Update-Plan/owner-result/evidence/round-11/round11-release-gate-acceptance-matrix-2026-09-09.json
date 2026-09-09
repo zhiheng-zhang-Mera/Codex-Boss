@@ -1,0 +1,28 @@
+{
+  "kind": "OWNER_RESULT_ROUND11_RELEASE_GATE_AND_ACCEPTANCE_MATRIX",
+  "round": 11,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§41/§42/§44 acceptance mapping + §45 P2 closeout prep)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T14:47:00.000Z",
+  "finishedAt": "2026-09-09T14:50:00.000Z",
+  "commitSha": "HEAD-on-owner-result",
+  "branch": "owner-result -> main",
+  "status": "PASS",
+  "verification": {
+    "controlledElectronRestart": "PASS (CONTROLLED_ELECTRON_RESTART, attempts=1, finalVisible=true, separate process)",
+    "typecheck": "PASS",
+    "vitest": "40 files / 208 tests PASS",
+    "build": "PASS"
+  },
+  "summary": {
+    "delivered": [
+      "Update-Plan/owner-result/FINAL-ACCEPTANCE.md: §41/§42/§44 acceptance matrix with per-item status + evidence pointers",
+      "Controlled Electron restart acceptance re-run at owner-result HEAD (durable ledger/task resume untouched by Rev.2 changes; no duplicate send, attempts=1)",
+      "Milestone merge: owner-result -> main (trunk keeps current)"
+    ]
+  },
+  "evidence": {
+    "restart": "artifacts/restart-9e2c8234-4cdf-4d48-9526-8ed426053032 (seed+verify phases; restart-result.json PASS)",
+    "docs": ["Update-Plan/owner-result/FINAL-ACCEPTANCE.md", "PROGRESS.md (Round 11)"]
+  }
+}

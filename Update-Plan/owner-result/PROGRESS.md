@@ -184,6 +184,16 @@
 - 验证快照（Round 10）：typecheck PASS；vitest 全量 **40 文件 / 208 测试 PASS**；full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-10/`。
 
+## Round 11（2026-09-09，发布门 + §41/§42/§44 Acceptance 矩阵）
+- **受控 Electron 重启 acceptance 在 owner-result HEAD 重跑 PASS**：独立进程恢复耐久任务，
+  attempts=1、无重复副作用、final 可见（CONTROLLED_ELECTRON_RESTART PASS）—— 证明 Rev.2
+  台账/bridge 改动未破坏 durable 恢复链。
+- `Update-Plan/owner-result/FINAL-ACCEPTANCE.md`：§41/§42/§44 逐项状态矩阵
+  （✅DET / ✅LIVE / ⚠️LIVE-TODO / 📋），Owner 视角只显示
+  GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER；本程序 Owner 技术决策次数=0、盲等=0。
+- 里程碑合并：`owner-result` → `main`（主干保持最新）。
+- 证据 `Update-Plan/owner-result/evidence/round-11/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
