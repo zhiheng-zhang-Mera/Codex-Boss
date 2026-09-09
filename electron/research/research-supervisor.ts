@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { nextResearchState, validateResearchIR, type ResearchIR, type ResearchState } from "../../src/shared/research-ir";
 import { ResearchLedger, type ResearchDecisionEntry, type ResearchLedgerFile } from "./research-ledger";
+import type { InterventionKind } from "../../src/shared/intervention";
+import type { AutoDecision, QuestionInterception } from "../../src/shared/owner-result";
 
 /**
  * Order-independent canonical JSON (sorted keys) so a frozen protocol hashes
@@ -66,6 +68,13 @@ export interface SupervisorOptions {
    * WAITING_FOR_PROVIDER stays a genuine block.
    */
   providerRecovery?: (input: { id: string; record: ResearchLedgerFile }) => Promise<"resume" | "stay">;
+  /**
+   * §18 raise-point interception (Owner-Result.md Rev.2): consulted when a run
+   * is about to pause at WAITING_FOR_USER. When it returns an intercepted
+   * auto-decision the run records it durably and never parks; otherwise the
+   * guidance pauses exactly as before. Absent ⇒ legacy raise for every run.
+   */
+  interceptWait?: (input: { id: string; kind: InterventionKind; question: string; options?: string[]; autonomy: "AUTOPILOT" | "GUIDED" }) => QuestionInterception | undefined;
 }
 
 export class ResearchSupervisor {
@@ -174,6 +183,40 @@ export class ResearchSupervisor {
   /** Jumps to a control state (used by the supervisor on provider/user waits). */
   wait(id: string, state: Extract<ResearchState, "WAITING_FOR_USER" | "WAITING_FOR_PROVIDER">, reason: string): void {
     this.options.ledger.setState(id, state, reason);
+  }
+
+  /**
+   * §18 raise-point (Owner-Result.md Rev.2). The single seam through which a
+   * research run asks for human guidance. The question is classified BEFORE it
+   * is raised:
+   *
+   * - An OWNER_RESULT/AUTOPILOT run with a DECIDABLE question is auto-decided
+   *   (deterministic policy), the decision is appended to the durable research
+   *   ledger and the run does NOT park — no fabricated human answer, no pause.
+   * - A genuine HARD_BLOCKER (HB1–HB4), or any ASSISTED/GUIDED run, parks at
+   *   WAITING_FOR_USER exactly as the legacy wait() did.
+   *
+   * Returns what happened so the caller can decide whether to surface a durable
+   * human intervention (only when `parked` is true).
+   */
+  requestGuidance(input: { id: string; kind: InterventionKind; question: string; options?: string[] }): { intercepted: boolean; decision?: AutoDecision; parked: boolean } {
+    const record = this.options.ledger.load(input.id);
+    if (!record) throw new Error(`Unknown research run: ${input.id}`);
+    const autonomy = record.ir.scope.autonomy;
+    const interception = this.options.interceptWait
+      ? this.options.interceptWait({ id: input.id, kind: input.kind, question: input.question, options: input.options, autonomy })
+      : undefined;
+    if (interception?.intercepted && interception.decision) {
+      this.options.ledger.appendDecision(input.id, {
+        stepId: "WAITING_FOR_USER",
+        decision: `auto-decide:${interception.decision.action}`,
+        reason: `${interception.decision.rationale} ${interception.decision.steer}`.trim().slice(0, 500),
+        evidenceRefs: []
+      });
+      return { intercepted: true, decision: interception.decision, parked: false };
+    }
+    this.options.ledger.setState(input.id, "WAITING_FOR_USER", input.question);
+    return { intercepted: false, parked: true };
   }
 
   /**

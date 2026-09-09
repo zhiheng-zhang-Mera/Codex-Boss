@@ -18,6 +18,7 @@ import { buildReproducibilityAudit, type ReproducibilityAudit } from "./evidence
 import { manuscriptClaimsFromGraph, type ManuscriptClaimsDerivation } from "./evidence/graph-claims";
 import { validateLevelAPlan, type LevelAPlan } from "../../src/shared/research-levela";
 import { humanResearchToIR, type HumanDefinedResearchInput } from "../../src/shared/research-input";
+import { researchWaitInterception } from "./research-wait-policy";
 
 /**
  * Research service facade (plan 9-6 Phase 5–11 glue). One object composes the
@@ -73,7 +74,15 @@ export class ResearchService {
     this.citations = new CitationSourceStore(options.citationsRoot ?? path.join(root, "citations"));
     // Milestone §21: READY is gated by the durable artifact tree — the state
     // machine alone can never mark a run READY.
-    this.supervisor = new ResearchSupervisor({ ledger: this.ledger, executor: options.executor, readyGate: ({ id }) => this.readiness(id) });
+    this.supervisor = new ResearchSupervisor({
+      ledger: this.ledger,
+      executor: options.executor,
+      readyGate: ({ id }) => this.readiness(id),
+      // §18 raise-point interception: AUTOPILOT runs are OWNER_RESULT — decidable
+      // guidance auto-decides durably instead of pausing; HARD_BLOCKER (and all
+      // GUIDED waits) keep the human gate.
+      interceptWait: (input) => researchWaitInterception({ autonomy: input.autonomy, kind: input.kind, question: input.question, options: input.options })
+    });
     this.runtime = options.runtime;
   }
 

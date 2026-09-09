@@ -739,7 +739,13 @@ if (ownsInstance) app.whenReady().then(() => {
   });
   ipcMain.handle("boss:research-wait", (_event, input: { id: string; kind: InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => {
     const { id, ...rest } = input;
-    research?.supervisor.wait(id, "WAITING_FOR_USER", rest.question);
+    // §18 raise-point interception (Owner-Result Rev.2): the question is
+    // classified before it is raised. An AUTOPILOT run's DECIDABLE guidance is
+    // auto-decided durably (requestGuidance records it and never parks) — no
+    // human pause and no fabricated answer. Only a genuine HARD_BLOCKER (or a
+    // GUIDED/ASSISTED run) parks and surfaces a durable human intervention.
+    const outcome = research?.supervisor.requestGuidance({ id, kind: rest.kind, question: rest.question, options: rest.options }) ?? { intercepted: false, parked: false };
+    if (outcome.intercepted) return { intercepted: true, decision: outcome.decision };
     const raised = humanGuidance?.raise({ taskId: id, ...rest, contextSummary: rest.contextSummary ?? rest.question.slice(0, 300) });
     return raised ?? null;
   });

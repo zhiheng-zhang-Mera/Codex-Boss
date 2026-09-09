@@ -335,11 +335,13 @@
 - 第二批 soak 启动：24 轮 seeded 全链（artifacts/rev2-soak-batch2.json，跨轮累计 §36 soak）。
 - 证据 `Update-Plan/owner-result/evidence/round-28/`。
 
-## 下一优先级（§45 顺序）
-1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
-   （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
+## 下一优先级（§45 顺序，R31–R32 已推进）
+1. ~~P0-4/P0-5 运行时接线~~：R31 落地 §20–§22 verification 门 seam v1（默认 OFF）；
+   R32 落地 §18 research WAITING_FOR_USER raise 前拦截（AUTOPILOT 可决策问题自动决策、HB 才上浮）。
+   剩余：seam v2 —— OWNER_RESULT 工程任务默认带契约 + requiredEngineeringChecks 补齐真实
+   build/integration/acceptance 门执行后再默认开。
 2. P0-6 Computer Use 接入 WebRecovery（provider 页面恢复梯 R6）。
-3. P0-7 Qwen Computer-Use Recovery（真实 send 失败 → Computer Use 接管 → repair evidence）。
+3. P0-7 Qwen Computer-Use Recovery（真实 send 失败 → Computer Use 接管 → repair evidence；live，需专属会话）。
 4. P1-x：Qwen Self-Healing Graduation、generic drift、Boss Self-Healing Battery、Research 泛化、
    fault injection、long soak。
 5. P2：Owner Dashboard（GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER）+ Final Release。
@@ -378,3 +380,25 @@
   证据 `Update-Plan/owner-result/evidence/round-31/`。
 - 说明：契约默认 OFF（兼容既有 42 文件/220 测试全部回归）；把 OWNER_RESULT 工程任务默认带上契约
   需与 requiredEngineeringChecks 补齐 build/integration/acceptance 等真实门执行一起落地（seam v2）。
+
+## Round 32（2026-09-09，P0-4 §18 raise 前分类接线：research WAITING_FOR_USER 拦截 seam，owner-result）
+- **背景**：§18 拦截逻辑此前只有纯函数 + 单测；research supervisor 的 WAITING_FOR_USER 暂停点是运行时唯一
+  会把问题真正上浮给用户的 raise 接缝，但未接入拦截——任何 guidance 一律停放上浮，AUTOPILOT(=OWNER_RESULT)
+  也会因 DECIDABLE 问题空停。
+- **electron/research/research-wait-policy.ts（新）**：`researchWaitInterception()` —— AUTOPILOT⇒OWNER_RESULT、
+  GUIDED⇒ASSISTED；InterventionKind→QuestionKind 映射（LOGIN/CAPTCHA/AUTHORIZATION→AUTHORIZATION、
+  BUDGET/EXTERNAL_ACTION→EXTERNAL_ACTION、RESEARCH_SCOPE、DIRECTION）；复用 shared classify/interceptForMode：
+  真 HB1–HB4 任何模式一律上浮；OWNER_RESULT 下 DECIDABLE 自动决策；ASSISTED/GUIDED 保留人工门。
+- **research-supervisor.ts**：`SupervisorOptions.interceptWait?` 钩子 + 新方法 `requestGuidance({id,kind,question,options})`
+  —— 单一 raise 接缝：拦截命中 ⇒ durable 决策写入 research ledger（`decision=auto-decide:<action>`，
+  reason=rationale+steer），**不停放、不伪造人工答复**；未拦截（HB / GUIDED / 无钩子）⇒ setState
+  WAITING_FOR_USER，与原 wait() 一致。
+- **research-service.ts**：构造 supervisor 时注入默认策略（生产接线）。
+- **electron/main.ts**：`boss:research-wait` 改走 requestGuidance —— intercepted ⇒ 返回
+  `{intercepted, decision}`（不 raise humanGuidance、不停放）；否则照旧 humanGuidance.raise。
+- 测试：`tests/unit/research-wait-policy.test.ts`（+8：AUTOPILOT continuation→auto CONTINUE / RESEARCH_SCOPE
+  选项→确定性 PICK_OPTION 最稳项 / LOGIN·CAPTCHA→HB1·BUDGET→HB2 一律上浮 / GUIDED 即使 DECIDABLE 也保留
+  人工门；真实 ResearchLedger 集成：DECIDABLE⇒不 parked + decisions 尾=auto-decide:CONTINUE、真 HB⇒parked
+  WAITING_FOR_USER、GUIDED⇒parked、未知 run⇒fail-closed）。
+- 验证快照（Round 32）：typecheck PASS · vitest **43 文件 / 228 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-32/`。
