@@ -126,11 +126,19 @@ Standalone smoke verification uses an isolated data directory:
 
 - The deterministic test suite is committed with the repository under `tests/unit/`
   (layered layout; includes git/process-heavy integration cases). Trunk snapshot
-  (Owner-Result branch `owner-result`, merged into `main` — both at R41, 2026-09-09):
+  (Owner-Result branch `owner-result`, merged into `main` — both at R43, 2026-09-09):
   **51 files / 254 tests green** + typecheck + full build + benchmark PASS.
   确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
-  主干快照（Owner-Result 分支 `owner-result`，与 `main` 同步至 R41，2026-09-09）：
+  主干快照（Owner-Result 分支 `owner-result`，与 `main` 同步至 R43，2026-09-09）：
   **51 文件 / 254 测试全绿**，typecheck / 完整 build / benchmark PASS。
+- Delivery branch `2026-09-09-closure`: the same implementation whose committed
+  test tree is the minimal GitHub-verification subset (**15 files / 106 tests** —
+  typecheck/vitest/build stay green on CI); the complete deterministic battery
+  suite (51 files / 254 tests) and per-round evidence remain in the `owner-result`
+  history and under `Update-Plan/owner-result/`.
+  交付分支 `2026-09-09-closure`：同一实现，提交树内测试为 GitHub 验证需要的最低限度子集
+  （**15 文件 / 106 测试**，typecheck/vitest/build 于 CI 保持全绿）；完整确定性电池套件
+  （51 文件 / 254 测试）与逐轮证据保留在 `owner-result` 历史及 `Update-Plan/owner-result/`。
 - Owner-Result Rev.2 (2026-09-09): autonomous execution contract per
   `Update-Plan/Owner-Result.md` — run modes (ASSISTED/AUTONOMOUS/OWNER_RESULT),
   HB1–HB4 hard-blocker classification, question interception & auto-decision

@@ -69,3 +69,9 @@ Codex-Boss `main`/`owner-result` 与 DS-Hns `main` 三线同步；Owner 技术�
   依纪律记录为 INCONCLUSIVE/live-TODO（绝不伪造完成）。
 - 收口待办（R43 后，均为 live/后续增强而非验收缺口）：P0-6 live 执行器接线、P0-5 seam v2
   （默认契约 + 真实 build/integration/acceptance 门）、§34 多域 live 论文 / >2h soak / UI 微调。
+
+## 交付分支（2026-09-09-closure）
+- 收口提交分支：与 `owner-result`/`main`（@ 825cd1f，R43）同一实现；按交付要求，分支树内测试仅保留
+  GitHub 验证需要的最低限度子集 **15 文件 / 106 测试**（typecheck / vitest / build 于 CI 保持全绿）。
+- 完整确定性电池套件（51 文件 / 254 测试）与逐轮证据仍保留于 `owner-result` 历史及
+  `Update-Plan/owner-result/evidence/round-{31..43}/`，可随时恢复。
