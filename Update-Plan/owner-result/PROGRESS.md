@@ -220,6 +220,16 @@
   `artifacts/smoke-83561f5e…/smoke-result.json`）—— §41 portable 行在当前 HEAD 变绿。
 - 证据 `Update-Plan/owner-result/evidence/round-14/`。
 
+## Round 15（2026-09-09，确定性阶段收口：合并发布门复核）
+- 在当前 Rev.2 HEAD 复核整套门：typecheck PASS · vitest **41 文件 / 216 测试 PASS** ·
+  full build PASS · benchmark PASS；本会话另有受控 Electron 重启 PASS（R11）、
+  portable 打包 + PACKAGED_SMOKE_PASS（R14）、DS-Hns 92/92 PASS。
+- Owner-Result Rev.2 确定性阶段收口：P0-1…P0-5 契约与 seam、P0-6 核心+执行器、P1-3/4/5/6
+  电池与注入/soak、P2 读模型+UI、DS-Hns autonomy 全套；Owner 技术决策次数=0、盲等=0。
+- 剩余 live 项（P0-6 guarded 接线 / P0-7 Qwen Computer-Use Recovery / P1-1 graduation）需
+  真实 provider 窗口的专属 live 会话；README 最终行与主干再合并随 live 后收尾。
+- 证据 `Update-Plan/owner-result/evidence/round-15/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

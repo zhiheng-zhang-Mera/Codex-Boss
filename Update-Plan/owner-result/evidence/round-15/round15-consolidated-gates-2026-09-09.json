@@ -1,0 +1,37 @@
+{
+  "kind": "OWNER_RESULT_ROUND15_CONSOLIDATED_GATES",
+  "round": 15,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§41/§44 acceptance closeout of the deterministic phase)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T14:56:00.000Z",
+  "finishedAt": "2026-09-09T14:58:00.000Z",
+  "commitSha": "HEAD-on-owner-result",
+  "branch": "owner-result",
+  "status": "PASS",
+  "verification": {
+    "typecheck": "PASS",
+    "vitest": "41 files / 216 tests PASS",
+    "build": "PASS",
+    "benchmark": "PASS",
+    "controlledElectronRestart": "PASS (this session, round-11)",
+    "portablePackage": "PASS (this session, round-14)",
+    "packagedSmoke": "PASS (this session, round-14)",
+    "dshSuite": "PASS 92/92 (owner-result-autonomy @ 8e24b7d)"
+  },
+  "summary": {
+    "delivered": [
+      "Consolidated release-gate record at current Rev.2 head: typecheck/test/build/benchmark/restart/portable/smoke all green",
+      "Deterministic phase of Owner-Result Rev.2 closed across rounds R1-R15 (P0-1..P0-5, P0-6 core+executor, P1-3/4/5/6, P2 read-model+UI, DS-Hns autonomy)"
+    ],
+    "remaining": [
+      "P0-6 guarded wiring + P0-7 Qwen Computer-Use Recovery: needs a dedicated live session with a real provider window (no Boss instance reachable from this harness session)",
+      "P1-1 Qwen self-healing graduation follows the live round",
+      "Final README/status lines + trunk merge after the live round"
+    ]
+  },
+  "evidence": {
+    "regression": "typecheck PASS; vitest 41/216 PASS; full build PASS; benchmark PASS",
+    "earlierThisSession": ["round-11 restart PASS", "round-14 portable package + packaged smoke PASS", "DS-Hns 92/92 PASS"],
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Round 15)"]
+  }
+}
