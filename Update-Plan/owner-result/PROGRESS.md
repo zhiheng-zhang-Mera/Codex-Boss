@@ -343,3 +343,7 @@
 4. P1-x：Qwen Self-Healing Graduation、generic drift、Boss Self-Healing Battery、Research 泛化、
    fault injection、long soak。
 5. P2：Owner Dashboard（GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER）+ Final Release。
+
+## Round 29（2026-09-09，soak batch-2 运行中）
+- batch-2 24 轮 seeded 全链 soak：6/24 PASS（interim）；后台继续，完成即采集（预计 +12/24、~36 全链轮 ≈105+ min 累计 §36 soak）。
+- 证据 Update-Plan/owner-result/evidence/round-29/。
