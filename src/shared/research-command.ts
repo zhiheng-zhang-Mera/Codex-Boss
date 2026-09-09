@@ -19,7 +19,7 @@ export interface ResearchCommandSpec {
 }
 
 /** Executable families a research run may spawn (base names). */
-export const ALLOWED_EXECUTABLES = new Set<string>(["python", "python3", "py", "node", "npm", "pnpm", "git", "pytest", "tsx", "npx"]);
+export const ALLOWED_EXECUTABLES = new Set<string>(["python", "python3", "py", "node", "npm", "pnpm", "git", "pytest", "tsx", "npx", "electron"]);
 
 export function validateCommandSpec(spec: ResearchCommandSpec): void {
   if (!spec || typeof spec.executable !== "string" || !spec.executable.trim()) throw new Error("Research command requires an executable");

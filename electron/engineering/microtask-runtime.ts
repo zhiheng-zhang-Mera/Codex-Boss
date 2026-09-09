@@ -3,16 +3,15 @@ import type { Microtask } from "../../src/shared/microtask";
 import { readyMicrotasks, validateMicrotasks } from "../../src/shared/microtask";
 import { TaskLedger } from "../commander/task-ledger";
 import type { TaskStep } from "../../src/shared/task-ir";
+import { GraphDeferred } from "./deferred";
 
 /**
  * Recursive microtask runtime (plan AP12 wiring half). A caller-facing step
  * expands into a bounded read → propose → verify micro-DAG (microtask.ts); this
  * runtime executes it with the same durability contract as EngineeringRuntime:
- * persisted ledger jobs `graph_<stepId>_<microtaskId>`, fingerprint-keyed reuse,
+ * persisted ledger jobs `graph_<stepId>_microtask_*`, fingerprint-keyed reuse,
  * revalidation of persisted evidence before skipping, and GraphDeferred waiting.
  */
-
-export class GraphDeferred extends Error {}
 
 export interface MicrotaskExecutor {
   /** Runs one microtask and returns its textual output/evidence. */

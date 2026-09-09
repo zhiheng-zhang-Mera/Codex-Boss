@@ -3,7 +3,9 @@ import type { RuntimeRequest, RuntimeResult } from "./runtimes/runtime";
 import { SemanticRuntime } from "./computer/semantic-runtime";
 import type { Provider, ProviderId, ProviderRun } from "../src/shared/contracts";
 import { adapterFor } from "./adapters/registry";
-import { prepareScript, probeScript, sendScript, verifyPromptScript, type PageProbe } from "./adapters/page-scripts";
+import { prepareScript, probeScript, sendScript, uploadFilesScript, verifyPromptScript, verifyUploadScript, type PageProbe } from "./adapters/page-scripts";
+import type { AttachmentStore } from "./input/attachment-store";
+import { planAdapterUploads, planIsRoutable, resolveUploadsForTask } from "./input/attachment-upload";
 import { ProviderViews } from "./provider-views";
 import { StateStore } from "./store";
 import { AccountSessionManager } from "./account-sessions";
@@ -32,7 +34,8 @@ export class ProviderAutomation {
     private readonly onRoundComplete?: (taskId: string) => Promise<void>,
     private readonly onTaskComplete?: (taskId: string) => Promise<void>,
     private readonly onRecovery?: (run: ProviderRun, strategy: "CAPTURE_EXISTING" | "RETRY_UNSENT", retryAt?: number) => void,
-    private readonly events?: DomainEventBus
+    private readonly events?: DomainEventBus,
+    private readonly attachments?: AttachmentStore
   ) {}
 
   /** Publishes a TOOL_RESULT_READY domain event when a round's answers are fully collected (AP13). */
@@ -140,7 +143,14 @@ export class ProviderAutomation {
     let current = this.latestRuns(taskId).filter((run) => run.phase !== "completed");
     const prepareFailures = current.filter((run) => run.phase !== "prepared").map((run) => run.providerId);
     if (prepareFailures.length > 0) {
-      this.store.rollbackDispatch(checkpoint.id, baseline, prepareFailures, false, "至少一个网页未能完成预填；未执行任何发送");
+      // Keep the per-run failure reason visible: rollback restores run rows to
+      // their pre-dispatch baseline, so the reason must ride on the checkpoint.
+      const reasons = current.filter((run) => run.phase !== "prepared").map((run) => {
+        const label = this.resolveProvider(run.providerId).name;
+        return run.message ? `${label}：${run.message}` : label;
+      });
+      const summary = reasons.length ? reasons.join("；") : "至少一个运行未能完成预填";
+      this.store.rollbackDispatch(checkpoint.id, baseline, prepareFailures, false, `${summary}；未执行任何发送`);
       this.publish();
       return;
     }
@@ -198,6 +208,18 @@ export class ProviderAutomation {
     if (run.transport === "api") {
       try {
         this.api.validate(run.providerId);
+        // U1 P0 (no false success): the API request body is text-only today, so
+        // a task carrying file attachments can never deliver them over an API
+        // transport. Fail the run closed with the exact reason instead of
+        // letting dispatch send a text-only prompt and claim completion.
+        if (this.attachments) {
+          const attached = resolveUploadsForTask(this.store, this.attachments, run.taskId);
+          if (attached.length) {
+            const names = attached.map((file) => file.originalName).join("、");
+            this.store.updateRun(run.id, "blocked", "UNSUPPORTED", `附件无法经 API 通道发送（不会静默丢弃）：${names}。请改用网页通道，或移除附件后重试。`, "api/preflight-v1");
+            return;
+          }
+        }
         this.store.updateRun(run.id, "prepared", "SUCCESS", "API 设置和加密密钥已通过预检", "api/preflight-v1");
       } catch (error) {
         this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", `API 预检失败：${String(error)}`, "api/preflight-v1");
@@ -222,12 +244,23 @@ export class ProviderAutomation {
     this.preparingProviders.set(run.providerId, run.taskId);
     try {
       const task = this.store.snapshot().tasks.find((item) => item.id === run.taskId);
-      if (task?.parentTaskId && !run.sessionUrl) await view.webContents.loadURL(this.resolveProvider(run.providerId).url);
+      // U6 §12.1 fresh external conversation: a new WORK task (or a child
+      // worker) with no recorded session navigates to a brand-new conversation
+      // instead of reusing whatever the provider page shows; repair/continue
+      // restores the recorded sessionUrl (see web-recovery + resumePending) and
+      // never navigates away.
+      if (!run.sessionUrl && (task?.parentTaskId || task?.freshWebConversation)) {
+        await view.webContents.loadURL(definition.newConversationUrl ?? this.resolveProvider(run.providerId).url);
+      }
       const probe = await this.readPage(run.providerId, probeScript(definition));
       this.accounts.recordProbe(run.providerId, probe.inputFound, probe.loginLikely);
       if (probe.rateLimited) { this.store.updateRun(run.id, "blocked", "RATE_LIMITED", "页面报告请求频率或额度限制", definition.version); this.deferRecovery(run, "RETRY_UNSENT"); return; }
       if (probe.loginLikely && !probe.inputFound) return this.store.updateRun(run.id, "blocked", "AUTH_REQUIRED", "需要用户在可见页面完成登录", definition.version);
       if (!probe.inputFound) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "未找到已版本化的输入区域，页面可能已变化", definition.version);
+      if (this.attachments) {
+        const uploadBlocked = await this.prepareUploads(run, definition, view);
+        if (uploadBlocked) return;
+      }
       let result = await view.webContents.executeJavaScript(prepareScript(definition, run.inputPrompt)) as { ok: boolean; reason?: string };
       if (definition.providerId === "grok" || (!result.ok && result.reason === "value-not-applied")) {
         view.webContents.focus();
@@ -239,11 +272,49 @@ export class ProviderAutomation {
       if (!result.ok) return this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", `输入区域在预填时失效：${result.reason ?? "unknown"}`, definition.version);
       this.baselines.set(run.id, probe.latestResponse);
       this.store.setRunSession(run.id, probe.latestResponse, probe.sourceUrl);
-      this.store.updateRun(run.id, "prepared", "SUCCESS", "提示词已在可见页面预填；等待用户确认发送", definition.version);
+      this.store.updateRun(run.id, "prepared", "SUCCESS", "提示词已在可见页面预填；整组准备完成后自动发送", definition.version);
     } catch (error) {
       this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `页面适配器执行失败：${String(error)}`, definition.version);
     } finally {
       if (this.preparingProviders.get(run.providerId) === run.taskId) this.preparingProviders.delete(run.providerId);
+    }
+  }
+
+  /**
+   * Phase D upload: when the task carries attachments and the adapter is
+   * versioned to accept them, inject the files and verify the rendered chips
+   * BEFORE any prompt text is filled. Returns a blocking outcome (run already
+   * marked) or undefined to continue.
+   */
+  private async prepareUploads(run: ProviderRun, definition: NonNullable<ReturnType<typeof adapterFor>>, view: { webContents: { executeJavaScript: (script: string, userGesture?: boolean) => Promise<unknown> } }): Promise<boolean> {
+    const task = this.store.snapshot().tasks.find((item) => item.id === run.taskId);
+    if (!task?.inputObjectIds?.length) return false;
+    const resolved = resolveUploadsForTask(this.store, this.attachments!, task.id);
+    if (!resolved.length) return false;
+    const plan = planAdapterUploads(definition, resolved);
+    if (!planIsRoutable(plan)) {
+      const unsupportedNames = [...plan.unsupported, ...plan.oversized].map((file) => file.originalName).join("、");
+      this.store.updateRun(run.id, "blocked", "UNSUPPORTED", `该网页适配器当前无法验证上传：${unsupportedNames}（不会发送未确认的附件）`, definition.version);
+      return true;
+    }
+    try {
+      await view.webContents.executeJavaScript(uploadFilesScript(definition, plan.uploads), true);
+      const deadline = Date.now() + 30000;
+      let verified = false;
+      while (Date.now() < deadline) {
+        const result = await view.webContents.executeJavaScript(verifyUploadScript(definition, plan.uploads.map((file) => file.name))) as { ok?: boolean; missing?: string[] };
+        if (result.ok) { verified = true; break; }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      if (!verified) {
+        this.store.updateRun(run.id, "blocked", "PAGE_CHANGED", "上传后未在页面确认附件 chip（UPLOAD_NOT_CONFIRMED）；未填写提示词，不会发送", definition.version);
+        return true;
+      }
+      this.store.updateRun(run.id, "queued", null, `已上传并确认 ${plan.uploads.length} 个附件`, definition.version);
+      return false;
+    } catch (error) {
+      this.store.updateRun(run.id, "failed", "RETRYABLE_FAILURE", `附件上传失败：${String(error)}`, definition.version);
+      return true;
     }
   }
 

@@ -13,15 +13,29 @@ function anonymousBundle(artifacts: RawArtifact[]): string {
     .join("\n\n");
 }
 
-export function buildPeerReviewPrompts(originalPrompt: string, artifacts: RawArtifact[], reviewers: ProviderId[]): Map<ProviderId, string> {
-  const bundle = anonymousBundle(artifacts);
-  return new Map(reviewers.map((providerId) => [providerId, `You are an anonymous peer reviewer in a multi-AI council. Review evidence and reasoning, not provider reputation or majority vote. Preserve credible minority positions.\n\nOriginal task:\n${originalPrompt}\n\nAnonymous proposals:\n${bundle}\n\nReturn a concise review followed by one JSON object with this exact shape:\n{"conflicts":[{"topic":"...","positions":["...","..."]}],"minorityOpinions":["..."]}`]));
+/**
+ * U3: when a Work task carries an explicit role assignment (work-mode 1/3/5),
+ * each reviewer/synthesizer prompt is prefixed with its role focus so a pool
+ * of N AI is never a pool of identical reviewers (plan §6.2/§34). The
+ * `roleByProvider` map is providerId → role; providers without a role keep the
+ * neutral briefing.
+ */
+export type RoleBriefMap = ReadonlyMap<string, string>;
+
+function briefed(maps: RoleBriefMap | undefined, providerId: string, neutral: string): string {
+  if (!maps) return neutral;
+  return maps.get(providerId) ? maps.get(providerId) + "\n\n" + neutral : neutral;
 }
 
-export function buildSynthesisPrompts(originalPrompt: string, proposals: RawArtifact[], reviews: RawArtifact[], synthesizers: ProviderId[], analysis: CouncilAnalysis): Map<ProviderId, string> {
+export function buildPeerReviewPrompts(originalPrompt: string, artifacts: RawArtifact[], reviewers: ProviderId[], roleBriefs?: RoleBriefMap): Map<ProviderId, string> {
+  const bundle = anonymousBundle(artifacts);
+  return new Map(reviewers.map((providerId) => [providerId, briefed(roleBriefs, providerId, `You are an anonymous peer reviewer in a multi-AI council. Review evidence and reasoning, not provider reputation or majority vote. Preserve credible minority positions.\n\nOriginal task:\n${originalPrompt}\n\nAnonymous proposals:\n${bundle}\n\nReturn a concise review followed by one JSON object with this exact shape:\n{"conflicts":[{"topic":"...","positions":["...","..."]}],"minorityOpinions":["..."]}`)]));
+}
+
+export function buildSynthesisPrompts(originalPrompt: string, proposals: RawArtifact[], reviews: RawArtifact[], synthesizers: ProviderId[], analysis: CouncilAnalysis, roleBriefs?: RoleBriefMap): Map<ProviderId, string> {
   const proposalBundle = anonymousBundle(proposals);
   const reviewBundle = anonymousBundle(reviews);
-  return new Map(synthesizers.map((providerId) => [providerId, `You are a synthesis member in a multi-AI council. Produce a decision-ready answer grounded in evidence. Do not decide by vote count. State unresolved conflicts, preserve credible minority views, and distinguish observed evidence from inference.\n\nOriginal task:\n${originalPrompt}\n\nAnonymous proposals:\n${proposalBundle}\n\nAnonymous peer reviews:\n${reviewBundle}\n\nDetected conflicts:\n${JSON.stringify(analysis.conflicts)}\n\nMinority opinions to preserve:\n${JSON.stringify(analysis.minorityOpinions)}\n\nEnd with one JSON object using this exact shape. evidenceLabels may contain only labels such as Proposal A from the bundle above:\n{"claims":[{"text":"...","evidenceLabels":["Proposal A"]}]}`]));
+  return new Map(synthesizers.map((providerId) => [providerId, briefed(roleBriefs, providerId, `You are a synthesis member in a multi-AI council. Produce a decision-ready answer grounded in evidence. Do not decide by vote count. State unresolved conflicts, preserve credible minority views, and distinguish observed evidence from inference.\n\nOriginal task:\n${originalPrompt}\n\nAnonymous proposals:\n${proposalBundle}\n\nAnonymous peer reviews:\n${reviewBundle}\n\nDetected conflicts:\n${JSON.stringify(analysis.conflicts)}\n\nMinority opinions to preserve:\n${JSON.stringify(analysis.minorityOpinions)}\n\nEnd with one JSON object using this exact shape. evidenceLabels may contain only labels such as Proposal A from the bundle above:\n{"claims":[{"text":"...","evidenceLabels":["Proposal A"]}]}`)]));
 }
 
 export function extractCouncilFindings(reviews: RawArtifact[]): CouncilAnalysis {

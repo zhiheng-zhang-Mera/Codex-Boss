@@ -45,3 +45,29 @@ export function manifestNarrow(workspace: PermissionManifest, task: PermissionMa
 export function manifestToString(manifest: PermissionManifest): string {
   return PERMISSION_KINDS.flatMap((kind) => manifest[kind].allow.map((entry) => `${kind}:${entry}`)).join(",");
 }
+
+/* ------------------------------------------- desktop side-effect gate */
+
+/**
+ * Desktop computer actions that only observe (always allowed, mirroring the
+ * lease's shared-read set). Everything else is a mutation and must be
+ * allow-listed as a `computer:<action>` side-effect by the workspace manifest.
+ */
+export const DESKTOP_READ_ACTIONS: readonly string[] = ["read_page", "find_control", "verify_state", "wait_for_state"];
+
+export interface SideEffectVerdict {
+  allowed: boolean;
+  reason?: string;
+}
+
+/**
+ * Fails closed: a desktop mutation with no allow-listed `computer:<name>`
+ * side-effect (or no manifest at all) is denied. Reads always pass — like the
+ * software runtime's authorize() (§17/§18), mutations alone need the manifest.
+ */
+export function desktopMutationGate(manifest: PermissionManifest | undefined, actionName: string): SideEffectVerdict {
+  if (DESKTOP_READ_ACTIONS.includes(actionName)) return { allowed: true };
+  const key = `computer:${actionName}`;
+  if (manifest && manifestAllows(manifest, "side-effect", key)) return { allowed: true };
+  return { allowed: false, reason: `Permission gate denied computer ${actionName} (side-effect ${key} not allowed)` };
+}

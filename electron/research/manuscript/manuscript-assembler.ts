@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { validId } from "../../commander/durable-json";
-import { MANUSCRIPT_SECTIONS, evidenceCheckDraft, type ManuscriptPlan, type ManuscriptSection, type SectionBrief, type SectionDraft } from "../../../src/shared/research-manuscript";
+import { MANUSCRIPT_SECTIONS, evidenceCheckDraft, resultTableToLatex, resultTableToMarkdown, type ManuscriptPlan, type ManuscriptSection, type ResultTable, type SectionBrief, type SectionDraft } from "../../../src/shared/research-manuscript";
 import { summarizeCitationAudit, type CitationRecord } from "../../../src/shared/research-citation";
 import { referencesBib } from "../../../src/shared/research-bibliography";
 
@@ -41,6 +41,8 @@ export interface ManuscriptOptions {
   citations?: CitationRecord[];
   /** Deterministic SVG figures (round 21); written into manuscript/figures/ when supplied. */
   figures?: Array<{ name: string; svg: string }>;
+  /** Deterministic result tables (U7 §21); embedded into paper.md AND paper.tex. */
+  tables?: ResultTable[];
 }
 
 export interface ManuscriptOutput {
@@ -109,7 +111,6 @@ export async function assembleManuscript(directory: string, options: ManuscriptO
   const paperTex = assembleLatex(options, sections, writtenFigures);
   fs.writeFileSync(path.join(manuscriptDir, "paper.md"), paperMd, "utf8");
   fs.writeFileSync(path.join(manuscriptDir, "paper.tex"), paperTex, "utf8");
-
   const citationsFile = path.join(auditDir, "citations.json");
   const reproducibilityFile = path.join(auditDir, "reproducibility.json");
   const finalAuditFile = path.join(auditDir, "final-audit.json");
@@ -142,6 +143,11 @@ function assembleMarkdown(options: ManuscriptOptions, sections: Record<string, S
   const lines = [`# ${options.title}`, ""];
   if (options.authors?.length) lines.push(...options.authors.map((author) => `- ${author}`), "");
   for (const section of MANUSCRIPT_SECTIONS) lines.push(`## ${section}`, "", sections[section].content, "");
+  // Result tables (U7 §21) render between sections and figures in paper.md.
+  if ((options.tables ?? []).length) {
+    lines.push("## Result Tables", "");
+    for (const table of options.tables ?? []) lines.push(resultTableToMarkdown(table), "");
+  }
   // Figures section references only files actually written into manuscript/figures/.
   if (figures.length) {
     lines.push("## Figures", "");
@@ -150,12 +156,47 @@ function assembleMarkdown(options: ManuscriptOptions, sections: Record<string, S
   return lines.join("\n");
 }
 
+const MANUSCRIPT_TO_LATEX: Record<ManuscriptSection, { title: string; isAbstract: boolean }> = {
+  abstract: { title: "Abstract", isAbstract: true },
+  introduction: { title: "Introduction", isAbstract: false },
+  methods: { title: "Methods", isAbstract: false },
+  results: { title: "Results", isAbstract: false },
+  discussion: { title: "Discussion", isAbstract: false },
+  conclusion: { title: "Conclusion", isAbstract: false }
+};
+
 function assembleLatex(options: ManuscriptOptions, sections: Record<string, SectionDraft>, figures: string[]): string {
-  const command = { abstract: "abstract", introduction: "section{Introduction}", methods: "section{Methods}", results: "section{Results}", discussion: "section{Discussion}", conclusion: "section{Conclusion}" };
-  const body = MANUSCRIPT_SECTIONS.map((section) => sections[section].content).join("\n\n");
-  const figureBlock = figures.length
-    ? "\n\\begin{figure}[h]\n\\includegraphics[width=\\linewidth]{" + figures.join("}\n\\includegraphics[width=\\linewidth]{") + "}\n\\end{figure}"
-    : "";
+  // Plan §32: never stuff Introduction/Methods/Results/… into the abstract.
+  const body = MANUSCRIPT_SECTIONS.map((section) => {
+    const spec = MANUSCRIPT_TO_LATEX[section];
+    const content = sections[section].content;
+    return spec.isAbstract
+      ? `\\begin{abstract}\n${content}\n\\end{abstract}`
+      : `\\section{${spec.title}}\n${content}`;
+  }).join("\n\n");
+  const figureBlock = buildLatexFigureBlock(figures);
+  // U7 §21: result tables embed into paper.tex as real LaTeX tabular blocks.
+  const tableBlock = (options.tables ?? []).map((table) => resultTableToLatex(table)).join("\n\n");
   const bibliography = options.citations ? "\n\\bibliographystyle{plain}\n\\bibliography{references}" : "";
-  return ["\\documentclass{article}", "\\usepackage{graphicx}", "\\begin{document}", `\\title{${options.title}}`, "\\maketitle", "\\begin{abstract}" + body + "\\end{abstract}", figureBlock, bibliography, "\\end{document}"].join("\n");
+  return ["\\documentclass{article}", "\\usepackage{graphicx}", "\\begin{document}", `\\title{${options.title}}`, "\\maketitle", body, figureBlock, tableBlock, bibliography, "\\end{document}"].join("\n");
+}
+
+/**
+ * LaTeX-compatible figure block. pdflatex/xelatex cannot compile SVG charts,
+ * so only engine-readable files (pdf/png/jpg/eps) are embedded via
+ * \includegraphics; SVG charts (kept for paper.md + the audit tree) are listed
+ * as a comment so the .tex still compiles on a real TeX engine.
+ */
+function buildLatexFigureBlock(figures: string[]): string {
+  if (figures.length === 0) return "";
+  const embeddable = figures.filter((name) => /\.(pdf|png|jpg|jpeg|eps)$/i.test(name));
+  const charts = figures.filter((name) => /\.svg$/i.test(name));
+  const block: string[] = [];
+  if (embeddable.length) {
+    block.push("\\begin{figure}[h]");
+    for (const figure of embeddable) block.push(`\\includegraphics[width=\\linewidth]{${figure}}`);
+    block.push("\\end{figure}");
+  }
+  if (charts.length) block.push(`% SVG charts rendered in paper.md (not LaTeX-embeddable): ${charts.join(", ")}`);
+  return block.join("\n");
 }

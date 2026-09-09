@@ -3,7 +3,7 @@ import type { CompatibilityDeclaration } from "../../src/shared/compatibility";
 
 export type RuntimeId = string;
 export type RuntimeKind = "web" | "codex" | "api" | "local";
-export type RuntimeAvailability = "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN";
+export type RuntimeAvailability = "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN" | "UNKNOWN";
 export type RuntimeCapability = "planning" | "research" | "review" | "synthesis" | "coding" | "validation" | "critique";
 
 export interface RuntimeCapabilities {
@@ -79,6 +79,7 @@ export function isRuntimeAvailable(availability: RuntimeAvailability): boolean {
     case "PAGE_CHANGED":
     case "USER_ACTION_REQUIRED":
     case "UNSUPPORTED":
-    case "DOWN": return false;
+    case "DOWN":
+    case "UNKNOWN": return false;
   }
 }

@@ -10,7 +10,7 @@ const defaults: Record<string, { protocol: ApiProtocol; baseUrl: string; model: 
   chatgpt: { protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1", model: "gpt-5" },
   gemini: { protocol: "gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-2.5-flash" },
   claude: { protocol: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-5" },
-  deepseek: { protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  deepseek: { protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-v4-flash" },
   qwen: { protocol: "openai-compatible", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
   kimi: { protocol: "openai-compatible", baseUrl: "https://api.moonshot.cn/v1", model: "kimi-k2-0905-preview" }
 };
@@ -25,7 +25,18 @@ export class ApiSettingsStore {
   snapshot(providerIds: ProviderId[]): ApiProviderSetting[] {
     return providerIds.map((providerId) => {
       const stored = this.findOrDefault(providerId);
-      return { providerId, enabled: stored.enabled, protocol: stored.protocol, baseUrl: stored.baseUrl, model: stored.model, hasApiKey: Boolean(stored.encryptedApiKey), updatedAt: stored.updatedAt };
+      // U5/security: expose only a masked tail for display (sk-••••42A9), never
+      // the full key to the renderer.
+      let keyTail: string | undefined;
+      if (stored.encryptedApiKey) {
+        try {
+          const plain = this.unprotect(stored.encryptedApiKey).trim();
+          keyTail = plain.slice(-4);
+        } catch {
+          keyTail = undefined;
+        }
+      }
+      return { providerId, enabled: stored.enabled, protocol: stored.protocol, baseUrl: stored.baseUrl, model: stored.model, hasApiKey: Boolean(stored.encryptedApiKey), keyTail, updatedAt: stored.updatedAt };
     });
   }
 

@@ -67,10 +67,16 @@ export function buildEvidenceBundle(task: BossTask, artifacts: RawArtifact[], co
   const disputes: DisputeRecord[] = (council?.conflicts ?? []).map((conflict) => ({ id: randomUUID(), topic: conflict.topic, positions: conflict.positions, evidenceArtifactIds: reviewIds, unresolved: true }));
   const providersWithEvidence = new Set(taskArtifacts.map((artifact) => artifact.providerId));
   const missingProviderIds = task.providerIds.filter((providerId) => !providersWithEvidence.has(providerId));
+  // U1 P1 (plan §2.3/§4, Evidence>Vote): the decision is derived from the
+  // durable claim/dispute state, never from the task's transient execution
+  // phase. PASS requires: no missing provider evidence, no unresolved dispute,
+  // and no claim left DISPUTED or INSUFFICIENT. Anything else stays
+  // HOLD_FOR_REVIEW so a final response can never masquerade as adjudicated.
+  const hasUnresolvedClaims = claims.some((claim) => claim.status === "DISPUTED" || claim.status === "INSUFFICIENT");
 
   return {
     id: randomUUID(), taskId: task.id, manifest, integrityRoot, claims, disputes, missingProviderIds,
-    decision: task.executionPhase === "COMPLETED" && missingProviderIds.length === 0 && disputes.length === 0 ? "PASS" : "HOLD_FOR_REVIEW", codexReview: previousReview ?? { status: "NOT_RUN" }, createdAt: new Date().toISOString()
+    decision: missingProviderIds.length === 0 && disputes.length === 0 && !hasUnresolvedClaims ? "PASS" : "HOLD_FOR_REVIEW", codexReview: previousReview ?? { status: "NOT_RUN" }, createdAt: new Date().toISOString()
   };
 }
 

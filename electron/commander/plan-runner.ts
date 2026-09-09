@@ -25,7 +25,15 @@ export class PlanRunner {
       this.ledger.update(taskId, "pending graph replanned", (state) => {
         state.jobs.graph.fingerprint = "graph_" + TaskLedger.fingerprint(next);
         state.pendingSteps = next.steps.filter((step) => !frozen.some((done) => done.id === step.id)).map((step) => step.id);
-        for (const step of plan.steps.filter((item) => !frozen.some((done) => done.id === item.id))) delete state.jobs["graph_" + step.id];
+        for (const step of plan.steps.filter((item) => !frozen.some((done) => done.id === item.id))) {
+          // Purge the step job AND any recursive microtask scope it left behind
+          // (AP12: `graph_<stepId>_microtask*`), so a replanned step with a
+          // changed scope never trips the inner DAG-fingerprint guard.
+          delete state.jobs["graph_" + step.id];
+          for (const key of Object.keys(state.jobs)) {
+            if (key === `graph_${step.id}_microtask` || key.startsWith(`graph_${step.id}_microtask_`)) delete state.jobs[key];
+          }
+        }
       });
       plan = next; savePlan(plan);
     }

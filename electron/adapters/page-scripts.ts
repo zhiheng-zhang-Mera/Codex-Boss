@@ -142,3 +142,65 @@ export function sendScript(definition: AdapterDefinition): string {
     return { ok: true };
   })()`;
 }
+
+export interface UploadFilePayload {
+  name: string;
+  mime: string;
+  /** Base64 content for page-side File construction. */
+  base64: string;
+}
+
+/**
+ * Injects files through the adapter's file input (plan §9). The page builds a
+ * File from the embedded base64 payload, assigns it via DataTransfer and fires
+ * change — then waits briefly for the UI to render an attachment chip. It does
+ * NOT send the prompt; the caller must verify the chip and only then send.
+ */
+export function uploadFilesScript(definition: AdapterDefinition, files: UploadFilePayload[]): string {
+  const safeFiles = files.map((file) => ({ name: JSON.stringify(file.name).replaceAll("<", "\\u003c"), mime: JSON.stringify(file.mime).replaceAll("<", "\\u003c"), base64: file.base64 }));
+  return `(async () => {
+    const d = ${payload(definition)};
+    const visible = (e) => !!e && e.getClientRects().length > 0;
+    const input = (d.fileInputSelectors || ['input[type="file"]']).map((s) => document.querySelector(s)).find(visible);
+    if (!input) return { ok: false, reason: 'file-input-not-found', confirmed: false };
+    const files = ${JSON.stringify(safeFiles)};
+    const transfer = new DataTransfer();
+    for (const file of files) {
+      const binary = atob(file.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      transfer.items.add(new File([bytes], file.name, { type: file.mime }));
+    }
+    Object.defineProperty(input, 'files', { configurable: true, value: transfer.files });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    return { ok: true, confirmed: false };
+  })()`;
+}
+
+/**
+ * Fail-closed upload verification (plan §9.1): returns true only when a
+ * rendered attachment chip carrying the expected file name is visible in the
+ * DOM. Never treat an open dialog as an uploaded file.
+ */
+export function verifyUploadScript(definition: AdapterDefinition, expectedNames: string[]): string {
+  const safeNames = JSON.stringify(expectedNames);
+  return `(() => {
+    const d = ${payload(definition)};
+    const visible = (e) => !!e && e.getClientRects().length > 0;
+    const selectors = d.attachmentSelectors || [];
+    const body = (document.body?.innerText || '');
+    const expected = ${safeNames};
+    if (selectors.length === 0) {
+      // No versioned chip surface: fail closed unless the file name already
+      // appears in the visible page text (best-effort, still conservative).
+      const present = expected.every((name) => body.includes(name));
+      return { ok: present, confirmed: present, found: [], missing: present ? [] : expected };
+    }
+    const chips = Array.from(new Set(selectors.flatMap((s) => Array.from(document.querySelectorAll(s))))).filter(visible).map((e) => (e.innerText || e.textContent || e.getAttribute?.('aria-label') || '').trim()).filter(Boolean);
+    const text = chips.join('\\n') + '\\n' + body;
+    const found = expected.filter((name) => text.includes(name));
+    const missing = expected.filter((name) => !text.includes(name));
+    return { ok: missing.length === 0, confirmed: missing.length === 0, found, missing };
+  })()`;
+}

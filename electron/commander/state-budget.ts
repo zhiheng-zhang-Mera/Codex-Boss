@@ -16,6 +16,15 @@ export type { LifecyclePruneReport, StorageBudgetPolicy } from "../../src/shared
 export function applyStateStorageBudget(snapshot: AppSnapshot, policy: StorageBudgetPolicy, now = Date.now()): { snapshot: AppSnapshot; report: LifecyclePruneReport } {
   validateBudgetPolicy(policy);
   const report = emptyPruneReport();
+  // U1 P1 (§13 hard rule): without an explicit user-authorized delete this
+  // budget never removes completed-task history (runs/artifacts/evidence/final
+  // responses). Cleanup, space optimization and task completion are never
+  // reasons to auto-delete Boss-internal history. Callers that received
+  // explicit user confirmation set policy.userAuthorizedDelete.
+  if (policy.userAuthorizedDelete !== true) {
+    report.retainedTasks = snapshot.tasks.length;
+    return { snapshot, report };
+  }
   const active = new Set(snapshot.tasks.filter((task) => ["queued", "running", "waiting", "paused"].includes(task.status)).map((task) => task.id));
   const protectedIds = new Set(policy.protectedFamilies ?? []);
   // Completed tasks per conversation, newest kept when capped.

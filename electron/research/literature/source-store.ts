@@ -35,6 +35,12 @@ export class CitationSourceStore {
     this.persist();
   }
 
+  /** Clears all citation records + persisted file (one research run owns the store). */
+  reset(): void {
+    this.citations.clear();
+    this.persist();
+  }
+
   /** Advances one citation through the verification ladder given observed evidence. */
   verify(id: string, evidence: { sourceAcquired: boolean; metadataVerified: boolean; passageLocated: boolean; passageSupports: boolean; passageContradicts?: boolean; passages?: Array<{ quote: string; page?: string }> }): CitationStatus {
     const record = this.require(id);

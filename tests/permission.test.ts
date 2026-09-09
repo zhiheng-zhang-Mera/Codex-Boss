@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { EMPTY_MANIFEST, manifestAllows, manifestNarrow, type PermissionManifest } from "../src/shared/permission";
+import { EMPTY_MANIFEST, desktopMutationGate, manifestAllows, manifestNarrow, type PermissionManifest } from "../src/shared/permission";
 import { PermissionManifestStore } from "../electron/security/permission-manifest";
 
 const dirs: string[] = [];
@@ -54,5 +54,29 @@ describe("permission manifest store", () => {
     const file = path.join(root(), "permissions.json");
     fs.writeFileSync(file, JSON.stringify({ schemaVersion: 9, workspaceId: "ws1" }));
     expect(() => new PermissionManifestStore(file).load("ws1")).toThrow(/Invalid/);
+  });
+});
+
+describe("desktop side-effect gate (computer permission wiring)", () => {
+  it("denies every desktop mutation with no manifest or an empty manifest", () => {
+    expect(desktopMutationGate(undefined, "click_control").allowed).toBe(false);
+    expect(desktopMutationGate(undefined, "enter_text").allowed).toBe(false);
+    expect(desktopMutationGate(EMPTY_MANIFEST, "click_control").allowed).toBe(false);
+    expect(desktopMutationGate(EMPTY_MANIFEST, "open_app").allowed).toBe(false);
+  });
+
+  it("always lets read-only desktop actions through", () => {
+    for (const name of ["read_page", "find_control", "verify_state", "wait_for_state"]) {
+      expect(desktopMutationGate(undefined, name)).toEqual({ allowed: true });
+    }
+  });
+
+  it("allows a mutation only when `computer:<action>` is in the side-effect allow list", () => {
+    const allowed = manifest({ "side-effect": { allow: ["computer:enter_text"] } });
+    expect(desktopMutationGate(allowed, "enter_text").allowed).toBe(true);
+    expect(desktopMutationGate(allowed, "click_control").allowed).toBe(false);
+    // deny beats allow
+    const denied = manifest({ "side-effect": { allow: ["computer:click_control"], deny: ["computer:click_control"] } });
+    expect(desktopMutationGate(denied, "click_control").allowed).toBe(false);
   });
 });

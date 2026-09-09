@@ -6,12 +6,13 @@ import { scanRepo } from "../engineering/repo-inspector";
 /**
  * Default Level-B stage executor (plan 9-6 Phase 8). Deterministic offline
  * work where possible: PROJECT_INSPECTION scans the workspace repo (bounded),
- * READY/terminal stages are no-ops. Reviewer-gated stages (literature review,
- * RQ formulation, experiment design, analysis, manuscript) return an honest
+ * READY/terminal states are no-ops. Every stage that needs a reviewer, a live
+ * semantic role, a real experiment, or real audit work returns an honest
  * pause outcome — the supervisor parks the run at WAITING_FOR_PROVIDER and
  * records the pending stage instead of advancing past a gate no executor
- * actually passed (evidence > vote; no fabricated advancement). The live
- * web-AI wiring replaces this executor in the GUI session.
+ * actually passed (evidence > vote; milestone §7: no placeholder stage may
+ * auto-advance a live run). The live web-AI wiring / the research conductor
+ * replace this executor in the GUI session and in the deterministic CI path.
  */
 
 const REVIEWER_GATED: ReadonlySet<ResearchState> = new Set<ResearchState>([
@@ -49,11 +50,16 @@ export class DefaultLevelBExecutor implements ResearchStageExecutor {
             pauseReason: `stage ${input.stage} requires web-AI reviewer (evidence > vote); default executor cannot fabricate this gate`
           };
         }
-        // Remaining stages have no deterministic offline work in this executor
-        // but are not reviewer gates (protocol bookkeeping, runtime execution,
-        // citation/audit, build…); record a no-op summary and let the autopilot
-        // pass them as placeholders.
-        return { summary: `stage ${input.stage} has no deterministic offline work in the default executor; recorded as placeholder` };
+        // No placeholder advancement (milestone §7): the remaining stages
+        // (protocol draft/freeze, experiment implementation/execution,
+        // replication, claim review, citation/repro audit, manuscript, build)
+        // need real work this executor cannot perform — pausing honestly is
+        // safer than advancing a run on a "no-op" summary.
+        return {
+          summary: `stage ${input.stage} has no deterministic offline work in the default executor and must not auto-advance`,
+          pause: true,
+          pauseReason: `stage ${input.stage} needs a real stage executor (research conductor / live role worker); default executor cannot perform it (no placeholder advancement)`
+        };
     }
   }
 }

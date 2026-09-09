@@ -4,6 +4,8 @@ export function taskPresentation(task: BossTask, runs: ProviderRun[], final?: Fi
   if (task.status === "cancelled") return { state: "FAILED", label: "已取消" };
   if (task.status === "failed" || task.executionPhase === "FAILED") return { state: "FAILED", label: "任务未完成" };
   if (final) return { state: "COMPLETED", label: "已完成" };
+  // Phase E: a pending Chat→Work proposal waits for exactly one decision.
+  if (task.interactionMode === "WORK_PROPOSED" && task.modeTransition && !task.modeTransition.approvedAt) return { state: "WAITING_FOR_USER", label: "等待你决定是否进入 Work" };
   if (task.status === "paused") return { state: "WAITING_FOR_USER", label: "已暂停" };
   if (task.recoveryAt) return { state: "RECOVERING", label: "等待恢复" };
   if (task.finalizationBlocker) return { state: "WAITING_FOR_USER", label: "等待 Codex 可用后整理答复" };

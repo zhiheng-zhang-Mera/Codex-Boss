@@ -20,3 +20,8 @@ secrets/
 
 .boss/worktrees/
 .boss/tmp/
+
+/tests/
+/live-acceptance/
+/Update-Plan/
+/research-output/

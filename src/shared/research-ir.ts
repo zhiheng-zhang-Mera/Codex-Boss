@@ -72,7 +72,15 @@ export interface ResearchScope {
   allowedDomains: string[];
   reviewers: string[];      // provider/runtime ids used as web-AI reviewers
   autonomy: "AUTOPILOT" | "GUIDED";
-  budget: { maxExperiments: number; maxSteps: number };
+  /** Milestone §1: AUTO = Boss may switch providers; FIXED = stay on the given reviewer set. */
+  providerPolicy?: "AUTO" | "FIXED";
+  budget: {
+    maxExperiments: number;
+    maxSteps: number;
+    /** Milestone §1 human budget: bounded provider calls and runtime minutes. */
+    maxProviderCalls?: number;
+    maxRuntimeMinutes?: number;
+  };
 }
 
 export interface ResearchIR {

@@ -8,7 +8,7 @@ export interface TaskIR {
   estimatedComplexity: TaskLevel; budgetClass: "minimal" | "standard" | "extended";
   maxWorkers: number; steps: TaskStep[]; planningReason: string;
 }
-export interface CompileOptions { constraints?: string[]; steps?: TaskStep[]; allowParallel?: boolean; }
+export interface CompileOptions { constraints?: string[]; steps?: TaskStep[]; allowParallel?: boolean; /** Explicit worker cap for L3 graphs (default 3; plan §6.4 a 5-AI pool may raise it). */ maxWorkers?: number; }
 export function compileIntent(request: string, options: CompileOptions = {}): TaskIR {
   const goal = request.trim(); if (!goal || goal.length > 100000) throw new Error("Task objective must contain 1–100000 characters");
   const file = /^(?:read file|读取文件)\s+([^\r\n]+)$/i.exec(goal);
@@ -20,7 +20,10 @@ export function compileIntent(request: string, options: CompileOptions = {}): Ta
   validateGraph(steps);
   const independent = steps.filter((step) => step.dependencies.length === 0).length;
   const level: TaskLevel = options.steps?.length && steps.length > 1 ? options.allowParallel && independent > 1 ? "L3" : "L2" : operation ? "L0" : "L1";
-  return { version: 1, goal, deliverables: [operation ? "Native command output" : "Task response and supporting evidence"], constraints: options.constraints ?? [], successConditions: ["Every step has evidence", "Required verification passes"], riskLevel, requiredCapabilities: operation ? ["native"] : ["general_reasoning"], dependencies: steps.flatMap((step) => step.dependencies), estimatedComplexity: level, budgetClass: level === "L0" ? "minimal" : level === "L3" ? "extended" : "standard", maxWorkers: level === "L3" ? Math.min(3, independent) : 1, steps, planningReason: level === "L0" ? "Exact deterministic operation" : level === "L1" ? "Single worker is sufficient; no planner call" : "Explicit dependency graph" };
+  // Worker cap is configurable (plan §6.4/§35): a Work pool wider than 3 must
+  // be able to widen engineering parallelism; default stays 3 for compatibility.
+  const cap = options.maxWorkers === undefined ? 3 : Math.max(1, Math.min(5, Math.trunc(options.maxWorkers)));
+  return { version: 1, goal, deliverables: [operation ? "Native command output" : "Task response and supporting evidence"], constraints: options.constraints ?? [], successConditions: ["Every step has evidence", "Required verification passes"], riskLevel, requiredCapabilities: operation ? ["native"] : ["general_reasoning"], dependencies: steps.flatMap((step) => step.dependencies), estimatedComplexity: level, budgetClass: level === "L0" ? "minimal" : level === "L3" ? "extended" : "standard", maxWorkers: level === "L3" ? Math.min(cap, independent) : 1, steps, planningReason: level === "L0" ? "Exact deterministic operation" : level === "L1" ? "Single worker is sufficient; no planner call" : "Explicit dependency graph" };
 }
 export function validateGraph(steps: TaskStep[]): void {
   if (!steps.length || steps.length > 100) throw new Error("Graph must have 1–100 steps");

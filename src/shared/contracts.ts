@@ -1,4 +1,7 @@
 import type { ExecutionPhase, ReviewPolicy, ReviewResult, WorkerResponse } from "./execution";
+import type { InputObjectRef } from "./input-object";
+import type { InteractionMode, ModeTransition } from "./capability-needs";
+import type { WorkAgentCount, WorkRole } from "./work-mode";
 export type ProviderId = string;
 export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
@@ -44,6 +47,20 @@ export interface BossTask {
   conversationId: string;
   title: string;
   prompt: string;
+  /** Attachments/inputs bound to this task (plan 9-7 §3). Absent = legacy pure-text task. */
+  inputObjectIds?: string[];
+  /** Chat→Work escalation lifecycle (plan 9-7 §2.4). CHAT by default. */
+  interactionMode?: InteractionMode;
+  /** U6 §12.1: run this task's web rounds in a fresh external conversation.
+   *  Defaults ON for WORK automation tasks (Boss owns per-task conversations);
+   *  CHAT keeps the visible conversation. Repair/continue reuses sessionUrl. */
+  freshWebConversation?: boolean;
+  /** Pending or approved Chat→Work transition (one-time user confirmation). */
+  modeTransition?: ModeTransition;
+  /** Work cognitive/review pool size 1|3|5 (plan §6). Set only for WORK tasks; absent = 3 default. */
+  workAgentCount?: WorkAgentCount;
+  /** Explicit work-role list in provider order (plan §6.4); absent = default auto mapping. */
+  workRoles?: WorkRole[];
   providerIds: ProviderId[];
   status: TaskStatus;
   mode: TaskMode;
@@ -169,7 +186,7 @@ export interface RuntimeStatusView {
   runtimeId: string;
   label: string;
   kind: "web" | "codex" | "api" | "local";
-  availability: "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN";
+  availability: "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN" | "UNKNOWN";
   budget: "UNKNOWN" | "OK" | "LOW" | "EXHAUSTED";
   enabled: boolean;
   priority: number;
@@ -208,6 +225,8 @@ export interface ApiProviderSetting {
   baseUrl: string;
   model: string;
   hasApiKey: boolean;
+  /** Last 4 chars of the stored key for masked display (sk-••••42A9). Never the full key. */
+  keyTail?: string;
   updatedAt: string;
 }
 
@@ -251,6 +270,8 @@ export interface BossConversation {
   taskIds: string[];
   createdAt: string;
   updatedAt: string;
+  /** Conversation-scoped input objects (plan 9-7 §3/§5); restored after restart. */
+  inputObjects?: InputObjectRef[];
   /** Archived conversations are hidden from the default list but never deleted. */
   archived?: boolean;
 }
@@ -268,7 +289,7 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "conversation.archived" | "conversation.deleted" | "conversation.duplicated" | "conversation.exported" | "remote.channel" | "remote.command" | "runtime.policy";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "conversation.archived" | "conversation.deleted" | "conversation.duplicated" | "conversation.exported" | "remote.channel" | "remote.command" | "runtime.policy" | "input.object.registered" | "input.object.removed";
   taskId?: string;
   providerId?: ProviderId;
   stepId?: string;
@@ -319,6 +340,10 @@ export interface CreateTaskInput {
   reviewPolicy?: ReviewPolicy;
   title: string;
   prompt: string;
+  /** Input objects bound to this task; ids must already exist on the conversation. */
+  inputObjectIds?: string[];
+  /** Optional explicit work pool size 1|3|5 (defaults: 1 for 1 worker, else 3 for ≤3, 5 for >3). */
+  workAgentCount?: import("./work-mode").WorkAgentCount;
   providerIds: ProviderId[];
   mode?: TaskMode;
   appMode?: AppMode;
@@ -349,16 +374,30 @@ export interface BossBridge {
   activeIntervention(taskId: string): Promise<import("./intervention").HumanInterventionRequest | undefined>;
   listInterventions(taskId?: string): Promise<import("./intervention").HumanInterventionRequest[]>;
   resolveIntervention(taskId: string, kind: import("./intervention").InterventionKind, answer: string): Promise<import("./intervention").HumanInterventionRequest>;
-  researchStart(input: { id?: string; goal: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; maxExperiments?: number; maxSteps?: number }): Promise<unknown>;
+  researchStart(input: { id?: string; researchQuestion?: string; goal?: string; workspace: string; reviewers: string[]; autonomy?: "AUTOPILOT" | "GUIDED"; hypothesis?: string; providerPolicy?: "AUTO" | "FIXED"; maxExperiments?: number; maxSteps?: number; maxProviderCalls?: number }): Promise<unknown>;
   researchStatus(id: string): Promise<unknown>;
   researchList(): Promise<Array<{ id: string; goal: string; state: string; revision: number; updatedAt: string; protocolHash?: string; pendingStage?: string }>>;
   researchStep(id: string): Promise<unknown>;
+  /** Runs the research autopilot until a genuine block or terminal state (plan 9-7 §28). */
+  researchAutopilot(id: string, maxSteps?: number): Promise<unknown>;
+  /** Compiles a research manuscript paper.tex → paper.pdf and returns the audit + paths (plan 9-7 §31/§33). */
+  researchCompilePdf(id: string): Promise<{ status: "PASS" | "FAIL"; engine: string | null; tex: string; pdf: string | null; logTail: string; compiledAt: string; researchCache: string }>;
   /** Resumes a control-paused research run to its pending stage; true when it actually resumed. */
   researchResume(id: string): Promise<boolean>;
   researchWait(input: { id: string; kind: import("./intervention").InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }): Promise<unknown>;
   researchProtocolFreeze(id: string, protocol: import("./research-protocol").ResearchProtocol): Promise<unknown>;
+  /** Opens a native multi-file dialog and imports each picked file into the conversation's attachment store. */
+  pickAttachments(conversationId: string): Promise<AppSnapshot>;
+  /** Imports raw bytes (drag/drop or clipboard paste) as one attachment. */
+  addAttachmentBytes(input: { conversationId: string; originalName: string; mime?: string; bytes: Uint8Array }): Promise<AppSnapshot>;
+  /** Removes an attachment from the store and the conversation registry. */
+  removeAttachment(conversationId: string, inputObjectId: string): Promise<AppSnapshot>;
+  /** Resolves the durable local path of a stored attachment, if present. */
+  attachmentPath(conversationId: string, inputObjectId: string): Promise<string | undefined>;
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
+  /** One-time Chat→Work decision: approve runs the task as Work, decline keeps Chat (plan §2.3). */
+  resolveModeProposal(taskId: string, approveWork: boolean): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
   updateRemoteChannel(input: UpdateRemoteChannelInput): Promise<AppSnapshot>;
   updateRuntimeControl(runtimeId: string, enabled: boolean, priority: number): Promise<AppSnapshot>;
@@ -372,7 +411,10 @@ export interface BossBridge {
   moveConversation(conversationId: string, folderId: string): Promise<AppSnapshot>;
   selectConversation(conversationId: string): Promise<AppSnapshot>;
   archiveConversation(conversationId: string, archived: boolean): Promise<AppSnapshot>;
-  deleteConversation(conversationId: string): Promise<AppSnapshot>;
+  /** Deletes a conversation (tasks/runs/evidence/final answers + history files). Requires explicit user confirmation (U1 P1 §13). */
+  deleteConversation(conversationId: string, userConfirmed: boolean): Promise<AppSnapshot>;
+  /** Bulk-deletes several conversations in one action (multi-select history); requires explicit user confirmation. */
+  deleteConversations(conversationIds: string[], userConfirmed: boolean): Promise<AppSnapshot>;
   duplicateConversation(conversationId: string): Promise<AppSnapshot>;
   exportConversation(conversationId: string): Promise<string>;
   addCustomProvider(input: CustomProviderInput): Promise<AppSnapshot>;
@@ -384,13 +426,62 @@ export interface BossBridge {
   releaseReview(taskId: string): Promise<AppSnapshot>;
   advanceCouncil(taskId: string): Promise<AppSnapshot>;
   buildEvidence(taskId: string): Promise<AppSnapshot>;
+  /** Operator explicitly accepts the held (DISPUTED/INSUFFICIENT) evidence and finalizes (U3 §2.3). */
+  acceptEvidence(taskId: string): Promise<AppSnapshot>;
+  /** Lists durable external web-session archive records (U6 §14; read-only). */
+  externalSessionList(): Promise<Array<import("./external-session").ExternalSessionRecord>>;
+  /** U10 §26–§41: durable autonomous-engineering goal status read-model for the start surface. */
+  engineeringGoalStatus(): Promise<import("./engineering-loop").EngineeringGoalSnapshot>;
+  /** U10 §26–§41: starts one autonomous engineering goal run against a workspace (fail-closed without a coding editor). */
+  engineeringGoalRun(input: EngineeringGoalRunInput): Promise<EngineeringGoalRunResult>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;
   runCodexReview(taskId: string): Promise<AppSnapshot>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
   layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;
   setProviderViewsVisible(visible: boolean): Promise<void>;
+  /** U4 §9.2: force a manual zoom factor on one provider pane. */
+  setProviderZoom(providerId: ProviderId, factor: number): Promise<void>;
+  /** U4 §9.2: reload one provider pane (visible session reset). */
+  reloadProvider(providerId: ProviderId): Promise<void>;
+  /** U4 §7/§9: switch the workspace between MERGED and DETACHED (two-window) mode. */
+  setWorkspaceView(view: "MERGED" | "DETACHED"): Promise<WorkspaceViewStatus>;
+  /** U4 §7/§9: current workspace view + DETACHED web-window bounds, if open. */
+  getWorkspaceView(): Promise<WorkspaceViewStatus>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
   projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;
+}
+
+/** U10 §27: renderer → main input to start one autonomous engineering goal. */
+export interface EngineeringGoalRunInput {
+  goal: {
+    objective: string;
+    workspace: string;
+    protectedProductBehavior: string[];
+    allowedChangeScope: string[];
+    forbiddenChangeScope: string[];
+    verificationPolicy: "standard" | "strict";
+    agentCount: import("./work-mode").WorkAgentCount;
+    convergencePolicy: { cleanRoundsRequired: number; maxIterations?: number };
+  };
+  workspace: string;
+  maxIterations?: number;
+  /** Explicit operator replace: archive the frozen goal ledger, start fresh (never deletes). */
+  replace?: boolean;
+}
+
+/** U10 §26–§41: summary of one engineering goal run (structural mirror of the driver's close). */
+export interface EngineeringGoalRunResult {
+  state: "ENGINEERING_CONVERGED" | "OPTIONAL_IMPROVEMENTS" | "STAGNANT" | "ABORTED";
+  iterations: number;
+  changedFiles: string[];
+  findings: Array<{ id: string; severity: string; description: string; evidence?: string }>;
+}
+
+/** U4 §7/§9: workspace view state + the DETACHED web-window bounds (main-process truth). */
+export interface WorkspaceViewStatus {
+  view: "MERGED" | "DETACHED";
+  /** Bounds of the DETACHED web window (window B), when one exists. */
+  webWindow?: { x: number; y: number; width: number; height: number };
 }

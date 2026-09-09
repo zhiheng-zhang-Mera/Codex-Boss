@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
+import { validateInputObjectRef, uniqueInputObjectRefs, type InputObject, type InputObjectRef } from "../src/shared/input-object";
 import { HistoryRepository, safeSegment } from "./history-repository";
 
 import { writeJson } from "./commander/durable-json";
@@ -62,11 +63,13 @@ export class StateStore {
     return report;
   }
 
-  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId, parentTaskId?: string, runtimeJobId?: string): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId, parentTaskId?: string, runtimeJobId?: string, inputObjectIds?: string[]): BossTask {
     const now = new Date().toISOString();
     const conversation = this.conversation(conversationId);
     const normalizedTransports = Object.fromEntries(providerIds.map((providerId) => [providerId, appMode === "chat" ? "web" : transportByProvider[providerId] ?? "web"])) as Record<ProviderId, RunTransport>;
-    const task: BossTask = { id: randomUUID(), parentTaskId, runtimeJobId, conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
+    const boundInputs = this.resolveBoundInputs(conversation, inputObjectIds);
+    const task: BossTask = { id: randomUUID(), parentTaskId, runtimeJobId, conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now, ...(appMode === "work" ? { freshWebConversation: true } : {}) };
+    if (boundInputs.length) task.inputObjectIds = boundInputs;
     this.snapshotValue.tasks.unshift(task);
     if (!parentTaskId) conversation.taskIds.push(task.id);
     conversation.updatedAt = now;
@@ -82,6 +85,53 @@ export class StateStore {
 
   runsForTask(taskId: string): ProviderRun[] {
     return this.snapshotValue.runs.filter((run) => run.taskId === taskId);
+  }
+
+  /** Input objects registered on a conversation (empty for legacy conversations). */
+  inputObjectsFor(conversationId: string): InputObjectRef[] {
+    const conversation = this.conversation(conversationId);
+    return (conversation.inputObjects ?? []).map((ref) => structuredClone(ref));
+  }
+
+  /**
+   * Registers input objects on a conversation. Fail-closed: each ref must
+   * validate and belong to the target conversation; duplicates by id are
+   * dropped. Returns the persisted refs.
+   */
+  registerInputObjects(conversationId: string, refs: InputObjectRef[]): InputObjectRef[] {
+    const conversation = this.conversation(conversationId);
+    const validated = (refs ?? []).map((ref) => {
+      validateInputObjectRef(ref);
+      if (ref.conversationId !== conversationId) throw new Error("Input object conversation mismatch");
+      return ref;
+    });
+    if (!validated.length) return this.inputObjectsFor(conversationId);
+    const merged = uniqueInputObjectRefs([...(conversation.inputObjects ?? []), ...validated]);
+    conversation.inputObjects = merged;
+    conversation.updatedAt = new Date().toISOString();
+    this.event("input.object.registered", `已登记 ${validated.length} 个输入对象`, {});
+    this.persist();
+    return this.inputObjectsFor(conversationId);
+  }
+
+  /** Removes one input object from a conversation and unbinds it from its tasks. */
+  removeInputObject(conversationId: string, inputObjectId: string): void {
+    const conversation = this.conversation(conversationId);
+    if (!(conversation.inputObjects ?? []).some((ref) => ref.id === inputObjectId)) return;
+    conversation.inputObjects = (conversation.inputObjects ?? []).filter((ref) => ref.id !== inputObjectId);
+    conversation.updatedAt = new Date().toISOString();
+    for (const task of this.snapshotValue.tasks.filter((item) => item.conversationId === conversationId && item.inputObjectIds?.includes(inputObjectId))) {
+      task.inputObjectIds = task.inputObjectIds!.filter((id) => id !== inputObjectId);
+    }
+    this.event("input.object.removed", `已移除输入对象 ${inputObjectId}`, {});
+    this.persist();
+  }
+
+  private resolveBoundInputs(conversation: BossConversation, inputObjectIds?: string[]): string[] {
+    const available = new Set((conversation.inputObjects ?? []).map((ref) => ref.id));
+    const requested = [...new Set(inputObjectIds ?? [])];
+    for (const id of requested) if (!available.has(id)) throw new Error(`Unknown input object for this conversation: ${id}`);
+    return requested;
   }
 
   createFolder(name: string): ConversationFolder {
@@ -175,30 +225,74 @@ export class StateStore {
   }
 
   /**
-   * Duplicate a conversation: new conversation id + new storage name, and
-   * fresh tasks/runs/artifacts mirroring the visible history. Old ids are
-   * never reused (plan: no shared run/checkpoint ids).
+   * Duplicate a conversation: new conversation id + new storage name, and a
+   * faithful copy of the whole history under fresh ids — tasks, runs,
+   * artifacts, councils, dispatch checkpoints, evidence bundles and final
+   * responses all ride along (U1 P1: deep duplicate). Old ids are never reused
+   * (plan: no shared run/checkpoint ids). Copied runs are reset to queued and
+   * copied tasks to queued/CHAT so the copy is a re-runnable snapshot, never a
+   * live duplicate of in-flight external state.
    */
   duplicateConversation(conversationId: string): BossConversation {
     const source = this.conversation(conversationId);
     const now = new Date().toISOString();
-    const copy: BossConversation = { id: randomUUID(), folderId: source.folderId, title: `${source.title} 副本`, storageName: this.uniqueConversationStorageName(source.folderId, `${source.title} 副本`), taskIds: [], createdAt: now, updatedAt: now };
+    const copy: BossConversation = { id: randomUUID(), folderId: source.folderId, title: `${source.title} 副本`, storageName: this.uniqueConversationStorageName(source.folderId, `${source.title} 副本`), taskIds: [], createdAt: now, updatedAt: now, ...(source.archived ? { archived: true } : {}) };
+    if ((source.inputObjects ?? []).length) copy.inputObjects = (source.inputObjects ?? []).map((ref) => structuredClone(ref));
     this.snapshotValue.conversations.unshift(copy);
+
     const taskIdMap = new Map<string, string>();
     for (const task of this.snapshotValue.tasks.filter((item) => item.conversationId === source.id)) {
       const newId = randomUUID();
       taskIdMap.set(task.id, newId);
-      this.snapshotValue.tasks.unshift({ ...structuredClone(task), id: newId, conversationId: copy.id, createdAt: now, updatedAt: now, status: "queued", parentTaskId: undefined, runtimeJobId: undefined });
+      this.snapshotValue.tasks.unshift({ ...structuredClone(task), id: newId, conversationId: copy.id, createdAt: now, updatedAt: now, status: "queued", executionPhase: undefined, nextAction: undefined, recoveryAt: undefined, recoveryMessage: undefined, finalizationBlocker: undefined, parentTaskId: undefined, runtimeJobId: undefined, modeTransition: undefined, interactionMode: "CHAT" });
       copy.taskIds.push(newId);
     }
-    const runIds = new Map<string, string>();
+    const runIdMap = new Map<string, string>();
+    const artifactIdMap = new Map<string, string>();
     for (const run of this.snapshotValue.runs.filter((item) => taskIdMap.has(item.taskId))) {
-      const newId = randomUUID();
-      runIds.set(run.id, newId);
-      this.snapshotValue.runs.push({ ...structuredClone(run), id: newId, taskId: taskIdMap.get(run.taskId)!, createdAt: now, updatedAt: now, phase: "queued", outcome: null, review: undefined, response: undefined, artifactId: undefined });
+      const newRunId = randomUUID();
+      runIdMap.set(run.id, newRunId);
+      this.snapshotValue.runs.push({ ...structuredClone(run), id: newRunId, taskId: taskIdMap.get(run.taskId)!, createdAt: now, updatedAt: now, phase: "queued", outcome: null, review: undefined, response: undefined, artifactId: undefined });
     }
     for (const artifact of this.snapshotValue.artifacts.filter((item) => taskIdMap.has(item.taskId))) {
-      this.snapshotValue.artifacts.push({ ...structuredClone(artifact), id: randomUUID(), taskId: taskIdMap.get(artifact.taskId)!, runId: runIds.get(artifact.runId) ?? randomUUID(), capturedAt: now });
+      const newArtifactId = randomUUID();
+      artifactIdMap.set(artifact.id, newArtifactId);
+      this.snapshotValue.artifacts.push({ ...structuredClone(artifact), id: newArtifactId, taskId: taskIdMap.get(artifact.taskId)!, runId: runIdMap.get(artifact.runId) ?? randomUUID(), capturedAt: now });
+    }
+    // Map a source artifact id to its duplicated id (idempotent, falls back to
+    // the input when no copy exists so optional fields stay well-formed).
+    const mappedArtifact = (artifactId: string | undefined): string | undefined => (artifactId && artifactIdMap.get(artifactId)) || artifactId;
+
+    for (const council of this.snapshotValue.councils.filter((item) => taskIdMap.has(item.taskId))) {
+      this.snapshotValue.councils.push({ ...structuredClone(council), id: randomUUID(), taskId: taskIdMap.get(council.taskId)!, round: 1, stage: "proposals", conflicts: [], minorityOpinions: [], finalArtifactId: undefined, createdAt: now, updatedAt: now });
+    }
+    for (const checkpoint of this.snapshotValue.dispatchCheckpoints.filter((item) => taskIdMap.has(item.taskId))) {
+      this.snapshotValue.dispatchCheckpoints.push({ ...structuredClone(checkpoint), id: randomUUID(), taskId: taskIdMap.get(checkpoint.taskId)!, status: "PREPARING", successfulProviderIds: [], failedProviderIds: [], requiresReconciliation: false, createdAt: now, updatedAt: now });
+    }
+    const bundleIdMap = new Map<string, string>();
+    for (const bundle of this.snapshotValue.evidenceBundles.filter((item) => taskIdMap.has(item.taskId))) {
+      const copiedBundle: EvidenceBundle = structuredClone(bundle);
+      const newBundleId = randomUUID();
+      bundleIdMap.set(bundle.id, newBundleId);
+      copiedBundle.id = newBundleId;
+      copiedBundle.taskId = taskIdMap.get(bundle.taskId)!;
+      copiedBundle.createdAt = now;
+      copiedBundle.manifest = copiedBundle.manifest.map((entry) => ({ ...entry, artifactId: mappedArtifact(entry.artifactId) ?? entry.artifactId }));
+      for (const claim of copiedBundle.claims) claim.evidenceArtifactIds = claim.evidenceArtifactIds.map((id) => mappedArtifact(id) ?? id);
+      for (const dispute of copiedBundle.disputes) dispute.evidenceArtifactIds = dispute.evidenceArtifactIds.map((id) => mappedArtifact(id) ?? id);
+      copiedBundle.codexReview = { status: "NOT_RUN" };
+      this.snapshotValue.evidenceBundles.push(copiedBundle);
+    }
+    const mappedBundle = (bundleId: string | undefined): string | undefined => (bundleId && bundleIdMap.get(bundleId)) || bundleId;
+    for (const response of this.snapshotValue.finalResponses.filter((item) => taskIdMap.has(item.taskId))) {
+      const copiedResponse = structuredClone(response);
+      copiedResponse.id = randomUUID();
+      copiedResponse.taskId = taskIdMap.get(response.taskId)!;
+      copiedResponse.conversationId = copy.id;
+      copiedResponse.sourceArtifactIds = response.sourceArtifactIds.map((id) => mappedArtifact(id) ?? id);
+      copiedResponse.evidenceBundleId = mappedBundle(response.evidenceBundleId);
+      copiedResponse.finalizedAt = now;
+      this.snapshotValue.finalResponses.push(copiedResponse);
     }
     this.event("conversation.duplicated", `已复制对话“${source.title}”`, {});
     this.snapshotValue.activeConversationId = copy.id;
@@ -344,6 +438,67 @@ export class StateStore {
     if (!task) throw new Error("Unknown task");
     task.reviewPolicy = structuredClone(policy);
     this.persist();
+  }
+
+  /**
+   * Records the Work pool configuration (plan §6/§6.4): agent count 1|3|5 plus
+   * explicit roles (default auto mapping when omitted). Persisted so a later
+   * UI/engine can reason about the pool without guessing from provider count.
+   */
+  setWorkConfig(taskId: string, config: { agentCount: import("../src/shared/work-mode").WorkAgentCount; roles?: import("../src/shared/work-mode").WorkRole[] }): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.workAgentCount = config.agentCount;
+    if (config.roles?.length) task.workRoles = [...config.roles];
+    else delete task.workRoles;
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /**
+   * Stages a one-time Chat→Work proposal (plan §2.3). The task stays queued
+   * (nothing dispatched) until the user approves or declines; approval is
+   * recorded so a later resume never asks again.
+   */
+  stageModeTransition(taskId: string, transition: import("../src/shared/capability-needs").ModeTransition): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.interactionMode = "WORK_PROPOSED";
+    task.modeTransition = { ...transition, approvedAt: undefined };
+    task.nextAction = "PROPOSE_WORK";
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /** Approves the pending Chat→Work proposal (once) and moves the task to WORK. */
+  approveModeTransition(taskId: string): boolean {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task?.modeTransition || task.interactionMode !== "WORK_PROPOSED") return false;
+    if (task.modeTransition.approvedAt) return false;
+    task.modeTransition.approvedAt = new Date().toISOString();
+    task.interactionMode = "WORK";
+    task.appMode = "work";
+    // U6 §12.1: once escalated to WORK the task runs in its own fresh external
+    // conversation (Boss automation, not the user's visible chat page).
+    task.freshWebConversation = true;
+    task.nextAction = undefined;
+    task.updatedAt = new Date().toISOString();
+    this.event("task.status", "已确认升级到 Work；原消息、附件与上下文全部继承", { taskId });
+    this.persist();
+    return true;
+  }
+
+  /** Declines the proposal and returns the task to pure CHAT. */
+  declineModeTransition(taskId: string): boolean {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task?.modeTransition || task.interactionMode !== "WORK_PROPOSED") return false;
+    task.interactionMode = "CHAT";
+    task.modeTransition = undefined;
+    task.nextAction = undefined;
+    task.updatedAt = new Date().toISOString();
+    this.event("task.status", "保持 Chat；任务按普通网页会话执行", { taskId });
+    this.persist();
+    return true;
   }
 
   setRunSession(runId: string, baseline: string, url: string): void {
@@ -564,6 +719,15 @@ export class StateStore {
     this.persist();
   }
 
+  /** Overrides an evidence-bundle decision (U3 evidence>vote publication gate). */
+  setEvidenceDecision(bundleId: string, decision: EvidenceBundle["decision"]): void {
+    const bundle = this.snapshotValue.evidenceBundles.find((item) => item.id === bundleId);
+    if (!bundle) throw new Error(`Unknown evidence bundle: ${bundleId}`);
+    bundle.decision = decision;
+    this.event("evidence.built", `证据决策更新：${decision}`, { taskId: bundle.taskId, evidenceRef: bundle.id });
+    this.persist();
+  }
+
   recordRehydration(taskId: string): void {
     this.event("evidence.rehydration", "已创建选择性证据回填轮次", { taskId });
     this.persist();
@@ -655,6 +819,9 @@ export class StateStore {
   private reconcileTask(taskId: string): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) return;
+    // Phase E: a task waiting on the one-time Chat→Work decision must stay
+    // queued and must never be auto-reconciled into "running".
+    if (task.interactionMode === "WORK_PROPOSED" && !task.modeTransition?.approvedAt) return;
     const maxRound = Math.max(...this.runsForTask(taskId).map((run) => run.round));
     const runs = this.runsForTask(taskId).filter((run) => run.round === maxRound);
     if (runs.length === 0 || ["cancelled", "paused"].includes(task.status)) return;
@@ -716,6 +883,11 @@ export class StateStore {
       const now = new Date().toISOString();
       const folders = saved.folders?.length ? saved.folders : [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }];
       const conversations = saved.conversations?.length ? saved.conversations : [{ id: defaultConversationId, folderId: folders[0].id, title: tasks.length ? "既有对话" : "新对话", storageName: tasks.length ? "既有对话" : "新对话", taskIds: tasks.map((task) => task.id), createdAt: tasks.at(-1)?.createdAt ?? now, updatedAt: tasks[0]?.updatedAt ?? now }];
+      for (const conversation of conversations) {
+        // 9-7 Phase A tolerance: legacy conversations carry no input object
+        // registry; optional additive field, so presence is never assumed.
+        if (conversation.inputObjects !== undefined && !Array.isArray(conversation.inputObjects)) conversation.inputObjects = undefined;
+      }
       const conversationIds = new Set(conversations.map((conversation) => conversation.id));
       for (const task of tasks) if (!conversationIds.has(task.conversationId)) task.conversationId = conversations[0].id;
       for (const conversation of conversations) conversation.taskIds = tasks.filter((task) => !task.parentTaskId && task.conversationId === conversation.id).map((task) => task.id).reverse();
@@ -817,7 +989,17 @@ const roles: RoleRouteView["role"][] = ["planner", "researcher", "reviewer", "sy
 
 function mergeRuntimeStatuses(providers: Provider[], controller: ControllerState, saved: RuntimeStatusView[] = []): RuntimeStatusView[] {
   const defaults: RuntimeStatusView[] = [
-    ...providers.map((provider, index) => ({ runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web" as const, availability: provider.windowOpen ? "AVAILABLE" as const : "DOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 10, message: provider.windowOpen ? "Visible session open" : "Visible session closed" })),
+    ...providers.flatMap((provider, index) => [
+      { runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web" as const, availability: provider.windowOpen ? "AVAILABLE" as const : "DOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 10, message: provider.windowOpen ? "Visible session open" : "Visible session closed" },
+      // U1 P1 (runtime control surface): every provider also has an API plane
+      // (ApiRuntime registered as api:<provider> in main.ts). Persist a status
+      // row so update-runtime-control / role-route / availability UI can
+      // address it instead of treating api:* as invisible.
+      { runtimeId: `api:${provider.id}`, label: `${provider.name} API`, kind: "api" as const, availability: "UNKNOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 20, message: "API 通道；未配置密钥时健康检查会报告 AUTH_REQUIRED" }
+    ]),
+    // U1 P1: local:native (NativeRuntime) is a first-class execution plane but
+    // had no persisted status row either.
+    { runtimeId: "local:native", label: "本地确定性工具", kind: "local", availability: "AVAILABLE", budget: "UNKNOWN", enabled: true, priority: 5, message: "本地只读/测试工具" },
     { runtimeId: "codex:cli", label: "Codex CLI", kind: "codex", availability: controller.accountMode === "CHATGPT" ? "AVAILABLE" : controller.accountMode === "NOT_AUTHENTICATED" ? "AUTH_REQUIRED" : "DOWN", budget: "UNKNOWN", enabled: true, priority: 50, message: controller.message }
   ];
   return defaults.map((fallback) => ({ ...fallback, ...(saved.find((item) => item.runtimeId === fallback.runtimeId) ?? {}), availability: fallback.availability, message: fallback.message }));

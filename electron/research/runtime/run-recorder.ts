@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { ResearchCommandSpec } from "../../../src/shared/research-command";
 import { prepareResearchCommand } from "./environment-manager";
 import { runStructuredProcess } from "./process-runner";
@@ -105,7 +105,9 @@ export class PrimaryRunRecorder {
 
     const git = await probeGit(spec.cwd);
     const record: PrimaryRunRecord = {
-      runId: `${options.experimentId}-${Date.now().toString(36)}${options.seed !== undefined ? `-${options.seed}` : ""}`,
+      // File/id naming is never timestamp-based (user requirement): stable
+      // experiment + seed + short random nonce.
+      runId: `${options.experimentId}-seed${options.seed ?? 0}-${randomBytes(3).toString("hex")}`,
       experimentId: options.experimentId,
       protocolHash: options.protocolHash,
       gitCommit: git.commit,
