@@ -98,6 +98,20 @@
 - 说明：执行器（DomPageSurface/VisionSurface 之上的真实动作链）与 WebRecovery/provider-automation
   的 live 接线属需 GUI/真实 provider 会话的 live-acceptance 轮次；本核心为确定性决策底座。
 
+## Round 5（2026-09-09，P2 前置 §37/§38/§44 Owner Dashboard 读模型 + bridge，owner-result @ d3c63ce）
+- `src/shared/owner-dashboard.ts`（纯 + 共享）：
+  - Owner 卡片只含 GOAL（goal）/ STATUS / PROGRESS（progressLabel：nextAction+executionPhase+
+    recoveryAt）/ RESULT（finalResponse source/finalizedAt/preview）/ EVIDENCE（最新 evidence
+    decision + artifact/claim 计数 + 争议留存）/ HARD_BLOCKER（HB1–HB4 或 ASSISTED 下的
+    OPERATOR_QUESTION）；内部普通决策只进决策台账，不弹 Owner（§37）。
+  - `blockerForIntervention`：LOGIN/CAPTCHA/AUTHORIZATION→HB1；BUDGET/EXTERNAL_ACTION→HB2。
+  - `internalAutoDecisions` 计数（§44）：question-interceptor/direction-stall/… 等内部决策源。
+- 接线：`contracts.ts` BossBridge.ownerDashboard()；`electron/main.ts` handler（快照 + interventions +
+  durable decision-ledger.json 实例）；`electron/preload.ts` bridge 暴露 `boss:owner-dashboard`。
+- 测试：`tests/unit/owner-dashboard.test.ts`（4 用例：读模型字段/HB 映射/内部决策计数/chat-ASSISTED 默认+进度标签）。
+- 验证快照（Round 5）：typecheck PASS；vitest 全量 **36 文件 / 190 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-5/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
