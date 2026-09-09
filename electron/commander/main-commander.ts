@@ -28,6 +28,8 @@ import { reviewResponse, type ReviewPolicy } from "../../src/shared/execution";
 import type { AppMode, BossTask, FinalizationPolicy, ProviderId, RunTransport, TaskMode, TaskStatus } from "../../src/shared/contracts";
 import type { RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
 import { defaultRunModeForTask, runTaskKindFor, type RunMode } from "../../src/shared/owner-result";
+import { verifyResult, type VerificationContract } from "../../src/shared/result-validator";
+import { collectVerificationEvidence } from "./verification-collector";
 import type { StateStore } from "../store";
 import { BudgetManager } from "./budget-manager";
 import { ContextManager, type TaskContext } from "./context-manager";
@@ -51,7 +53,7 @@ import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; /** Rev.2 §20–§22: when set, MODEL_DONE may not complete the task until its risk-gated verification plan passes. */ verification?: VerificationContract; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -128,6 +130,9 @@ export class MainCommander {
     // later decision point (intervention gate / stall ladder / auto steer)
     // reads task.runMode instead of re-deriving it.
     this.store.setRunMode(task.id, input.runMode ?? defaultRunModeForTask(runTaskKindFor(task.appMode, task.mode)));
+    // Rev.2 §20–§22: persist an explicit verification contract when supplied so
+    // every later completion point enforces MODEL_DONE → VERIFYING → PASS/REWORK.
+    if (input.verification) this.store.setVerificationContract(task.id, input.verification);
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     this.ledger?.create(task.id, input.objective, input.constraints, input.budget);
@@ -337,6 +342,24 @@ export class MainCommander {
     const sinks = finalPlan.steps.filter((step) => !finalPlan.steps.some((other) => other.dependencies.includes(step.id)));
     let content = sinks.map((step) => result.evidence.find((item) => item.stepId === step.id)?.output ?? outputs[step.id]).filter(Boolean).join("\n\n");
     const edits = finalPlan.steps.filter((step) => step.kind === "edit").map((step) => JSON.parse(outputs[step.id]) as ProposalResult);
+    // §20–§22 runtime verification gate (fail-closed): when the task carries a
+    // verification contract, MODEL_DONE is not completion — the executed host
+    // checks (typecheck/test/build…) are collected as gate evidence and the
+    // risk-gated plan must PASS. A REWORK verdict parks the task waiting with
+    // the missing gates recorded and never produces a final response.
+    if (current.verification) {
+      const evidence = collectVerificationEvidence(edits, outputs);
+      const verdict = verifyResult({ domain: current.verification.domain, risk: current.verification.risk, results: evidence });
+      this.store.recordVerification(taskId, evidence, verdict);
+      if (verdict.verdict === "REWORK") {
+        this.ledger!.update(taskId, "verification gate REWORK (fail-closed)", (value) => { value.verificationState = "FAILED"; value.nextAction = "REPAIR_OR_REPLAN"; });
+        const missing = verdict.missing.join(", ");
+        this.store.setRecoveryState(taskId, undefined, `验证门未通过（MODEL_DONE ≠ COMPLETED）：缺少 ${missing}。任务不会被标记完成。`);
+        this.store.setTaskStatus(taskId, "waiting");
+        await this.captureReproduction(taskId, workspace, "verification-rework");
+        return true;
+      }
+    }
     if (edits.length) content += "\n\n工程验证\n工作区：" + workspace + "\n修改文件：" + [...new Set(edits.flatMap((item) => item.changes.map((change) => change.path)))].join(", ") + "\n通过检查：" + edits.reduce((sum, item) => sum + item.checks.filter((check) => check.passed).length, 0) + "\n修复次数：" + edits.reduce((sum, item) => sum + item.repairs, 0);
     this.store.captureArtifact(this.store.runsForTask(taskId)[0].id, content, "local:plan");
     const final = await this.finalizeTask(taskId);
@@ -407,7 +430,12 @@ export class MainCommander {
   finalizeTask(taskId: string, publish: () => unknown = () => {}) {
     let finalizer = this.finalizers.get(taskId);
     if (!finalizer) {
-      finalizer = new TaskFinalizer(this.store, () => {}, (id) => this.synthesizeAccepted(id));
+      finalizer = new TaskFinalizer(this.store, () => {}, (id) => this.synthesizeAccepted(id), (id) => {
+        const target = this.store.snapshot().tasks.find((item) => item.id === id);
+        if (!target?.verification) return undefined; // no contract → legacy path untouched
+        const verdict = verifyResult({ domain: target.verification.domain, risk: target.verification.risk, results: target.verificationEvidence ?? [] });
+        return { verdict: verdict.verdict, missing: verdict.missing };
+      });
       this.finalizers.set(taskId, finalizer);
     }
     return finalizer.finalize(taskId).then((result) => {

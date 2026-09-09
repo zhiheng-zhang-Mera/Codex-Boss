@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { isRunMode } from "../src/shared/owner-result";
+import { isVerificationContract } from "../src/shared/result-validator";
 import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { validateInputObjectRef, uniqueInputObjectRefs, type InputObject, type InputObjectRef } from "../src/shared/input-object";
 import { HistoryRepository, safeSegment } from "./history-repository";
@@ -467,6 +468,35 @@ export class StateStore {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
     task.runMode = mode;
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /**
+   * Attaches a §20–§22 verification contract (Owner-Result.md Rev.2) to a task.
+   * When present, the task's MODEL_DONE claim may not complete it until the
+   * risk-gated verification plan passes with evidence; absent = legacy path.
+   */
+  setVerificationContract(taskId: string, contract: import("../src/shared/result-validator").VerificationContract): void {
+    if (!isVerificationContract(contract)) throw new Error("Invalid verification contract");
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.verification = { domain: contract.domain, risk: contract.risk };
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /**
+   * Records the durable gate evidence and the resulting verification verdict
+   * for a task's last completion claim (§20 fail-closed: PASS only when the
+   * plan's gates all passed; otherwise REWORK lists what is missing).
+   */
+  recordVerification(taskId: string, evidence: import("../src/shared/result-validator").GateResult[], verdict: import("../src/shared/result-validator").VerifyVerdict): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    if (!Array.isArray(evidence) || !verdict || !["PASS", "REWORK"].includes(verdict.verdict)) throw new Error("Invalid verification record");
+    task.verificationEvidence = evidence;
+    task.verificationVerdict = verdict;
     task.updatedAt = new Date().toISOString();
     this.persist();
   }

@@ -28,7 +28,14 @@ function evidenceHoldsUnresolvedClaims(bundle: import("../../src/shared/contract
 export class TaskFinalizer {
   private readonly pending = new Map<string, Promise<FinalResponse | undefined>>();
   constructor(private readonly store: StateStore, private readonly publish: () => unknown = () => {},
-    private readonly synthesize?: (taskId: string) => Promise<string | undefined>) {}
+    private readonly synthesize?: (taskId: string) => Promise<string | undefined>,
+    /**
+     * §20–§22 verification gate (Owner-Result.md Rev.2). When the task carries a
+     * verification contract this hook returns the durable verdict of its
+     * risk-gated plan (PASS or REWORK + the gates that are missing). REWORK means
+     * MODEL_DONE must not become a completed final — fail-closed.
+     */
+    private readonly verificationGate?: (taskId: string) => { verdict: "PASS" | "REWORK"; missing: readonly string[] } | undefined) {}
 
   finalize(taskId: string, policy?: FinalizationPolicy): Promise<FinalResponse | undefined> {
     const pending = this.pending.get(taskId);
@@ -61,6 +68,20 @@ export class TaskFinalizer {
       this.store.setTaskStatus(taskId, "waiting");
       this.publish();
       return;
+    }
+    // §20 fail-closed: a task under a verification contract may not finalize
+    // while its risk-gated verification plan is REWORK (missing gates). This
+    // guard sits inside the finalizer so every entry point (plan completion,
+    // synthesis recovery, explicit finalize) obeys MODEL_DONE ≠ COMPLETED.
+    if (this.verificationGate) {
+      const gate = this.verificationGate(taskId);
+      if (gate && gate.verdict === "REWORK") {
+        const detail = gate.missing.length ? gate.missing.join(", ") : "全部验证门";
+        this.store.setFinalizationPolicy(taskId, policy ?? task.finalizationPolicy ?? "DIRECT", `验证门未通过（MODEL_DONE ≠ COMPLETED）：缺少 ${detail}。请先补齐验证证据或修复后重跑，任务不会被标记完成。`);
+        this.store.setTaskStatus(taskId, "waiting");
+        this.publish();
+        return;
+      }
     }
     const effectivePolicy = policy ?? task.finalizationPolicy ?? (accepted.length === 1 ? "DIRECT" : "CODEX_IF_AVAILABLE");
     this.store.setFinalizationPolicy(taskId, effectivePolicy);

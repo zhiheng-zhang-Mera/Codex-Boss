@@ -23,6 +23,25 @@ export const RESEARCH_GATES: readonly string[] = [
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
+/**
+ * §20–§22 durable verification contract a task can carry: when present, the
+ * task's MODEL_DONE claim may not end the task until every gate in the plan
+ * for `domain`/`risk` has passed with evidence (fail-closed → REWORK). This is
+ * the additive runtime seam the Owner-Result contract plugs into; absent = the
+ * legacy completion path is unchanged.
+ */
+export interface VerificationContract {
+  domain: ResultDomain;
+  risk: RiskLevel;
+}
+
+export function isVerificationContract(value: unknown): value is VerificationContract {
+  if (!value || typeof value !== "object") return false;
+  const contract = value as { domain?: unknown; risk?: unknown };
+  return (contract.domain === "engineering" || contract.domain === "research" || contract.domain === "generic")
+    && (contract.risk === "low" || contract.risk === "medium" || contract.risk === "high" || contract.risk === "critical");
+}
+
 export interface VerificationPlan {
   domain: ResultDomain;
   risk: RiskLevel;

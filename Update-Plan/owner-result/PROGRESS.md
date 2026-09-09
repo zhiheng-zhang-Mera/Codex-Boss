@@ -353,3 +353,28 @@
   （~106 min）全部 PASS**；36 份 seeded-A fresh-clone 确定性证据（06:59–08:46）。
 - §36 long soak：累计 ~1h46m 真实全链 + R7 确定性 soak（不变量）齐备；无回归/无重复副作用。
 - 证据 `Update-Plan/owner-result/evidence/round-30/`。
+
+## Round 31（2026-09-09，P0-5 §20–§22 运行时验证门 seam v1，owner-result @ 2fc37fb）
+- **背景**：`result-validator.ts` 的 §20–§22 裁决此前只存在于纯函数与单测，未接真实完成点；
+  §45 下一优先级第 1 条（P0-5 运行时接线）尚未落地。
+- **§20–§22 Verification Contract（默认 OFF，additive）**：
+  - `src/shared/result-validator.ts`：`VerificationContract {domain,risk}` + `isVerificationContract`。
+  - `contracts.ts`：`BossTask`/`CreateTaskInput` 增加可选 `verification` / `verificationEvidence` /
+    `verificationVerdict`（durable）。
+  - `electron/store.ts`：`setVerificationContract` + `recordVerification`（校验 + 原子持久化）。
+  - `electron/commander/verification-collector.ts`（新）：把计划实际执行的 host 检查
+    （typecheck/test/build…）映射为 §21 标准门证据；diff/syntax 等**绝不冒充已过门**。
+  - `electron/commander/main-commander.ts`：createTask 持久化契约；**runPlan 完成点运行验证门**：
+    携带契约时 MODEL_DONE 只能进 VERIFYING —— 门证据不足 → 裁决 REWORK → ledger
+    `verificationState=FAILED`/`nextAction=REPAIR_OR_REPLAN` + 任务 parked waiting + 记录缺门 +
+    不 capture 完成产物、不 finalize（无假完成）；finalizeTask 向 TaskFinalizer 注入
+    verificationGate（synthesis recovery / 显式 finalize 等一切入口都再次 fail-closed 复核）。
+  - `electron/commander/task-finalizer.ts`：新增可选 verificationGate 钩子，REWORK 时保持 waiting
+    并写明缺门（MODEL_DONE ≠ COMPLETED）。
+- 测试：`tests/unit/verification-contract.test.ts`（+4：证据映射只认标准门 / 裁决 fail-closed /
+  **真实 MainCommander+TaskLedger+git 工作区集成**：high-risk 工程契约仅过 unit 门 ⇒ 无 final、
+  waiting、缺 typecheck/build/integration、REWORK 记录齐全；**对照组无契约 ⇒ 同路径照常 final**）。
+- 验证快照（Round 31）：typecheck PASS · vitest **42 文件 / 220 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-31/`。
+- 说明：契约默认 OFF（兼容既有 42 文件/220 测试全部回归）；把 OWNER_RESULT 工程任务默认带上契约
+  需与 requiredEngineeringChecks 补齐 build/integration/acceptance 等真实门执行一起落地（seam v2）。
