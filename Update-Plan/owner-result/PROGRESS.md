@@ -135,6 +135,21 @@
 - 验证快照（Round 7）：typecheck PASS；vitest 全量 **38 文件 / 198 测试 PASS**；full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-7/`。
 
+## Round 8（2026-09-09，P0-6 Computer-Use DOM-tier 修复执行器，owner-result @ 239b33b）
+- `electron/computer/provider-page-repair.ts`：`createPageRepairExecutor({surface: DomPageSurface, resolveTarget})`——
+  把 §26 修复计划逐步执行到真实页面（复用 DomPageBackend 安全脚本管线）：
+  - 每步经 resolver 把 planner 目标（kind+hint）映射为 DOM selector；无法定位 → **UNSUPPORTED 立即停止，
+    绝不盲目 mutation（§25）**；
+  - DENIED/UNCERTAIN 计划短路返回；动作失败 → FAILED（带 step/selector 信息）；
+  - 终验：仅当最终 verify_state（可验证读）成功才 REPAIRED，否则 UNCERTAIN（§25 不声称已修复）；
+  - enter_text 携带调用方 payload（context.text），submit 沿用 DomPageBackend。
+- 测试：`tests/unit/provider-page-repair.test.ts`（4 用例：READY→REPAIRED 精确步序/图标不可定位→
+  UNSUPPORTED 且零点击/DENIED 短路/动作失败→FAILED）。
+- 验证快照（Round 8）：typecheck PASS；vitest 全量 **39 文件 / 202 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-8/`。
+- 下一步：把 executor 以 guarded 方式接入 WebRecovery / provider-automation 的页面恢复路径
+  （需要真实 provider 窗口的 live 验收轮）。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
