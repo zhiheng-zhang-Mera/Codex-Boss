@@ -317,6 +317,12 @@
 - 验证：typecheck PASS · vitest **41/216 PASS** · full build PASS。
 - 证据 `Update-Plan/owner-result/evidence/round-25/`。
 
+## Round 26（2026-09-09，Final CI 复核全绿）
+- GitHub Actions Desktop CI：**runs 78–81 全部 success**（main/owner-result @ 707d23b 含 Qwen
+  send 加固、@ b586e7f 发布文书）。
+- 12 轮 seeded soak 运行中（artifacts/rev2-soak-r25.json，下轮采集）。
+- 证据 `Update-Plan/owner-result/evidence/round-26/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
