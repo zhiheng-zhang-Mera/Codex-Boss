@@ -80,6 +80,24 @@
 - 验证快照（Round 3，DS-Hns）：`npm run check` PASS；`npm test` **92/92 PASS**（含既有 12 文件全部回归）；
   scheduler 加载/开关冒烟 PASS（无状态写入）。
 
+## Round 4（2026-09-09，P0-6 Computer-Use Provider Recovery 决策核心，owner-result @ 2c76a62）
+- `src/shared/computer-recovery.ts`（纯 + 共享）：
+  - §26 失败分类 `classifyRepairNeed`：send-button-not-found / enter-did-not-submit /
+    input-not-found / response-selector-drift / 找不到发送按钮（中英）→ CU_REPAIR + need；
+    login/CAPTCHA → HUMAN_REQUIRED；未知结构失败 → NOT_REPAIRABLE（绝不猜成 mutation）。
+  - §24/§28 分级修复计划 `buildRepairPlan`：read_page →（enter_text/click_control/submit）→
+    verify_state 的可验证链；TEXT/ROLE/ACCESSIBILITY/REGION/ICON/POINT 目标分层；ICON/POINT
+    必须带 frameRevisionAt + boundedRegion，否则计划 UNCERTAIN（§28 禁裸坐标）。
+  - §29 权限：`grantedComputerActions`（computer:<action> 令牌）；mutation 无授权 → 计划
+    DENIED（fallback 到既有人工/失败路径，绝不绕过）；读动作恒允许（对齐 desktopMutationGate）。
+  - §25 post-condition 纪律：`verdictForOutcome` 仅 post-condition 被观测才 VERIFIED，否则
+    UNCERTAIN —— 禁止 UNCERTAIN 下重复 mutation。
+- 测试：`tests/unit/computer-recovery.test.ts`（10 用例：分类/计划/几何守卫/权限/事后条件/分级）。
+- 验证快照（Round 4）：typecheck PASS；vitest 全量 **35 文件 / 186 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-4/`。
+- 说明：执行器（DomPageSurface/VisionSurface 之上的真实动作链）与 WebRecovery/provider-automation
+  的 live 接线属需 GUI/真实 provider 会话的 live-acceptance 轮次；本核心为确定性决策底座。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

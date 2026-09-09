@@ -1,0 +1,31 @@
+{
+  "kind": "OWNER_RESULT_ROUND4_COMPUTER_RECOVERY_CORE",
+  "round": 4,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§24–§29 P0-6 Computer Use 接入 Provider Recovery — 决策核心)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T14:28:00.000Z",
+  "finishedAt": "2026-09-09T14:32:00.000Z",
+  "commitSha": "2c76a6261bdbc06edb0412e646bc013ea07f8b06",
+  "branch": "owner-result",
+  "status": "PASS",
+  "verification": {
+    "typecheck": "PASS",
+    "vitest": "35 files / 186 tests PASS (computer-recovery.test.ts 10 new)",
+    "build": "PASS"
+  },
+  "summary": {
+    "delivered": [
+      "src/shared/computer-recovery.ts: §26 classifyRepairNeed (CU_REPAIR / HUMAN_REQUIRED / NOT_REPAIRABLE)",
+      "§24/§28 buildRepairPlan: read->act->verify chain; ICON/POINT need frame revision + bounded region else UNCERTAIN",
+      "§29 grantedComputerActions + mutation-gated plans (DENIED fallback); reads always allowed",
+      "§25 verdictForOutcome: VERIFIED only on observed post-condition; UNCERTAIN never repeats a mutation",
+      "§24 tierForTarget ordering for affordance strategy ranking"
+    ],
+    "next": "Executor over DomPageSurface/VisionSurface + guarded WebRecovery/provider-automation wiring → live acceptance (needs GUI/provider sessions)"
+  },
+  "evidence": {
+    "tests": "tests/unit/computer-recovery.test.ts (10 deterministic cases)",
+    "regression": "typecheck PASS; vitest 35/186 PASS; full build PASS",
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Round 4)"]
+  }
+}
