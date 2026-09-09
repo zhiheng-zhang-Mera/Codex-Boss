@@ -112,6 +112,17 @@
 - 验证快照（Round 5）：typecheck PASS；vitest 全量 **36 文件 / 190 测试 PASS**；full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-5/`。
 
+## Round 6（2026-09-09，P1-5 故障注入 §22/§32 确定性套件，owner-result @ cf0995d）
+- `tests/unit/execution-fault-injection.test.ts`：在**真实 ExecutionSupervisor + 持久 TaskLedger** 上，
+  用脚本化假 RuntimeAdapter 复现 Rev.2 故障类并断言耐久状态：
+  - AUTH_REQUIRED → job WAITING + nextAction HUMAN_REQUIRED + mode PAUSED（绝不假完成）；
+  - provider TIMEOUT → 有界重试（attempts≤3），终态仍 RETRYABLE_FAILURE、不伪造 COMPLETED；
+  - BUDGET_EXHAUSTED(quota) / UNSUPPORTED(dependency) → nextAction DEFER + PAUSED；
+  - SUCCESS 但内容为空（malformed output）→ 不被当作完成（completedSteps 不含该 job）；
+  - 对照：真实非空 SUCCESS → job COMPLETED + step 计入。
+- 验证快照（Round 6）：typecheck PASS；vitest 全量 **37 文件 / 196 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-6/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
