@@ -1,0 +1,35 @@
+{
+  "kind": "OWNER_RESULT_ROUND17_LIVE_QWEN_PROBE",
+  "round": 17,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§27/§31 P0-7 Qwen Computer-Use Recovery — bounded live round; LIVE-ROUND-PLAN.md)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T15:04:00.000Z",
+  "finishedAt": "2026-09-09T15:30:00.000Z",
+  "commitSha": "HEAD-on-owner-result",
+  "branch": "owner-result",
+  "status": "INCONCLUSIVE_WITH_EVIDENCE",
+  "verification": {
+    "liveRuns": 3,
+    "sendConfirmed": 3,
+    "captureConfirmed": 0,
+    "appTerminatedAfterEach": true
+  },
+  "summary": {
+    "delivered": [
+      "scripts/live-qwen-probe.cjs: bounded CDP driver (launch real app on logged-in partitions -> open Qwen -> read-only DOM probe -> one 1-AI echo -> durable-state poll -> honest evidence + cleanup)",
+      "Live finding A: Qwen composer IS resolvable live — textarea.message-input-textarea (placeholder 询问 Qwen)",
+      "Live finding B: production automation submits successfully on Qwen (已一次提交 x3 independent runs) — the earlier 'send control unresolved' gap is resolved on the current live page",
+      "Live finding C: response capture did not finish within 5-8 min probe windows (app collection monitor is 25-min bounded; capture not falsified, pending a >=25 min single run)",
+      "Composer selector discovered -> candidate pin for adapter hardening in a later patch+live-verify round if desired"
+    ],
+    "honestStatus": "send-path live-PASS x3; capture-path INCONCLUSIVE (window too short) — recorded, never claimed as full graduation"
+  },
+  "evidence": {
+    "probes": [
+      "evidence/round-17/live-qwen-probe-2026-09-09.json",
+      "evidence/round-17/live-qwen-probe-2-2026-09-09.json",
+      "evidence/round-17/live-qwen-probe-3-2026-09-09.json"
+    ],
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Round 17)"]
+  }
+}

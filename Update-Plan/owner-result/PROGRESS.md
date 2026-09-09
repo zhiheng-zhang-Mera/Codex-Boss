@@ -238,6 +238,18 @@
 - 决策台账 + planner/executor 等代码资产齐备；live 轮无需新增运行时接口。
 - 证据 `Update-Plan/owner-result/evidence/round-16/`。
 
+## Round 17（2026-09-09，P0-7 Qwen live 有界探测轮）
+- `scripts/live-qwen-probe.cjs`：有界 CDP 驱动（真实分区启动 → 开 Qwen → 只读 DOM probe →
+  单次 1-AI echo → 耐久状态轮询 → 诚实证据 + 清理退出）。
+- live 发现（3 次独立运行一致）：
+  - Qwen composer 可解析：`textarea.message-input-textarea`（占位“询问 Qwen”）；
+  - 生产自动化在 Qwen **发送成功 ×3**（“已一次提交；等待独立并发采集回答”）——
+    早前 “Qwen 发送控件未解析” 缺口在当前 live 页面已消失（P0-7 send 段 live-PASS）；
+  - 响应采集在 5–8 分钟探测窗内未完成（应用采集 monitor 为 25 分钟上界 → 未证伪，
+    留待 ≥25 分钟单次运行确认）；状态按 INCONCLUSIVE_WITH_EVIDENCE 诚实记录。
+- composer selector 已固化证据 → 后续如需 adapter 硬化补丁可复用（patch+live 复验）。
+- 证据 `Update-Plan/owner-result/evidence/round-17/`（3 个 probe JSON + 汇总）。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
