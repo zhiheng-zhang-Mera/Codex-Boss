@@ -434,3 +434,15 @@
     （failureThreshold=1、注入时钟），全部以 durable 台账断言。
 - 验证快照（Round 34）：typecheck PASS · vitest **45 文件 / 234 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-34/`。
+
+## Round 35（2026-09-09，P1-x §38 Scenario D：Research 部分失败保留 battery，owner-result）
+- **背景**：§38 Scenario D（Experiment 失败 ⇒ RP/literature/method 保留、experiment FAILED、项目可读）与
+  §20 局部故障原则需要确定性行为证据；research supervisor/ledger 此前无 tracked 测试。
+- **tests/unit/research-partial-failure.test.ts（新，真实 supervisor + ledger）**：
+  - executor 早期阶段成功（SCOPING/PROJECT_INSPECTION/LITERATURE_REVIEW/QUESTION_FORMULATION/PROTOCOL_DRAFT/
+    PROTOCOL_FROZEN，各 appendDecision + evidenceRefs）后于 EXPERIMENT_GENERATION fail-closed 抛错 ⇒ 终态
+    FAILED（绝不 READY）；**早期全部决策与证据保留**（artifacts/<STAGE>.json），失败记录为
+    failed:EXPERIMENT_GENERATION + reason，跨 reopen 可读不丢失（不因一段失败把项目抹掉）。
+  - 对照组：全绿 executor 单步后进入 PROJECT_INSPECTION，SCOPING 决策入账。
+- 验证快照（Round 35）：typecheck PASS · vitest **46 文件 / 236 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-35/`。
