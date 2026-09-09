@@ -64,6 +64,7 @@ import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
+import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
@@ -805,6 +806,33 @@ if (ownsInstance) app.whenReady().then(() => {
     // WORK capability, propose once instead of firing web providers blindly.
     if (appMode === "chat" && escalateDecisionFor(task).escalate) {
       const decision = escalateDecisionFor(task);
+      // §18 task-level interception (Owner-Result Rev.2): a Chat→WORK capability
+      // proposal is a DECIDABLE capability-routing question. Under OWNER_RESULT
+      // it is auto-approved — recorded durably in the decision ledger first —
+      // and the task runs immediately (checkpointBudget=0: no routine pause).
+      // ASSISTED/AUTONOMOUS (and any HARD_BLOCKER text) keep the human gate.
+      const mode = effectiveRunMode({ runMode: task.runMode, kind: runTaskKindFor(task.appMode, task.mode) });
+      const verdict = workEscalationVerdict(mode, decision.reason ?? "任务需要进入 Work", decision.requiredCapabilities?.join("、"));
+      if (verdict.action === "AUTO_APPROVE" && verdict.decision && decisionLedger) {
+        decisionLedger.append({
+          id: `dec-${task.id}-escalate-work`, taskId: task.id, createdAt: new Date().toISOString(),
+          question: `Chat 任务需要 WORK 能力，是否升级？（${decision.reason ?? ""}）`,
+          candidates: ["保持 Chat（能力不足）", "升级到 WORK（自动批准）"],
+          chosen: verdict.decision.chosen,
+          evidence: [`requiredCapabilities: ${(decision.requiredCapabilities ?? []).join(", ")}`],
+          outcome: "APPLIED", policy: verdict.decision.policy, source: "question-interceptor"
+        });
+        if (store.approveModeTransition(task.id)) {
+          commander.startTask(task.id);
+          publish();
+          const workspace = githubInput?.localPath ?? (input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath());
+          try { if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id); }
+          catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
+          await automation.continueIfReady(task.id);
+          return publish();
+        }
+        return publish(); // raced: another path already drives this task
+      }
       store.stageModeTransition(task.id, { from: "CHAT", to: "WORK", reason: decision.reason ?? "任务需要进入 Work", requiredCapabilities: decision.requiredCapabilities });
       return publish();
     }

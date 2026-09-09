@@ -402,3 +402,19 @@
   WAITING_FOR_USER、GUIDED⇒parked、未知 run⇒fail-closed）。
 - 验证快照（Round 32）：typecheck PASS · vitest **43 文件 / 228 测试 PASS** · full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-32/`。
+
+## Round 33（2026-09-09，P0-4 §18 任务级能力路由拦截：Chat→WORK 升级 seam，owner-result）
+- **背景**：Chat→WORK 能力升级是第二个真实 raise 接缝：任何 chat 任务检测到需要代码/仓库能力时一律
+  stage PROPOSE_WORK 等人批准；对 OWNER_RESULT（checkpointBudget=0）这属例行 DECIDABLE 能力路由，不该空停。
+- **src/shared/owner-result.ts**：`workEscalationVerdict(mode, reason, capability?)` —— 纯决策：reason/能力文本
+  先过 HB 信号（付款/凭据等 HARD_BLOCKER 任何模式一律 PAUSE）；OWNER_RESULT ⇒ AUTO_APPROVE + 确定性
+  AutoDecision（policy `owner-result:escalate-work:v1`）；ASSISTED/AUTONOMOUS ⇒ PAUSE（保留人工门）。
+- **electron/main.ts boss:dispatch-task**：escalate 分支按任务 runMode 裁决 —— AUTO_APPROVE 且 durable
+  decision-ledger 可用 ⇒ **先 append §38 台账**（source=question-interceptor、outcome=APPLIED）再
+  approveModeTransition + 启动执行（executeDeterministic/executePlan/automation + continueIfReady），不停放；
+  否则照旧 stageModeTransition PROPOSE_WORK（默认 chat=ASSISTED 逐字节不变；台账不可用/HB ⇒ fail-closed 走人工门）。
+- Owner Dashboard 既有 `buildOwnerDashboard(ledgerEntries)` 自动把新台账计入 internalAutoDecisions，无需改动。
+- 测试：`tests/unit/work-escalation-verdict.test.ts`（+4：OWNER_RESULT+普通理由⇒AUTO_APPROVE /
+  ASSISTED⇒PAUSE / AUTONOMOUS⇒PAUSE / OWNER_RESULT 但 HB 文本(付款/登录授权)⇒PAUSE）。
+- 验证快照（Round 33）：typecheck PASS · vitest **44 文件 / 232 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-33/`。

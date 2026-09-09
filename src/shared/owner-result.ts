@@ -387,3 +387,33 @@ export function ownerResultGateFor(kind: QuestionKind): { verdict: "DECIDABLE" |
       return { verdict: "DECIDABLE" };
   }
 }
+
+/**
+ * §18 task-level interception: the engine's Chat→WORK capability proposal is a
+ * DECIDABLE capability-routing question (the task already needs code/repo
+ * execution). Under OWNER_RESULT (checkpointBudget = 0) it auto-approves and
+ * records the durable decision instead of pausing at PROPOSE_WORK; ASSISTED and
+ * AUTONOMOUS — and any HARD_BLOCKER text in the reason (payment, credentials…) —
+ * keep the human gate exactly as before.
+ */
+export interface WorkEscalationVerdict {
+  action: "AUTO_APPROVE" | "PAUSE";
+  decision?: AutoDecision;
+}
+
+export function workEscalationVerdict(mode: RunMode, reason: string, capability?: string): WorkEscalationVerdict {
+  const text = [reason, capability ? `能力：${capability}` : ""].filter(Boolean).join(" ");
+  const { classification } = classifyQuestion({ text, kind: "TECHNICAL_CHOICE" });
+  if (classification === "HARD_BLOCKER") return { action: "PAUSE" };
+  if (mode !== "OWNER_RESULT") return { action: "PAUSE" };
+  return {
+    action: "AUTO_APPROVE",
+    decision: {
+      chosen: "升级到 WORK 模式并自动继续（auto-approve）",
+      action: "CONTINUE",
+      steer: "任务需要 WORK 能力（代码/仓库/工程执行）。OWNER_RESULT 下自动批准 Chat→WORK 升级并继续；执行结果照常接受确定性审查与验证门。",
+      rationale: "能力路由属于 DECIDABLE；OWNER_RESULT 契约 checkpointBudget=0，例行能力升级不再询问 Owner。",
+      policy: "owner-result:escalate-work:v1"
+    }
+  };
+}
