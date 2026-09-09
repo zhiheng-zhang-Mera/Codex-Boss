@@ -1,0 +1,31 @@
+{
+  "kind": "OWNER_RESULT_ROUND9_OWNER_DASHBOARD_UI",
+  "round": 9,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§37 Owner UI + §44 summary; P2)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T14:43:00.000Z",
+  "finishedAt": "2026-09-09T14:44:30.000Z",
+  "commitSha": "0b1cfd071801f4ad4ed23e0d0c42ae76fc5da688",
+  "branch": "owner-result",
+  "status": "PASS",
+  "verification": {
+    "typecheck": "PASS",
+    "vitest": "39 files / 202 tests PASS",
+    "build": "PASS",
+    "electronUiSmoke": "PASS (rendererLoaded/nativeCompleted/completionVisible; artifacts/owner-smoke/smoke-result.json)"
+  },
+  "summary": {
+    "delivered": [
+      "src/renderer/components/OwnerSummary.tsx: self-contained, collapsed-by-default Owner summary strip polling boss.ownerDashboard() every 2s",
+      "Headline counts: total/active/completed/failed, hard blockers, internal auto-decisions (§44)",
+      "Cards: GOAL/STATUS+runMode/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER (blocker-highlighted with detail)",
+      "mounted in main.tsx chat-half; minimal ASCII-safe CSS appended"
+    ],
+    "why": "§37: owner sees only GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER; routine internal decisions never pop up."
+  },
+  "evidence": {
+    "uiSmoke": "artifacts/owner-smoke/smoke-result.json (rendererLoaded nativeCompleted completionVisible true)",
+    "regression": "typecheck PASS; vitest 39/202 PASS; full build PASS",
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Round 9)"]
+  }
+}

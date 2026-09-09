@@ -150,6 +150,21 @@
 - 下一步：把 executor 以 guarded 方式接入 WebRecovery / provider-automation 的页面恢复路径
   （需要真实 provider 窗口的 live 验收轮）。
 
+## Round 9（2026-09-09，P2 §37 Owner Dashboard UI 呈现，owner-result @ 0b1cfd0）
+- `src/renderer/components/OwnerSummary.tsx`：主壳内自包含、默认折叠的 Owner 摘要条（每 2s
+  轮询 `boss.ownerDashboard()`）：
+  - 一行总览：任务总数/进行/完成/失败 · 硬阻塞 · 内部自动决策（§44）；
+  - 展开卡片列表：GOAL（title）· STATUS+runMode · PROGRESS（progressLabel）·
+    EVIDENCE（decision/artifacts/held）· RESULT（source+time）；HARD_BLOCKER 高亮左条并带
+    detail（HB1–HB4 或 ASSISTED 下的操作问题）；
+  - 内部普通决策不弹窗打扰（§37）。
+- `main.tsx` 挂载于 chat-half 头部下；`styles.css` 追加 owner-summary 样式（ASCII 安全追加）。
+- 验证：typecheck PASS；vitest 全量 **39 文件 / 202 测试 PASS**；full build PASS；
+  **Electron offscreen UI 冒烟 PASS**（rendererLoaded/nativeCompleted/completionVisible，
+  artifacts/owner-smoke/smoke-result.json）—— 证明新组件装载后渲染器正常启动、native IPC 与
+  completion 渲染完好。
+  证据 `Update-Plan/owner-result/evidence/round-9/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
