@@ -123,6 +123,18 @@
 - 验证快照（Round 6）：typecheck PASS；vitest 全量 **37 文件 / 196 测试 PASS**；full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-6/`。
 
+## Round 7（2026-09-09，P1-6 Long Soak mini，owner-result @ a284488）
+- `tests/unit/owner-result-soak.test.ts`：把 Rev.2 决策模块（autonomy-supervisor observeJob /
+  owner-result interceptForMode / result-validator verifyResult / durable DecisionLedgerStore）
+  组合进 **合成事件循环 fleet**（24 任务 × 脚本时钟 600 步），注入静默/软截止/硬停滞/模型完成等事件：
+  - 0 fake PASS：每完成都过 verifyResult 全部计划门；model-done 无证据必走 REWORK（reworks>0）；
+  - 诚实失败：预算/重试耗尽 → FAILED（>0）；
+  - §36 不变量：completedPassed+failed=tasks、horizon 内无无限等待（hard horizon 终止）、
+    **无重复 send**（每 attempt 至多一次，重试才重置）、决策台账 id 无重复、reopen 完整；
+  - 确定性：同 seed 两次运行统计完全一致。
+- 验证快照（Round 7）：typecheck PASS；vitest 全量 **38 文件 / 198 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-7/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

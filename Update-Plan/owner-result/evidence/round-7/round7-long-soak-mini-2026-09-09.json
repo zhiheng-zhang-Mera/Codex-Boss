@@ -1,0 +1,28 @@
+{
+  "kind": "OWNER_RESULT_ROUND7_LONG_SOAK_MINI",
+  "round": 7,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§36 long soak / §40 slow-vs-stalled / P1-6)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T14:37:00.000Z",
+  "finishedAt": "2026-09-09T14:40:00.000Z",
+  "commitSha": "a28448830bd0f0dc71261f5f3c8491dc51cb5fc1",
+  "branch": "owner-result",
+  "status": "PASS",
+  "verification": {
+    "typecheck": "PASS",
+    "vitest": "38 files / 198 tests PASS (owner-result-soak.test.ts 2 new)",
+    "build": "PASS"
+  },
+  "summary": {
+    "delivered": [
+      "tests/unit/owner-result-soak.test.ts: synthetic fleet loop over observeJob/interceptForMode/verifyResult/DecisionLedgerStore",
+      "Invariants: zero fake PASS (model-done always VERIFYING->PASS|REWORK), honest FAILED under exhausted budgets, no infinite waiting (hard horizon termination), one send per attempt (duplicate-send check), ledger id-uniqueness + reopen intactness",
+      "Determinism: same seed -> identical statistics across two full runs"
+    ]
+  },
+  "evidence": {
+    "tests": "tests/unit/owner-result-soak.test.ts (2 deterministic scenarios, ~130ms)",
+    "regression": "typecheck PASS; vitest 38/198 PASS; full build PASS",
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Round 7)"]
+  }
+}
