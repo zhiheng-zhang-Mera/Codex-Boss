@@ -1,6 +1,6 @@
 {
   "name": "codex-boss",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "description": "Local-first desktop control plane for visible, browser-driven AI work.",
@@ -12,7 +12,10 @@
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:electron",
-    "start": "electron ."
+    "start": "electron .",
+    "package:portable": "node scripts/package-portable.cjs",
+    "benchmark": "node scripts/benchmark.cjs",
+    "install:electron": "node node_modules/electron/install.js"
   },
   "dependencies": {
     "cross-env": "latest",

@@ -20,6 +20,10 @@ jobs:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run install:electron
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm run build
+      - run: pnpm run benchmark
+      - run: pnpm run package:portable
+      - run: powershell -NoProfile -File scripts/smoke-portable.ps1

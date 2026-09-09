@@ -10,7 +10,7 @@ const task = (status: BossTask["status"]): BossTask => ({
 describe("renderer state", () => {
   it("counts every lifecycle state", () => {
     expect(taskCounts([task("queued"), task("running"), task("running"), task("completed")])).toEqual({
-      queued: 1, running: 2, waiting: 0, completed: 1, failed: 0
+      queued: 1, running: 2, waiting: 0, paused: 0, cancelled: 0, completed: 1, failed: 0
     });
   });
 

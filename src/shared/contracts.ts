@@ -1,5 +1,6 @@
+import type { ExecutionPhase, ReviewPolicy, ReviewResult, WorkerResponse } from "./execution";
 export type ProviderId = string;
-export type TaskStatus = "queued" | "running" | "waiting" | "completed" | "failed";
+export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
 export type AppMode = "chat" | "work";
 export type RunTransport = "web" | "api";
@@ -8,9 +9,12 @@ export type AdapterOutcome = "SUCCESS" | "RETRYABLE_FAILURE" | "AUTH_REQUIRED" |
 export type ProviderRunPhase = "queued" | "opening" | "prepared" | "sending" | "waiting" | "completed" | "failed" | "blocked";
 export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "rehydration" | "completed" | "blocked";
 export type ClaimStatus = "UNVERIFIED" | "REFERENCED_NOT_VERIFIED" | "DISPUTED" | "INSUFFICIENT";
-export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW";
+export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW" | "PASS";
 export type ProviderAccountMode = "UNKNOWN" | "GUEST_READY" | "AUTH_REQUIRED" | "READY";
 export type DispatchCheckpointStatus = "PREPARING" | "COLLECTING" | "COMMITTED" | "ROLLED_BACK";
+export type RemoteChannel = "wechat" | "qq";
+export type RemoteChannelStatus = "disabled" | "waiting" | "ready" | "error";
+export type RemoteCommandStatus = "pending" | "loaded" | "dismissed";
 
 export interface Provider {
   id: ProviderId;
@@ -22,6 +26,18 @@ export interface Provider {
 }
 
 export interface BossTask {
+  parentTaskId?: string;
+  runtimeJobId?: string;
+  workspacePath?: string;
+  selectedProviderIds?: ProviderId[];
+  recoveryAt?: number;
+  recoveryMessage?: string;
+  finalizationPolicy?: FinalizationPolicy;
+  finalizationBlocker?: string;
+  plan?: import("./task-ir").TaskIR;
+  reviewPolicy?: ReviewPolicy;
+  executionPhase?: ExecutionPhase;
+  nextAction?: string;
   id: string;
   conversationId: string;
   title: string;
@@ -36,6 +52,11 @@ export interface BossTask {
 }
 
 export interface ProviderRun {
+  response?: WorkerResponse;
+  review?: ReviewResult;
+  attempts?: number;
+  responseBaseline?: string;
+  sessionUrl?: string;
   id: string;
   taskId: string;
   providerId: ProviderId;
@@ -132,6 +153,19 @@ export interface ControllerState {
   message: string;
 }
 
+export interface RuntimeStatusView {
+  runtimeId: string;
+  label: string;
+  kind: "web" | "codex" | "api" | "local";
+  availability: "AVAILABLE" | "BUSY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "BUDGET_EXHAUSTED" | "PAGE_CHANGED" | "USER_ACTION_REQUIRED" | "UNSUPPORTED" | "DOWN";
+  budget: "UNKNOWN" | "OK" | "LOW" | "EXHAUSTED";
+  enabled: boolean;
+  priority: number;
+  message: string;
+}
+
+export interface RoleRouteView { role: "planner" | "researcher" | "reviewer" | "synthesizer" | "coder" | "validator" | "critic"; runtimeIds: string[]; fallback: boolean; }
+
 export interface ProviderAccountState {
   providerId: ProviderId;
   partition: string;
@@ -165,6 +199,30 @@ export interface ApiProviderSetting {
   updatedAt: string;
 }
 
+export interface RemoteChannelSetting {
+  channel: RemoteChannel;
+  enabled: boolean;
+  commandPrefix: string;
+  status: RemoteChannelStatus;
+  message: string;
+  updatedAt: string;
+}
+
+export interface RemoteCommand {
+  id: string;
+  channel: RemoteChannel;
+  body: string;
+  sourceWindow: string;
+  status: RemoteCommandStatus;
+  receivedAt: string;
+}
+
+export interface UpdateRemoteChannelInput {
+  channel: RemoteChannel;
+  enabled: boolean;
+  commandPrefix: string;
+}
+
 export interface ConversationFolder {
   id: string;
   name: string;
@@ -196,13 +254,31 @@ export interface UpdateApiSettingInput {
 export interface AuditEvent {
   id: string;
   at: string;
-  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected";
+  type: "task.created" | "task.started" | "task.status" | "window.opened" | "window.closed" | "provider.added" | "provider.removed" | "adapter.prepared" | "adapter.sent" | "adapter.outcome" | "task.finalized" | "artifact.captured" | "council.advanced" | "evidence.built" | "evidence.rehydration" | "codex.review" | "account.status" | "dispatch.checkpoint" | "folder.created" | "folder.renamed" | "conversation.created" | "conversation.renamed" | "conversation.moved" | "conversation.selected" | "remote.channel" | "remote.command" | "runtime.policy";
   taskId?: string;
   providerId?: ProviderId;
+  stepId?: string;
+  runtimeId?: string;
+  evidenceRef?: string;
+  budgetDelta?: Partial<Record<"modelCalls" | "toolCalls" | "browserActions" | "retries", number>>;
   message: string;
 }
 
+export type FinalizationPolicy = "DIRECT" | "CODEX_IF_AVAILABLE" | "CODEX_REQUIRED";
+export interface FinalResponse {
+  id: string;
+  taskId: string;
+  conversationId: string;
+  source: "worker" | "council_synthesis" | "codex_synthesis" | "deterministic";
+  content: string;
+  evidenceBundleId?: string;
+  sourceArtifactIds: string[];
+  finalizedAt: string;
+}
+
 export interface AppSnapshot {
+  schemaVersion: 2;
+  finalResponses: FinalResponse[];
   providers: Provider[];
   tasks: BossTask[];
   runs: ProviderRun[];
@@ -210,8 +286,12 @@ export interface AppSnapshot {
   councils: CouncilSession[];
   evidenceBundles: EvidenceBundle[];
   controller: ControllerState;
+  runtimeStatuses: RuntimeStatusView[];
+  roleRoutes: RoleRouteView[];
   accounts: ProviderAccountState[];
   apiSettings: ApiProviderSetting[];
+  remoteChannels: RemoteChannelSetting[];
+  remoteCommands: RemoteCommand[];
   folders: ConversationFolder[];
   conversations: BossConversation[];
   activeConversationId: string;
@@ -220,6 +300,9 @@ export interface AppSnapshot {
 }
 
 export interface CreateTaskInput {
+  finalizationPolicy?: FinalizationPolicy;
+  workspacePath?: string;
+  reviewPolicy?: ReviewPolicy;
   title: string;
   prompt: string;
   providerIds: ProviderId[];
@@ -251,6 +334,11 @@ export interface BossBridge {
   createTask(input: CreateTaskInput): Promise<AppSnapshot>;
   dispatchTask(input: CreateTaskInput): Promise<AppSnapshot>;
   updateApiSetting(input: UpdateApiSettingInput): Promise<AppSnapshot>;
+  updateRemoteChannel(input: UpdateRemoteChannelInput): Promise<AppSnapshot>;
+  updateRuntimeControl(runtimeId: string, enabled: boolean, priority: number): Promise<AppSnapshot>;
+  updateRoleRoute(role: RoleRouteView["role"], runtimeIds: string[], fallback: boolean): Promise<AppSnapshot>;
+  loadRemoteCommand(commandId: string): Promise<AppSnapshot>;
+  dismissRemoteCommand(commandId: string): Promise<AppSnapshot>;
   createFolder(name: string): Promise<AppSnapshot>;
   renameFolder(folderId: string, name: string): Promise<AppSnapshot>;
   createConversation(input: CreateConversationInput): Promise<AppSnapshot>;
@@ -263,6 +351,7 @@ export interface BossBridge {
   prepareTask(taskId: string): Promise<AppSnapshot>;
   sendTask(taskId: string): Promise<AppSnapshot>;
   captureTask(taskId: string): Promise<AppSnapshot>;
+  releaseReview(taskId: string): Promise<AppSnapshot>;
   advanceCouncil(taskId: string): Promise<AppSnapshot>;
   buildEvidence(taskId: string): Promise<AppSnapshot>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;

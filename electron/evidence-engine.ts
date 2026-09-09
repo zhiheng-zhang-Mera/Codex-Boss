@@ -62,7 +62,7 @@ export function buildEvidenceBundle(task: BossTask, artifacts: RawArtifact[], co
 
   return {
     id: randomUUID(), taskId: task.id, manifest, integrityRoot, claims, disputes, missingProviderIds,
-    decision: "HOLD_FOR_REVIEW", codexReview: previousReview ?? { status: "NOT_RUN" }, createdAt: new Date().toISOString()
+    decision: task.executionPhase === "COMPLETED" && missingProviderIds.length === 0 && disputes.length === 0 ? "PASS" : "HOLD_FOR_REVIEW", codexReview: previousReview ?? { status: "NOT_RUN" }, createdAt: new Date().toISOString()
   };
 }
 

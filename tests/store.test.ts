@@ -14,10 +14,10 @@ afterEach(() => {
 });
 
 describe("StateStore persistence", () => {
-  it("ships more choices than the five-page active limit and defaults to three", () => {
+  it("ships more choices than the five-page active limit and defaults to one", () => {
     expect(providerSeed.map((provider) => provider.id)).toEqual(expect.arrayContaining(["chatgpt", "gemini", "claude", "deepseek", "qwen", "kimi"]));
     expect(providerSeed.length).toBeGreaterThan(MAX_ACTIVE_PROVIDERS);
-    expect(DEFAULT_PROVIDER_IDS).toEqual(["chatgpt", "gemini", "claude"]);
+    expect(DEFAULT_PROVIDER_IDS).toEqual(["chatgpt"]);
   });
 
   it("persists and removes a custom web AI", () => {
@@ -37,7 +37,7 @@ describe("StateStore persistence", () => {
     expect(() => normalizeCustomProviderInput({ name: "Unsafe", url: "http://ai.example.test" })).toThrow("仅支持 HTTPS");
   });
 
-  it("falls back to copy-replace when Windows rejects the atomic rename", () => {
+  it("stops safely when Windows rejects atomic persistence", () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-store-"));
     temporaryDirectories.push(directory);
     const statePath = path.join(directory, "state.json");
@@ -46,9 +46,9 @@ describe("StateStore persistence", () => {
     });
 
     const store = new StateStore(statePath);
-    store.createTask("test", "evidence", ["chatgpt"]);
+    expect(() => store.createTask("test", "evidence", ["chatgpt"])).toThrow("cross-device");
 
-    expect(JSON.parse(fs.readFileSync(statePath, "utf8")).tasks[0].title).toBe("test");
+    expect(fs.existsSync(statePath)).toBe(false);
     expect(fs.existsSync(`${statePath}.tmp`)).toBe(false);
   });
 
@@ -74,5 +74,30 @@ describe("StateStore persistence", () => {
     const reloaded = new StateStore(statePath).snapshot();
     expect(reloaded.controller.accountMode).toBe("CHATGPT");
     expect(reloaded.evidenceBundles[0]).toEqual(expect.objectContaining({ taskId: task.id, decision: "HOLD_FOR_REVIEW" }));
+  });
+
+  it("migrates an unversioned snapshot to v2 with an exact pre-migration backup", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-store-")); temporaryDirectories.push(directory);
+    const statePath = path.join(directory, "state.json"); const store = new StateStore(statePath);
+    const task = store.createTask("legacy", "preserve everything", ["chatgpt"]);
+    store.captureArtifact(store.runsForTask(task.id)[0].id, "accepted legacy answer", "https://chatgpt.com/c/legacy");
+    const legacy = store.snapshot() as Partial<ReturnType<StateStore["snapshot"]>>; delete legacy.schemaVersion;
+    const original = JSON.stringify(legacy, null, 2); fs.writeFileSync(statePath, original);
+    const migrated = new StateStore(statePath).snapshot();
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.tasks.some(item => item.id === task.id)).toBe(true);
+    expect(migrated.artifacts.some(item => item.taskId === task.id)).toBe(true);
+    expect(migrated.finalResponses.some(item => item.taskId === task.id)).toBe(false);
+    expect(fs.readFileSync(`${statePath}.pre-v2.bak`, "utf8")).toBe(original);
+    expect(JSON.parse(fs.readFileSync(statePath, "utf8")).schemaVersion).toBe(2);
+  });
+
+  it("rejects unknown future snapshot versions without rewriting the file", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "codex-boss-store-")); temporaryDirectories.push(directory);
+    const statePath = path.join(directory, "state.json"); const future = JSON.stringify({ schemaVersion: 999, tasks: [] });
+    fs.writeFileSync(statePath, future);
+    expect(() => new StateStore(statePath)).toThrow("Unsupported state schema version: 999");
+    expect(fs.readFileSync(statePath, "utf8")).toBe(future);
+    expect(fs.existsSync(`${statePath}.pre-v2.bak`)).toBe(false);
   });
 });

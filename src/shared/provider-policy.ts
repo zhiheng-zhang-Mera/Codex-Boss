@@ -1,10 +1,10 @@
 import type { CustomProviderInput, ProviderId } from "./contracts";
 
 export const MAX_ACTIVE_PROVIDERS = 5;
-export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["chatgpt", "gemini", "claude"];
+export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["chatgpt"];
 
-export function isDispatchGroupSize(count: number): count is 3 | 5 {
-  return count === 3 || count === 5;
+export function isDispatchGroupSize(count: number): count is 1 | 2 | 3 | 4 | 5 {
+  return Number.isInteger(count) && count >= 1 && count <= MAX_ACTIVE_PROVIDERS;
 }
 
 export function normalizeCustomProviderInput(input: CustomProviderInput): CustomProviderInput {

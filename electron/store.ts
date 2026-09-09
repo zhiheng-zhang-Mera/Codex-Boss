@@ -1,8 +1,13 @@
+import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RunTransport, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import { HistoryRepository, safeSegment } from "./history-repository";
+
+import { writeJson } from "./commander/durable-json";
+import { TaskLedger } from "./commander/task-ledger";
+import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
 
 const defaultFolderId = "folder-general";
 const defaultConversationId = "conversation-default";
@@ -23,23 +28,28 @@ export const providerSeed: Provider[] = [
 
 export class StateStore {
   private snapshotValue: AppSnapshot;
+  private readonly ledger: TaskLedger;
+  private readonly ledgerHashes = new Map<string, string>();
 
   constructor(private readonly filePath: string, private readonly history?: HistoryRepository) {
+    this.ledger = new TaskLedger(path.join(path.dirname(filePath), ".boss", "tasks"));
+    const restored = fs.existsSync(this.filePath);
     this.snapshotValue = this.read();
-    this.history?.sync(this.snapshotValue);
+    if (restored) this.beginStartupSession();
+    else this.history?.sync(this.snapshotValue);
   }
 
   snapshot(): AppSnapshot {
     return structuredClone(this.snapshotValue);
   }
 
-  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId): BossTask {
+  createTask(title: string, prompt: string, providerIds: ProviderId[], mode: TaskMode = "direct", appMode: AppMode = "chat", transportByProvider: Record<ProviderId, RunTransport> = {}, conversationId = this.snapshotValue.activeConversationId, parentTaskId?: string, runtimeJobId?: string): BossTask {
     const now = new Date().toISOString();
     const conversation = this.conversation(conversationId);
     const normalizedTransports = Object.fromEntries(providerIds.map((providerId) => [providerId, appMode === "chat" ? "web" : transportByProvider[providerId] ?? "web"])) as Record<ProviderId, RunTransport>;
-    const task: BossTask = { id: randomUUID(), conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
+    const task: BossTask = { id: randomUUID(), parentTaskId, runtimeJobId, conversationId, title, prompt, providerIds, status: "queued", mode, appMode, transportByProvider: normalizedTransports, createdAt: now, updatedAt: now };
     this.snapshotValue.tasks.unshift(task);
-    conversation.taskIds.push(task.id);
+    if (!parentTaskId) conversation.taskIds.push(task.id);
     conversation.updatedAt = now;
     this.snapshotValue.runs.push(...providerIds.map((providerId) => this.newRun(task.id, providerId, 1, prompt, normalizedTransports[providerId])));
     if (mode === "council") {
@@ -110,6 +120,54 @@ export class StateStore {
     this.persist();
   }
 
+  updateRemoteChannel(channel: RemoteChannel, enabled: boolean, commandPrefix: string): void {
+    const setting = this.snapshotValue.remoteChannels.find((item) => item.channel === channel);
+    if (!setting) throw new Error(`Unknown remote channel: ${channel}`);
+    const prefix = validCommandPrefix(commandPrefix);
+    Object.assign(setting, {
+      enabled,
+      commandPrefix: prefix,
+      status: enabled ? "waiting" as const : "disabled" as const,
+      message: enabled ? "正在启动本机桌面监听器" : "远程指令监听已关闭",
+      updatedAt: new Date().toISOString()
+    });
+    this.event("remote.channel", `${channel} 远程指令监听已${enabled ? "启用" : "关闭"}`, {});
+    this.persist();
+  }
+
+  setRemoteChannelRuntime(channel: RemoteChannel, status: RemoteChannelStatus, message: string): void {
+    const setting = this.snapshotValue.remoteChannels.find((item) => item.channel === channel);
+    if (!setting || (setting.status === status && setting.message === message)) return;
+    setting.status = setting.enabled ? status : "disabled";
+    setting.message = message.slice(0, 500);
+    setting.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  receiveRemoteCommand(channel: RemoteChannel, body: string, sourceWindow: string): RemoteCommand | null {
+    const setting = this.snapshotValue.remoteChannels.find((item) => item.channel === channel);
+    if (!setting?.enabled) return null;
+    const normalized = body.trim().slice(0, 10000);
+    if (!normalized) return null;
+    const now = Date.now();
+    const duplicate = this.snapshotValue.remoteCommands.some((item) => item.channel === channel && item.body === normalized && item.sourceWindow === sourceWindow && now - Date.parse(item.receivedAt) < 5000);
+    if (duplicate) return null;
+    const command: RemoteCommand = { id: randomUUID(), channel, body: normalized, sourceWindow: sourceWindow.slice(0, 200), status: "pending", receivedAt: new Date(now).toISOString() };
+    this.snapshotValue.remoteCommands.unshift(command);
+    this.snapshotValue.remoteCommands = this.snapshotValue.remoteCommands.slice(0, 100);
+    this.event("remote.command", `收到 ${channel} 待确认指令`, {});
+    this.persist();
+    return command;
+  }
+
+  setRemoteCommandStatus(commandId: string, status: RemoteCommandStatus): void {
+    const command = this.snapshotValue.remoteCommands.find((item) => item.id === commandId);
+    if (!command) throw new Error(`Unknown remote command: ${commandId}`);
+    command.status = status;
+    this.event("remote.command", `${command.channel} 指令已${status === "loaded" ? "载入" : "忽略"}`, {});
+    this.persist();
+  }
+
   updateRun(runId: string, phase: ProviderRunPhase, outcome: AdapterOutcome | null, message: string, adapterVersion?: string): void {
     const run = this.snapshotValue.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Unknown run: ${runId}`);
@@ -117,24 +175,111 @@ export class StateStore {
     run.outcome = outcome;
     run.message = message;
     if (adapterVersion) run.adapterVersion = adapterVersion;
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === `${run.transport}:${run.providerId}`);
+    if (runtime && outcome) {
+      runtime.availability = outcome === "RATE_LIMITED" ? "RATE_LIMITED" : outcome === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : outcome === "PAGE_CHANGED" ? "PAGE_CHANGED" : outcome === "USER_ACTION_REQUIRED" ? "USER_ACTION_REQUIRED" : outcome === "UNSUPPORTED" ? "UNSUPPORTED" : outcome === "SUCCESS" ? "AVAILABLE" : runtime.availability;
+      runtime.budget = outcome === "RATE_LIMITED" ? "LOW" : runtime.budget;
+      runtime.message = message;
+    }
+    const task = this.snapshotValue.tasks.find((item) => item.id === run.taskId);
+    if (task && !["cancelled", "paused", "completed"].includes(task.status)) {
+      task.executionPhase = phase === "waiting" ? "WAITING_FOR_RESPONSE" : phase === "sending" ? "DISPATCHING" : phase === "blocked" ? "WAITING_FOR_USER" : phase === "failed" ? "FAILED" : "IDLE";
+      if (phase === "blocked") task.status = "waiting";
+    }
     run.updatedAt = new Date().toISOString();
-    this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId });
+    this.event(phase === "prepared" ? "adapter.prepared" : phase === "waiting" ? "adapter.sent" : "adapter.outcome", message, { taskId: run.taskId, providerId: run.providerId, stepId: run.id, runtimeId: `${run.transport}:${run.providerId}` });
+    this.persist();
+  }
+
+  recordDispatchAttempt(runId: string): void {
+    const run = this.snapshotValue.runs.find((item) => item.id === runId);
+    if (!run) throw new Error("Unknown run");
+    this.ledger.update(run.taskId, "provider dispatch budget", (state) => {
+      if (state.usage.modelCalls >= state.limits.modelCalls) throw new Error("Task model-call budget exhausted");
+      state.usage.modelCalls++;
+      state.usage.estimatedInputTokens += Math.ceil(run.inputPrompt.length / 4);
+      if (run.attempts) state.usage.retries++;
+      if (run.transport === "web") state.usage.browserActions++;
+    });
+  }
+
+  releaseReview(taskId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    for (const run of this.runsForTask(taskId)) {
+      if (run.review?.status !== "HUMAN_REQUIRED" || !run.response) continue;
+      // User releases this response only; the task's policy remains in force for future responses.
+      run.review = reviewResponse(run.response, { ...(task.reviewPolicy ?? defaultReviewPolicy), approvalRequired: false, highImpact: false, externalAction: false }, run.attempts ?? 0);
+      run.phase = run.review.status === "PASS" ? "completed" : "failed";
+      run.message = run.review.retry_reason ?? "用户已确认接收回答";
+    }
+    this.reconcileTask(taskId); this.persist();
+    for (const run of this.runsForTask(taskId)) this.commitDispatchForRound(taskId, run.round);
+  }
+
+  setTaskWorkspace(taskId: string, workspace: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task"); task.workspacePath = workspace; this.persist();
+  }
+
+  beginPlanExecution(taskId: string, workspace: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    if (!task.selectedProviderIds) {
+      if (this.runsForTask(taskId).some((run) => run.phase !== "queued")) throw new Error("Cannot replace already dispatched work");
+      task.selectedProviderIds = [...task.providerIds]; task.providerIds = ["commander:plan"];
+      this.snapshotValue.runs = this.snapshotValue.runs.filter((run) => run.taskId !== taskId);
+      this.snapshotValue.runs.push(this.newRun(taskId, "commander:plan", 1, task.prompt, "api"));
+    }
+    task.workspacePath = workspace; this.persist();
+  }
+
+  setTaskPlan(taskId: string, plan: import("../src/shared/task-ir").TaskIR): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.plan = structuredClone(plan); this.persist();
+  }
+
+  setReviewPolicy(taskId: string, policy: ReviewPolicy): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.reviewPolicy = structuredClone(policy);
+    this.persist();
+  }
+
+  setRunSession(runId: string, baseline: string, url: string): void {
+    const run = this.snapshotValue.runs.find((item) => item.id === runId);
+    if (!run) throw new Error("Unknown run");
+    run.responseBaseline = baseline;
+    run.sessionUrl = url;
     this.persist();
   }
 
   captureArtifact(runId: string, content: string, sourceUrl: string): RawArtifact {
     const run = this.snapshotValue.runs.find((item) => item.id === runId);
     if (!run) throw new Error(`Unknown run: ${runId}`);
+    if (run.review?.status === "PASS" && run.artifactId) return this.snapshotValue.artifacts.find((item) => item.id === run.artifactId)!;
+    const task = this.snapshotValue.tasks.find((item) => item.id === run.taskId)!;
+    task.executionPhase = "RESPONSE_RECEIVED";
     const council = this.snapshotValue.councils.find((item) => item.taskId === run.taskId);
     const kind: RawArtifact["kind"] = council?.stage === "proposals" ? "proposal" : council?.stage === "peer_review" ? "peer_review" : council?.stage === "synthesis" ? "synthesis" : "response";
     const artifact: RawArtifact = { id: randomUUID(), taskId: run.taskId, runId, providerId: run.providerId, kind, content: content.slice(0, 100000), capturedAt: new Date().toISOString(), sourceUrl, untrusted: true };
     this.snapshotValue.artifacts.unshift(artifact);
     run.artifactId = artifact.id;
-    run.phase = "completed";
-    run.outcome = "SUCCESS";
-    run.message = "已捕获原始回答，等待验证";
+    run.response = { taskId: run.taskId, workerId: run.providerId, responseId: artifact.id, content: artifact.content, outcome: "SUCCESS" };
+    task.executionPhase = "REVIEW_GATE";
+    this.persist();
+    run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);
+    run.phase = run.review.status === "PASS" ? "completed" : run.review.status === "RETRY" ? "queued" : run.review.status === "FAILED" ? "failed" : "blocked";
+    run.outcome = run.review.status === "PASS" ? "SUCCESS" : "FORMAT_INVALID";
+    run.message = run.review.retry_reason ?? run.review.human_review_reason ?? "回答已通过确定性审查";
+    task.executionPhase = run.review.status === "PASS" ? "NEXT_STEP" : run.review.status === "HUMAN_REQUIRED" ? "WAITING_FOR_USER" : run.review.status;
+    task.nextAction = run.review.next_action;
+    if (run.review.status === "RETRY") run.attempts = (run.attempts ?? 0) + 1;
+    // Persist evidence, review and continuation together before releasing the gate.
+    this.persist();
     run.updatedAt = artifact.capturedAt;
-    this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId });
+    this.event("artifact.captured", `已捕获 ${run.providerId} 原始回答`, { taskId: run.taskId, providerId: run.providerId, stepId: run.id, runtimeId: `${run.transport}:${run.providerId}`, evidenceRef: artifact.id });
     this.reconcileTask(run.taskId);
     this.commitDispatchForRound(run.taskId, run.round);
     this.persist();
@@ -166,6 +311,41 @@ export class StateStore {
 
   setController(controller: ControllerState): void {
     this.snapshotValue.controller = controller;
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === "codex:cli");
+    if (runtime) {
+      runtime.availability = controller.accountMode === "CHATGPT" ? "AVAILABLE" : controller.accountMode === "NOT_AUTHENTICATED" ? "AUTH_REQUIRED" : "DOWN";
+      runtime.message = controller.message;
+    }
+    this.persist();
+  }
+
+  setRuntimeControl(runtimeId: string, enabled: boolean, priority: number): void {
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === runtimeId);
+    if (!runtime) throw new Error(`Unknown runtime: ${runtimeId}`);
+    runtime.enabled = enabled;
+    runtime.priority = Math.max(0, Math.min(999, Math.trunc(priority)));
+    this.event("runtime.policy", `${runtimeId} ${enabled ? "enabled" : "disabled"}; priority=${runtime.priority}`, {});
+    this.persist();
+  }
+
+  observeRuntimeFailure(runtimeId: string, message: string): void {
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === runtimeId);
+    if (!runtime) return;
+    if (/quota|allowance|budget|额度|用量.*(耗尽|上限)|limit reached/i.test(message)) { runtime.availability = "BUDGET_EXHAUSTED"; runtime.budget = "EXHAUSTED"; }
+    else if (/rate.?limit|too many requests|频率限制/i.test(message)) { runtime.availability = "RATE_LIMITED"; runtime.budget = "LOW"; }
+    else runtime.availability = "DOWN";
+    runtime.message = message.slice(0, 500);
+    this.event("runtime.policy", `${runtimeId} failure isolated: ${runtime.availability}`, {});
+    this.persist();
+  }
+
+  setRoleRoute(role: RoleRouteView["role"], runtimeIds: string[], fallback: boolean): void {
+    const route = this.snapshotValue.roleRoutes.find((item) => item.role === role);
+    if (!route) throw new Error(`Unknown role: ${role}`);
+    const known = new Set(this.snapshotValue.runtimeStatuses.map((item) => item.runtimeId));
+    route.runtimeIds = [...new Set(runtimeIds)].filter((id) => known.has(id));
+    route.fallback = fallback;
+    this.event("runtime.policy", `${role} route updated`, {});
     this.persist();
   }
 
@@ -199,7 +379,7 @@ export class StateStore {
   markDispatchCollecting(checkpointId: string, successfulProviderIds: ProviderId[]): void {
     const checkpoint = this.checkpoint(checkpointId);
     Object.assign(checkpoint, { status: "COLLECTING" as const, successfulProviderIds, failedProviderIds: [], message: "已一次提交到全部网页 AI；正在按顺序收集回答", updatedAt: new Date().toISOString() });
-    this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮全部提交成功，开始顺序采集`, { taskId: checkpoint.taskId });
+    this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮全部提交成功，开始并发采集`, { taskId: checkpoint.taskId });
     this.persist();
   }
 
@@ -234,6 +414,37 @@ export class StateStore {
     const task = this.snapshotValue.tasks.find((item) => item.id === checkpoint.taskId);
     if (task) { task.status = "waiting"; task.updatedAt = checkpoint.updatedAt; }
     this.event("dispatch.checkpoint", `第 ${checkpoint.round} 轮已回退到提交前记录：${message}`, { taskId: checkpoint.taskId });
+    this.persist();
+  }
+
+  setRecoveryState(taskId: string, retryAt?: number, message?: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.recoveryAt = retryAt; task.recoveryMessage = message;
+    if (message) { task.status = "waiting"; task.nextAction = retryAt ? "WAIT" : "HUMAN_REQUIRED"; }
+    this.event("task.status", message ?? "Recovery resumed", { taskId }); this.persist();
+  }
+
+  setFinalizationPolicy(taskId: string, policy: import("../src/shared/contracts").FinalizationPolicy, blocker?: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.finalizationPolicy = policy; task.finalizationBlocker = blocker;
+    this.persist();
+  }
+
+  finalResponseForTask(taskId: string): FinalResponse | undefined {
+    const result = currentFinalResponse(this.snapshotValue, taskId);
+    return result ? structuredClone(result) : undefined;
+  }
+
+  saveFinalResponse(response: FinalResponse): void {
+    if (this.finalResponseForTask(response.taskId)) return;
+    const task = this.snapshotValue.tasks.find((item) => item.id === response.taskId);
+    if (!task || task.conversationId !== response.conversationId || !response.content.trim()) throw new Error("Invalid final response");
+    task.status = "completed"; task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE";
+    task.finalizationBlocker = undefined; task.recoveryAt = undefined; task.recoveryMessage = undefined; task.updatedAt = response.finalizedAt;
+    this.snapshotValue.finalResponses.push(structuredClone(response));
+    this.event("task.finalized", "最终答复已保存", { taskId: task.id, evidenceRef: response.evidenceBundleId ?? response.id });
     this.persist();
   }
 
@@ -284,6 +495,7 @@ export class StateStore {
       isCustom: true
     };
     this.snapshotValue.providers.push(provider);
+    this.snapshotValue.runtimeStatuses.push({ runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web", availability: "DOWN", budget: "UNKNOWN", enabled: true, priority: 100, message: "Visible session closed" });
     this.event("provider.added", `自定义网页 AI“${name}”已添加`, { providerId: provider.id });
     this.persist();
     return provider;
@@ -294,6 +506,8 @@ export class StateStore {
     if (index < 0) throw new Error(`Unknown custom provider: ${providerId}`);
     const [provider] = this.snapshotValue.providers.splice(index, 1);
     this.snapshotValue.accounts = this.snapshotValue.accounts.filter((account) => account.providerId !== providerId);
+    this.snapshotValue.runtimeStatuses = this.snapshotValue.runtimeStatuses.filter((runtime) => runtime.runtimeId !== `web:${providerId}`);
+    for (const route of this.snapshotValue.roleRoutes) route.runtimeIds = route.runtimeIds.filter((runtimeId) => runtimeId !== `web:${providerId}`);
     this.event("provider.removed", `自定义网页 AI“${provider.name}”已移除`, { providerId });
     this.persist();
   }
@@ -301,6 +515,12 @@ export class StateStore {
   setTaskStatus(taskId: string, status: TaskStatus): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);
+    if (status === "completed") {
+      const runs = this.runsForTask(taskId); const round = Math.max(0, ...runs.map((run) => run.round));
+      const current = runs.filter((run) => run.round === round);
+      if (!current.length || !current.every((run) => run.artifactId && run.review?.status === "PASS" && run.phase === "completed")) throw new Error("Completion requires persisted passing evidence");
+      task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE";
+    } else if (status === "failed") { task.executionPhase = "FAILED"; task.nextAction = "STOP"; }
     task.status = status;
     task.updatedAt = new Date().toISOString();
     this.event(status === "running" ? "task.started" : "task.status", `任务“${task.title}”状态变更为 ${status}`, { taskId });
@@ -312,11 +532,16 @@ export class StateStore {
     if (!provider) throw new Error(`Unknown provider: ${providerId}`);
     if (provider.windowOpen === open) return;
     provider.windowOpen = open;
+    const runtime = this.snapshotValue.runtimeStatuses.find((item) => item.runtimeId === `web:${providerId}`);
+    if (runtime) {
+      runtime.availability = open ? "AVAILABLE" : "DOWN";
+      runtime.message = open ? "Visible session open" : "Visible session closed";
+    }
     this.event(open ? "window.opened" : "window.closed", `${provider.name} 子窗口已${open ? "打开" : "关闭"}`, { providerId });
     this.persist();
   }
 
-  private event(type: AuditEvent["type"], message: string, refs: Pick<AuditEvent, "taskId" | "providerId">): void {
+  private event(type: AuditEvent["type"], message: string, refs: Pick<AuditEvent, "taskId" | "providerId" | "stepId" | "runtimeId" | "evidenceRef" | "budgetDelta">): void {
     this.snapshotValue.events.unshift({ id: randomUUID(), at: new Date().toISOString(), type, message, ...refs });
     this.snapshotValue.events = this.snapshotValue.events.slice(0, 200);
   }
@@ -331,13 +556,53 @@ export class StateStore {
     if (!task) return;
     const maxRound = Math.max(...this.runsForTask(taskId).map((run) => run.round));
     const runs = this.runsForTask(taskId).filter((run) => run.round === maxRound);
-    task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => ["failed", "blocked"].includes(run.phase)) ? "waiting" : "running";
+    if (runs.length === 0 || ["cancelled", "paused"].includes(task.status)) return;
+    task.status = runs.every((run) => run.phase === "completed") ? "completed" : runs.some((run) => run.phase === "failed") ? "failed" : runs.some((run) => run.phase === "blocked") ? "waiting" : "running";
+    if (task.status === "completed") {
+      const council = this.snapshotValue.councils.find((item) => item.taskId === taskId);
+      if (council && council.stage !== "completed") { task.status = "running"; task.executionPhase = "NEXT_STEP"; task.nextAction = "ADVANCE_COUNCIL"; }
+      else { task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE"; }
+    }
     task.updatedAt = new Date().toISOString();
+  }
+
+  private beginStartupSession(): void {
+    const previousActiveId = this.snapshotValue.activeConversationId;
+    const previousActive = this.snapshotValue.conversations.find((item) => item.id === previousActiveId);
+
+    for (const task of this.snapshotValue.tasks) {
+      if (!["queued", "running", "waiting"].includes(task.status)) continue;
+      const runs = this.runsForTask(task.id);
+      for (const run of runs) {
+        if (!run.response || run.review?.response_id === run.response.responseId) continue;
+        run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);
+        run.phase = run.review.status === "PASS" ? "completed" : run.review.status === "RETRY" ? "queued" : run.review.status === "FAILED" ? "failed" : "blocked";
+        if (run.review.status === "RETRY") run.attempts = (run.attempts ?? 0) + 1;
+        task.executionPhase = run.review.status === "PASS" ? "NEXT_STEP" : run.review.status === "HUMAN_REQUIRED" ? "WAITING_FOR_USER" : run.review.status;
+        task.nextAction = run.review.next_action;
+      }
+      this.reconcileTask(task.id);
+      for (const run of runs) this.commitDispatchForRound(task.id, run.round);
+      if (runs.some((run) => ["sending", "waiting"].includes(run.phase))) {
+        task.status = "waiting";
+        task.executionPhase = "WAITING_FOR_RESPONSE";
+        task.nextAction = "RESTORE_SESSION_AND_CAPTURE";
+      }
+    }
+    this.snapshotValue.activeConversationId = previousActive?.id ?? this.snapshotValue.conversations[0].id;
+    this.event("conversation.selected", "应用启动；已恢复活动对话、未完成任务和证据", {});
+    this.persist();
   }
 
   private read(): AppSnapshot {
     try {
       const saved = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AppSnapshot>;
+      const sourceVersion = saved.schemaVersion ?? 1;
+      if (sourceVersion !== 1 && sourceVersion !== 2) throw new Error(`Unsupported state schema version: ${sourceVersion}`);
+      if (sourceVersion === 1) {
+        const backup = `${this.filePath}.pre-v2.bak`;
+        if (!fs.existsSync(backup)) fs.copyFileSync(this.filePath, backup, fs.constants.COPYFILE_EXCL);
+      }
       const builtins = providerSeed.map((seed) => ({ ...seed, ...(saved.providers?.find((item) => item.id === seed.id) ?? {}), windowOpen: false, isCustom: false }));
       const custom = (saved.providers ?? []).filter((item) => item.isCustom).map((item) => ({ ...item, windowOpen: false }));
       const providers = [...builtins, ...custom];
@@ -352,28 +617,42 @@ export class StateStore {
       const conversations = saved.conversations?.length ? saved.conversations : [{ id: defaultConversationId, folderId: folders[0].id, title: tasks.length ? "既有对话" : "新对话", storageName: tasks.length ? "既有对话" : "新对话", taskIds: tasks.map((task) => task.id), createdAt: tasks.at(-1)?.createdAt ?? now, updatedAt: tasks[0]?.updatedAt ?? now }];
       const conversationIds = new Set(conversations.map((conversation) => conversation.id));
       for (const task of tasks) if (!conversationIds.has(task.conversationId)) task.conversationId = conversations[0].id;
-      for (const conversation of conversations) conversation.taskIds = tasks.filter((task) => task.conversationId === conversation.id).map((task) => task.id).reverse();
+      for (const conversation of conversations) conversation.taskIds = tasks.filter((task) => !task.parentTaskId && task.conversationId === conversation.id).map((task) => task.id).reverse();
       const taskById = new Map(tasks.map((task) => [task.id, task]));
       const runs = (saved.runs ?? []).map((run) => ({ ...run, transport: run.transport ?? taskById.get(run.taskId)?.transportByProvider[run.providerId] ?? "web" }));
       const accounts = (saved.accounts ?? []).filter((account) => providers.some((provider) => provider.id === account.providerId));
-      return { providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], controller: saved.controller ?? { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts, apiSettings: saved.apiSettings ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
-    } catch {
+      const remoteChannels = remoteChannelDefaults(now).map((fallback) => ({ ...fallback, ...(saved.remoteChannels ?? []).find((item) => item.channel === fallback.channel), status: "disabled" as const, message: "应用启动后等待监听器同步" }));
+      const controller = saved.controller ?? { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
+      return { schemaVersion: 2, providers, tasks, runs, artifacts: saved.artifacts ?? [], councils: saved.councils ?? [], evidenceBundles: saved.evidenceBundles ?? [], finalResponses: saved.finalResponses ?? [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller, saved.runtimeStatuses), roleRoutes: mergeRoleRoutes(saved.roleRoutes), accounts, apiSettings: saved.apiSettings ?? [], remoteChannels, remoteCommands: saved.remoteCommands ?? [], folders, conversations, activeConversationId: conversationIds.has(saved.activeConversationId ?? "") ? saved.activeConversationId! : conversations[0].id, dispatchCheckpoints: saved.dispatchCheckpoints ?? [], events: saved.events ?? [] };
+    } catch (error) {
+      if (fs.existsSync(this.filePath)) throw new Error(`Cannot restore task state: ${String(error)}`);
       const now = new Date().toISOString();
-      return { providers: structuredClone(providerSeed), tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], controller: { kind: "codex-cli", accountMode: "UNKNOWN", message: "正在检测 Codex 控制端" }, accounts: [], apiSettings: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
+      const providers = structuredClone(providerSeed);
+      const controller = { kind: "codex-cli" as const, accountMode: "UNKNOWN" as const, message: "正在检测 Codex Runtime" };
+      return { schemaVersion: 2, providers, tasks: [], runs: [], artifacts: [], councils: [], evidenceBundles: [], finalResponses: [], controller, runtimeStatuses: mergeRuntimeStatuses(providers, controller), roleRoutes: mergeRoleRoutes(), accounts: [], apiSettings: [], remoteChannels: remoteChannelDefaults(now), remoteCommands: [], folders: [{ id: defaultFolderId, name: "常规", storageName: "常规", createdAt: now, updatedAt: now }], conversations: [{ id: defaultConversationId, folderId: defaultFolderId, title: "新对话", storageName: "新对话", taskIds: [], createdAt: now, updatedAt: now }], activeConversationId: defaultConversationId, dispatchCheckpoints: [], events: [] };
     }
   }
 
   private persist(): void {
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temp = `${this.filePath}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(this.snapshotValue, null, 2), "utf8");
-    try {
-      fs.renameSync(temp, this.filePath);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (!["EXDEV", "EEXIST", "EPERM"].includes(code ?? "")) throw error;
-      fs.copyFileSync(temp, this.filePath);
-      fs.unlinkSync(temp);
+    writeJson(this.filePath, this.snapshotValue);
+    for (const task of this.snapshotValue.tasks) {
+      const runs = this.runsForTask(task.id);
+      const fingerprint = TaskLedger.fingerprint({ task, runs });
+      if (this.ledgerHashes.get(task.id) === fingerprint) continue;
+      this.ledger.create(task.id, task.prompt);
+      this.ledger.update(task.id, "task/run transition", (state) => {
+        state.completedSteps = [...state.completedSteps.filter((id) => !runs.some((run) => run.id === id)), ...runs.filter((run) => run.review?.status === "PASS").map((run) => run.id)];
+        state.pendingSteps = [...state.pendingSteps.filter((id) => !runs.some((run) => run.id === id)), ...runs.filter((run) => !["completed", "failed"].includes(run.phase)).map((run) => run.id)];
+        state.currentStep = state.pendingSteps[0] ?? null;
+        state.nextAction = task.nextAction ?? task.executionPhase ?? task.status;
+        state.usage.browserActions = Math.max(state.usage.browserActions, runs.filter((run) => run.phase === "sending" || run.phase === "waiting" || run.artifactId).length);
+        for (const run of runs) {
+          const session = { id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", url: run.sessionUrl, resumeStrategy: run.sessionUrl ? "RESTORE_URL" as const : "RECONSTRUCT" as const };
+          const index = state.sessions.findIndex((item) => item.id === run.id);
+          if (index < 0) state.sessions.push(session); else state.sessions[index] = { ...state.sessions[index], ...session };
+        }
+      });
+      this.ledgerHashes.set(task.id, fingerprint);
     }
     this.history?.sync(this.snapshotValue);
   }
@@ -416,4 +695,28 @@ function uniqueName(base: string, existing: string[]): string {
   let suffix = 2;
   while (existing.includes(`${base} (${suffix})`)) suffix += 1;
   return `${base} (${suffix})`;
+}
+
+function validCommandPrefix(value: string): string {
+  const prefix = value.trim();
+  if (!/^\/[^\s]{1,19}$/.test(prefix)) throw new Error("指令前缀必须以 / 开头，长度为 2–20 且不能包含空格");
+  return prefix;
+}
+
+function remoteChannelDefaults(now: string): RemoteChannelSetting[] {
+  return (["wechat", "qq"] as const).map((channel) => ({ channel, enabled: false, commandPrefix: "/boss", status: "disabled", message: "远程指令监听未启用", updatedAt: now }));
+}
+
+const roles: RoleRouteView["role"][] = ["planner", "researcher", "reviewer", "synthesizer", "coder", "validator", "critic"];
+
+function mergeRuntimeStatuses(providers: Provider[], controller: ControllerState, saved: RuntimeStatusView[] = []): RuntimeStatusView[] {
+  const defaults: RuntimeStatusView[] = [
+    ...providers.map((provider, index) => ({ runtimeId: `web:${provider.id}`, label: `${provider.name} Web`, kind: "web" as const, availability: provider.windowOpen ? "AVAILABLE" as const : "DOWN" as const, budget: "UNKNOWN" as const, enabled: true, priority: index + 10, message: provider.windowOpen ? "Visible session open" : "Visible session closed" })),
+    { runtimeId: "codex:cli", label: "Codex CLI", kind: "codex", availability: controller.accountMode === "CHATGPT" ? "AVAILABLE" : controller.accountMode === "NOT_AUTHENTICATED" ? "AUTH_REQUIRED" : "DOWN", budget: "UNKNOWN", enabled: true, priority: 50, message: controller.message }
+  ];
+  return defaults.map((fallback) => ({ ...fallback, ...(saved.find((item) => item.runtimeId === fallback.runtimeId) ?? {}), availability: fallback.availability, message: fallback.message }));
+}
+
+function mergeRoleRoutes(saved: RoleRouteView[] = []): RoleRouteView[] {
+  return roles.map((role) => saved.find((item) => item.role === role) ?? { role, runtimeIds: role === "coder" ? ["codex:cli", "web:chatgpt"] : ["web:chatgpt", "web:claude", "web:gemini", "codex:cli"], fallback: true });
 }

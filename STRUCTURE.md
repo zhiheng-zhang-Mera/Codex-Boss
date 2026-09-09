@@ -9,11 +9,11 @@
 ```text
 User
   ↓
-Codex Boss Desktop
-  ├─ Task control plane
-  ├─ Evidence / audit store
-  ├─ Window supervisor
-  ├─ Protocol engine (later phase)
+Controller / Main Commander
+  ├─ Task State Machine + Scheduler
+  ├─ Runtime Registry + Budget Manager + Role Router
+  ├─ Context Manager + Protocol Engine
+  ├─ Evidence / audit store + Execution Gate
   └─ Runtime adapters
        ├─ Visible web window adapters
        ├─ Codex CLI or app-server (optional)
@@ -34,6 +34,7 @@ Codex Boss Desktop
 | 状态 | 本地 JSON，原子 rename + Windows copy-replace 回退 | Phase 1 依赖少；后续可替换 SQLite event store |
 | 权限边界 | sandboxed renderer + allowlisted IPC | 远端网页与 Node/文件系统隔离 |
 | 自动化 | Phase 2 provider adapter | 页面 selector 与调度器解耦，失败必须显式分类 |
+| PC 远程指令 | Windows UI Automation 子进程 + NDJSON stdout | 复用用户已登录且可见的本机窗口，不接触账号凭据或非官方网络协议 |
 
 不采用 Python GUI：它会额外引入浏览器运行时/调试协议，难以获得一致的页面与 session 生命周期。不采用 iframe：主流 AI 网站可能禁止嵌入。`WebContentsView` 是 Electron 管理的真实 webContents，不是 iframe。不把 Playwright headless 当核心：产品要求用户能看到并接管实际页面。
 
@@ -43,14 +44,29 @@ Codex Boss Desktop
 electron/
   main.ts               app lifecycle + allowlisted IPC
   preload.ts            narrow renderer bridge
+  commander/
+    main-commander.ts    deterministic lifecycle and protocol coordinator
+    task-state-machine.ts validated lifecycle transitions
+    scheduler.ts         timeout/retry/fallback/concurrency/commit decision
+    runtime-registry.ts  adapter registration and health cache
+    role-router.ts       provider-neutral role candidate ordering
+    budget-manager.ts    observed runtime budget state
+    context-manager.ts   canonical local context and selective funnel
+    execution-gate.ts    approval-gated external mutation lifecycle
+    runtime-policy.ts    validated local routing policy loader
+  runtimes/
+    runtime.ts           common RuntimeAdapter contract
+    web/                 provider web Runtime adapter boundary
+    codex/               optional Codex CLI Runtime
+    unsupported-runtime.ts explicit API/local placeholder
   provider-views.ts     embedded provider view supervisor
-  provider-automation.ts visible prepare/send/observe/capture controller
+  provider-automation.ts visible prepare/send plus concurrent observe/capture
   account-sessions.ts   isolated persistent web login-session ownership
   api-settings.ts       encrypted local API configuration
   provider-api.ts       OpenAI-compatible / Anthropic / Gemini clients
   history-repository.ts project-root conversation/file persistence and rename moves
+  remote-relay.ts       opt-in WeChat/QQ listener lifecycle + validated record parser
   evidence-engine.ts    manifest, claims, disputes and selective rehydration
-  codex-controller.ts   optional current-account Codex CLI evidence review
   adapters/             versioned selector registry and isolated page scripts
   store.ts              local task/event persistence
 src/
@@ -63,6 +79,7 @@ src/
 tests/
   state.test.ts
 scripts/
+  pc-chat-relay.ps1     prefix-only visible desktop chat reader
   start-codex-boss.ps1  production launcher + visible error reporting
 Start-Codex-Boss.cmd    double-click entrypoint
 .github/workflows/ci.yml
@@ -112,6 +129,8 @@ Phase 1 的 `RUNNING` 只表示任务对应的可见窗口已经被调度，绝�
 窗口状态独立于任务状态：关闭窗口不会伪造任务失败或完成；应用只追加 `window.closed` 审计事件。再次运行会恢复相同 provider partition 的登录态并聚焦已有窗口。
 
 对话状态独立于执行状态。`folders`、`conversations` 和 `activeConversationId` 维护导航关系；每个 task 固定 `conversationId`。`HistoryRepository` 将当前对话投影到项目根目录 `history/<folder>/<conversation>/`，写出消息、运行元数据、raw artifacts 和 evidence bundles；网页 AI 下载文件写入 `generated/<provider>/` 并使用防覆盖文件名。重命名/移动通过 ID 索引定位旧目录并执行真实目录移动，不复制 API 密钥或网页登录态。
+
+远程指令状态独立于任务状态。启用微信或 QQ 渠道后，主进程只启动仓库内的本机 PowerShell 辅助桥；辅助桥扫描已知客户端进程的可访问文本节点，只输出以配置前缀开头的正文。主进程验证 NDJSON 记录、去除短时重复并写入 `pending` 队列。renderer 只能显式载入或忽略，不能让远端文本直接触发任务、shell、文件或网络动作。修改前缀会替换对应监听进程，关闭应用会终止所有监听器。
 
 ## 6. Phase 1 验收标准
 
@@ -196,3 +215,14 @@ raw artifacts
 - 当前阶段不包含互联网事实核验器、自动执行器或 `READY_FOR_USER_REVIEW` 自动升级，因此 evidence decision 保持 `HOLD_FOR_REVIEW`。
 
 Phase 4 基础验收：类型检查、证据引擎单测、production build、启动器 smoke test、控制端账户状态检测。第三方游客页的可用性、真实发送和回答采集必须分别保留现场结果；没有执行的项为 `NOT_RUN`。
+
+## 9-4 execution layers
+
+- `src/shared/execution.ts`: review contracts, deterministic checks, user-visible states.
+- `src/shared/task-ir.ts`: conservative intent compiler and graph validation.
+- `electron/commander/task-ledger.ts`, `execution-supervisor.ts`, `interruption.ts`: durable checkpoints, explicit sessions and bounded recovery.
+- `electron/engineering/`: native operations, scoped change manifests, evidence verification, graph runtime and workspace isolation.
+- `electron/computer/semantic-runtime.ts`: semantic action ordering and uncertain-effect handling; DOM is the currently connected backend.
+- `electron/commander/resource-controller.ts`: separated memory scopes, measured routing observations and degraded modes.
+- `scripts/benchmark.cjs`, `package-portable.cjs`: controlled benchmark and whitelisted portable packaging.
+- `docs/9-4-validation.md`: implementation checkpoints and outstanding release evidence.

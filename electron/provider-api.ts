@@ -1,6 +1,10 @@
 import type { ProviderId } from "../src/shared/contracts";
 import { ApiSettingsStore } from "./api-settings";
 
+export class ProviderHttpError extends Error {
+  constructor(message: string, readonly status: number, readonly retryAt?: number) { super(message); }
+}
+
 export interface ApiCompletion {
   content: string;
   sourceUrl: string;
@@ -60,7 +64,10 @@ async function jsonRequest(request: typeof fetch, url: string, init: RequestInit
   try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 500) }; }
   if (!response.ok) {
     const detail = typeof body === "object" && body !== null ? JSON.stringify(body).slice(0, 500) : String(body).slice(0, 500);
-    throw new Error(`HTTP ${response.status}: ${detail}`);
+    const retry = response.headers.get("retry-after");
+    const seconds = retry ? Number(retry) : NaN;
+    const deadline = retry ? Number.isFinite(seconds) ? Date.now() + Math.max(0, seconds) * 1000 : Date.parse(retry) : NaN;
+    throw new ProviderHttpError(`HTTP ${response.status}: ${detail}`, response.status, Number.isFinite(deadline) ? deadline : undefined);
   }
   return body;
 }

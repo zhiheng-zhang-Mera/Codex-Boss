@@ -78,7 +78,7 @@ export class ApiSettingsStore {
     try { fs.renameSync(temporary, this.filePath); }
     catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
-      if (!["EEXIST", "EPERM"].includes(code ?? "")) throw error;
+      if (!["EXDEV", "EEXIST", "EPERM"].includes(code ?? "")) throw error;
       fs.copyFileSync(temporary, this.filePath);
       fs.unlinkSync(temporary);
     }

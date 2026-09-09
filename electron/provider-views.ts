@@ -14,7 +14,7 @@ export class ProviderViews {
     private readonly downloadPathFor: (providerId: ProviderId, suggestedName: string) => string
   ) {}
 
-  open(provider: Provider): WebContentsView {
+  open(provider: Provider, loadInitialPage = true): WebContentsView {
     const existing = this.views.get(provider.id);
     if (existing && !existing.webContents.isDestroyed()) return existing;
 
@@ -45,7 +45,7 @@ export class ProviderViews {
     this.downloadListeners.set(provider.id, { session: view.webContents.session, listener: downloadListener });
     this.accounts.mount(provider, view);
     this.onState(provider.id, true);
-    void view.webContents.loadURL(provider.url);
+    if (loadInitialPage) void view.webContents.loadURL(provider.url).catch((error) => console.error("Provider navigation failed", error));
     return view;
   }
 
@@ -60,7 +60,7 @@ export class ProviderViews {
     const download = this.downloadListeners.get(providerId);
     if (download) download.session.off("will-download", download.listener);
     this.downloadListeners.delete(providerId);
-    this.host.contentView.removeChildView(view);
+    if (!this.host.isDestroyed()) this.host.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
     this.views.delete(providerId);
     this.onState(providerId, false);
