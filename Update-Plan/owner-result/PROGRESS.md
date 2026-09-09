@@ -476,7 +476,7 @@
   相同，full build 沿用 R36 PASS）。
   证据 `Update-Plan/owner-result/evidence/round-37/`。
 
-## Round 38（2026-09-09，P1-x §33/§39 运行时恢复续跑 battery，owner-result）
+## Round 38（2026-09-09，P1-x §33/§39 运行时恢复续跑 battery，owner-result @ 02d316a）
 - **背景**：§39『checkpoint/resume』与 §33『resume unfinished work，不 restart from zero』需要恢复链的
   确定性证据；supervisor 的 runtime recovery scheduling 只在 main.ts 接线，无 tracked 集成测试。
 - **tests/unit/recovery-resume-battery.test.ts（新，真实 ExecutionSupervisor + TaskLedger +
