@@ -168,15 +168,21 @@ Milestoneï¼ˆ20:18â€“23:56ï¼Œ9-7-milestone çº¿ï¼‰ï¼š
 - åˆ†æ”¯çº¦å®šï¼šç¡®å®šæ€§æµ‹è¯•éšä»“åº“æäº¤äº `tests/unit/`ï¼ˆåˆ†å±‚å¸ƒå±€ï¼‰ï¼›`9-8` å†å²æäº¤ä¸­çš„â€œ150/752 æœ¬åœ°å…¨é‡ gitignoredâ€å£å¾„è‡ª overcomplete åˆ†æ”¯èµ·ä¸å†é€‚ç”¨ï¼ˆåŒä¸€å¥—ä»¶å·²å…¥åº“ï¼‰ã€‚
 - åç»­æ¯æ—¥æ›´æ–°ï¼šç›´æ¥åœ¨å¯¹åº”æ—¥æœŸè¿½åŠ å°èŠ‚ï¼›è·¨å¤©åˆ™æ–°å¢ `## YYYY-MM-DD` å°èŠ‚å¹¶æ›´æ–°é¡¶éƒ¨æ±‡æ€»è¡¨ã€‚
 
-### Live ÑéÊÕ£¨2026-09-08 Ò¹¡ª09£¬ÒÑµÇÂ¼ provider Êµ¿ö£©
-- »ù´¡ÉèÊ©£ºCDP Çı¶¯ÔËĞĞÊµÀı£¨`scripts/live-cdp.cjs`£©¡¢×Ô¶¯»¯ journal£¨`runtime-data/.boss/live-automation.log`£¬´¿³ÌĞòÀëÏßÕï¶Ï£©¡£
-- ÊÊÅäÆ÷£ºDeepSeek `sendMode=enter`¡¢Microsoft Copilot£¨`#userInput`£©ÏÔÊ½ÊÊÅäÆ÷¡¢ÄÚÖÃÎ´¸²¸Ç provider µÄÍ¨ÓÃÄ¬ÈÏ¹æÔò£¨mistral/perplexity/doubao£©£»Qwen ·¢ËÍ¿Ø¼şÎ´½âÎö£¨¼ÇÂ¼È±¿Ú£©¡£
-- Õæ»ú PASS£º1/3/4/5-AI ²¢ĞĞ Work echo£¨`5AI-OK <brand>`£¬artifact È«²¶»ñ¡¢Éó²éÈ«¹ı¡¢final ºÏ³É£©£»Chat ÑÓĞø£¨Í¬»á»° URL+ÉÏÏÂÎÄ¼ÇÒä£©£»3-AI Council£¨proposals¡úpeer_review¡úsynthesis COMPLETE£©£»Live Engineering Goal CONVERGED£¨ÕæÊµ AI coder ĞŞ±àÒë bug£¬eng-4c193c1599d4£©£»Live Research ÓïÒåÁ´£¨ÕæÊµ AI hypothesis/¸´ÏÖ/claim + paper reviewer council ÕæÊµ·ñ¾ö£©£»Íâ²¿¹éµµ fail-closed pass¡£
-- ÈÍĞÔĞŞ¸´£ºÈ¡Ïû¼´Ê±ÊÍ·Å provider£»busy ÊØÎÀÖ»ÈÏ»î¶¯ÈÎÎñ£»²É¼¯ monitor 10¡ú25 ·ÖÖÓ+³¬Ê±Ç¿ÖÆ²É¼¯£»busy ¹ËÎÊ»¯£¨stability ²É¼¯£©£»composer Ë²Ì¬ÖØµ¼º½ÖØÊÔ£»ÊäÈë¾ÍĞ÷ÓĞ½çµÈ´ı¡£
-- Ö¤¾İË÷Òı£º`Update-Plan/overcomplete/evidence/live/INDEX.md`¡£
+### Live éªŒæ”¶ï¼ˆ2026-09-08 Ò¹â€”09ï¼Œå·²ç™»Â¼ provider Êµå†µï¼‰
+- åŸºç¡€è®¾Ê©ï¼šCDP é©±åŠ¨è¿è¡ŒÊµä¾‹ï¼ˆ`scripts/live-cdp.cjs`ï¼‰ã€è‡ªåŠ¨åŒ– journalï¼ˆ`runtime-data/.boss/live-automation.log`ï¼Œçº¯ç¨‹åºç¦»çº¿è¯Šæ–­ï¼‰ã€‚
+- é€‚é…å™¨ï¼šDeepSeek `sendMode=enter`ã€Microsoft Copilotï¼ˆ`#userInput`ï¼‰æ˜¾Ê½é€‚é…å™¨ã€å†…ç½®Î´è¦†ç›– provider çš„Í¨ç”¨Ä¬è®¤è§„åˆ™ï¼ˆmistral/perplexity/doubaoï¼‰ï¼›Qwen å‘é€æ§ä»¶Î´è§£æï¼ˆè®°Â¼È±å£ï¼‰ã€‚
+- çœŸæœº PASSï¼š1/3/4/5-AI å¹¶è¡Œ Work echoï¼ˆ`5AI-OK <brand>`ï¼Œartifact È«æ•è·ã€å®¡æŸ¥È«è¿‡ã€final åˆæˆï¼‰ï¼›Chat å»¶ç»­ï¼ˆÍ¬ä¼šè¯ URL+ä¸Šä¸‹æ–‡è®°å¿†ï¼‰ï¼›3-AI Councilï¼ˆproposalsâ†’peer_reviewâ†’synthesis COMPLETEï¼‰ï¼›Live Engineering Goal CONVERGEDï¼ˆçœŸÊµ AI coder ä¿®ç¼–è¯‘ bugï¼Œeng-4c193c1599d4ï¼‰ï¼›Live Research è¯­ä¹‰é“¾ï¼ˆçœŸÊµ AI hypothesis/å¤ç°/claim + paper reviewer council çœŸÊµå¦å†³ï¼‰ï¼›å¤–éƒ¨å½’æ¡£ fail-closed passã€‚
+- éŸ§æ€§ä¿®å¤ï¼šÈ¡æ¶ˆå³Ê±é‡Šæ”¾ providerï¼›busy å®ˆå«Ö»è®¤æ´»åŠ¨ä»»åŠ¡ï¼›é‡‡é›† monitor 10â†’25 åˆ†é’Ÿ+è¶…Ê±Ç¿åˆ¶é‡‡é›†ï¼›busy é¡¾é—®åŒ–ï¼ˆstability é‡‡é›†ï¼‰ï¼›composer Ë²Ì¬é‡å¯¼èˆªé‡è¯•ï¼›è¾“å…¥å°±ç»ªæœ‰ç•Œç­‰å¾…ã€‚
+- Ö¤æ®ç´¢å¼•ï¼š`Update-Plan/overcomplete/evidence/live/INDEX.md`ã€‚
 
-### TeX ÒıÇæÓë live READY£¨2026-09-09£©
-- D:\tex °²×° tectonic 0.15.0£»latex-compiler Ö§³Ö tectonic£»manuscript prose LaTeX ×ªÒå¡£
-- ÀëÏßÈ·¶¨ĞÔÁ´ READY+paper.pdf£¨evidence/research/offline-chain-* PASS_READY£©¡£
-- Live Research READY+paper.pdf£¨evidence/live/live-research-ready-*£©£ºÕæÊµ web AI ÓïÒå½×¶Î£¬6 ÕæÊµ run£¨seeds1-6£©£¬ÕæÊµ reviewer council Í¨¹ı£¨ÏÈ³ÏÊµ·ñ¾ö n=2 ¹¦Ğ§Óë 0.5-vs-majority Éè¼Æ£©£¬engine tectonic ±àÒë final audit Í¨¹ı£¬³É¹ûµ¼³ö Research/<topic>/¡£
-- conductor Ä¬ÈÏ run Êı 3+3¡£
+### TeX å¼•æ“ä¸ live READYï¼ˆ2026-09-09ï¼‰
+- D:\tex å®‰×° tectonic 0.15.0ï¼›latex-compiler Ö§æŒ tectonicï¼›manuscript prose LaTeX ×ªä¹‰ã€‚
+- ç¦»çº¿È·å®šæ€§é“¾ READY+paper.pdfï¼ˆevidence/research/offline-chain-* PASS_READYï¼‰ã€‚
+- Live Research READY+paper.pdfï¼ˆevidence/live/live-research-ready-*ï¼‰ï¼šçœŸÊµ web AI è¯­ä¹‰é˜¶æ®µï¼Œ6 çœŸÊµ runï¼ˆseeds1-6ï¼‰ï¼ŒçœŸÊµ reviewer council Í¨è¿‡ï¼ˆå…ˆè¯šÊµå¦å†³ n=2 åŠŸĞ§ä¸ 0.5-vs-majority è®¾è®¡ï¼‰ï¼Œengine tectonic ç¼–è¯‘ final audit Í¨è¿‡ï¼Œæˆæœå¯¼å‡º Research/<topic>/ã€‚
+- conductor Ä¬è®¤ run æ•° 3+3ã€‚
+
+### å¼¹çª—è®©ä½ give-way + UTF-8 ä¿®å¤ï¼ˆ2026-09-09ï¼‰
+- >3 ä¸ª web AI æ‰“å¼€æ—¶å¼ºåˆ¶ DETACHED ç¬¬äºŒçª—å£ï¼Œä¸»çª—å£çœŸæ­£â€œå¼¹çª—è®©ä½â€ï¼š`.view-detached` ä¸‹ `.browser-half{display:none}`ã€`.chat-half` æ‰©å±•è‡³ grid-column 2/-1ï¼ˆä¸»äº¤äº’åŒºå æ»¡ï¼‰ï¼Œä¸»çª—å£ embedCount=0ï¼ˆæ—§é¡µé¢ä¸åŠ è½½ AI å¤„ç†é¡µï¼‰ã€‚
+- å›è½ <=3 â†’ è‡ªåŠ¨å› MERGEDï¼Œbrowser-half æ¢å¤æ˜¾ç¤ºï¼›å¼€/å…³åŒå‘åŠ¨æ€ç›‘æµ‹ï¼ˆonOpen hook + 5s monitorï¼‰å®æœºéªŒè¯ PASSã€‚
+- ä¿®å¤ PowerShell Add-Content å¼•å…¥çš„ GBK å­—èŠ‚å²›ï¼š`src/renderer/styles.css`ï¼ˆæ›¾é˜»æ–­ vite æ„å»ºï¼‰ä¸ `Update-Log.md`ã€`evidence/live/INDEX.md` å…¨éƒ¨è½¬ä¸¥æ ¼ UTF-8ã€‚
+- å®æœºè¯æ®ï¼š`evidence/live/live-layout-giveway-2026-09-09-10-03-11.json`ï¼ˆ4 AI å¼€ â†’ DETACHED + è®©ä½ï¼›å›è½ â‰¤3 â†’ MERGED å¤åŸï¼‰ã€‚

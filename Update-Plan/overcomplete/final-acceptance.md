@@ -75,16 +75,22 @@
 1. Live AI-coder/council E2Eã€å¤–éƒ¨ç½‘é¡µâ€œç‚¹å‡»å½’æ¡£â€è‡ªåŠ¨åŒ–ã€paper.pdf ç¼–è¯‘ã€å¤šåŸŸ Research READYã€multi-hour soak éœ€è¦çœŸå®ç™»å½•çš„ provider ä¼šè¯ä¸ GUI ç¯å¢ƒï¼›æœ¬å·¥ä½œåŒºä»…èƒ½ç¡®å®šæ€§éªŒè¯å…¶ seam ä¸çŠ¶æ€æœºï¼ˆå‡å·²æµ‹è¯•ï¼‰ã€‚
 2. æ—  GUI ç¯å¢ƒçš„ restart/portable smoke æŒ‰ç¯å¢ƒè®°å½•ï¼›9-8 äº‘ç«¯ CI å·²ç»¿ã€‚
 
-## Live ÑéÊÕ¸üĞÂ£¨2026-09-09£¬supersede ÉÏÃæ±ê¼ÇÎª NOT-RUN/live µÄĞĞ£©
-- 20.2 Autonomous Engineering£ºreal AI coder E2E ? CONVERGED£¨eng-4c193c1599d4£¬evidence/live/live-engineering-goal-*£©£»reviewer/second-round ÓïÒåÔÚ goal Óë council Êµ¿ö³ÉÁ¢¡£
-- 20.3/1-3-4-5 AI£º1/3/4/5-AI Work ²¢ĞĞÕæ»úÈ« PASS£¨evidence/live/live-{1ai,3ai,4ai,5ai}-*£©¡£
-- 20.5 History£ºChat ÑÓĞø ?£¨Í¬»á»°+ÉÏÏÂÎÄ¼ÇÒä£¬live-chat-continuation-*£©£»Work fresh ?£¨live-chat-vs-work-*£©£»Íâ²¿¹éµµ½ÓÏß ? fail-closed£¨live-external-archive-*£©¡£
-- 20.6 Recovery£ºwedged ÊµÀı¾­ journal ¶¨Î»²¢ĞŞ¸´£¨cancel ÊÍ·Å/busy ÊØÎÀ/²É¼¯ monitor/¾ÍĞ÷µÈ´ıµÈ£¬evidence/live/live-finding-* Óë live-research/council ¼ÇÂ¼£©¡£
-- 20.4 Research£ºlive ÓïÒåÁ´µ½ manuscript + real reviewer-council veto£¨live-research-chain-*£©£»paper.pdf ÈÔĞè TeX£¨NOT-RUN, honest£©£»ÈıÓò READY/soak ÈÔÔÚÏŞÖÆÁĞ±í¡£
-- Known Limitations ¸üĞÂ£ºQwen ·¢ËÍ¿Ø¼şÎ´½âÎö£¨È±¿Ú£¬¿ÉÈË¹¤Ê¹ÓÃ£©£»TeX È±Ê§£¨paper.pdf/READY live ²»¿É´ï£©£»multi-hour soak Óë UI rail Î´ÔÚ±¾»·¾³ÊµÅÜ£»live ÑéÊÕÒÀÀµÒÑµÇÂ¼ provider »á»°»·¾³¡£
-- ÏêÏ¸Ë÷Òı£ºUpdate-Plan/overcomplete/evidence/live/INDEX.md¡£
+## Live éªŒæ”¶æ›´æ–°ï¼ˆ2026-09-09ï¼Œsupersede ä¸Šé¢æ ‡è®°Îª NOT-RUN/live çš„è¡Œï¼‰
+- 20.2 Autonomous Engineeringï¼šreal AI coder E2E ? CONVERGEDï¼ˆeng-4c193c1599d4ï¼Œevidence/live/live-engineering-goal-*ï¼‰ï¼›reviewer/second-round è¯­ä¹‰åœ¨ goal ä¸ council Êµå†µæˆç«‹ã€‚
+- 20.3/1-3-4-5 AIï¼š1/3/4/5-AI Work å¹¶è¡ŒçœŸæœºÈ« PASSï¼ˆevidence/live/live-{1ai,3ai,4ai,5ai}-*ï¼‰ã€‚
+- 20.5 Historyï¼šChat å»¶ç»­ ?ï¼ˆÍ¬ä¼šè¯+ä¸Šä¸‹æ–‡è®°å¿†ï¼Œlive-chat-continuation-*ï¼‰ï¼›Work fresh ?ï¼ˆlive-chat-vs-work-*ï¼‰ï¼›å¤–éƒ¨å½’æ¡£æ¥çº¿ ? fail-closedï¼ˆlive-external-archive-*ï¼‰ã€‚
+- 20.6 Recoveryï¼šwedged Êµä¾‹ç» journal å®šÎ»å¹¶ä¿®å¤ï¼ˆcancel é‡Šæ”¾/busy å®ˆå«/é‡‡é›† monitor/å°±ç»ªç­‰å¾…ç­‰ï¼Œevidence/live/live-finding-* ä¸ live-research/council è®°Â¼ï¼‰ã€‚
+- 20.4 Researchï¼šlive è¯­ä¹‰é“¾åˆ° manuscript + real reviewer-council vetoï¼ˆlive-research-chain-*ï¼‰ï¼›paper.pdf ä»éœ€ TeXï¼ˆNOT-RUN, honestï¼‰ï¼›ä¸‰åŸŸ READY/soak ä»åœ¨é™åˆ¶åˆ—è¡¨ã€‚
+- Known Limitations æ›´æ–°ï¼šQwen å‘é€æ§ä»¶Î´è§£æï¼ˆÈ±å£ï¼Œå¯äººå·¥Ê¹ç”¨ï¼‰ï¼›TeX È±Ê§ï¼ˆpaper.pdf/READY live ä¸å¯è¾¾ï¼‰ï¼›multi-hour soak ä¸ UI rail Î´åœ¨æœ¬ç¯å¢ƒÊµè·‘ï¼›live éªŒæ”¶ä¾èµ–å·²ç™»Â¼ provider ä¼šè¯ç¯å¢ƒã€‚
+- è¯¦Ï¸ç´¢å¼•ï¼šUpdate-Plan/overcomplete/evidence/live/INDEX.mdã€‚
 
-## TeX/PDF ¸üĞÂ£¨2026-09-09£©
-- D ÅÌ°²×° tectonic 0.15.0£¨D:\tex\bin£©£»latex-compiler Ö§³Ö tectonic ²ÎÊı£»manuscript prose ¼Ó LaTeX ×ªÒå£¨metric ÏÂ»®Ïß/°Ù·ÖºÅµÈ£©¡£
-- ÀëÏßÈ·¶¨ĞÔÑĞ¾¿Á´ **READY + paper.pdf**£¨state READY¡¢compile PASS¡¢engine tectonic¡¢final audit PASS£©¡ú ÂÛÎÄ¹¦ÄÜÁ´È«Í¨£¨evidence/research/offline-chain-* status PASS_READY£©¡£
-- live READY ´ı¸ü¸ß¹¦Ğ§ run£¨reviewer council ÔøÒò n=2 ÕæÊµ·ñ¾ö£©£»TeX ²»ÔÙÊÇ READY ×èÈû£¨ÀëÏßÒÑÖ¤£©¡£
+## TeX/PDF æ›´æ–°ï¼ˆ2026-09-09ï¼‰
+- D ç›˜å®‰×° tectonic 0.15.0ï¼ˆD:\tex\binï¼‰ï¼›latex-compiler Ö§æŒ tectonic å‚æ•°ï¼›manuscript prose åŠ  LaTeX ×ªä¹‰ï¼ˆmetric ä¸‹åˆ’çº¿/ç™¾åˆ†å·ç­‰ï¼‰ã€‚
+- ç¦»çº¿È·å®šæ€§ç ”ç©¶é“¾ **READY + paper.pdf**ï¼ˆstate READYã€compile PASSã€engine tectonicã€final audit PASSï¼‰â†’ è®ºæ–‡åŠŸèƒ½é“¾È«Í¨ï¼ˆevidence/research/offline-chain-* status PASS_READYï¼‰ã€‚
+- live READY å¾…æ›´é«˜åŠŸĞ§ runï¼ˆreviewer council æ›¾å›  n=2 çœŸÊµå¦å†³ï¼‰ï¼›TeX ä¸å†æ˜¯ READY é˜»å¡ï¼ˆç¦»çº¿å·²Ö¤ï¼‰ã€‚
+
+## å¼¹çª—è®©ä½ï¼ˆgive-wayï¼‰æ›´æ–°ï¼š2026-09-09
+- >3 web AI æ‰“å¼€ â†’ å¼ºåˆ¶ DETACHED ç¬¬äºŒçª—å£ï¼ˆå¼¹çª—ï¼‰ï¼Œä¸»çª—å£è®©ä½ï¼š`.view-detached` ä¸‹ `.browser-half{display:none}`ã€`.chat-half` æ‰©å±•è‡³ grid-column 2/-1ï¼Œä¸»çª—å£ embedCount=0ï¼ˆä¸åŠ è½½ AI å¤„ç†é¡µï¼ŒçœŸæ­£â€œå¼¹çª—â€è€Œéå³ä¾§ç©ºæ ï¼‰ã€‚
+- å›è½ â‰¤3 â†’ è‡ªåŠ¨å› MERGED å¤åŸï¼›åŒå‘åŠ¨æ€ç›‘æµ‹ï¼ˆonOpen hook + 5s monitorï¼‰çœŸæœº PASSã€‚
+- è¯æ®ï¼š`evidence/live/live-layout-giveway-2026-09-09-10-03-11.json`ï¼›å›å½’ï¼štests/unit/workspace-layoutï¼ˆ4 â†’ 2Ã—2 ç”°å­—ï¼‰ï¼Œ30 files / 126 tests + typecheck + full build PASSã€‚
+- é¡ºå¸¦ä¿®å¤ï¼š`styles.css`/`Update-Log.md`/`final-acceptance.md`/`evidence/live/INDEX.md` ä¸­ PowerShell GBK å­—èŠ‚å²› â†’ ä¸¥æ ¼ UTF-8ï¼ˆstyles.css æ›¾é˜»æ–­ vite æ„å»ºï¼‰ã€‚

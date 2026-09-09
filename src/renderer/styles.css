@@ -362,3 +362,13 @@ button { color: inherit; }
 .manager-role-grid form { display: flex; gap: 6px; align-items: center; }
 .manager-role-grid select { flex: 1; min-width: 0; padding: 4px; }
 .manager-panel .api-settings-list { padding-top: 4px; }
+/* DETACHED (second-window) mode: the web-AI processors live in window B, so
+   the main window gives the interaction area the room and hides its own
+   processor module — a true pop-out instead of an empty right panel. */
+.desktop-shell.view-detached .browser-half { display: none; }
+.desktop-shell.view-detached .chat-half { grid-column: 2 / -1; border-right: 0; }
+.desktop-shell.view-detached.layout-three { grid-template-columns: clamp(220px, 16vw, 300px) minmax(0, 1fr); }
+.desktop-shell.view-detached.layout-three.history-collapsed { grid-template-columns: 40px minmax(0, 1fr); }
+.desktop-shell.view-detached.layout-five { grid-template-columns: clamp(220px, 16vw, 300px) minmax(0, 1fr); }
+.desktop-shell.view-detached.layout-five.history-collapsed { grid-template-columns: 40px minmax(0, 1fr); }
+.desktop-shell.view-detached .controller-resizer { display: none; }

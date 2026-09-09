@@ -25,6 +25,7 @@ function GoalNodeView({ goal }: { goal: import("../shared/project-tree").GoalVie
 
 function App() {
   const [snapshot, setSnapshot] = useState<AppSnapshot>(emptySnapshot);
+  const [workspaceView, setWorkspaceViewUi] = useState<"MERGED" | "DETACHED">("MERGED");
   const [progress, setProgress] = useState<Array<import("../shared/progress").ProgressSummary>>([]);
   const [interventions, setInterventions] = useState<HumanInterventionRequest[]>([]);
   const [prompt, setPrompt] = useState("");
@@ -103,6 +104,14 @@ function App() {
     if (merged.join(",") !== displayOrder.join(",")) setDisplayOrder(merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openKey]);
+  // DETACHED (second-window) mode: main window must give the interaction area
+  // the full width and no longer reserve a web-processor module.
+  useEffect(() => {
+    let live = true;
+    window.boss.getWorkspaceView().then((view) => { if (live) setWorkspaceViewUi(view.view); }).catch(() => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot, openKey]);
   const orderedOpenProviders = [...openProviders].sort((a, b) => displayOrder.indexOf(a.id) - displayOrder.indexOf(b.id));
   function moveDisplayOrder(providerId: ProviderId, direction: -1 | 1) {
     setDisplayOrder((current) => {
@@ -536,7 +545,7 @@ function App() {
     return runs.filter((run) => run.round === round);
   }
 
-  return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""}`}>
+  return <div ref={shellRef} style={{ "--controller-width": `${controllerWidth}vw` } as React.CSSProperties} className={`desktop-shell ${openProviders.length === 3 ? "layout-three" : ""} ${openProviders.length === 5 ? "layout-five" : ""} ${historyCollapsed ? "history-collapsed" : ""} ${workspaceView === "DETACHED" ? "view-detached" : ""}`}>
     {historyDialog && <HistoryNameDialog state={historyDialog} onSubmit={saveHistoryName} onClose={() => setHistoryDialog(null)} />}
     {conversationMenu && menuActions && <ConversationContextMenu state={conversationMenu} actions={menuActions} onClose={() => setConversationMenu(null)} />}
     <aside className="history-sidebar" aria-label="对话历史">

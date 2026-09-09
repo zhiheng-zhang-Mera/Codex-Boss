@@ -127,9 +127,9 @@ Standalone smoke verification uses an isolated data directory:
 
 - The deterministic test suite is committed with the repository under `tests/unit/`
   (layered layout; includes git/process-heavy integration cases). Snapshot on this branch:
-  **30 files / 125 tests green** + typecheck + full build PASS.
+  **30 files / 126 tests green** + typecheck + full build PASS.
   确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
-  本分支快照：**30 文件 / 125 测试全绿**，typecheck 与完整 build PASS。
+  本分支快照：**30 文件 / 126 测试全绿**，typecheck 与完整 build PASS。
 - GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke — green on
   `9-7` and `9-8`; the `9-8-overcomplete` branch adds seeded-bug autonomous repair acceptance
   (`pnpm run test:seeded` → `scripts/acceptance-seeded-engineering.cjs`).
