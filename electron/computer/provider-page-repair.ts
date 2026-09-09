@@ -20,6 +20,12 @@ export interface PageRepairOptions {
   surface: DomPageSurface;
   /** Maps a planner target (kind + hint) onto a DOM selector; null = cannot target. */
   resolveTarget?: (target: ComputerTarget) => string | null;
+  /**
+   * R-201 (§5.1): pre-action readiness gate for every mutation the repair chain
+   * executes (default ON). Set to false only in deterministic mocks that model
+   * the page as already ready; `{ attempts, intervalMs }` tunes the bounded probe.
+   */
+  readiness?: false | { attempts?: number; intervalMs?: number };
 }
 
 export interface PageRepairOutcome {
@@ -31,10 +37,14 @@ export interface PageRepairOutcome {
 export function createPageRepairExecutor(options: PageRepairOptions) {
   const surface = options.surface;
   const resolver = options.resolveTarget ?? (() => null);
-  const backend = new DomPageBackend(surface);
-  const executeStep = async (action: SemanticAction): Promise<boolean> => {
+  const readiness = options.readiness;
+  const readinessOpts: { preflightReadiness?: boolean; readinessAttempts?: number; readinessIntervalMs?: number } = readiness === false
+    ? { preflightReadiness: false }
+    : { preflightReadiness: true, readinessAttempts: readiness?.attempts, readinessIntervalMs: readiness?.intervalMs };
+  const backend = new DomPageBackend(surface, readinessOpts);
+  const executeStep = async (action: SemanticAction): Promise<{ ok: boolean; message?: string }> => {
     const result = await backend.execute(action, new AbortController().signal);
-    return result.status === "SUCCESS";
+    return { ok: result.status === "SUCCESS", message: result.status === "SUCCESS" ? undefined : (result as { message?: string }).message };
   };
 
   const execute = async (plan: RepairPlan, context: { text?: string } = {}): Promise<PageRepairOutcome> => {
@@ -56,10 +66,11 @@ export function createPageRepairExecutor(options: PageRepairOptions) {
         target: `${DOM_TARGET_PREFIX}${JSON.stringify({ selector })}`,
         ...(step.action === "enter_text" ? { value: context.text ?? "" } : {})
       };
-      const ok = await executeStep(action);
+      const outcome = await executeStep(action);
       executed.push({ step: index, action: step.action, selector });
-      if (!ok) {
-        return { status: "FAILED", message: `step ${index} (${step.action} on ${selector}) failed`, executed };
+      if (!outcome.ok) {
+        const detail = outcome.message ? `: ${outcome.message}` : "";
+        return { status: "FAILED", message: `step ${index} (${step.action} on ${selector}) failed${detail}`, executed };
       }
     }
     const last = plan.steps[plan.steps.length - 1];

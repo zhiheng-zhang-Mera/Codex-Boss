@@ -1,0 +1,18 @@
+{
+  "requirement": "R-201",
+  "phase": "B",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "web-AI action readiness gate — never act on a page that is not demonstrably ready; post-action never assumed",
+  "implementation": [
+    "src/shared/action-readiness.ts (pure): ordered READINESS_GATES chain (NAVIGATION_ACCEPTED → DOM_READY → TARGET_EXISTS → TARGET_VISIBLE → TARGET_ENABLED → TARGET_STABLE → ACTION_ALLOWED), readinessFromProbe verdict with blockers, postActionVerified (fail-closed: no observed change ⇒ unverified), escalationAfterFailure (bounded retry → selector refresh → alternate strategy)",
+    "electron/computer/backends/dom-page.ts: DomBackendOptions.preflightReadiness — before ANY high-risk action (click_control/enter_text/submit) a bounded readiness probe (DOM ready/target exists/visible/enabled/stable) must pass, else the action is refused with the blocking gates listed (no premature mutation)",
+    "electron/computer/provider-page-repair.ts: the Computer-Use repair executor enables the readiness gate by default (override false only for deterministic ready-mocks)"
+  ],
+  "tests": [
+    "tests/unit/action-readiness.test.ts (+5): chain order; ready probe no blockers; loading/invisible blocks with gates; post-action verification fail-closed; bounded escalation",
+    "tests/unit/provider-page-repair.test.ts: REPAIRED plan runs readiness before the mutation (script order); not-ready page ⇒ FAILED with NO click action executed; page becoming ready within the bounded window proceeds; DENIED/UNCERTAIN/failure paths preserved"
+  ],
+  "gates": { "typecheck": "PASS", "vitest_unit": "53 files / 269 tests PASS", "full_build": "PASS" },
+  "notes": "Readiness is wired default-on into the DOM-tier Computer-Use repair chain (production seam). ProviderAutomation/WebRecovery readiness remains a live-area follow-up tied to R-202."
+}

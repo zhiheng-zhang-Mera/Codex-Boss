@@ -1,4 +1,5 @@
 import type { SemanticAction, SemanticBackend, SemanticResult } from "../semantic-runtime";
+import { readinessFromProbe, type ReadinessProbeFacts } from "../../../src/shared/action-readiness";
 
 /**
  * DOM tier of the §8.2 semantic chain: executes click_control / enter_text /
@@ -42,14 +43,62 @@ export function parseDomTarget(target: string): { providerId?: string; selector?
   return { providerId, selector, text };
 }
 
+export interface DomBackendOptions {
+  /** R-201: run the bounded pre-action readiness gate before high-risk actions. */
+  preflightReadiness?: boolean;
+  /** Max probe attempts before the action is refused (default 2). */
+  readinessAttempts?: number;
+  /** Interval between probes in ms (default 200; deterministic tests use 0). */
+  readinessIntervalMs?: number;
+}
+
 export class DomPageBackend implements SemanticBackend {
   readonly kind = "dom" as const;
-  constructor(private readonly surface: DomPageSurface) {}
+  constructor(private readonly surface: DomPageSurface, private readonly options: DomBackendOptions = {}) {}
 
   supports(action: SemanticAction): boolean {
     const target = parseTarget(action.target);
     if (!target || !target.selector) return false;
     return DOM_MUTATIONS.includes(action.name) || DOM_READS.includes(action.name);
+  }
+
+  /** R-201 (§5.1): probe script returning full readiness facts for a selector. */
+  private readinessScript(selector: string): string {
+    return `(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return { ok: false, found: false, readyState: document.readyState };
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      const formDisabled = (el instanceof HTMLButtonElement || el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) && el.disabled === true;
+      return {
+        ok: true,
+        readyState: document.readyState,
+        found: true,
+        visible: rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none",
+        enabled: !formDisabled,
+        stableSamples: 1
+      };
+    })()`;
+  }
+
+  /**
+   * R-201 (§5.1): bounded pre-action readiness. Probes the ordered chain
+   * (DOM ready → target exists → visible → enabled → stable) up to
+   * `readinessAttempts` times before ANY high-risk action; when the page is
+   * still not ready the action is NOT performed (no premature click/type/send).
+   */
+  private async readyOrBlocked(selector: string, page: DomPageRef | undefined): Promise<string | null> {
+    const attempts = Math.max(1, this.options.readinessAttempts ?? 2);
+    const interval = this.options.readinessIntervalMs ?? 200;
+    let lastBlocked = "page not ready";
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const probe = (await this.surface.evaluate<Partial<ReadinessProbeFacts> & { ok?: boolean }>(this.readinessScript(selector), page)) ?? {};
+      const verdict = readinessFromProbe({ readyState: probe.readyState, found: probe.found, visible: probe.visible, enabled: probe.enabled, stableSamples: probe.stableSamples });
+      if (verdict.ready) return null;
+      lastBlocked = `readiness blocked: ${verdict.blockers.join(", ")}`;
+      if (attempt + 1 < attempts && interval > 0) await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+    return lastBlocked;
   }
 
   async execute(action: SemanticAction, _signal: AbortSignal): Promise<SemanticResult> {
@@ -58,6 +107,11 @@ export class DomPageBackend implements SemanticBackend {
     const selector = target.selector;
     const page = target.providerId ? { providerId: target.providerId } : undefined;
     try {
+      // R-201 (§5.1): never act on a page that is not demonstrably ready.
+      if (this.options.preflightReadiness && DOM_MUTATIONS.includes(action.name)) {
+        const blocked = await this.readyOrBlocked(selector, page);
+        if (blocked) return { status: "FAILED", message: blocked };
+      }
       if (action.name === "click_control") {
         const outcome = await this.surface.evaluate<DomOutcome>(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return { ok: false, reason: "not-found" }; el.click(); return { ok: true }; })()`, page) ?? { ok: false };
         return outcome.ok ? { status: "SUCCESS" } : { status: "FAILED", message: outcome.reason ?? "click failed" };
