@@ -105,11 +105,59 @@ export class TenxKnowledgeSpace {
     return structuredClone(next);
   }
 
-  /** Latest ACTIVE version (undefined when only superseded/stale versions remain). */
+  /** Mark the latest live version (ACTIVE/CONFLICTING) as STALE (temporal validity lapse); record kept. */
+  markStale(knowledgeId: string): KnowledgeRecordVNext | undefined {
+    const chain = this.versions.get(knowledgeId) ?? [];
+    const idx = chain.findIndex((record) => record.state === "ACTIVE" || record.state === "CONFLICTING");
+    if (idx < 0) return undefined;
+    const stale: KnowledgeRecordVNext = { ...chain[idx], state: "STALE", updatedAt: this.now() };
+    chain[idx] = stale;
+    this.versions.set(knowledgeId, chain);
+    this.persist();
+    return structuredClone(stale);
+  }
+
+  /** Mark the latest live version (ACTIVE/CONFLICTING) as SUPERSEDED without adding a new version. */
+  markSuperseded(knowledgeId: string): KnowledgeRecordVNext | undefined {
+    const chain = this.versions.get(knowledgeId) ?? [];
+    const idx = chain.findIndex((record) => record.state === "ACTIVE" || record.state === "CONFLICTING");
+    if (idx < 0) return undefined;
+    const superseded: KnowledgeRecordVNext = { ...chain[idx], state: "SUPERSEDED", updatedAt: this.now() };
+    chain[idx] = superseded;
+    this.versions.set(knowledgeId, chain);
+    this.persist();
+    return structuredClone(superseded);
+  }
+
+  /** Mark the latest live version as CONFLICTING (coexists, explicitly flagged). */
+  markConflicting(knowledgeId: string): KnowledgeRecordVNext | undefined {
+    const chain = this.versions.get(knowledgeId) ?? [];
+    const idx = chain.findIndex((record) => record.state === "ACTIVE" || record.state === "CONFLICTING");
+    if (idx < 0) return undefined;
+    const conflicting: KnowledgeRecordVNext = { ...chain[idx], state: "CONFLICTING", updatedAt: this.now() };
+    chain[idx] = conflicting;
+    this.versions.set(knowledgeId, chain);
+    this.persist();
+    return structuredClone(conflicting);
+  }
+
+  /** Latest live version (ACTIVE or CONFLICTING); dead when only SUPERSEDED/STALE remain. */
   get(knowledgeId: string): KnowledgeRecordVNext | undefined {
     const chain = this.versions.get(knowledgeId) ?? [];
-    const active = [...chain].reverse().find((record) => record.state === "ACTIVE");
-    return active ? structuredClone(active) : undefined;
+    const live = [...chain].reverse().find((record) => record.state === "ACTIVE" || record.state === "CONFLICTING");
+    return live ? structuredClone(live) : undefined;
+  }
+
+  /** Mark the latest live version ACTIVE again (used when a conflict is resolved in its favor). */
+  markActive(knowledgeId: string): KnowledgeRecordVNext | undefined {
+    const chain = this.versions.get(knowledgeId) ?? [];
+    const idx = chain.findIndex((record) => record.state === "ACTIVE" || record.state === "CONFLICTING");
+    if (idx < 0) return undefined;
+    const active: KnowledgeRecordVNext = { ...chain[idx], state: "ACTIVE", updatedAt: this.now() };
+    chain[idx] = active;
+    this.versions.set(knowledgeId, chain);
+    this.persist();
+    return structuredClone(active);
   }
 
   /** Full version history ascending by version. */
@@ -117,12 +165,12 @@ export class TenxKnowledgeSpace {
     return (this.versions.get(knowledgeId) ?? []).map((record) => structuredClone(record));
   }
 
-  /** Latest ACTIVE record per knowledgeId, newest-updated first. */
+  /** Latest live record (ACTIVE/CONFLICTING) per knowledgeId, newest-updated first. */
   list(scope?: KnowledgeScope): KnowledgeRecordVNext[] {
     const latest: KnowledgeRecordVNext[] = [];
     for (const chain of this.versions.values()) {
-      const active = [...chain].reverse().find((record) => record.state === "ACTIVE");
-      if (active && (!scope || active.scope === scope)) latest.push(structuredClone(active));
+      const live = [...chain].reverse().find((record) => record.state === "ACTIVE" || record.state === "CONFLICTING");
+      if (live && (!scope || live.scope === scope)) latest.push(structuredClone(live));
     }
     return latest.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }

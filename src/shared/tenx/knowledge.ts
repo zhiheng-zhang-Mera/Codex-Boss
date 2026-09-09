@@ -126,3 +126,48 @@ export function candidateFromEvent(event: RawKnowledgeEvent, opts: { nodeId?: st
     proposedAt: event.occurredAt
   };
 }
+
+/** 10I: conflict detection result for a pair of claims. */
+export interface ConflictComparison {
+  conflict: boolean;
+  /** Non-empty when claims both look like answers to the same question but disagree. */
+  conflictGroup?: string;
+  reason?: string;
+}
+
+/** Deterministic conflict heuristic: high similarity yet different exact text ⇒ conflict. */
+export function compareClaims(a: { content: string }, b: { content: string }, threshold = 0.6): ConflictComparison {
+  if (a.content.trim().toLocaleLowerCase() === b.content.trim().toLocaleLowerCase()) return { conflict: false };
+  const similarity = tokenSimilarity(a.content, b.content);
+  if (similarity >= threshold) {
+    return { conflict: true, conflictGroup: `cg-${exactDedupKey(a).slice(0, 16)}`, reason: `claims overlap ${Math.round(similarity * 100)}% but differ` };
+  }
+  return { conflict: false };
+}
+
+/** 10I: source-aware merge of two equal-meaning claims (same group, no conflict). */
+export function mergeClaims(
+  primary: KnowledgeRecordVNext,
+  secondary: KnowledgeRecordVNext
+): { merged: KnowledgeRecordVNext; notes: string[] } {
+  const notes: string[] = [];
+  if (primary.confidence < secondary.confidence) notes.push("confidence taken from secondary claim");
+  const merged: KnowledgeRecordVNext = {
+    ...primary,
+    content: secondary.content.length > primary.content.length ? secondary.content : primary.content,
+    confidence: Math.max(primary.confidence, secondary.confidence),
+    updatedAt: secondary.updatedAt > primary.updatedAt ? secondary.updatedAt : primary.updatedAt,
+    provenance: {
+      chain: [...new Set([...primary.provenance.chain, ...secondary.provenance.chain])],
+      conflictGroup: undefined
+    },
+    version: primary.version + 1
+  };
+  notes.push(`sources merged (${primary.provenance.chain.length}+${secondary.provenance.chain.length} refs)`);
+  return { merged, notes };
+}
+
+/** 10I: a record is STALE when its temporal validity has lapsed (validUntil < now). */
+export function isStale(record: Pick<KnowledgeRecordVNext, "validity">, nowIso: string): boolean {
+  return Boolean(record.validity.validUntil && record.validity.validUntil < nowIso);
+}
