@@ -68,6 +68,7 @@ import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/
 import { loginScan } from "../src/shared/login-scan";
 import { probeNetwork } from "../src/shared/network-policy";
 import { ResearchContractStore, auditRun } from "./research/research-contract-store";
+import { ReviewRoundStore } from "./research/review-round-store";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
@@ -703,6 +704,12 @@ if (ownsInstance) app.whenReady().then(() => {
     const record = research?.ledger.load(id);
     const decisions = (record?.decisions ?? []).map((entry) => ({ stepId: entry.stepId, evidenceRefs: entry.evidenceRefs ?? [], decision: entry.decision }));
     return auditRun(store.load(id), decisions);
+  });
+  ipcMain.handle("boss:research-review-round", (_event, id: string, round: import("../src/shared/research-review").ReviewRound) => {
+    // R-703: persist a review round for the run (responses/revisions drive re-review).
+    const store = new ReviewRoundStore(path.join(app.getPath("userData"), ".boss", "research-reviews"));
+    store.save(id, round);
+    return store.load(id).map((item) => item.roundId);
   });
   ipcMain.handle("boss:owner-dashboard", () => {
     const interventions = humanGuidance?.list() ?? [];
