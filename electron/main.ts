@@ -68,6 +68,8 @@ import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/
 import { loginScan } from "../src/shared/login-scan";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
+import { NodeCapabilityRegistry } from "./node/node-capability-registry";
+import { inspectDevice } from "./node/node-inspector";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
 import { createLiveExternalArchiveAttempt, type AccountMode as ArchiveAccountMode } from "./workspace/live-external-archive";
@@ -98,6 +100,7 @@ let progressAggregator: ReturnType<typeof attachProgressRecorder>["aggregator"] 
 let humanGuidance: HumanGuidanceGate | undefined;
 let decisionLedger: DecisionLedgerStore | undefined;
 let sessionLifecycleLedger: SessionLifecycleLedger | undefined;
+let nodeRegistry: NodeCapabilityRegistry | undefined;
 let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
 let capabilityRegistry: ProviderCapabilityRegistry | undefined;
@@ -556,6 +559,7 @@ if (ownsInstance) app.whenReady().then(() => {
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   sessionLifecycleLedger = new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json"));
   accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
+  nodeRegistry = new NodeCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "node-registry.json"));
   externalSessions = new ExternalSessionLedger(path.join(app.getPath("userData"), ".boss", "external-sessions.json"));
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
@@ -665,6 +669,15 @@ if (ownsInstance) app.whenReady().then(() => {
     const lifecycles: Record<string, import("../src/shared/session-lifecycle").SessionLifecycle> = {};
     for (const record of sessionLifecycleLedger?.list() ?? []) lifecycles[record.providerId] = record.state;
     return loginScan(accounts, lifecycles);
+  });
+  ipcMain.handle("boss:node-status", () => {
+    // R-302 device self-inspection: probe this device (observed facts only) and
+    // refresh the local node capability registry.
+    const loggedIn = store.snapshot().accounts.filter((account) => account.mode === "READY").map((account) => account.providerId);
+    const probe = inspectDevice({ loggedInProviderIds: loggedIn });
+    const result = nodeRegistry?.refresh("desktop", probe);
+    const status = nodeRegistry?.status("desktop");
+    return { state: result?.state ?? "UNINITIALIZED", reason: result?.reason ?? "not inspected yet", verdicts: status?.verdicts ?? [], sampledAt: probe.sampledAt, loggedIn };
   });
   ipcMain.handle("boss:owner-dashboard", () => {
     const interventions = humanGuidance?.list() ?? [];
