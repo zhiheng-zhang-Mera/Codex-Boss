@@ -66,6 +66,7 @@ import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
+import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
 import { createLiveExternalArchiveAttempt, type AccountMode as ArchiveAccountMode } from "./workspace/live-external-archive";
@@ -551,7 +552,7 @@ if (ownsInstance) app.whenReady().then(() => {
   );
   providerApi = new ProviderApiClient(apiSettings);
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
-  accountSessions = new AccountSessionManager(store, publish);
+  accountSessions = new AccountSessionManager(store, publish, new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json")));
   externalSessions = new ExternalSessionLedger(path.join(app.getPath("userData"), ".boss", "external-sessions.json"));
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),

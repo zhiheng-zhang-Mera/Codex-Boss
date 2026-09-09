@@ -1,0 +1,18 @@
+{
+  "requirement": "R-203",
+  "phase": "B",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "account/session lifecycle — six-state model, durable per-provider ledger, wired into AccountSessionManager",
+  "implementation": [
+    "src/shared/session-lifecycle.ts (pure): UNKNOWN/CHECKING/LOGGED_IN/EXPIRED/REAUTH_REQUIRED/FAILED + ALLOWED_TRANSITIONS edge table + lifecycleForAccountMode",
+    "electron/identity/session-lifecycle-ledger.ts: durable per-provider/account records (validated transitions, isolation, fail-closed restore, reset)",
+    "electron/account-sessions.ts: wired lifecycle — ensure() ⇒ CHECKING; recordProbe() READY/GUEST_READY ⇒ LOGGED_IN, AUTH_REQUIRED ⇒ REAUTH_REQUIRED; mount() probe crash ⇒ FAILED",
+    "electron/main.ts: SessionLifecycleLedger instantiated and injected into AccountSessionManager"
+  ],
+  "tests": [
+    "tests/unit/session-lifecycle.test.ts (+6): transition table (illegal LOGGED_IN→UNKNOWN rejected); account-mode→lifecycle mapping; per-provider isolation (chatgpt EXPIRED while qwen REAUTH_REQUIRED, gemini untouched); durability across reopen with transition history; corrupt ledger fail-closed; AccountSessionManager wiring drives durable lifecycle per provider"
+  ],
+  "gates": { "typecheck": "PASS", "vitest_unit": "54 files / 275 tests PASS", "full_build": "PASS" },
+  "notes": "Conversation-level policy (temporary/reusable/persistent) is R-204."
+}

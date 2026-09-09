@@ -28,10 +28,19 @@
 - 门禁：typecheck PASS · vitest **53 文件 / 269 测试 PASS** · full build PASS。证据
   `evidence/r201-action-readiness.json`。
 
+## Phase B — R-203 account/session lifecycle（2026-09-09）
+- **PASS**：`src/shared/session-lifecycle.ts`（六态 + 显式转移表 + account-mode 映射）；
+  `electron/identity/session-lifecycle-ledger.ts`（durable per-provider/account、隔离、fail-closed）；
+  `account-sessions.ts` + `main.ts` 接线（ensure→CHECKING、recordProbe→LOGGED_IN/REAUTH_REQUIRED、
+  mount 异常→FAILED）。单 provider 过期不影响其它 provider。
+- 测试：session-lifecycle(+6)。门禁：typecheck PASS · vitest **54 文件 / 275 测试 PASS** ·
+  full build PASS。证据 `evidence/r203-session-lifecycle.json`。
+
 ## 下一步
-1. R-203/204/205 Phase B：session 生命周期 / temporary conversation / 快速登录扫描；
-2. R-302/303 Phase C；R-401/402/403 Phase D；R-501/502 Phase E；
-3. R-601…604 Phase F；R-701…705 Phase G；R-801 Phase H；
-4. R-902/903 Phase I（UI）；R-901 >2h soak（LIVE）；
-5. R-1001/1002 Phase J；R-1003 Acceptance Report。
+1. R-204 temporary conversation 策略（TEMPORARY/REUSABLE/PERSISTENT/AUTO_DELETE）接 conversation 创建路径；
+2. R-205 快速登录扫描；
+3. R-302/303 Phase C；R-401/402/403 Phase D；R-501/502 Phase E；
+4. R-601…604 Phase F；R-701…705 Phase G；R-801 Phase H；
+5. R-902/903 Phase I（UI）；R-901 >2h soak（LIVE）；
+6. R-1001/1002 Phase J；R-1003 Acceptance Report。
 
