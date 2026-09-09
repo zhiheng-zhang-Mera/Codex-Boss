@@ -54,6 +54,32 @@
 - 验证快照（Round 2）：typecheck PASS；vitest 全量 **34 文件 / 176 测试 PASS**；full build PASS。
   证据 `Update-Plan/owner-result/evidence/round-2/`。
 
+## Round 3（2026-09-09，DS-Hns 侧 §15/§16/§18/§20/§42 autonomy 模块，分支 owner-result-autonomy @ 8e24b7d）
+- `app/extensions/mega/autonomy/progress-observer.js` — §16/§9–§11：heartbeat 模型 + observe() 输出
+  WORKING/SLOW/STALLED/FAILED（可注入时钟，确定性）；busy 标志陈旧不可掩盖硬停滞。
+- `app/extensions/mega/autonomy/stall-detector.js` — §10/§11：每 episode 累计 no-progress/probe/
+  stalled 计数；软截止 → shouldProbe；硬停滞 → isStalled；probe 无果推向硬界。
+- `app/extensions/mega/autonomy/episode-supervisor.js` — §7/§8/§12–§14：episode 生命周期
+  QUEUED→…→COMPLETED/FAILED + 合法转移守卫；R0–R8 恢复梯；§13 straggler provisional quorum；
+  §14 brand-locked 不可替代。
+- `app/extensions/mega/autonomy/continuation-controller.js` — §17/§13/§40：KEEP_RUNNING / PROBE /
+  PARK_AWAITING_RETRY（释放 slot）/ REWORK / COMPLETE / FAIL；backoff 指数封顶；hard deadline 终止；
+  MODEL_DONE 未验证 ⇒ REWORK。
+- `app/extensions/mega/autonomy/question-interceptor.js` — §18/§19：HB1–HB4 分类（仅真 HB 上浮）；
+  DECIDABLE 自动决策 + steer；方向停滞梯四段。
+- `app/extensions/mega/autonomy/result-validator.js` — §20–§22：delivery 模式验证门；model-done-only
+  ⇒ VERIFYING/REWORK；缺门 ⇒ REWORK。
+- `app/extensions/mega/autonomy/decision-ledger.js` — §38：durable 台账（原子写、id-dedupe、fail-closed）。
+- `app/extensions/mega/scheduler/scheduler.js` — 受控集成（默认 OFF：`autonomyEnabled=false`）：
+  tick 内 headless log 增长监测 → 停滞检测 → bounded 自动重试（backoff、attempts 封顶、parent 链接）
+  或 FAIL（带 ledger 记录）；`updateConfig({autonomyEnabled})` 热切换；describe() 暴露状态。
+  official-session 维持现有 RPC 监测（§16：绝不注入官方 renderer）。
+- 修复既有回归测试：`tests/unit/installer-contract.test.js` 断言过时（Mega dock 集成后官方视图与
+  Mega 视图的 preload 归属已分离）→ 改为“官方视图无 preload，仅 Mega dock 允许 preload”的 §42 契约。
+- 测试：`tests/unit/autonomy-*.test.js` ×7（node:test 确定性套件）。
+- 验证快照（Round 3，DS-Hns）：`npm run check` PASS；`npm test` **92/92 PASS**（含既有 12 文件全部回归）；
+  scheduler 加载/开关冒烟 PASS（无状态写入）。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
