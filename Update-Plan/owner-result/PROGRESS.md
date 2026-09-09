@@ -329,6 +329,12 @@
 - 每轮确定性证据：`overcomplete/evidence/engineering/seeded-A-2026-09-09-06:59..07:31-*.json`（12 份）。
 - 证据 `Update-Plan/owner-result/evidence/round-27/`。
 
+## Round 28（2026-09-09，DS-Hns main 收口 + soak batch-2 启动）
+- DS-Hns：`owner-result-autonomy` 合入其 `main` @ `8e24b7d`；`npm run check` PASS；
+  `npm test` **92/92 PASS**；推送 origin main（§42 trunk 收口，双仓库主干均含 Rev.2 成果）。
+- 第二批 soak 启动：24 轮 seeded 全链（artifacts/rev2-soak-batch2.json，跨轮累计 §36 soak）。
+- 证据 `Update-Plan/owner-result/evidence/round-28/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
