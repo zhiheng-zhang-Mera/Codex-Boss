@@ -1,0 +1,21 @@
+{
+  "phase": "10B",
+  "requirement": "10B-node-identity-capability-model",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Formal Boss Node abstraction — stable node identity + dynamic capability advertisement + heartbeat-driven state re-derivation + per-node isolation (forward layer)",
+  "implementation": [
+    "src/shared/tenx/node.ts (+): NodeIdentity (nodeId/hostId/deviceType/os/arch/runtimeVersion/bossVersion), NodeHardware (cpu/memory/gpu/storage), NodeCapabilityFlags (networkRoutes/proxy/providers/browser/localModel), NodeCapabilityAdvertisement (state/busy/degradedReasons/lastHeartbeatAt/seq); canAcceptWork (no dispatch onto busy/offline/failed/disabled); refreshAdvertisement (additive dynamic refresh, never fabricates heartbeat); heartbeat (separate event); rederiveState (AVAILABLE→DEGRADED→OFFLINE by heartbeat age; FAILED/DISABLED stick)",
+    "electron/tenx/node-identity-registry.ts: TenxNodeRegistry — durable per-node identity+capability store; stable nodeId across restart; ensureNodeId mints once and persists; refresh/heartbeat/setState/status/list/deregister; corrupted file fails closed (no fabricated READY); emptyAdvertisement = UNKNOWN with honest 'no self-inspection yet' degraded reason",
+    "No R43 closure node files modified (additive forward development)."
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10b.test.ts (9 tests): work-acceptance gating; additive capability refresh preserving identity; heartbeat distinct from refresh; state re-derivation + FAILED stickiness; durable stable nodeId across restart with no sessionId/runId on identity; stale-heartbeat OFFLINE derivation; per-node isolation (node-a FAILED never touches node-b AVAILABLE); deregister isolation; emptyAdvertisement honest UNKNOWN"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10B": "tests/unit/tenx-phase-10b.test.ts 9/9 PASS",
+    "full_suite": "re-run at phase end"
+  },
+  "notes": "sessionId/runId stay off the identity record per NODE-CONTRACT. Capability state is observed-facts-only: no probe/refresh can fabricate READY."
+}

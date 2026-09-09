@@ -66,3 +66,45 @@ export function canAcceptWork(node: Pick<NodeCapabilityAdvertisement, "state" | 
   if (node.busy) return false;
   return node.state === "AVAILABLE" || node.state === "DEGRADED";
 }
+
+/** Facts a node refresh observed; absent/unknown facts can only degrade, never fabricate READY. */
+export interface NodeRefreshFacts {
+  hardware?: Partial<NodeHardware>;
+  capabilities?: Partial<NodeCapabilityFlags>;
+  networkEffective?: "DIRECT" | "SYSTEM_PROXY" | "USER_PROXY" | "REGIONAL_PROXY" | "PROVIDER_PROXY" | "OFFLINE";
+}
+
+/** Merge observed refresh facts into the previous advertisement (deterministic, additive). */
+export function refreshAdvertisement(previous: NodeCapabilityAdvertisement, facts: NodeRefreshFacts): NodeCapabilityAdvertisement {
+  const hardware: NodeHardware = {
+    cpu: facts.hardware?.cpu ?? previous.hardware.cpu,
+    memory: { ...previous.hardware.memory, ...(facts.hardware?.memory ?? {}) },
+    gpu: facts.hardware?.gpu ?? previous.hardware.gpu,
+    storage: { ...previous.hardware.storage, ...(facts.hardware?.storage ?? {}) }
+  };
+  const capabilities: NodeCapabilityFlags = facts.capabilities
+    ? {
+        networkRoutes: facts.capabilities.networkRoutes ?? previous.capabilities.networkRoutes,
+        proxyCapable: facts.capabilities.proxyCapable ?? previous.capabilities.proxyCapable,
+        providers: facts.capabilities.providers ?? previous.capabilities.providers,
+        browser: facts.capabilities.browser ?? previous.capabilities.browser,
+        localModel: facts.capabilities.localModel ?? previous.capabilities.localModel
+      }
+    : previous.capabilities;
+  return { ...previous, hardware, capabilities, seq: previous.seq + 1 };
+}
+
+/** Record a heartbeat: bumps lastHeartbeatAt and returns an AVAILABLE-state advertisement. */
+export function heartbeat(previous: NodeCapabilityAdvertisement, now: number): NodeCapabilityAdvertisement {
+  return { ...previous, state: "AVAILABLE", busy: previous.busy, degradedReasons: [], lastHeartbeatAt: now, seq: previous.seq + 1 };
+}
+
+/** Re-derive node state from the last heartbeat + known degraded reasons (pure, epoch-ms clock). */
+export function rederiveState(now: number, previous: NodeCapabilityAdvertisement, offlineAfterMs = 30_000, degradedAfterMs = 12_000): { state: NodeOperationalState; degradedReasons: string[] } {
+  const age = now - previous.lastHeartbeatAt;
+  if (previous.state === "FAILED" || previous.state === "DISABLED") return { state: previous.state, degradedReasons: previous.degradedReasons };
+  if (age >= offlineAfterMs) return { state: "OFFLINE", degradedReasons: [...previous.degradedReasons, "heartbeat missed"] };
+  if (age >= degradedAfterMs) return { state: "DEGRADED", degradedReasons: [...previous.degradedReasons, "heartbeat stale"] };
+  return { state: previous.degradedReasons.length ? "DEGRADED" : "AVAILABLE", degradedReasons: previous.degradedReasons };
+}
+
