@@ -28,7 +28,7 @@ export interface NodeIdentity {
 }
 
 export interface NodeHardware {
-  cpu: { cores: number; model?: string };
+  cpu: { cores: number; model?: string; loadPercent?: number };
   memory: { totalMb: number };
   gpu: Array<{ name: string; vramMb?: number }>;
   storage: { freeMb?: number };
@@ -40,6 +40,8 @@ export interface NodeCapabilityFlags {
   providers: string[]; // configured provider ids
   browser: boolean;
   localModel: boolean;
+  /** Node can keep running offline-capable tasks when network is unavailable. */
+  offlineCapable: boolean;
 }
 
 /**
@@ -88,7 +90,8 @@ export function refreshAdvertisement(previous: NodeCapabilityAdvertisement, fact
         proxyCapable: facts.capabilities.proxyCapable ?? previous.capabilities.proxyCapable,
         providers: facts.capabilities.providers ?? previous.capabilities.providers,
         browser: facts.capabilities.browser ?? previous.capabilities.browser,
-        localModel: facts.capabilities.localModel ?? previous.capabilities.localModel
+        localModel: facts.capabilities.localModel ?? previous.capabilities.localModel,
+        offlineCapable: facts.capabilities.offlineCapable ?? previous.capabilities.offlineCapable
       }
     : previous.capabilities;
   return { ...previous, hardware, capabilities, seq: previous.seq + 1 };

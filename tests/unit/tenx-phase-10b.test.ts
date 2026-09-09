@@ -28,7 +28,7 @@ function sampleAdvertisement(identity = sampleIdentity(), lastHeartbeatAt = 0): 
     schemaVersion: 1,
     identity,
     hardware: { cpu: { cores: 8 }, memory: { totalMb: 16384 }, gpu: [], storage: { freeMb: 100000 } },
-    capabilities: { networkRoutes: ["direct"], proxyCapable: true, providers: ["p1"], browser: true, localModel: false },
+    capabilities: { networkRoutes: ["direct"], proxyCapable: true, providers: ["p1"], browser: true, localModel: false, offlineCapable: false },
     state: "AVAILABLE",
     busy: false,
     degradedReasons: [],

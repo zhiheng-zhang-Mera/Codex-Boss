@@ -147,7 +147,7 @@ export function emptyAdvertisement(identity: NodeIdentity, now: number): NodeCap
     schemaVersion: 1,
     identity,
     hardware: { cpu: { cores: 0 }, memory: { totalMb: 0 }, gpu: [], storage: {} },
-    capabilities: { networkRoutes: [], proxyCapable: false, providers: [], browser: false, localModel: false },
+    capabilities: { networkRoutes: [], proxyCapable: false, providers: [], browser: false, localModel: false, offlineCapable: false },
     state: "UNKNOWN",
     busy: false,
     degradedReasons: ["no self-inspection yet"],

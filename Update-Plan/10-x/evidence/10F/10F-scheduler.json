@@ -1,0 +1,21 @@
+{
+  "phase": "10F",
+  "requirement": "10F-dynamic-scheduler",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Dynamic scheduler — task requirement → node capability → network → provider readiness → load → locality → proxy → risk → allocation with explainable failure",
+  "implementation": [
+    "src/shared/tenx/scheduler.ts (rewritten): SchedulerNodeView now carries providersReady (live matrix) + loadPercent; policySatisfied per policy (local-preferred/provider-preferred/lowl latency/gpu-required(min vram)/memory-heavy/browser-required/direct-network-required/proxy-required/offline-capable); nodeCanHost; allocateTask collects per-node blocked reasons (explainable failure); orderCandidates deterministic policy-based ordering",
+    "src/shared/tenx/node.ts (+): NodeCapabilityFlags.offlineCapable explicit; NodeHardware.cpu.loadPercent",
+    "electron/tenx/dynamic-scheduler.ts: advertisementToView + allocate facade — consumes durable advertisements + live per-node ProviderMatrix (10M) for provider readiness; no allocation onto busy/failed/disabled/offline nodes",
+    "electron/tenx/node-identity-registry.ts: empty advertisement carries offlineCapable:false"
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10f.test.ts (11 tests): gpu min-vram gate; provider-preferred requires matrix-ready provider; direct/proxy/offline network split; allocate-to-only-eligible; explainable per-candidate blocked reasons; never busy/failed/disabled/offline; offline-capable routing; deterministic local-preferred ordering; facade advertisement→view; facade honors live matrix (configured-but-unreachable provider blocks, reachable passes); explainable facade failure"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10F": "tests/unit/tenx-phase-10f.test.ts 11/11 PASS; 10B regression 9/9 PASS"
+  },
+  "notes": "Scheduler returns blocked[] with nodeId+policy+reason on every failed allocation — no silent no-op. Uses the live matrix, not just configuration (10M contract)."
+}
