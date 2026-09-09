@@ -21,3 +21,4 @@
 关联提交（节选）：`0d65210` 1-AI · `52d11b8` 3-AI · `3126570` grok · `621827f` 4-AI · `fe5930c` deepseek enter · `e458be5` copilot · `4ab5fb9` council · `1fe2d4b` goal · `4c2ebc3` archive+wedge · `7387a82` chat 延续 · `8280752` 5-AI FULL · `33de05c` research live · `ef50428` resilience · `8bba643/aa0e5bc/0eda890/ed00698` 适配器+journal+修复。
 | Research READY+PDF | live-research-ready-* | **PASS_READY**（tectonic paper.pdf, 6 seeds, final audit PASS, 成果导出） |
  | live-layout-giveway-* | **PASS**（4 AI 强制 DETACHED 第二窗口；主窗口 .view-detached：browser-half display:none、chat-half 2/-1、embedCount=0；回落 <=3 自动回 MERGED，双向动态监测） |
+| 弹窗主机态 | `live-window-host-open-*` | **PASS**（DETACHED 弹窗时主交互窗口保持打开：host visible=true / minimized=false；host.show() 守卫由隐藏启动实测触发 false→true；window B 收敛进 workArea 不落屏外；give-way 生效时 embedCount=0；回落 MERGED 仍可见） |

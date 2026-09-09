@@ -450,6 +450,9 @@ export interface BossBridge {
   setWorkspaceView(view: "MERGED" | "DETACHED"): Promise<WorkspaceViewStatus>;
   /** U4 §7/§9: current workspace view + DETACHED web-window bounds, if open. */
   getWorkspaceView(): Promise<WorkspaceViewStatus>;
+  /** U4 §7/§9 live check: workspace view + host/web-window open state (the
+   * main interaction window must remain open in DETACHED pop-out mode). */
+  getWindowState(): Promise<WindowStateSnapshot>;
   updateTask(taskId: string, status: TaskStatus): Promise<AppSnapshot>;
   onSnapshot(listener: (snapshot: AppSnapshot) => void): () => void;
   projectState(workspaceId?: string): Promise<import("./project-tree").ProjectStateSummary>;
@@ -492,4 +495,12 @@ export interface WorkspaceViewStatus {
   view: "MERGED" | "DETACHED";
   /** Bounds of the DETACHED web window (window B), when one exists. */
   webWindow?: { x: number; y: number; width: number; height: number };
+}
+
+/** Live window-state snapshot (U4 §7/§9 verification: the main interaction
+ * window stays OPEN while the web-AI panes are popped into window B). */
+export interface WindowStateSnapshot {
+  view: "MERGED" | "DETACHED";
+  host?: { visible: boolean; minimized: boolean; maximized: boolean; focused: boolean; bounds: { x: number; y: number; width: number; height: number } };
+  webWindow?: { visible: boolean; minimized: boolean; maximized: boolean; focused: boolean; bounds: { x: number; y: number; width: number; height: number } };
 }

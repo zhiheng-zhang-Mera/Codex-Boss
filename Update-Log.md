@@ -186,3 +186,8 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - 回落 <=3 → 自动回 MERGED，browser-half 恢复显示；开/关双向动态监测（onOpen hook + 5s monitor）实机验证 PASS。
 - 修复 PowerShell Add-Content 引入的 GBK 字节岛：`src/renderer/styles.css`（曾阻断 vite 构建）与 `Update-Log.md`、`evidence/live/INDEX.md` 全部转严格 UTF-8。
 - 实机证据：`evidence/live/live-layout-giveway-2026-09-09-10-03-11.json`（4 AI 开 → DETACHED + 让位；回落 ≤3 → MERGED 复原）。
+
+### 弹窗时主交互窗口保持打开（2026-09-09）
+- DETACHED 切换在 `ProviderViews.setWorkspaceView` 内保证主窗口不随弹窗关闭/隐藏：minimized→restore()、不可见→show()。实测：主窗口隐藏启动（visible=false），打开第 4 个 AI 触发弹窗时 host 自动 visible=false→true。
+- window B 尺寸/位置按宿主显示器 workArea 收敛，绝不被推到屏外；新增只读 `window.boss.getWindowState()`（host/webWindow 的 visible/minimized/maximized/focused/bounds）。
+- 实机证据 `evidence/live/live-window-host-open-2026-09-09-10-12-13.json`：DETACHED 下 host visible/minimized=false、主交互区（chat-half）全宽 2/-1、embedCount=0；回落 ≤3 回 MERGED 仍可见。126 tests + typecheck + full build PASS。

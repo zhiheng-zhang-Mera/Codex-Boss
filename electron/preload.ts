@@ -64,6 +64,7 @@ const bridge: BossBridge = {
   reloadProvider: (providerId: string) => ipcRenderer.invoke("boss:reload-provider", providerId),
   setWorkspaceView: (view: "MERGED" | "DETACHED") => ipcRenderer.invoke("boss:set-workspace-view", view),
   getWorkspaceView: () => ipcRenderer.invoke("boss:get-workspace-view"),
+  getWindowState: () => ipcRenderer.invoke("boss:get-window-state"),
   updateTask: (taskId: string, status: TaskStatus) => ipcRenderer.invoke("boss:update-task", taskId, status),
   projectState: (workspaceId?: string) => ipcRenderer.invoke("boss:project-state", workspaceId),
   onSnapshot: (listener: (snapshot: AppSnapshot) => void) => {

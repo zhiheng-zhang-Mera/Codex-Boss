@@ -94,3 +94,8 @@
 - 回落 ≤3 → 自动回 MERGED 复原；双向动态监测（onOpen hook + 5s monitor）真机 PASS。
 - 证据：`evidence/live/live-layout-giveway-2026-09-09-10-03-11.json`；回归：tests/unit/workspace-layout（4 → 2×2 田字），30 files / 126 tests + typecheck + full build PASS。
 - 顺带修复：`styles.css`/`Update-Log.md`/`final-acceptance.md`/`evidence/live/INDEX.md` 中 PowerShell GBK 字节岛 → 严格 UTF-8（styles.css 曾阻断 vite 构建）。
+
+## 弹窗主机态更新：2026-09-09
+- 需求：第二弹窗（DETACHED）时主交互窗口必须保持打开。实现：`ProviderViews.setWorkspaceView` DETACHED 分支保证主窗口 restore()/show()；window B 位置收敛进显示器 workArea。
+- 真机 PASS：主窗口隐藏启动 → 打开 4 AI 弹窗后 host visible=true / minimized=false，window B visible 且聚焦；`.view-detached` 让位生效时主窗口仍完整可用（chat-half 全宽、composer/history 在位、embedCount=0）。
+- 证据：`evidence/live/live-window-host-open-2026-09-09-10-12-13.json`。

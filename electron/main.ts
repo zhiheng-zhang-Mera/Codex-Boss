@@ -926,6 +926,16 @@ if (ownsInstance) app.whenReady().then(() => {
     return { view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() };
   });
   ipcMain.handle("boss:get-workspace-view", () => ({ view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() }));
+  // U4 §7/§9 live check: the main interaction window must stay OPEN while the
+  // web-AI panes are popped into window B — report host visibility/minimized
+  // state alongside the view for objective verification.
+  ipcMain.handle("boss:get-window-state", () => {
+    const state = (window: BrowserWindow | undefined) => {
+      if (!window || window.isDestroyed()) return undefined;
+      return { visible: window.isVisible(), minimized: window.isMinimized(), maximized: window.isMaximized(), focused: window.isFocused(), bounds: window.getBounds() };
+    };
+    return { view: providerViews.workspaceView(), host: state(mainWindow ?? undefined), webWindow: state(providerViews.webWindowInstance()) };
+  });
   ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
   // U4 §9.2: per-pane manual zoom override (zoom buttons in the pane title).
   // The override wins over auto-fit until the view is closed or the override

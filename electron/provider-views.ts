@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView } from "electron";
+import { BrowserWindow, WebContentsView, screen } from "electron";
 import type { DownloadItem, Event as ElectronEvent, Session } from "electron";
 import type { Provider, ProviderId, ViewBounds } from "../src/shared/contracts";
 import { AccountSessionManager } from "./account-sessions";
@@ -49,6 +49,12 @@ export class ProviderViews {
     return window.getBounds();
   }
 
+  /** The live DETACHED web window instance, when one exists (state checks). */
+  webWindowInstance(): BrowserWindow | undefined {
+    const window = this.webWindow;
+    return window && !window.isDestroyed() ? window : undefined;
+  }
+
   private contentViewFor(viewState: WorkspaceViewState) {
     if (viewState === "DETACHED" && this.webWindow && !this.webWindow.isDestroyed()) return this.webWindow.contentView;
     return this.host.contentView;
@@ -63,19 +69,28 @@ export class ProviderViews {
   private ensureWebWindow(): BrowserWindow {
     if (this.webWindow && !this.webWindow.isDestroyed()) return this.webWindow;
     // Window B sits to the right of the Boss window; sized from the union of
-    // the panes it will host (falling back to a default pane area).
+    // the panes it will host (falling back to a default pane area). Its
+    // placement is clamped to the host display's work area so the pop-out is
+    // never pushed off-screen (e.g. when the Boss window is maximized).
     const hostBounds = this.host.getBounds();
     const union = [...this.lastBounds.values()].reduce((area, bounds) => ({
       width: Math.max(area.width, bounds.x + bounds.width),
       height: Math.max(area.height, bounds.y + bounds.height)
     }), { width: 0, height: 0 });
-    const width = Math.max(420, union.width || 1280);
-    const height = Math.max(320, union.height || 800);
+    const display = screen.getDisplayMatching(hostBounds);
+    const work = display.workArea;
+    const width = Math.min(Math.max(420, union.width || 1280), work.width);
+    const height = Math.min(Math.max(320, union.height || 800), work.height);
+    const gap = 12;
+    let x = hostBounds.x + hostBounds.width + gap;
+    let y = hostBounds.y;
+    if (x + width > work.x + work.width) x = Math.max(work.x, work.x + work.width - width);
+    if (y + height > work.y + work.height) y = Math.max(work.y, work.y + work.height - height);
     const window = new BrowserWindow({
       width,
       height,
-      x: hostBounds.x + hostBounds.width + 12,
-      y: hostBounds.y,
+      x: Math.max(work.x, Math.min(x, work.x + work.width - width)),
+      y: Math.max(work.y, Math.min(y, work.y + work.height - height)),
       title: "Codex Boss — AI panes",
       backgroundColor: "#111315",
       autoHideMenuBar: true,
@@ -138,6 +153,11 @@ export class ProviderViews {
     if (state === this.viewState) return this.viewState;
     if (state === "DETACHED") {
       const window = this.ensureWebWindow();
+      // The second window is a pop-out beside the Boss window — never instead
+      // of it: the main interaction window must stay open while the web-AI
+      // processors are detached (restore/show it if it was minimized/hidden).
+      if (this.host.isMinimized()) this.host.restore();
+      if (!this.host.isVisible()) this.host.show();
       for (const view of this.views.values()) {
         if (view.webContents.isDestroyed()) continue;
         this.detachFromEverywhere(view);
