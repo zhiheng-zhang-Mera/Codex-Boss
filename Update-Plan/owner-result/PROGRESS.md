@@ -214,6 +214,12 @@
 - 再次同步：`owner-result` → `main`。
 - 证据 `Update-Plan/owner-result/evidence/round-13/`。
 
+## Round 14（2026-09-09，portable 发布门 §41）
+- `pnpm run package:portable` PASS → `artifacts/Codex-Boss-1.0.0-*`（Rev.2 head 打包成功）。
+- 打包产物离屏冒烟 **PACKAGED_SMOKE_PASS**（rendererLoaded / nativeCompleted / completionVisible，
+  `artifacts/smoke-83561f5e…/smoke-result.json`）—— §41 portable 行在当前 HEAD 变绿。
+- 证据 `Update-Plan/owner-result/evidence/round-14/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
