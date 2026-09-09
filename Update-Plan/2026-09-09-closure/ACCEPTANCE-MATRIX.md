@@ -1,4 +1,4 @@
-# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-09T23:00:55.638Z）
+# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-09T23:44:32.498Z）
 
 | Requirement | Status | Implementation | Evidence |
 |---|---|---|---|
@@ -24,7 +24,7 @@
 | L-20 | LOCKED_PASS | - | R6/R7/R34/R38/R39 |
 | R-101 | PASS | electron/engineering/gate-runner.ts; electron/commander/main-commander.ts runPlan auto-attach + completion gates + try/catch; src/shared/result-validator.ts unavailable semantics | tests gate-runner(+3)/result-validator(+3)/verification-contract seam v2; evidence/r101-seam-v2.json |
 | R-201 | PASS | src/shared/action-readiness.ts; electron/computer/backends/dom-page.ts; electron/computer/provider-page-repair.ts | tests action-readiness(+5)/provider-page-repair R-201; evidence/r201-action-readiness.json |
-| R-202 | LIVE_REQUIRED | R36 guarded slot; R4/R8 executor | - |
+| R-202 | BLOCKED_EXTERNAL | R36 guarded slot; R4/R8 executor; scripts/live-qwen-probe.cjs attempt | Update-Plan/2026-09-09-closure/evidence/r202-blocked-external.json; Update-Plan/2026-09-09-closure/evidence/r202-live-probe.json |
 | R-203 | PASS | src/shared/session-lifecycle.ts; electron/identity/session-lifecycle-ledger.ts; electron/account-sessions.ts; electron/main.ts | tests session-lifecycle(+6); evidence/r203-session-lifecycle.json |
 | R-204 | PASS | src/shared/conversation-policy.ts; contracts/store/main-commander/main.ts | tests conversation-policy(+2); evidence/r204-conversation-policy.json |
 | R-205 | PASS | src/shared/login-scan.ts; electron/main.ts boss:login-scan | tests login-scan(+2); evidence/r205-login-scan.json |
@@ -46,7 +46,7 @@
 | R-704 | PASS | src/shared/research-review.ts publicationReady | tests/unit/research-review.test.ts (+4); evidence/r704-publication-mode.json |
 | R-705 | PASS | electron/workspace/artifact-backbone.ts (recordStageArtifact/markRunFailed) | tests/unit/research-review.test.ts (+4); evidence/r705-research-archive.json |
 | R-801 | PASS | src/shared/worker-response.ts; engineering-loop driver ABORT path (R40 rollback) | tests/unit/worker-response.test.ts (+2); evidence/r801-self-iteration.json |
-| R-901 | LIVE_REQUIRED | - | - |
+| R-901 | BLOCKED_EXTERNAL | scripts/closure-soak-2h.cjs | Update-Plan/2026-09-09-closure/evidence/r901-blocked-external.json; heartbeat/log during attempts |
 | R-902 | PASS | - | tests/unit/ui-isolation.test.ts (+2); evidence/r902-ui-isolation.json |
 | R-903 | PASS | src/shared/contracts.ts BossBridge.nodeStatus; electron/preload.ts; src/renderer/components/OwnerSummary.tsx | tests/unit/ui-isolation.test.ts (+2); typecheck/build renderer PASS; evidence/r903-ui-status.json |
 | R-1001 | PASS | - | tests/unit/phase-j-scenarios.test.ts (+2); evidence/r1001-scenario-e.json |
@@ -54,9 +54,9 @@
 | R-1003 | PASS | scripts/closure-acceptance-report.mjs | Update-Plan/2026-09-09-closure/ACCEPTANCE-MATRIX.md; Update-Plan/2026-09-09-closure/FINAL-ACCEPTANCE.md; evidence/r1003-acceptance-report.json |
 
 ## Status summary
-LIVE_REQUIRED: 2 · LOCKED_PASS: 20 · PASS: 28
+BLOCKED_EXTERNAL: 2 · LOCKED_PASS: 20 · PASS: 28
 
 ## Terminal state assessment
-- Pending (non-terminal): R-202(LIVE_REQUIRED), R-901(LIVE_REQUIRED)
-- BLOCKED_EXTERNAL recorded: none
-- Legal terminal now: **BLOCKED_EXTERNAL_REQUIRED (live/external items remaining)**
+- Pending (non-terminal): none
+- BLOCKED_EXTERNAL recorded: R-202, R-901
+- Legal terminal now: **BLOCKED_EXTERNAL**

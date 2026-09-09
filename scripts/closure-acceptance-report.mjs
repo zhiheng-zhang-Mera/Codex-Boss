@@ -20,8 +20,10 @@ const counts = {};
 for (const req of reqs) counts[req.status] = (counts[req.status] || 0) + 1;
 const pending = reqs.filter((req) => req.required && pendingStates.includes(req.status));
 const blockedExternal = reqs.filter((req) => req.required && req.status === "BLOCKED_EXTERNAL");
-const othersPending = pending.filter((req) => req.status !== "LIVE_REQUIRED");
-const legalTerminal = pending.length === 0 ? "COMPLETE" : othersPending.length === 0 && pending.length > 0 ? "BLOCKED_EXTERNAL_REQUIRED (live/external items remaining)" : "NO_LEGAL_TERMINAL_YET";
+const notDone = reqs.filter((req) => req.required && !allowedTerminal.includes(req.status));
+const legalTerminal = notDone.length === 0
+  ? (blockedExternal.length > 0 ? "BLOCKED_EXTERNAL" : "COMPLETE")
+  : "NO_LEGAL_TERMINAL_YET";
 
 const rows = reqs.map((req) => {
   const impl = Array.isArray(req.implementation) && req.implementation.length ? req.implementation.join("; ").slice(0, 180) : "-";

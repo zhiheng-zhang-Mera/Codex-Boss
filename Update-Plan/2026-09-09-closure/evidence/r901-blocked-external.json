@@ -1,0 +1,34 @@
+﻿{
+  "requirement": "R-901",
+  "phase": "I",
+  "date": "2026-09-10",
+  "status": "BLOCKED_EXTERNAL",
+  "summary": "single continuous >=2h autonomous run could not be held: the host environment terminated long-running background processes in both attempts (attempt-1 killed after ~11min exit 1; attempt-2 killed after ~113s exit 4294967295). No accumulation trick used (deterministic mini-soaks and the earlier ~106min cumulative evidence do NOT substitute).",
+  "attempts": [
+    { "attempt": 1, "script": "scripts/closure-soak-2h.cjs", "secondsTarget": 7200, "lastHeartbeatElapsedSec": 659, "completed": 1410, "failed": 0, "retries": 148, "exit": 1, "note": "host interruption (system update) during run" },
+    { "attempt": 2, "script": "scripts/closure-soak-2h.cjs", "secondsTarget": 7200, "lastHeartbeatElapsedSec": 113, "completed": 244, "failed": 0, "retries": 25, "exit": 4294967295, "note": "host terminated background process (hard kill)" }
+  ],
+  "lastHeartbeatSnapshot": {
+  "phase": "running",
+  "elapsedSec": 113,
+  "completed": 244,
+  "failed": 0,
+  "retries": 25,
+  "breaker": [
+    {
+      "runtimeId": "web:a",
+      "state": "CLOSED",
+      "consecutiveFailures": 0
+    },
+    {
+      "runtimeId": "web:b",
+      "state": "CLOSED",
+      "consecutiveFailures": 0
+    }
+  ],
+  "nextTask": 269,
+  "updatedAt": "2026-09-09T23:43:39.665Z"
+},
+  "blocker": "A single continuous >2h background process cannot survive in this host environment (processes are reaped/interrupted). A dedicated uninterrupted host/VM is required; this is an external environment condition, not a code failure (the harness itself ran correctly until terminated: 0 failed, invariants held, breakers CLOSED).",
+  "implemented_anyway": ["scripts/closure-soak-2h.cjs (validated PASS logic on short run; heartbeat/evidence writing)", "deterministic long-soak mini invariants (R7) and cumulative 36-round/106min evidence (R30) preserved for reference"]
+}
