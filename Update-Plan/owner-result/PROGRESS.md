@@ -306,6 +306,17 @@
   Qwen pane → 发送未落在被监视页面；非产品采集 bug（页面含回复时 send→reply 通路已证）。
 - 证据：`evidence/round-23/`（raw-send census ×3）、`evidence/round-24/`（full-capture 终态 + 汇总）。
 
+## Round 25（2026-09-09，P0-7 → P1-1 Qwen Graduation **live PASS**）
+- **根因定案并修复**：`provider-automation.ts` send.enter 只发原生 Enter 且只校验“输入框已清空”
+  → Qwen 焦点丢失时误报“已一次提交”。加固：Enter 后校验 prompt 是否可见；不可见则用
+  **DOM 级 Enter（多次实证有效）有界重试一次**再校验；仍不可见才 blocked（enter-did-not-submit）。
+- **干净会话 live 全链路 PASS**：send → 生成 → 采集 → 确定性审查 PASS → finalResponse
+  `QWEN-OK`（status completed / outcomes SUCCESS / evidenceDecision PASS /
+  message 回答已通过确定性审查）。
+- FINAL-ACCEPTANCE：Qwen repair（P0-7）→ ✅LIVE；Computer Use fallback 行补 ✅LIVE 加固链路。
+- 验证：typecheck PASS · vitest **41/216 PASS** · full build PASS。
+- 证据 `Update-Plan/owner-result/evidence/round-25/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

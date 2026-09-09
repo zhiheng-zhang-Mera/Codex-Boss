@@ -13,8 +13,8 @@
 | Chat continuation / Work fresh | ✅LIVE | live-chat-vs-work / live-chat-continuation |
 | non-blocking waiting（不占调度/不盲等） | ✅DET + live 基础 | R2 runMode、R3 DSH continuation-controller、R7 soak（§17 slot 释放、hard horizon） |
 | provider recovery | ✅DET + live 基础 | R6 fault injection（auth/timeout/quota/defer）、既有 web-recovery live |
-| Computer Use fallback（§24–§29） | ✅DET 核心 + ⚠️LIVE-TODO 接线 | R4 planner、R8 DOM 执行器、R10 healing battery |
-| Qwen repair（P0-7） | ⚠️LIVE-TODO | R10 场景；live evidence/live/live-finding-qwen-*（缺口基线） |
+| Computer Use fallback（§24–§29） | ✅DET 核心 + ✅LIVE（Qwen 加固链路） | R4 planner、R8 DOM 执行器、R10 healing、R25 provider-automation send.enter 可见性校验 + DOM-Enter 兜底 |
+| Qwen repair（P0-7）→ graduation | ✅LIVE（R25 全链路 PASS） | round-25 live-qwen-clean-capture-2（completed/SUCCESS/finalPreview QWEN-OK/evidenceDecision PASS） |
 | engineering loop | ✅DET/LIVE | overcomplete seeded A–E / live-engineering-goal |
 | self-repair（Boss 自愈） | ✅DET 核心 + ⚠️接线 | R10 battery |
 | restart recovery | ✅DET（本轮 acceptance-restart）+ 既有 live | round-11 restart 证据；evidence/restart/* |

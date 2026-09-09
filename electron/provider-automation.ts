@@ -514,7 +514,37 @@ export class ProviderAutomation {
         await new Promise((resolve) => setTimeout(resolve, 1500));
         const cleared = await view.webContents.executeJavaScript("(()=>{const el=document.querySelector('textarea,[contenteditable=true]');return el ? ((el.value!==undefined?(el.value):(el.innerText||'')).trim().length===0) : true;})()") as boolean;
         this.log("send.enter.done", { providerId: run.providerId, cleared });
-        if (cleared !== true) {
+        // Owner-Result §26 hardening: an empty composer after Enter is not
+        // proof of submission. Verify the prompt actually became visible;
+        // when it did not, retry ONCE with a DOM-level Enter dispatched on the
+        // exact composer element (reliable across providers incl. Qwen), then
+        // re-verify. Only if the prompt still is not visible do we block.
+        const promptProbe = `(() => (document.body.innerText||'').includes(${JSON.stringify(run.inputPrompt.slice(0, 60))}))()`;
+        const visible = await view.webContents.executeJavaScript(promptProbe) as boolean;
+        if (cleared === true && visible !== true) {
+          this.log("send.enter.retry-dom", { providerId: run.providerId, taskId: run.taskId });
+          const value = JSON.stringify(run.inputPrompt).replaceAll("<", "\\u003c");
+          await view.webContents.executeJavaScript(`(() => {
+            const input = document.querySelector('textarea.message-input-textarea, textarea, [contenteditable="true"]');
+            if (!input) return false;
+            input.focus();
+            if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set || Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+              setter ? setter.call(input, ${value}) : (input.value = ${value});
+            } else { input.textContent = ${value}; }
+            input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${value} }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+            return true;
+          })()`);
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          const stillVisible = await view.webContents.executeJavaScript(promptProbe) as boolean;
+          if (stillVisible !== true) {
+            this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "回车未完成提交（enter-did-not-submit，DOM 重试后仍未出现消息）；整组不会进入下一步", definition.version);
+            return;
+          }
+        } else if (cleared !== true) {
           this.store.updateRun(run.id, "blocked", "USER_ACTION_REQUIRED", "回车未完成提交（enter-did-not-submit）；整组不会进入下一步", definition.version);
           return;
         }
