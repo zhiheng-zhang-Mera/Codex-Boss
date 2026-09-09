@@ -125,12 +125,29 @@ Standalone smoke verification uses an isolated data directory:
 ## Status & verification / 状态与验证
 
 - The deterministic test suite is committed with the repository under `tests/unit/`
-  (layered layout; includes git/process-heavy integration cases). Trunk snapshot (`main`,
-  consolidated on 2026-09-09 by merging `9-3 → … → 9-8-overcomplete` in order):
-  **30 files / 126 tests green** + typecheck + full build PASS.
+  (layered layout; includes git/process-heavy integration cases). Trunk snapshot
+  (Owner-Result Rev.2 branch `owner-result`, merged into `main` on 2026-09-09):
+  **41 files / 216 tests green** + typecheck + full build + benchmark PASS.
   确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
-  主干快照（`main`，2026-09-09 将 `9-3 → … → 9-8-overcomplete` 按序合并收口）：
-  **30 文件 / 126 测试全绿**，typecheck 与完整 build PASS。
+  主干快照（Owner-Result Rev.2 分支 `owner-result`，2026-09-09 合入 `main`）：
+  **41 文件 / 216 测试全绿**，typecheck / 完整 build / benchmark PASS。
+- Owner-Result Rev.2 (2026-09-09): autonomous execution contract per
+  `Update-Plan/Owner-Result.md` — run modes (ASSISTED/AUTONOMOUS/OWNER_RESULT),
+  HB1–HB4 hard-blocker classification, question interception & auto-decision,
+  stall/heartbeat supervision, result validation (MODEL_DONE ≠ COMPLETED),
+  Computer-Use provider-recovery planner + DOM executor, decision ledger,
+  self-healing battery, research battery (correct rejection = PASS),
+  fault injection, long-soak invariants, and an Owner dashboard read-model + UI
+  (GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER). Evidence per round under
+  `Update-Plan/owner-result/evidence/round-N/`; DS-Hns autonomy modules on
+  branch `owner-result-autonomy` (tests 92/92 green). Owner decisions so far: 0;
+  blind waits: 0.
+  Owner-Result Rev.2（2026-09-09）：按 `Update-Plan/Owner-Result.md` 的自主执行契约施工
+  ——运行模式、HB1–HB4 硬阻塞分类、问题拦截与自动决策、停滞/heartbeat 监督、
+  结果验证、Computer-Use provider 恢复规划器与 DOM 执行器、决策台账、自愈电池、
+  Research 电池（正确拒绝=PASS）、故障注入、long-soak 不变量、Owner 看板读模型与 UI。
+  每轮证据见 `Update-Plan/owner-result/evidence/round-N/`；DS-Hns autonomy 模块在
+  `owner-result-autonomy` 分支（92/92 测试绿）。Owner 决策次数=0，盲等=0。
 - GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke / restart
   smoke on every push (previously green on `9-7` / `9-8`; the 2026-09-09 merge made `main` the
   consolidated trunk). The repo also ships a seeded-bug autonomous repair acceptance runner

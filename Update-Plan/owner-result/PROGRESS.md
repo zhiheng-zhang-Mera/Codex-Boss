@@ -230,6 +230,14 @@
   真实 provider 窗口的专属 live 会话；README 最终行与主干再合并随 live 后收尾。
 - 证据 `Update-Plan/owner-result/evidence/round-15/`。
 
+## Round 16（2026-09-09，P0-7 live 轮准备 + 状态文档）
+- `README.md` Status 段刷新：Rev.2 能力摘要 + **41 文件 / 216 测试全绿**（含 typecheck/build/benchmark）。
+- `Update-Plan/owner-result/LIVE-ROUND-PLAN.md`：把 P0-7 Qwen Computer-Use Recovery 变成机械可执行
+  （DOM probe → 真实失败基线 → CU 接管（§25/§28/§29 守卫）→ adapter 固化复验 → graduation），
+  含诚实失败验收（INCONCLUSIVE+证据=PASS）与"为何现在不做 live"的纪律说明。
+- 决策台账 + planner/executor 等代码资产齐备；live 轮无需新增运行时接口。
+- 证据 `Update-Plan/owner-result/evidence/round-16/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
