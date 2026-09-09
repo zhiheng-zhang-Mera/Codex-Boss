@@ -268,6 +268,16 @@
   与随后 P1-1 graduation / 最终发布文书。
 - 证据 `Update-Plan/owner-result/evidence/round-19/`。
 
+## Round 20（2026-09-09，P0-7 Qwen live：登录（HB1 解除）+ 发送与页面级回复 live-PASS）
+- Operator 完成 Qwen 重登（登录走 GitHub/Google OAuth）；probe 增加 interactive-login 等待 +
+  页面稳定复检（ready 后 30s 再确认）+ 加宽陈旧任务清理 + long capture 模式。
+- 页面级端到端 PASS：prompt 发出 → “已经完成思考” → 助手精确回答 **“QWEN-OK”**
+  （evidence graduation-3：`hasReply:true` + pageTail 含 QWEN-OK）。
+- 发送确认 ≥4 次 live（已一次提交）；app 级采集自动收口在探测窗内未观察到
+  （monitor 25 分钟上界 + 交互式桌面使用干扰同一 pane）——诚实记录为 OPEN，
+  不宣称 capture 自动完成。
+- 证据 `Update-Plan/owner-result/evidence/round-20/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。

@@ -1,0 +1,34 @@
+{
+  "kind": "OWNER_RESULT_ROUND20_QWEN_LIVE_GRADUATION_EVIDENCE",
+  "round": 20,
+  "planRef": "Update-Plan/Owner-Result.md Rev.2 (§27/§31 P0-7 → P1-1 live 证据)",
+  "repo": "D:\\Codex-Boss",
+  "startedAt": "2026-09-09T16:05:00.000Z",
+  "finishedAt": "2026-09-09T16:45:00.000Z",
+  "commitSha": "HEAD-on-owner-result",
+  "branch": "owner-result",
+  "status": "SEND_AND_REPLY_LIVE_PASS",
+  "verification": {
+    "sendConfirmedRuns": ">=4 today (已一次提交 on live Qwen)",
+    "assistantReplyPageLevel": "PASS (graduation-3: page tail contained prompt + '已经完成思考' + 'QWEN-OK')",
+    "appCaptureAutoCompletion": "NOT_OBSERVED_IN_WINDOW (runs up to ~8 min; app monitor is 25-min bounded; interactive desktop use interferes with the pane)"
+  },
+  "summary": {
+    "delivered": [
+      "live-qwen-probe.cjs interactive-login + stabilization + widened-stale-cleanup + long capture mode (operator login honored: Qwen uses GitHub/Google OAuth; waits until chat.qwen.ai home + composer before sending)",
+      "Operator re-login HB1 resolved (round-20 runs): page returns ready immediately after login persists",
+      "Page-level end-to-end PASS proven: prompt sent -> assistant finished thinking -> answered exactly 'QWEN-OK' (evidence graduation-3)",
+      "App-level capture auto-finish within probe windows: not observed; suspect provider response-region/selector monitoring or 25-min monitor horizon plus concurrent interactive desktop use — recorded honestly, not claimed"
+    ],
+    "honestStatus": "P0-7 send + page-level reply = live PASS; capture-monitor auto-completion remains OPEN (needs one undisturbed >=25 min session with no desktop interaction), or a targeted response-selector capture probe"
+  },
+  "evidence": {
+    "round20Runs": [
+      "evidence/round-20/live-qwen-graduation-2026-09-09.json",
+      "evidence/round-20/live-qwen-graduation-2-2026-09-09.json",
+      "evidence/round-20/live-qwen-graduation-3-2026-09-09.json (assistant reply visible, hasReply true)",
+      "evidence/round-20/live-qwen-graduation-4..8-2026-09-09.json (send confirmed; capture windows too short / interactive interference)"
+    ],
+    "docs": ["Update-Plan/owner-result/PROGRESS.md (Round 20)"]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "kind": "LIVE_QWEN_CU_PROBE",
+  "startedAt": "2026-09-09T05:36:47.371Z",
+  "status": "COMPLETED",
+  "steps": [
+    {
+      "step": "launch",
+      "at": "2026-09-09T05:36:47.410Z",
+      "dataDir": "D:\\Codex-Boss\\.cache\\browser-profile"
+    },
+    {
+      "step": "renderer-ready",
+      "at": "2026-09-09T05:36:48.949Z",
+      "title": "Codex Boss"
+    },
+    {
+      "step": "open-qwen",
+      "at": "2026-09-09T05:36:49.197Z",
+      "open": true
+    },
+    {
+      "step": "interactive-login",
+      "at": "2026-09-09T05:36:49.202Z",
+      "message": "Qwen 窗口已打开；请完成登录（Qwen 走 GitHub OAuth；须回到 chat.qwen.ai 主页且出现输入框才算完成，最长 20 分钟）"
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:36:54.505Z",
+      "host": "chat.qwen.ai",
+      "href": "https://chat.qwen.ai/auth"
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:37:25.491Z",
+      "host": "accounts.google.com",
+      "href": "https://accounts.google.com/v3/signin/challenge/dp?TL=ACv9tzGnDa7bK8Ez0-HBbrtzPylzDqdTB43lcSWycZDMC0AiNSS-KixI01gdsHh1&app_domain=https://chat.qwen.ai&checkConn"
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-09T05:37:56.320Z",
+      "host": "accounts.google.com",
+      "href": "https://accounts.google.com/v3/signin/challenge/dp?TL=ACv9tzGnDa7bK8Ez0-HBbrtzPylzDqdTB43lcSWycZDMC0AiNSS-KixI01gdsHh1&app_domain=https://chat.qwen.ai&checkConn"
+    },
+    {
+      "step": "dom-probe",
+      "at": "2026-09-09T05:38:11.755Z",
+      "dom": "{\"host\":\"chat.qwen.ai\",\"href\":\"https://chat.qwen.ai/\",\"ready\":true,\"auth\":false,\"inputs\":[{\"tag\":\"TEXTAREA\",\"role\":null,\"placeholder\":\"询问 Qwen\",\"contenteditable\":null,\"cls\":\"message-input-textarea\"}],\"sendCandidates\":[],\"composerButtons\":[{\"tag\":\"DIV\",\"aria\":\"\",\"cls\":\"message-input-right-button\",\"disabled\":false}]}"
+    },
+    {
+      "step": "cleanup-stale",
+      "at": "2026-09-09T05:38:11.789Z",
+      "cleanup": "{\"cancelled\":[\"7e5166b2-52f6-4445-8782-21392b736fb5\",\"881cbc4c-a2a8-41a1-827f-1a9d4fa29ff6\",\"5f3da8ce-bd18-4dfb-bb83-f27a2eba49b9\",\"2edab492-44d8-423d-8c1b-1b803b9aba0f\",\"70d0df8d-ccc6-4598-ab68-e8ef223f3af2\",\"6cb79b74-6b7d-4426-a0b3-0479038a0af3\"]}"
+    },
+    {
+      "step": "dispatch",
+      "at": "2026-09-09T05:38:18.180Z",
+      "dispatch": "{\"taskId\":\"5e647c5c-b5df-4b83-802b-8bad53ef6abc\",\"status\":\"waiting\"}"
+    },
+    {
+      "step": "final-outcome",
+      "at": "2026-09-09T05:38:23.215Z",
+      "outcome": "{\"status\":\"waiting\",\"nextAction\":null,\"recoveryMessage\":null,\"phases\":\"queued\",\"outcomes\":\"\",\"message\":\"等待可见预填\",\"finalPreview\":null,\"evidenceDecision\":null}",
+      "replySeenAt": null,
+      "pageTail": null
+    }
+  ],
+  "finishedAt": "2026-09-09T05:38:23.215Z"
+}

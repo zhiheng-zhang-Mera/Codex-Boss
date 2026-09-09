@@ -80,16 +80,21 @@ async function findTarget(pattern, timeoutMs = 30_000) {
     const qwenTarget = await findTarget("chat.qwen.ai", 40_000);
     if (!qwenTarget) throw new Error("qwen page target not found after openProvider");
 
-    // 1) Read-only DOM probe: composer + send candidates (wait out /auth bounce).
+    // 1) Read-only DOM probe: composer + send candidates (wait out /auth bounce;
+    // interactive-login mode waits up to 15 minutes for the operator).
+    const loginMode = process.env.LIVE_QWEN_LOGIN === "1";
+    const authTries = loginMode ? 240 : 18;
     let domProbe = null;
-    for (let i = 0; i < 18; i += 1) {
+    if (loginMode) log("interactive-login", { message: "Qwen 窗口已打开；请完成登录（Qwen 走 GitHub OAuth；须回到 chat.qwen.ai 主页且出现输入框才算完成，最长 20 分钟）" });
+    for (let i = 0; i < authTries; i += 1) {
       await sleep(5000);
       domProbe = await evaluate(qwenTarget, `(() => {
-        if (location.pathname.includes('/auth')) return JSON.stringify({ host: location.hostname, href: location.href.slice(0,120), auth: true });
-        const inputs = [...document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]')].map(el => ({
+        const inputs = [...document.querySelectorAll('textarea.message-input-textarea, [contenteditable="true"], [role="textbox"]')].map(el => ({
           tag: el.tagName, role: el.getAttribute('role'), placeholder: (el.getAttribute('placeholder')||'').slice(0,60),
           contenteditable: el.getAttribute('contenteditable'), cls: (String(el.className||'')).slice(0,60)
         })).slice(0,8);
+        // Ready only back on chat.qwen.ai home with a composer present.
+        const ready = location.hostname === 'chat.qwen.ai' && !location.pathname.includes('/auth') && inputs.length > 0;
         const sendCandidates = [...document.querySelectorAll('button, [role="button"]')].map(b => ({
           aria: (b.getAttribute('aria-label')||'').slice(0,60), title: (b.getAttribute('title')||'').slice(0,60),
           cls: (String(b.className||'')).slice(0,60), text: (b.textContent||'').trim().slice(0,30)
@@ -97,34 +102,47 @@ async function findTarget(pattern, timeoutMs = 30_000) {
         const composerButtons = [...document.querySelectorAll('textarea.message-input-textarea ~ *, form button, [class*="composer"] button, [class*="footer"] button')]
           .slice(0,10).map(b => ({ tag: b.tagName, aria: (b.getAttribute('aria-label')||'').slice(0,50), cls: (String(b.className||'')).slice(0,50), disabled: b.disabled === true }))
           .filter((b, index, arr) => arr.findIndex(x => x.tag === b.tag && x.cls === b.cls && x.aria === b.aria) === index);
-        return JSON.stringify({ host: location.hostname, href: location.href.slice(0,120), auth: false, inputs, sendCandidates, composerButtons });
+        return JSON.stringify({ host: location.hostname, href: location.href.slice(0,160), ready, auth: !ready, inputs, sendCandidates, composerButtons });
       })()`).catch((error) => `DOM_PROBE_ERROR ${String(error).slice(0,200)}`);
       const parsed = JSON.parse(domProbe);
       if (parsed.auth !== true) break;
-      log("waiting-auth", { auth: true });
+      if (i % 6 === 0) log("waiting-auth", { host: parsed.host, href: parsed.href });
     }
     log("dom-probe", { dom: domProbe });
 
-    // 2) One real 1-AI Qwen echo through the production automation path.
-    // First retire any stale probe task from an earlier interrupted run so the
-    // provider busy-guard does not block this dispatch.
-    const cleanup = await evaluate(renderer, `window.boss.snapshot().then(s => { const stale = s.tasks.filter(t => ${JSON.stringify(PREVIOUS_TITLES)}.includes(t.title) || t.title === ${JSON.stringify(TASK_TITLE)}); return Promise.all(stale.filter(t => ["waiting","running","queued","paused"].includes(t.status)).map(t => window.boss.updateTask(t.id, "cancelled").catch(() => null))).then(() => JSON.stringify({ cancelled: stale.map(t => t.id) })); })`).catch(() => "no-cleanup");
+    // 2) Stabilize the page before sending: the operator reported sends going
+    // out before the Qwen chat page finished loading. Wait longer and re-check
+    // the composer is still present (and no chat-loading banner) right before
+    // dispatch.
+    log("stabilize", { waitingMs: 30_000 });
+    await sleep(30_000);
+    const stableProbe = await evaluate(qwenTarget, `(() => JSON.stringify({ ready: location.hostname === 'chat.qwen.ai' && !!document.querySelector('textarea.message-input-textarea'), href: location.href.slice(0,120) }))()`).catch(() => null);
+    log("stabilize-recheck", { stableProbe });
+    if (stableProbe) {
+      const parsed = JSON.parse(stableProbe);
+      if (parsed.ready !== true) log("stabilize-warning", { message: "composer not present right before send — proceeding carefully" });
+    }
+    // Retire EVERY non-terminal task touching the qwen provider so the busy
+    // guard cannot block this dispatch (stale prepared/waiting runs persist
+    // across process restarts).
+    const cleanup = await evaluate(renderer, `window.boss.snapshot().then(s => { const stale = s.tasks.filter(t => !["cancelled","completed","failed"].includes(t.status) && s.runs.some(r => r.taskId === t.id && r.providerId === "qwen" && ["queued","prepared","waiting","sending","opening","blocked"].includes(r.phase))); return Promise.all(stale.map(t => window.boss.updateTask(t.id, "cancelled").catch(() => null))).then(() => JSON.stringify({ cancelled: stale.map(t => t.id) })); })`).catch(() => "no-cleanup");
     log("cleanup-stale", { cleanup });
-    await sleep(3000);
+    await sleep(8000);
     const dispatch = await evaluate(renderer, `window.boss.dispatchTask(${JSON.stringify({ title: TASK_TITLE, prompt: "Reply with exactly: QWEN-OK.", providerIds: ["qwen"], appMode: "work" })}).then(s => { const t = s.tasks.find(x => x.title === ${JSON.stringify(TASK_TITLE)}); return JSON.stringify({ taskId: t?.id, status: t?.status, nextAction: t?.nextAction }); })`);
     log("dispatch", { dispatch });
 
-    // 3) Poll the durable run state for the honest outcome (longer horizon:
-    // capture can take minutes on a live page; LONG mode additionally watches
-    // the Qwen page itself for the assistant reply text).
+    // 3) Poll the durable run state for the honest outcome (capture can take
+    // minutes; LONG mode additionally watches the Qwen page for the assistant
+    // reply and keeps polling until the app-level capture finishes).
     const longMode = process.env.LIVE_QWEN_LONG === "1";
+    log("poll-mode", { longMode });
     const replyText = "QWEN-OK";
     let outcome = null;
     let replySeenAt = null;
     let pageTail = null;
-    // 5s per tick: ~8 min normal; ~27.5 min in LONG mode (capture monitor bound).
+    // 5s per tick: ~8 min normal; up to ~27.5 min in LONG mode (capture monitor bound).
     const maxIterations = longMode ? 330 : 96;
-    for (let i = 0; i < maxIterations && !outcome; i += 1) {
+    for (let i = 0; i < maxIterations; i += 1) {
       await sleep(5000);
       if (longMode && !replySeenAt && i % 2 === 0) {
         const pageText = await evaluate(qwenTarget, `(() => JSON.stringify({ href: location.href.slice(0,120), hasReply: (document.body.innerText||'').includes(${JSON.stringify(replyText)}), tail: (document.body.innerText||'').slice(-500) }))()`).catch(() => null);
@@ -142,7 +160,6 @@ async function findTarget(pattern, timeoutMs = 30_000) {
         const parsed = JSON.parse(outcome);
         if (parsed && (parsed.status === "completed" || parsed.status === "failed" || parsed.finalPreview)) break;
       }
-      if (replySeenAt && !longMode) break;
     }
     log("final-outcome", { outcome, replySeenAt, pageTail: pageTail ? pageTail.slice(-220) : null });
     evidence.status = "COMPLETED";

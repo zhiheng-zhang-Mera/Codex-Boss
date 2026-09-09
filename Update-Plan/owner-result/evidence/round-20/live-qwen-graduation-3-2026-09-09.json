@@ -1,0 +1,50 @@
+{
+  "kind": "LIVE_QWEN_CU_PROBE",
+  "startedAt": "2026-09-09T05:38:51.144Z",
+  "status": "COMPLETED",
+  "steps": [
+    {
+      "step": "launch",
+      "at": "2026-09-09T05:38:51.182Z",
+      "dataDir": "D:\\Codex-Boss\\.cache\\browser-profile"
+    },
+    {
+      "step": "renderer-ready",
+      "at": "2026-09-09T05:38:52.717Z",
+      "title": "Codex Boss"
+    },
+    {
+      "step": "open-qwen",
+      "at": "2026-09-09T05:38:52.855Z",
+      "open": true
+    },
+    {
+      "step": "dom-probe",
+      "at": "2026-09-09T05:38:57.925Z",
+      "dom": "{\"host\":\"chat.qwen.ai\",\"href\":\"https://chat.qwen.ai/\",\"ready\":true,\"auth\":false,\"inputs\":[{\"tag\":\"TEXTAREA\",\"role\":null,\"placeholder\":\"询问 Qwen\",\"contenteditable\":null,\"cls\":\"message-input-textarea\"}],\"sendCandidates\":[],\"composerButtons\":[{\"tag\":\"DIV\",\"aria\":\"\",\"cls\":\"message-input-right-button\",\"disabled\":false}]}"
+    },
+    {
+      "step": "cleanup-stale",
+      "at": "2026-09-09T05:38:57.979Z",
+      "cleanup": "{\"cancelled\":[\"5e647c5c-b5df-4b83-802b-8bad53ef6abc\"]}"
+    },
+    {
+      "step": "dispatch",
+      "at": "2026-09-09T05:39:09.196Z",
+      "dispatch": "{\"taskId\":\"056cb7b2-1d8c-4944-adf1-5d9b4e66a341\",\"status\":\"running\"}"
+    },
+    {
+      "step": "assistant-reply-visible",
+      "at": "2026-09-09T05:39:14.219Z",
+      "tail": "Qwen3.7-Plus\n登录\n注册\n\nReply with exactly: QWEN-OK.\n\n已经完成思考\nQWEN-OK\n自动\n人工智能生成的内容可能不准确。\n使用 Qwen Studio，即表示你同意我们的 用户条款 和 隐私协议。\n欢迎使用Qwen\n登录解锁视频生成等功能，获取更多生成额度，并同步对话记录。\n登录\n注册"
+    },
+    {
+      "step": "final-outcome",
+      "at": "2026-09-09T05:39:14.230Z",
+      "outcome": "{\"status\":\"running\",\"nextAction\":null,\"recoveryMessage\":null,\"phases\":\"waiting\",\"outcomes\":\"\",\"message\":\"已一次提交；等待独立并发采集回答\",\"finalPreview\":null,\"evidenceDecision\":null}",
+      "replySeenAt": "2026-09-09T05:39:14.219Z",
+      "pageTail": "Qwen3.7-Plus\n登录\n注册\n\nReply with exactly: QWEN-OK.\n\n已经完成思考\nQWEN-OK\n自动\n人工智能生成的内容可能不准确。\n使用 Qwen Studio，即表示你同意我们的 用户条款 和 隐私协议。\n欢迎使用Qwen\n登录解锁视频生成等功能，获取更多生成额度，并同步对话记录。\n登录\n注册"
+    }
+  ],
+  "finishedAt": "2026-09-09T05:39:14.230Z"
+}
