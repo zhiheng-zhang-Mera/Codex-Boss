@@ -1,0 +1,10 @@
+{
+  "requirement": "R-601",
+  "phase": "F",
+  "date": "2026-09-09",
+  "status": "PASS",
+  "summary": "single user knowledge space: multi-node contributions deduped; task-relevant retrieval",
+  "implementation": ["src/shared/knowledge-space.ts", "electron/knowledge/knowledge-space-store.ts KnowledgeSpaceStore"],
+  "tests": ["tests/unit/knowledge-phase-f.test.ts (+3 incl. dedupe/retrieval)"],
+  "gates": { "typecheck": "PASS", "vitest_unit": "63 files / 299 tests PASS", "full_build": "PASS" }
+}
