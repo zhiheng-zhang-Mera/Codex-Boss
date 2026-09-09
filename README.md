@@ -4,8 +4,7 @@ A local-first Electron control plane for visible, browser-driven AI work.
 本地优先的 Electron 桌面控制台，统一调度“可见网页 AI / API / Codex / 本地工具”，
 多 AI 会话、研究、自主工程都以一个本地控制器为长期状态源。
 
-[![CI (9-8)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=9-8)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3A9-8)
-[![CI (9-7)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=9-7)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3A9-7)
+[![CI (main)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3Amain)
 
 ---
 
@@ -126,24 +125,34 @@ Standalone smoke verification uses an isolated data directory:
 ## Status & verification / 状态与验证
 
 - The deterministic test suite is committed with the repository under `tests/unit/`
-  (layered layout; includes git/process-heavy integration cases). Snapshot on this branch:
+  (layered layout; includes git/process-heavy integration cases). Trunk snapshot (`main`,
+  consolidated on 2026-09-09 by merging `9-3 → … → 9-8-overcomplete` in order):
   **30 files / 126 tests green** + typecheck + full build PASS.
   确定性测试套件已随仓库提交于 `tests/unit/`（分层布局，含 git/进程重型集成用例）。
-  本分支快照：**30 文件 / 126 测试全绿**，typecheck 与完整 build PASS。
-- GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke — green on
-  `9-7` and `9-8`; the `9-8-overcomplete` branch adds seeded-bug autonomous repair acceptance
+  主干快照（`main`，2026-09-09 将 `9-3 → … → 9-8-overcomplete` 按序合并收口）：
+  **30 文件 / 126 测试全绿**，typecheck 与完整 build PASS。
+- GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke / restart
+  smoke on every push (previously green on `9-7` / `9-8`; the 2026-09-09 merge made `main` the
+  consolidated trunk). The repo also ships a seeded-bug autonomous repair acceptance runner
   (`pnpm run test:seeded` → `scripts/acceptance-seeded-engineering.cjs`).
-  GitHub CI 运行 typecheck / 测试 / build / benchmark / portable 打包 / portable 冒烟 —— `9-7`、`9-8` 全绿；
-  `9-8-overcomplete` 分支另提供 seeded-bug 自主修复验收（`pnpm run test:seeded`）。
+  GitHub CI 在每个 push 上运行 typecheck / 测试 / build / benchmark / portable 打包 / portable 冒烟 /
+  restart 冒烟（此前 `9-7`、`9-8` 全绿；2026-09-09 合并后 `main` 成为收口主干）。
+  仓库同时提供 seeded-bug 自主修复验收脚本（`pnpm run test:seeded`）。
+- Branch consolidation: `9-3` through `9-8-overcomplete` were merged into `main` in development
+  order on 2026-09-09 (see [Update-Log](Update-Log.md)); older date branches stay on the remote as
+  historical snapshots.
+  分支收口：2026-09-09 已将 `9-3` 至 `9-8-overcomplete` 按主开发线顺序全部合并入 `main`
+  （详见[开发日志](Update-Log.md)）；历史日期分支保留于云端作快照。
 - An in-app autonomous goal audit (real typecheck + full suite inside the running app) converged:
   `eng-251ec4b77388` iteration 3 `CONVERGED`, 0 findings.
   应用内自主目标审计（应用内跑真实 typecheck + 全量套件）已收敛：
   `eng-251ec4b77388` 第 3 迭代 `CONVERGED`，0 发现。
-- Live verifications on this branch (logged-in web providers, evidence under `Update-Plan/overcomplete/evidence/live/`):
+- Live verifications recorded on `9-8-overcomplete` (logged-in web providers; now merged into
+  `main`, evidence under `Update-Plan/overcomplete/evidence/live/`):
   1/3/4/5-AI parallel Work echoes PASS, Chat continuation with context memory PASS, 3-AI Council
   COMPLETE, live Engineering Goal CONVERGED (real AI coder patch), live Research semantic chain with a
   real reviewer-council veto, and fail-closed external-archive pass.
-  本分支实况验证（已登录网页 provider，证据见 `Update-Plan/overcomplete/evidence/live/`）：
+  收口分支 `9-8-overcomplete`（已并入 `main`）实况验证（已登录网页 provider，证据见 `Update-Plan/overcomplete/evidence/live/`）：
   1/3/4/5-AI 并行 Work echo PASS、Chat 延续+上下文记忆 PASS、3-AI Council COMPLETE、
   Live 工程 Goal CONVERGED（真实 AI coder 补丁）、Live Research 语义链含真实 reviewer-council 否决、
   外部归档 fail-closed pass。
