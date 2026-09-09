@@ -475,3 +475,16 @@
 - 验证快照（Round 37，文档轮）：typecheck PASS · vitest **47 文件 / 241 测试 PASS**（复跑；代码与 R36
   相同，full build 沿用 R36 PASS）。
   证据 `Update-Plan/owner-result/evidence/round-37/`。
+
+## Round 38（2026-09-09，P1-x §33/§39 运行时恢复续跑 battery，owner-result）
+- **背景**：§39『checkpoint/resume』与 §33『resume unfinished work，不 restart from zero』需要恢复链的
+  确定性证据；supervisor 的 runtime recovery scheduling 只在 main.ts 接线，无 tracked 集成测试。
+- **tests/unit/recovery-resume-battery.test.ts（新，真实 ExecutionSupervisor + TaskLedger +
+  RecoveryScheduler 单一实例，handler 语义镜像 main.ts runtime 注册）**：
+  - **§33**：技术失败 ⇒ supervisor 调度 bounded runtime recovery（非内联 sleep）；等待真实 retry 截止
+    （2s backoff）后 runDue ⇒ **同一 job（相同 fingerprint）续跑并 COMPLETED**（非从零重启）、retries≥1、
+    恢复记录消费完毕。
+  - **§39**：恒定失败 provider ⇒ 驱动 recovery ⇒ job 保持 WAITING 绝不 COMPLETED；scheduler 有界
+    attempts 耗尽后记录 PAUSED（attempts≥3）。
+- 验证快照（Round 38）：typecheck PASS · vitest **48 文件 / 243 测试 PASS** · full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-38/`。

@@ -1,0 +1,22 @@
+{
+  "round": 38,
+  "date": "2026-09-09",
+  "branch": "owner-result",
+  "scope": "P1-x §33/§39 — 运行时恢复续跑 battery（真实 ExecutionSupervisor + TaskLedger + RecoveryScheduler）",
+  "problem": "§39『有任务 checkpoint/resume』与 §33『长任务恢复：resume unfinished work, 不 restart from zero』需要运行时恢复链的确定性证据：此前 supervisor 的 recovery scheduling（runtime kind）只在 main.ts 中接线，无 tracked 集成测试证明『provider 恢复后同一 job 续跑完成、无重复副作用、有界重试耗尽诚实停放』。",
+  "changes": [
+    "tests/unit/recovery-resume-battery.test.ts(新)：",
+    "  - §33：技术失败 ⇒ supervisor 调度 bounded runtime recovery（非内联 sleep）；等待真实 retry 截止（2s backoff）后 runDue ⇒ 同一 job 以相同 fingerprint 续跑并 COMPLETED（非从零重启），retries≥1、恢复记录消费完毕",
+    "  - §39：恒定失败 provider ⇒ 多次驱动 recovery ⇒ job 保持 WAITING 绝不 COMPLETED；scheduler 有界 attempts 耗尽后记录 PAUSED（attempts≥3）",
+    "  - 复刻 MainCommander 的 runtime recovery handler（execute + schedule 语义）驱动真实模块"
+  ],
+  "design": "复用真实 ExecutionSupervisor + durable TaskLedger + RecoveryScheduler（单一共享实例），handler 语义镜像 main.ts recovery 'runtime' 注册；断言落在 durable job 终态、attempts/retries 计数与调度记录状态——证明恢复续跑与有界停放，而非假完成。",
+  "gates": {
+    "typecheck": "PASS",
+    "vitest_unit": "48 files / 243 tests PASS (was 47/241; +tests/unit/recovery-resume-battery.test.ts +2, ~2.3s)",
+    "full_build": "PASS (tsc x2 + vite renderer + electron tsc emit exit=0)"
+  },
+  "evidence_refs": [
+    "Update-Plan/owner-result/evidence/round-38/round38-recovery-resume-battery-2026-09-09.json"
+  ]
+}
