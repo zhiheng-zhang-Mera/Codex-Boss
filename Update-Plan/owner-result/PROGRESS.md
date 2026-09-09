@@ -165,6 +165,25 @@
   completion 渲染完好。
   证据 `Update-Plan/owner-result/evidence/round-9/`。
 
+## Round 10（2026-09-09，P1-3 §32 Self-Healing Battery 核心，owner-result @ 4eded42）
+- `src/shared/self-healing-battery.ts`（纯 + 共享）：
+  - §32 十类挑战场景目录（SELECTOR_BROKEN / SEND_MECHANISM_CHANGED /
+    RESPONSE_PARSER_BROKEN / PROVIDER_TIMEOUT / LOGIN_EXPIRED / STALE_SESSION /
+    TEST_REGRESSION / CROSS_MODULE_CONTRACT_BREAK / REVIEWER_REJECTION /
+    ELECTRON_RESTART）：detection（中英信号）→ diagnosis → repair lane
+    （ADAPTER_PATCH / CODE_PATCH / COMPUTER_USE_PLAN / PROVIDER_RECOVERY /
+    RESTART_RECOVERY / REVIEWER_RERUN）→ fail-closed verification gates；
+  - `detectScenario`：任意原始信号映射到场景；
+  - `planHealing`：LOGIN_EXPIRED 永不自动愈合（HB1 凭据类，NOT_AUTO_HEALED 诚实上报）；
+    SEND_MECHANISM_CHANGED 路由 Computer-Use 修复计划（授权缺失 → NEEDS_LIVE_VERIFY，
+    绝不假愈合）；其余自动可闭合场景必须先过其验证门才声明 healed（§30）；
+  - §35 `stagnated`：重复 diff/错误/提案/reviewer finding 或「无指标改进且无新证据」
+    → STAGNATED（触发 rollback/alternate，禁止无限烧 token）。
+- 测试：`tests/unit/self-healing-battery.test.ts`（6 用例：目录完备性/信号检测/LOGIN 诚实/
+  CU 路由授权门/验证门必先通过/停滞判定）。
+- 验证快照（Round 10）：typecheck PASS；vitest 全量 **40 文件 / 208 测试 PASS**；full build PASS。
+  证据 `Update-Plan/owner-result/evidence/round-10/`。
+
 ## 下一优先级（§45 顺序）
 1. P0-4/P0-5 运行时接线：main-commander / research supervisor 暂停点接入拦截层与 VERIFYING 门
    （raise 前分类；MODEL_DONE → verify → PASS/REWORK）。
