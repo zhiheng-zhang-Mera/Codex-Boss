@@ -65,17 +65,19 @@ function evidenceOkFor(req, newStatus) {
   }
   // PASS (and REWORK-with-evidence) requires a non-empty evidence list for R-202/R-901 paths.
   if (newStatus === "PASS") {
-    const integrity = evidenceIntegrityForPass(req, { roots: [path.resolve(evidenceDir), path.resolve(".")], existsSync: (p) => fs.existsSync(p), resolve: (root, p) => path.resolve(root, p) });
+    const roots = [path.resolve(evidenceDir), path.resolve(dir), path.resolve(".")];
+    const integrity = evidenceIntegrityForPass(req, { roots, existsSync: (p) => fs.existsSync(p), resolve: (root, p) => path.resolve(root, p) });
     if (!integrity.ok) return { ok: false, reasons: integrity.reasons };
+    const resolveExisting = (f) => roots.map((root) => path.resolve(root, f)).find((p) => fs.existsSync(p)) ?? null;
     if (req.id === "R-901") {
       const f = (req.evidence ?? []).find((e) => typeof e === "string" && /r901-.+\.json$/.test(e.trim()));
       if (!f) return { ok: false, reasons: ["R-901 PASS requires an r901-<runId>.json evidence reference"] };
-      const cand = path.resolve(evidenceDir, f);
-      if (!fs.existsSync(cand)) return { ok: false, reasons: [`r901 evidence file missing: ${f}`] };
+      const cand = resolveExisting(f);
+      if (!cand) return { ok: false, reasons: [`r901 evidence file missing: ${f}`] };
       const ev = JSON.parse(fs.readFileSync(cand, "utf8").replace(/^\uFEFF/, ""));
       const runId = ev.runId ?? "unknown";
-      const heartbeatFile = path.resolve(evidenceDir, `r901-${runId}.heartbeat.jsonl`);
-      if (!fs.existsSync(heartbeatFile)) return { ok: false, reasons: [`r901 heartbeat jsonl missing: r901-${runId}.heartbeat.jsonl`] };
+      const heartbeatFile = [evidenceDir, dir, "."].map((root) => path.resolve(root, `r901-${runId}.heartbeat.jsonl`)).find((p) => fs.existsSync(p));
+      if (!heartbeatFile) return { ok: false, reasons: [`r901 heartbeat jsonl missing: r901-${runId}.heartbeat.jsonl`] };
       const heartbeats = fs.readFileSync(heartbeatFile, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
       const verdict = validateR901Evidence(ev, heartbeats, { formal: true });
       if (!verdict.ok) return { ok: false, reasons: verdict.reasons };
@@ -84,8 +86,8 @@ function evidenceOkFor(req, newStatus) {
     if (req.id === "R-202") {
       const f = (req.evidence ?? []).find((e) => typeof e === "string" && /\.json$/.test(e.trim()));
       if (!f) return { ok: false, reasons: ["R-202 PASS requires a live repair evidence file"] };
-      const cand = path.resolve(evidenceDir, f);
-      if (!fs.existsSync(cand)) return { ok: false, reasons: [`R-202 evidence file missing: ${f}`] };
+      const cand = resolveExisting(f);
+      if (!cand) return { ok: false, reasons: [`R-202 evidence file missing: ${f}`] };
       const ev = JSON.parse(fs.readFileSync(cand, "utf8").replace(/^\uFEFF/, ""));
       const verdict = validateR202Evidence(ev);
       if (!verdict.ok) return { ok: false, reasons: verdict.reasons };
