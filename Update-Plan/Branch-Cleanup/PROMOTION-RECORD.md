@@ -35,8 +35,7 @@ force**. The required equality is re-established at `d8b9188`, and the promotion
 HEAD remains the ancestor `148c342` whose gate, soak and harness results are recorded
 below.
 
-The release tags were deliberately **not** moved: `v10.0.0` and `v10.0.0-accepted`
-still point at the verified `148c342`, not at the documentation commit.
+The release tags were subsequently moved to the CI-green commit — see §11.
 
 ## 2. Phase B — archive tags created, verified and pushed
 
@@ -61,8 +60,8 @@ All 14 pre-promotion archive tags were created at each branch's exact HEAD, veri
 | `archive/owner-result-r43` | `825cd1fcb9c9…` | B (fork) |
 | `archive/owner-result-r43-local-diverged` | `f660cc27ee03…` | B (fork) |
 | `archive/9-10-integration-final` | `148c342b6b4e…` | C-created |
-| `v10.0.0` | `148c342b6b4e…` | release |
-| `v10.0.0-accepted` | `148c342b6b4e…` | release |
+| `v10.0.0` | `9f54e34d2cff…` | release (moved from `148c342`, see §11) |
+| `v10.0.0-accepted` | `9f54e34d2cff…` | release (moved from `148c342`, see §11) |
 
 Evidence: `evidence/promotion/archive-tags-report.json`.
 
