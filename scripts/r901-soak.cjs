@@ -328,8 +328,11 @@ async function main() {
       const openedAt = openRec.openedAt ? new Date(openRec.openedAt).getTime() : Date.now();
       const waitMs = Math.max(0, cfg.cooldownMs - (Date.now() - openedAt));
       // Wait the FULL remaining cooldown so the breaker actually reaches
-      // HALF_OPEN; a partial wait would never let the recovery probe run.
-      if (waitMs > 0) await sleep(Math.min(waitMs, cfg.cooldownMs));
+      // HALF_OPEN; emit heartbeats every 10s so continuity is provable.
+      if (waitMs > 0) {
+        const deadline = Date.now() + Math.min(waitMs, cfg.cooldownMs);
+        while (Date.now() < deadline) { await sleep(10_000); appendHeartbeat("RECOVERY_COOLDOWN"); }
+      }
       if (breaker.state(a.id) === "HALF_OPEN") {
         const probe = await dispatch([a, b], `probe-${cycle}`);
         if (probe.result.status === "SUCCESS" && probe.result.runtimeId === a.id) stats.providerRecoveryObserved++;
