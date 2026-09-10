@@ -1,0 +1,15 @@
+{
+  "phase": "10P",
+  "requirement": "10P-fleet-failure-isolation",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Fleet failure isolation — automated scenario tests 1-7 over the forward components (fleet controller, leases, scheduler, knowledge fallback/sync, network registry)",
+  "tests": [
+    "tests/unit/tenx-phase-10p.test.ts (7 tests): Scenario 1 node A offline → B/C leases untouched; Scenario 2 provider A unavailable → unrelated p2 task routes to node-y and runs; Scenario 3 global KB offline → local fallback contribution recorded (main work unblocked); Scenario 4 proxy node failure → direct node route stays DIRECT; Scenario 5 controller restart → durable members+leases+checkpoint restored; Scenario 6 node dropout mid-task → checkpoint takeover to B resumes from cp-9; Scenario 7 composite faults (A offline + provider failed + KB offline + proxy C failed) → B still completes unrelated task and KB still accepts local fallback"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10P": "tests/unit/tenx-phase-10p.test.ts 7/7 PASS"
+  },
+  "notes": "All faults are injected deterministically; no live provider/network needed. Directly proves FLEET-CONTRACT §4 scenarios 1-7."
+}
