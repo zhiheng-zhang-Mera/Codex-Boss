@@ -326,8 +326,10 @@ async function main() {
     const openRec = breaker.list().find((r) => r.runtimeId === a.id);
     if (openRec?.state === "OPEN") {
       const openedAt = openRec.openedAt ? new Date(openRec.openedAt).getTime() : Date.now();
-      const waitMs = cfg.cooldownMs - (Date.now() - openedAt);
-      if (waitMs > 0) await sleep(Math.min(waitMs, 30_000));
+      const waitMs = Math.max(0, cfg.cooldownMs - (Date.now() - openedAt));
+      // Wait the FULL remaining cooldown so the breaker actually reaches
+      // HALF_OPEN; a partial wait would never let the recovery probe run.
+      if (waitMs > 0) await sleep(Math.min(waitMs, cfg.cooldownMs));
       if (breaker.state(a.id) === "HALF_OPEN") {
         const probe = await dispatch([a, b], `probe-${cycle}`);
         if (probe.result.status === "SUCCESS" && probe.result.runtimeId === a.id) stats.providerRecoveryObserved++;
