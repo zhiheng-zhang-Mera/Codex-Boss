@@ -1,0 +1,20 @@
+{
+  "phase": "Engine-P5",
+  "requirement": "Phase 5 — Provider Behaviour Profile",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Derived, rebuildable provider behaviour profiles (global/role baselines, concept overrides, confidence/uncertainty) with version cold-start priors and zero baked-in brand stereotypes",
+  "implementation": [
+    "src/shared/provider-profile.ts: MetricEstimate; ConceptOverride (+derived deviation); ProviderBehaviourProfile (schemaVersion 1, profileId/runtime/modelSnapshotKey/behaviourEpochId/parentProfileId, global, byRole, conceptOverrides, builtFromEpisodeCount, builderVersion, rebuiltAt); confidenceFor (samples/(samples+5), capped 0.95); blendMetric/blendProfileWithPrior (new-version cold start = family/previous prior with decay — never full reset, never full inherit); metricDeviation; EMPTY_METRIC (zero confidence, no stereotype)",
+    "electron/learning/providers/provider-profile.ts: ProviderProfileBuilder — build(scope) / buildAll(episodes) grouped by runtime+model snapshot+epoch; semantic metrics use ONLY episodes whose evaluation penalizes the semantic profile (timeout/auth/page-change can never depress completion/goalFidelity/restriction); runtimeReliability is a separate runtime-layer metric; latency from durationMs; role baselines persisted only at >= minSamples (3); concept overrides persisted only for statistically meaningful deviations (min samples 3, |deviation| >= 0.1); deterministic rebuild",
+    "electron/learning/providers/behaviour-model.ts: ProviderProfileStore (durable derived store; rebuild/rebuildScope/clear/resolve with model→runtime fallback; builder-version mismatch ⇒ stale flag; corrupt file degrades to no profile) + BehaviourModel read model (global baseline, role→global fallback, conceptOverrides, latentBehaviourVector, uncertainty, sampleCount, recentEvidence)"
+  ],
+  "tests": [
+    "tests/unit/engine-phase-5.test.ts (10 tests): confidence monotonicity/cap; no episodes ⇒ empty zero-confidence estimates (no brand stereotype); A12 deterministic rebuild; semantic metrics exclude 6 runtime faults while runtimeReliability counts them (0.4 over 10); role baselines only at sufficient samples and concepts only at meaningful deviation; A33 decayed-prior blend (not reset, not full inherit) incl. no-evidence/no-prior edges; A11 clear+rebuild reproduces identical profiles without touching episodes; corrupt store degrades; behaviour-model role fallback + uncertainty bounds; resolve() specificity fallback"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p5": "tests/unit/engine-phase-5.test.ts 10/10 PASS"
+  },
+  "notes": "Addresses A11, A12, A28 (precursor) and A33; supplies the confidence/uncertainty inputs Phase 6 needs for down-weighting (A31) and exploration (A32)."
+}
