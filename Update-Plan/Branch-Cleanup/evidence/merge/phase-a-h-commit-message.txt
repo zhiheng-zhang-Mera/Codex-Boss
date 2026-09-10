@@ -1,0 +1,54 @@
+docs(cleanup): Branch-Cleanup phase A-H on A-main-integration
+
+Execute Update-Plan/cleanup.md phases A-H on the integration branch
+A-main-integration (baseline origin/9-10-M @ 86e32d1).
+
+Phase D merge already landed as 94c1bc2. This commit adds the phase A-H
+records, the phase H evidence repairs, and the Toolchain corrections.
+
+Phase A - freeze and snapshot:
+- Update-Plan/Branch-Cleanup/branch-heads-before.json records every branch
+  HEAD (local + origin) with SHA, commit date and subject.
+- Records that local owner-result (f660cc2) and origin/owner-result
+  (825cd1f) already disagreed before this project began. Phase L must
+  choose deliberately which one to archive.
+
+Phase B/N - plan only:
+- archive-manifest.json and deletion-manifest.json evaluate the cleanup.md
+  section 21 deletion guard for all 15 candidate branches. Tags created: 0.
+  Branches deleted: 0. All rows are DELETE_DENIED because no archive tag
+  exists yet; tag creation and deletion are deferred to promotion by the
+  owner's instruction.
+- Verified the old dated branches (9-3 ... 9-8-overcomplete) are already
+  ancestors of the integration HEAD, so they carry no unintegrated code.
+  Only the two closure branches hold unique commits, and those are
+  test-curation commits that must not be merged.
+
+Phase H - evidence cleanup:
+- Stripped the UTF-8 BOM from 48 tracked JSON files. Host-M P5 found this
+  and deliberately did not repair it ("the inspector reports, it does not
+  repair"); cleanup.md 11.1 requires it. Byte counts and sha256 before/after
+  are recorded in evidence/evidence-cleanup/bom-repair-report.json.
+- Repaired the single malformed JSON file named by cleanup.md 11.2
+  (overcomplete/evidence/live/live-finding-qwen-2026-09-09-07-10-04.json):
+  it held one valid JSON object followed by free-form markdown, not two
+  concatenated objects. The JSON object is kept byte-for-byte and the
+  non-JSON tail is preserved verbatim in a companion .tail.md file rather
+  than discarded.
+- Result: 0 BOM files, 0 malformed JSON, 0 invalidJson and 0 unexpected
+  findings in the Host-M evidence inspector, and the closure report now
+  reports evidenceProblems {} .
+- Corrected one genuinely broken reference: the R-204 implementation path in
+  the closure requirement-manifest was a stale pre-refactor path
+  (contracts/store/main-commander/main.ts) that exists nowhere. Corrected to
+  electron/commander/main-commander.ts, which the R-204 evidence itself
+  names, then regenerated ACCEPTANCE-MATRIX.md / FINAL-ACCEPTANCE.md through
+  closure-set-status.mjs so the derived docs match the manifest.
+- Classified the remaining dangling references per cleanup.md 11.3 instead
+  of blanket-fixing: generated-at-runtime (the seeded acceptance creates
+  them inside its own clone) and historical-only (resolved by suffix
+  against a real file). The R43 construction plan is cited as the external
+  execution basis and was never part of this repository.
+
+Tests: M 72 files/614 tests + A 73 tests + 2 restored protected suites = 82
+files / 687 tests PASS. typecheck and full build PASS.

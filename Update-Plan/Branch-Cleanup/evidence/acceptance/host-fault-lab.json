@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 1,
+  "kind": "HOST_FAULT_LAB",
+  "generatedAt": "2026-09-10T05:11:30.707Z",
+  "results": [
+    {
+      "id": "provider-unavailable",
+      "fault": "provider-unavailable",
+      "label": "provider unavailable",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "web:a removed from routing and web:b carried the role",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "web:a budget=EXHAUSTED circuit=OPEN; routed before=[web:a,web:b]"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "route after=[web:b]"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "web:b carried the role: true"
+        }
+      ],
+      "durationMs": 15
+    },
+    {
+      "id": "dom-selector-changed",
+      "fault": "dom-selector-changed",
+      "label": "DOM selector changed",
+      "verdict": "ACCEPTED_DEGRADATION",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "Error: DOM action requires a concrete selector target",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "page now exposes div[contenteditable=\"true\"].composer; the stored selector is textarea[data-testid=\"prompt-textarea\"]"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "Error: DOM action requires a concrete selector target"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "the DOM read failed instead of inventing an empty value"
+        }
+      ],
+      "durationMs": 1
+    },
+    {
+      "id": "login-expired",
+      "fault": "login-expired",
+      "label": "login expired",
+      "verdict": "ACCEPTED_DEGRADATION",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "state=EXPIRED, scan=REAUTH_REQUIRED",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "baseline state=LOGGED_IN"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "state=EXPIRED loginScan=REAUTH_REQUIRED"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "legal transition and ledger still readable (1 record)"
+        }
+      ],
+      "durationMs": 9
+    },
+    {
+      "id": "network-timeout",
+      "fault": "network-timeout",
+      "label": "network timeout",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "timeout with no fallback route degrades the provider only",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "direct route was reachable, now withdrawn"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "route=DEGRADE_PROVIDER (no egress route for chatgpt; degrade provider only)"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "fallback=DEGRADE_PROVIDER, the process keeps running"
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "proxy-unavailable",
+      "fault": "proxy-unavailable",
+      "label": "proxy unavailable",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "proxy loss moved the route to PROVIDER_PROXY",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "system + user proxy were available"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "route=PROVIDER_PROXY (provider-proxy available for provider chatgpt)"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "a decision is still produced and no state is written"
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "node-dropout",
+      "fault": "node-dropout",
+      "label": "node dropout",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "dropout moved checkpointed work and failed unsafe work honestly, with no silent loss",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "assigned t-checkpointed, t-unsafe to node-a"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "dropped=[node-a] node-a=OFFLINE; checkpointed -> ASSIGNED@node-b; unsafe -> FAILED"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "checkpointed transferred with its payload; unsafe failed as FAILED with an explicit reason"
+        }
+      ],
+      "durationMs": 33
+    },
+    {
+      "id": "disk-unavailable",
+      "fault": "disk-unavailable",
+      "label": "disk unavailable",
+      "verdict": "ACCEPTED_DEGRADATION",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "unwritable checkpoint failed loudly and kept the prior generation",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "baseline revision=2"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "Error: EISDIR: illegal operation on a directory, read"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "previous generation still readable at revision 2 (expected 2)"
+        }
+      ],
+      "durationMs": 24
+    },
+    {
+      "id": "malformed-persistence",
+      "fault": "malformed-persistence",
+      "label": "malformed persistence",
+      "verdict": "ACCEPTED_DEGRADATION",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "corrupt store reported: 1 invalid episode row(s) skipped",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "seeded 1 valid episode row"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "count=0 degradedReason=1 invalid episode row(s) skipped"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "the reader did not repair the file in place and stayed callable"
+        }
+      ],
+      "durationMs": 15
+    },
+    {
+      "id": "corrupted-cache",
+      "fault": "corrupted-cache",
+      "label": "corrupted cache",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "kept 2 valid rows and reported the bad ones",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "interleaved two unusable rows between valid episodes"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "count=2 degradedReason=2 invalid episode row(s) skipped"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "valid rows before and after the corrupt ones are still returned"
+        }
+      ],
+      "durationMs": 2
+    },
+    {
+      "id": "worker-crash",
+      "fault": "worker-crash",
+      "label": "worker crash",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "crash classified as technical and the breaker opened only for that runtime",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "worker reported PROCESS_CRASH"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "after 1 failure=CLOSED, after 2=OPEN"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "a half-open probe is admitted once the cooldown passes: true"
+        }
+      ],
+      "durationMs": 13
+    },
+    {
+      "id": "partial-task-completion",
+      "fault": "partial-task-completion",
+      "label": "partial task completion",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "partial work stayed explicitly partial across a reload",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "job recorded as WAITING with a failure history entry"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "reload: state=WAITING completed=1 pending=2"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "a separate reader reproduces the same partial record exactly"
+        }
+      ],
+      "durationMs": 30
+    },
+    {
+      "id": "stale-heartbeat",
+      "fault": "stale-heartbeat",
+      "label": "stale heartbeat",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "staleness is derived from age, and reading it writes nothing",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "last heartbeat at 2026-09-10T00:00:00.000Z"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "age 10001ms -> DEGRADED; age 30001ms -> OFFLINE"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "deriving state from age did not mutate the stored record"
+        }
+      ],
+      "durationMs": 8
+    },
+    {
+      "id": "knowledge-sync-failure",
+      "fault": "knowledge-sync-failure",
+      "label": "knowledge sync failure",
+      "verdict": "CONTAINED",
+      "injected": true,
+      "detected": true,
+      "contained": true,
+      "detail": "a failed sync lowers trust and cannot silently replace stored content",
+      "steps": [
+        {
+          "step": "inject",
+          "ok": true,
+          "detail": "a synchronised record whose verifications all failed"
+        },
+        {
+          "step": "observe",
+          "ok": true,
+          "detail": "trust HIGH -> UNVERIFIED (score 1.05)"
+        },
+        {
+          "step": "contain",
+          "ok": true,
+          "detail": "re-syncing identical content decided DUPLICATE"
+        }
+      ],
+      "durationMs": 1
+    }
+  ],
+  "summary": {
+    "contained": 9,
+    "acceptedDegradation": 4,
+    "notInjected": 0,
+    "undetected": 0,
+    "uncontained": 0,
+    "total": 13
+  },
+  "overall": "PASS",
+  "verdictReason": "PASS: 9 CONTAINED, 4 ACCEPTED_DEGRADATION of 13"
+}

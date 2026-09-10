@@ -29,5 +29,6 @@ secrets/
 !/Update-Plan/10-x/
 !/Update-Plan/Engine/
 !/Update-Plan/Host-M/
+!/Update-Plan/Branch-Cleanup/
 /research-output/
 .live-acceptance/

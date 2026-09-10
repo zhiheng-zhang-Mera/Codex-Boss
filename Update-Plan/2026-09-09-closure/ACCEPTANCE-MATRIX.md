@@ -1,4 +1,4 @@
-# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-10T02:39:15.271Z）
+# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-10T05:18:54.231Z）
 
 | Requirement | Status | Implementation | Evidence |
 |---|---|---|---|
@@ -26,7 +26,7 @@
 | R-201 | PASS | src/shared/action-readiness.ts; electron/computer/backends/dom-page.ts; electron/computer/provider-page-repair.ts | tests action-readiness(+5)/provider-page-repair R-201; evidence/r201-action-readiness.json |
 | R-202 | BLOCKED_EXTERNAL | R36 guarded slot; R4/R8 executor; scripts/live-qwen-probe.cjs attempt | Update-Plan/2026-09-09-closure/evidence/r202-live-provider-repair.json; Update-Plan/2026-09-09-closure/evidence/r202-live-probe.json |
 | R-203 | PASS | src/shared/session-lifecycle.ts; electron/identity/session-lifecycle-ledger.ts; electron/account-sessions.ts; electron/main.ts | tests session-lifecycle(+6); evidence/r203-session-lifecycle.json |
-| R-204 | PASS | src/shared/conversation-policy.ts; contracts/store/main-commander/main.ts | tests conversation-policy(+2); evidence/r204-conversation-policy.json |
+| R-204 | PASS | src/shared/conversation-policy.ts; electron/commander/main-commander.ts | tests conversation-policy(+2); evidence/r204-conversation-policy.json |
 | R-205 | PASS | src/shared/login-scan.ts; electron/main.ts boss:login-scan | tests login-scan(+2); evidence/r205-login-scan.json |
 | R-301 | PASS | - | tests standalone-node(+1); evidence/r301-standalone-node.json |
 | R-302 | PASS | src/shared/node-capabilities.ts; electron/node/node-capability-registry.ts; electron/node/node-inspector.ts; electron/main.ts boss:node-status | tests node-capabilities(+4); evidence/r302-node-capabilities.json |

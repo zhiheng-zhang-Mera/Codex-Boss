@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 1,
+  "kind": "BRANCH_CLEANUP_DELETION_MANIFEST",
+  "generatedAt": "2026-09-10T05:19:47.948Z",
+  "integrationBranch": "A-main-integration",
+  "integrationHead": "94c1bc23033d26814285f81112be2a8c8dee4b1c",
+  "authority": "Update-Plan/cleanup.md sections 1.1, 21, 22, 28",
+  "guardRule": "a branch may only be deleted when TAG_EXISTS && TAG_SHA_MATCH && TREE_READABLE && UNIQUE_REQUIRED_CODE == false && INTEGRATED_OR_ARCHIVED",
+  "executionScopeThisRound": "PLAN_ONLY — no branch was deleted; every row is DELETE_DENIED until its tag is created and verified",
+  "branchesDeletedThisRound": 0,
+  "summary": {
+    "candidates": 15,
+    "safeToDelete": 0,
+    "deleteDenied": 15
+  },
+  "entries": [
+    {
+      "branch": "9-10-M",
+      "class": "A",
+      "headSha": "86e32d12a0e35ab928580509b615dbcbae2c4d01",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": false,
+      "keepPermanently": true,
+      "deleteAfterMainPromotion": true,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-10-A",
+      "class": "A",
+      "headSha": "cde3738eb21f858ae33465f77940ee98e7a30b4f",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": false,
+      "keepPermanently": true,
+      "deleteAfterMainPromotion": true,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "A-main-integration",
+      "class": "C-created",
+      "headSha": "94c1bc23033d26814285f81112be2a8c8dee4b1c",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": false,
+      "keepPermanently": true,
+      "deleteAfterMainPromotion": true,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "main",
+      "class": "B",
+      "headSha": "825cd1fcb9c942ff9a36bc4ea42ed4ad33b46c75",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": false,
+      "keepPermanently": true,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "owner-result",
+      "class": "B",
+      "headSha": "f660cc27ee0372a73b7a737272098c8ed9e9d3d0",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": false,
+      "keepPermanently": true,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-3-remote",
+      "class": "C",
+      "headSha": "76cef5e82c4abc04a38be542177946db8365f3b3",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-3",
+      "class": "C",
+      "headSha": "e3409b88c112b0e2cd8c7b463126383698486b5b",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-4",
+      "class": "C",
+      "headSha": "5792e0a9158424a16d89648dd118db778d255251",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-5",
+      "class": "C",
+      "headSha": "2763e10b4ccd32b9b46d82caa08fc9993f8de1a9",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-6",
+      "class": "C",
+      "headSha": "15dc04dc604984a4936a54f10a3bc46552dfda29",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-7",
+      "class": "C",
+      "headSha": "03bbc64304669a5586986d68eb0d69765ae07cbc",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-8",
+      "class": "C",
+      "headSha": "3aefdd8641e6f487fb8d80fd9ef64191297d87d1",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "9-8-overcomplete",
+      "class": "C",
+      "headSha": "c1f02895062e6ddb06e8c4bd1af9d1e72e2a71d6",
+      "commitsNotInIntegration": 0,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": false,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": false
+    },
+    {
+      "branch": "2026-09-09-closure",
+      "class": "D",
+      "headSha": "7722473a15386934b657b25dc8b5d24565d4f301",
+      "commitsNotInIntegration": 1,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": true,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)",
+        "1 commit(s) not reachable from the integration HEAD (not absorbed; must not be deleted)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": true
+    },
+    {
+      "branch": "9-2026-09-09-closure",
+      "class": "D",
+      "headSha": "fe8c766ddd0aa448bf494b0bb2a2724ad56cd4da",
+      "commitsNotInIntegration": 2,
+      "guard": {
+        "TAG_EXISTS": false,
+        "TAG_SHA_MATCH": false,
+        "TREE_READABLE": true,
+        "UNIQUE_REQUIRED_CODE": true,
+        "INTEGRATED_OR_ARCHIVED": false
+      },
+      "safeToDelete": false,
+      "deleteDecision": "DELETE_DENIED",
+      "denialReasons": [
+        "archive tag does not exist yet (deferred to promotion)",
+        "2 commit(s) not reachable from the integration HEAD (not absorbed; must not be deleted)"
+      ],
+      "deleteThisRound": false,
+      "deleteAtPromotion": true,
+      "keepPermanently": false,
+      "deleteAfterMainPromotion": false,
+      "mustNotMerge": true
+    }
+  ]
+}

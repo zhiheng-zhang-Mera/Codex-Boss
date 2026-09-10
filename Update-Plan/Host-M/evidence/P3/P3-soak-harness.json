@@ -1,4 +1,4 @@
-﻿{
+{
   "phase": "Host-M-P3",
   "requirement": "P3 鈥?Long-run / Soak Harness (30 min / 2 h / 8 h / overnight; BLOCKED_EXTERNAL when the host cannot run the duration; never fake a PASS)",
   "date": "2026-09-10",

@@ -296,7 +296,7 @@
       "summary": "TEMP-CONVERSATION: TEMPORARY/REUSABLE/PERSISTENT/AUTO_DELETE selectable + durable",
       "implementation": [
         "src/shared/conversation-policy.ts",
-        "contracts/store/main-commander/main.ts"
+        "electron/commander/main-commander.ts"
       ],
       "evidence": [
         "tests conversation-policy(+2)",

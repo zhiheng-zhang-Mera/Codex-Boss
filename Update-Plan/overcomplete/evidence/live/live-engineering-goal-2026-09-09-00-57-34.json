@@ -1,4 +1,4 @@
-﻿{
+{
     "iterations":  3,
     "kind":  "LIVE_ENGINEERING_GOAL_AUTONOMOUS_FIX",
     "fixed":  "export const seededLiveCount: number = 0;  (AI replaced \\\"not-a-number\\\" with 0)",

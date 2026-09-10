@@ -1,4 +1,4 @@
-﻿{
+{
     "observation":  "ProviderAutomation dispatchTask to web providers intermittently wedges the main process (CDP/IPC unresponsive; CPU high); recovered by restart with the same runtime-data. role-router supervisor paths (goal coder/research workers) and archive IPC are stable",
     "at":  "2026-09-08T15:04:18.4564837Z",
     "kind":  "LIVE_FINDING_WEB_DISPATCH_WEDGE"

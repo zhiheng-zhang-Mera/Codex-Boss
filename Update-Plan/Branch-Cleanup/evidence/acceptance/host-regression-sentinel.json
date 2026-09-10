@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "kind": "HOST_SENTINEL_REPORT",
+  "generatedAt": "2026-09-10T05:11:42.379Z",
+  "baseline": {
+    "revision": "766c2ca324859ecb9b943114a6b75979734ab567",
+    "branch": "9-10-M",
+    "capturedAt": "2026-09-10T03:56:51.155Z"
+  },
+  "candidate": {
+    "revision": "94c1bc23033d26814285f81112be2a8c8dee4b1c",
+    "branch": "A-main-integration",
+    "capturedAt": "2026-09-10T05:11:39.932Z"
+  },
+  "findings": [
+    {
+      "dimension": "benchmark",
+      "severity": "UNAVAILABLE",
+      "key": "benchmark",
+      "detail": "no baseline benchmark"
+    },
+    {
+      "dimension": "tests",
+      "severity": "INFO",
+      "key": "tests",
+      "detail": "614 → 687",
+      "baseline": 614,
+      "candidate": 687
+    }
+  ],
+  "summary": {
+    "regressions": 0,
+    "drift": 0,
+    "improvements": 0,
+    "info": 1,
+    "unavailable": 1,
+    "total": 2
+  },
+  "overall": "PASS",
+  "verdictReason": "PASS: 0 regression(s), 0 drift, 0 improvement(s), 1 informational, 1 unavailable dimension(s)",
+  "policy": "REPORT_ONLY"
+}

@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "kind": "HOST_DOCTOR",
+  "generatedAt": "2026-09-10T05:11:30.609Z",
+  "repoRoot": "D:\\Codex-Boss",
+  "dataRoot": "D:\\Codex-Boss\\runtime-data",
+  "checks": [
+    {
+      "id": "runtime.node",
+      "area": "runtime",
+      "label": "node runtime",
+      "observed": "v24.14.0 on win32/x64",
+      "expected": ">= v18",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "runtime.device",
+      "area": "runtime",
+      "label": "device self-inspection",
+      "observed": "24 core(s), 32 GiB RAM, win32",
+      "expected": "a node probe with cpu and memory reported",
+      "status": "READY",
+      "durationMs": 1
+    },
+    {
+      "id": "runtime.checkout",
+      "area": "runtime",
+      "label": "checkout layout",
+      "observed": "package.json, tsconfig.json, src/, electron/ present",
+      "expected": "package.json, tsconfig.json and src/ are present",
+      "status": "READY",
+      "durationMs": 1
+    },
+    {
+      "id": "dependency.installed",
+      "area": "dependency",
+      "label": "dependencies installed",
+      "observed": "electron, react, react-dom, typescript, vitest present",
+      "expected": "node_modules/ contains the declared runtime packages",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "dependency.build-artifacts",
+      "area": "dependency",
+      "label": "compiled main-process artifacts",
+      "observed": "2 artifact(s) present",
+      "expected": "the electron emit produced main.js and store.js",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "dependency.manifest",
+      "area": "dependency",
+      "label": "package manifest parses",
+      "observed": "main=dist-electron/electron/main.js, 4 runtime dependency(ies)",
+      "expected": "package.json is valid JSON with a main entry",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "filesystem.temp-writable",
+      "area": "filesystem",
+      "label": "temporary directory is writable",
+      "observed": "write=true, cleanup=true",
+      "expected": "a probe file can be written, read back and removed",
+      "status": "READY",
+      "durationMs": 2
+    },
+    {
+      "id": "filesystem.data-root",
+      "area": "filesystem",
+      "label": "Boss data root is readable",
+      "observed": "D:\\Codex-Boss\\runtime-data (12 entry/entries)",
+      "expected": "the data root exists and its contents can be listed",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "filesystem.repo-writable",
+      "area": "filesystem",
+      "label": "checkout is a git work tree",
+      "observed": ".git present",
+      "expected": ".git is present so evidence can name its revision",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "filesystem.free-space",
+      "area": "filesystem",
+      "label": "free disk space",
+      "observed": "283.3 GiB free on the temp volume",
+      "expected": "at least 1 GiB free",
+      "status": "READY",
+      "durationMs": 0
+    },
+    {
+      "id": "browser.electron-binary",
+      "area": "browser",
+      "label": "electron binary is installed",
+      "observed": "node_modules\\electron\\dist\\electron.exe",
+      "expected": "node_modules/electron/dist holds the runtime",
+      "status": "READY",
+      "durationMs": 1
+    },
+    {
+      "id": "browser.profile",
+      "area": "browser",
+      "label": "provider browser profile",
+      "observed": "D:\\Codex-Boss\\runtime-data\\.cache\\browser-profile does not exist yet",
+      "expected": "a prepared profile directory exists",
+      "status": "SKIPPED",
+      "reason": "no provider session has been opened on this data root",
+      "remedy": "Boss creates the profile on first start; nothing to do unless it is unreadable",
+      "durationMs": 0
+    },
+    {
+      "id": "browser.gui-session",
+      "area": "browser",
+      "label": "interactive GUI session",
+      "observed": "GUI presence is not probeable from node on win32",
+      "expected": "a desktop session exists for visible provider windows",
+      "status": "SKIPPED",
+      "reason": "the win32 desktop session cannot be detected without a window-system API",
+      "remedy": "live provider acceptance needs an interactive desktop; headless runs should expect BLOCKED_EXTERNAL there",
+      "durationMs": 0
+    },
+    {
+      "id": "network.egress",
+      "area": "network",
+      "label": "outbound network",
+      "observed": "registry.npmjs.org:443 reachable",
+      "expected": "at least one public endpoint is reachable",
+      "status": "READY",
+      "remedy": "check the proxy/VPN configuration, or accept that offline-only work is all that is possible",
+      "durationMs": 0
+    },
+    {
+      "id": "account.capabilities",
+      "area": "account",
+      "label": "provider capability overrides",
+      "observed": "no overrides recorded",
+      "expected": "the override file parses, or does not exist yet",
+      "status": "SKIPPED",
+      "reason": "no provider capability override has been written yet",
+      "remedy": "delete a corrupt provider-capabilities.json; Boss rebuilds it from the baseline profiles",
+      "durationMs": 0
+    },
+    {
+      "id": "account.session-ledger",
+      "area": "account",
+      "label": "session lifecycle ledger",
+      "observed": "no session has been recorded",
+      "expected": "the ledger parses and reports each provider's last state",
+      "status": "SKIPPED",
+      "reason": "no provider session has been opened on this data root",
+      "remedy": "delete a corrupt session-lifecycle.json; Boss rebuilds it from live probes",
+      "durationMs": 0
+    },
+    {
+      "id": "ipc.surface",
+      "area": "ipc",
+      "label": "IPC registration surface",
+      "observed": "75 ipcMain.handle call(s); preload exposes the bridge=true, typed=true",
+      "expected": "main.ts registers ipcMain handlers and preload.ts exposes the bridge",
+      "status": "READY",
+      "durationMs": 76
+    },
+    {
+      "id": "fleet.node-registry",
+      "area": "fleet",
+      "label": "node registry",
+      "observed": "no node has registered",
+      "expected": "the registry parses, or no node has registered yet",
+      "status": "SKIPPED",
+      "reason": "this data root has no node registry yet",
+      "remedy": "delete a corrupt node-registry.json; Boss re-registers this desktop on start",
+      "durationMs": 0
+    },
+    {
+      "id": "fleet.coordinator",
+      "area": "fleet",
+      "label": "fleet coordinator state",
+      "observed": "no fleet has formed",
+      "expected": "the coordinator file parses, or no fleet has formed",
+      "status": "SKIPPED",
+      "reason": "single-node operation needs no coordinator file",
+      "remedy": "delete a corrupt fleet.json; the coordinator rebuilds from heartbeats",
+      "durationMs": 0
+    },
+    {
+      "id": "knowledge.workspaces",
+      "area": "knowledge",
+      "label": "workspace registry",
+      "observed": "2 workspace(s)",
+      "expected": "the workspace registry parses, or no workspace is recorded yet",
+      "status": "READY",
+      "durationMs": 11
+    },
+    {
+      "id": "knowledge.store",
+      "area": "knowledge",
+      "label": "knowledge store",
+      "observed": "no knowledge stored",
+      "expected": "the shared knowledge space is readable, or nothing has been stored yet",
+      "status": "SKIPPED",
+      "reason": "this data root has no knowledge store yet",
+      "remedy": "a corrupt knowledge record is quarantined by the store; run the evidence inspector to identify it",
+      "durationMs": 1
+    },
+    {
+      "id": "learning.flag-store",
+      "area": "learning",
+      "label": "adaptive flag store",
+      "observed": "no flag file",
+      "expected": "the flag file parses and every adaptive capability is OFF by default",
+      "status": "SKIPPED",
+      "reason": "adaptive flags have never been written; all capabilities default to OFF",
+      "remedy": "delete a corrupt adaptive-flags.json; every adaptive capability fails closed to OFF",
+      "durationMs": 0
+    },
+    {
+      "id": "learning.episode-store",
+      "area": "learning",
+      "label": "episode store",
+      "observed": "no episodes recorded",
+      "expected": "the append-only episode log is readable",
+      "status": "SKIPPED",
+      "reason": "no episode has been appended yet",
+      "remedy": "a corrupt row degrades learning only; Boss keeps running with the remaining episodes",
+      "durationMs": 0
+    },
+    {
+      "id": "compatibility.build-freshness",
+      "area": "compatibility",
+      "label": "compiled output is newer than the sources",
+      "observed": "newest source 2026-09-10T03:53:54.859Z, compiled 2026-09-10T05:07:27.503Z",
+      "expected": "dist-electron is at least as new as electron/ and src/shared/",
+      "status": "READY",
+      "durationMs": 18
+    },
+    {
+      "id": "compatibility.tsconfig",
+      "area": "compatibility",
+      "label": "TypeScript project configuration",
+      "observed": "outDir=dist-electron",
+      "expected": "both projects declare their include/outDir",
+      "status": "READY",
+      "durationMs": 0
+    }
+  ],
+  "summary": {
+    "ready": 16,
+    "degraded": 0,
+    "fail": 0,
+    "skipped": 9,
+    "total": 25
+  },
+  "overall": "READY",
+  "verdictReason": "every check that could run is READY (9 check(s) skipped for want of evidence)",
+  "revision": "94c1bc23033d26814285f81112be2a8c8dee4b1c"
+}

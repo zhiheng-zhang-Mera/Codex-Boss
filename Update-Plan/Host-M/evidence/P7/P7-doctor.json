@@ -1,4 +1,4 @@
-﻿{
+{
   "phase": "Host-M-P7",
   "requirement": "P7 鈥?Diagnostics / Doctor (each check fault-isolated; a doctor failure must not affect Boss startup)",
   "date": "2026-09-10",

@@ -1,0 +1,28 @@
+merge(host-a): 9-10-A closure delivery into A-main-integration
+
+Merge 9-10-A (cde3738) into A-main-integration on the 9-10-M baseline
+(86e32d1) per Update-Plan/cleanup.md phase D.
+
+Automatic merge: zero conflicts (A and M touch disjoint file paths).
+
+A content absorbed (closure acceptance assets, cleanup.md section 7):
+- closure terminal evaluator: closure-terminal-logic.mjs, closure-set-status.mjs,
+  closure-acceptance-report.mjs, closure-final-regression.mjs
+- R-202 live provider repair harness: live-r202-provider-repair.cjs
+- R-901 soak engine + durable runner: r901-soak.cjs, start-r901-soak.ps1
+- Host-A final evidence: final-regression.json, minimal-suite-regression.json,
+  r202-live-provider-repair.json, r901 7202s soak + heartbeat
+- 10 A closure tests (dom-page, verification-contract, web-recovery-r6, ...)
+
+Test union restored (cleanup.md phase E): A's Phase L minimal test curation
+deleted two M tests. Both are restored from the M baseline so that
+Tests(final) = Tests(M) union useful Tests(A):
+- tests/unit/autonomy-supervisor.test.ts
+- tests/unit/decision-ledger.test.ts
+
+M content preserved untouched: electron/tenx/**, electron/learning/**,
+electron/host/**, src/shared/tenx/**, Adaptive Provider Intelligence,
+Host-M maturity layer, Acceptance Hub, Fault Lab, Regression Sentinel,
+Doctor, Observer, Evidence Inspector.
+
+Test files: M 72 + A new 10 + 2 restored = 82.

@@ -1,0 +1,465 @@
+{
+    "schemaVersion":  1,
+    "kind":  "BRANCH_CLEANUP_EVIDENCE_REPAIR",
+    "generatedAt":  "2026-09-10T15:15:55.3736845+10:00",
+    "revision":  "94c1bc23033d26814285f81112be2a8c8dee4b1c",
+    "dryRun":  false,
+    "authority":  "Update-Plan/cleanup.md sections 11.1 (BOM) and 11.2 (malformed JSON)",
+    "totals":  {
+                   "filesScanned":  218,
+                   "bomStripped":  48,
+                   "malformedFixed":  1,
+                   "failures":  0
+               },
+    "bomRepairs":  [
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r1001-scenario-e.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  345,
+                           "bytesAfter":  342,
+                           "sha256Before":  "d79a1d53db92fa60fc4a6019d2404efbb80900c6896a3d4591524626f524114d",
+                           "sha256After":  "2fd91eaa59f75ebf6edaea4d8a8642d32588c57f7aded30d53da8f59b0967199",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r1002-scenario-g.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  345,
+                           "bytesAfter":  342,
+                           "sha256Before":  "093753794610270f9b4cb2476b80e0c8520ac4c3261c98dc1f3ce7cfe0794b10",
+                           "sha256After":  "21e552eadcd5badd9a36e0aecc787eb1740d2492d7818a98749d7ecac7c71634",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r602-kb-local-fallback.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  415,
+                           "bytesAfter":  412,
+                           "sha256Before":  "2e02b913f0bfe269ffa6d75bb6460f86a2122e598f9ee6a4b8930fbb2bb77ed2",
+                           "sha256After":  "c7aebfa225353d0f51a988797ef0ef8131bcf74a5a86accf1dcb5063e974ac40",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r603-deferred-sync.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  419,
+                           "bytesAfter":  416,
+                           "sha256Before":  "d813e57f7ecc4bd65820f2ec8358bc5b916036eee092da1744cf94b2e51bc532",
+                           "sha256After":  "14cbfdfe0b5ac05c7b5d36b005b474194fbee59137d9cc038371de4cafe26d8f",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r604-artifact-backbone.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  427,
+                           "bytesAfter":  424,
+                           "sha256Before":  "e25b1b264b85f26c3e67c35dfe655461ef94b948fe37e5b6d929800b598235ff",
+                           "sha256After":  "e31c92cf2165930999761f7f994f8a5ca92cab6c3703a01500bcb24eddfb6e32",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r701-research-contract.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  539,
+                           "bytesAfter":  536,
+                           "sha256Before":  "17d47c8c69a610ddd73b66ae5421f02d87f2263e6973b9b81066789d14ac79f6",
+                           "sha256After":  "ef3314b9f1b5350058bc2f5ba2ac40bac9272b25e83fb93beced9aa79e45b756",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r702-research-sufficiency.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  535,
+                           "bytesAfter":  532,
+                           "sha256Before":  "b4a0c89199e44a79fdfe5aeb7ca03d70cbf102c4709133a94e1a3cf9b504dfee",
+                           "sha256After":  "541d3fcbb3d6224b74d0bb0dc04648e55f0f4bfdbdf1ea2649787aad66969733",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r703-review-loop.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  500,
+                           "bytesAfter":  497,
+                           "sha256Before":  "262c4fdd67550ff9093b8266005d2934f93e08b35475ad046b80904aad64a2e6",
+                           "sha256After":  "23379bf0d4b2a7b037847af91af6d7dbb4ef7dacd8238e1551a11201455f20c6",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r704-publication-mode.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  394,
+                           "bytesAfter":  391,
+                           "sha256Before":  "a3026475a970df77e8839731dfa3da7f90d32329a49cd871538c86bc4b487b2d",
+                           "sha256After":  "5ff526f5d02cad7f7954dd8814b863c42ba464ed4af61cdbf5173d1c248b02f0",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r705-research-archive.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  394,
+                           "bytesAfter":  391,
+                           "sha256Before":  "f17b8598be16808dc49aea402229d64dfdd2abc9a8a7539f71f5fff267ace672",
+                           "sha256After":  "467c4c379f72b32edb4d231a1fe4719dac3dc098c2907e24c62b8961743b8267",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r801-self-iteration.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  508,
+                           "bytesAfter":  505,
+                           "sha256Before":  "fe4ece35b7eca9995ff91f47e0306ffac0d1431164bb4a8dc0f9d48e19a17c64",
+                           "sha256After":  "6468c4abd8177329c5246018a71c90c1a82b4ae20b3d0ae761ffe56cb2920e67",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r902-ui-isolation.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  319,
+                           "bytesAfter":  316,
+                           "sha256Before":  "d6af991557987225a81dd1f90cdf7a16a161e3ce4cff7bc76efc4457441a1322",
+                           "sha256After":  "62163f629ddb123fd8a66091d33dd00a6ef50311749ab8e6086275fde59f2294",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/2026-09-09-closure/evidence/r903-ui-status.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  516,
+                           "bytesAfter":  513,
+                           "sha256Before":  "e6d77b49c5d23511b664f2a7e50dbc7462964d0a8939c20483dfe6fa10842b43",
+                           "sha256After":  "e04c846e9653e7efca977e10b802fff9535bb0883a84d8448e6f5beb0637acff",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/Host-M/evidence/P1/P1-acceptance-hub.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  9939,
+                           "bytesAfter":  9936,
+                           "sha256Before":  "ebc76bb4f375b2629774ab5fa5e5741c895b9f825189576f4dec6ea07663ad8f",
+                           "sha256After":  "bffeac9a8ff14622245d687887f8d7907a962afda09aea862c38cac49b567eb6",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/Host-M/evidence/P2/P2-fault-lab.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  7364,
+                           "bytesAfter":  7361,
+                           "sha256Before":  "3959bbd255f16675b32ac382f093e8ac14ce3b8f9232322dd3c88202fec35d42",
+                           "sha256After":  "f78b535811631e46631090bf156f6475c1dc1396e67186f02b0231009f345ceb",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/Host-M/evidence/P3/P3-soak-harness.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  8490,
+                           "bytesAfter":  8487,
+                           "sha256Before":  "2e03ec4ab5d700d0c36792d09c2c0221d6a015f7b3d4f992994ab931cd88f503",
+                           "sha256After":  "cd839f8051adc5dbf7d38c4d39d6074631e7c41c8d76c8cad254a0e1060f2a96",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/Host-M/evidence/P5/P5-evidence-inspector.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  6156,
+                           "bytesAfter":  6153,
+                           "sha256Before":  "f98ff54bba5e31855302f7a27d0c4168ffbe5a0e5c9080c8cabf666c7ce3ab5b",
+                           "sha256After":  "7d63994263e38b3c0dd5c0a5696ce69657525453258010982fc92063ce7bb172",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/Host-M/evidence/P7/P7-doctor.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  5113,
+                           "bytesAfter":  5110,
+                           "sha256Before":  "7adc39f311aba4a63e6064e582cf91921fbef7065a9a856d3084c85831420384",
+                           "sha256After":  "8a50470f5dcef2a233d8496dc6b6b6854c4542e15274edab3eb4a20eba229c62",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-1ai-echo-2026-09-08-23-57-02.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  333,
+                           "bytesAfter":  330,
+                           "sha256Before":  "4d35734b474556b50c4c9c44d61ecfe8a0d04455f1a96a76fd1862fa4d76945d",
+                           "sha256After":  "9aa03e3099183df372ae1d3b31d336d0defd0f7ef848a1dee32ba07189f7ebe2",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-3ai-echo-2026-09-09-00-34-35.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  701,
+                           "bytesAfter":  698,
+                           "sha256Before":  "98488a888aa09c42334bf30da7ef1991869d264aea9596679575f633792dad32",
+                           "sha256After":  "b7880abcba6e118bcc49a01f0d991db873938055dc7d10be9018d5bf53f5fd4f",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-4ai-echo-2026-09-09-00-47-20.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  509,
+                           "bytesAfter":  506,
+                           "sha256Before":  "8240a783359c2e8980adc718fca4beba809e2e0f958732d38f93414b0c41c5f0",
+                           "sha256After":  "a52642439edc8cb2571a6d5f674c757262b348db3b14f8ddd8ba4b25ddf5c7f5",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-5ai-echo-2026-09-09-05-02-35.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  942,
+                           "bytesAfter":  939,
+                           "sha256Before":  "abec1c6a326f67d2295742693464de8646973258d7c4ef63a75b98ae775fe189",
+                           "sha256After":  "43bda8f10a69ec7ef8773fad1e4fe765e85cade50d2f00631d49a095213def04",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-5ai-full-2026-09-09-06-58-11.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  576,
+                           "bytesAfter":  573,
+                           "sha256Before":  "50340ff9640e947957fdcfcb2744543352793d610b20f6f9f298c92548359c9b",
+                           "sha256After":  "e3a95b8aaafeaef14da263958d9915bc3cf5962e97492213891d468fcf4eddce",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-cdp-connect-2026-09-08-23-43-22.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  21741,
+                           "bytesAfter":  21738,
+                           "sha256Before":  "1e14aaa8ea3222a7299286c81a715cba1726e7a99d965b4b54e25c39ca553aa5",
+                           "sha256After":  "2ec68af028802176b4402fcaf98b14a83b5f8a0b1d4a0e61602559364d85ad88",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-chat-continuation-2026-09-09-05-43-48.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  532,
+                           "bytesAfter":  529,
+                           "sha256Before":  "9e23796a22c4646a117595f13dee58b760b2fff42b111c9c4306b4ec610a9f9e",
+                           "sha256After":  "b1e8a898fb825d633299d3a0195e7621fa82e695cfcf2f4a7f6d37017e3e1c35",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-chat-vs-work-2026-09-09-06-58-23.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  2300,
+                           "bytesAfter":  2297,
+                           "sha256Before":  "c7fb2992e4a00c39d35c953e3058c6ec6973102297cbfb62b17b0432d783d33c",
+                           "sha256After":  "333a05f90714ecc3edd7e61a5e95c98902c5414a3d8562a1c6bf1a7d0bd10e1c",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-copilot-echo-2026-09-09-04-32-29.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  251,
+                           "bytesAfter":  248,
+                           "sha256Before":  "1ad110c0b39a358994dc4b9184d0df02a91132c9801c223d543515ef67488c1e",
+                           "sha256After":  "fdde5b60cec7f59ce3eb2b9e508fdaf5b0b92921505d831e40f5aed002954bad",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-council-3-2026-09-09-05-37-34.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  556,
+                           "bytesAfter":  553,
+                           "sha256Before":  "b795eb383dddc18721a03c7dda517d71d262e38b271f77d9a8022cb092a8a6e5",
+                           "sha256After":  "54d7277198c430bbdd5f78ec1f6adb90fab414727b0923ae78416b9db8f31d6b",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-deepseek-enter-2026-09-09-00-33-42.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  306,
+                           "bytesAfter":  303,
+                           "sha256Before":  "e6a3d36940ee742a8b6ef3c9a91cea56d6328738dce4249c109145108f78f402",
+                           "sha256After":  "89b218096b8cb0ff6860079b463e322920608ec28f19f08f0159cf5cb542aff7",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-engineering-goal-2026-09-09-00-57-34.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  652,
+                           "bytesAfter":  649,
+                           "sha256Before":  "253e5889f3ffcd4036632b6d311381880e340f30da9ac2c9b0aa7d388358737d",
+                           "sha256After":  "8f79e1289eff4fcdb222a9d6bed99f73b1944f803c86d3d9a359f0300627cdfe",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-external-archive-2026-09-09-01-04-18.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  473,
+                           "bytesAfter":  470,
+                           "sha256Before":  "c43154b67544d9ee1829b3a53b5d249fc73edc2ddb2f7f3b1418fdfdff9585cd",
+                           "sha256After":  "c171feec625218fcbadb5f7436a133d27b68ed78ca83d2aacfd109d28416b863",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-finding-chatgpt-send-2026-09-09-01-10-38.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  445,
+                           "bytesAfter":  442,
+                           "sha256Before":  "94cc3b856979a1162cba73fffe326a1d0bfcbceb587ec40cf275d737346a2b47",
+                           "sha256After":  "c59e8bcc5a9ca1acfa698261b48d31910c1f39ca72699f65c695ead135a69123",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-finding-qwen-2026-09-09-07-10-04.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  667,
+                           "bytesAfter":  664,
+                           "sha256Before":  "2f7c81d8cbbae6c606fd3c59fc164708dcc725d68149563473c35d621f4f9092",
+                           "sha256After":  "407b0be21a829d8eb9fe6601bd1289d2d9d770ecb35070f0549df03a09020923",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-finding-qwen-vision-2026-09-09-09-36-49.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  628,
+                           "bytesAfter":  625,
+                           "sha256Before":  "5d42bfd626777e48b8f1d5e97a69df5c1666c4de0e96fb67ac08e899f1a36cc5",
+                           "sha256After":  "0974e3df9b1bb73301ce106efd39ddf6548ada490f4e49dd888aa512d23a77a6",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-finding-wedge-2026-09-09-01-04-18.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  382,
+                           "bytesAfter":  379,
+                           "sha256Before":  "9c7bf479bfe6b324acfb184209c0facdaa30bbf3f1cc4c4c090dfb14012345b4",
+                           "sha256After":  "5fa6181ca91b4c60a1c4af8b5da46d6e4468464819d9916bb774d735c9455225",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-grok-echo-2026-09-09-00-42-47.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  209,
+                           "bytesAfter":  206,
+                           "sha256Before":  "0f92c7ce7555cc10f9f51a1df6b0a50688c1a23b15f5dda25e8ffc074f0f900c",
+                           "sha256After":  "a88483653ac421fd42046583b39d36500f4db17ac0ce562ba11c7abaf6ff7d21",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-layout-4-2026-09-09-09-46-46.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  710,
+                           "bytesAfter":  707,
+                           "sha256Before":  "bf6e4df3bb2c5cad1d9e04714f7fbe863a41ed44a9b1a7fddfd4d0c5e808f014",
+                           "sha256After":  "d48235d686c5d15a254660377435235c0c0d9734ed5d659f73acfa043351725a",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-layout-auto-2026-09-09-09-35-29.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  501,
+                           "bytesAfter":  498,
+                           "sha256Before":  "539664179ac12eda2315b329c77369ab1d53bdf4a1c0f1dc1069c4a7c10aba76",
+                           "sha256After":  "5d0400faf8f1fece2725c9bd1f7cf2e23e1ebc3a5eadcc987e97b91c2881728e",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-layout-giveway-2026-09-09-10-03-11.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  1654,
+                           "bytesAfter":  1651,
+                           "sha256Before":  "072ac0ec49813ab0fa1d2d2bf555573e912afedd4606ce78310f1e621af496aa",
+                           "sha256After":  "d9f7948347e1c7e7c3a30ab56a213a165facecce6e4f20496f590f1fb1a2288d",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-layout-monitor-2026-09-09-09-51-46.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  864,
+                           "bytesAfter":  861,
+                           "sha256Before":  "e78f91ce8607a3e67c8facb86e83c56d1e38b822ef72f718c6bb299cfe511928",
+                           "sha256After":  "2f07ff73bd37217cadb9b0fdc7ed4a50fc0c99313a582940aee21849dc377fc4",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-research-chain-2026-09-09-07-15-29.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  1073,
+                           "bytesAfter":  1070,
+                           "sha256Before":  "f1f5fba9a2df7180eedadf92105e156fcd8c8db77912a9e036688bc8f3af9da9",
+                           "sha256After":  "13775caba65475617b01a0c6554873a37df5a7868daef9ef553d9a603892a79b",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-research-ready-2026-09-09-08-52-35.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  1030,
+                           "bytesAfter":  1027,
+                           "sha256Before":  "c0a4fb3f058f26216340d1ee6183f0351b9f3837f98ee0c52b005f47de30462d",
+                           "sha256After":  "f892e41a5e69d35e2d9c262394d09109770c71cbdefc586d9703ceb4422d4b19",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-round1-2026-09-09-00-18-29.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  1196,
+                           "bytesAfter":  1193,
+                           "sha256Before":  "40132b392b5633801e2e9a68ae882c0959b4769b7fa0a89238b8b6011c0000da",
+                           "sha256After":  "04d781f7ad12138bfbcec6761c756bbbbec17e48b0e5680cd8e9e3fb94bd6cbf",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/live/live-window-host-open-2026-09-09-10-12-13.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  3806,
+                           "bytesAfter":  3803,
+                           "sha256Before":  "210ce4fe041303b4f3a5dad15dd158318357bde54ac57407bc50b1dba345d3d9",
+                           "sha256After":  "5ca5416352869e02ea9653e478cfac12b077bdd67c125153d1db66101aeba233",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/release/portable-smoke-2026-09-08-22-26-57.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  584,
+                           "bytesAfter":  581,
+                           "sha256Before":  "7d2bdce7fa5a068d9b498f1d5f112fdcd82c7aee102e56e7efd3ceb826ccea9e",
+                           "sha256After":  "0295402bc251147d0b9106ddee55d8c342a9b89243ecffbf9d767b32da1cf78e",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/restart/app-smoke-2026-09-08-22-26-04.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  356,
+                           "bytesAfter":  353,
+                           "sha256Before":  "4cfaea1a1cd9a0800352bb6a7947a4bf7b3f9bb7ec4717e1db0140b382a213de",
+                           "sha256After":  "d63187c897b0add6f5fc7fcae4ccc63126aa2142b0cbc16a37edff10c27ddced",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/restart/app-smoke-research-ui-2026-09-08-22-38-23.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  370,
+                           "bytesAfter":  367,
+                           "sha256Before":  "07e2d9d472930156df3ba8e6cdf7182caea6fe39c37ea3c0554cd5b896eda56d",
+                           "sha256After":  "19def9c9683dcc2f1daa6611e0fdb3e2650973d931333aedb2c8f7850303e90e",
+                           "dryRun":  false
+                       },
+                       {
+                           "path":  "Update-Plan/overcomplete/evidence/restart/restart-2026-09-08-22-24-03.json",
+                           "action":  "strip-utf8-bom",
+                           "bytesBefore":  562,
+                           "bytesAfter":  559,
+                           "sha256Before":  "9cb1da25ca2997f347af6ad6960bf2a315b5709ba38e0ab9d8c0334379bddeba",
+                           "sha256After":  "4d19418c6a40fbd8a764a29a1b31d95f9bbab9a01af357243518e146bf0abb37",
+                           "dryRun":  false
+                       }
+                   ],
+    "malformedRepair":  {
+                            "path":  "Update-Plan/overcomplete/evidence/live/live-finding-qwen-2026-09-09-07-10-04.json",
+                            "action":  "extract-leading-json-object",
+                            "hadBom":  false,
+                            "sha256Before":  "407b0be21a829d8eb9fe6601bd1289d2d9d770ecb35070f0549df03a09020923",
+                            "sha256After":  "abfbce4bd24d107b20b610563cbe5e2ebf50b7676d59358ecdddba1e6c8422fd",
+                            "bytesBefore":  500,
+                            "jsonObjectBytes":  499,
+                            "tailBytes":  159,
+                            "tailPreservedIn":  "Update-Plan/overcomplete/evidence/live/live-finding-qwen-2026-09-09-07-10-04.json.tail.md",
+                            "extractedParses":  true,
+                            "tailPreview":  "-- round2 non-visual: geometry/aria/text/icon scans around the composer found only voice/header controls; no send affordance discoverable. Recorded limitation.",
+                            "dryRun":  false
+                        },
+    "failures":  [
+
+                 ]
+}
