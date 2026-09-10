@@ -1,4 +1,4 @@
-# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-10T00:02:17.053Z）
+# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-10T00:30:02.398Z）
 
 | Requirement | Status | Implementation | Evidence |
 |---|---|---|---|
@@ -24,7 +24,7 @@
 | L-20 | LOCKED_PASS | - | R6/R7/R34/R38/R39 |
 | R-101 | PASS | electron/engineering/gate-runner.ts; electron/commander/main-commander.ts runPlan auto-attach + completion gates + try/catch; src/shared/result-validator.ts unavailable semantics | tests gate-runner(+3)/result-validator(+3)/verification-contract seam v2; evidence/r101-seam-v2.json |
 | R-201 | PASS | src/shared/action-readiness.ts; electron/computer/backends/dom-page.ts; electron/computer/provider-page-repair.ts | tests action-readiness(+5)/provider-page-repair R-201; evidence/r201-action-readiness.json |
-| R-202 | BLOCKED_EXTERNAL | R36 guarded slot; R4/R8 executor; scripts/live-qwen-probe.cjs attempt | Update-Plan/2026-09-09-closure/evidence/r202-blocked-external.json; Update-Plan/2026-09-09-closure/evidence/r202-live-probe.json |
+| R-202 | BLOCKED_EXTERNAL | R36 guarded slot; R4/R8 executor; scripts/live-qwen-probe.cjs attempt | Update-Plan/2026-09-09-closure/evidence/r202-live-provider-repair.json; Update-Plan/2026-09-09-closure/evidence/r202-live-probe.json |
 | R-203 | PASS | src/shared/session-lifecycle.ts; electron/identity/session-lifecycle-ledger.ts; electron/account-sessions.ts; electron/main.ts | tests session-lifecycle(+6); evidence/r203-session-lifecycle.json |
 | R-204 | PASS | src/shared/conversation-policy.ts; contracts/store/main-commander/main.ts | tests conversation-policy(+2); evidence/r204-conversation-policy.json |
 | R-205 | PASS | src/shared/login-scan.ts; electron/main.ts boss:login-scan | tests login-scan(+2); evidence/r205-login-scan.json |
@@ -59,5 +59,5 @@ BLOCKED_EXTERNAL: 1 · LIVE_REQUIRED: 1 · LOCKED_PASS: 20 · PASS: 28
 ## Terminal state assessment
 - Pending (non-terminal): R-901(LIVE_REQUIRED)
 - BLOCKED_EXTERNAL recorded: R-202
-- Evidence problems: R-202: missing legal structured BLOCKED_EXTERNAL evidence (Host-A §5 schema)
+- Evidence problems: none
 - Legal terminal now: **NO_LEGAL_TERMINAL_YET**

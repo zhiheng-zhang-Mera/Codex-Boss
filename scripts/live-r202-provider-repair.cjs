@@ -108,7 +108,10 @@ function newRunId() { return `r202-${new Date().toISOString().replace(/[:.]/g, "
     const target = await findTarget(HOST_PATTERN, 60_000);
     if (!target) throw new Error("provider page target not found");
 
-    // E1 preflight: readiness gate — host, no /auth path, composer visible, authenticated.
+    // E1 preflight: readiness gate — host, no /auth path, composer visible,
+    // authenticated. Fail-closed auth: a visible login/register CTA means the
+    // provider session is NOT authenticated even when a composer is rendered
+    // (e.g. Qwen renders its landing composer while logged out).
     const loginMode = process.env.LIVE_R202_LOGIN === "1";
     const maxTries = loginMode ? 240 : 18;
     let preflight = null;
@@ -118,9 +121,13 @@ function newRunId() { return `r202-${new Date().toISOString().replace(/[:.]/g, "
         const inputs = [...document.querySelectorAll('textarea.message-input-textarea, [contenteditable="true"], [role="textbox"]')].filter(el => {
           const r = el.getClientRects(); return r.length > 0;
         });
-        const ready = location.hostname === ${JSON.stringify(HOST_PATTERN)} && !location.pathname.includes('/auth') && inputs.length > 0;
-        const auth = !location.href.includes('/login') && !location.pathname.includes('/auth');
-        return JSON.stringify({ host: location.hostname, href: location.href.slice(0, 200), ready, auth, composer: inputs.length > 0 ? String(inputs[0].className).slice(0, 60) : null });
+        const cta = [...document.querySelectorAll('button, a, [role="button"]')].map(el => (el.textContent || '').trim()).find(t => /^(登录|注册|Log in|Sign in|Log In|Sign In|登录\/注册|Log in \\/ Sign up)$/.test(t));
+        const loginCta = cta || /(登录|注册|log in|sign in)/i.test((document.body.innerText || '').slice(0, 300));
+        const composer = inputs.length > 0;
+        const onAuthPath = location.pathname.includes('/auth') || location.href.includes('/login');
+        const ready = location.hostname === ${JSON.stringify(HOST_PATTERN)} && !onAuthPath && composer;
+        const auth = ready && !loginCta;
+        return JSON.stringify({ host: location.hostname, href: location.href.slice(0, 200), ready, auth, loginCta, composer: composer ? String(inputs[0].className).slice(0, 60) : null });
       })()`).catch((error) => `PREF_ERROR ${String(error).slice(0, 200)}`);
       let parsed = null;
       try { parsed = JSON.parse(raw); } catch { parsed = { raw }; }

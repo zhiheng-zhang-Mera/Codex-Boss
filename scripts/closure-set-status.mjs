@@ -113,8 +113,9 @@ if (hasFlag("--transitions")) { console.log(JSON.stringify(MANIFEST_TRANSITIONS,
 
 const id = process.argv[2];
 const newStatus = process.argv[3];
-if (!id || !newStatus) { console.error("usage: closure-set-status.mjs <REQ-ID> <NEW-STATUS> [--summary ..] [--evidence ..] [--reason ..]"); process.exit(2); }
-if (!ALLOWED_MANIFEST_STATES.includes(newStatus)) { console.error(`invalid status ${newStatus}; allowed: ${ALLOWED_MANIFEST_STATES.join(", ")}`); process.exit(2); }
+const refreshMode = hasFlag("--refresh");
+if (!id || (!newStatus && !refreshMode)) { console.error("usage: closure-set-status.mjs <REQ-ID> <NEW-STATUS> [--summary ..] [--evidence ..] [--reason ..] | closure-set-status.mjs <REQ-ID> --refresh [--summary ..] [--evidence ..] [--reason ..]"); process.exit(2); }
+if (!refreshMode && !ALLOWED_MANIFEST_STATES.includes(newStatus)) { console.error(`invalid status ${newStatus}; allowed: ${ALLOWED_MANIFEST_STATES.join(", ")}`); process.exit(2); }
 
 const { manifest, raw } = readManifest();
 const schemaErrors = validateManifestSchema(manifest);
@@ -122,10 +123,13 @@ if (schemaErrors.length) { console.error("schema errors:", schemaErrors.join("; 
 
 const req = manifest.requirements.find((r) => r.id === id);
 if (!req) { console.error(`unknown requirement ${id}`); process.exit(2); }
-const transition = transitionAllowed(req.status, newStatus);
-if (!transition.ok) {
-  console.error(`illegal transition ${req.status} -> ${newStatus}: ${transition.reason}`);
-  process.exit(2);
+const targetStatus = refreshMode ? req.status : newStatus;
+if (!refreshMode) {
+  const transition = transitionAllowed(req.status, newStatus);
+  if (!transition.ok) {
+    console.error(`illegal transition ${req.status} -> ${newStatus}: ${transition.reason}`);
+    process.exit(2);
+  }
 }
 
 const summary = getArg("--summary");
@@ -134,12 +138,17 @@ const evidenceEntries = process.argv
   .filter((a, i) => i > 3 && (a === "--evidence" || process.argv[i - 1] === "--evidence"))
   .filter((a) => a !== "--evidence");
 
-const nextReq = { ...req, status: newStatus };
-if (evidenceEntries.length) nextReq.evidence = [...new Set([...(req.evidence ?? []), ...evidenceEntries])];
+const nextReq = { ...req, status: targetStatus };
+if (refreshMode) {
+  if (!evidenceEntries.length) { console.error("--refresh requires at least one --evidence path"); process.exit(2); }
+  nextReq.evidence = [...new Set(evidenceEntries)];
+} else if (evidenceEntries.length) {
+  nextReq.evidence = [...new Set([...(req.evidence ?? []), ...evidenceEntries])];
+}
 if (summary) nextReq.summary = summary;
 
-const ev = evidenceOkFor(nextReq, newStatus);
-if (!ev.ok) { console.error(`evidence validation failed for ${id} -> ${newStatus}: ${ev.reasons.join("; ")}`); process.exit(2); }
+const ev = evidenceOkFor(nextReq, targetStatus);
+if (!ev.ok) { console.error(`evidence validation failed for ${id} -> ${targetStatus}: ${ev.reasons.join("; ")}`); process.exit(2); }
 
 const index = manifest.requirements.findIndex((r) => r.id === id);
 manifest.requirements[index] = nextReq;
@@ -155,12 +164,13 @@ const rereadRaw = fs.readFileSync(MANIFEST, "utf8").replace(/^\uFEFF/, "");
 JSON.parse(rereadRaw); // parse verify
 const reread = JSON.parse(rereadRaw);
 const finalReq = reread.requirements.find((r) => r.id === id);
-if (finalReq.status !== newStatus) { console.error("re-read verify failed"); process.exit(2); }
+if (finalReq.status !== targetStatus) { console.error("re-read verify failed"); process.exit(2); }
 
 const log = {
-  change: `${id}: ${req.status} -> ${newStatus}`, at: new Date().toISOString(),
-  summary: summary ?? null, reason: reason ?? null, evidenceAdded: evidenceEntries,
+  change: refreshMode ? `${id}: evidence refreshed (status stays ${req.status})` : `${id}: ${req.status} -> ${newStatus}`,
+  at: new Date().toISOString(),
+  summary: summary ?? null, reason: reason ?? null, evidence: [...new Set(evidenceEntries)],
   by: "closure-set-status.mjs",
 };
 console.log(JSON.stringify(log, null, 2));
-console.log(`CHANGE_LOG ${JSON.stringify({ id, from: req.status, to: newStatus, reason: reason ?? null })}`);
+console.log(`CHANGE_LOG ${JSON.stringify({ id, from: req.status, to: targetStatus, refresh: !!refreshMode, reason: reason ?? null })}`);
