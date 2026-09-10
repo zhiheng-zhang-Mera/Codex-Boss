@@ -39,3 +39,39 @@ export interface LoginHealthReport {
 export function isHumanGated(report: LoginHealthReport): boolean {
   return report.requiresMFA || report.requiresCaptcha || report.expired || report.requiresLogin;
 }
+
+/** 10N: a pooled session record tracked by the lifecycle manager. */
+export interface SessionPoolRecord {
+  sessionId: string;
+  provider: string;
+  kind: SessionKind;
+  lastUsedAt: string; // ISO
+  createdAt: string; // ISO
+  active: boolean;
+}
+
+/** Default session-pool bound: bounded history growth for multi-device concurrency. */
+export const DEFAULT_SESSION_POOL_LIMIT = 8;
+
+/** Session kinds are AUTOMATICALLY reaped when stale (TEMPORARY/AUTO_DELETE) or kept (REUSABLE/PERSISTENT). */
+export function reapableWhenStale(kind: SessionKind): boolean {
+  return kind === "TEMPORARY" || kind === "AUTO_DELETE";
+}
+
+/** Deterministic stale session selection (oldest lastUsed first, reapable kinds only). */
+export function staleSessions(records: SessionPoolRecord[], nowIso: string, maxAgeMs: number): SessionPoolRecord[] {
+  const cutoff = Date.parse(nowIso) - maxAgeMs;
+  return records
+    .filter((record) => reapableWhenStale(record.kind) && !record.active && Date.parse(record.lastUsedAt) < cutoff)
+    .sort((a, b) => a.lastUsedAt.localeCompare(b.lastUsedAt));
+}
+
+/** Deterministic GC suggestion: when at/over the pool bound, drop the oldest reapable session. */
+export function suggestPoolGc(records: SessionPoolRecord[], limit = DEFAULT_SESSION_POOL_LIMIT): { overflow: number; suggestDropIds: string[] } {
+  const overflow = Math.max(0, records.length - limit);
+  if (!overflow) return { overflow: 0, suggestDropIds: [] };
+  const reapable = records
+    .filter((record) => reapableWhenStale(record.kind))
+    .sort((a, b) => a.lastUsedAt.localeCompare(b.lastUsedAt));
+  return { overflow, suggestDropIds: reapable.slice(0, overflow).map((record) => record.sessionId) };
+}
