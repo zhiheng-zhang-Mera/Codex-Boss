@@ -14,6 +14,7 @@ import {
 import { adaptiveCapabilityEnabled, type AdaptiveFlags } from "../../../src/shared/adaptive-flags";
 import { metricDeviation, type MetricEstimate, type ProviderBehaviourProfile } from "../../../src/shared/provider-profile";
 import { structuralHashOf } from "../../../src/shared/task-fingerprint";
+import { planExploration, type ExplorationOptions } from "./exploration-policy";
 
 /**
  * Engine Phase 6 — adaptive scorer (soft ranking only, fail-open).
@@ -38,6 +39,8 @@ export interface AdaptiveScorerOptions {
   policyVersion?: string;
   now?: () => string;
   decisionIdProvider?: () => string;
+  /** Phase 9 exploration knobs (bounded; set epsilon 0 to disable exploration). */
+  exploration?: ExplorationOptions;
 }
 
 export class AdaptiveScorer implements AdaptiveReranker {
@@ -46,6 +49,7 @@ export class AdaptiveScorer implements AdaptiveReranker {
   private readonly policyVersion: string;
   private readonly now: () => string;
   private readonly decisionIdProvider: () => string;
+  private readonly exploration?: ExplorationOptions;
 
   constructor(options: AdaptiveScorerOptions) {
     this.profiles = options.profiles;
@@ -53,6 +57,7 @@ export class AdaptiveScorer implements AdaptiveReranker {
     this.policyVersion = options.policyVersion ?? ADAPTIVE_POLICY_VERSION;
     this.now = options.now ?? (() => new Date().toISOString());
     this.decisionIdProvider = options.decisionIdProvider ?? (() => `rd-${structuralHashOf([this.now(), Math.random().toString(36).slice(2, 8)])}`);
+    this.exploration = options.exploration;
   }
 
   enabled(): boolean {
@@ -74,6 +79,13 @@ export class AdaptiveScorer implements AdaptiveReranker {
     const scored: AdaptiveCandidateScore[] = candidates.map((candidate) => this.scoreCandidate(request, candidate));
     const byId = new Map(scored.map((score) => [score.runtimeId, score]));
 
+    // Phase 9: bounded, deterministic exploration among competitive candidates.
+    const plan = planExploration(
+      scored.map((score) => ({ runtimeId: score.runtimeId, expectedUtility: score.expectedUtility ?? 0, confidence: score.confidence ?? 0 })),
+      { ...(this.exploration ?? {}), pinnedRuntime: request.pinnedRuntime }
+    );
+    const adjusted = new Map(plan.assignments.map((assignment) => [assignment.runtimeId, assignment.adjustedUtility]));
+
     const pinned = request.pinnedRuntime;
     const ordered = [...candidates].sort((a, b) => {
       // Pin keeps explicit user priority among eligible candidates (A26).
@@ -81,9 +93,9 @@ export class AdaptiveScorer implements AdaptiveReranker {
         if (a.runtimeId === pinned && b.runtimeId !== pinned) return -1;
         if (b.runtimeId === pinned && a.runtimeId !== pinned) return 1;
       }
-      const left = byId.get(a.runtimeId)!;
-      const right = byId.get(b.runtimeId)!;
-      const delta = (right.expectedUtility ?? Number.NEGATIVE_INFINITY) - (left.expectedUtility ?? Number.NEGATIVE_INFINITY);
+      const left = adjusted.get(a.runtimeId) ?? byId.get(a.runtimeId)?.expectedUtility ?? Number.NEGATIVE_INFINITY;
+      const right = adjusted.get(b.runtimeId) ?? byId.get(b.runtimeId)?.expectedUtility ?? Number.NEGATIVE_INFINITY;
+      const delta = right - left;
       if (delta !== 0) return delta;
       return a.rank - b.rank; // deterministic tie-break on the stable rank
     }).map((candidate, rank) => ({ ...candidate, rank }));
@@ -95,7 +107,7 @@ export class AdaptiveScorer implements AdaptiveReranker {
       candidates: scored,
       selectedRuntimeId: ordered[0]?.runtimeId,
       usedFallbackRouter: false,
-      exploration: { enabled: false, reason: "phase 6 exploitation only" }
+      exploration: { enabled: plan.explore, reason: plan.reason }
     };
     return { ordered, decision };
   }
