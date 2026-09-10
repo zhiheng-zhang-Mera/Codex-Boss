@@ -1,0 +1,21 @@
+{
+  "phase": "10S",
+  "requirement": "10S-acceptance-system",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "10.x acceptance system — per-phase requirement→implementation→test→scenario→evidence; this manifest records 10A–10S all PASS with a green regression battery",
+  "implementation": [
+    "Update-Plan/10-x/requirement-manifest.json: 10.x-own manifest (schemaVersion 1, contractSetVersion 10.0.0), every phase id/title/status/evidence/deliverables; independent of old closure manifest state",
+    "Per-phase evidence JSON under Update-Plan/10-x/evidence/<phase>/ (10A–10R) each with requirement/implementation/tests/gates/notes",
+    "Update-Plan/10-x/ARCHITECTURE.md + 6 contract docs from 10A bind the acceptance vocabulary"
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10a.test.ts (4)", "tests/unit/tenx-phase-10b.test.ts (9)", "tests/unit/tenx-phase-10c.test.ts (5)", "tests/unit/tenx-phase-10d.test.ts (10)", "tests/unit/tenx-phase-10e.test.ts (9)", "tests/unit/tenx-phase-10f.test.ts (11)", "tests/unit/tenx-phase-10g.test.ts (5)", "tests/unit/tenx-phase-10h.test.ts (6)", "tests/unit/tenx-phase-10i.test.ts (8)", "tests/unit/tenx-phase-10j.test.ts (6)", "tests/unit/tenx-phase-10k.test.ts (7)", "tests/unit/tenx-phase-10l.test.ts (7)", "tests/unit/tenx-phase-10m.test.ts (6)", "tests/unit/tenx-phase-10n.test.ts (9)", "tests/unit/tenx-phase-10o.test.ts (7)", "tests/unit/tenx-phase-10p.test.ts (7)", "tests/unit/tenx-phase-10q.test.ts (3)", "tests/unit/tenx-phase-10r.test.ts (4)"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10x": "10A–10R suites PASS (see full-suite re-run)",
+    "full_suite": "baseline 167 + 10x suites all green (final verification run)"
+  },
+  "notes": "Acceptance is evidence-driven per taskbook §22/§31: each phase has deterministic tests + evidence JSON; scenario/regression evidence preserved (never deleted by later builds)."
+}

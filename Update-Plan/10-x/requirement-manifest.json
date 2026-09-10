@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "program": "Host-B 10.x forward development (distributed Boss runtime)",
+  "branch": "9-10-M",
+  "updatedAt": "2026-09-10",
+  "contractSetVersion": "10.0.0",
+  "phases": [
+    {
+      "id": "10A",
+      "title": "Architecture boundary definition",
+      "status": "PASS",
+      "evidence": "evidence/10A/10A-architecture.json",
+      "deliverables": ["Update-Plan/10-x docs (7)", "src/shared/tenx contract skeleton"]
+    },
+    {
+      "id": "10B",
+      "title": "Node identity & capability model",
+      "status": "PASS",
+      "evidence": "evidence/10B/10B-node-identity.json",
+      "deliverables": ["TenxNodeRegistry durable", "heartbeat/refresh state derivation"]
+    },
+    {
+      "id": "10C",
+      "title": "Device self-inspection",
+      "status": "PASS",
+      "evidence": "evidence/10C/10C-self-inspection.json",
+      "deliverables": ["inspectDeviceV10 NodeCapabilityReport", "probe isolation"]
+    },
+    {
+      "id": "10D",
+      "title": "Fleet control plane",
+      "status": "PASS",
+      "evidence": "evidence/10D/10D-fleet-controller.json",
+      "deliverables": ["TenxFleetController durable", "Scenarios 1/5"]
+    },
+    {
+      "id": "10E",
+      "title": "Task lease & ownership",
+      "status": "PASS",
+      "evidence": "evidence/10E/10E-task-lease.json",
+      "deliverables": ["TenxTaskLeaseRegistry", "checkpoint takeover", "no reclaim after transfer"]
+    },
+    {
+      "id": "10F",
+      "title": "Dynamic scheduler",
+      "status": "PASS",
+      "evidence": "evidence/10F/10F-scheduler.json",
+      "deliverables": ["allocateTask explainable", "scheduler facade + provider matrix consumption"]
+    },
+    {
+      "id": "10G",
+      "title": "Shared knowledge space vNext",
+      "status": "PASS",
+      "evidence": "evidence/10G/10G-knowledge-space.json",
+      "deliverables": ["TenxKnowledgeSpace (one user space, versioned)"]
+    },
+    {
+      "id": "10H",
+      "title": "Knowledge pipeline",
+      "status": "PASS",
+      "evidence": "evidence/10H/10H-knowledge-pipeline.json",
+      "deliverables": ["TenxKnowledgePipeline (event→record)", "durable audit"]
+    },
+    {
+      "id": "10I",
+      "title": "Knowledge dedup & conflict",
+      "status": "PASS",
+      "evidence": "evidence/10I/10I-knowledge-conflict.json",
+      "deliverables": ["TenxKnowledgeConflicts (coexist/merge/supersede/stale)"]
+    },
+    {
+      "id": "10J",
+      "title": "Local fallback + deferred sync",
+      "status": "PASS",
+      "evidence": "evidence/10J/10J-knowledge-sync.json",
+      "deliverables": ["TenxKnowledgeSync (normal/fallback/sync, no overwrite newer)"]
+    },
+    {
+      "id": "10K",
+      "title": "Artifact/memory architecture",
+      "status": "PASS",
+      "evidence": "evidence/10K/10K-artifact.json",
+      "deliverables": ["TenxArtifactLedger append-only sha256"]
+    },
+    {
+      "id": "10L",
+      "title": "Network routing vNext",
+      "status": "PASS",
+      "evidence": "evidence/10L/10L-network-routing.json",
+      "deliverables": ["TenxNetworkRegistry direct-first per node"]
+    },
+    {
+      "id": "10M",
+      "title": "Provider reachability matrix",
+      "status": "PASS",
+      "evidence": "evidence/10M/10M-provider-matrix.json",
+      "deliverables": ["TenxProviderMatrixStore feeding scheduler"]
+    },
+    {
+      "id": "10N",
+      "title": "Session lifecycle vNext",
+      "status": "PASS",
+      "evidence": "evidence/10N/10N-session-lifecycle.json",
+      "deliverables": ["TenxSessionLifecycle TEMPORARY default, bounded pool"]
+    },
+    {
+      "id": "10O",
+      "title": "Login health",
+      "status": "PASS",
+      "evidence": "evidence/10O/10O-login-health.json",
+      "deliverables": ["TenxLoginHealthScanner human-gated"]
+    },
+    {
+      "id": "10P",
+      "title": "Fleet failure isolation scenarios",
+      "status": "PASS",
+      "evidence": "evidence/10P/10P-failure-isolation.json",
+      "deliverables": ["Scenario tests 1-7"]
+    },
+    {
+      "id": "10Q",
+      "title": "Heterogeneous platform contract",
+      "status": "PASS",
+      "evidence": "evidence/10Q/10Q-platform-neutral.json",
+      "deliverables": ["platform-audit.ts", "TenxHostAdapter seam"]
+    },
+    {
+      "id": "10R",
+      "title": "Observability",
+      "status": "PASS",
+      "evidence": "evidence/10R/10R-observability.json",
+      "deliverables": ["TenxObservability FleetAggregate"]
+    },
+    {
+      "id": "10S",
+      "title": "10.x acceptance system",
+      "status": "PASS",
+      "evidence": "evidence/10S/10S-acceptance.json",
+      "deliverables": ["this manifest", "per-phase evidence", "regression battery"]
+    }
+  ],
+  "summary": "Every phase 10A–10S PASS with requirement→implementation→test→scenario→evidence recorded. Full forward suite runs green with the 9.x baseline (typecheck + all unit tests)."
+}
