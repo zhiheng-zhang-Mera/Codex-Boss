@@ -309,7 +309,13 @@ describe("soak harness run (P3)", () => {
       tier: "smoke",
       workDir: path.join(dir, "work"),
       sampleIntervalMs: 500,
-      budgetSeconds: 2,
+      // The retry counter only moves when the supervisor's retry actually runs, and
+      // a retryable RETRYABLE_FAILURE is first parked behind the recovery backoff
+      // `Math.min(60000, 1000 * 2 ** attempts)` — 2s on the first attempt
+      // (src/shared/interruption.ts). A 2s budget therefore raced that 2s backoff
+      // and flaked on slower runners with `retries === 0`. Give the retry cycle
+      // room to complete; this widens the window, it does not weaken the assertion.
+      budgetSeconds: 8,
       failureEvery: 2
     });
     expect(report.retries).toBeGreaterThan(0);

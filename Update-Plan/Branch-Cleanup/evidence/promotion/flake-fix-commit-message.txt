@@ -1,0 +1,30 @@
+test(host-m): widen the injected-retry soak budget off the recovery-backoff cliff
+
+Fix a flaky test that failed intermittently on CI: 
+tests/unit/host-soak-harness.test.ts "records an injected retry rather than
+hiding provider failures" asserted retries > 0 and intermittently observed 0
+(CI run 34453321713: AssertionError expected 0 to be greater than 0, while the
+sibling run of the same commit 8632ac5 passed).
+
+The retry counter only moves once the supervisor's retry actually runs, and a
+retryable failure is first parked behind the recovery backoff in
+src/shared/interruption.ts:20:
+
+  retryAt: Math.max(interruption.retryAt ?? 0, now + Math.min(60000, 1000 * 2 ** attempts))
+
+which is 1000 * 2 ** 1 = 2s on the first attempt. The test used a 2s
+budgetSeconds, so "a retry was counted" and "the budget expired" were racing at
+the same 2-second mark.
+
+Measured locally with a throwaway probe, 12 samples per budget:
+  budget=2s  min=6   zeros=0/12  values=[6,6,6,8,6,6,8,8,8,6,8,6]
+  budget=8s  min=28  zeros=0/12  values=[28 x12]
+
+Even on this machine the 2s budget left almost no margin, and the CI runner is
+measurably slower (the same validate job took 2m10s versus 1m24s), which is how
+it fell off the cliff and recorded zero retries.
+
+budgetSeconds is now 8. Only the test's window changed: the assertions, the
+harness and the production retry policy are untouched. Verified the file's 30
+tests pass, the previously flaky test passes 5 consecutive runs, and the full
+suite is 82 files / 687 tests.
