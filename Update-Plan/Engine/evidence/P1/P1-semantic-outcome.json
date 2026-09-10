@@ -1,0 +1,19 @@
+{
+  "phase": "Engine-P1",
+  "requirement": "Phase 1 — Semantic Outcome Foundation",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "RuntimeOutcome / SemanticOutcome fully decoupled with continuous behaviour axes, evaluator versioning, explicit UNCLASSIFIED and no runtime-fault pollution",
+  "implementation": [
+    "src/shared/provider-outcome.ts: RuntimeStatus + NON_SEMANTIC_RUNTIME_CODES (TIMEOUT/AUTH_REQUIRED/PAGE_CHANGED/RATE_LIMITED/…); SemanticOutcome (11 values); BehaviourAxes (completion/goalFidelity/restrictionImpact/sanitizationImpact/pipelineBlocking + optional quality/verificationScore); OUTCOME_AXES table (book §6 examples); deriveSemanticEvaluation with ordered deterministic classification (runtime fault ⇒ UNCLASSIFIED no-penalty → verification/format → refusal/partial/restriction/sanitization → goal drift → partial vs full); runtimeAttributable + penalizesSemanticProfile gates; detectGoalDrift (scope-change markers + unaddressed deliverables); SemanticEvaluationRevision + createEvaluationRevision (audit-preserving)",
+    "electron/learning/outcome-evaluator.ts: OutcomeEvaluator — flag-gated (semanticOutcomeEvaluation capability; off ⇒ evaluate() returns undefined), pinned evaluatorVersion, drift helper, revise() appending a revision instead of overwriting; never throws"
+  ],
+  "tests": [
+    "tests/unit/engine-phase-1.test.ts (14 tests): vocabulary + axis bounds/§6 examples; A02 FULL_COMPLETION; A03 HARD_REFUSAL inside a successful call (not a runtime failure); A04 PARTIAL_COMPLETION vs PARTIAL_REFUSAL distinguishable; A05 TIMEOUT ⇒ UNCLASSIFIED + zero restriction penalty; A06 AUTH_REQUIRED ⇒ no penalty; A07 PAGE_CHANGED ⇒ no semantic negative evidence; A08 GOAL_DRIFT recorded; FORMAT_FAILURE vs restriction separation; verification failure precedence; unobservable success ⇒ UNCLASSIFIED; non-semantic code classification; A36 learning-off ⇒ no evaluation; revision preserves original"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p1": "tests/unit/engine-phase-1.test.ts 14/14 PASS"
+  },
+  "notes": "Addresses acceptance A02-A08 and A36; the statistical-pollution requirement (100× TIMEOUT/AUTH/PAGE_CHANGED must not depress restriction/goalFidelity/completion) is enforced structurally via penalizesSemanticProfile=false and verified end-to-end in the Phase 2/5 profile tests."
+}
