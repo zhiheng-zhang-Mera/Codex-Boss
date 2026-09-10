@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "kind": "HOST_SENTINEL_SNAPSHOT",
-  "revision": "1b3c5acc512871bab0bd75ec0f44c5e6973da3a8",
+  "revision": "766c2ca324859ecb9b943114a6b75979734ab567",
   "branch": "9-10-M",
-  "capturedAt": "2026-09-10T03:15:12.344Z",
+  "capturedAt": "2026-09-10T03:56:51.155Z",
   "acceptance": {
     "overall": "PASS",
     "digest": "b4753c10",
@@ -90,7 +90,7 @@
   },
   "tests": {
     "files": 72,
-    "tests": 613,
+    "tests": 614,
     "failed": 0
   },
   "interfaces": {
@@ -6327,7 +6327,7 @@
   },
   "buildSize": {
     "dist": 317522,
-    "dist-electron": 1849680
+    "dist-electron": 1850231
   },
   "dependencies": {
     "cross-env": "latest",

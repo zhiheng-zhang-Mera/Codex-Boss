@@ -104,7 +104,7 @@
   ],
   "gates": {
     "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
-    "vitest": "72 files / 613 tests PASS (baseline 65 / 428)",
+    "vitest": "72 files / 614 tests PASS (baseline 65 / 428)",
     "acceptance_hub": "node scripts/host-acceptance.cjs runs the whole acceptance surface in one command",
     "fault_lab": "PASS: 9 CONTAINED, 4 ACCEPTED_DEGRADATION of 13",
     "soak": "see evidence/P3/P3-soak-harness.json",

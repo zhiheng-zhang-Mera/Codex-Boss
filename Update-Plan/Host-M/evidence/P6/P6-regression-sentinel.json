@@ -1,4 +1,4 @@
-﻿{
+{
   "phase": "Host-M-P6",
   "requirement": "P6 鈥?Regression Sentinel (baseline 鈫?candidate; report only, never modify production code)",
   "date": "2026-09-10",
@@ -20,8 +20,8 @@
   "gates": {
     "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
     "vitest": "72 files / 614 tests PASS (baseline 65/428 + Host-M P1-P7)",
-    "baseline": "Update-Plan/Host-M/evidence/baseline/sentinel-baseline.json 鈥?950 exported symbols, 273 declared-type groups, 13 dependencies, tests 72/614/0, captured at revision 1b3c5ac on branch 9-10-M",
-    "self_compare": "node scripts/host-regression.cjs --baseline <snapshot> 鈫?PASS: 0 regressions, 0 drift (only the benchmark dimension is UNAVAILABLE on this checkout because no benchmark artifact exists)"
+    "baseline": "Update-Plan/Host-M/evidence/baseline/sentinel-baseline.json: 950 exported symbols, 273 declared-type groups, 13 dependencies, tests 72/614/0, captured at revision 766c2ca on branch 9-10-M",
+    "self_compare": "node scripts/host-regression.cjs (with no --baseline) reported PASS: 0 regressions, 0 drift (only the benchmark dimension is UNAVAILABLE on this checkout because no benchmark artifact exists)"
   },
   "notes": "The sentinel is deliberately not wired into any merge gate: the plan says report only, and a sentinel that could block a merge would be a controller. The benchmark dimension is UNAVAILABLE here because artifacts/benchmark.json is not present; the P1 acceptance hub can produce it (tenx:benchmark), after which the dimension captures on its own."
 }
