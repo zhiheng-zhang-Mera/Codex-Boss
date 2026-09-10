@@ -178,3 +178,43 @@ main
 
 From that point the harness's role is External Auditor / Red-Team / Emergency
 Recovery / Independent Acceptance (§26), not primary construction team.
+
+### Observed state of the external gate (recorded, not interpreted away)
+
+The `Main-Protection` ruleset is active and matches §1 and the CODEOWNERS header
+exactly — read directly from the GitHub API, not assumed:
+
+| Rule | Value |
+|---|---|
+| Target | `refs/heads/main` |
+| Required status check | `validate`, with `strict_required_status_checks_policy: true` |
+| Pull request | `require_code_owner_review: true`, `required_approving_review_count: 0` |
+| `require_extra_approval_for_unattributed_changes` | `true` |
+| Force push | blocked (`non_fast_forward`) |
+| Branch deletion | blocked (`deletion`), creation restricted |
+| Bypass actors | one `User` (the Root Owner) with `bypass_mode: always` — Boss has none |
+
+On PR #1 itself, both `validate` runs report **pass** on the head SHA
+`d2820123ca3a64875e11a97e928b38e9810210f5`, and GitHub reports the PR as
+`mergeable_state: clean` with an empty `reviewDecision`.
+
+That is worth stating plainly rather than leaving for a reader to misread: this
+delivery was pushed with the **Root Owner's own git/GitHub credential**, at the
+Owner's explicit direction, so the PR author is `@zhiheng-zhang-Mera` — who is
+also the single Code Owner. GitHub does not require a Code Owner review from the
+pull request's own author, so the code-owner rule has nothing to block on for
+*this* PR. The rule is configured and would engage for a PR authored by any other
+identity — which is exactly the situation §19 describes for the future
+dedicated Boss identity, and part of why `READY_FOR_UNATTENDED_PROMOTION` is
+`BLOCKED_EXTERNAL` today.
+
+Consequently the "do not merge with an Owner bypass" requirement (§25.13) is
+satisfied by *not merging*, not by relying on the branch protection to stop a
+merge. Observed at close of round:
+
+```text
+PR #1            state = OPEN, mergedAt = null, mergedBy = null
+refs/heads/main  fc14988395d60a0fb9a8f7d955657b55a0bfce87  (unchanged from the base SHA)
+```
+
+The merge decision is left entirely to the Owner.
