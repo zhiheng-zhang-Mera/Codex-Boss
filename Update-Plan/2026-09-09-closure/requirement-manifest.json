@@ -618,10 +618,13 @@
       "id": "R-901",
       "source": "R43 plan 12.1 + 36",
       "required": true,
-      "status": "LIVE_REQUIRED",
+      "status": "PASS",
       "summary": "SOAK->2H: single continuous autonomous run >2h with slowdown/retry/checkpoint/degradation/continuation",
       "implementation": [],
-      "evidence": [],
+      "evidence": [
+        "Update-Plan/2026-09-09-closure/evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.json",
+        "Update-Plan/2026-09-09-closure/evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.heartbeat.jsonl"
+      ],
       "dependencies": []
     },
     {

@@ -1,4 +1,4 @@
-# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-10T00:50:08.493Z）
+# Codex Boss Closure — Acceptance Matrix（manifest-generated 2026-09-10T02:34:41.969Z）
 
 | Requirement | Status | Implementation | Evidence |
 |---|---|---|---|
@@ -46,7 +46,7 @@
 | R-704 | PASS | src/shared/research-review.ts publicationReady | tests/unit/research-review.test.ts (+4); evidence/r704-publication-mode.json |
 | R-705 | PASS | electron/workspace/artifact-backbone.ts (recordStageArtifact/markRunFailed) | tests/unit/research-review.test.ts (+4); evidence/r705-research-archive.json |
 | R-801 | PASS | src/shared/worker-response.ts; engineering-loop driver ABORT path (R40 rollback) | tests/unit/worker-response.test.ts (+2); evidence/r801-self-iteration.json |
-| R-901 | LIVE_REQUIRED | - | - |
+| R-901 | PASS | - | Update-Plan/2026-09-09-closure/evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.json; Update-Plan/2026-09-09-closure/evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.heartbeat.jsonl |
 | R-902 | PASS | - | tests/unit/ui-isolation.test.ts (+2); evidence/r902-ui-isolation.json |
 | R-903 | PASS | src/shared/contracts.ts BossBridge.nodeStatus; electron/preload.ts; src/renderer/components/OwnerSummary.tsx | tests/unit/ui-isolation.test.ts (+2); typecheck/build renderer PASS; evidence/r903-ui-status.json |
 | R-1001 | PASS | - | tests/unit/phase-j-scenarios.test.ts (+2); evidence/r1001-scenario-e.json |
@@ -54,10 +54,10 @@
 | R-1003 | PASS | scripts/closure-acceptance-report.mjs | Update-Plan/2026-09-09-closure/ACCEPTANCE-MATRIX.md; Update-Plan/2026-09-09-closure/FINAL-ACCEPTANCE.md; evidence/r1003-acceptance-report.json |
 
 ## Status summary
-BLOCKED_EXTERNAL: 1 · LIVE_REQUIRED: 1 · LOCKED_PASS: 20 · PASS: 28
+BLOCKED_EXTERNAL: 1 · LOCKED_PASS: 20 · PASS: 29
 
 ## Terminal state assessment
-- Pending (non-terminal): R-901(LIVE_REQUIRED)
+- Pending (non-terminal): none
 - BLOCKED_EXTERNAL recorded: R-202
 - Evidence problems: none
-- Legal terminal now: **NO_LEGAL_TERMINAL_YET**
+- Legal terminal now: **BLOCKED_EXTERNAL**

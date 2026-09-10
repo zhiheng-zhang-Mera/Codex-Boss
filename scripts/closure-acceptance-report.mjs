@@ -101,7 +101,7 @@ for (const id of ["R-202", "R-901"]) {
   } else {
     const verdicts = loaded.map((l) => {
       const ev = l.value;
-      const hbFile = path.resolve(evidenceDir, `r901-${ev.runId}.heartbeat.jsonl`);
+      const hbFile = path.resolve(evidenceDirResolved, `r901-${ev.runId}.heartbeat.jsonl`);
       const heartbeats = fs.existsSync(hbFile)
         ? fs.readFileSync(hbFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line))
         : [];
