@@ -1,10 +1,10 @@
 {
   "phase": "F8",
   "title": "Adversarial / red-team acceptance (RT-01..RT-25)",
-  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "generatedAt": "2026-09-10T10:13:16.134Z",
   "baseBranch": "main",
   "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
-  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "f81fe68ce98bfff296cd8b3c058c841c21ec5b2c",
   "modules": [],
   "requirementIds": [
     "RD-016"

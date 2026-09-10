@@ -37,21 +37,26 @@ transcripts verbatim.
 
 ### Note on the two SHAs
 
-`CANDIDATE_SHA` above is the implementation commit — the tree the gate chain was
-run against — and it is the SHA the acceptance evidence belongs to. A commit
-cannot contain its own hash, so the branch tip necessarily sits one step further
-along; the delta is documentation plus one test-fixture hygiene change, and the
-tip SHA is what GitHub reports as the PR head and what CI validates. Verify the
-delta with:
+`CANDIDATE_SHA` above is the implementation commit — the tree the acceptance
+evidence belongs to. A commit cannot contain its own hash, so the branch tip
+necessarily sits further along; the tip SHA is what GitHub reports as the PR head
+and what CI validates.
+
+The extra commits beyond `CANDIDATE_SHA` carry **no production-code change**. The
+claim is checkable rather than asserted:
 
 ```text
-git diff --stat bc2487401bb5b0cf1689638b14e260c664253a23 <branch tip>
+git diff --name-only bc2487401bb5b0cf1689638b14e260c664253a23 <branch tip>
 ```
 
-One deliberate change beyond documentation is worth naming: the "policy must not
-carry secret material" test originally used a format-valid `ghp_…` canary, which
-GitHub secret scanning can reasonably mistake for a real personal access token.
-It now uses a generic token-shaped value that still exercises the same detector
+must list only paths under `Update-Plan/Autonomous-Evolution-Phase0/` plus
+`tests/unit/root-authority.test.ts`. `evidence/final-readiness.json` records
+`headSha` = the commit whose tree the gate chain was last executed against.
+
+One change beyond documentation is worth naming: the "policy must not carry
+secret material" test originally used a format-valid `ghp_…` canary, which GitHub
+secret scanning can reasonably mistake for a real personal access token. It now
+uses a generic token-shaped value that still exercises the same detector
 (`src/shared/secret-scan.ts`) without producing a false credential alert on a
 repository whose entire point is credential hygiene.
 

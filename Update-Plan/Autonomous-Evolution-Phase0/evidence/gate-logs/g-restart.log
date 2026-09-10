@@ -1,15 +1,15 @@
 === acceptance-restart ===
 {
-  "root": "D:\\Git-Projects\\Codex-Boss-Isolation\\artifacts\\restart-b1c7fde8-6c96-41df-8328-66cf52cc6262",
+  "root": "D:\\Git-Projects\\Codex-Boss-Isolation\\artifacts\\restart-f1a50ad7-82b7-499b-990d-98273b2aa697",
   "seed": {
     "phase": "before_artifact",
-    "pid": 37576
+    "pid": 43672
   },
   "result": {
     "kind": "CONTROLLED_ELECTRON_RESTART",
     "status": "PASS",
-    "pid": 37968,
-    "taskId": "58e615ad-10e1-4f34-8169-9588b2160d52",
+    "pid": 41876,
+    "taskId": "5c47438d-8df4-442c-84d3-ad443eefd5ca",
     "attempts": 1,
     "finalVisible": true
   }

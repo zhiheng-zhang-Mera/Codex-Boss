@@ -16,5 +16,5 @@ dist/index.html                   0.46 kB │ gzip:  0.29 kB
 dist/assets/index-7PLpVpz4.css   43.29 kB │ gzip:  9.31 kB
 dist/assets/index-Bqu5ae0u.js   273.77 kB │ gzip: 86.75 kB
 
-✓ built in 165ms
+✓ built in 147ms
 exit=0
