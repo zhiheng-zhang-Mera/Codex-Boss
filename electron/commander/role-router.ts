@@ -5,6 +5,7 @@ import type { RuntimeRegistry } from "./runtime-registry";
 import type { BudgetManager } from "./budget-manager";
 import { resolveCapabilityGraph, type CapabilityResolution } from "../../src/shared/capability-graph";
 import { resolveCapabilityToKind } from "../../src/shared/cheapest-execution";
+import type { AdaptiveReranker, AdaptiveRoutingDecision } from "../../src/shared/adaptive-routing";
 
 export type RoleId = "planner" | "researcher" | "reviewer" | "synthesizer" | "coder" | "validator" | "critic";
 export const ROLE_CAPABILITY: Record<RoleId, RuntimeCapability> = { planner: "planning", researcher: "research", reviewer: "review", synthesizer: "synthesis", coder: "coding", validator: "validation", critic: "critique" };
@@ -21,6 +22,20 @@ export interface RoleRoutingRequest {
 }
 
 export interface RuntimeCandidate { runtimeId: RuntimeId; rank: number; reason: string; }
+
+/** Optional context the adaptive scorer (Engine Phase 6) may use for soft ranking. */
+export interface RoleRoutingAdaptiveContext {
+  taskId?: string;
+  modelSnapshotKey?: string;
+  behaviourEpochId?: string;
+  fingerprint?: { structuralHash?: string; concepts?: Array<{ conceptId: string }>; specificity?: number };
+}
+
+/** Last adaptive decision produced by a route() call (for the feedback ledger/UI). */
+export interface RoleRoutingOutcome {
+  candidates: RuntimeCandidate[];
+  adaptive?: AdaptiveRoutingDecision;
+}
 
 /** Cost kind each runtime brand maps to (cheapest-sufficient ordering, AP06/§13.2). */
 const BRAND_KIND: Record<string, "deterministic" | "api" | "web" | "codex"> = {
@@ -42,7 +57,20 @@ function kindRank(kind: "deterministic" | "api" | "web" | "codex"): number {
 }
 
 export class RoleRouter {
-  constructor(private readonly registry: RuntimeRegistry, private readonly budgets: BudgetManager, private readonly resources?: ResourceController) {}
+  private lastOutcome?: RoleRoutingOutcome;
+
+  constructor(
+    private readonly registry: RuntimeRegistry,
+    private readonly budgets: BudgetManager,
+    private readonly resources?: ResourceController,
+    /**
+     * Engine Phase 6 seam: an OPTIONAL adaptive reranker. It may only reorder
+     * candidates this router already approved; a missing implementation, a
+     * thrown error, or a disabled flag leaves the deterministic order untouched.
+     */
+    private readonly adaptive?: AdaptiveReranker,
+    private readonly adaptiveContext?: () => RoleRoutingAdaptiveContext
+  ) {}
 
   /** Resolves plan capability tokens (AP06) into router-enforceable AI roles. */
   resolveCapabilityTokens(tokens: string[] | undefined): CapabilityResolution {
@@ -80,7 +108,58 @@ export class RoleRouter {
       return (this.resources?.score(a.id) ?? 1) - (this.resources?.score(b.id) ?? 1);
     });
     const routed = candidates.map((runtime, rank) => ({ runtimeId: runtime.id, rank, reason: reasonFor(runtime.id, request.pinnedRuntime, preferred, graph) }));
-    return request.allowFallback === false ? routed.slice(0, 1) : routed;
+    const limited = request.allowFallback === false ? routed.slice(0, 1) : routed;
+    const finalCandidates = this.applyAdaptive(request, limited);
+    return finalCandidates;
+  }
+
+  /**
+   * Soft-ranking step. HARD eligibility already happened above: the reranker only
+   * sees approved candidates, so it can never restore an excluded/capability-less
+   * runtime (A24/A25) or displace an explicit pin (A26). Any failure ⇒ original
+   * order (A27).
+   */
+  private applyAdaptive(request: RoleRoutingRequest, candidates: RuntimeCandidate[]): RuntimeCandidate[] {
+    this.lastOutcome = { candidates };
+    if (!this.adaptive || candidates.length < 2) return candidates;
+    try {
+      const context = this.adaptiveContext?.();
+      const result = this.adaptive.rerank(
+        {
+          taskId: context?.taskId,
+          role: request.role,
+          pinnedRuntime: request.pinnedRuntime,
+          excludedRuntimes: request.excludedRuntimes,
+          requiredCapabilities: request.requiredCapabilities,
+          capabilityTokens: request.capabilityTokens,
+          preferredRuntimes: request.preferredRuntimes,
+          fingerprint: context?.fingerprint,
+          modelSnapshotKey: context?.modelSnapshotKey,
+          behaviourEpochId: context?.behaviourEpochId
+        },
+        candidates
+      );
+      if (!result) return candidates;
+      // Defensive: the reranker may not invent, drop, duplicate or re-derive
+      // candidates — only reorder exactly the set it received.
+      const incoming = candidates.map((candidate) => candidate.runtimeId).sort();
+      const outgoing = result.ordered.map((candidate) => candidate.runtimeId).sort();
+      if (incoming.length !== outgoing.length || incoming.some((id, index) => id !== outgoing[index])) return candidates;
+      if (request.pinnedRuntime && candidates.some((candidate) => candidate.runtimeId === request.pinnedRuntime) && result.ordered[0]?.runtimeId !== request.pinnedRuntime) {
+        return candidates; // a pin must keep explicit priority
+      }
+      const byId = new Map(candidates.map((candidate) => [candidate.runtimeId, candidate]));
+      const reordered = result.ordered.map((candidate, rank) => ({ ...byId.get(candidate.runtimeId)!, rank }));
+      this.lastOutcome = { candidates: reordered, adaptive: result.decision };
+      return reordered;
+    } catch {
+      return candidates; // A27: adaptive failure falls back to the static route
+    }
+  }
+
+  /** Last adaptive decision (undefined when the reranker is absent or inactive). */
+  adaptiveOutcome(): RoleRoutingOutcome | undefined {
+    return this.lastOutcome;
   }
 }
 
