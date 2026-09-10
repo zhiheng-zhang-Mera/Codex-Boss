@@ -22,8 +22,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run install:electron
       - run: pnpm run typecheck
-      - run: pnpm test
+      # The build must precede the test run. Several acceptance harnesses
+      # (scripts/r901-soak.cjs, scripts/closure-soak-2h.cjs, the acceptance-*.cjs
+      # family, scripts/benchmark.cjs) `require` the compiled modules under
+      # dist-electron at load time, and dist-electron is a gitignored build
+      # output. tests/unit/closure-terminal-logic.test.ts spawns those harnesses,
+      # so with the old order (test before build) the harness died with
+      # "Cannot find module '../dist-electron/...'" and exited 1 instead of its
+      # documented exit code, failing two tests on every run.
       - run: pnpm run build
+      - run: pnpm test
       - run: pnpm run benchmark
       - run: pnpm run package:portable
       - run: powershell -NoProfile -File scripts/smoke-portable.ps1
