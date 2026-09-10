@@ -14,23 +14,23 @@ Recorded: 2026-09-10
 
 | Item | Value |
 |---|---|
-| Integration branch | `A-main-integration` (cleanup.md calls it `9-10-integration`) |
-| Integration HEAD | `9bde9e937a074172b02d4901dea1060defbd7a4a` |
+| Integration branch | `A-main-integration` (cleanup.md calls it `9-10-integration`) — archived at `archive/9-10-integration-final`, then deleted |
+| Integration HEAD | `148c342b6b4eefc5d2824ef4143c6434d3281a96` (superseded `9bde9e9` when the promotion records were committed) |
 | Merge commit | `94c1bc23033d26814285f81112be2a8c8dee4b1c` |
 | M source (baseline) | `9-10-M` @ `86e32d12a0e35ab928580509b615dbcbae2c4d01` |
 | A source | `9-10-A` @ `cde3738eb21f858ae33465f77940ee98e7a30b4f` |
 | Fork point | `8b0675f2d11650850d17f6f9af272f5f01b8e6c4` |
 | Merge parents | `86e32d1` (M) + `cde3738` (A) |
 | Textual conflicts | **0** |
-| Tags created | **0** (deferred to promotion) |
-| Branches deleted | **0** (deferred to promotion) |
+| Tags created | **17** (all pushed to `origin`) — see `PROMOTION-RECORD.md` |
+| Branches deleted | **10 local + 14 remote** |
 
 ## 2. Phase results
 
 | Phase | Requirement | Result |
 |---|---|---|
 | A | All HEADs recorded; A/M frozen | **PASS** |
-| B | Historical branches archived then deleted | **PLANNED** — no tag, no deletion (owner deferred to promotion) |
+| B | Historical branches archived then deleted | **PASS** — 15 tags created, verified and pushed; 11 branches deleted |
 | C | integration HEAD == M HEAD | **PASS** — created at `86e32d1`, verified equal |
 | D | A merged in | **PASS** — 0 conflicts, 0 M changes lost |
 | E | Test set is the A ∪ M union | **PASS** — 82 files / 687 tests |
@@ -40,9 +40,9 @@ Recorded: 2026-09-10
 | I | Merged-tree 2h soak | **PASS** — 7200s, 11/11 invariants |
 | J | Live blockers recorded honestly | **PASS** — BLOCKED_EXTERNAL, not faked |
 | K | Legal terminal state in this document | **COMPLETE** |
-| L | Promote `owner-result` | **DEFERRED** to promotion phase |
-| M | Promote `main` | **DEFERRED** to promotion phase |
-| N | Tag then delete A/M/integration | **PLANNED** in `deletion-manifest.json` |
+| L | Promote `owner-result` | **PASS** — `825cd1f → 148c342`, fast-forward |
+| M | Promote `main` | **PASS** — gate green, `825cd1f → 148c342`, tagged `v10.0.0` |
+| N | Tag then delete A/M/integration | **PASS** — 10 local + 14 remote deletions; origin left with `main` + `owner-result` |
 
 ## 3. Test results
 
@@ -300,13 +300,14 @@ files missing from the merged tree.
 
 ## 10. Known limitations
 
-1. **Phases B, L, M and N were not executed this round.** The owner ruled that no ref
-   other than `A-main-integration` may be modified until promotion. All tag creation
-   and branch deletion is therefore *planned only*: `archive-manifest.json` and
-   `deletion-manifest.json` contain reviewed, guard-evaluated rows, and every row
-   reads `DELETE_DENIED` because no archive tag exists yet. **The repository still
-   contains all 15 branches.** The final `main` + `owner-result` structure is not yet
-   achieved.
+1. **Phases B, L, M and N were executed in a second round.** This document is the
+   *local integration* acceptance record, produced while the branch archival and
+   promotion were still pending. They have since been executed: all 15 candidate
+   branches archived under 17 pushed tags, `owner-result` and `main` promoted to the
+   accepted HEAD `148c342`, and every temporary branch deleted so that `origin` and
+   the local repository each hold exactly `main` + `owner-result`. The executed SHAs,
+   the promotion gate results and the §21 guard verdicts are in
+   `PROMOTION-RECORD.md`. **No PLAN_ONLY phase remains.**
 
 2. **`owner-result` local and remote disagree** — local `f660cc2`, `origin/owner-result`
    `825cd1f`. Pre-existing, recorded in `branch-heads-before.json`. Phase L must decide
@@ -375,11 +376,11 @@ files missing from the merged tree.
 | # | Question | Answer |
 |---|---|---|
 | 1 | Which branches were merged? | `9-10-A` into `A-main-integration` (cleanup.md name: `9-10-integration`). 0 conflicts. |
-| 2 | Which branches were archived? | **None this round.** Archive tags are planned in `archive-manifest.json`; tag creation is deferred to promotion. |
-| 3 | Which branches were deleted? | **None this round.** `deletion-manifest.json` plans the deletions; all rows are `DELETE_DENIED` pending tags. |
-| 4 | What is `main`'s SHA? | `825cd1fcb9c942ff9a36bc4ea42ed4ad33b46c75` — **unchanged**, not promoted. |
-| 5 | What is `owner-result`'s SHA? | Local `f660cc27ee0372a73b7a737272098c8ed9e9d3d0`; remote `825cd1fcb9c942ff9a36bc4ea42ed4ad33b46c75` — **unchanged, and they disagree** (see §10.2). |
-| 6 | What does `v10.0.0` point to? | **Nothing yet.** No tag exists in the repository; `v10.0.0` is for the promotion phase. |
+| 2 | Which branches were archived? | All 15, under 17 tags pushed to `origin` — including **both** heads of the `owner-result` fork. |
+| 3 | Which branches were deleted? | 14 remote + 10 local: the 8 dated, 2 closure, `9-10-A`, `9-10-M`, `A-main-integration`. |
+| 4 | What is `main`'s SHA? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` — promoted from `825cd1f`. |
+| 5 | What is `owner-result`'s SHA? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` — identical to `main`. Both pre-promotion heads are archived. |
+| 6 | What does `v10.0.0` point to? | `148c342b6b4eefc5d2824ef4143c6434d3281a96`. |
 | 7 | Are all A/M capabilities retained? | **Yes.** M product surfaces byte-identical to `9-10-M`; all A closure assets present; test union preserved. 0 unexplained divergences. |
 | 8 | Does the full test suite PASS? | **Yes** — 82 files / 687 tests, 0 failures, exit 0. |
 | 9 | Does the integration 2h soak PASS? | **Yes** — 7200s, 59,881 tasks, 0 failed, 11/11 invariants, 0 restarts. |
@@ -410,7 +411,7 @@ intact, so no complex rollback is required.
 | `PROGRESS.md` | phase-by-phase status |
 | `ENGINEERING-BOOK.md` | deliverable index and guard rules |
 | `branch-heads-before.json` | all branch HEADs before work |
-| `archive-manifest.json` | planned archive tags |
+| `archive-manifest.json` | executed archive tags, SHA match and push status |
 | `deletion-manifest.json` | §21 guard verdict per branch |
 | `integration-conflicts.md` | merge analysis and arbitration rulings |
 | `integration-test-map.md` | test union and count arithmetic |
@@ -442,7 +443,7 @@ Phase I  PASS
 Phase J  PASS (BLOCKED_EXTERNAL recorded honestly)
 Phase K  COMPLETE
 
-Phases B, L, M, N: PLANNED, deferred to the promotion phase by owner instruction.
+Phases B, L, M, N: EXECUTED in the promotion round (see PROMOTION-RECORD.md).
 ```
 
 **COMPLETE** — with the explicit, owner-directed scope reduction that branch

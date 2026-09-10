@@ -1,0 +1,81 @@
+{
+    "schemaVersion":  1,
+    "kind":  "BRANCH_CLEANUP_DELETION",
+    "generatedAt":  "2026-09-10T17:54:02.8872560+10:00",
+    "group":  "closure",
+    "authority":  "Update-Plan/cleanup.md sections 1.1, 21, 22, 28",
+    "executed":  true,
+    "promotionComplete":  true,
+    "mainSha":  "148c342b6b4eefc5d2824ef4143c6434d3281a96",
+    "ownerResultSha":  "148c342b6b4eefc5d2824ef4143c6434d3281a96",
+    "integrationSha":  "148c342b6b4eefc5d2824ef4143c6434d3281a96",
+    "totals":  {
+                   "candidates":  2,
+                   "safeToDelete":  2,
+                   "deleteDenied":  0,
+                   "localDeleted":  1,
+                   "remoteDeleted":  2,
+                   "failures":  0
+               },
+    "entries":  [
+                    {
+                        "group":  "closure",
+                        "branch":  "2026-09-09-closure",
+                        "tag":  "archive/closure-2026-09-09",
+                        "expectedSha":  "7722473a15386934b657b25dc8b5d24565d4f301",
+                        "localShaBefore":  null,
+                        "remoteShaBefore":  "7722473a15386934b657b25dc8b5d24565d4f301",
+                        "tagSha":  "7722473a15386934b657b25dc8b5d24565d4f301",
+                        "commitsNotInMain":  1,
+                        "guard":  {
+                                      "TAG_EXISTS":  true,
+                                      "TAG_SHA_MATCH":  true,
+                                      "TREE_READABLE":  true,
+                                      "UNIQUE_REQUIRED_CODE":  false,
+                                      "INTEGRATED_OR_ARCHIVED":  true
+                                  },
+                        "safeToDelete":  true,
+                        "decision":  "SAFE_TO_DELETE",
+                        "uniqueCodeOverride":  true,
+                        "overrideReason":  "cleanup.md section 3: D-class closure branch is archive-only and must not be merged; its unique commits are test-curation deletions preserved in the archive tag",
+                        "denialReasons":  [
+
+                                          ],
+                        "localDeleted":  false,
+                        "remoteDeleted":  true,
+                        "archiveIntact":  true,
+                        "executed":  true
+                    },
+                    {
+                        "group":  "closure",
+                        "branch":  "9-2026-09-09-closure",
+                        "tag":  "archive/closure-9-2026-09-09",
+                        "expectedSha":  "fe8c766ddd0aa448bf494b0bb2a2724ad56cd4da",
+                        "localShaBefore":  "fe8c766ddd0aa448bf494b0bb2a2724ad56cd4da",
+                        "remoteShaBefore":  "fe8c766ddd0aa448bf494b0bb2a2724ad56cd4da",
+                        "tagSha":  "fe8c766ddd0aa448bf494b0bb2a2724ad56cd4da",
+                        "commitsNotInMain":  2,
+                        "guard":  {
+                                      "TAG_EXISTS":  true,
+                                      "TAG_SHA_MATCH":  true,
+                                      "TREE_READABLE":  true,
+                                      "UNIQUE_REQUIRED_CODE":  false,
+                                      "INTEGRATED_OR_ARCHIVED":  true
+                                  },
+                        "safeToDelete":  true,
+                        "decision":  "SAFE_TO_DELETE",
+                        "uniqueCodeOverride":  true,
+                        "overrideReason":  "cleanup.md section 3: D-class closure branch is archive-only and must not be merged; its unique commits are test-curation deletions preserved in the archive tag",
+                        "denialReasons":  [
+
+                                          ],
+                        "localDeleted":  true,
+                        "remoteDeleted":  true,
+                        "archiveIntact":  true,
+                        "executed":  true
+                    }
+                ],
+    "failures":  [
+
+                 ]
+}

@@ -1,0 +1,77 @@
+{
+    "schemaVersion":  1,
+    "kind":  "BRANCH_CLEANUP_DELETION",
+    "generatedAt":  "2026-09-10T17:53:41.3029738+10:00",
+    "group":  "host",
+    "authority":  "Update-Plan/cleanup.md sections 1.1, 21, 22, 28",
+    "executed":  true,
+    "promotionComplete":  true,
+    "mainSha":  "148c342b6b4eefc5d2824ef4143c6434d3281a96",
+    "ownerResultSha":  "148c342b6b4eefc5d2824ef4143c6434d3281a96",
+    "integrationSha":  "148c342b6b4eefc5d2824ef4143c6434d3281a96",
+    "totals":  {
+                   "candidates":  2,
+                   "safeToDelete":  2,
+                   "deleteDenied":  0,
+                   "localDeleted":  1,
+                   "remoteDeleted":  2,
+                   "failures":  0
+               },
+    "entries":  [
+                    {
+                        "group":  "host",
+                        "branch":  "9-10-A",
+                        "tag":  "archive/host-a-final",
+                        "expectedSha":  "cde3738eb21f858ae33465f77940ee98e7a30b4f",
+                        "localShaBefore":  null,
+                        "remoteShaBefore":  "cde3738eb21f858ae33465f77940ee98e7a30b4f",
+                        "tagSha":  "cde3738eb21f858ae33465f77940ee98e7a30b4f",
+                        "commitsNotInMain":  0,
+                        "guard":  {
+                                      "TAG_EXISTS":  true,
+                                      "TAG_SHA_MATCH":  true,
+                                      "TREE_READABLE":  true,
+                                      "UNIQUE_REQUIRED_CODE":  false,
+                                      "INTEGRATED_OR_ARCHIVED":  true
+                                  },
+                        "safeToDelete":  true,
+                        "decision":  "SAFE_TO_DELETE",
+                        "denialReasons":  [
+
+                                          ],
+                        "localDeleted":  false,
+                        "remoteDeleted":  true,
+                        "archiveIntact":  true,
+                        "executed":  true
+                    },
+                    {
+                        "group":  "host",
+                        "branch":  "9-10-M",
+                        "tag":  "archive/host-m-final",
+                        "expectedSha":  "86e32d12a0e35ab928580509b615dbcbae2c4d01",
+                        "localShaBefore":  "86e32d12a0e35ab928580509b615dbcbae2c4d01",
+                        "remoteShaBefore":  "86e32d12a0e35ab928580509b615dbcbae2c4d01",
+                        "tagSha":  "86e32d12a0e35ab928580509b615dbcbae2c4d01",
+                        "commitsNotInMain":  0,
+                        "guard":  {
+                                      "TAG_EXISTS":  true,
+                                      "TAG_SHA_MATCH":  true,
+                                      "TREE_READABLE":  true,
+                                      "UNIQUE_REQUIRED_CODE":  false,
+                                      "INTEGRATED_OR_ARCHIVED":  true
+                                  },
+                        "safeToDelete":  true,
+                        "decision":  "SAFE_TO_DELETE",
+                        "denialReasons":  [
+
+                                          ],
+                        "localDeleted":  true,
+                        "remoteDeleted":  true,
+                        "archiveIntact":  true,
+                        "executed":  true
+                    }
+                ],
+    "failures":  [
+
+                 ]
+}

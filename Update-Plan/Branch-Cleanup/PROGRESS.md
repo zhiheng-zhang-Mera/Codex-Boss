@@ -14,19 +14,23 @@ Authority: `Update-Plan/cleanup.md`
 | Phase | Description | Status | Evidence |
 |---|---|---|---|
 | A | Branch freeze and HEAD snapshot | **PASS** | `branch-heads-before.json` |
-| B | Historical branch archival | **PLANNED** | `archive-manifest.json`, `deletion-manifest.json` |
+| B | Historical branch archival | **PASS — EXECUTED** | `archive-manifest.json`, `evidence/promotion/archive-tags-report.json` |
 | C | Create the integration branch | **PASS** | HEAD == `9-10-M` HEAD at creation |
 | D | Merge Host-A | **PASS** | `integration-conflicts.md`, `evidence/merge/test-union-verification.json` |
 | E | Test-set union restoration | **PASS** | `integration-test-map.md` |
 | F | Static and unit acceptance | **PASS** | `evidence/regression/vitest-merged-tree.txt` |
 | G | Host-M acceptance harnesses | **PASS** | `evidence/acceptance/*.json` |
 | H | Evidence cleanup | **PASS** | `EVIDENCE-CLEANUP.md`, `evidence/evidence-cleanup/*` |
-| I | Merged-tree soak | see `FINAL-ACCEPTANCE.md` | `evidence/soak/` |
+| I | Merged-tree soak | **PASS** — 7200s, 11/11 invariants | `evidence/soak/integration-2h-soak.json` |
 | J | Live gates | **BLOCKED_EXTERNAL (legal)** | `evidence/acceptance/host-acceptance.json` |
-| K | Final integration acceptance | **PASS** | `FINAL-ACCEPTANCE.md` |
-| L | Promote `owner-result` | **DEFERRED** | promotion phase |
-| M | Promote `main` | **DEFERRED** | promotion phase |
-| N | Delete A/M/integration branches | **PLANNED** | `deletion-manifest.json` |
+| K | Final integration acceptance | **COMPLETE** | `FINAL-ACCEPTANCE.md` |
+| L | Promote `owner-result` | **PASS — EXECUTED** | `PROMOTION-RECORD.md` |
+| M | Promote `main` | **PASS — EXECUTED** | `PROMOTION-RECORD.md`, `evidence/promotion/promotion-gate-acceptance.json` |
+| N | Delete A/M/integration branches | **PASS — EXECUTED** | `deletion-manifest.json`, `evidence/promotion/deletion-*.json` |
+
+**Phases B, L, M and N are no longer PLAN_ONLY.** They were executed in a second
+round after the local integration acceptance reached COMPLETE. Full detail and SHAs
+are in `PROMOTION-RECORD.md`.
 
 ## Phase A — freeze and snapshot
 

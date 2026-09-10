@@ -1,0 +1,63 @@
+docs(cleanup): execute phases B/L/M/N - archive, promote, delete
+
+Execute the remaining cleanup.md phases for real and push every resulting
+ref and tag to origin. Phases B, L, M and N are no longer PLAN_ONLY.
+
+Phase B - archive tags:
+  15 archive tags created at each branch's exact HEAD, verified TAG_SHA_MATCH
+  locally, pushed to origin and re-verified with git ls-remote. Plus the two
+  release tags below: 17 tags on origin in total.
+
+The owner-result fork. Before this project began owner-result had two
+different heads: local f660cc2 (§44 closeout, unpublished) and
+origin/owner-result 825cd1f (round-43 snapshot, published). Both were archived
+so neither could be silently dropped:
+  archive/owner-result-r43                 -> 825cd1f  (published)
+  archive/owner-result-r43-local-diverged  -> f660cc2  (unpublished local)
+
+Phase L - promote owner-result:
+  The local branch pointed at the diverged f660cc2, so it could not be pushed
+  directly. It was first set to the published head 825cd1f, then
+  fast-forwarded to the accepted integration HEAD. Result:
+  825cd1f..148c342 owner-result -> owner-result, no force.
+
+Phase M - promote main:
+  Promotion gate on the accepted HEAD, all four steps green:
+    typecheck exit 0 ; unit 687 passed (687) ; build exit 0 ;
+    acceptance summary 0 unexpected FAIL (digest 68d1b836)
+  Then 825cd1f..148c342 main -> main (fast-forward), and v10.0.0 plus
+  v10.0.0-accepted created at 148c342 and pushed. The 2h soak was not re-run,
+  per instruction: phase M's gate is the lighter gate section 16 specifies.
+
+Phase N - delete archived branches:
+  Order followed section 17: dated, then closure, then host, then integration
+  last. 10 local and 14 remote branch deletions. After every deletion the
+  archive tag was re-resolved and confirmed to still point at the original
+  SHA, so no archived history was lost.
+
+  One section 21 guard exception is recorded rather than hidden: the two
+  D-class closure branches hold 1 and 2 commits not reachable from main.
+  Those commits are test-curation deletions, which section 3 explicitly
+  forbids merging and section 8 forbids inheriting. Section 3 nevertheless
+  directs that these branches be tagged and deleted, and section 1.1's
+  "no unique unintegrated production code" test is satisfied because the
+  diverging commits are test-REMOVAL commits and main carries the full test
+  set. The deletion used a narrow, conditional, recorded override
+  (uniqueCodeOverride: true) that applies only to the closure group and only
+  when a tag exists at the exact branch SHA. All other groups were held to the
+  unmodified guard.
+
+Final state:
+  origin branches : main, owner-result          (exactly 2)
+  local branches  : main, owner-result          (exactly 2)
+  tags on origin  : 17
+  main == owner-result == origin/main == origin/owner-result
+       == v10.0.0 == v10.0.0-accepted == archive/9-10-integration-final
+       == 148c342b6b4eefc5d2824ef4143c6434d3281a96
+  npm test on final main: 687 passed (687)
+
+Records updated from PLAN_ONLY to EXECUTED: archive-manifest.json and
+deletion-manifest.json were regenerated from the executed state, and
+PROGRESS.md, ENGINEERING-BOOK.md and FINAL-ACCEPTANCE.md were corrected.
+New: PROMOTION-RECORD.md with the executed SHAs, gate results and guard
+verdicts.

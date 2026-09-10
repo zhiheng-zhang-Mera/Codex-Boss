@@ -25,7 +25,7 @@ final promotion phase**. Concretely, this round:
 | Phase | Status this round |
 |---|---|
 | A — freeze and snapshot | **executed** |
-| B — archive and delete historical branches | **planned only** (manifest + guard verdicts; no tag, no deletion) |
+| B — archive and delete historical branches | **executed** — 15 archive tags created, verified and pushed; 11 branches deleted |
 | C — create the integration branch | **executed** |
 | D — merge Host-A | **executed** |
 | E — restore the test union | **executed** |
@@ -35,12 +35,15 @@ final promotion phase**. Concretely, this round:
 | I — merged-tree soak | **executed** |
 | J — live gates | **executed** (live blockers recorded honestly as BLOCKED_EXTERNAL) |
 | K — final integration acceptance | **executed** |
-| L — promote `owner-result` | deferred to promotion |
-| M — promote `main` | deferred to promotion |
-| N — delete A / M / integration temp branches | **planned only** (manifest + guard verdicts) |
+| L — promote `owner-result` | **executed** — `825cd1f → 148c342` |
+| M — promote `main` | **executed** — `825cd1f → 148c342`, tagged `v10.0.0` |
+| N — delete A / M / integration temp branches | **executed** — 10 local + 14 remote branch deletions |
 
-`main` and `owner-result` were **not touched**. `9-10-M` and `9-10-A` were **not
-touched**. No tag was created.
+`main` and `owner-result` were **not touched** during phases A–K. In phases L–N they
+were promoted, as those phases require. `9-10-M` and `9-10-A` were frozen throughout
+and then archived and deleted in phase N. All 17 tags were pushed to `origin`.
+
+See `PROMOTION-RECORD.md` for the executed SHAs and guard verdicts.
 
 ## Deliverables
 
@@ -48,7 +51,7 @@ touched**. No tag was created.
 |---|---|
 | `PROGRESS.md` | phase-by-phase status and evidence pointers |
 | `branch-heads-before.json` | every branch HEAD before work began |
-| `archive-manifest.json` | planned archive tags per branch |
+| `archive-manifest.json` | executed archive tags per branch, with SHA match and push status |
 | `deletion-manifest.json` | section 21 guard verdict per branch |
 | `integration-conflicts.md` | merge analysis, conflict rulings, A-side divergences |
 | `integration-test-map.md` | test-set union restoration and count arithmetic |
