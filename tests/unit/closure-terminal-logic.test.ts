@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALLOWED_MANIFEST_STATES,
   BLOCKER_STATE,
   countAllStatuses,
   evaluateTerminal,
@@ -7,8 +8,11 @@ import {
   FAILED_STATE,
   looksLikeEvidenceFileRef,
   matrixRows,
+  MANIFEST_TRANSITIONS,
   TERMINAL_OK,
+  transitionAllowed,
   validateBlockerEvidenceShape,
+  validateManifestSchema,
   validateR202Evidence,
   validateR901Evidence,
 } from "../../scripts/closure-terminal-logic.mjs";
@@ -222,6 +226,43 @@ describe("closure-terminal-logic: R-202 evidence validator (Host-A §E4/§5)", (
       attemptEvidence: ["evidence/r202-attempt.json"],
     };
     expect(validateR202Evidence(blocker).ok).toBe(true);
+  });
+});
+
+describe("closure-terminal-logic: manifest state machine (Host-A Phase F single-writer)", () => {
+  it("explicit transitions allow LIVE_REQUIRED -> PASS / BLOCKED_EXTERNAL / REWORK", () => {
+    expect(MANIFEST_TRANSITIONS.LIVE_REQUIRED).toEqual(["PASS", "BLOCKED_EXTERNAL", "REWORK", "FAILED_WITH_EVIDENCE"]);
+    expect(transitionAllowed("LIVE_REQUIRED", "PASS").ok).toBe(true);
+    expect(transitionAllowed("LIVE_REQUIRED", "BLOCKED_EXTERNAL").ok).toBe(true);
+    expect(transitionAllowed("LIVE_REQUIRED", "REWORK").ok).toBe(true);
+  });
+
+  it("LOCKED_PASS baselines cannot be changed", () => {
+    expect(transitionAllowed("LOCKED_PASS", "REWORK").ok).toBe(false);
+    expect(transitionAllowed("LOCKED_PASS", "PASS").ok).toBe(false);
+  });
+
+  it("never allows PASS -> LIVE_REQUIRED or invented quasi-terminals", () => {
+    expect(transitionAllowed("PASS", "LIVE_REQUIRED").ok).toBe(false);
+    expect(transitionAllowed("PASS", "BLOCKED_EXTERNAL_REQUIRED").ok).toBe(false);
+    expect(transitionAllowed("REWORK", "COMPLETE").ok).toBe(false);
+  });
+
+  it("no-op transitions are rejected", () => {
+    expect(transitionAllowed("PASS", "PASS").ok).toBe(false);
+  });
+
+  it("schema validator flags unknown statuses and malformed rows", () => {
+    expect(validateManifestSchema({ requirements: [{ id: "R-1", status: "DONE", required: true }] }).length).toBeGreaterThan(0);
+    expect(validateManifestSchema({ requirements: [{ id: "R-1", status: "PASS", required: true }] })).toEqual([]);
+  });
+
+  it("ALLOWED_MANIFEST_STATES is exactly the Host-A vocabulary", () => {
+    expect(ALLOWED_MANIFEST_STATES).toEqual(
+      expect.arrayContaining(["PASS", "LOCKED_PASS", "BLOCKED_EXTERNAL", "LIVE_REQUIRED", "REWORK", "IN_PROGRESS", "REQUIRED_PENDING", "FAILED_WITH_EVIDENCE"])
+    );
+    expect(ALLOWED_MANIFEST_STATES).not.toContain("COMPLETE");
+    expect(ALLOWED_MANIFEST_STATES).not.toContain("BLOCKED_EXTERNAL_REQUIRED");
   });
 });
 

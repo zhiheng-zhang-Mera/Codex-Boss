@@ -169,6 +169,73 @@ export function matrixRows(requirements) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Manifest state machine (Host-A Phase F single-writer semantics).
+ * ------------------------------------------------------------------ */
+
+/** All statuses permitted in the manifest. */
+export const ALLOWED_MANIFEST_STATES = [...TERMINAL_OK, ...PENDING_STATES, BLOCKER_STATE, "FAILED_WITH_EVIDENCE"];
+
+/**
+ * Explicit allowed status transitions. LOCKED_PASS baselines cannot change;
+ * anything not listed is illegal.
+ */
+export const MANIFEST_TRANSITIONS = {
+  LIVE_REQUIRED: ["PASS", "BLOCKED_EXTERNAL", "REWORK", "FAILED_WITH_EVIDENCE"],
+  REWORK: ["LIVE_REQUIRED", "PASS", "BLOCKED_EXTERNAL", "FAILED_WITH_EVIDENCE"],
+  IN_PROGRESS: ["PASS", "REWORK", "LIVE_REQUIRED", "BLOCKED_EXTERNAL", "FAILED_WITH_EVIDENCE"],
+  REQUIRED_PENDING: ["PASS", "IN_PROGRESS", "REWORK", "LIVE_REQUIRED", "BLOCKED_EXTERNAL", "FAILED_WITH_EVIDENCE"],
+  PASS: ["REWORK", "FAILED_WITH_EVIDENCE", "BLOCKED_EXTERNAL"],
+  BLOCKED_EXTERNAL: ["REWORK", "LIVE_REQUIRED", "PASS", "FAILED_WITH_EVIDENCE"],
+  LOCKED_PASS: [],
+  FAILED_WITH_EVIDENCE: ["REWORK", "PASS"],
+};
+
+/**
+ * Pure transition validation.
+ * @param {string} from
+ * @param {string} to
+ * @returns {{ok:boolean, reason?:string}}
+ */
+export function transitionAllowed(from, to) {
+  if (!ALLOWED_MANIFEST_STATES.includes(from)) return { ok: false, reason: `unknown source status ${from}` };
+  if (!ALLOWED_MANIFEST_STATES.includes(to)) return { ok: false, reason: `unknown target status ${to}` };
+  if (from === to) return { ok: false, reason: "no-op transition" };
+  const allowed = MANIFEST_TRANSITIONS[from] || [];
+  if (!allowed.includes(to)) return { ok: false, reason: `illegal transition ${from} -> ${to}` };
+  return { ok: true };
+}
+
+/**
+ * Pure manifest schema validation (subset used by the single writer).
+ * @param {object} manifest
+ * @returns {Array<string>} list of schema problems (empty when valid)
+ */
+export function validateManifestSchema(manifest) {
+  const errors = [];
+  if (!manifest || typeof manifest !== "object") return ["manifest is not an object"];
+  if (!Array.isArray(manifest.requirements)) errors.push("requirements must be an array");
+  for (const req of manifest.requirements ?? []) {
+    if (!req.id || typeof req.id !== "string") errors.push("requirement missing id");
+    if (!ALLOWED_MANIFEST_STATES.includes(req.status)) errors.push(`${req.id}: status ${req.status} not in allowed vocabulary`);
+    if (req.required !== true && req.required !== false) errors.push(`${req.id}: required must be boolean`);
+    if (req.evidence !== undefined && !Array.isArray(req.evidence)) errors.push(`${req.id}: evidence must be an array`);
+  }
+  return errors;
+}
+
+/**
+ * Pure R-901 evidence-shape probe (used before file IO): confirm the entry
+ * names an r901-<runId>.json and carries a runId.
+ * @param {object} req
+ * @returns {{ok:boolean, reasons:Array<string>, runId?:string}}
+ */
+export function r901EvidenceShapeOk(req) {
+  const f = (req.evidence ?? []).find((e) => typeof e === "string" && /r901-.+\.json$/.test(e.trim()));
+  if (!f) return { ok: false, reasons: ["R-901 PASS requires an r901-<runId>.json evidence reference"] };
+  return { ok: true, reasons: [], runId: f.replace(/^.*r901-/, "r901-").replace(/\.json$/, "") };
+}
+
+/* ------------------------------------------------------------------ *
  * Requirement-specific validators (Host-A §5: R-202 and R-901 must use
  * dedicated validators). All pure; IO injected.
  * ------------------------------------------------------------------ */
