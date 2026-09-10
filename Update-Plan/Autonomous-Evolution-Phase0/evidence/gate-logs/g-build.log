@@ -1,0 +1,20 @@
+=== build ===
+corepack : $ tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json && vite build && tsc -p tsconfig.e
+lectron.json
+At line:5 char:40
++ ... \g-build.log"; corepack pnpm run build *>> "$log\g-build.log"; "exit= ...
++                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ tsc --noEmit ...g.electron.json:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 32 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.46 kB │ gzip:  0.29 kB
+dist/assets/index-7PLpVpz4.css   43.29 kB │ gzip:  9.31 kB
+dist/assets/index-Bqu5ae0u.js   273.77 kB │ gzip: 86.75 kB
+
+✓ built in 165ms
+exit=0

@@ -1,0 +1,47 @@
+{
+  "phase": "F0",
+  "title": "Baseline freeze and regression baseline",
+  "capturedAt": "2026-09-10T09:37:00Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "baseShaSource": "origin/main after `git fetch origin --prune`; identical to the SHA named in Update-Plan/Isolation-Finalization.md §0",
+  "workBranch": "Alien-Prestart-Isolation",
+  "workspace": "isolated git worktree (git worktree add), primary checkout untouched",
+  "workspaceIsolation": {
+    "strategy": "git worktree",
+    "reason": "Isolation-Finalization.md §8.2 requires a construction branch/workspace that is not the main working tree. A linked worktree gives an independent index and working tree at the frozen SHA while leaving the Owner's primary checkout (branch 9-10-A, dirty) untouched.",
+    "primaryCheckout": "D:/Git-Projects/Codex-Boss",
+    "isolatedWorkspace": "D:/Git-Projects/Codex-Boss-Isolation"
+  },
+  "workingTree": {
+    "statusPorcelain": "",
+    "clean": true,
+    "unexplainedPollution": false
+  },
+  "toolchain": {
+    "node": "v24.14.1",
+    "packageManager": "pnpm@11.19.0 (via corepack)",
+    "resolution": "`pnpm` is not on PATH in this environment; `corepack pnpm` resolves the lockfile-declared packageManager version 11.19.0."
+  },
+  "gates": {
+    "typecheck": { "result": "PASS", "exitCode": 0, "command": "pnpm run typecheck" },
+    "build": { "result": "PASS", "exitCode": 0, "command": "pnpm run build" },
+    "test": { "result": "PASS", "exitCode": 0, "command": "pnpm test", "testFiles": 82, "tests": 687, "durationSeconds": 141.07 },
+    "benchmark": {
+      "result": "PASS",
+      "exitCode": 0,
+      "command": "pnpm run benchmark",
+      "detail": { "persistence": "100/100", "recovery": "20/20", "routing": "10/10", "realProviderRecovery": "NOT_RUN", "machinePowerLoss": "NOT_RUN" }
+    }
+  },
+  "typecheck": "PASS",
+  "build": "PASS",
+  "test": "PASS",
+  "benchmark": "PASS",
+  "testFiles": 82,
+  "tests": 687,
+  "notes": [
+    "Test counts are the real observed counts at the frozen SHA, not a hard-coded historical number.",
+    "benchmark realProviderRecovery / machinePowerLoss are NOT_RUN by design of scripts/benchmark.cjs and are reported as such, never as PASS."
+  ]
+}

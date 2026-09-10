@@ -1,0 +1,96 @@
+{
+  "phase": "regression",
+  "title": "Full existing regression plus the repository gate chain",
+  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "fullSuite": {
+    "testFiles": 93,
+    "tests": 855,
+    "passed": 855,
+    "failed": 0,
+    "success": true
+  },
+  "gates": {
+    "typecheck": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-typecheck.log",
+      "digest": "1d437efdfa0c56d73b61bab251d473e7c879338528a7ac09b19a0ad2153a920e"
+    },
+    "build": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-build.log",
+      "digest": "b6b5be88c0bae213b044b46f5f02c7ad687fdceb07811c3ca05e3776ab51fa7c"
+    },
+    "test": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-test.log",
+      "digest": "ed678f397c549585e460086f05fe39e76af576fa2e6ebc347fee61d22ca5e5d1",
+      "testFiles": {
+        "passed": 93,
+        "failed": 0
+      },
+      "tests": {
+        "passed": 855,
+        "failed": 0
+      }
+    },
+    "benchmark": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-benchmark.log",
+      "digest": "bf9d434dba610a62e459d969e3196168375f989e97c7b220d8360c873a54b058",
+      "detail": {
+        "schemaVersion": 1,
+        "scope": "CONTROLLED_LOCAL_BENCHMARK",
+        "generatedAt": "2026-09-10T09:59:05.412Z",
+        "persistence": {
+          "passed": 100,
+          "cases": 100,
+          "method": "separate writer process, normal exit, new ledger readers"
+        },
+        "recovery": {
+          "passed": 20,
+          "cases": 20,
+          "method": "injected network exception then compatible mock backend",
+          "observedWorkerCalls": 40
+        },
+        "routing": {
+          "L0orL1": 10,
+          "cases": 10
+        },
+        "realProviderRecovery": "NOT_RUN",
+        "machinePowerLoss": "NOT_RUN",
+        "engineeringCompletionRates": "NOT_RUN",
+        "semanticApplicationCoverage": "NOT_RUN",
+        "modelSavingsAgainstLiveBaseline": null
+      }
+    },
+    "package": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-package.log",
+      "digest": "f75dba3a35b804424a8f7095a3c71341d3cb43460db76247a3f9cdcc814d111b"
+    },
+    "smoke": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-smoke.log",
+      "digest": "6217f3e0e658992ef24c12a7da5b2958354dd6a0a47e1ae5f5504b43c03a014f",
+      "marker": "PACKAGED_SMOKE_PASS"
+    },
+    "restart": {
+      "result": "PASS",
+      "exitCode": 0,
+      "log": "Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/g-restart.log",
+      "digest": "667899a8cfca673daf533cd064b94f7135b85b6e6d542cf3f9c97020228df6f7",
+      "marker": "CONTROLLED_ELECTRON_RESTART:PASS"
+    }
+  },
+  "result": "PASS",
+  "note": "gate results are read from the harness logs (exit codes and markers); the full-suite totals come from the vitest JSON report"
+}

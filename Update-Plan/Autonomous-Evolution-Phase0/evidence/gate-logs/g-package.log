@@ -1,0 +1,10 @@
+=== package:portable ===
+corepack : $ node scripts/package-portable.cjs
+At line:3 char:53
++ ... ckage.log"; corepack pnpm run package:portable *>> "$log\g-package.lo ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ node scripts/package-portable.cjs:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+D:\Git-Projects\Codex-Boss-Isolation\artifacts\Codex-Boss-1.0.0-1789034395748
+exit=0

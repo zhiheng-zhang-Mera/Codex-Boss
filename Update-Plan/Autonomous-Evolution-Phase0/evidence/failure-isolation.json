@@ -1,0 +1,35 @@
+{
+  "phase": "FI",
+  "title": "Combined failure isolation (FI-01..FI-05)",
+  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "modules": [],
+  "requirementIds": [
+    "RD-004",
+    "RD-006",
+    "RD-008",
+    "RD-011"
+  ],
+  "testFiles": [
+    {
+      "file": "tests/unit/stable-candidate-fault-isolation.test.ts",
+      "status": "passed",
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "assertions": {
+    "tests": 5,
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failingTests": [],
+  "missingTestFiles": [],
+  "source": "machine-derived from a vitest JSON report; no value in this file was written by hand",
+  "result": "PASS"
+}

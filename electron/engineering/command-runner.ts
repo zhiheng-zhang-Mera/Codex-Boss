@@ -5,8 +5,18 @@ import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
 export type AllowedCommand = "test" | "typecheck" | "build" | "lint";
 export interface CommandEvidence { command: AllowedCommand; args: string[]; passed: boolean; exitCode: number | null; output: string; }
+export interface RunAllowedCommandOptions {
+  /**
+   * Explicit child environment. Defaults to the developer's own `process.env`,
+   * which is correct for the interactive path. Autonomous self-evolution
+   * subprocesses must pass a sanitized environment instead
+   * (`electron/credential-boundary/sanitized-environment.ts`, plan §9.2): a
+   * Candidate worker may not inherit the Owner's ambient credentials.
+   */
+  env?: NodeJS.ProcessEnv;
+}
 // Direct executable arguments only. No model-supplied shell, flags, or package scripts.
-export async function runAllowedCommand(root: string, command: AllowedCommand, files: string[] = []): Promise<CommandEvidence> {
+export async function runAllowedCommand(root: string, command: AllowedCommand, files: string[] = [], options: RunAllowedCommandOptions = {}): Promise<CommandEvidence> {
   if (!["test", "typecheck", "build", "lint"].includes(command)) throw new Error("Command is not allowlisted");
   if (files.length > 50) throw new Error("Too many targeted files");
   const cwd = fs.realpathSync(root);
@@ -51,5 +61,8 @@ export async function runAllowedCommand(root: string, command: AllowedCommand, f
     return tmp;
   };
   const temp = fs.mkdtempSync(path.join(scratchRootFor(cwd), "codex-boss-cmd-"));
-  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", TEMP: temp, TMP: temp, TMPDIR: temp } }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
+  // Default env is the developer's own environment (interactive path, unchanged).
+  // An autonomous Candidate passes a sanitized env instead (plan §9.2).
+  const baseEnvironment = options.env ?? process.env;
+  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: { ...baseEnvironment, ELECTRON_RUN_AS_NODE: "1", TEMP: temp, TMP: temp, TMPDIR: temp } }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
 }

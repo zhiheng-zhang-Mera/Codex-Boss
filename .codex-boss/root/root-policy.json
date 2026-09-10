@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "rootOwner": "zhiheng-zhang-Mera",
+  "selfElevation": "DENY",
+  "ownerCredentialAccess": "DENY",
+  "directMainMutation": "DENY",
+  "rulesetMutation": "DENY",
+  "protectedSurfaceMutation": "REQUIRE_OWNER",
+  "promotionGateMutation": "REQUIRE_OWNER",
+  "emergencyControlMutation": "REQUIRE_OWNER"
+}

@@ -1,0 +1,34 @@
+=== benchmark ===
+corepack : $ node scripts/benchmark.cjs
+At line:8 char:48
++ ... hmark.log"; corepack pnpm run benchmark *>> "$log\g-benchmark.log"; " ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ node scripts/benchmark.cjs:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+{
+  "schemaVersion": 1,
+  "scope": "CONTROLLED_LOCAL_BENCHMARK",
+  "generatedAt": "2026-09-10T09:59:05.412Z",
+  "persistence": {
+    "passed": 100,
+    "cases": 100,
+    "method": "separate writer process, normal exit, new ledger readers"
+  },
+  "recovery": {
+    "passed": 20,
+    "cases": 20,
+    "method": "injected network exception then compatible mock backend",
+    "observedWorkerCalls": 40
+  },
+  "routing": {
+    "L0orL1": 10,
+    "cases": 10
+  },
+  "realProviderRecovery": "NOT_RUN",
+  "machinePowerLoss": "NOT_RUN",
+  "engineeringCompletionRates": "NOT_RUN",
+  "semanticApplicationCoverage": "NOT_RUN",
+  "modelSavingsAgainstLiveBaseline": null
+}
+exit=0

@@ -1,0 +1,59 @@
+{
+  "phase": "F1",
+  "title": "Root Authority: policy, protected surface, durable decision ledger",
+  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "modules": [
+    "src/shared/root-authority/contracts.ts",
+    "src/shared/root-authority/root-policy.ts",
+    "src/shared/root-authority/protected-surface.ts",
+    "electron/root-authority/root-authority.ts",
+    "electron/root-authority/root-policy-loader.ts",
+    "electron/root-authority/protected-surface-guard.ts",
+    "electron/root-authority/root-audit-ledger.ts",
+    ".codex-boss/root/root-policy.json"
+  ],
+  "requirementIds": [
+    "RD-001",
+    "RD-002",
+    "RD-003"
+  ],
+  "testFiles": [
+    {
+      "file": "tests/unit/root-authority.test.ts",
+      "status": "passed",
+      "tests": 25,
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "file": "tests/unit/owner-authority.test.ts",
+      "status": "passed",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "file": "tests/unit/self-elevation.test.ts",
+      "status": "passed",
+      "tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "assertions": {
+    "tests": 43,
+    "passed": 43,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failingTests": [],
+  "missingTestFiles": [],
+  "source": "machine-derived from a vitest JSON report; no value in this file was written by hand",
+  "result": "PASS"
+}

@@ -1,0 +1,32 @@
+{
+  "phase": "F8",
+  "title": "Adversarial / red-team acceptance (RT-01..RT-25)",
+  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "modules": [],
+  "requirementIds": [
+    "RD-016"
+  ],
+  "testFiles": [
+    {
+      "file": "tests/unit/root-authority-red-team.test.ts",
+      "status": "passed",
+      "tests": 25,
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "assertions": {
+    "tests": 25,
+    "passed": 25,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failingTests": [],
+  "missingTestFiles": [],
+  "source": "machine-derived from a vitest JSON report; no value in this file was written by hand",
+  "result": "PASS"
+}

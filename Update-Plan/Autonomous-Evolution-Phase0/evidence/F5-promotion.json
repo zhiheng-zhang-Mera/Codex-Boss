@@ -1,0 +1,39 @@
+{
+  "phase": "F5",
+  "title": "Promotion gate: state machine, exact-SHA contract, GitHub adapter",
+  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "modules": [
+    "src/shared/root-authority/promotion-state.ts",
+    "electron/promotion-gate/exact-sha-gate.ts",
+    "electron/promotion-gate/promotion-controller.ts",
+    "electron/promotion-gate/github-promotion-adapter.ts"
+  ],
+  "requirementIds": [
+    "RD-010",
+    "RD-011",
+    "RD-012"
+  ],
+  "testFiles": [
+    {
+      "file": "tests/unit/promotion-gate.test.ts",
+      "status": "passed",
+      "tests": 27,
+      "passed": 27,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "assertions": {
+    "tests": 27,
+    "passed": 27,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failingTests": [],
+  "missingTestFiles": [],
+  "source": "machine-derived from a vitest JSON report; no value in this file was written by hand",
+  "result": "PASS"
+}

@@ -1,0 +1,36 @@
+{
+  "phase": "F7",
+  "title": "Emergency control and the durable Owner freeze",
+  "generatedAt": "2026-09-10T10:05:56.271Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "modules": [
+    "electron/emergency-control/emergency-control.ts",
+    "electron/emergency-control/evolution-kill-switch.ts"
+  ],
+  "requirementIds": [
+    "RD-014",
+    "RD-015"
+  ],
+  "testFiles": [
+    {
+      "file": "tests/unit/emergency-control.test.ts",
+      "status": "passed",
+      "tests": 15,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "assertions": {
+    "tests": 15,
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failingTests": [],
+  "missingTestFiles": [],
+  "source": "machine-derived from a vitest JSON report; no value in this file was written by hand",
+  "result": "PASS"
+}
