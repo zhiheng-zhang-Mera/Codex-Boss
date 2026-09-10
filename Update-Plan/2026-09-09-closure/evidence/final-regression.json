@@ -1,0 +1,98 @@
+{
+  "phase": "K",
+  "generatedAt": "2026-09-10T02:36:33.514Z",
+  "gitHead": "1ce5b9fc06c9d294b3f604bdf57743d0436e1408",
+  "gates": {
+    "typecheck": {
+      "status": "PASS",
+      "durationMs": 1883
+    },
+    "typecheck_electron": {
+      "status": "PASS",
+      "durationMs": 1491
+    },
+    "unit": {
+      "status": "PASS",
+      "durationMs": 84006,
+      "testFiles": 69,
+      "testCount": 348,
+      "tail": " ✓ tests/unit/verification-contract.test.ts (6 tests) 67172ms\n   ✓ seam v2: high-risk contract capability-resolves unavailable TS gates and PASSES with real unit+integration evidence  18763ms\n   ✓ seam v2 default-on: OWNER_RESULT work task auto-attaches the contract and completes on real applicable gates  15239ms\n   ✓ seam v2: a failing applicable gate (failing acceptance test) forces REWORK and never finalizes  19612ms\n   ✓ runtime gate is inert without a verification contract (legacy completion preserved)  13551ms\n\n Test Files  69 passed (69)\n      Tests  348 passed (348)\n   Start at  12:35:07\n   Duration  82.67s (transform 149.92s, setup 0ms, import 333.77s, tests 210.85s, environment 9ms)\n\n"
+    },
+    "build": {
+      "status": "PASS",
+      "renderer": "PASS",
+      "electronEmit": "PASS",
+      "durationMs": 2897
+    }
+  },
+  "validators": {
+    "manifest": {
+      "ok": true,
+      "reasons": []
+    },
+    "r202": {
+      "ok": true,
+      "reasons": []
+    },
+    "r901": {
+      "ok": true,
+      "qualifiesForAcceptance": true,
+      "reasons": []
+    },
+    "acceptanceReport": {
+      "ok": true,
+      "reasons": []
+    },
+    "terminal": {
+      "value": "BLOCKED_EXTERNAL",
+      "pending": [],
+      "blockers": [
+        "R-202"
+      ],
+      "reasons": []
+    },
+    "evidenceProblems": {}
+  },
+  "testFiles": 69,
+  "testCount": 348,
+  "buildResult": "PASS",
+  "manifestHash": "64ae92e57305b75f22bc728db5cae0b8484476bc037ce5a118dd90e9e52c437e",
+  "evidenceHashes": {
+    "baseline-r43.json": "ac564431c15cc72af176f63730c1d8db7ad0948c7e147af550f17e6008cf787c",
+    "r1001-scenario-e.json": "d79a1d53db92fa60fc4a6019d2404efbb80900c6896a3d4591524626f524114d",
+    "r1002-scenario-g.json": "093753794610270f9b4cb2476b80e0c8520ac4c3261c98dc1f3ce7cfe0794b10",
+    "r1003-acceptance-report.json": "d6a6f18c12e7521c73869b9d99c4805fd6ce2bd1998e552ad1b1dd1a88c87c28",
+    "r101-seam-v2.json": "f5b57f56769ed6891a18b9227568e9b0027b01be7c2f695f7795a28bf73cf165",
+    "r201-action-readiness.json": "4eec8a0f80929e7c587620844d30a356124d280835a732dff332a0fa2a94bd00",
+    "r202-blocked-external.json": "169b7ccfefcad1f9429688bbbf0e54ec19e3f485e329adae62098add36320236",
+    "r202-live-probe.json": "55beb2588f41f421d0f352ab643ba484de63e9d5f2aab9e7724de28dcfe1c60b",
+    "r202-live-provider-repair.json": "58f297c477dd2e2f0bca167807f3e6c70be1365290ad1bbc2e3167332d79c41e",
+    "r203-session-lifecycle.json": "69bbbb9fef64f484a1e02ed5812f29af422c51f906844e4813a3e2afd44e1988",
+    "r204-conversation-policy.json": "bbc25e2e8ef8d700d1e1745290ddfbd8a30ff9a33403484d4a86579ae9fe12e2",
+    "r205-login-scan.json": "c50f6e2210f82989c3a6c8791bcc730834bf81d955386668766b1cf9b8eca6ef",
+    "r301-standalone-node.json": "698a6f968d423c17fb71ac17a11e97395a9c0540c5a3c72ea625b6abb90b5362",
+    "r302-node-capabilities.json": "ec2ff2a7e06c8dcf0ff9412a0e9dcad27e6d6cc1d640aa822cdba2b935c2911e",
+    "r303-capability-router.json": "f22589d2cb6754bd7a305a05390c11edc1ecffcbd625953c283022fb8fb9d33b",
+    "r401-fleet-core.json": "7120861025de9ff84d4b758e58472399a5f348f2efd8e7bc586584e379b198ba",
+    "r402-fleet-two-node.json": "34e52b44a3a45c280fba788e59a902401f2174bf169069435677df06d4831ee6",
+    "r403-fleet-protocol.json": "9dbd59e20620a913af0b8c91ed009f0ef56b59685b993c0b4db21e5376ffb621",
+    "r501-network-probe.json": "b896cbd45acd9cf9772c7d945c3af6a081d1ccc1ac559be0a777732cd5cd35d8",
+    "r502-proxy-route.json": "4febe3e366a2e77f76ba42d8219a44a10e8fffef7c3cf62638b7af2723d9b2cc",
+    "r601-kb-shared.json": "c5b0d035b886237b42d581988d2407132c3e613c109e5a16f7574683129601e9",
+    "r602-kb-local-fallback.json": "2e02b913f0bfe269ffa6d75bb6460f86a2122e598f9ee6a4b8930fbb2bb77ed2",
+    "r603-deferred-sync.json": "d813e57f7ecc4bd65820f2ec8358bc5b916036eee092da1744cf94b2e51bc532",
+    "r604-artifact-backbone.json": "e25b1b264b85f26c3e67c35dfe655461ef94b948fe37e5b6d929800b598235ff",
+    "r701-research-contract.json": "17d47c8c69a610ddd73b66ae5421f02d87f2263e6973b9b81066789d14ac79f6",
+    "r702-research-sufficiency.json": "b4a0c89199e44a79fdfe5aeb7ca03d70cbf102c4709133a94e1a3cf9b504dfee",
+    "r703-review-loop.json": "262c4fdd67550ff9093b8266005d2934f93e08b35475ad046b80904aad64a2e6",
+    "r704-publication-mode.json": "a3026475a970df77e8839731dfa3da7f90d32329a49cd871538c86bc4b487b2d",
+    "r705-research-archive.json": "f17b8598be16808dc49aea402229d64dfdd2abc9a8a7539f71f5fff267ace672",
+    "r801-self-iteration.json": "fe4ece35b7eca9995ff91f47e0306ffac0d1431164bb4a8dc0f9d48e19a17c64",
+    "r901-2026-09-10T00-33-51Z-2daa9e6e.heartbeat.jsonl": "76024f0a7633d8de066a480c4f6b91b5bbdb066631a4310f6007419854fc742e",
+    "r901-2026-09-10T00-33-51Z-2daa9e6e.json": "520201c6b510a257ed31a94945a20925f62ddbbcc673a2718dc22bbae26b70c9",
+    "r902-ui-isolation.json": "d6af991557987225a81dd1f90cdf7a16a161e3ce4cff7bc76efc4457441a1322",
+    "r903-ui-status.json": "e6d77b49c5d23511b664f2a7e50dbc7462964d0a8939c20483dfe6fa10842b43"
+  },
+  "allGatesPass": true,
+  "terminal": "BLOCKED_EXTERNAL"
+}
