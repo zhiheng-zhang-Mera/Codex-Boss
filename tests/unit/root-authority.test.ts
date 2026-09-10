@@ -28,6 +28,7 @@ import {
   parseCodeownersPatterns
 } from "../../src/shared/root-authority/protected-surface";
 import { ProtectedSurfaceGuard } from "../../electron/root-authority/protected-surface-guard";
+import { scanSecrets } from "../../src/shared/secret-scan";
 import { RootAuditLedger, RootAuditError } from "../../electron/root-authority/root-audit-ledger";
 import { RootAuthority, RootSurfaceError } from "../../electron/root-authority/root-authority";
 import { isClaimedRootOwner, loadRootPolicy } from "../../electron/root-authority/root-policy-loader";
@@ -126,8 +127,15 @@ describe("Root Policy (§7.1)", () => {
 
   it("refuses to load a policy that carries secret material", () => {
     const base = { ...DEFAULT_ROOT_POLICY } as unknown as Record<string, unknown>;
-    // A realistic mistake: pasting an Owner token next to the policy.
-    expect(() => parseRootPolicy({ ...base, note: "ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" })).toThrow(/secret material/);
+    // A realistic mistake: pasting a credential next to the policy. The canary is
+    // deliberately shaped to trip the repository's own generic-token detector
+    // (`secret-scan.ts`) without looking like a real provider credential — a
+    // format-valid `ghp_…` string here would show up as a false PAT alert in
+    // GitHub secret scanning, which is the opposite of what this file is for.
+    const canary = `token = ${"A".repeat(24)}`;
+    expect(() => parseRootPolicy({ ...base, note: canary })).toThrow(/secret material/);
+    // Proof the canary really is what the detector reacts to.
+    expect(scanSecrets(canary).length).toBeGreaterThan(0);
   });
 
   it("round-trips through validation", () => {

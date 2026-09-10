@@ -4,9 +4,7 @@
 BASE_SHA:                     fc14988395d60a0fb9a8f7d955657b55a0bfce87
 CANDIDATE_SHA:                bc2487401bb5b0cf1689638b14e260c664253a23
 BRANCH:                       Alien-Prestart-Isolation
-PR:                           opened from this branch after the push; the PR head is the
-                              branch tip, which differs from CANDIDATE_SHA only by this
-                              file (verify: git diff --stat bc24874 <tip>)
+PR:                           https://github.com/zhiheng-zhang-Mera/Codex-Boss/pull/1
 
 TYPECHECK:                    PASS
 BUILD:                        PASS
@@ -36,6 +34,26 @@ Evidence for every line above is machine-derived and committed under
 `evidence/`; `evidence/regression.json` carries the gate exit codes and a
 SHA-256 digest of each gate transcript, and `evidence/gate-logs/` holds those
 transcripts verbatim.
+
+### Note on the two SHAs
+
+`CANDIDATE_SHA` above is the implementation commit — the tree the gate chain was
+run against — and it is the SHA the acceptance evidence belongs to. A commit
+cannot contain its own hash, so the branch tip necessarily sits one step further
+along; the delta is documentation plus one test-fixture hygiene change, and the
+tip SHA is what GitHub reports as the PR head and what CI validates. Verify the
+delta with:
+
+```text
+git diff --stat bc2487401bb5b0cf1689638b14e260c664253a23 <branch tip>
+```
+
+One deliberate change beyond documentation is worth naming: the "policy must not
+carry secret material" test originally used a format-valid `ghp_…` canary, which
+GitHub secret scanning can reasonably mistake for a real personal access token.
+It now uses a generic token-shaped value that still exercises the same detector
+(`src/shared/secret-scan.ts`) without producing a false credential alert on a
+repository whose entire point is credential hygiene.
 
 ---
 
@@ -122,7 +140,7 @@ real files.
 | 9 | Emergency freeze still effective after restart | ✅ F7 restart-durability case; state re-read from disk on every call |
 | 10 | Evidence complete | ✅ §22 file set present under `evidence/` |
 | 11 | No ordinary product feature mixed in | ✅ `FUTURE-OPPORTUNITIES.md`; §18 list untouched |
-| 12 | Final PR created or ready | ✅ branch pushed; PR opened from it (Root Surface review expected) |
+| 12 | Final PR created or ready | ✅ [PR #1](https://github.com/zhiheng-zhang-Mera/Codex-Boss/pull/1) opened from this branch; Root Surface review expected |
 | 13 | Harness did not use an Owner bypass to merge | ✅ nothing was merged; no ruleset, CODEOWNERS or required check was altered |
 
 ---
