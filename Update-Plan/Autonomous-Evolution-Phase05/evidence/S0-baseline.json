@@ -1,0 +1,101 @@
+{
+  "phase": "S0",
+  "generatedAt": "2026-09-10T11:56:00.787Z",
+  "branch": "Prestart",
+  "headSha": "6f9f2974923325fd523fe9b697c0189e07f15957",
+  "baseSha": "6f9f2974923325fd523fe9b697c0189e07f15957",
+  "baseBranch": "main",
+  "productRepository": "zhiheng-zhang-Mera/Codex-Boss",
+  "phase0ModulesPresent": [
+    {
+      "path": "electron/root-authority/root-authority.ts",
+      "present": true
+    },
+    {
+      "path": "electron/root-authority/execution-profile.ts",
+      "present": true
+    },
+    {
+      "path": "electron/root-authority/protected-surface-guard.ts",
+      "present": true
+    },
+    {
+      "path": "electron/root-authority/root-audit-ledger.ts",
+      "present": true
+    },
+    {
+      "path": "electron/root-authority/root-policy-loader.ts",
+      "present": true
+    },
+    {
+      "path": "electron/promotion-gate/promotion-controller.ts",
+      "present": true
+    },
+    {
+      "path": "electron/promotion-gate/exact-sha-gate.ts",
+      "present": true
+    },
+    {
+      "path": "electron/promotion-gate/github-promotion-adapter.ts",
+      "present": true
+    },
+    {
+      "path": "electron/stable-candidate/candidate-supervisor.ts",
+      "present": true
+    },
+    {
+      "path": "electron/stable-candidate/runtime-isolation.ts",
+      "present": true
+    },
+    {
+      "path": "electron/stable-candidate/workspace-manager.ts",
+      "present": true
+    },
+    {
+      "path": "electron/emergency-control/emergency-control.ts",
+      "present": true
+    },
+    {
+      "path": "electron/emergency-control/evolution-kill-switch.ts",
+      "present": true
+    },
+    {
+      "path": "electron/root-recovery/rollback-controller.ts",
+      "present": true
+    },
+    {
+      "path": "electron/credential-boundary/credential-boundary.ts",
+      "present": true
+    },
+    {
+      "path": "electron/credential-boundary/sanitized-environment.ts",
+      "present": true
+    }
+  ],
+  "codeowners": "# Codex-Boss CODEOWNERS\r\n#\r\n# Root owner: @zhiheng-zhang-Mera\r\n#\r\n# Purpose\r\n# -------\r\n# Keep normal Codex-Boss evolution autonomous while requiring the Root Owner\r\n# to approve changes that can alter:\r\n#   - who controls the repository,\r\n#   - the CI / promotion gate,\r\n#   - Root Authority,\r\n#   - credential boundaries,\r\n#   - critical acceptance / soak gates.\r\n#\r\n# IMPORTANT\r\n# ---------\r\n# 1. Do NOT add a repository-wide rule such as:\r\n#       * @zhiheng-zhang-Mera\r\n#    That would force Owner review for ordinary Boss changes and defeat\r\n#    unattended autonomous evolution.\r\n#\r\n# 2. The GitHub ruleset should keep:\r\n#       - Require pull request before merging\r\n#       - Required approvals = 0\r\n#       - Require review from Code Owners = ON\r\n#       - Required status check: validate\r\n#       - Require branch to be up to date = ON\r\n#       - Block force pushes = ON\r\n#       - Restrict deletions = ON\r\n#       - Boss has NO bypass\r\n#       - Root Owner user is the only Always-allow bypass actor\r\n#\r\n# 3. Owner credentials / private keys / PATs / emergency secrets must NEVER\r\n#    be committed to this repository. CODEOWNERS is a review boundary, not\r\n#    a secret-storage mechanism.\r\n\r\n\r\n# ============================================================================\r\n# 1. GitHub governance and CI definition\r\n# ============================================================================\r\n\r\n# Protect this file itself so Boss cannot redefine its own Root review surface.\r\n/.github/CODEOWNERS                         @zhiheng-zhang-Mera\r\n\r\n# Any workflow can influence required checks, permissions, releases, or\r\n# promotion behavior, so all GitHub Actions workflows are Root-owned.\r\n/.github/workflows/                        @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 2. CI command indirection / dependency execution surface\r\n# ============================================================================\r\n\r\n# Current Desktop CI invokes pnpm scripts from package.json. Changing those\r\n# scripts can silently weaken \"validate\", so package.json is a Root surface.\r\n/package.json                              @zhiheng-zhang-Mera\r\n\r\n# Dependency resolution can change executable code used by CI and packaging.\r\n/pnpm-lock.yaml                            @zhiheng-zhang-Mera\r\n\r\n# Future package-manager configuration files are protected if introduced.\r\n/pnpm-workspace.yaml                       @zhiheng-zhang-Mera\r\n/.npmrc                                    @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 3. Build / typecheck / test-runner configuration\r\n# ============================================================================\r\n\r\n# These files can change what code is compiled, typechecked, or tested.\r\n# Entries are harmless if a file does not yet exist.\r\n/tsconfig.json                             @zhiheng-zhang-Mera\r\n/tsconfig.electron.json                    @zhiheng-zhang-Mera\r\n/tsconfig.*.json                           @zhiheng-zhang-Mera\r\n/vite.config.*                             @zhiheng-zhang-Mera\r\n/vitest.config.*                           @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 4. Critical promotion / acceptance gates used by CI\r\n# ============================================================================\r\n\r\n# Direct CI gate scripts currently referenced by .github/workflows/ci.yml.\r\n/scripts/benchmark.cjs                     @zhiheng-zhang-Mera\r\n/scripts/package-portable.cjs              @zhiheng-zhang-Mera\r\n/scripts/smoke-portable.ps1                @zhiheng-zhang-Mera\r\n/scripts/acceptance-restart.cjs            @zhiheng-zhang-Mera\r\n\r\n# Acceptance harnesses define whether a Candidate is considered healthy.\r\n# Boss may execute them freely, but changing the gate itself requires Owner.\r\n/scripts/acceptance-*.cjs                  @zhiheng-zhang-Mera\r\n/scripts/acceptance-*.ps1                  @zhiheng-zhang-Mera\r\n\r\n# Soak / stability gates.\r\n/scripts/*soak*.cjs                        @zhiheng-zhang-Mera\r\n/scripts/*soak*.ps1                        @zhiheng-zhang-Mera\r\n/scripts/r901-soak.cjs                     @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 5. Root Authority policy surface\r\n# ============================================================================\r\n#\r\n# These paths intentionally include future modules. CODEOWNERS will begin\r\n# protecting them automatically as soon as they are created.\r\n\r\n# Repository-side Root policy metadata only.\r\n# Secrets and signing private keys must remain outside the repository.\r\n/.codex-boss/root/                         @zhiheng-zhang-Mera\r\n/.codex-boss/config/root-*.json            @zhiheng-zhang-Mera\r\n/.codex-boss/config/root-*.schema.json     @zhiheng-zhang-Mera\r\n\r\n# Root authority implementation.\r\n/electron/root-authority/                  @zhiheng-zhang-Mera\r\n/src/root-authority/                       @zhiheng-zhang-Mera\r\n/src/**/root-authority/                    @zhiheng-zhang-Mera\r\n\r\n# Owner identity / authority verification.\r\n/electron/owner-authority/                 @zhiheng-zhang-Mera\r\n/src/owner-authority/                      @zhiheng-zhang-Mera\r\n/src/**/owner-authority/                   @zhiheng-zhang-Mera\r\n\r\n# Explicit self-elevation guards.\r\n/electron/self-elevation/                  @zhiheng-zhang-Mera\r\n/src/self-elevation/                       @zhiheng-zhang-Mera\r\n/src/**/self-elevation/                    @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 6. Credential boundary\r\n# ============================================================================\r\n#\r\n# These modules may verify/use Boss credentials, but must never contain Owner\r\n# secrets. Their purpose is to prevent autonomous workers from crossing into\r\n# Owner-only credentials or administration authority.\r\n\r\n/electron/credential-boundary/             @zhiheng-zhang-Mera\r\n/electron/security/credential-boundary/    @zhiheng-zhang-Mera\r\n/src/credential-boundary/                  @zhiheng-zhang-Mera\r\n/src/**/credential-boundary/               @zhiheng-zhang-Mera\r\n\r\n/electron/root-credential*/                @zhiheng-zhang-Mera\r\n/src/**/root-credential*/                  @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 7. Promotion / Stable-Candidate authority boundary\r\n# ============================================================================\r\n\r\n/electron/promotion-gate/                  @zhiheng-zhang-Mera\r\n/electron/engineering/promotion-gate/      @zhiheng-zhang-Mera\r\n/src/promotion-gate/                       @zhiheng-zhang-Mera\r\n/src/**/promotion-gate/                    @zhiheng-zhang-Mera\r\n\r\n/electron/stable-candidate/                @zhiheng-zhang-Mera\r\n/src/stable-candidate/                     @zhiheng-zhang-Mera\r\n/src/**/stable-candidate/                  @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 8. Emergency stop / recovery authority\r\n# ============================================================================\r\n\r\n/electron/emergency-control/               @zhiheng-zhang-Mera\r\n/src/emergency-control/                    @zhiheng-zhang-Mera\r\n/src/**/emergency-control/                 @zhiheng-zhang-Mera\r\n\r\n/electron/root-recovery/                   @zhiheng-zhang-Mera\r\n/src/root-recovery/                        @zhiheng-zhang-Mera\r\n/src/**/root-recovery/                     @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# 9. Root-invariant tests\r\n# ============================================================================\r\n#\r\n# Ordinary feature tests remain autonomous. Only tests whose names explicitly\r\n# define Root / Owner / credential / promotion invariants require Owner review.\r\n\r\n/tests/**/root-authority*.test.*           @zhiheng-zhang-Mera\r\n/tests/**/owner-authority*.test.*          @zhiheng-zhang-Mera\r\n/tests/**/self-elevation*.test.*           @zhiheng-zhang-Mera\r\n/tests/**/credential-boundary*.test.*      @zhiheng-zhang-Mera\r\n/tests/**/promotion-gate*.test.*           @zhiheng-zhang-Mera\r\n/tests/**/stable-candidate*.test.*         @zhiheng-zhang-Mera\r\n/tests/**/emergency-control*.test.*        @zhiheng-zhang-Mera\r\n/tests/**/root-recovery*.test.*            @zhiheng-zhang-Mera\r\n\r\n\r\n# ============================================================================\r\n# Root invariant\r\n# ============================================================================\r\n#\r\n# Boss may autonomously evolve its capabilities, implementation, architecture,\r\n# providers, fleet, knowledge system, UI, research pipeline, and ordinary\r\n# engineering logic.\r\n#\r\n# Boss may NOT autonomously redefine, bypass, revoke, impersonate, or supersede\r\n# the Root Owner or the controls that enforce Root Owner authority.\r\n#\r\n# Changes matching this CODEOWNERS file require:\r\n#\r\n#     @zhiheng-zhang-Mera approval\r\n#\r\n# Everything else remains eligible for the normal autonomous path:\r\n#\r\n#     Candidate -> PR -> validate PASS -> merge -> Stable\r\n#\r\n",
+  "typecheck": {
+    "command": "D:\\DS-Hns\\runtime\\node-v24.14.1-win-x64\\node.exe D:\\Git-Projects\\Codex-Boss\\node_modules\\typescript\\bin\\tsc --noEmit -p tsconfig.json",
+    "exitCode": 0,
+    "passed": true,
+    "durationMs": 1558,
+    "stdout": "",
+    "stderr": ""
+  },
+  "typecheckElectron": {
+    "command": "D:\\DS-Hns\\runtime\\node-v24.14.1-win-x64\\node.exe D:\\Git-Projects\\Codex-Boss\\node_modules\\typescript\\bin\\tsc --noEmit -p tsconfig.electron.json",
+    "exitCode": 0,
+    "passed": true,
+    "durationMs": 1707,
+    "stdout": "",
+    "stderr": ""
+  },
+  "build": {
+    "command": "D:\\DS-Hns\\runtime\\node-v24.14.1-win-x64\\node.exe D:\\Git-Projects\\Codex-Boss\\node_modules\\vite\\bin\\vite.js build",
+    "exitCode": 0,
+    "passed": true,
+    "durationMs": 1370,
+    "stdout": "vite v8.2.2 building client environment for production...\ntransforming...\n✓ 32 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.44 kB │ gzip:  0.28 kB\ndist/assets/index-7PLpVpz4.css   43.29 kB │ gzip:  9.31 kB\ndist/assets/index-Bqu5ae0u.js   273.77 kB │ gzip: 86.75 kB\n\n✓ built in 157ms\n",
+    "stderr": ""
+  },
+  "notes": "baseSha is the merge-base with origin/main (PR #1, the Phase 0 branch, is merged there)."
+}

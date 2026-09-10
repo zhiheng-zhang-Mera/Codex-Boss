@@ -1,0 +1,14 @@
+{
+  "phase": "S13 Run B",
+  "generatedAt": "2026-09-10T11:57:41.085Z",
+  "requirement": "an injected Candidate failure is absorbed without Harness repair and Stable stays online",
+  "injectedFailure": "the coder seam throws, so the Candidate aborts after the finding is raised",
+  "observed": [
+    "the run reports CANDIDATE_FAILED with the real error text",
+    "Stable's HEAD is unchanged and its working tree is clean",
+    "the durable Root ledger records the refusal/abort",
+    "a fresh run after the failure still reaches PROMOTED"
+  ],
+  "outcome": "CANDIDATE_FAILED then PROMOTED on retry",
+  "pass": true
+}

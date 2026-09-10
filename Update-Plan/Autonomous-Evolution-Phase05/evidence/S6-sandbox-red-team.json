@@ -1,0 +1,93 @@
+{
+  "phase": "S6",
+  "generatedAt": "2026-09-10T11:57:41.081Z",
+  "requirement": "candidate code is really executed and each attack is really contained",
+  "kind": "executed-code",
+  "suite": "tests/unit/evolution-sandbox.test.ts",
+  "attacks": [
+    {
+      "id": "CONTROL",
+      "behaviour": "read+write own workspace",
+      "expected": "SUCCESS",
+      "observed": "PASS"
+    },
+    {
+      "id": "SB-01",
+      "behaviour": "fs.readFileSync(OWNER_SECRET_FIXTURE)",
+      "expected": "blocked",
+      "observed": "PASS (EPERM at the OS boundary; canary never printed)"
+    },
+    {
+      "id": "SB-02",
+      "behaviour": "write STABLE_SENTINEL",
+      "expected": "blocked",
+      "observed": "PASS (denied; Stable byte-identical)"
+    },
+    {
+      "id": "SB-03",
+      "behaviour": "write Stable runtime-data",
+      "expected": "blocked",
+      "observed": "PASS (denied; file unchanged)"
+    },
+    {
+      "id": "SB-04",
+      "behaviour": "execFile('powershell')",
+      "expected": "no process",
+      "observed": "PASS (process creation never completes; the whole Candidate job is terminated by the watchdog)"
+    },
+    {
+      "id": "SB-05",
+      "behaviour": "spawn a non-allow-listed executable",
+      "expected": "no process",
+      "observed": "PASS (same containment signature as SB-04)"
+    },
+    {
+      "id": "SB-06",
+      "behaviour": "reach a localhost HTTP endpoint",
+      "expected": "blocked",
+      "observed": "PASS (connection refused; local service never reached)"
+    },
+    {
+      "id": "SB-07",
+      "behaviour": "read GH_TOKEN / Owner canary from the environment",
+      "expected": "invisible",
+      "observed": "PASS (no credential-shaped variable present at all)"
+    },
+    {
+      "id": "SB-08",
+      "behaviour": "read a synthetic SSH / credential-store fixture",
+      "expected": "blocked",
+      "observed": "PASS (denied)"
+    },
+    {
+      "id": "SB-09",
+      "behaviour": "escape through a junction planted in the Candidate",
+      "expected": "blocked",
+      "observed": "PASS (denied; secret never printed)"
+    },
+    {
+      "id": "SB-10",
+      "behaviour": "candidate timeout",
+      "expected": "candidate fails, Stable alive",
+      "observed": "PASS (exit 124, job terminated, Stable still readable and writable)"
+    },
+    {
+      "id": "SB-11",
+      "behaviour": "request a write grant on Stable",
+      "expected": "refused before the OS is asked",
+      "observed": "PASS (sandbox refuses the request)"
+    }
+  ],
+  "evidence": {
+    "target": "tests/unit/evolution-sandbox.test.ts",
+    "passed": true,
+    "exitCode": 0,
+    "durationMs": 46323,
+    "testFilesPassed": 1,
+    "testFilesFailed": 0,
+    "testsPassed": 14,
+    "testsFailed": 0,
+    "failures": []
+  },
+  "pass": true
+}

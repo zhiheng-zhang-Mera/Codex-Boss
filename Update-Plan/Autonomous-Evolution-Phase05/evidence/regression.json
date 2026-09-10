@@ -1,0 +1,35 @@
+{
+  "phase": "regression",
+  "generatedAt": "2026-09-10T11:59:49.405Z",
+  "command": "<full suite>",
+  "testFilesPassed": 96,
+  "testFilesFailed": 0,
+  "testsPassed": 896,
+  "testsFailed": 0,
+  "durationMs": 128319,
+  "failures": [],
+  "typecheck": {
+    "command": "D:\\DS-Hns\\runtime\\node-v24.14.1-win-x64\\node.exe D:\\Git-Projects\\Codex-Boss\\node_modules\\typescript\\bin\\tsc --noEmit -p tsconfig.json",
+    "exitCode": 0,
+    "passed": true,
+    "durationMs": 1558,
+    "stdout": "",
+    "stderr": ""
+  },
+  "typecheckElectron": {
+    "command": "D:\\DS-Hns\\runtime\\node-v24.14.1-win-x64\\node.exe D:\\Git-Projects\\Codex-Boss\\node_modules\\typescript\\bin\\tsc --noEmit -p tsconfig.electron.json",
+    "exitCode": 0,
+    "passed": true,
+    "durationMs": 1707,
+    "stdout": "",
+    "stderr": ""
+  },
+  "build": {
+    "command": "D:\\DS-Hns\\runtime\\node-v24.14.1-win-x64\\node.exe D:\\Git-Projects\\Codex-Boss\\node_modules\\vite\\bin\\vite.js build",
+    "exitCode": 0,
+    "passed": true,
+    "durationMs": 1370,
+    "stdout": "",
+    "stderr": ""
+  }
+}

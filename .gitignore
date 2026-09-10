@@ -39,6 +39,10 @@ secrets/
 # (Isolation-Finalization.md §22). The blanket `*.log` rule above would hide them.
 !/Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/
 !/Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/*.log
+# Phase 0.5 (Alien-Prestart.md §22) — the requirements set, the architecture, the
+# sandbox threat model, the side-effect audit and the machine-derived evidence
+# under evidence/ are the deliverable for this phase.
+!/Update-Plan/Autonomous-Evolution-Phase05/
 /research-output/
 .live-acceptance/
 

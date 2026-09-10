@@ -1,0 +1,18 @@
+{
+  "phase": "S1",
+  "generatedAt": "2026-09-10T11:57:41.079Z",
+  "requirement": "self repo factually recognized; false-positive self repo rejected",
+  "suite": "tests/unit/self-target-resolver.test.ts",
+  "result": {
+    "target": "tests/unit/self-target-resolver.test.ts",
+    "passed": true,
+    "exitCode": 0,
+    "durationMs": 13682,
+    "testFilesPassed": 1,
+    "testFilesFailed": 0,
+    "testsPassed": 11,
+    "testsFailed": 0,
+    "failures": []
+  },
+  "pass": true
+}
