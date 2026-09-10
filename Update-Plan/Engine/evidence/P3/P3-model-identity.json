@@ -1,0 +1,21 @@
+{
+  "phase": "Engine-P3",
+  "requirement": "Phase 3 — Model Identity Observation",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Web model identity observation with evidence-confidence ordering, Auto handling, no fabricated backend ids, snapshot dedup by identity fingerprint",
+  "implementation": [
+    "src/shared/model-identity.ts: ModelIdentitySource (NETWORK_METADATA > PAGE_METADATA > UI_SELECTOR > PROVIDER_DECLARED > INFERRED > UNKNOWN) with per-source confidence ceilings; SELF_REPORTED_CONFIDENCE cap (a model's text claim is never high-confidence); ModelExecutionIdentity (provider/surface/selectedModel/declaredModel/observedModelId/mode/versionSource/confidence/observedAt/behaviourEpochId); ModelSnapshot (schemaVersion 1, fingerprint, first/lastObservedAt); modelIdentityFingerprint over stable fields only (timestamps excluded); isAutoSelection/isConcreteModelId; provenanceOf ⇒ OBSERVED / PROVIDER_DECLARED / INFERRED / UNKNOWN",
+    "electron/learning/providers/version-resolver.ts: resolveModelIdentity — deterministic best-source selection, Auto treated as a mode (half confidence, no id), observedModelId only from structured metadata, UNKNOWN when nothing observed",
+    "electron/learning/providers/model-observer.ts: ModelObserver — collects only legitimately exposed fields (network/page metadata, UI selector, provider declaration, self-report capped, inferred); malformed metadata ignored + reported, never thrown; unobserved() for legacy adapters",
+    "electron/learning/providers/model-snapshot.ts: ModelSnapshotRegistry — dedup by identity fingerprint (repeat ⇒ same MS-xxx with advancing lastObservedAt), new observed id ⇒ new snapshot leaving old history intact, durable file, corrupt file degrades learning"
+  ],
+  "tests": [
+    "tests/unit/engine-phase-3.test.ts (14 tests): source trust ordering + confidence ceilings; self-report cannot outrank structure; A13 explicit model recorded w/ provenance; A14 Auto recorded as Auto with no fabricated backend; A15 unobservable ⇒ undefined/UNKNOWN/confidence 0; structured metadata may observe a concrete backend even in Auto; malformed metadata ignored not thrown; A49 legacy adapter identity; A17 snapshot dedup + lastObservedAt advance; A18 new id ⇒ new snapshot, old untouched; A16 one conversation binds three snapshots across turns; fingerprint excludes time; durable restart keeps dedup; corrupt snapshot file degrades without throwing"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p3": "tests/unit/engine-phase-3.test.ts 14/14 PASS"
+  },
+  "notes": "Addresses A13-A18 and A49. No bypass/jailbreak mechanism is implemented: only fields the host can legitimately read are collected."
+}
