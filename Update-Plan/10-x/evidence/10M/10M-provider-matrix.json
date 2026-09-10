@@ -1,0 +1,19 @@
+{
+  "phase": "10M",
+  "requirement": "10M-provider-reachability-matrix",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Provider reachability matrix — per-node live provider matrix (reachable/authenticated/latency/regionBlocked/rateLimited/proxyRequired/lastSuccess/lastFailure), scheduler-ready, observations-only",
+  "implementation": [
+    "src/shared/tenx/network.ts (10A): ProviderMatrixRow/ProviderMatrix",
+    "electron/tenx/provider-matrix.ts: TenxProviderMatrixStore — durable per-node matrices; observe() applies row observations and tracks lastSuccessAt/lastFailureAt history; readyProviders() (reachable+authenticated+not blocked/limited) feeds the 10F scheduler; forgetProvider; nodes fully isolated"
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10m.test.ts (6 tests): full matrix row fields; failed probe records lastFailure w/o fabricating success (history retained); readyProviders filters blocked/limited/unreachable; per-node isolation; forgetProvider one-node-only; durable restart"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10M": "tests/unit/tenx-phase-10m.test.ts 6/6 PASS"
+  },
+  "notes": "10F facade already consumes this matrix shape (dynamic-scheduler.allocate)."
+}
