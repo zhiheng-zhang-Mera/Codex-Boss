@@ -1,0 +1,46 @@
+{
+  "requirement": "R-202",
+  "status": "BLOCKED_EXTERNAL",
+  "attemptedAt": "2026-09-10T00:29:19.145Z",
+  "externalDependency": "operator authorization for the provider web session (OAuth / MFA / CAPTCHA are human-only)",
+  "observedState": "{\"readinessPassed\":false,\"preflight\":\"no preflight probe\"}",
+  "operatorActionRequired": "log in / authorize the provider in the opened Codex-Boss provider window, then re-run: node scripts/live-r202-provider-repair.cjs",
+  "retryCondition": "provider session authenticated=true and preflight readiness gate PASS",
+  "attemptEvidence": [
+    {
+      "step": "preflight-start",
+      "at": "2026-09-10T00:27:44.092Z"
+    },
+    {
+      "step": "app-launched",
+      "at": "2026-09-10T00:27:44.106Z"
+    },
+    {
+      "step": "renderer-ready",
+      "at": "2026-09-10T00:27:48.892Z"
+    },
+    {
+      "step": "provider-opened",
+      "at": "2026-09-10T00:27:48.949Z"
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-10T00:27:53.967Z"
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-10T00:28:24.029Z"
+    },
+    {
+      "step": "waiting-auth",
+      "at": "2026-09-10T00:28:54.103Z"
+    },
+    {
+      "step": "preflight",
+      "at": "2026-09-10T00:29:19.144Z"
+    }
+  ],
+  "runId": "r202-2026-09-10T00-27-43-961Z-cfc9ee",
+  "gitHead": "30a1658fe1d276e98e8b198105ac34a488ea3a33",
+  "evidencePath": "Update-Plan\\2026-09-09-closure\\evidence\\r202-live-provider-repair.json"
+}

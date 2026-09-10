@@ -63,3 +63,100 @@
 3. R-701-705 Phase G; R-801 Phase H;
 4. R-902/903 Phase I; R-901 >2h soak (LIVE);
 5. R-1001/1002 Phase J; R-1003 Acceptance Report.
+
+---
+
+# Host-A Final Acceptance Execution（branch 9-10-A）
+
+执行依据：`Update-Plan/Host-A.md`。基线 = `8b0675f`（closure baseline；并发 actor 于 09:44–09:45
+推送到 `9-2026-09-09-closure` 的两笔提交 `3d35eb3`/`fe8c766` 与 Host-A §2/§6 冲突，已由 Owner 确认
+接管纠正，未并入本分支）。
+
+## Phase A — 恢复完整回归面（2026-09-10）
+- 从裁剪前 HEAD `ef0cb32^` 恢复 34 个被移除的 unit suite（tracked 34 → 68 文件）。
+- 清出 135 个非 tracked 的 stale root-level `tests/*.test.ts`（历史目录结构遗留，vitest
+  `tests/**` glob 会误收）到 `.cache/quarantine-root-tests/`（未提交）。
+- 门禁：typecheck PASS · vitest **68 files / 312 tests PASS** · full build PASS。
+- commit `2a8b064`。
+
+## Phase B/C — terminal evaluator 纯逻辑 + evidence-aware validation
+- `scripts/closure-terminal-logic.mjs`（纯逻辑，无 IO）：`evaluateTerminal` 实现 Host-A §4 四种
+  合法终态（COMPLETE / BLOCKED_EXTERNAL / FAILED_TERMINAL / NO_LEGAL_TERMINAL_YET）；
+  禁止 `BLOCKED_EXTERNAL_REQUIRED` 伪终态；§5 结构化 blocker evidence schema 校验；
+  PASS evidence integrity（evidence 非空 + 文件存在）；R-901/R-202 专用 validator；
+  manifest 状态机（显式 transition 表 + schema 校验）。
+- `scripts/closure-acceptance-report.mjs` 重构为消费纯逻辑，并输出 evidenceProblems。
+- commit `ef3d8cb`（18 tests）。
+
+## Phase D — 硬化 R-901 soak harness
+- `scripts/r901-soak.cjs`：真实 ExecutionSupervisor + TaskLedger + RecoveryScheduler +
+  CircuitBreaker 上的单次连续 run；fail-closed `MIN_ACCEPTANCE_SECONDS=7200`（短跑必须显式
+  `--validate-only`，且不得写正式 evidence、不得 PASS）；唯一 run identity（runId/pid/gitHead/
+  startedAt/hostId/nodeVersion/harnessVersion）；确定性 10 阶段 fault schedule
+  （NORMAL→SLOWDOWN→RETRY→CHECKPOINT_WRITE→CONSECUTIVE_FAILURE→BREAKER_OPEN/DEGRADED→
+  FALLBACK_CONTINUATION→CHECKPOINT_RESUME→PROVIDER_RECOVERY→CONTINUED_NORMAL）；计数门限；
+  JSONL heartbeat + 连续性证明（wall span / heartbeat gap / task gap）。
+  evidence = `r901-<runId>.json` + `r901-<runId>.heartbeat.jsonl`。
+- `scripts/start-r901-soak.ps1`：detached durable runner（preflight / duplicate-run lock / PID
+  file / runId / stdout+stderr log / -Status / -Stop）。
+- validate-only 实测：10 阶段全覆盖、fatalFailed=0、全计数 ≥1。
+- commit `e2d62c6`、`30a1658`（CDP fix）、`552ce86`（cooldown 等待修正）、`c119663`（cooldown 心跳分片）。
+
+## Phase E/F — R-202 live harness + manifest single-writer
+- `scripts/live-r202-provider-repair.cjs`：真实窗口 bounded 尝试；E1 readiness gate（host /
+  非 auth 路径 / composer / authenticated——login CTA 可见即视为未认证，fail-closed）；
+  未认证 ⇒ 写 Host-A §5 结构化 BLOCKED_EXTERNAL candidate evidence；已认证 ⇒ 走真实
+  automation 路径发送一次 echo 并记录 E4 字段。
+- `scripts/closure-set-status.mjs`：唯一 manifest 写入口（read → schema → transition → evidence
+  → atomic write → 重生成报告 → re-read → parse verify → change log），支持 `--refresh` 只换证据。
+- commit `f10a7a8`、`dc6a471`（含 R-202 证据 refresh）。
+
+## Phase G — full regression
+- typecheck PASS · vitest **69 files / 345 tests PASS** · full build PASS。
+
+## Phase H — R-202 live 执行
+- 真实运行：renderer ready、provider opened、Qwen 页面加载、preflight 观测到 login CTA
+  ⇒ `authenticated=false`（外部 OAuth/MFA 人工登录）。
+- 产出 `evidence/r202-live-provider-repair.json`（Host-A §5 schema 完整）；经 single-writer
+  refresh 进 manifest；report `evidenceProblems` 为空。
+- 终态判定：`NO_LEGAL_TERMINAL_YET`（仅剩 R-901 LIVE_REQUIRED）。
+
+## Phase I — hardened R-901 正式 run
+- 经 durable runner 启动：runId `2026-09-10T00-33-51Z-2daa9e6e`，pid 30832，gitHead
+  `c119663`，formal（cooldown 60s，failureThreshold 5）。
+- **结果 PASS**：durationSec **7202**（≥ MIN_ACCEPTANCE_SECONDS 7200）；hostId
+  `Mera-Alianware-win32-x64`；harnessVersion `r901-soak-3.0`；nodeVersion v24.14.1。
+- 确定性 10 阶段 fault schedule **全部观测**（missingPhases = []）：NORMAL_OPERATION、
+  PROVIDER_SLOWDOWN、RETRY、CHECKPOINT_WRITE、CONSECUTIVE_PROVIDER_FAILURE、
+  BREAKER_OPEN_DEGRADED、FALLBACK_PROVIDER_CONTINUATION、CHECKPOINT_RESUME、
+  PROVIDER_RECOVERY、CONTINUED_NORMAL_OPERATION。
+- 计数：completed 1768 / fatalFailed **0** / activeTaskCount 1 / slowdown 104 / retry 104 /
+  checkpointWritten 8944 / checkpointResumed 104 / degradation 208 / fallbackContinuation 624 /
+  providerRecovery 104。
+- 连续性：1685 heartbeats，maxHeartbeatGapMs **10021**（10.0s，阈值 5min），maxTaskGapMs 9657，
+  wall span 7201s，taskSequence 1→1768。
+- 运行期间未修改被测核心代码（`git diff c119663..HEAD -- electron src` 为空）。
+- 证据：`evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.json` +
+  `evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.heartbeat.jsonl`。
+- 旧版 `closure-soak-2h.cjs` 已改为 fail-closed shim（Host-A §6），不能再产出验收证据。
+
+## Phase J — legal terminal
+- 经 single-writer 把 R-901 `LIVE_REQUIRED → PASS`（专用 validator 通过）。
+- 报告：20 LOCKED_PASS + 29 PASS + R-202 BLOCKED_EXTERNAL，**pending 空、evidenceProblems 空**
+  → 合法终态 **BLOCKED_EXTERNAL**（R-202 需要人工 OAuth/MFA 登录，属 Host-A §2/§18.2 的真实外部条件）。
+
+## Phase K — final full regression
+- `evidence/final-regression.json`（gitHead `1ce5b9f`）：typecheck PASS ×2、full unit
+  **69 files / 348 tests PASS**、full build PASS、manifest + R-202 + R-901 + acceptance-report
+  validators 全 true、terminal BLOCKED_EXTERNAL；含全部 evidence sha256 与 manifest hash。
+
+## Phase L — minimal test curation
+- 仅在第 K 步全绿之后执行（Host-A §14）。保留 42 个 suite（`MINIMAL-TEST-MAP.md` 逐项说明
+  retained test → protected subsystem → protected requirement(s) → why required，覆盖 §14 全部 13 类）。
+- 裁剪后验证 `evidence/minimal-suite-regression.json`（gitHead `7934160`）：typecheck PASS ×2、
+  minimal unit **42 files / 218 tests PASS**、full build PASS、validators 全 true。
+- 被裁剪 suite 仍可从 git 历史恢复（`git checkout 1ce5b9f -- tests/unit/<name>.test.ts`）。
+
+## 递交
+- 分支 `9-10-A` 已推送至云端 `origin/9-10-A`（final HEAD `2be71d0`）。
+
