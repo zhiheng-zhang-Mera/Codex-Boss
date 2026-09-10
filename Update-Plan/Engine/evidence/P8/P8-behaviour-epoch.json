@@ -1,0 +1,20 @@
+{
+  "phase": "Engine-P8",
+  "requirement": "Phase 8 — Behaviour Epoch",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Behaviour epoch separation — deterministic change-point detection (min samples, sustained shift, confidence gate) plus a durable epoch ledger that closes/parents epochs and preserves history",
+  "implementation": [
+    "src/shared/behaviour-epoch.ts: BehaviourEpoch (schemaVersion 1, epochId/provider/surface/selected+observed model/startedAt/endedAt/parentEpochId/trigger/confidence/evidence); EpochTrigger (OBSERVED_MODEL_CHANGE/SUSTAINED_BEHAVIOUR_CHANGE/MANUAL_RESET); EpochScope; epochScopeKey; epochIdFor; BEHAVIOUR_METRIC_KEYS (completion/goalFidelity/restrictionImpact/quality/latency/formatCompliance)",
+    "electron/learning/providers/change-point-detector.ts: detectChangePoint — scans candidate split points requiring minSamplesPerSide on BOTH sides (which makes a single anomaly inert), computes per-metric normalised shifts (latency normalised so a slow day is not a behaviour change), requires min shift score + confidence threshold, returns before/after evidence ids",
+    "electron/learning/providers/behaviour-epoch.ts: BehaviourEpochLedger — current(scope) exact-scope lookup; currentForSeries(provider+surface+selected model) for model-change detection and parenting; open() closes every open epoch of the series (parent read BEFORE closing) and links parentEpochId; observe() opens on OBSERVED_MODEL_CHANGE or a gated SUSTAINED_BEHAVIOUR_CHANGE, otherwise keeps the current epoch; history()/byProvider()/get() keep every previous epoch queryable; corrupt ledger degrades to epoch-less"
+  ],
+  "tests": [
+    "tests/unit/engine-phase-8.test.ts (12 tests): A19 sustained shift detected (completion shift 0.45, evidence windows); A20 single anomaly inert (detector + ledger keep the same epoch); insufficient data; latency normalisation; format-compliance collapse detection; A19/A33 sustained change opens a child epoch and closes the parent with endedAt; observed model-id change separates epochs immediately (trigger + parent); A34 old epochs separately queryable by provider and model id; A30 corrupt ledger degrades without throwing and stays usable; durable restart keeps both epochs; scope key separation"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p8": "tests/unit/engine-phase-8.test.ts 12/12 PASS"
+  },
+  "notes": "Addresses A19, A20, A30, A33 (link), A34. One real ordering defect (parent read after closing) was found by these tests and fixed."
+}
