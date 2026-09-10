@@ -43,6 +43,8 @@ export function aggregateFleet(input: {
   knowledge: FleetAggregate["knowledge"];
   networkEffective: string[];
   providerRows: Array<{ reachable: boolean; degraded?: boolean }>;
+  tasks?: Partial<FleetAggregate["tasks"]>;
+  sampledAt?: string;
 }): FleetAggregate {
   const stateOf = (report: NodeCapabilityReport): "online" | "degraded" | "offline" =>
     report.state === "OFFLINE" || report.state === "FAILED" || report.state === "DISABLED" ? "offline" : report.state === "DEGRADED" ? "degraded" : "online";
@@ -65,10 +67,10 @@ export function aggregateFleet(input: {
   }
   return {
     nodes,
-    tasks: { running: 0, waiting: 0, retrying: 0, transferred: 0, blocked: 0 },
+    tasks: { running: 0, waiting: 0, retrying: 0, transferred: 0, blocked: 0, ...(input.tasks ?? {}) },
     providers,
     knowledge: input.knowledge,
     network,
-    sampledAt: new Date().toISOString()
+    sampledAt: input.sampledAt ?? new Date().toISOString()
   };
 }
