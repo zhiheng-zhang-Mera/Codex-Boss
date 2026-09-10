@@ -1,0 +1,33 @@
+{
+  "phase": "Host-M-P1",
+  "requirement": "P1 — System Acceptance Hub (one command → full Boss acceptance)",
+  "date": "2026-09-10",
+  "branch": "9-10-M",
+  "status": "PASS",
+  "summary": "A single command now orchestrates the previously unsequenced acceptance surface (build gates, legacy scripts, closure, 10.x/research, Engine, Host-M) with a closed PASS/FAIL/BLOCKED_EXTERNAL/DEGRADED/SKIPPED_WITH_REASON vocabulary, per-check fault isolation, a bounded evidence tail per check, and a stable digest + record that P6 compares baseline→candidate against. The hub never modifies a tested module, never renders BLOCKED_EXTERNAL as PASS, and a caller that treats blocked-as-success cannot: only overall PASS exits 0.",
+  "implementation": [
+    "src/shared/acceptance-hub.ts (pure): closed ACCEPTANCE_STATUSES vocabulary; AcceptanceCheck with device/argv/entryPoint/requires/expectation/timeoutMs/program/enabledByDefault/optIn; AcceptanceCheckResult with a non-empty reason for every non-PASS; summarizeAcceptance; worst-first rollupAcceptance (FAIL > BLOCKED_EXTERNAL > DEGRADED > all-skipped > PASS, [] => SKIPPED_WITH_REASON); acceptanceDigest (FNV-1a over sorted id=status only, so timings/logs cannot move it); selectChecks rejecting unknown --only ids; renderAcceptanceReport",
+    "src/shared/acceptance-record.ts (pure): AcceptanceRecord (small, stable P6 comparison anchor: per-check phase + digest + branch/revision), recordFromReport, compareAcceptanceRecords (STATUS_CHANGED / MISSING_IN_CANDIDATE / NEW_IN_CANDIDATE), recordIsSelfConsistent verifying a record against its own contents",
+    "electron/host/acceptance-catalog.ts: acceptanceCatalog() declaring 25 checks across program build|legacy|closure|tenx|engine|host plus electronBinaryRelative(); defaultChecks(); missingEntryPoints(); preflightBlock() which reports the declared entry point, then the emitted build, then the external requirement — in the order a caller needs to see them",
+    "electron/host/acceptance-hub-runner.ts: ProcessRunner seam, resultFromOutcome (a timeout, a spawn error and a thrown runner are FAILs for that check only), orderChecks (build gates first because script checks load their emitted output), selectAcceptanceChecks (--only/--exclude/--program/--extended/--includeOptIn/--includeAll), runAcceptanceHub which always finishes and always produces a report",
+    "electron/host/process-runner.ts: createNodeProcessRunner with shell:false, argv-injection-free spawning, bounded output capture (512 KiB), timeout enforcement and whole-tree kill via taskkill /T; resolveCommand mapping the npm/npx shims onto their Node entry point on Windows while passing real executables through untouched",
+    "electron/host/host-probes.ts: real environment probes (electron binary, codex CLI, bounded TCP reachability, emitted build) plus currentBranch/currentRevision so evidence names its revision",
+    "scripts/host-acceptance.cjs: the single command. --only/--exclude/--program/--extended/--all/--soak/--json/--out/--record/--quiet/--build-first; writes artifacts/host-acceptance/latest.json + latest-record.json; exit 0 only on overall PASS"
+  ],
+  "tests": [
+    "tests/unit/host-acceptance-hub.test.ts (36 tests): status vocabulary is exactly the five the plan names; every bucket summarized once; worst-first rollup that never upgrades a blocked run to PASS; empty and all-skipped runs are SKIPPED_WITH_REASON rather than a vacuous PASS; digest is stable against timing/log noise, sensitive to status changes and order-independent; every non-PASS verdict names a reason; unknown --only is a hard error; the catalog covers all six programs and declares a stable id, bounded timeout, expectation and entry point for every row; default scope excludes the expensive rows and --all selects the whole catalog; entry-point / emitted-build / external-prerequisite blocking each report the missing input by name, and a missing entry point outranks a missing tool; the electron-driven rows run under the electron binary and block when it is absent; exit 0 is the check's only PASS signal and a timeout or spawn failure is never PASS; output tails are bounded; one broken check fails only itself and the run still completes; blocked checks spawn nothing; a fatal selection error is not a green run; process seam — npx resolves to its Node entry point, real executables are not given a .cmd suffix, real command execution returns the real exit code, a missing working directory is reported not thrown, and a timeout is reported as timedOut"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest": "67 files / 481 tests PASS (baseline 65/428 + Host-M P1/P4)",
+    "hub_self_run": "node scripts/host-acceptance.cjs completed the whole surface in 21s and reported FAIL: 14 FAIL, 5 BLOCKED_EXTERNAL, 3 SKIPPED_WITH_REASON, 5/27 PASS — see defects below; that run is what exposed the seven catalog/runner defects recorded in PROGRESS.md"
+  },
+  "defects_found_by_this_evidence": [
+    "spawn EINVAL for every npx-driven check (Windows .cmd shim without a shell) — fixed in resolveCommand",
+    "the first fix appended .cmd to real executables too, breaking node — fixed and regression-tested",
+    "acceptance-browser-crash.cjs / acceptance-vision.cjs must run under the electron binary, not node",
+    "a missing evidence manifest surfaced as a cryptic exit code instead of BLOCKED_EXTERNAL — addressed by the declared entryPoint",
+    "the seeded-engineering battery and the 2h soak were in the default scope; both are now opt-in"
+  ],
+  "notes": "The hub is an outer shell: it runs existing entry points as black boxes. Nothing under electron/commander, electron/learning, electron/fleet, electron/node, electron/identity, electron/knowledge or the IPC protocol was modified by P1. Host-M owns its own flag registry (src/shared/host-maturity-flags.ts) so it stays removable without touching the Engine's adaptive-flag contract."
+}
