@@ -112,6 +112,15 @@ git 历史中（`git log -- tests/unit/<name>.test.ts`），可随时恢复。
 required 的扩张性能力。任何一项可用 `git checkout <pre-curation-sha> -- tests/unit/<file>` 恢复。
 
 ## 验证
-- 裁剪前：full regression 全绿（见 `evidence/final-regression.json`，68→69 files / 345 tests）。
-- 裁剪后：minimal suite PASS + typecheck PASS + build PASS（见 Phase L 小节与
-  `evidence/minimal-suite-regression.json`）。
+- 裁剪前（Phase K final full regression，gitHead `1ce5b9f`）：typecheck PASS ×2、
+  full unit PASS **69 files / 348 tests**、full build PASS、manifest + R-202 + R-901 +
+  acceptance-report validators 全 true → `evidence/final-regression.json`。
+- 裁剪后（gitHead `7934160`）：typecheck PASS ×2、minimal unit PASS **42 files / 218 tests**、
+  full build PASS、validators 全 true → `evidence/minimal-suite-regression.json`。
+- 终态（manifest 决定）：20 LOCKED_PASS + 29 PASS + R-202 BLOCKED_EXTERNAL（合法 §5 证据）
+  = **BLOCKED_EXTERNAL**（无 pending、无 evidence problem）。
+
+## 恢复被裁剪 suite
+```bash
+git checkout 1ce5b9f -- tests/unit/<name>.test.ts
+```
