@@ -271,3 +271,31 @@ harness used to build the product.
 Live Level-A/Level-B E2E (real repo + web-AI reviewers + real experiments + manuscript PDF)
 remains an external GUI/live validation item per the research plan's Final Acceptance — never
 replaced by mocks/fixtures in the deterministic suites above.
+
+## Adaptive Provider Intelligence (Engine plan, `Update-Plan/Engine/`)
+
+Additive learning layer on top of `MainCommander → RoleRouter → Runtime → RuntimeResult`.
+Everything is behind flags that default OFF, and derived data is always rebuildable.
+
+- `src/shared/`: `adaptive-flags.ts` (5 flags + single kill switch), `provider-outcome.ts`
+  (RuntimeOutcome vs SemanticOutcome, behaviour axes, evaluator revisions),
+  `learning-episode.ts`, `task-fingerprint.ts`, `model-identity.ts` (evidence-ranked
+  identity, never a fabricated version), `provider-profile.ts`, `learned-concept.ts`,
+  `behaviour-epoch.ts`, `adaptive-routing.ts` (expected utility + reranker seam),
+  `provider-intelligence.ts` (owner panel view model + episode drill-down).
+- `electron/learning/`: `adaptive-flag-store.ts`, `episode-store.ts` (append-only
+  episodes/revisions), `outcome-evaluator.ts`, `task-fingerprint.ts` (optional embedding,
+  structural fallback), `providers/` (model observer/snapshot/version resolver, profile
+  builder + behaviour model, change-point detector + epoch ledger), `concepts/`
+  (registry/miner/merge/split), `routing/` (adaptive scorer, bounded exploration, routing
+  feedback ledger), `evolution/` (policy candidate, historical replay, shadow evaluator,
+  promotion gate with rollback), `learning-service.ts` (facade + owner controls).
+- `RoleRouter` gained an OPTIONAL `AdaptiveReranker` dependency: soft ranking of
+  already-eligible candidates only; pins win; any failure falls back to the deterministic
+  order. Permission/ExecutionGate boundaries are never relaxed by learning.
+- Owner surface: `boss:provider-intelligence`, `boss:learning-episode`,
+  `boss:learning-control` IPC + `ProviderIntelligence` renderer panel (observed model with
+  provenance, behaviour metrics with n/confidence, epoch timeline, routing explanations,
+  episode drill-down, rebuild/reset/disable controls).
+- Docs: `docs/engine-adaptive-intelligence.md` (architecture, adapter/routing contracts,
+  failure taxonomy, profile schema, migration, troubleshooting).

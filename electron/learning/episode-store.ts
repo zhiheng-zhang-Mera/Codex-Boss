@@ -131,30 +131,39 @@ export class EpisodeStore {
     const episodesFile = this.episodesFile();
     const revisionsFile = this.revisionsFile();
     if (episodesFile && fs.existsSync(episodesFile)) {
-      let skipped = 0;
-      for (const line of fs.readFileSync(episodesFile, "utf8").split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const parsed = JSON.parse(trimmed) as unknown;
-          if (isValidEpisode(parsed)) this.episodes.push(parsed);
-          else skipped += 1;
-        } catch {
-          skipped += 1;
+      try {
+        let skipped = 0;
+        for (const line of fs.readFileSync(episodesFile, "utf8").split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as unknown;
+            if (isValidEpisode(parsed)) this.episodes.push(parsed);
+            else skipped += 1;
+          } catch {
+            skipped += 1;
+          }
         }
+        if (skipped) this.degraded = `${skipped} invalid episode row(s) skipped`;
+      } catch (error) {
+        // An unreadable episode store degrades learning only — Boss keeps running.
+        this.degraded = `episode store unreadable: ${String(error)}`;
       }
-      if (skipped) this.degraded = `${skipped} invalid episode row(s) skipped`;
     }
     if (revisionsFile && fs.existsSync(revisionsFile)) {
-      for (const line of fs.readFileSync(revisionsFile, "utf8").split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const parsed = JSON.parse(trimmed) as SemanticEvaluationRevision;
-          if (parsed?.schemaVersion === 1 && typeof parsed.episodeId === "string") this.revisions.push(parsed);
-        } catch {
-          // ignore malformed revision rows
+      try {
+        for (const line of fs.readFileSync(revisionsFile, "utf8").split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as SemanticEvaluationRevision;
+            if (parsed?.schemaVersion === 1 && typeof parsed.episodeId === "string") this.revisions.push(parsed);
+          } catch {
+            // ignore malformed revision rows
+          }
         }
+      } catch (error) {
+        this.degraded = `revision store unreadable: ${String(error)}`;
       }
     }
   }

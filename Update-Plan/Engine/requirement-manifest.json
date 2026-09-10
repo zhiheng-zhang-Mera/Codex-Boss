@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "program": "Adaptive Provider Intelligence (Engine plan)",
+  "branch": "9-10-M",
+  "updatedAt": "2026-09-10",
+  "planSources": [
+    "Update-Plan/Engine/00-ENGINEERING-BOOK.md",
+    "Update-Plan/Engine/01-IMPLEMENTATION-TASKS.md",
+    "Update-Plan/Engine/02-DATA-CONTRACTS.md",
+    "Update-Plan/Engine/03-ACCEPTANCE-MATRIX.md",
+    "Update-Plan/Engine/04-MIGRATION-ROLLBACK.md"
+  ],
+  "phases": [
+    { "id": "P0", "title": "Baseline / Compatibility", "status": "PASS", "evidence": "evidence/P0/P0-baseline.json" },
+    { "id": "P1", "title": "Semantic Outcome Foundation", "status": "PASS", "evidence": "evidence/P1/P1-semantic-outcome.json" },
+    { "id": "P2", "title": "Episode Store", "status": "PASS", "evidence": "evidence/P2/P2-episode-store.json" },
+    { "id": "P3", "title": "Model Identity Observation", "status": "PASS", "evidence": "evidence/P3/P3-model-identity.json" },
+    { "id": "P4", "title": "Task Fingerprint", "status": "PASS", "evidence": "evidence/P4/P4-task-fingerprint.json" },
+    { "id": "P5", "title": "Provider Behaviour Profile", "status": "PASS", "evidence": "evidence/P5/P5-provider-profile.json" },
+    { "id": "P6", "title": "Adaptive Scorer", "status": "PASS", "evidence": "evidence/P6/P6-adaptive-scorer.json" },
+    { "id": "P7", "title": "Concept Discovery", "status": "PASS", "evidence": "evidence/P7/P7-concept-discovery.json" },
+    { "id": "P8", "title": "Behaviour Epoch", "status": "PASS", "evidence": "evidence/P8/P8-behaviour-epoch.json" },
+    { "id": "P9", "title": "Contextual Exploration", "status": "PASS", "evidence": "evidence/P9/P9-exploration.json" },
+    { "id": "P10", "title": "Policy Evolution", "status": "PASS", "evidence": "evidence/P10/P10-policy-evolution.json" },
+    { "id": "P11", "title": "UI / Observability", "status": "PASS", "evidence": "evidence/P11/P11-ui-observability.json" },
+    { "id": "P12", "title": "Documentation", "status": "PASS", "evidence": "evidence/P12/P12-documentation.json" }
+  ],
+  "acceptance": {
+    "matrix": "Update-Plan/Engine/03-ACCEPTANCE-MATRIX.md (A01-A50)",
+    "report": "Update-Plan/Engine/ACCEPTANCE-REPORT.md",
+    "battery": "tests/unit/engine-acceptance.test.ts (failure injection, statistical pollution, version isolation, multi-device)",
+    "status": "PASS"
+  }
+}

@@ -125,8 +125,12 @@ export class ProviderProfileBuilder {
       .map((episode) => episode.semanticEvaluation!.axes.verificationScore)
       .filter((value): value is number => typeof value === "number");
     const verificationPass = estimate(verificationScores, builtAt);
+    // Runtime reliability counts only PROVIDER-attributed outcomes: a device or
+    // network fault must never be recorded as "this provider is unreliable"
+    // (Engine §9 / acceptance A48).
+    const providerAttributed = runtimeAll.filter((episode) => episode.causalSource === undefined || episode.causalSource === "PROVIDER");
     const runtimeReliability = estimate(
-      runtimeAll.map((episode) => (episode.runtimeStatus === "SUCCESS" ? 1 : 0)),
+      providerAttributed.map((episode) => (episode.runtimeStatus === "SUCCESS" ? 1 : 0)),
       builtAt
     );
     const latency = estimate(

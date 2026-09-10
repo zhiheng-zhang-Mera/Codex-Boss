@@ -27,6 +27,16 @@ export interface LearningEpisode {
   /** Provider family the runtime belongs to (web:chatgpt → chatgpt). */
   provider?: string;
   surface?: string;
+  /**
+   * Contributing node (multi-device, Engine §9/§17): episodes from every node of
+   * one user land in the same user-level store, and this keeps the origin.
+   */
+  nodeId?: string;
+  /**
+   * Causal source of a runtime-layer failure. A device/network/host problem must
+   * never be counted as "provider reliability is poor" (A48).
+   */
+  causalSource?: "PROVIDER" | "DEVICE" | "NETWORK" | "HOST" | "UNKNOWN";
   role: string;
 
   modelSnapshotId?: string;
@@ -54,6 +64,9 @@ export interface EpisodeQuery {
   runtimeId?: string;
   provider?: string;
   surface?: string;
+  nodeId?: string;
+  /** Only episodes whose runtime-layer failure was attributed to the provider itself. */
+  providerAttributedOnly?: boolean;
   role?: string;
   modelSnapshotId?: string;
   behaviourEpochId?: string;
@@ -97,6 +110,9 @@ export function matchesQuery(episode: LearningEpisode, query: EpisodeQuery): boo
   if (query.runtimeId && episode.runtimeId !== query.runtimeId) return false;
   if (query.provider && episode.provider !== query.provider) return false;
   if (query.surface && episode.surface !== query.surface) return false;
+  if (query.nodeId && episode.nodeId !== query.nodeId) return false;
+  // A device/network/host-attributed failure is not provider evidence (A48).
+  if (query.providerAttributedOnly && episode.causalSource !== undefined && episode.causalSource !== "PROVIDER") return false;
   if (query.role && episode.role !== query.role) return false;
   if (query.modelSnapshotId && episode.modelSnapshotId !== query.modelSnapshotId) return false;
   if (query.behaviourEpochId && episode.behaviourEpochId !== query.behaviourEpochId) return false;
