@@ -134,6 +134,11 @@ export function planExploration(candidates: ExplorationCandidate[], options: Exp
         if (a.runtimeId === pinned && b.runtimeId !== pinned) return -1;
         if (b.runtimeId === pinned && a.runtimeId !== pinned) return 1;
       }
+      // Exploration must be able to actually SELECT the explorer, not merely
+      // nudge its score — otherwise exploration would be a no-op in practice.
+      const aExplorer = explore && a.runtimeId === explorer?.candidate.runtimeId;
+      const bExplorer = explore && b.runtimeId === explorer?.candidate.runtimeId;
+      if (aExplorer !== bExplorer) return aExplorer ? -1 : 1;
       const delta = b.adjustedUtility - a.adjustedUtility;
       if (delta !== 0) return delta;
       return a.runtimeId.localeCompare(b.runtimeId);
