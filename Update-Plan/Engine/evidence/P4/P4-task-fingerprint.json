@@ -1,0 +1,19 @@
+{
+  "phase": "Engine-P4",
+  "requirement": "Phase 4 — Task Fingerprint",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Open TaskFingerprint with deterministic structural hash and a pluggable, optional embedding backend that degrades to structure",
+  "implementation": [
+    "src/shared/task-fingerprint.ts (+): FingerprintInput; deterministic derivations — deriveSpecificity (vague vs detailed goal), deriveContextScale (log-bounded), deriveModalities (keyword→modality set, text default, never empty), deriveExternalEffectLevel (TaskIR execution risk + explicit high-effect wording); buildStructuralFingerprint (sorted capability/modality sets so ordering cannot change the hash, FNV-1a structuralHash) — NO topic enum anywhere",
+    "electron/learning/task-fingerprint.ts: TaskFingerprinter — optional EmbeddingBackend (pluggable) + SemanticVectorStore (in-memory default); build() adds a semanticVectorRef only for a usable in-time vector, otherwise returns the structural fingerprint with an explanatory note; structural-only buildStructural() path; never throws (missing/slow/throwing/malformed backend ⇒ structural fallback)"
+  ],
+  "tests": [
+    "tests/unit/engine-phase-4.test.ts (11 tests): deterministic, enum-free fingerprint; capability/modality order independence; derivation ranges (specificity/contextScale/externalEffect) + high-effect wording boost; concepts ride along without changing the structural hash; hash stability/sensitivity; semantic path stores a vector by reference; fallback with no backend / throwing backend / malformed vector / timeout / empty goal — all keep a usable structural fingerprint"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p4": "tests/unit/engine-phase-4.test.ts 11/11 PASS"
+  },
+  "notes": "Phase 4 requirement 'embedding backend may be unavailable but must degrade to a deterministic structural fingerprint' is proven by four independent failure-injection tests."
+}
