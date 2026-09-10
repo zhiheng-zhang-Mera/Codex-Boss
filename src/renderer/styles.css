@@ -383,3 +383,17 @@ button { color: inherit; }
 .owner-blocker { color: #ff9d9d; }
 .owner-more { opacity: 0.7; }
 
+
+/* Engine §18/11 Provider intelligence panel (learning layer, read-only) */
+.provider-intel { margin: 6px 14px 0; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: grid; gap: 8px; }
+.provider-intel header { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.provider-intel-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.provider-intel-controls label { display: inline-flex; gap: 4px; align-items: center; }
+.provider-intel table { width: 100%; border-collapse: collapse; }
+.provider-intel th, .provider-intel td { text-align: left; padding: 3px 6px; border-bottom: 1px solid rgba(128,128,128,0.2); vertical-align: top; }
+.provider-intel small { display: block; opacity: 0.7; }
+.provider-intel-degraded { color: #ff9d9d; }
+.provider-intel section ul { margin: 4px 0 0 14px; }
+.provider-intel-candidate { font-weight: 600; }
+.provider-intel-episodes button { margin-right: 4px; }
+.provider-intel-drill { border-top: 1px dashed rgba(128,128,128,0.3); padding-top: 6px; }

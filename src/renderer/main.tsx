@@ -10,6 +10,7 @@ import { AttachmentTray } from "./components/AttachmentTray";
 import { ManagerPanel } from "./components/ManagerPanel";
 import { GoalRunPanel } from "./components/GoalRunPanel";
 import { OwnerSummary } from "./components/OwnerSummary";
+import { ProviderIntelligence } from "./components/ProviderIntelligence";
 import type { HumanInterventionRequest } from "../shared/intervention";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -43,6 +44,7 @@ function App() {
   const [selectedConversationIds, setSelectedConversationIds] = useState<string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
+  const [intelOpen, setIntelOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const [projectState, setProjectState] = useState<ProjectStateSummary | null>(null);
   const [historyCollapsed, setHistoryCollapsed] = useState(() => window.localStorage.getItem("codex-boss:history-collapsed") === "true");
@@ -565,10 +567,12 @@ function App() {
     <section className="chat-half">
       <header className="chat-header">
         <div className="app-brand"><span>C</span><div><strong>Controller</strong><small>CODEX BOSS · LOCAL COMMANDER</small></div></div>
-        <div className="header-status"><button className="settings-button" onClick={() => setManagerOpen(true)}>管理</button><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
+        <div className="header-status"><button className="settings-button" onClick={() => setIntelOpen((value) => !value)}>智能面板</button><button className="settings-button" onClick={() => setManagerOpen(true)}>管理</button><button className="settings-button" onClick={() => setSettingsOpen(true)}>设置</button><div className="controller-pill"><i className={snapshot.controller.accountMode === "CHATGPT" ? "online" : ""} /> Codex Runtime: {snapshot.controller.accountMode}</div><div className="workspace-pill"><i /> 本地工作区</div></div>
       </header>
 
       <OwnerSummary />
+
+      {intelOpen && <ProviderIntelligence onClose={() => setIntelOpen(false)} />}
 
       <div className="conversation" ref={conversationRef} onScroll={() => { const pane = conversationRef.current; if (pane) followLatestRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 100; }}>
         {interventions.length > 0 && <div className="intervention-stack">{interventions.slice(0, 3).map((request) => <HumanInterventionCard key={request.id} request={request} onResolve={(kind, answer) => resolveIntervention({ ...request, kind }, answer)} />)}</div>}

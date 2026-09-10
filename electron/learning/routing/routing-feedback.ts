@@ -107,6 +107,12 @@ export class RoutingFeedbackLedger {
     return this.records.size;
   }
 
+  /** Derived data may be discarded; episodes and their outcomes stay. */
+  clear(): void {
+    this.records.clear();
+    this.persist();
+  }
+
   status(): { count: number; degradedReason?: string } {
     return { count: this.records.size, degradedReason: this.degraded };
   }

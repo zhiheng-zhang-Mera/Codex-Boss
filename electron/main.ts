@@ -73,6 +73,7 @@ import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
 import { inspectDevice } from "./node/node-inspector";
+import { LearningService } from "./learning/learning-service";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
 import { createLiveExternalArchiveAttempt, type AccountMode as ArchiveAccountMode } from "./workspace/live-external-archive";
@@ -104,6 +105,12 @@ let humanGuidance: HumanGuidanceGate | undefined;
 let decisionLedger: DecisionLedgerStore | undefined;
 let sessionLifecycleLedger: SessionLifecycleLedger | undefined;
 let nodeRegistry: NodeCapabilityRegistry | undefined;
+let learning: LearningService | undefined;
+/** Engine: lazily-created Adaptive Provider Intelligence facade (learning layer). */
+function learningService(): LearningService {
+  if (!learning) learning = new LearningService({ rootDir: path.join(app.getPath("userData"), ".boss", "learning") });
+  return learning;
+}
 let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
 let capabilityRegistry: ProviderCapabilityRegistry | undefined;
@@ -682,8 +689,37 @@ if (ownsInstance) app.whenReady().then(() => {
     const status = nodeRegistry?.status("desktop");
     return { state: result?.state ?? "UNINITIALIZED", reason: result?.reason ?? "not inspected yet", verdicts: status?.verdicts ?? [], sampledAt: probe.sampledAt, loggedIn };
   });
-  ipcMain.handle("boss:network-status", () => {
-    // R-501/R-502: per-node network capability probe + route surface. Direct
+  ipcMain.handle("boss:provider-intelligence", () => {
+    // Engine §18: Owner-facing provider intelligence panel. Learning is a
+    // read-only projection here — a failure inside it can never affect tasks.
+    return learningService().panel();
+  });
+  ipcMain.handle("boss:learning-episode", (_event, episodeId: string) => {
+    return learningService().drilldown(String(episodeId ?? ""));
+  });
+  ipcMain.handle("boss:learning-control", (_event, action: string, enabled?: boolean) => {
+    // Engine §12 Owner controls: rebuild/reset derived data, disable adaptive
+    // routing while keeping learning, or disable learning entirely.
+    const learning = learningService();
+    switch (action) {
+      case "rebuild":
+        learning.rebuildDerived();
+        break;
+      case "reset":
+        learning.resetDerived();
+        break;
+      case "set-adaptive-routing":
+        learning.setAdaptiveRouting(enabled === true);
+        break;
+      case "set-learning":
+        learning.setLearning(enabled === true);
+        break;
+      default:
+        break;
+    }
+    return learning.controlState();
+  });
+  ipcMain.handle("boss:network-status", () => {    // R-501/R-502: per-node network capability probe + route surface. Direct
     // reachability comes from observed logged-in providers; proxies from the
     // operator's environment configuration (system/user). Pure decision logic
     // lives in shared/network-policy.ts.

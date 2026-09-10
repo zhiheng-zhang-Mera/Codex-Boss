@@ -395,6 +395,12 @@ export interface BossBridge {
   progress(): Promise<import("./progress").ProgressSummary[]>;
   /** Rev.2 §37/§38/§44: Owner dashboard read-model (GOAL/STATUS/PROGRESS/RESULT/EVIDENCE/HARD_BLOCKER). */
   ownerDashboard(): Promise<import("./owner-dashboard").OwnerDashboardSummary>;
+  /** Engine §18/§19: provider intelligence panel (observed model identity, behaviour metrics, epochs, routing explanations). */
+  providerIntelligence(): Promise<import("./provider-intelligence").ProviderIntelligencePanel>;
+  /** Engine §12: Owner learning controls (rebuild/reset derived data, adaptive routing, learning). */
+  learningControl(action: "rebuild" | "reset" | "set-adaptive-routing" | "set-learning", enabled?: boolean): Promise<import("./provider-intelligence").LearningControlStateView>;
+  /** Engine §18: episode drill-down for one learning episode. */
+  learningEpisode(episodeId: string): Promise<import("./provider-intelligence").EpisodeDrilldown | undefined>;
   activeIntervention(taskId: string): Promise<import("./intervention").HumanInterventionRequest | undefined>;
   listInterventions(taskId?: string): Promise<import("./intervention").HumanInterventionRequest[]>;
   resolveIntervention(taskId: string, kind: import("./intervention").InterventionKind, answer: string): Promise<import("./intervention").HumanInterventionRequest>;

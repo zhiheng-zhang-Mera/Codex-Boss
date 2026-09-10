@@ -1,0 +1,23 @@
+{
+  "phase": "Engine-P11",
+  "requirement": "Phase 11 — UI / Observability",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Owner-facing provider intelligence panel (observed model identity with provenance, behaviour metrics, epoch timeline, routing explanations, episode drill-down) plus learning controls and a single wiring facade",
+  "implementation": [
+    "src/shared/provider-intelligence.ts: pure, JSON-safe projection — ProviderIntelligencePanel (controls/providers/modelSnapshots/epochs/routing), ProviderPanelRow (observed model + source + confidence + provenance, epoch, sample count, metrics, strong signals, recent changes), ModelTimelineEntry, EpochTimelineEntry, LearningControlStateView; strongSignalsOf (only meaningful signals: confident low completion, strong completion, elevated restriction, degraded runtime reliability, low verification pass, large concept deviations); buildEpisodeDrilldown (marks whether an episode may feed the semantic profile)",
+    "electron/learning/learning-service.ts: LearningService facade wiring flags + episodes + snapshots + epochs + profiles + concepts + feedback ledger + promotion gate + observer/evaluator/scorer; recordEpisode, rebuildDerived, resetDerived (episodes preserved), setAdaptiveRouting (A37: learning continues), setLearning (kill switch, cached profiles remain readable), panel(), drilldown(), controlState(); every method failure-isolated",
+    "electron/learning/routing/routing-feedback.ts (+): clear() for derived-data reset",
+    "Wiring: main.ts lazily creates LearningService under userData/.boss/learning and exposes boss:provider-intelligence, boss:learning-episode, boss:learning-control (rebuild|reset|set-adaptive-routing|set-learning); preload bridge + BossBridge contract methods; renderer ProviderIntelligence panel (collapsed toggle in the header) with metrics, provenance, epochs, routing explanation and episode drill-down; styles appended",
+    "Panel rendering only shows observed numbers with n/confidence alongside — never a bare fabricated score."
+  ],
+  "tests": [
+    "tests/unit/engine-phase-11.test.ts (9 tests): provider projection (metrics, OBSERVED provenance for a structured model id, UNKNOWN + undefined observedModelId for an unobserved provider, strong completion / low completion signals); epoch timeline with parent link and open/closed; drill-down marks profile-contributing vs runtime-fault episodes; strong signals empty for an unobserved profile; rebuild produces profiles and reset keeps episodes then rebuilds again; A37 adaptive routing disabled while learning continues (episodes still recorded); learning disabled keeps cached profiles readable and stops new evaluations; panel failure-isolation with a corrupt store (degraded reason, no throw); control state reports stable policy + counts"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p11": "tests/unit/engine-phase-11.test.ts 9/9 PASS",
+    "renderer_build": "vite build PASS (32 modules; panel included in dist bundle)"
+  },
+  "notes": "Addresses Engine §18 (panel/observability), §19 (explainable routing surfacing), §12 (owner controls incl. reset derived without deleting episodes) and A37."
+}
