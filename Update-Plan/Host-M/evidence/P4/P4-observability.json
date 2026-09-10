@@ -1,0 +1,28 @@
+{
+  "phase": "Host-M-P4",
+  "requirement": "P4 — Unified Observability (observer may observe; observer must not become controller)",
+  "date": "2026-09-10",
+  "branch": "9-10-M",
+  "status": "PASS",
+  "summary": "Added a read-only observer that aggregates node, fleet, task-queue, provider, session, routing-decision, learning-engine and recent-failure facts from the stores that already own them. Read-only is enforced structurally, not by convention: the projection module is pure, and the collector avoids the two existing reads that persist as a side effect (StateStore's constructor and NodeCapabilityRegistry.refresh). Every dimension is collected independently and reports its own OK/DEGRADED/UNAVAILABLE, a store that is absent or corrupt is reported as such rather than as a healthy empty one, and the existing 10.x aggregate is reported side by side instead of being merged into the counts.",
+  "implementation": [
+    "src/shared/host-observer.ts (pure projection): HOST_OBSERVER_DIMENSIONS (nodes, fleet, tasks, providers, sessions, routing, learning, failures); ObservedNode/FleetNode/Assignment/Task/Provider/Session/RoutingDecision/LearningState/Failure record shapes; HostDimensionReport status vocabulary OK|DEGRADED|UNAVAILABLE; HostObserverCounts; HostObserverSnapshot with mode: \"READ_ONLY\"; projectHostObserver; mostRecent (newest-first, bounded, stable on ties); dimensionReport; summarizeHostSnapshot",
+    "src/shared/host-maturity-flags.ts (pure): HostFlagId registry for the seven Host-M capabilities, all defaulting OFF, resolveHostFlags accepting only an explicit boolean true (fail-closed), isHostFlagId, hostCapabilityEnabled and disabledHostCapability so a switched-off shell returns a well-formed answer instead of throwing. Deliberately separate from the Engine's adaptive-flags contract so Host-M stays removable",
+    "electron/host/host-observer-collector.ts: collectHostSnapshot(sources) reading only documented read accessors — NodeCapabilityRegistry.list/status (never refresh), FederationCoordinator.listNodes/listAssignments, TaskLedger.load, BudgetManager.get/list/eligible, CircuitBreaker.list/state, SessionLifecycleLedger.list, RoutingFeedbackLedger.list, LearningService.controlState, RecoveryScheduler.list, TelemetryStore.list, and the optional 10.x TenxObservability. Per-dimension guard() isolation; validateShape() rejecting malformed store files that the owning reader would silently drop; readTaskRows() parsing state.json directly so the observer never constructs a StateStore (whose constructor persists a startup session)",
+    "scripts/host-observe.cjs: CLI with --data-root/--recent/--json/--out, a one-line summary plus per-dimension status table, and an explicit READ_ONLY banner. Exit 0 when a snapshot was produced (degraded dimensions are reported inside it); exit 2 only when no snapshot could be produced"
+  ],
+  "tests": [
+    "tests/unit/host-observability.test.ts (17 tests): every Host-M capability defaults OFF and hostFlagsAllOff holds; resolution is fail-closed against \"true\"/1/\"yes\"/{}/[]/null/undefined and an unknown id turns nothing on; enabledHostFlags reports exactly what is on; the Host-M registry shares no id with the Engine's adaptive flags; the eight declared dimensions are exactly the plan's set; counts are derived per domain without inventing facts (nodes/fleet/tasks/providers/sessions/routing/learning/failures, including withoutLedger, degraded tasks, circuitOpen, budgetExhausted, fallback and exploration decisions); an empty snapshot stays empty; recent failures are newest-first, bounded, and stable on tied timestamps; the summary surfaces unavailable and degraded dimensions; a dimension whose store is absent is UNAVAILABLE and not a healthy zero; a throwing source degrades only its own dimension while healthy dimensions still populate; the real durable stores are read byte-for-byte unchanged and no store is created as a side effect; a corrupt store file is reported unreadable rather than read as empty; a well-formed but wrong-schema file fails the shape check; four hostile sources at once still resolve to a snapshot"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest": "67 files / 481 tests PASS (baseline 65/428 + Host-M P1/P4)",
+    "live_run": "node scripts/host-observe.cjs against runtime-data reported tasks 4 running / 51 total; providers 7/7 eligible; 35 recent failures; and UNAVAILABLE for nodes/fleet/sessions/routing because those stores do not exist on this data root — the honest reading, not a green zero"
+  },
+  "defects_found_by_this_evidence": [
+    "the naive collector rewrote state.json: constructing a StateStore starts a startup session and persists. Fixed by reading the task rows directly; the test now asserts the file is byte-identical after a snapshot",
+    "a corrupt node-registry.json read as a healthy empty registry, because NodeCapabilityRegistry aborts its own restore on a malformed file. Fixed by validating the store shape before delegating",
+    "the fleet dimension was reported twice (one entry per read model). Both now feed a single dimension entry"
+  ],
+  "notes": "Two parallel node/fleet/session stacks exist in this repo (the R43 electron/node + electron/fleet pair and the 10.x electron/tenx pair). The observer states which it reads for the counts and reports the 10.x FleetAggregate verbatim in a separate field rather than fusing the two, because merging them would assert a fact neither store holds. The observer installs no IPC handler and starts no timer; wiring it into Boss is a separate, flag-gated decision."
+}
