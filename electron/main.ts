@@ -84,6 +84,8 @@ import { ApiSettingsStore } from "./api-settings";
 import { ProviderApiClient } from "./provider-api";
 import { HistoryRepository } from "./history-repository";
 import { RemoteCommandRelay } from "./remote-relay";
+import { createSelfEvolutionHost } from "./self-evolution/self-evolution-host";
+import { SHIPPED_ROOT_OWNER } from "./root-authority/root-policy-loader";
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
@@ -620,11 +622,42 @@ if (ownsInstance) app.whenReady().then(() => {
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
   const circuitBreaker = new CircuitBreaker(path.join(app.getPath("userData"), ".boss", "circuit-breaker.json"));
+  // §7.2 — the mandatory Self-Evolution route. It is installed here, in the
+  // composition root, so a self-target edit task can never reach the ordinary
+  // engineering path: `MainCommander` hands such a task to the coordinator, and
+  // the mutation guard refuses any seam that bypasses it.
+  const selfEvolution = createSelfEvolutionHost({
+    appPath: app.getAppPath(),
+    userData: app.getPath("userData"),
+    rootOwner: SHIPPED_ROOT_OWNER,
+    worker: () => ({
+      ask: async (role, prompt) => {
+        // §19 — Self-Evolution is a strict subset of Work capability: it must
+        // not inherit arbitrary browser/desktop automation. The turn is pinned
+        // to the codex runtime, so a logged-in provider web view can never serve
+        // a Candidate's coder or reviewer turn; if codex is unavailable the
+        // worker throws and the Candidate fails closed.
+        const result = await commander.dispatchRole(
+          `self-evolution-${role}`,
+          role === "coder" ? "coder" : "reviewer",
+          prompt,
+          { preferredRuntimes: ["codex"] },
+          {},
+          ""
+        );
+        if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? `Self-evolution ${role} unavailable`);
+        return result.content;
+      }
+    })
+  });
   commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), domPageSurface: providerDomSurface(() => providerViews), readBrowser: async (id) => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
-  }, permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId()) }, circuitBreaker, domainEvents, workspaces, softwareLeases);
+  }, permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId()) }, circuitBreaker, domainEvents, workspaces, softwareLeases, {
+    isSelfTarget: (workspace) => selfEvolution.isSelfTarget(workspace),
+    runTask: async (input) => selfEvolution.runTask(input)
+  });
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   // Headless mode still creates the (hidden) main window: provider views are
   // attached to it and ProviderAutomation dispatches through those views.

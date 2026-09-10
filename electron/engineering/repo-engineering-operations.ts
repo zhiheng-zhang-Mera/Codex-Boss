@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { runAllowedCommand } from "./command-runner";
+import { runAllowedCommand, type CommandSandbox } from "./command-runner";
 import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
 import type { EngineeringLoopOperations, EngineeringReviewEvidence } from "./engineering-loop-driver";
 
@@ -21,6 +21,24 @@ export interface RepoEngineeringOptions {
   implement?: (finding: EngineeringFinding) => Promise<{ changedFiles: string[]; error?: string }>;
   /** Optional independent reviewer of the merged diff. */
   review?: (finding: EngineeringFinding, changedFiles: string[], evidence: EngineeringReviewEvidence) => Promise<{ findings: ReviewerFinding[]; raw?: string }>;
+  /**
+   * Sanitized child environment (plan §9.2). Absent keeps the interactive path
+   * byte-identical; the self-evolution coordinator always supplies one.
+   */
+  env?: NodeJS.ProcessEnv;
+  /**
+   * Hard execution sandbox (plan §9, §10). When supplied, every audit/build/test
+   * child is created by the sandbox instead of `execFile`.
+   */
+  sandbox?: CommandSandbox;
+}
+
+/** Options threaded into every `runAllowedCommand` call this factory makes. */
+function commandOptions(options: RepoEngineeringOptions): { env?: NodeJS.ProcessEnv; sandbox?: CommandSandbox } {
+  const result: { env?: NodeJS.ProcessEnv; sandbox?: CommandSandbox } = {};
+  if (options.env) result.env = options.env;
+  if (options.sandbox) result.sandbox = options.sandbox;
+  return result;
 }
 
 /** Map a command failure into a deterministic engineering finding. */
@@ -50,23 +68,24 @@ function failureTail(output: string, budget = 2500): string {
 
 export function createRepoEngineeringOperations(options: RepoEngineeringOptions): EngineeringLoopOperations {
   const root = fs.realpathSync(options.workspace);
+  const commandOptionsValue = commandOptions(options);
   return {
     async audit(goal) {
       // Real evidence: typecheck + full tests; failures are reproducible HIGH
       // findings. This is the honest audit baseline — never a model's opinion.
-      const typecheck = await runAllowedCommand(root, "typecheck");
-      const test = await runAllowedCommand(root, "test");
+      const typecheck = await runAllowedCommand(root, "typecheck", [], commandOptionsValue);
+      const test = await runAllowedCommand(root, "test", [], commandOptionsValue);
       const findings: EngineeringFinding[] = [];
       if (!typecheck.passed) findings.push(commandFinding("typecheck", typecheck));
       if (!test.passed) findings.push(commandFinding("test", test));
       return findings;
     },
     async build() {
-      const typecheck = await runAllowedCommand(root, "typecheck");
+      const typecheck = await runAllowedCommand(root, "typecheck", [], commandOptionsValue);
       return { passed: typecheck.passed, evidence: typecheck.output.slice(0, 2000) };
     },
     async test() {
-      const test = await runAllowedCommand(root, "test");
+      const test = await runAllowedCommand(root, "test", [], commandOptionsValue);
       return { passed: test.passed, evidence: test.output.slice(0, 3000) };
     },
     async implement(goal, finding) {
