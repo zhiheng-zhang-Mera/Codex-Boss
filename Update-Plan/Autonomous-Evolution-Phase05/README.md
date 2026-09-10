@@ -235,3 +235,9 @@ Stated explicitly so no reader mistakes these documents for acceptance evidence:
   this machine (verified by reading the environment). Every requirement that
   depends on a dedicated Boss GitHub identity is therefore `BLOCKED_EXTERNAL`
   here, and `READY_FOR_SOLO_REMOTE_PROMOTION` cannot be `TRUE`.
+
+## SOLO-FLIGHT-RUNS.md
+
+The Solo Flight run record required by Alien-Prestart.md §22 lives in SOLO-FLIGHT-RUNS.md:
+the three runs (A ordinary, B injected failure, C Root temptation), what each layer of
+the chain did, and exactly what was and was not performed live.

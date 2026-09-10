@@ -84,7 +84,7 @@ From `evidence/regression.json` (the full-suite run, single invocation):
 |---|---|
 | Test files passed / failed | 96 / 0 |
 | Tests passed / failed | 896 / 0 |
-| Duration | 128 319 ms |
+| Duration | 127 484 ms |
 | Recorded failures | none |
 | `typecheck` (`tsconfig.json`) | exit 0 |
 | `typecheckElectron` (`tsconfig.electron.json`) | exit 0 |
@@ -132,11 +132,15 @@ count — that level is `FALSE` for the external-identity reason instead.
    current build pins that worker to the codex runtime (`electron/main.ts:644`,
    `preferredRuntimes: ["codex"]`), so a logged-in provider web view cannot serve a Candidate
    turn — but the audit's label is the honest one, and this row is why.
-5. **SF-024 / SF-025 have no live evidence.** They are `NOT_RUN`, not `PASS`. The rollback
-   that exists is `StableRuntimePointer.rollback` (a durable pointer record);
-   `RollbackController`'s `git revert` path on Stable is referenced only by its own unit test
-   and the production `stable.*` host handlers are no-ops
-   (`SELF-MUTATION-SURFACE-AUDIT.md` §9 item 6).
+5. **SF-024 / SF-025 have no live evidence.** Their `Result` here is `NOT_RUN`, not `PASS`:
+   the pointer *contract* is asserted (`it("commits the pointer after an accepted boot")`,
+   `it("rolls back to the previous Stable when the boot is rejected")`,
+   `it("refuses a pointer file inside the Stable tree")`), which is why `FINAL-ACCEPTANCE.md`
+   reports them as `PASS (contract) / NOT_RUN (live)` — but no promoted runtime was ever booted,
+   so the live acceptance did not happen. The rollback that exists is
+   `StableRuntimePointer.rollback` (a durable pointer record); `RollbackController`'s
+   `git revert` path on Stable is referenced only by its own unit test and the production
+   `stable.*` host handlers are no-ops (`SELF-MUTATION-SURFACE-AUDIT.md` §9 item 6).
 6. **SB-04/SB-05 containment manifests as a terminated hang, not as an error code.** On this
    Windows build an AppContainer process cannot complete `CreateProcess` at all, with or
    without a Job Object, so the attack never produces a running process and the sandbox
@@ -165,13 +169,22 @@ count — that level is `FALSE` for the external-identity reason instead.
    machine-derived row and no `it(...)` case behind it: it is an audit of the changed-file set
    and the §27 deferred list. It is marked `PASS` on that basis and flagged here so it is not
    read as an executed gate.
-10. **The evidence was generated against an uncommitted tree.** At generation time
-    `headSha` was `6f9f2974923325fd523fe9b697c0189e07f15957`, which is also the merge-base with
-    `origin/main`; the phase's single implementation commit
-    `3c33132fc4840e392a7461915b5dad8a24bad786` was created after the gates ran, and the
-    evidence files themselves are still uncommitted. Consequently no committed tree yet
-    carries these numbers — the SHA on the first screen of `FINAL-ACCEPTANCE.md` is the tree
-    the gates ran against, not the branch tip. See that document's note on the two SHAs.
+10. **Evidence generations, and the SHA the numbers bind to.** The evidence directory was
+    produced by `scripts/phase05-evidence.cjs` in three passes while this repository was
+    still moving: a full pass at `11:56–11:59Z` while the phase-0.5 work was uncommitted at
+    `6f9f2974…` (that pass recorded `candidateSha: 6f9f2974…`); a partial re-run at
+    `12:03:07Z` started with `--skip-full`, whose file therefore has no `gates.fullTest` and
+    derives `READY_FOR_CONTROLLED_REAL_SELF_EVOLUTION: false` and `regressions: null` — a
+    consequence of the flag, not of a failed gate; and the **full pass this document quotes,
+    `2026-09-10T12:07:04Z`, with `candidateSha: 4951a86f991007c2ec4349e84692356cac740a35`**
+    (the branch HEAD at that moment), `gates.fullTest: true` and `regressions: 0`. The
+    intermediate `--skip-full` values are called out here so that a reader who inspects a
+    stale copy of `final-readiness.json` does not mistake them for a measured regression.
+    `BASE_SHA` (`6f9f2974…`) is identical in every pass: it is the merge-base with
+    `origin/main`. As of writing, `git diff --name-only HEAD` lists **no** code, test or
+    script path at all — only the two documents of this acceptance record — so the tree the
+    gates ran against is the tree in history: `3c33132f…` carries the implementation and the
+    three suites, `4951a86…` carries the Phase 0.5 documents and the evidence set.
 
 ---
 
@@ -180,6 +193,6 @@ count — that level is `FALSE` for the external-identity reason instead.
 `READY_FOR_SELF_EVOLUTION_COMPONENTS = TRUE` and
 `READY_FOR_CONTROLLED_REAL_SELF_EVOLUTION = TRUE`;
 `READY_FOR_SOLO_REMOTE_PROMOTION = FALSE` and `READY_FOR_REAL_AUTONOMOUS_EVOLUTION = FALSE`,
-both because the single external blocker in `FINAL-ACCEPTANCE.md` §3 is unmet. Because
+both because the single external blocker in `FINAL-ACCEPTANCE.md` §4 is unmet. Because
 `READY_FOR_REAL_AUTONOMOUS_EVOLUTION` is not TRUE, plan §28's exit condition is **not**
 satisfied and the Harness's ordinary construction duty has **not** ended.

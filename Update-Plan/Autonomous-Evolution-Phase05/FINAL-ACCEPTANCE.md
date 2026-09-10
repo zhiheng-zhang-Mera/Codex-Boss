@@ -17,7 +17,7 @@ PR: none
 
 TYPECHECK: PASS   (tsc --noEmit -p tsconfig.json exit 0; tsc --noEmit -p tsconfig.electron.json exit 0)
 BUILD: PASS   (vite build exit 0)
-FULL_TEST: PASS   (96 test files / 896 tests, 0 failed, 128 319 ms)
+FULL_TEST: PASS   (96 test files / 896 tests, 0 failed, 127 484 ms)
 BENCHMARK: NOT_RUN
 PORTABLE_SMOKE: NOT_RUN
 RESTART_ACCEPTANCE: NOT_RUN
@@ -55,7 +55,7 @@ Values and their exact sources:
 | Line | Source field |
 |---|---|
 | `BASE_SHA` | `evidence/S0-baseline.json` → `baseSha` (merge-base with `origin/main`) |
-| `CANDIDATE_SHA` | `evidence/final-readiness.json` → `candidateSha` |
+| `CANDIDATE_SHA` | `evidence/final-readiness.json` → `candidateSha` (final full pass, `2026-09-10T12:07:04Z`) |
 | `BRANCH` | `evidence/final-readiness.json` → `branch` (`Prestart`) |
 | `TYPECHECK`, `BUILD` | `evidence/final-readiness.json` → `gates.typecheck` / `gates.build`; exit codes in `evidence/regression.json` |
 | `FULL_TEST` | `evidence/regression.json` → `testFilesPassed` / `testFilesFailed` / `testsPassed` / `testsFailed` |
@@ -73,26 +73,37 @@ and it is not reported as `TRUE` anywhere.
 ### Note on the two SHAs, the branch and the missing PR
 
 `CANDIDATE_SHA` is the commit whose tree the gate chain was last executed against, exactly as
-`evidence/final-readiness.json` records it. It is also the `BASE_SHA`, because at generation
-time the phase-0.5 work was still uncommitted in the working tree of `Prestart`, so `HEAD`
-equalled the merge-base with `origin/main`. A single commit now carries that work:
+`evidence/final-readiness.json` records it — `4951a86f…`, the branch HEAD at the moment of the
+final evidence pass (`2026-09-10T12:07:04Z`). `BASE_SHA` is the other SHA, `6f9f2974…`: the
+merge-base with `origin/main`. The three commits of this round, in order:
 
 ```text
-3c33132fc4840e392a7461915b5dad8a24bad786
-feat(self-evolution): Phase 0.5 production wiring, hard execution containment and solo flight acceptance
+6f9f2974923325fd523fe9b697c0189e07f15957  Merge pull request #1 (Phase 0 baseline, already on main)
+3c33132fc4840e392a7461915b5dad8a24bad786  feat(self-evolution): Phase 0.5 production wiring, hard execution containment and solo flight acceptance
+4951a86f991007c2ec4349e84692356cac740a35  docs(phase05): acceptance matrix, final acceptance and the machine-derived evidence set
 ```
 
 `git diff --name-only 6f9f2974…3c33132f` lists only the self-evolution modules, the hard
 sandbox, the six engineering seams that carry the sandbox/guard hook, `electron/main.ts`,
-`electron/commander/main-commander.ts`, the three new suites and `scripts/phase05-*.cjs` —
-i.e. the same tree the gates exercised, plus no evidence-bearing artifact. The `evidence/`
-files and this document set are still uncommitted at the time of writing. The honest
-consequence: **no committed tree yet carries these numbers**, and re-running the gate chain
-against the tip is the only way to bind them to a SHA that is in history.
+`electron/commander/main-commander.ts`, the three new suites and `scripts/phase05-*.cjs`; and
+`git diff --name-only HEAD` now lists **no** code, test or script path at all — only the two
+documents of this acceptance record. The tree the gates ran against is therefore the tree in
+history: the implementation and the three suites in `3c33132f`, the Phase 0.5 documents and the
+evidence set in `4951a86`.
+
+One provenance detail worth stating, because the evidence directory moved while this round was
+being written: `scripts/phase05-evidence.cjs` ran three times. A full pass at `11:56–11:59Z`
+produced the numbers while the work was still uncommitted at `6f9f2974` (that pass recorded
+`candidateSha: 6f9f2974…`); a partial pass at `12:03:07Z` started with `--skip-full`, so its
+`final-readiness.json` has no `gates.fullTest` and derives
+`READY_FOR_CONTROLLED_REAL_SELF_EVOLUTION: false` with `regressions: null` — a flag artifact,
+not a measured failure; and the full pass at `12:07:04Z` quoted on this screen regenerated
+every file, `regression.json` included (96 files / 896 tests, 0 failed, 127 484 ms). Anyone
+re-deriving these lines must use that last pass, or re-run the evidence command in full.
 
 `PR: none` — this round did not open a pull request. The branch was delivered by pushing
-`Prestart` directly (`origin/Prestart` is the branch's upstream, and the round's only commit
-sits on it). The absence of a pull request is stated rather than verified through the API:
+`Prestart` directly (`origin/Prestart` is the branch's upstream, and this round's two commits
+sit on it). The absence of a pull request is stated rather than verified through the API:
 confirming it on github.com would need a GitHub credential, and this host has none
 (`CODEX_BOSS_GITHUB_TOKEN` unset) — using the Owner's credential for that check is exactly
 what plan §2.3/§9 forbids, so `none` is recorded on the strength of the local git state and
@@ -145,9 +156,10 @@ work in that sentence:
 * the production host's own sandbox path is exercised only through the suite's recording
   stand-in; the AppContainer boundary itself is proven by the sandbox suite driving the
   launcher directly;
-* the promoted-runtime boot acceptance and the git-revert rollback were not run
-  (`PROMOTED_RUNTIME_BOOT` / `ROLLBACK_AFTER_BAD_BOOT` are `NOT_RUN`; the existing rollback is
-  a pointer record);
+* the promoted-runtime boot acceptance and the git-revert rollback were not run live
+  (`PROMOTED_RUNTIME_BOOT` / `ROLLBACK_AFTER_BAD_BOOT` are `NOT_RUN (live)`; their contracts are
+  asserted, but no promoted runtime was ever booted and the existing rollback is a pointer
+  record);
 * the benchmark, portable-smoke and restart-acceptance gates were not run this round.
 
 The level's own definition — components safe to run under supervision, with the Harness still
