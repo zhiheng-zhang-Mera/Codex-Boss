@@ -11,15 +11,15 @@ superseded by this record.
 |---|---|
 | Accepted integration HEAD | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
 | Promotion-gate HEAD (tested) | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
-| `main` (final) | `9f54e34d2cff6e31145bee36d6305573797526e4` |
-| `origin/main` | `9f54e34d2cff6e31145bee36d6305573797526e4` |
-| `owner-result` (final) | `9f54e34d2cff6e31145bee36d6305573797526e4` |
-| `origin/owner-result` | `9f54e34d2cff6e31145bee36d6305573797526e4` |
+| main (final) | `5d516f13ff915dd0d1a493fae4c11c6b600db366` |
+| origin/main | `5d516f13ff915dd0d1a493fae4c11c6b600db366` |
+| owner-result (final) | `5d516f13ff915dd0d1a493fae4c11c6b600db366` |
+| origin/owner-result | `5d516f13ff915dd0d1a493fae4c11c6b600db366` |
 | `main == owner-result == origin/main == origin/owner-result` | **TRUE** |
 | Remote branches after Phase N | **2** (`main`, `owner-result`) |
 | Local branches after Phase N | **2** (`main`, `owner-result`) |
 | Tags (local == remote) | **17** |
-| GitHub CI | **success** on `main` and `owner-result` @ `9f54e34` |
+| GitHub CI | **success** on main and owner-result @ `5d516f13ff915dd0d1a493fae4c11c6b600db366` |
 
 Every promotion was a **fast-forward**. No force push was used anywhere, and no
 history was rewritten.
@@ -60,8 +60,8 @@ All 14 pre-promotion archive tags were created at each branch's exact HEAD, veri
 | `archive/owner-result-r43` | `825cd1fcb9c9…` | B (fork) |
 | `archive/owner-result-r43-local-diverged` | `f660cc27ee03…` | B (fork) |
 | `archive/9-10-integration-final` | `148c342b6b4e…` | C-created |
-| `v10.0.0` | `9f54e34d2cff…` | release (moved from `148c342`, see §11) |
-| `v10.0.0-accepted` | `9f54e34d2cff…` | release (moved from `148c342`, see §11) |
+| `v10.0.0` | `5d516f13ff91…` | release (moved twice, see §11) |
+| `v10.0.0-accepted` | `5d516f13ff91…` | release (moved twice, see §11) |
 
 Evidence: `evidence/promotion/archive-tags-report.json`.
 
@@ -176,19 +176,19 @@ unmodified guard.
 ## 7. Final verification
 
 ```text
-origin branches : 9f54e34 refs/heads/main
-                  9f54e34 refs/heads/owner-result
+origin branches : 5d516f1 refs/heads/main
+                  5d516f1 refs/heads/owner-result
                   (exactly 2)
 
 local branches  : main, owner-result            (exactly 2)
 tags            : 17 local, 17 on origin
 main == owner-result == origin/main == origin/owner-result
-                == 9f54e34d2cff6e31145bee36d6305573797526e4
-v10.0.0 == v10.0.0-accepted == 9f54e34d2cff6e31145bee36d6305573797526e4
+                == 5d516f13ff915dd0d1a493fae4c11c6b600db366
+v10.0.0 == v10.0.0-accepted == 5d516f13ff915dd0d1a493fae4c11c6b600db366
 archive/9-10-integration-final == 148c342b6b4eefc5d2824ef4143c6434d3281a96
 ```
 
-GitHub `Desktop CI` on `9f54e34`: **success** (main and owner-result).
+GitHub `Desktop CI` on `5d516f1`: **success** on both runs (main and owner-result).
 Product verification on the final `main`: `npm test` → **687 passed (687)**.
 
 ## 8. cleanup.md §27 owner view (final)
@@ -198,9 +198,9 @@ Product verification on the final `main`: `npm test` → **687 passed (687)**.
 | 1 | Which branches were merged? | `9-10-A` into `A-main-integration`. 0 conflicts. |
 | 2 | Which branches were archived? | All 15 candidate branches, via 17 tags pushed to `origin`. |
 | 3 | Which branches were deleted? | 14 remote + 10 local: the 8 dated, 2 closure, `9-10-A`, `9-10-M`, `A-main-integration`. |
-| 4 | `main` SHA? | `9f54e34d2cff6e31145bee36d6305573797526e4` |
-| 5 | `owner-result` SHA? | `9f54e34d2cff6e31145bee36d6305573797526e4` (identical to `main`) |
-| 6 | `v10.0.0` points at? | `9f54e34d2cff6e31145bee36d6305573797526e4` (CI verified green) |
+| 4 | `main` SHA? | `5d516f13ff915dd0d1a493fae4c11c6b600db366` |
+| 5 | `owner-result` SHA? | `5d516f13ff915dd0d1a493fae4c11c6b600db366` (identical to `main`) |
+| 6 | `v10.0.0` points at? | `5d516f13ff915dd0d1a493fae4c11c6b600db366` (CI verified green) |
 | 7 | A/M capabilities retained? | Yes — M product surfaces byte-identical; A closure assets present; 687 tests PASS. |
 | 8 | Full test PASS? | Yes — 82 files / 687 tests. |
 | 9 | Integration 2h soak PASS? | Yes — 7200s, 0 failed, 11/11 invariants (run on this HEAD, not re-run for promotion). |
@@ -256,22 +256,72 @@ hardware acceleration disabled), so they pass on the `windows-latest` runner.
 ## 11. Release-tag correction
 
 `v10.0.0` and `v10.0.0-accepted` were first created at the accepted HEAD
-`148c342` — the commit whose CI ran red because of the ordering defect above. Since
-the defect was in the workflow rather than in the product, the tags were **moved
-forward to `9f54e34`**, the commit whose full pipeline GitHub reports as successful.
-`148c342` is an ancestor of `9f54e34`, and the moved tags are still reachable at
+`148c342` — the commit whose CI ran red because of the workflow ordering defect above.
+Since that defect was in the workflow rather than in the product, the tags were moved
+forward as the fixes landed:
+
+| Step | Tag pointed at | Why |
+|---|---|---|
+| 1 | `148c342` | original promotion of the accepted integration HEAD (CI red: ordering defect) |
+| 2 | `9f54e34` | first commit whose full pipeline GitHub reported green |
+| 3 | `5d516f1` | final commit: ordering fix **and** the flaky-test fix, green on both runs |
+
+Each step was a fast-forward. `148c342` remains reachable at
 `archive/9-10-integration-final`.
 
 This is recorded rather than done silently. There were **no GitHub Releases**
 referencing the old tags, and the version had been promoted minutes earlier, so the
-correction is safe; it was chosen so that the release tag points at a commit whose CI
-is genuinely verified green.
+corrections are safe; they were made so that the release tag points at a commit whose
+CI is genuinely verified green, including the nondeterministic failure described next.
 
-## 12. Final branch structure (§18)
+## 12. Flaky test found by CI, diagnosed and fixed
+
+With the ordering fix in place, one more failure appeared — and this one was
+**nondeterministic**: on commit `8632ac5` the two `Desktop CI` runs disagreed (one
+success, one failure), the failing one reporting
+
+```
+AssertionError: expected 0 to be greater than 0
+ ❯ tests/unit/host-soak-harness.test.ts:315:28
+```
+
+That is `expect(report.retries).toBeGreaterThan(0)` in *"records an injected retry
+rather than hiding provider failures"*, which runs a 2-second smoke soak with
+`failureEvery: 2`.
+
+**Root cause.** The retry counter only advances once the supervisor's retry actually
+runs, and a retryable failure is first parked behind the recovery backoff in
+`src/shared/interruption.ts:20`:
+
+```js
+retryAt: Math.max(interruption.retryAt ?? 0, now + Math.min(60000, 1000 * 2 ** attempts))
+```
+
+which is `1000 * 2 ** 1 = 2s` on the first attempt. The test's `budgetSeconds` was
+**also 2**, so "a retry was counted" and "the budget expired" were racing at the same
+2-second mark. Measured locally with a throwaway probe removed afterwards, 12 samples
+per budget:
+
+| budget | min retries | zeros | values |
+|---|---|---|---|
+| 2s (old) | **6** | 0/12 | 6,6,6,8,6,6,8,8,8,6,8,6 |
+| 8s (new) | **28** | 0/12 | 28 ×12 |
+
+Even locally the old budget left almost no margin, and the CI runner is measurably
+slower (the same validate job took 2m10s versus 1m24s), which is how it fell off the
+cliff and recorded zero retries.
+
+**Fix.** `budgetSeconds` is now 8. Only the test's window changed — the assertions,
+the harness, and the production retry policy are untouched. Verified: the file's 30
+tests pass, the previously flaky test passes 5 consecutive runs, the full suite is
+82 files / 687 tests, and GitHub reports **success** on both `main` and
+`owner-result` runs for the fix commit.
+
+## 13. Final branch structure (§18)
 
 ```text
-main            ← v10.0.0 formal stable release @ 9f54e34 (release tag at 9f54e34)
-owner-result    ← current acceptance baseline @ 9f54e34
+main            ← v10.0.0 formal stable release @ 5d516f1
+owner-result    ← current acceptance baseline @ 5d516f1
 ```
 
 No dated construction branch, Host temporary branch, closure branch or integration
