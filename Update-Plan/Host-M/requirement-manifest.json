@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "program": "Host-M",
+  "branch": "9-10-M",
+  "updatedAt": "2026-09-10",
+  "taskbook": "Update-Plan/Host-M-9-10.md",
+  "baseline": {
+    "branch": "9-10-M",
+    "head": "7879aff",
+    "note": "stable construction baseline; main and owner-result are never updated by Host-M"
+  },
+  "constraint": "新增优先，侵入式修改从严；外围增强优先，核心重构禁止",
+  "phases": [
+    {
+      "id": "P1",
+      "title": "System Acceptance Hub",
+      "status": "PASS",
+      "evidence": "evidence/P1/P1-acceptance-hub.json",
+      "deliverables": [
+        "src/shared/acceptance-hub.ts — closed PASS/FAIL/BLOCKED_EXTERNAL/DEGRADED/SKIPPED_WITH_REASON vocabulary, worst-first rollup, id=status digest, selection that rejects unknown ids",
+        "src/shared/acceptance-record.ts — the small stable record P6 compares baseline→candidate against",
+        "electron/host/acceptance-catalog.ts — 25 checks across build/legacy/closure/tenx/engine/host with a declared entry point per check",
+        "electron/host/acceptance-hub-runner.ts — per-check fault isolation, build gates ordered first, bounded evidence tails",
+        "electron/host/process-runner.ts — shell-free spawning with Windows shim resolution, timeout enforcement and tree kill",
+        "scripts/host-acceptance.cjs — one command; exit 0 only on overall PASS"
+      ],
+      "tests": "tests/unit/host-acceptance-hub.test.ts (36)"
+    },
+    {
+      "id": "P2",
+      "title": "Failure Injection Lab",
+      "status": "PASS",
+      "evidence": "evidence/P2/P2-fault-lab.json",
+      "deliverables": [
+        "src/shared/fault-lab.ts — the thirteen declared fault classes, five verdicts, classifyFault ordered so nothing-proven beats missed beats contained",
+        "electron/host/fault-lab.ts — thirteen injectors over the real subsystems, each graded on inject/observe/contain, run inside its own temp directory",
+        "scripts/host-fault-lab.cjs — CLI; exit 0 only when every fault is CONTAINED or ACCEPTED_DEGRADATION"
+      ],
+      "tests": "tests/unit/host-fault-lab.test.ts (24)"
+    },
+    {
+      "id": "P3",
+      "title": "Long-run / Soak Harness",
+      "status": "PASS",
+      "evidence": "evidence/P3/P3-soak-harness.json",
+      "deliverables": [
+        "src/shared/soak-harness.ts — smoke/30m/2h/8h/overnight tiers with their own audit bars, eleven invariants with declared bounds, verdict requiring duration AND invariants",
+        "electron/host/soak-harness.ts — real load through the real supervisor with continuous resource sampling and a resumable heartbeat",
+        "scripts/host-soak.cjs — CLI; exit 0 PASS, 1 FAIL, 3 BLOCKED_EXTERNAL, 4 INCOMPLETE_WITH_PARTIAL_EVIDENCE"
+      ],
+      "tests": "tests/unit/host-soak-harness.test.ts (30)"
+    },
+    {
+      "id": "P4",
+      "title": "Unified Observability",
+      "status": "PASS",
+      "evidence": "evidence/P4/P4-observability.json",
+      "deliverables": [
+        "src/shared/host-observer.ts — pure projection over eight domains with per-dimension OK/DEGRADED/UNAVAILABLE and a READ_ONLY marker",
+        "src/shared/host-maturity-flags.ts — Host-M's own fail-closed flag registry, separate from the Engine's adaptive flags",
+        "electron/host/host-observer-collector.ts — read-only collector that avoids the two existing reads which persist as a side effect",
+        "scripts/host-observe.cjs — CLI"
+      ],
+      "tests": "tests/unit/host-observability.test.ts (17)"
+    },
+    {
+      "id": "P5",
+      "title": "Evidence / Artifact Inspector",
+      "status": "PASS",
+      "evidence": "evidence/P5/P5-evidence-inspector.json",
+      "deliverables": [
+        "src/shared/evidence-inspector.ts — classification, queries, provenance tracing, three-anchor reference resolution, hashes-first comparison",
+        "electron/host/evidence-inspector.ts — bounded read-only walk with sha256, BOM-tolerant JSON, orphan/invalid/dangling detection",
+        "scripts/host-evidence.cjs — CLI with --compare for baseline→candidate"
+      ],
+      "tests": "tests/unit/host-evidence-inspector.test.ts (26)",
+      "findings": "44 BOM files and 1 genuinely malformed file reported (pre-existing, not repaired); 53 real dangling references; 146 orphans"
+    },
+    {
+      "id": "P6",
+      "title": "Regression Sentinel",
+      "status": "PASS",
+      "evidence": "evidence/P6/P6-regression-sentinel.json",
+      "deliverables": [
+        "src/shared/regression-sentinel.ts — nine dimensions, five finding severities, failures only on a regression",
+        "electron/host/sentinel-capture.ts — source-text interface capture, BOM-tolerant evidence reads, per-dimension isolation",
+        "scripts/host-regression.cjs — CLI; exit 0 PASS, 1 FAIL, 4 DRIFT"
+      ],
+      "tests": "tests/unit/host-regression-sentinel.test.ts (30)",
+      "baseline": "evidence/baseline/sentinel-baseline.json"
+    },
+    {
+      "id": "P7",
+      "title": "Diagnostics / Doctor",
+      "status": "PASS",
+      "evidence": "evidence/P7/P7-doctor.json",
+      "deliverables": [
+        "src/shared/doctor.ts — eleven areas, four statuses with no stop verdict, runProbe fault isolation",
+        "electron/host/doctor.ts — 25 read-only probes, blocking only on runtime/filesystem/dependency",
+        "scripts/host-doctor.cjs — CLI; exit 0 READY, 1 DEGRADED, 3 BLOCKED"
+      ],
+      "tests": "tests/unit/host-doctor.test.ts (22)"
+    }
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest": "72 files / 613 tests PASS (baseline 65 / 428)",
+    "acceptance_hub": "node scripts/host-acceptance.cjs runs the whole acceptance surface in one command",
+    "fault_lab": "PASS: 9 CONTAINED, 4 ACCEPTED_DEGRADATION of 13",
+    "soak": "see evidence/P3/P3-soak-harness.json",
+    "evidence_inspector": "Host-M scope clean; whole-plan findings are pre-existing and reported, not repaired",
+    "regression_sentinel": "PASS: 0 regressions, 0 drift against the recorded baseline",
+    "doctor": "READY: 15 READY, 0 DEGRADED, 0 FAIL, 10 SKIPPED (all 'no evidence on this data root yet')"
+  },
+  "removability": "Every Host-M module is an outer shell: delete src/shared/{acceptance-hub,acceptance-record,fault-lab,soak-harness,host-observer,host-maturity-flags,evidence-inspector,regression-sentinel,doctor}.ts, electron/host/** and scripts/host-*.cjs and Boss runs unchanged. No frozen-area protocol, schema or persistence format was modified.",
+  "final_status": "READY_FOR_INTEGRATION",
+  "note": "Host-M does not claim FINAL SYSTEM ACCEPTED; system-level close-out belongs to the later integration stage."
+}

@@ -110,38 +110,27 @@ function hashFile(file: string): { sha256: string; bytes: number; hashed: boolea
 }
 
 /**
- * Repository-relative paths that exist outside the inspected tree, so a citation
- * to a script or source file is not mistaken for a dangling evidence reference.
- * The walk is bounded and silently incomplete: it only ever *reduces* false
- * dangling reports, never invents a citation, because a path is added only when
- * `existsSync` confirms it.
+ * Repository-relative existence check, so a citation to a script, a source file
+ * or another program's evidence is not mistaken for a dangling evidence
+ * reference. Direct `existsSync` calls rather than a tree walk: enumerating the
+ * repository is expensive and, under any file budget, silently incomplete — an
+ * earlier version stopped before reaching the directory that the citations
+ * actually named and reported them all as dangling.
  */
-function collectRepoPaths(root: string, repoRoot: string | undefined): Set<string> {
-  const paths = new Set<string>();
-  if (!repoRoot || path.resolve(repoRoot) === path.resolve(root)) return paths;
-  const visit = (directory: string, depth: number): void => {
-    if (depth > 6 || paths.size > 20_000) return;
-    let entries: fs.Dirent[];
+function makeRepoExists(root: string, repoRoot: string | undefined): ((relativePath: string) => boolean) | undefined {
+  if (!repoRoot || path.resolve(repoRoot) === path.resolve(root)) return undefined;
+  const base = path.resolve(repoRoot);
+  return (relativePath: string) => {
+    if (!relativePath || relativePath.includes("\0")) return false;
+    const absolute = path.resolve(base, relativePath);
+    // Never resolve outside the repository.
+    if (absolute !== base && !absolute.startsWith(base + path.sep)) return false;
     try {
-      entries = fs.readdirSync(directory, { withFileTypes: true });
+      return fs.existsSync(absolute);
     } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (paths.size > 20_000) return;
-      const absolute = path.join(directory, entry.name);
-      const relative = normalizeEvidencePath(path.relative(repoRoot, absolute));
-      if (isSkipped(relative, DEFAULT_SKIP)) continue;
-      if (entry.isSymbolicLink()) continue;
-      if (entry.isDirectory()) {
-        visit(absolute, depth + 1);
-        continue;
-      }
-      if (entry.isFile()) paths.add(relative);
+      return false;
     }
   };
-  visit(repoRoot, 0);
-  return paths;
 }
 
 /**
@@ -256,8 +245,8 @@ export function inspectEvidence(options: InspectEvidenceOptions): EvidenceInspec
   // A citation may be root-relative, sibling-relative or repository-relative, so
   // all three anchors are offered before anything is called dangling.
   const known = new Set(inspection.records.map((record) => record.path));
-  const extraPaths = collectRepoPaths(options.root, options.repoRoot);
-  const resolved = resolveReferences(inspection.records, { knownPaths: known, extraPaths });
+  const exists = makeRepoExists(options.root, options.repoRoot);
+  const resolved = resolveReferences(inspection.records, { knownPaths: known, exists });
   const cited = resolved.cited;
   for (const record of inspection.records) {
     record.referenced = cited.has(record.path);

@@ -163,14 +163,25 @@ export async function runAcceptanceHub(
   const checks = acceptanceCatalog();
   let selected: AcceptanceCheck[];
   try {
-    selected = selectAcceptanceChecks({
-      checks,
-      extended: options.extended,
-      only: options.only,
-      exclude: options.exclude,
-      includeOptIn: options.includeOptIn,
-      includeAll: options.includeAll
-    });
+    if (options.only?.length) {
+      // An explicit `only` is the authoritative scope: the caller has already
+      // resolved which rows are in play, including opt-in rows, and re-deriving
+      // the default scope here would silently drop them. Unknown ids are still a
+      // hard error.
+      const wanted = new Set(options.only);
+      for (const id of wanted) {
+        if (!checks.some((check) => check.id === id)) throw new Error(`Unknown acceptance check: ${id}`);
+      }
+      selected = orderChecks(checks.filter((check) => wanted.has(check.id)));
+    } else {
+      selected = selectAcceptanceChecks({
+        checks,
+        extended: options.extended,
+        exclude: options.exclude,
+        includeOptIn: options.includeOptIn,
+        includeAll: options.includeAll
+      });
+    }
   } catch (error) {
     return {
       report: buildAcceptanceReport({ repoRoot: options.repoRoot, results: [], generatedAt: now() }),

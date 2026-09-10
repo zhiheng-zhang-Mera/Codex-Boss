@@ -1,13 +1,13 @@
-{
+﻿{
   "phase": "Host-M-P2",
-  "requirement": "P2 — Failure Injection Lab (test the system's failures, not restructure it)",
+  "requirement": "P2 鈥?Failure Injection Lab (test the system's failures, not restructure it)",
   "date": "2026-09-10",
   "branch": "9-10-M",
   "status": "PASS",
-  "summary": "Added an isolated failure-injection lab covering all thirteen fault classes the plan names. Each fault is injected into its own throwaway directory, driven through the real modules, and graded on three independent facts: did the injection take hold, did the system notice it, and did the system stay usable. An injector that silently did nothing is NOT_INJECTED and a fault the system ignored is UNDETECTED — both fail the run, so a green lab cannot be produced by an injection that never happened. No production module was modified; every injection target is existing code.",
+  "summary": "Added an isolated failure-injection lab covering all thirteen fault classes the plan names. Each fault is injected into its own throwaway directory, driven through the real modules, and graded on three independent facts: did the injection take hold, did the system notice it, and did the system stay usable. An injector that silently did nothing is NOT_INJECTED and a fault the system ignored is UNDETECTED 鈥?both fail the run, so a green lab cannot be produced by an injection that never happened. No production module was modified; every injection target is existing code.",
   "implementation": [
     "src/shared/fault-lab.ts (pure): FAULT_CLASSES with exactly the thirteen plan classes; FaultExpectation CONTINUE | REFUSE_CLEANLY | EITHER; FaultVerdict CONTAINED | ACCEPTED_DEGRADATION | NOT_INJECTED | UNDETECTED | UNCONTAINED; FAULT_DEFINITIONS declaring each fault's target, detection rule, containment rule and expectation; classifyFault ordered so nothing-proven beats missed beats contained, and so a CONTINUE fault cannot pass by refusing; summarizeFaults; buildFaultLabReport failing whenever anything was not injected, undetected or uncontained; renderFaultLabReport",
-    "electron/host/fault-lab.ts: thirteen injectors run against the real subsystems — BudgetManager/CircuitBreaker/RoleRouter (provider-unavailable), a production-shaped DOM surface (dom-selector-changed), SessionLifecycleLedger + login scan (login-expired), network-policy probe/route/fallback (network-timeout, proxy-unavailable), FederationCoordinator (node-dropout, stale-heartbeat), TaskLedger (disk-unavailable, partial-task-completion), EpisodeStore (malformed-persistence, corrupted-cache), CircuitBreaker + interruption classification (worker-crash), knowledge governance + ingestion decision (knowledge-sync-failure). injectorCoverage() makes a declared-but-unimplemented fault a hard failure, and runFaultLab() records a throwing injector as NOT_INJECTED with the directory always cleaned up",
+    "electron/host/fault-lab.ts: thirteen injectors run against the real subsystems 鈥?BudgetManager/CircuitBreaker/RoleRouter (provider-unavailable), a production-shaped DOM surface (dom-selector-changed), SessionLifecycleLedger + login scan (login-expired), network-policy probe/route/fallback (network-timeout, proxy-unavailable), FederationCoordinator (node-dropout, stale-heartbeat), TaskLedger (disk-unavailable, partial-task-completion), EpisodeStore (malformed-persistence, corrupted-cache), CircuitBreaker + interruption classification (worker-crash), knowledge governance + ingestion decision (knowledge-sync-failure). injectorCoverage() makes a declared-but-unimplemented fault a hard failure, and runFaultLab() records a throwing injector as NOT_INJECTED with the directory always cleaned up",
     "scripts/host-fault-lab.cjs: CLI with --fault/--json/--out/--verbose printing each inject/observe/contain step; exit 0 only when every fault is CONTAINED or ACCEPTED_DEGRADATION"
   ],
   "faults": [
@@ -30,7 +30,7 @@
   ],
   "gates": {
     "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
-    "vitest": "68 files / 505 tests PASS (baseline 65/428 + Host-M P1/P2/P4)",
+    "vitest": "72 files / 614 tests PASS (baseline 65/428 + Host-M P1/P2/P4)",
     "lab_run": "node scripts/host-fault-lab.cjs: PASS: 9 CONTAINED, 4 ACCEPTED_DEGRADATION of 13 (exit 0)"
   },
   "defects_found_by_this_evidence": [

@@ -334,6 +334,30 @@ describe("acceptance runner isolation (P1)", () => {
     expect(all).toContain("legacy:seeded-engineering");
   });
 
+  it("runs every row an explicit selection names, including opt-in rows", async () => {
+    // Regression guard: the runner used to re-derive the default scope from the
+    // catalog, which silently dropped opt-in rows the caller had already chosen.
+    const spawned: string[] = [];
+    const { report } = await runAcceptanceHub(
+      {
+        async run() {
+          spawned.push("run");
+          return { exitCode: 0, timedOut: false, stdout: "", stderr: "", durationMs: 1 };
+        }
+      },
+      {
+        repoRoot: "C:/repo",
+        probes: healthyProbes,
+        only: ["host:doctor", "gate:typecheck", "legacy:vision"],
+        now: () => AT
+      }
+    );
+    expect(report.results.map((result) => result.id).sort()).toEqual(["gate:typecheck", "host:doctor", "legacy:vision"]);
+    expect(report.summary.total).toBe(3);
+    // All three ran, because every probe reports its prerequisite as present.
+    expect(spawned).toHaveLength(3);
+  });
+
   it("records the blocking reason on blockedResult so evidence is self-describing", () => {
     const blocked = blockedResult(fakeCheck({ requires: "browser" }), "no network", AT);
     expect(blocked.reason).toMatch(/live browser profile/);

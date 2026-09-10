@@ -260,8 +260,15 @@ export function summarizeEvidence(records: readonly EvidenceRecord[], issues: re
 export interface ReferenceAnchors {
   /** Paths that exist inside the inspected tree. */
   knownPaths: ReadonlySet<string>;
-  /** Repository-relative paths that exist on disk outside the inspected tree. */
-  extraPaths?: ReadonlySet<string>;
+  /**
+   * Confirms whether a repository-relative path exists. Used for citations that
+   * point outside the inspected tree (a script, a source file, another program's
+   * evidence). A predicate rather than a set because enumerating a whole
+   * repository is both expensive and easy to get wrong — an earlier version
+   * walked the tree under a file budget and silently stopped before reaching the
+   * directory the citations actually named.
+   */
+  exists?: (relativePath: string) => boolean;
   /** Prefixes whose references are not judged at all. */
   exemptPrefixes?: readonly string[];
 }
@@ -292,7 +299,7 @@ export function resolveReferences(records: readonly EvidenceRecord[], anchors: R
         cited.add(matched);
         continue;
       }
-      if (anchors.extraPaths && candidates.some((candidate) => anchors.extraPaths!.has(candidate))) continue;
+      if (anchors.exists && candidates.some((candidate) => anchors.exists!(candidate))) continue;
       issues.push({
         kind: "dangling",
         path: record.path,

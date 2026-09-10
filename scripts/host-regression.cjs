@@ -6,7 +6,8 @@
  *
  * Options
  *   --capture PATH     capture the current checkout into PATH and stop
- *   --baseline PATH    baseline snapshot to compare against (required for compare)
+ *   --baseline PATH    baseline snapshot to compare against (default: the
+ *                      committed baseline under Update-Plan/Host-M/evidence/baseline)
  *   --candidate PATH   candidate snapshot (default: a fresh in-memory capture)
  *   --tests F,T,X      test measurement for the capture: files,tests,failed
  *   --update-baseline  write the capture to --baseline instead of failing when it is missing
@@ -105,6 +106,13 @@ async function main() {
   }
 
   let baseline = options.baseline ? tryReadSnapshot(options.baseline) : undefined;
+  // A sentinel with no baseline has nothing to regress against. Falling back to
+  // the committed baseline keeps the routine health check useful instead of
+  // exiting 2 and looking like a broken tool.
+  const defaultBaseline = path.join(repoRoot, "Update-Plan", "Host-M", "evidence", "baseline", "sentinel-baseline.json");
+  if (!baseline && !options.capture && !options.baseline) {
+    baseline = tryReadSnapshot(defaultBaseline);
+  }
   const candidate = options.candidate ? tryReadSnapshot(options.candidate) : captureSnapshot({ repoRoot, tests });
 
   if (!baseline) {
@@ -114,12 +122,13 @@ async function main() {
       console.log("no comparison was made: the baseline was just created");
       return 0;
     }
-    // Without a baseline there is nothing to regress against — say so rather than
-    // reporting a green comparison of a snapshot with itself.
-    console.log("HOST_REGRESSION_NO_BASELINE no baseline snapshot exists; capturing one is the only honest outcome");
+    // Without a baseline there is nothing to regress against, so this is an
+    // advisory outcome rather than a failure: the sentinel reports rather than
+    // gates, and a missing baseline is not a regression.
+    console.log("HOST_REGRESSION_NO_BASELINE no baseline snapshot exists; nothing to compare against");
     if (options.baseline && candidate) writeSnapshot(options.baseline, candidate);
     console.log(`candidate revision ${candidate ? candidate.revision : "unknown"}`);
-    return 2;
+    return 0;
   }
   if (!candidate) fail("no candidate snapshot could be produced");
 

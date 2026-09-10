@@ -126,7 +126,7 @@ describe("evidence inspector contract (P5)", () => {
     ];
     const resolved = resolveReferences(records, {
       knownPaths: new Set(["10-x/evidence/10A/x.json"]),
-      extraPaths: new Set(["scripts/thing.cjs"])
+      exists: (candidate) => candidate === "scripts/thing.cjs"
     });
     expect(resolved.issues).toEqual([]);
     expect([...resolved.cited]).toEqual(["10-x/evidence/10A/x.json"]);

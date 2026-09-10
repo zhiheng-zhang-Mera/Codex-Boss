@@ -1,0 +1,69 @@
+﻿{
+  "phase": "Host-M-P3",
+  "requirement": "P3 鈥?Long-run / Soak Harness (30 min / 2 h / 8 h / overnight; BLOCKED_EXTERNAL when the host cannot run the duration; never fake a PASS)",
+  "date": "2026-09-10",
+  "branch": "9-10-M",
+  "status": "PASS",
+  "summary": "Added a soak harness that generates real load through the real ExecutionSupervisor over a durable TaskLedger, Scheduler, RecoveryScheduler and CircuitBreaker, samples eleven resource and health dimensions continuously, and gates its verdict on the tier's own duration AND every measured invariant. The 30-minute tier was actually run to completion on this host. The 2h, 8h and overnight tiers are implemented and selectable but were NOT executed in this round, and are therefore reported as not-run rather than as passes, per the taskbook.",
+  "implementation": [
+    "src/shared/soak-harness.ts (pure): SOAK_TIER_SPECS with smoke/30m/2h/8h/overnight and a per-tier audit bar (a tier that only ran its first minutes has not demonstrated anything); SoakSample covering RSS, heapUsed, external memory, handles, requests, CPU time, completed/failed/retries, queue depth, open circuits, provider failures, stale sessions, live child processes, renderer health (optional, so its absence is explicit) and the process id; eleven invariants (duration-reached, no-unexpected-restart, rss-bounded, heap-bounded, handles-bounded, queue-drained, failure-ratio-bounded, throughput-above-floor, no-stale-sessions, no-orphan-processes, provider-crash-loop-bounded) with declared SOAK_BOUNDS; evaluateSoakInvariants; soakVerdict returning PASS only when the duration was completed AND every invariant holds, otherwise BLOCKED_EXTERNAL (host could not sustain it) or INCOMPLETE_WITH_PARTIAL_EVIDENCE (stopped early); renderSoakReport",
+    "electron/host/soak-harness.ts: real durable machinery in the run's own directory; two synthetic runtimes with a periodic injected retryable timeout; continuous sampling on a fixed interval; a heartbeat written after every sample so a killed run keeps the evidence it earned (and a resume from a prior heartbeat is recorded as a restart); bounded real child-process pool; awaited cleanup that escalates to taskkill and waits on the real exit event, with the post-cleanup survivor count recorded as the orphan measurement",
+    "scripts/host-soak.cjs: --tier/--seconds/--interval/--work-dir/--heartbeat/--out/--json/--quiet; SIGINT/SIGTERM finish up and still write partial evidence; exit 0 PASS, 1 FAIL, 3 BLOCKED_EXTERNAL, 4 INCOMPLETE_WITH_PARTIAL_EVIDENCE"
+  ],
+  "run": {
+    "tier": "30m",
+    "overall": "PASS",
+    "startedAt": "2026-09-10T03:05:40Z",
+    "elapsedSeconds": 1800,
+    "targetSeconds": 1800,
+    "samples": 121,
+    "sampleIntervalSeconds": 15,
+    "completed": 15195,
+    "failed": 0,
+    "injectedRetries": 2170,
+    "tasksPerSecond": 8.441,
+    "firstSample": { "rssMiB": 59.6, "heapUsedMiB": 5.1, "handles": 0 },
+    "lastSample": { "rssMiB": 82.9, "heapUsedMiB": 11.4, "handles": 2, "orphansAfterCleanup": 0 },
+    "invariants": [
+      { "id": "duration-reached", "status": "PASS", "observed": "1800s", "bound": ">= 1800s" },
+      { "id": "no-unexpected-restart", "status": "PASS", "observed": "1 process id" },
+      { "id": "rss-bounded", "status": "PASS", "observed": "+23.3 MiB (59.6 -> 82.9)", "bound": "<= 512 MiB growth" },
+      { "id": "heap-bounded", "status": "PASS", "observed": "+6.3 MiB (5.1 -> 11.4)", "bound": "<= 256 MiB growth" },
+      { "id": "handles-bounded", "status": "PASS", "observed": "+2 (0 -> 2)", "bound": "<= 2000 growth" },
+      { "id": "queue-drained", "status": "PASS", "observed": "peak 0; last 13 samples ranged 0..0" },
+      { "id": "failure-ratio-bounded", "status": "PASS", "observed": "0.0% (0/15195)", "bound": "<= 50%" },
+      { "id": "throughput-above-floor", "status": "PASS", "observed": "8.441 tasks/s over 1800s", "bound": ">= 0.2 tasks/s" },
+      { "id": "no-stale-sessions", "status": "PASS", "observed": "peak 0 stale sessions" },
+      { "id": "no-orphan-processes", "status": "PASS", "observed": "0 alive after reaping", "bound": "0 live after cleanup" },
+      { "id": "provider-crash-loop-bounded", "status": "PASS", "observed": "no circuit opened", "bound": "<= 25 open transitions per runtime" }
+    ],
+    "unavailableDimensions": [
+      { "dimension": "renderer-health", "reason": "this harness runs headless under node; no Electron renderer is attached, so renderer health cannot be observed here" },
+      { "dimension": "checkpoint-degradation-continuation-injection", "reason": "this harness injects provider slowdown and retry only; checkpoint takeover, degradation and continuation are exercised by the closure soak (scripts/closure-soak-2h.cjs) and the P2 fault lab" }
+    ],
+    "artifacts": {
+      "report": "artifacts/host-soak/run-20260910-130540/report.json",
+      "heartbeat": "artifacts/host-soak/run-20260910-130540/heartbeat.json",
+      "log": "artifacts/host-soak/run-20260910-130540/soak.log"
+    }
+  },
+  "tiers_not_run": [
+    { "tier": "2h", "status": "NOT_RUN", "reason": "implemented and selectable; not executed in this round. The taskbook forbids reporting an unrun tier as a pass." },
+    { "tier": "8h", "status": "NOT_RUN", "reason": "implemented and selectable; not executed in this round." },
+    { "tier": "overnight", "status": "NOT_RUN", "reason": "implemented and selectable; not executed in this round." },
+    { "tier": "smoke", "status": "PASS", "reason": "used as the harness self-check; a 20s run with real load, real child processes and cleanup, which is what exercised the two cleanup defects below." }
+  ],
+  "defects_found_by_this_evidence": [
+    "the harness spawned one real child process per task with no ceiling. The orphan invariant failed immediately on the first smoke run and was right: a soak that forks per unit of work is itself the leak. It now runs a fixed, bounded pool",
+    "the first orphan check conflated the live worker pool with a leak, and polling exitCode after kill() reported a mid-exit process as an orphan because that field only advances on the real exit event. Cleanup now escalates to taskkill /T /F and awaits the event; the pool is reported as an informational resource reading and only post-cleanup survivors count against the invariant"
+  ],
+  "tests": [
+    "tests/unit/host-soak-harness.test.ts (30 tests): the four plan tiers plus the smoke self-check with their audit bars, and an unknown tier rejected rather than defaulted; a healthy run passes and every invariant in it is asserted individually 鈥?the live child pool is not counted as an orphan, a survivor after cleanup fails, an unobserved cleanup is UNAVAILABLE, an unreached duration fails, an unexpected restart fails, and each of heap/RSS/handle growth fails only beyond its declared bound; the queue invariant fails when the backlog is still present in the tail window and passes when the tail shows it draining; failures dominating settled work fail; a run too short to measure throughput reports UNAVAILABLE rather than FAIL; stale sessions and a provider crash loop fail; fewer than two samples reports the trend invariants UNAVAILABLE; an interrupted run is never PASS and a blocked host is never PASS; a breach fails even when the duration was reached; summary and rendering expose every observed value and bound. Runs: a bounded tier samples real resources and writes a heartbeat; renderer health is declared UNAVAILABLE with a reason and never faked; the child pool is real, observed during the run and gone after cleanup; an injected retry is recorded rather than hidden; every artefact lands inside the run's own directory; and a prior heartbeat is detected as a resume"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest": "72 files / 614 tests PASS (baseline 65/428 + Host-M P1-P7)",
+    "soak_30m": "PASS: 11 PASS, 0 FAIL, 0 UNAVAILABLE of 11; 1800s of 1800s; 15195 completed / 0 failed / 2170 injected retries; exit 0"
+  },
+  "notes": "The harness is honest about what it is: real load through the real supervisor with synthetic runtimes, run headless under node. It is not a live browser/provider run, and the report says so by listing renderer health as UNAVAILABLE with the reason rather than inventing a value. Memory behaviour over the full 30 minutes is the headline result: +23.3 MiB RSS and +6.3 MiB heap across 15195 tasks with a queue that never backed up and no orphaned child processes."
+}
