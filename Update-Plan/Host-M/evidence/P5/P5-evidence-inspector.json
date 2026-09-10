@@ -1,0 +1,47 @@
+{
+  "phase": "Host-M-P5",
+  "requirement": "P5 — Evidence / Artifact Inspector (read-only; never change the original artifact)",
+  "date": "2026-09-10",
+  "branch": "9-10-M",
+  "status": "PASS",
+  "summary": "Added a read-only evidence inspector that inventories artifacts with real sha256 checksums, classifies them by the path conventions this repository already uses, supports search/time/status/size/citation queries, traces provenance through the references artifacts declare, validates content hashes, and detects orphans, invalid JSON, unexpected formats and dangling references. It has no write path: nothing is repaired, renamed or deleted, and comparisons are hashes-first so a same-named file with different bytes cannot pass as unchanged.",
+  "implementation": [
+    "src/shared/evidence-inspector.ts (pure): EvidenceKind vocabulary covering acceptance evidence, research artifacts, task artifacts, logs, checkpoints, episode records, knowledge provenance, manifests, reports; classifyEvidence driven by real repository conventions; declaredStatusOf / isStatusBearing; referencesIn extracting only genuine artifact paths; resolveReferences trying three anchors (inspected root, the citing document's own directory, the wider repository) before anything is called dangling; findOrphans; queryEvidence/matchesQuery; summarizeEvidence; compareEvidence (UNCHANGED/MODIFIED/ADDED/REMOVED by sha256); renderEvidenceInspection",
+    "electron/host/evidence-inspector.ts: inspectEvidence with a bounded, skip-listed, fault-isolated walk (a fixed max file count and parse budget, both reported as degraded when hit rather than silently shrinking the tree); per-file sha256; UTF-8 BOM stripping before JSON parsing; JSONL support; citation and dangling-reference resolution; compareEvidenceRoots for baseline→candidate hashes-first comparison",
+    "scripts/host-evidence.cjs: CLI with --root/--program/--all-programs/--include/--contains/--kind/--status/--since/--until/--min-bytes/--unreferenced/--max-files/--compare/--list/--json/--out; exit 0 when no issues, 1 when issues were found"
+  ],
+  "findings": [
+    {
+      "finding": "44 evidence JSON files carry a UTF-8 BOM, which plain JSON.parse rejects",
+      "evidence": "the first full scan reported 44 files as 'does not parse as JSON'; every one begins with EF BB BF (verified byte-wise on 2026-09-09-closure/evidence/r1001-scenario-e.json)",
+      "resolution": "the inspector strips the BOM before parsing, matching what scripts/closure-acceptance-report.mjs already does. Reporting 44 false invalids would have buried the genuinely malformed file",
+      "scope": "pre-existing, outside Host-M; not modified (the inspector reports, it does not repair)"
+    },
+    {
+      "finding": "1 evidence file is genuinely malformed JSON: two concatenated top-level objects",
+      "path": "Update-Plan/overcomplete/evidence/live/live-finding-qwen-2026-09-09-07-10-04.json",
+      "detail": "JSON.parse fails with 'Unexpected non-whitespace character after JSON at position 503'; the file is a BOM-prefixed object followed by a second JSON document",
+      "resolution": "reported as an invalid finding; left byte-identical",
+      "scope": "pre-existing, outside Host-M"
+    },
+    {
+      "finding": "citation resolution must try more than one anchor",
+      "detail": "manifests under Update-Plan/10-x cite evidence/10A/... relative to their own directory, and closure evidence cites repository paths like scripts/live-qwen-probe.cjs; an anchor-blind resolver reported 116 dangling references, of which 63 were false",
+      "resolution": "the resolver tries the inspected root, the citing document's directory and the repository, and suppresses orphan reporting for a bounded scan with a stated reason"
+    },
+    {
+      "finding": "the remaining dangling references are real and pre-existing",
+      "detail": "53 across the whole plan: 43 cite src/shared/__seeded_*.ts (files the seeded acceptance creates inside a clone, absent here by design), 8 cite files absent from this checkout, and 2 cite a plan document that is not in the tree",
+      "scope": "pre-existing, outside Host-M; reported, not repaired"
+    }
+  ],
+  "tests": [
+    "tests/unit/host-evidence-inspector.test.ts (26 tests): the kind and issue vocabularies; classification by real path conventions; status-bearing detection; phase derivation; path normalization; reference extraction that ignores prose and URLs; sibling-relative resolution with an escape guard; a reference resolving against a second anchor is not dangling, and one resolving against nothing is; a cited record is never also reported as an orphan; queries by kind/substring/time window/status/size/citation state; issue summarization; hashes-first comparison; rendering that exposes issues and degradations; over a real tree — real checksums with byte-identical files afterwards, a BOM file read correctly rather than reported invalid, a genuinely malformed file reported while its healthy neighbour is still inspected, orphan detection on and off with a stated reason, a repository-relative citation not called dangling, a cited artifact marked referenced, dependency/build directories skipped, a truncated scan reported as degraded, a missing root reported as degraded, and a real baseline→candidate comparison where a rewritten file is MODIFIED and an identical copy is UNCHANGED"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest": "72 files / 613 tests PASS (baseline 65/428 + Host-M P1-P7)",
+    "live_run": "node scripts/host-evidence.cjs (Host-M program scope): 5 files, 0 issues. node scripts/host-evidence.cjs --all-programs --max-files 4000: 236 files inventoried, 1 genuinely invalid, 146 orphans and 53 dangling references all pre-existing and outside Host-M"
+  },
+  "notes": "Orphan detection is deliberately disabled for a bounded scan and says so in `degraded[]`: a scan that cannot see the documents citing an artifact outside its scope would otherwise report every one of them as an orphan. The full-plan scan enables it, which is where those pre-existing findings come from."
+}
