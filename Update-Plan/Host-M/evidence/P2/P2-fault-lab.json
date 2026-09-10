@@ -1,0 +1,40 @@
+{
+  "phase": "Host-M-P2",
+  "requirement": "P2 — Failure Injection Lab (test the system's failures, not restructure it)",
+  "date": "2026-09-10",
+  "branch": "9-10-M",
+  "status": "PASS",
+  "summary": "Added an isolated failure-injection lab covering all thirteen fault classes the plan names. Each fault is injected into its own throwaway directory, driven through the real modules, and graded on three independent facts: did the injection take hold, did the system notice it, and did the system stay usable. An injector that silently did nothing is NOT_INJECTED and a fault the system ignored is UNDETECTED — both fail the run, so a green lab cannot be produced by an injection that never happened. No production module was modified; every injection target is existing code.",
+  "implementation": [
+    "src/shared/fault-lab.ts (pure): FAULT_CLASSES with exactly the thirteen plan classes; FaultExpectation CONTINUE | REFUSE_CLEANLY | EITHER; FaultVerdict CONTAINED | ACCEPTED_DEGRADATION | NOT_INJECTED | UNDETECTED | UNCONTAINED; FAULT_DEFINITIONS declaring each fault's target, detection rule, containment rule and expectation; classifyFault ordered so nothing-proven beats missed beats contained, and so a CONTINUE fault cannot pass by refusing; summarizeFaults; buildFaultLabReport failing whenever anything was not injected, undetected or uncontained; renderFaultLabReport",
+    "electron/host/fault-lab.ts: thirteen injectors run against the real subsystems — BudgetManager/CircuitBreaker/RoleRouter (provider-unavailable), a production-shaped DOM surface (dom-selector-changed), SessionLifecycleLedger + login scan (login-expired), network-policy probe/route/fallback (network-timeout, proxy-unavailable), FederationCoordinator (node-dropout, stale-heartbeat), TaskLedger (disk-unavailable, partial-task-completion), EpisodeStore (malformed-persistence, corrupted-cache), CircuitBreaker + interruption classification (worker-crash), knowledge governance + ingestion decision (knowledge-sync-failure). injectorCoverage() makes a declared-but-unimplemented fault a hard failure, and runFaultLab() records a throwing injector as NOT_INJECTED with the directory always cleaned up",
+    "scripts/host-fault-lab.cjs: CLI with --fault/--json/--out/--verbose printing each inject/observe/contain step; exit 0 only when every fault is CONTAINED or ACCEPTED_DEGRADATION"
+  ],
+  "faults": [
+    { "id": "provider-unavailable", "verdict": "CONTAINED", "observed": "budget EXHAUSTED + circuit OPEN removed web:a from routing; web:b carried the planner role" },
+    { "id": "dom-selector-changed", "verdict": "ACCEPTED_DEGRADATION", "observed": "the DOM read failed with a named selector error instead of returning a plausible empty value" },
+    { "id": "login-expired", "verdict": "ACCEPTED_DEGRADATION", "observed": "state EXPIRED, login scan REAUTH_REQUIRED, the transition is legal and the ledger stays readable" },
+    { "id": "network-timeout", "verdict": "CONTAINED", "observed": "with every egress route gone the route degrades the provider only, and Boss keeps running" },
+    { "id": "proxy-unavailable", "verdict": "CONTAINED", "observed": "losing system and user proxy moved the route to PROVIDER_PROXY with a stated reason" },
+    { "id": "node-dropout", "verdict": "CONTAINED", "observed": "node-a went OFFLINE and was dropped; checkpointed work transferred to node-b with its checkpoint, uncheckpointed non-replay-safe work failed honestly with a reason" },
+    { "id": "disk-unavailable", "verdict": "ACCEPTED_DEGRADATION", "observed": "an unwritable checkpoint raised EISDIR and the previous generation stayed readable at the same revision" },
+    { "id": "malformed-persistence", "verdict": "ACCEPTED_DEGRADATION", "observed": "an unusable episodes.jsonl was reported as skipped rows and left byte-identical, never repaired in place" },
+    { "id": "corrupted-cache", "verdict": "CONTAINED", "observed": "two unusable rows interleaved between valid episodes were reported while both valid episodes were still returned" },
+    { "id": "worker-crash", "verdict": "CONTAINED", "observed": "PROCESS_CRASH classified as a technical interruption; the breaker opened only after the threshold and admitted a half-open probe after cooldown" },
+    { "id": "partial-task-completion", "verdict": "CONTAINED", "observed": "a job left WAITING with one completed and two pending steps; a separate reader reproduced the partial record exactly" },
+    { "id": "stale-heartbeat", "verdict": "CONTAINED", "observed": "state re-derived DEGRADED at 2x and OFFLINE at 6x the heartbeat interval purely from age, and reading it did not mutate the stored record" },
+    { "id": "knowledge-sync-failure", "verdict": "CONTAINED", "observed": "failed verifications dropped trust from HIGH to UNVERIFIED and re-syncing identical content was decided DUPLICATE rather than overwriting it" }
+  ],
+  "tests": [
+    "tests/unit/host-fault-lab.test.ts (24 tests): exactly the thirteen declared classes with one injector each and no undeclared injector; every fault declares a target, a detection rule, a containment rule and a valid expectation; classification orders NOT_INJECTED before UNDETECTED before UNCONTAINED; a CONTINUE fault cannot pass by refusing; the report fails on any not-injected/undetected/uncontained row; every fault runs with all three evidenced phases and all steps ok; each injector proves it really injected (non-empty inject detail); --fault subsets report only the subset and an unknown id is rejected; a throwing injector is NOT_INJECTED and never a pass; no injection directory is ever left behind; and five injectors are asserted against the real subsystems' documented behaviour (role still routable after budget+circuit failure, dropout semantics for checkpointed vs unsafe work, prior ledger generation readable after a failed write, usable episode rows kept when unusable ones are interleaved, staleness derived from age without writing the record)"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest": "68 files / 505 tests PASS (baseline 65/428 + Host-M P1/P2/P4)",
+    "lab_run": "node scripts/host-fault-lab.cjs: PASS: 9 CONTAINED, 4 ACCEPTED_DEGRADATION of 13 (exit 0)"
+  },
+  "defects_found_by_this_evidence": [
+    "four injectors were initially wrong in ways that would have produced a false verdict, and the lab's own three-phase grading exposed each: the role router only admits runtimes whose health is cached (so the first provider-unavailable run proved nothing), a DOM stub that returns undefined instead of throwing hid the fault (now REFUSE_CLEANLY with a production-shaped surface), the first dropout injection pinned a task the dropped node was the only capable host for and then mis-read the documented FAILED outcome as a defect, and both episode injectors were seeding rows without the store's schemaVersion"
+  ],
+  "notes": "The lab leaves the repository untouched: every injection runs in its own temp directory and the tests assert no leftover directory and that no step detail names the checkout. Where the system legitimately refuses (a page that cannot be read, a checkpoint that cannot be written, work that cannot be replayed), the fault is recorded as ACCEPTED_DEGRADATION rather than CONTAINED, so the report distinguishes 'kept going' from 'stopped honestly'."
+}
