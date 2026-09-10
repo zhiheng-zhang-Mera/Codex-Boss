@@ -7,6 +7,10 @@ coverage/
 .codex-boss/*
 !.codex-boss/config/
 !.codex-boss/config/*.json
+# Root Authority policy surface (Isolation-Finalization.md §7.1). Policy only:
+# this directory must never contain a token, private key or Owner session.
+!.codex-boss/root/
+!.codex-boss/root/*.json
 .codex-controller/
 *.log
 .DS_Store
@@ -30,5 +34,15 @@ secrets/
 !/Update-Plan/Engine/
 !/Update-Plan/Host-M/
 !/Update-Plan/Branch-Cleanup/
+!/Update-Plan/Autonomous-Evolution-Phase0/
+# Gate transcripts for Phase 0 are the primary evidence behind regression.json
+# (Isolation-Finalization.md §22). The blanket `*.log` rule above would hide them.
+!/Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/
+!/Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/*.log
 /research-output/
 .live-acceptance/
+
+# Stable/Candidate isolation roots: every evolution run gets its own workspace,
+# runtime-data, temp, logs and recovery journal (Isolation-Finalization.md §8).
+/evolution/
+.boss/evolution/

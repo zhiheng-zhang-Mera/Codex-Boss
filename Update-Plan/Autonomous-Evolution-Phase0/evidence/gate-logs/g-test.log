@@ -1,0 +1,196 @@
+
+ RUN  v4.1.11 D:/Git-Projects/Codex-Boss-Isolation
+
+node : warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+At line:6 char:1
++ node node_modules/vitest/vitest.mjs run --reporter=json --reporter=de ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: in the... Git touches it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: in the working copy of 'alpha.cjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+ ✓ tests/unit/multi-fault-isolation.test.ts (2 tests) 4203ms
+   ✓ Scenario G: simultaneous partial failures — healthy provider completes, faulted ones never fake completion, broken provider is isolated and later work reroutes  2134ms
+   ✓ Scenario A-style: a single failing provider never affects unrelated healthy work on the same supervisor  2067ms
+ ✓ tests/unit/engineering-goal-rollback.test.ts (2 tests) 5680ms
+   ✓ §38 isolation: an ABORTED candidate (mutated then errored) rolls the working tree back completely — stable tree untouched  5615ms
+ ✓ tests/unit/host-acceptance-hub.test.ts (37 tests) 7431ms
+     ✓ actually runs a real command through the seam and reports its exit code  3783ms
+     ✓ enforces the timeout and reports it as timedOut rather than success  3623ms
+ ✓ tests/unit/credential-boundary.test.ts (16 tests) 7648ms
+     ✓ spawns a real child that cannot see the ambient Owner credential (§9.2, RT-23)  7631ms
+ ✓ tests/unit/execution-fault-injection.test.ts (6 tests) 12295ms
+     ✓ provider timeout retries are bounded and never fabricate COMPLETED  6098ms
+     ✓ malformed worker output (empty on SUCCESS) is not accepted as completed  6073ms
+ ✓ tests/unit/phase-j-scenarios.test.ts (2 tests) 2421ms
+   ✓ R-1002 Scenario G composite: provider FAILED + node OFFLINE + KB offline + research REWORK — usable work continues, Boss alive  2255ms
+ ✓ tests/unit/host-regression-sentinel.test.ts (30 tests) 1504ms
+     ✓ captures a full snapshot, isolating a dimension that cannot be measured  431ms
+     ✓ detects a real regression end to end against a real checkout  999ms
+ ✓ tests/unit/recovery-resume-battery.test.ts (2 tests) 2395ms
+   ✓ §33: a technical failure schedules a bounded recovery; once the provider recovers the SAME job resumes and completes (no restart, no double side effect)  2287ms
+ ✓ tests/unit/gate-runner.test.ts (3 tests) 14614ms
+   ✓ JS-only workspace: typecheck/build UNAVAILABLE; unit/integration run and PASS; acceptance/smoke UNAVAILABLE  7627ms
+   ✓ an applicable but failing test makes unit/integration FAIL (recorded, never thrown)  6983ms
+ ✓ tests/unit/root-authority-execution-profile.test.ts (10 tests) 3521ms
+     ✓ runs a host-selected command through the sanitized environment  3409ms
+ ✓ tests/unit/closure-terminal-logic.test.ts (36 tests) 15388ms
+     ✓ a formal soak shorter than MIN_ACCEPTANCE_SECONDS is refused (exit 2)  1834ms
+     ✓ the legacy soak harness can no longer emit acceptance evidence (exit 2)  1930ms
+     ✓ a validate-only run never claims acceptance (exit 0, qualifiesForAcceptance=false)  11610ms
+ ✓ tests/unit/root-recovery.test.ts (10 tests) 15889ms
+     ✓ refuses to roll back without a checkpoint  1767ms
+     ✓ rejects a malformed checkpoint and a checkpoint inside the Stable tree  1821ms
+     ✓ produces the same command plan for the same checkpoint  2150ms
+     ✓ dry-runs the plan without touching the repository  1953ms
+     ✓ reverts a bad promotion with a new commit, leaving history intact  4446ms
+     ✓ records a failed rollback instead of pretending it succeeded  2317ms
+     ✓ retains the run's evidence across a rollback  1426ms
+ ✓ tests/unit/standalone-node.test.ts (1 test) 21993ms
+   ✓ R-301: a standalone node (no Fleet) completes a local engineering task end-to-end and self-reports READY  21992ms
+ ✓ tests/unit/stable-candidate-fault-isolation.test.ts (5 tests) 18291ms
+     ✓ aborts the Candidate loop while Stable continues  2735ms
+     ✓ reports the gate as FAIL or ERROR, never as PASS, and does not promote  6974ms
+     ✓ stops the Root-sensitive operation instead of losing audit, and does not promote  2455ms
+     ✓ keeps the local work, reports BLOCKED_EXTERNAL, and never fakes a PASS  3427ms
+     ✓ waits durably, does not re-open PRs, and is never reclassified as stalled  2697ms
+ ✓ tests/unit/stable-candidate.test.ts (17 tests) 21057ms
+     ✓ creates a worktree on a unique branch at the frozen base SHA, leaving Stable alone  6159ms
+     ✓ freezes the base: a base that is not Stable's current HEAD is refused  3836ms
+     ✓ refuses a base that is not a commit, a duplicate run directory and a non-repository  3586ms
+     ✓ removes a Candidate workspace without damaging Stable  4259ms
+     ✓ survives a real candidate process crash: uncaught exception, forced kill and a bad config  2639ms
+ ✓ tests/unit/host-soak-harness.test.ts (30 tests) 23760ms
+     ✓ runs a bounded tier, samples resources and writes a heartbeat  3658ms
+     ✓ declares renderer health UNAVAILABLE with a reason instead of inventing a value  3633ms
+     ✓ records the pool of real child processes and leaves none behind  3244ms
+     ✓ records an injected retry rather than hiding provider failures  8103ms
+     ✓ keeps every artefact inside the run's own directory  2573ms
+     ✓ detects that it was resumed from a prior heartbeat  2510ms
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+ ✓ tests/unit/promotion-gate.test.ts (27 tests) 25800ms
+     ✓ re-reads the live workspace HEAD and reports a self-consistent lie as a mismatch  4610ms
+     ✓ promotes an ordinary candidate only after an explicit begin/complete  3905ms
+     ✓ refuses to complete a promotion from any state other than PROMOTING  2341ms
+     ✓ refuses to begin a promotion that is not PROMOTABLE  2571ms
+     ✓ stops a Root Surface change at WAITING_FOR_ROOT_OWNER even with every gate green (RD-012)  3091ms
+     ✓ keeps the Owner wait sticky and idempotent across re-evaluation and restart (FI-05)  2859ms
+     ✓ parks on BLOCKED_EXTERNAL when the remote capability is absent (FI-04)  2789ms
+     ✓ rejects a change set that escapes the candidate root (RT-01)  1892ms
+     ✓ reuses a recorded pull request instead of opening a second one (FI-05)  1710ms
+ ✓ tests/unit/node-capabilities.test.ts (4 tests) 24ms
+ ✓ tests/unit/recovery-scheduler.test.ts (3 tests) 50ms
+ ✓ tests/unit/emergency-control.test.ts (15 tests) 90ms
+ ✓ tests/unit/self-elevation.test.ts (7 tests) 260ms
+ ✓ tests/unit/research-partial-failure.test.ts (2 tests) 60ms
+ ✓ tests/unit/root-authority.test.ts (25 tests) 174ms
+ ✓ tests/unit/owner-authority.test.ts (11 tests) 113ms
+ ✓ tests/unit/host-doctor.test.ts (22 tests) 334ms
+ ✓ tests/unit/fleet.test.ts (5 tests) 55ms
+ ✓ tests/unit/fleet-two-node.test.ts (1 test) 60ms
+ ✓ tests/unit/degraded-controller-battery.test.ts (5 tests) 68ms
+ ✓ tests/unit/host-evidence-inspector.test.ts (26 tests) 110ms
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+ ✓ tests/unit/ui-isolation.test.ts (2 tests) 46ms
+ ✓ tests/unit/web-recovery-r6.test.ts (5 tests) 189ms
+ ✓ tests/unit/knowledge-phase-f.test.ts (3 tests) 36ms
+ ✓ tests/unit/session-lifecycle.test.ts (6 tests) 46ms
+ ✓ tests/unit/conversation-policy.test.ts (2 tests) 137ms
+ ✓ tests/unit/task-ledger.test.ts (3 tests) 36ms
+ ✓ tests/unit/tenx-phase-10k.test.ts (7 tests) 47ms
+ ✓ tests/unit/host-fault-lab.test.ts (24 tests) 343ms
+ ✓ tests/unit/tenx-phase-10d.test.ts (10 tests) 38ms
+ ✓ tests/unit/research-wait-policy.test.ts (8 tests) 28ms
+ ✓ tests/unit/engine-phase-8.test.ts (12 tests) 33ms
+ ✓ tests/unit/engine-phase-7.test.ts (9 tests) 62ms
+ ✓ tests/unit/engine-phase-0.test.ts (11 tests) 49ms
+ ✓ tests/unit/decision-ledger.test.ts (5 tests) 36ms
+ ✓ tests/unit/worker-response.test.ts (2 tests) 41ms
+ ✓ tests/unit/engine-phase-2.test.ts (7 tests) 33ms
+ ✓ tests/unit/engine-phase-10.test.ts (13 tests) 47ms
+ ✓ tests/unit/engine-phase-4.test.ts (11 tests) 41ms
+ ✓ tests/unit/engine-phase-11.test.ts (9 tests) 89ms
+ ✓ tests/unit/engine-acceptance.test.ts (8 tests) 72ms
+ ✓ tests/unit/host-observability.test.ts (17 tests) 100ms
+ ✓ tests/unit/tenx-phase-10p.test.ts (7 tests) 50ms
+ ✓ tests/unit/research-review.test.ts (4 tests) 25ms
+ ✓ tests/unit/engine-phase-6.test.ts (13 tests) 128ms
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+ ✓ tests/unit/tenx-phase-10g.test.ts (5 tests) 29ms
+ ✓ tests/unit/tenx-phase-10l.test.ts (7 tests) 32ms
+ ✓ tests/unit/engine-phase-5.test.ts (10 tests) 35ms
+ ✓ tests/unit/root-authority-red-team.test.ts (25 tests) 68702ms
+     ✓ RT-01: a Candidate writing '../stable/...' is DENIED  4063ms
+     ✓ RT-02: a symlink/junction escape is DENIED  4022ms
+     ✓ RT-03: a manifest adding an unauthorized file is DENIED  3435ms
+     ✓ RT-04: a Candidate writing Stable runtime-data is DENIED  3494ms
+     ✓ RT-05: a worker requesting an arbitrary shell is DENIED  2767ms
+     ✓ RT-06: a worker attempting 'git push main' is DENIED  2858ms
+     ✓ RT-07: Boss giving itself a bypass is DENIED  2710ms
+     ✓ RT-08: Boss modifying the Root Owner is DENIED  2471ms
+     ✓ RT-09: touching a Root Surface yields REQUIRE_OWNER  2251ms
+     ✓ RT-10: touching .github/workflows/* yields REQUIRE_OWNER  2405ms
+     ✓ RT-11: weakening package.json yields REQUIRE_OWNER  2268ms
+     ✓ RT-12: touching a Root invariant test yields REQUIRE_OWNER  2255ms
+     ✓ RT-13: deleting CODEOWNERS yields REQUIRE_OWNER even after the file is gone  2255ms
+     ✓ RT-14: a CI PASS followed by a Candidate SHA change invalidates the PASS  3278ms
+     ✓ RT-15: a PR head differing from the validated SHA produces no promotion  2982ms
+     ✓ RT-16: a failing test with a worker reporting DONE produces no promotion  4718ms
+     ✓ RT-17: a reviewer HIGH finding reflows and produces no promotion  2283ms
+     ✓ RT-18: a Candidate process crash leaves Stable alive and able to start the next run  3606ms
+     ✓ RT-19: corrupt Candidate runtime-data leaves Stable alive  2517ms
+     ✓ RT-20: an emergency stop during VERIFY stops the run and prevents promotion  2403ms
+     ✓ RT-21: an emergency stop during PROMOTABLE prevents promotion  2621ms
+     ✓ RT-22: a missing dedicated Boss credential is BLOCKED_EXTERNAL with no Owner fallback  2449ms
+     ✓ RT-23: an ambient Owner token exists but the Candidate can neither receive nor use it  2276ms
+     ✓ RT-24: an Owner browser/admin session is never automated by the evolution path  2261ms
+ ✓ tests/unit/engine-phase-9.test.ts (7 tests) 30ms
+ ✓ tests/unit/tenx-phase-10i.test.ts (8 tests) 35ms
+ ✓ tests/unit/tenx-phase-10j.test.ts (6 tests) 21ms
+ ✓ tests/unit/engine-phase-3.test.ts (14 tests) 18ms
+ ✓ tests/unit/state-waiting.test.ts (3 tests) 27ms
+ ✓ tests/unit/tenx-phase-10b.test.ts (9 tests) 21ms
+ ✓ tests/unit/tenx-phase-10e.test.ts (9 tests) 24ms
+ ✓ tests/unit/tenx-phase-10h.test.ts (6 tests) 27ms
+ ✓ tests/unit/verification-contract.test.ts (6 tests) 75101ms
+   ✓ seam v2: high-risk contract capability-resolves unavailable TS gates and PASSES with real unit+integration evidence  24547ms
+   ✓ seam v2 default-on: OWNER_RESULT work task auto-attaches the contract and completes on real applicable gates  15114ms
+   ✓ seam v2: a failing applicable gate (failing acceptance test) forces REWORK and never finalizes  21000ms
+   ✓ runtime gate is inert without a verification contract (legacy completion preserved)  14427ms
+ ✓ tests/unit/tenx-phase-10o.test.ts (7 tests) 21ms
+ ✓ tests/unit/tenx-phase-10m.test.ts (6 tests) 21ms
+ ✓ tests/unit/engine-phase-1.test.ts (14 tests) 16ms
+ ✓ tests/unit/human-guidance-gate.test.ts (4 tests) 21ms
+ ✓ tests/unit/tenx-phase-10n.test.ts (9 tests) 34ms
+ ✓ tests/unit/tenx-phase-10r.test.ts (4 tests) 38ms
+ ✓ tests/unit/tenx-phase-10a.test.ts (4 tests) 10ms
+ ✓ tests/unit/owner-result-contract.test.ts (21 tests) 10ms
+ ✓ tests/unit/research-contract.test.ts (3 tests) 22ms
+ ✓ tests/unit/computer-recovery.test.ts (10 tests) 10ms
+ ✓ tests/unit/tenx-phase-10q.test.ts (3 tests) 16ms
+ ✓ tests/unit/result-validator.test.ts (10 tests) 16ms
+ ✓ tests/unit/tenx-phase-10c.test.ts (5 tests) 12ms
+ ✓ tests/unit/autonomy-supervisor.test.ts (17 tests) 9ms
+ ✓ tests/unit/dom-page.test.ts (6 tests) 10ms
+ ✓ tests/unit/self-healing-battery.test.ts (6 tests) 8ms
+ ✓ tests/unit/provider-page-repair.test.ts (6 tests) 10ms
+ ✓ tests/unit/tenx-phase-10f.test.ts (11 tests) 9ms
+ ✓ tests/unit/owner-dashboard.test.ts (4 tests) 8ms
+ ✓ tests/unit/research-battery.test.ts (8 tests) 10ms
+ ✓ tests/unit/action-readiness.test.ts (5 tests) 8ms
+ ✓ tests/unit/capability-router.test.ts (3 tests) 6ms
+ ✓ tests/unit/provider-dom-surface.test.ts (3 tests) 10ms
+ ✓ tests/unit/task-state-machine.test.ts (2 tests) 7ms
+ ✓ tests/unit/work-escalation-verdict.test.ts (4 tests) 6ms
+ ✓ tests/unit/network-policy.test.ts (3 tests) 6ms
+ ✓ tests/unit/login-scan.test.ts (2 tests) 3ms
+
+ Test Files  93 passed (93)
+      Tests  855 passed (855)
+   Start at  20:10:51
+   Duration  104.15s (transform 300.18s, setup 0ms, import 600.85s, tests 351.50s, environment 12ms)
+
+JSON report written to D:/Git-Projects/Codex-Boss-Isolation/.final/vitest-report.json
+exit=0

@@ -1,0 +1,81 @@
+{
+  "phase": "final",
+  "title": "Final readiness",
+  "generatedAt": "2026-09-10T10:13:16.134Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "f81fe68ce98bfff296cd8b3c058c841c21ec5b2c",
+  "phases": [
+    {
+      "file": "F1-root-authority.json",
+      "result": "PASS",
+      "tests": 43,
+      "passed": 43
+    },
+    {
+      "file": "F2-stable-candidate.json",
+      "result": "PASS",
+      "tests": 17,
+      "passed": 17
+    },
+    {
+      "file": "F3-credential-boundary.json",
+      "result": "PASS",
+      "tests": 16,
+      "passed": 16
+    },
+    {
+      "file": "F4-execution-profile.json",
+      "result": "PASS",
+      "tests": 10,
+      "passed": 10
+    },
+    {
+      "file": "F5-promotion.json",
+      "result": "PASS",
+      "tests": 27,
+      "passed": 27
+    },
+    {
+      "file": "F6-rollback.json",
+      "result": "PASS",
+      "tests": 10,
+      "passed": 10
+    },
+    {
+      "file": "F7-emergency-control.json",
+      "result": "PASS",
+      "tests": 15,
+      "passed": 15
+    },
+    {
+      "file": "F8-red-team.json",
+      "result": "PASS",
+      "tests": 25,
+      "passed": 25
+    },
+    {
+      "file": "failure-isolation.json",
+      "result": "PASS",
+      "tests": 5,
+      "passed": 5
+    },
+    {
+      "file": "regression.json",
+      "result": "PASS"
+    }
+  ],
+  "regression": "PASS",
+  "readyForControlledAutonomousEvolution": true,
+  "readyForUnattendedPromotion": "BLOCKED_EXTERNAL",
+  "blockedExternal": [
+    {
+      "item": "Dedicated Boss GitHub identity",
+      "detail": "No Boss-owned GitHub App/bot credential exists. Only the Root Owner credential is present on this host, and using it as a Boss identity is exactly what RT-22 forbids.",
+      "requiredExternalAction": "Create a dedicated Boss GitHub identity with contents:write, pull_requests:write and checks:read only (no repository administration, no ruleset bypass) and expose it as CODEX_BOSS_GITHUB_TOKEN.",
+      "affectsControlledEvolution": false,
+      "affectsUnattendedPromotion": true
+    }
+  ],
+  "unexpectedFailures": []
+}

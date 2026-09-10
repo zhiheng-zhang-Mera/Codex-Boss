@@ -1,0 +1,34 @@
+{
+  "phase": "F6",
+  "title": "Rollback and Root recovery",
+  "generatedAt": "2026-09-10T10:13:16.134Z",
+  "baseBranch": "main",
+  "baseSha": "fc14988395d60a0fb9a8f7d955657b55a0bfce87",
+  "headSha": "f81fe68ce98bfff296cd8b3c058c841c21ec5b2c",
+  "modules": [
+    "electron/root-recovery/rollback-controller.ts"
+  ],
+  "requirementIds": [
+    "RD-013"
+  ],
+  "testFiles": [
+    {
+      "file": "tests/unit/root-recovery.test.ts",
+      "status": "passed",
+      "tests": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "assertions": {
+    "tests": 10,
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0
+  },
+  "failingTests": [],
+  "missingTestFiles": [],
+  "source": "machine-derived from a vitest JSON report; no value in this file was written by hand",
+  "result": "PASS"
+}
