@@ -121,12 +121,42 @@
   refresh 进 manifest；report `evidenceProblems` 为空。
 - 终态判定：`NO_LEGAL_TERMINAL_YET`（仅剩 R-901 LIVE_REQUIRED）。
 
-## Phase I — hardened R-901 正式 run（进行中）
-- 经 durable runner 启动：runId `2026-09-10T00-33-51Z-2daa9e6e`，pid 30832，gitHead `c119663`，
-  target 7200s（formal，cooldown 60s，failureThreshold 5）。agent 只读 evidence/status。
+## Phase I — hardened R-901 正式 run
+- 经 durable runner 启动：runId `2026-09-10T00-33-51Z-2daa9e6e`，pid 30832，gitHead
+  `c119663`，formal（cooldown 60s，failureThreshold 5）。
+- **结果 PASS**：durationSec **7202**（≥ MIN_ACCEPTANCE_SECONDS 7200）；hostId
+  `Mera-Alianware-win32-x64`；harnessVersion `r901-soak-3.0`；nodeVersion v24.14.1。
+- 确定性 10 阶段 fault schedule **全部观测**（missingPhases = []）：NORMAL_OPERATION、
+  PROVIDER_SLOWDOWN、RETRY、CHECKPOINT_WRITE、CONSECUTIVE_PROVIDER_FAILURE、
+  BREAKER_OPEN_DEGRADED、FALLBACK_PROVIDER_CONTINUATION、CHECKPOINT_RESUME、
+  PROVIDER_RECOVERY、CONTINUED_NORMAL_OPERATION。
+- 计数：completed 1768 / fatalFailed **0** / activeTaskCount 1 / slowdown 104 / retry 104 /
+  checkpointWritten 8944 / checkpointResumed 104 / degradation 208 / fallbackContinuation 624 /
+  providerRecovery 104。
+- 连续性：1685 heartbeats，maxHeartbeatGapMs **10021**（10.0s，阈值 5min），maxTaskGapMs 9657，
+  wall span 7201s，taskSequence 1→1768。
+- 运行期间未修改被测核心代码（`git diff c119663..HEAD -- electron src` 为空）。
+- 证据：`evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.json` +
+  `evidence/r901-2026-09-10T00-33-51Z-2daa9e6e.heartbeat.jsonl`。
+- 旧版 `closure-soak-2h.cjs` 已改为 fail-closed shim（Host-A §6），不能再产出验收证据。
 
-## Phase K — final regression runner
-- `scripts/closure-final-regression.mjs`：typecheck ×2 + full unit + full build + manifest/R-202/
-  R-901/acceptance-report validators，写 `evidence/final-regression.json`（gitHead、test files/
-  count、build 结果、evidence sha256、manifest hash）。commit `78cac05`。
-- 待 R-901 完成后执行正式 final regression。
+## Phase J — legal terminal
+- 经 single-writer 把 R-901 `LIVE_REQUIRED → PASS`（专用 validator 通过）。
+- 报告：20 LOCKED_PASS + 29 PASS + R-202 BLOCKED_EXTERNAL，**pending 空、evidenceProblems 空**
+  → 合法终态 **BLOCKED_EXTERNAL**（R-202 需要人工 OAuth/MFA 登录，属 Host-A §2/§18.2 的真实外部条件）。
+
+## Phase K — final full regression
+- `evidence/final-regression.json`（gitHead `1ce5b9f`）：typecheck PASS ×2、full unit
+  **69 files / 348 tests PASS**、full build PASS、manifest + R-202 + R-901 + acceptance-report
+  validators 全 true、terminal BLOCKED_EXTERNAL；含全部 evidence sha256 与 manifest hash。
+
+## Phase L — minimal test curation
+- 仅在第 K 步全绿之后执行（Host-A §14）。保留 42 个 suite（`MINIMAL-TEST-MAP.md` 逐项说明
+  retained test → protected subsystem → protected requirement(s) → why required，覆盖 §14 全部 13 类）。
+- 裁剪后验证 `evidence/minimal-suite-regression.json`（gitHead `7934160`）：typecheck PASS ×2、
+  minimal unit **42 files / 218 tests PASS**、full build PASS、validators 全 true。
+- 被裁剪 suite 仍可从 git 历史恢复（`git checkout 1ce5b9f -- tests/unit/<name>.test.ts`）。
+
+## 递交
+- 分支 `9-10-A` 已推送至云端 `origin/9-10-A`（final HEAD `2be71d0`）。
+
