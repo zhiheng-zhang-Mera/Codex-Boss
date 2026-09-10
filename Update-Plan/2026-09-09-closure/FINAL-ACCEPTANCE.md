@@ -1,13 +1,16 @@
-# Codex Boss — Closure Final Acceptance Report（manifest-generated 2026-09-09T23:00:55.639Z）
+# Codex Boss — Closure Final Acceptance Report（manifest-generated 2026-09-10T00:02:17.054Z）
 
-Execution basis: Update-Plan/R43-Closure-Construction-Plan.md; Requirement Manifest = Update-Plan/2026-09-09-closure/requirement-manifest.json（唯一完成依据）.
+Execution basis: Update-Plan/R43-Closure-Construction-Plan.md + Update-Plan/Host-A.md; Requirement Manifest = Update-Plan/2026-09-09-closure/requirement-manifest.json（唯一完成依据）.
 
 ## Status summary
-- LIVE_REQUIRED: 2
+- BLOCKED_EXTERNAL: 1
+- LIVE_REQUIRED: 1
 - LOCKED_PASS: 20
 - PASS: 28
 
 ## Terminal state
-- Pending: R-202(LIVE_REQUIRED), R-901(LIVE_REQUIRED)
-- Legal terminal now: **BLOCKED_EXTERNAL_REQUIRED (live/external items remaining)**
-- Report generated from manifest — model free-text did not decide completion.
+- Pending: R-901(LIVE_REQUIRED)
+- Evidence problems: R-202: missing legal structured BLOCKED_EXTERNAL evidence (Host-A §5 schema)
+- Legal terminal now: **NO_LEGAL_TERMINAL_YET**
+- Reasons: pending required items: R-901(LIVE_REQUIRED)
+- Report generated from manifest via pure terminal evaluator — model free-text did not decide completion.
