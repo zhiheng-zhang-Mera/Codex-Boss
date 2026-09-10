@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "HOST_FAULT_LAB",
-  "generatedAt": "2026-09-10T05:11:30.707Z",
+  "generatedAt": "2026-09-10T07:18:30.096Z",
   "results": [
     {
       "id": "provider-unavailable",
@@ -29,7 +29,7 @@
           "detail": "web:b carried the role: true"
         }
       ],
-      "durationMs": 15
+      "durationMs": 11
     },
     {
       "id": "dom-selector-changed",
@@ -85,7 +85,7 @@
           "detail": "legal transition and ledger still readable (1 record)"
         }
       ],
-      "durationMs": 9
+      "durationMs": 6
     },
     {
       "id": "network-timeout",
@@ -113,7 +113,7 @@
           "detail": "fallback=DEGRADE_PROVIDER, the process keeps running"
         }
       ],
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "id": "proxy-unavailable",
@@ -169,7 +169,7 @@
           "detail": "checkpointed transferred with its payload; unsafe failed as FAILED with an explicit reason"
         }
       ],
-      "durationMs": 33
+      "durationMs": 28
     },
     {
       "id": "disk-unavailable",
@@ -197,7 +197,7 @@
           "detail": "previous generation still readable at revision 2 (expected 2)"
         }
       ],
-      "durationMs": 24
+      "durationMs": 30
     },
     {
       "id": "malformed-persistence",
@@ -225,7 +225,7 @@
           "detail": "the reader did not repair the file in place and stayed callable"
         }
       ],
-      "durationMs": 15
+      "durationMs": 20
     },
     {
       "id": "corrupted-cache",
@@ -253,7 +253,7 @@
           "detail": "valid rows before and after the corrupt ones are still returned"
         }
       ],
-      "durationMs": 2
+      "durationMs": 12
     },
     {
       "id": "worker-crash",
@@ -281,7 +281,7 @@
           "detail": "a half-open probe is admitted once the cooldown passes: true"
         }
       ],
-      "durationMs": 13
+      "durationMs": 16
     },
     {
       "id": "partial-task-completion",
@@ -309,7 +309,7 @@
           "detail": "a separate reader reproduces the same partial record exactly"
         }
       ],
-      "durationMs": 30
+      "durationMs": 56
     },
     {
       "id": "stale-heartbeat",
@@ -337,7 +337,7 @@
           "detail": "deriving state from age did not mutate the stored record"
         }
       ],
-      "durationMs": 8
+      "durationMs": 10
     },
     {
       "id": "knowledge-sync-failure",

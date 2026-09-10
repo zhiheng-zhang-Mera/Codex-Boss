@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "HOST_ACCEPTANCE_HUB",
-  "generatedAt": "2026-09-10T05:13:07.623Z",
+  "generatedAt": "2026-09-10T07:25:31.705Z",
   "repoRoot": "D:\\Codex-Boss",
   "selected": [
     "gate:typecheck",
@@ -40,10 +40,10 @@
       "program": "build",
       "device": "command",
       "requires": "offline",
-      "durationMs": 622,
+      "durationMs": 680,
       "exitCode": 0,
-      "startedAt": "2026-09-10T05:12:20.129Z",
-      "finishedAt": "2026-09-10T05:12:20.751Z",
+      "startedAt": "2026-09-10T07:24:44.793Z",
+      "finishedAt": "2026-09-10T07:24:45.473Z",
       "status": "PASS"
     },
     {
@@ -52,10 +52,10 @@
       "program": "build",
       "device": "command",
       "requires": "offline",
-      "durationMs": 687,
+      "durationMs": 731,
       "exitCode": 0,
-      "startedAt": "2026-09-10T05:12:20.751Z",
-      "finishedAt": "2026-09-10T05:12:21.438Z",
+      "startedAt": "2026-09-10T07:24:45.474Z",
+      "finishedAt": "2026-09-10T07:24:46.205Z",
       "status": "PASS"
     },
     {
@@ -64,12 +64,12 @@
       "program": "build",
       "device": "command",
       "requires": "offline",
-      "durationMs": 15726,
+      "durationMs": 15520,
       "exitCode": 0,
-      "stdoutTail": "\n RUN  v4.1.11 D:/Codex-Boss\n\n···············································································································································································································································································································································································································································································································································································································································································································\n\n Test Files  82 passed (82)\n      Tests  687 passed (687)\n   Start at  15:12:22\n   Duration  15.00s (transform 15.82s, setup 0ms, import 29.17s, tests 68.23s, environment 19ms)",
-      "stderrTail": "warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'alpha.cjs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it",
-      "startedAt": "2026-09-10T05:12:21.438Z",
-      "finishedAt": "2026-09-10T05:12:37.164Z",
+      "stdoutTail": "\n RUN  v4.1.11 D:/Codex-Boss\n\n···············································································································································································································································································································································································································································································································································································································································································································\n\n Test Files  82 passed (82)\n      Tests  687 passed (687)\n   Start at  17:24:46\n   Duration  14.78s (transform 14.37s, setup 0ms, import 28.15s, tests 66.88s, environment 18ms)",
+      "stderrTail": "warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'alpha.cjs', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it",
+      "startedAt": "2026-09-10T07:24:46.205Z",
+      "finishedAt": "2026-09-10T07:25:01.725Z",
       "status": "PASS"
     },
     {
@@ -78,11 +78,11 @@
       "program": "build",
       "device": "command",
       "requires": "offline",
-      "durationMs": 709,
+      "durationMs": 691,
       "exitCode": 0,
-      "stdoutTail": "vite v8.2.2 building client environment for production...\ntransforming...\n✓ 32 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.46 kB │ gzip:  0.29 kB\ndist/assets/index-7PLpVpz4.css   43.29 kB │ gzip:  9.31 kB\ndist/assets/index-Bqu5ae0u.js   273.77 kB │ gzip: 86.75 kB\n\n✓ built in 123ms",
-      "startedAt": "2026-09-10T05:12:37.164Z",
-      "finishedAt": "2026-09-10T05:12:37.873Z",
+      "stdoutTail": "vite v8.2.2 building client environment for production...\ntransforming...\n✓ 32 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.46 kB │ gzip:  0.29 kB\ndist/assets/index-7PLpVpz4.css   43.29 kB │ gzip:  9.31 kB\ndist/assets/index-Bqu5ae0u.js   273.77 kB │ gzip: 86.75 kB\n\n✓ built in 116ms",
+      "startedAt": "2026-09-10T07:25:01.725Z",
+      "finishedAt": "2026-09-10T07:25:02.416Z",
       "status": "PASS"
     },
     {
@@ -91,10 +91,10 @@
       "program": "build",
       "device": "command",
       "requires": "offline",
-      "durationMs": 865,
+      "durationMs": 907,
       "exitCode": 0,
-      "startedAt": "2026-09-10T05:12:37.874Z",
-      "finishedAt": "2026-09-10T05:12:38.739Z",
+      "startedAt": "2026-09-10T07:25:02.416Z",
+      "finishedAt": "2026-09-10T07:25:03.323Z",
       "status": "PASS"
     },
     {
@@ -106,8 +106,8 @@
       "status": "BLOCKED_EXTERNAL",
       "reason": "an external CLI/agent binary is required; no codex CLI on PATH",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:38.740Z",
-      "finishedAt": "2026-09-10T05:12:38.740Z"
+      "startedAt": "2026-09-10T07:25:03.323Z",
+      "finishedAt": "2026-09-10T07:25:03.323Z"
     },
     {
       "id": "legacy:resource",
@@ -118,8 +118,8 @@
       "status": "BLOCKED_EXTERNAL",
       "reason": "an external CLI/agent binary is required; no codex CLI on PATH",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:38.740Z",
-      "finishedAt": "2026-09-10T05:12:38.740Z"
+      "startedAt": "2026-09-10T07:25:03.323Z",
+      "finishedAt": "2026-09-10T07:25:03.323Z"
     },
     {
       "id": "legacy:engineering",
@@ -130,8 +130,8 @@
       "status": "BLOCKED_EXTERNAL",
       "reason": "an external CLI/agent binary is required; no codex CLI on PATH",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:38.740Z",
-      "finishedAt": "2026-09-10T05:12:38.740Z"
+      "startedAt": "2026-09-10T07:25:03.323Z",
+      "finishedAt": "2026-09-10T07:25:03.323Z"
     },
     {
       "id": "legacy:finalization",
@@ -142,8 +142,8 @@
       "status": "BLOCKED_EXTERNAL",
       "reason": "an external CLI/agent binary is required; no codex CLI on PATH",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:38.740Z",
-      "finishedAt": "2026-09-10T05:12:38.740Z"
+      "startedAt": "2026-09-10T07:25:03.323Z",
+      "finishedAt": "2026-09-10T07:25:03.323Z"
     },
     {
       "id": "legacy:structured",
@@ -154,8 +154,8 @@
       "status": "BLOCKED_EXTERNAL",
       "reason": "an external CLI/agent binary is required; no codex CLI on PATH",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:38.740Z",
-      "finishedAt": "2026-09-10T05:12:38.740Z"
+      "startedAt": "2026-09-10T07:25:03.323Z",
+      "finishedAt": "2026-09-10T07:25:03.323Z"
     },
     {
       "id": "legacy:uia",
@@ -163,11 +163,11 @@
       "program": "legacy",
       "device": "script",
       "requires": "windows-desktop",
-      "durationMs": 12016,
+      "durationMs": 12048,
       "exitCode": 0,
-      "stdoutTail": "{\n  \"kind\": \"CONTROLLED_NATIVE_UIA\",\n  \"root\": \"D:\\\\Codex-Boss\\\\artifacts\\\\uia-02cca808-acdf-4b9d-8100-6e51fa2b271f\",\n  \"status\": \"PASS\",\n  \"steps\": [\n    {\n      \"action\": {\n        \"name\": \"open_app\",\n        \"target\": \"fixture\"\n      },\n      \"result\": {\n        \"status\": \"SUCCESS\",\n        \"evidence\": {\n          \"processId\": 20516,\n          \"application\": \"fixture\"\n        },\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"focus_window\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\"}\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"window\": \"Codex Boss UIA Acceptance\",\n          \"processId\": 20516\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"find_control\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 20516,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"enter_text\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\",\n        \"value\": \"BOSS_UIA_TYPED\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 20516,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"BOSS_UIA_TYPED\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"verify_state\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\",\n        \"value\": \"BOSS_UIA_TYPED\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 20516,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"BOSS_UIA_TYPED\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"click_control\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceButton\\\"}\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 20516,\n          \"automationId\": \"acceptanceButton\",\n          \"name\": \"Apply acceptance value\",\n          \"value\": null,\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"wait_for_state\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"lateInput\\\"}\",\n        \"value\": \"BOSS_UIA_LATE\",\n        \"timeoutMs\": 10000\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 20516,\n          \"automationId\": \"lateInput\",\n          \"name\": \"\",\n          \"value\": \"BOSS_UIA_LATE\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"wait_for_state\",\n        \"target\": \"uia:{\\\"processId\\\":20516,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\",\n        \"value\": \"BOSS_UIA_CLICKED\",\n        \"timeoutMs\": 10000\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 20516,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"BOSS_UIA_CLICKED\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    }\n  ]\n}",
-      "startedAt": "2026-09-10T05:12:38.740Z",
-      "finishedAt": "2026-09-10T05:12:50.756Z",
+      "stdoutTail": "{\n  \"kind\": \"CONTROLLED_NATIVE_UIA\",\n  \"root\": \"D:\\\\Codex-Boss\\\\artifacts\\\\uia-22382e63-9726-479f-851b-eb62fdf10e50\",\n  \"status\": \"PASS\",\n  \"steps\": [\n    {\n      \"action\": {\n        \"name\": \"open_app\",\n        \"target\": \"fixture\"\n      },\n      \"result\": {\n        \"status\": \"SUCCESS\",\n        \"evidence\": {\n          \"processId\": 9356,\n          \"application\": \"fixture\"\n        },\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"focus_window\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\"}\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"window\": \"Codex Boss UIA Acceptance\",\n          \"processId\": 9356\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"find_control\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 9356,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"enter_text\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\",\n        \"value\": \"BOSS_UIA_TYPED\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 9356,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"BOSS_UIA_TYPED\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"verify_state\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\",\n        \"value\": \"BOSS_UIA_TYPED\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 9356,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"BOSS_UIA_TYPED\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"click_control\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceButton\\\"}\"\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 9356,\n          \"automationId\": \"acceptanceButton\",\n          \"name\": \"Apply acceptance value\",\n          \"value\": null,\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"wait_for_state\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"lateInput\\\"}\",\n        \"value\": \"BOSS_UIA_LATE\",\n        \"timeoutMs\": 10000\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 9356,\n          \"automationId\": \"lateInput\",\n          \"name\": \"\",\n          \"value\": \"BOSS_UIA_LATE\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    },\n    {\n      \"action\": {\n        \"name\": \"wait_for_state\",\n        \"target\": \"uia:{\\\"processId\\\":9356,\\\"windowTitle\\\":\\\"Codex Boss UIA Acceptance\\\",\\\"automationId\\\":\\\"acceptanceInput\\\"}\",\n        \"value\": \"BOSS_UIA_CLICKED\",\n        \"timeoutMs\": 10000\n      },\n      \"result\": {\n        \"evidence\": {\n          \"processId\": 9356,\n          \"automationId\": \"acceptanceInput\",\n          \"name\": \"Acceptance input\",\n          \"value\": \"BOSS_UIA_CLICKED\",\n          \"enabled\": true\n        },\n        \"status\": \"SUCCESS\",\n        \"backend\": \"uia\"\n      }\n    }\n  ]\n}",
+      "startedAt": "2026-09-10T07:25:03.323Z",
+      "finishedAt": "2026-09-10T07:25:15.371Z",
       "status": "PASS"
     },
     {
@@ -176,11 +176,11 @@
       "program": "legacy",
       "device": "script",
       "requires": "electron-gui",
-      "durationMs": 4380,
+      "durationMs": 4140,
       "exitCode": 0,
-      "stdoutTail": "{\n  \"root\": \"D:\\\\Codex-Boss\\\\artifacts\\\\restart-8ec26c92-0f9a-4bac-b418-a7185abe4264\",\n  \"seed\": {\n    \"phase\": \"before_artifact\",\n    \"pid\": 25632\n  },\n  \"result\": {\n    \"kind\": \"CONTROLLED_ELECTRON_RESTART\",\n    \"status\": \"PASS\",\n    \"pid\": 9116,\n    \"taskId\": \"3ca13820-c4fa-418e-a2df-d128747bbe97\",\n    \"attempts\": 1,\n    \"finalVisible\": true\n  }\n}",
-      "startedAt": "2026-09-10T05:12:50.756Z",
-      "finishedAt": "2026-09-10T05:12:55.136Z",
+      "stdoutTail": "{\n  \"root\": \"D:\\\\Codex-Boss\\\\artifacts\\\\restart-4392ee8f-e89b-4cd8-b5ab-2f1e84d179ca\",\n  \"seed\": {\n    \"phase\": \"before_artifact\",\n    \"pid\": 29320\n  },\n  \"result\": {\n    \"kind\": \"CONTROLLED_ELECTRON_RESTART\",\n    \"status\": \"PASS\",\n    \"pid\": 28808,\n    \"taskId\": \"099a74b4-adb3-4f4c-9e2d-bbfd057689fa\",\n    \"attempts\": 1,\n    \"finalVisible\": true\n  }\n}",
+      "startedAt": "2026-09-10T07:25:15.372Z",
+      "finishedAt": "2026-09-10T07:25:19.512Z",
       "status": "PASS"
     },
     {
@@ -189,12 +189,12 @@
       "program": "legacy",
       "device": "script",
       "requires": "browser",
-      "durationMs": 5243,
+      "durationMs": 5309,
       "exitCode": 0,
-      "stdoutTail": "\r\n{\n  \"kind\": \"CONTROLLED_ELECTRON_BROWSER_CRASH\",\n  \"status\": \"PASS\",\n  \"root\": \"D:\\\\Codex-Boss\\\\artifacts\\\\browser-crash-b6f76580-f79f-4d22-8609-14a31bad749e\",\n  \"crash\": {\n    \"reason\": \"crashed\",\n    \"exitCode\": 2\n  },\n  \"networkError\": \"Error: ERR_EMPTY_RESPONSE (-324) loading 'http://127.0.0.1:63346/c/fixture'\",\n  \"retryAt\": 1789017179910,\n  \"sessionExpiryPaused\": true,\n  \"sends\": 1,\n  \"taskId\": \"8632391f-2487-4786-9bfd-af8e13220f32\",\n  \"final\": \"BOSS_BROWSER_CRASH_RECOVERED\",\n  \"sessionUrl\": \"http://127.0.0.1:63346/c/fixture\"\n}",
-      "stderrTail": "(node:8852) electron: Failed to load URL: http://127.0.0.1:63346/c/fixture with error: ERR_EMPTY_RESPONSE\n(Use `electron --trace-warnings ...` to show where the warning was created)",
-      "startedAt": "2026-09-10T05:12:55.137Z",
-      "finishedAt": "2026-09-10T05:13:00.380Z",
+      "stdoutTail": "\r\n{\n  \"kind\": \"CONTROLLED_ELECTRON_BROWSER_CRASH\",\n  \"status\": \"PASS\",\n  \"root\": \"D:\\\\Codex-Boss\\\\artifacts\\\\browser-crash-7e7b0b48-f0ef-4278-bf3b-532adc8a0c5f\",\n  \"crash\": {\n    \"reason\": \"crashed\",\n    \"exitCode\": 2\n  },\n  \"networkError\": \"Error: ERR_EMPTY_RESPONSE (-324) loading 'http://127.0.0.1:62543/c/fixture'\",\n  \"retryAt\": 1789025124407,\n  \"sessionExpiryPaused\": true,\n  \"sends\": 1,\n  \"taskId\": \"56f14ff2-e3e7-41ab-b43f-69990b46db51\",\n  \"final\": \"BOSS_BROWSER_CRASH_RECOVERED\",\n  \"sessionUrl\": \"http://127.0.0.1:62543/c/fixture\"\n}",
+      "stderrTail": "(node:2472) electron: Failed to load URL: http://127.0.0.1:62543/c/fixture with error: ERR_EMPTY_RESPONSE\n(Use `electron --trace-warnings ...` to show where the warning was created)",
+      "startedAt": "2026-09-10T07:25:19.513Z",
+      "finishedAt": "2026-09-10T07:25:24.822Z",
       "status": "PASS"
     },
     {
@@ -203,11 +203,11 @@
       "program": "closure",
       "device": "script",
       "requires": "offline",
-      "durationMs": 73,
+      "durationMs": 70,
       "exitCode": 0,
       "stdoutTail": "{\n  \"counts\": {\n    \"LOCKED_PASS\": 20,\n    \"PASS\": 29,\n    \"BLOCKED_EXTERNAL\": 1\n  },\n  \"terminal\": \"BLOCKED_EXTERNAL\",\n  \"pending\": [],\n  \"blockers\": [\n    \"R-202\"\n  ],\n  \"evidenceProblems\": {}\n}",
-      "startedAt": "2026-09-10T05:13:00.380Z",
-      "finishedAt": "2026-09-10T05:13:00.453Z",
+      "startedAt": "2026-09-10T07:25:24.823Z",
+      "finishedAt": "2026-09-10T07:25:24.893Z",
       "status": "PASS"
     },
     {
@@ -216,11 +216,11 @@
       "program": "tenx",
       "device": "script",
       "requires": "offline",
-      "durationMs": 1346,
+      "durationMs": 1264,
       "exitCode": 0,
-      "stdoutTail": "{\n  \"kind\": \"OFFLINE_RESEARCH_CHAIN\",\n  \"status\": \"PASS_PIPELINE\",\n  \"startedAt\": \"2026-09-10T05:13:00.542Z\",\n  \"root\": \"D:\\\\DS-Hns\\\\temp\\\\boss-research-offline-7YMu05\",\n  \"workspace\": \"D:\\\\DS-Hns\\\\temp\\\\boss-research-offline-7YMu05\\\\workspace\",\n  \"researchId\": \"does-evidence-weighted-adjudication-reduce-review-3e061095b9c0\",\n  \"outcome\": {\n    \"state\": \"FAILED\",\n    \"steps\": 14\n  },\n  \"stages\": [\n    {\n      \"decision\": \"scoping\",\n      \"reason\": \"[planner/research-question] scoping complete: RQ anchored, workspace + reviewers + budget recorded\"\n    },\n    {\n      \"decision\": \"project_inspection\",\n      \"reason\": \"[coder/repo-scan] inspected repo: 1 files, fingerprint 47fc5beab8c4\"\n    },\n    {\n      \"decision\": \"literature_review\",\n      \"reason\": \"[literature/literature-notes] literature intake: 0 AI-advisory source(s) stored (host empty; AI text is not an external source)\"\n    },\n    {\n      \"decision\": \"question_formulation\",\n      \"reason\": \"[planner/research-question] hypothesis recorded: Evidence-weighted adjudication reduces review errors in a controlled software-engineering benchmark.\"\n    },\n    {\n      \"decision\": \"protocol_draft\",\n      \"reason\": \"[planner/protocol] protocol frozen (32baa4bff6d0); scientific core cannot change silently\"\n    },\n    {\n      \"decision\": \"experiment_generation\",\n      \"reason\": \"[experiment/experiment-design] experiment bench-bench-accuracy implementation validated against frozen protocol\"\n    },\n    {\n      \"decision\": \"experiment_execution\",\n      \"reason\": \"[coder/experiment-run] primary experiment executed: 2 recorded run(s), seeds [1, 2]\"\n    },\n    {\n      \"decision\": \"analysis\",\n      \"reason\": \"[analyst/statistic] analysis: mean 0.669 over 2 run(s); claim adopted\"\n    },\n    {\n      \"decision\": \"replication\",\n      \"reason\": \"[analyst/analysis] replication: 3 distinct seeds under the frozen protocol; status REPRODUCED\"\n    },\n    {\n      \"decision\": \"claim_review\",\n      \"reason\": \"[reviewer/claim] claim bench-bench-accuracy adjudicated: SUPPORTED\"\n    },\n    {\n      \"decision\": \"manuscript\",\n      \"reason\": \"[reporter/manuscript-section] manuscript assembled: paper.md/.tex/.bib + 1 figure(s)\"\n    },\n    {\n      \"decision\": \"citation_audit\",\n      \"reason\": \"[reviewer/citation-audit] citation audit ok: 0/0 verified\"\n    },\n    {\n      \"decision\": \"repro_audit\",\n      \"reason\": \"[reviewer/repro-audit] reproducibility REPRODUCED (3 distinct seeds)\"\n    },\n    {\n      \"decision\": \"failed:BUILD\",\n      \"reason\": \"latex compile FAIL: no TeX engine found (pdflatex/xelatex/lualatex/tectonic); .tex preserved for later compile\"\n    }\n  ],\n  \"state\": \"FAILED\",\n  \"message\": \"offline deterministic research chain passed pipeline (PDF/BUILD not reached) (state=FAILED)\",\n  \"artifacts\": {\n    \"analysis\": true,\n    \"reproducibility\": true,\n    \"manuscriptMd\": true,\n    \"manuscriptTex\": true,\n    \"baselineProvenance\": true,\n    \"paperPdf\": false,\n    \"compileAudit\": true,\n    \"finalAudit\": true\n  },\n  \"compile\": {\n    \"status\": \"FAIL\",\n    \"engine\": null,\n    \"pdf\": null\n  },\n  \"finalAudit\": {\n    \"passed\": true,\n    \"sections\": {\n      \"abstract\": \"REVISED\",\n      \"introduction\": \"REVISED\",\n      \"methods\": \"REVISED\",\n      \"results\": \"REVISED\",\n      \"discussion\": \"REVISED\",\n      \"conclusion\": \"REVISED\"\n    },\n    \"reproducibility\": \"REPRODUCED\",\n    \"citations\": {\n      \"ok\": true,\n      \"verified\": 0,\n      \"unsupported\": [],\n      \"contradicted\": []\n    }\n  },\n  \"recordedRuns\": [\n    {\n      \"seed\": 1,\n      \"metrics\": {\n        \"answer_accuracy\": 0.6960999999999999\n      }\n    },\n    {\n      \"seed\": 2,\n      \"metrics\": {\n        \"answer_accuracy\": 0.6426\n      }\n    },\n    {\n      \"seed\": 3,\n      \"metrics\": {\n        \"answer_accuracy\": 0.7187\n      }\n    }\n  ]\n}",
-      "startedAt": "2026-09-10T05:13:00.454Z",
-      "finishedAt": "2026-09-10T05:13:01.800Z",
+      "stdoutTail": "{\n  \"kind\": \"OFFLINE_RESEARCH_CHAIN\",\n  \"status\": \"PASS_PIPELINE\",\n  \"startedAt\": \"2026-09-10T07:25:24.955Z\",\n  \"root\": \"D:\\\\DS-Hns\\\\temp\\\\boss-research-offline-CzpQJn\",\n  \"workspace\": \"D:\\\\DS-Hns\\\\temp\\\\boss-research-offline-CzpQJn\\\\workspace\",\n  \"researchId\": \"does-evidence-weighted-adjudication-reduce-review-5538d0690298\",\n  \"outcome\": {\n    \"state\": \"FAILED\",\n    \"steps\": 14\n  },\n  \"stages\": [\n    {\n      \"decision\": \"scoping\",\n      \"reason\": \"[planner/research-question] scoping complete: RQ anchored, workspace + reviewers + budget recorded\"\n    },\n    {\n      \"decision\": \"project_inspection\",\n      \"reason\": \"[coder/repo-scan] inspected repo: 1 files, fingerprint 47fc5beab8c4\"\n    },\n    {\n      \"decision\": \"literature_review\",\n      \"reason\": \"[literature/literature-notes] literature intake: 0 AI-advisory source(s) stored (host empty; AI text is not an external source)\"\n    },\n    {\n      \"decision\": \"question_formulation\",\n      \"reason\": \"[planner/research-question] hypothesis recorded: Evidence-weighted adjudication reduces review errors in a controlled software-engineering benchmark.\"\n    },\n    {\n      \"decision\": \"protocol_draft\",\n      \"reason\": \"[planner/protocol] protocol frozen (820ba0d4b28d); scientific core cannot change silently\"\n    },\n    {\n      \"decision\": \"experiment_generation\",\n      \"reason\": \"[experiment/experiment-design] experiment bench-bench-accuracy implementation validated against frozen protocol\"\n    },\n    {\n      \"decision\": \"experiment_execution\",\n      \"reason\": \"[coder/experiment-run] primary experiment executed: 2 recorded run(s), seeds [1, 2]\"\n    },\n    {\n      \"decision\": \"analysis\",\n      \"reason\": \"[analyst/statistic] analysis: mean 0.669 over 2 run(s); claim adopted\"\n    },\n    {\n      \"decision\": \"replication\",\n      \"reason\": \"[analyst/analysis] replication: 3 distinct seeds under the frozen protocol; status REPRODUCED\"\n    },\n    {\n      \"decision\": \"claim_review\",\n      \"reason\": \"[reviewer/claim] claim bench-bench-accuracy adjudicated: SUPPORTED\"\n    },\n    {\n      \"decision\": \"manuscript\",\n      \"reason\": \"[reporter/manuscript-section] manuscript assembled: paper.md/.tex/.bib + 1 figure(s)\"\n    },\n    {\n      \"decision\": \"citation_audit\",\n      \"reason\": \"[reviewer/citation-audit] citation audit ok: 0/0 verified\"\n    },\n    {\n      \"decision\": \"repro_audit\",\n      \"reason\": \"[reviewer/repro-audit] reproducibility REPRODUCED (3 distinct seeds)\"\n    },\n    {\n      \"decision\": \"failed:BUILD\",\n      \"reason\": \"latex compile FAIL: no TeX engine found (pdflatex/xelatex/lualatex/tectonic); .tex preserved for later compile\"\n    }\n  ],\n  \"state\": \"FAILED\",\n  \"message\": \"offline deterministic research chain passed pipeline (PDF/BUILD not reached) (state=FAILED)\",\n  \"artifacts\": {\n    \"analysis\": true,\n    \"reproducibility\": true,\n    \"manuscriptMd\": true,\n    \"manuscriptTex\": true,\n    \"baselineProvenance\": true,\n    \"paperPdf\": false,\n    \"compileAudit\": true,\n    \"finalAudit\": true\n  },\n  \"compile\": {\n    \"status\": \"FAIL\",\n    \"engine\": null,\n    \"pdf\": null\n  },\n  \"finalAudit\": {\n    \"passed\": true,\n    \"sections\": {\n      \"abstract\": \"REVISED\",\n      \"introduction\": \"REVISED\",\n      \"methods\": \"REVISED\",\n      \"results\": \"REVISED\",\n      \"discussion\": \"REVISED\",\n      \"conclusion\": \"REVISED\"\n    },\n    \"reproducibility\": \"REPRODUCED\",\n    \"citations\": {\n      \"ok\": true,\n      \"verified\": 0,\n      \"unsupported\": [],\n      \"contradicted\": []\n    }\n  },\n  \"recordedRuns\": [\n    {\n      \"seed\": 1,\n      \"metrics\": {\n        \"answer_accuracy\": 0.6960999999999999\n      }\n    },\n    {\n      \"seed\": 2,\n      \"metrics\": {\n        \"answer_accuracy\": 0.6426\n      }\n    },\n    {\n      \"seed\": 3,\n      \"metrics\": {\n        \"answer_accuracy\": 0.7187\n      }\n    }\n  ]\n}",
+      "startedAt": "2026-09-10T07:25:24.893Z",
+      "finishedAt": "2026-09-10T07:25:26.157Z",
       "status": "PASS"
     },
     {
@@ -229,11 +229,11 @@
       "program": "tenx",
       "device": "script",
       "requires": "offline",
-      "durationMs": 2644,
+      "durationMs": 2381,
       "exitCode": 0,
-      "stdoutTail": "{\n  \"schemaVersion\": 1,\n  \"scope\": \"CONTROLLED_LOCAL_BENCHMARK\",\n  \"generatedAt\": \"2026-09-10T05:13:04.408Z\",\n  \"persistence\": {\n    \"passed\": 100,\n    \"cases\": 100,\n    \"method\": \"separate writer process, normal exit, new ledger readers\"\n  },\n  \"recovery\": {\n    \"passed\": 20,\n    \"cases\": 20,\n    \"method\": \"injected network exception then compatible mock backend\",\n    \"observedWorkerCalls\": 40\n  },\n  \"routing\": {\n    \"L0orL1\": 10,\n    \"cases\": 10\n  },\n  \"realProviderRecovery\": \"NOT_RUN\",\n  \"machinePowerLoss\": \"NOT_RUN\",\n  \"engineeringCompletionRates\": \"NOT_RUN\",\n  \"semanticApplicationCoverage\": \"NOT_RUN\",\n  \"modelSavingsAgainstLiveBaseline\": null\n}",
-      "startedAt": "2026-09-10T05:13:01.800Z",
-      "finishedAt": "2026-09-10T05:13:04.444Z",
+      "stdoutTail": "{\n  \"schemaVersion\": 1,\n  \"scope\": \"CONTROLLED_LOCAL_BENCHMARK\",\n  \"generatedAt\": \"2026-09-10T07:25:28.506Z\",\n  \"persistence\": {\n    \"passed\": 100,\n    \"cases\": 100,\n    \"method\": \"separate writer process, normal exit, new ledger readers\"\n  },\n  \"recovery\": {\n    \"passed\": 20,\n    \"cases\": 20,\n    \"method\": \"injected network exception then compatible mock backend\",\n    \"observedWorkerCalls\": 40\n  },\n  \"routing\": {\n    \"L0orL1\": 10,\n    \"cases\": 10\n  },\n  \"realProviderRecovery\": \"NOT_RUN\",\n  \"machinePowerLoss\": \"NOT_RUN\",\n  \"engineeringCompletionRates\": \"NOT_RUN\",\n  \"semanticApplicationCoverage\": \"NOT_RUN\",\n  \"modelSavingsAgainstLiveBaseline\": null\n}",
+      "startedAt": "2026-09-10T07:25:26.157Z",
+      "finishedAt": "2026-09-10T07:25:28.538Z",
       "status": "PASS"
     },
     {
@@ -242,11 +242,11 @@
       "program": "engine",
       "device": "command",
       "requires": "offline",
-      "durationMs": 1821,
+      "durationMs": 1962,
       "exitCode": 0,
-      "stdoutTail": "\n RUN  v4.1.11 D:/Codex-Boss\n\n········\n\n Test Files  1 passed (1)\n      Tests  8 passed (8)\n   Start at  15:13:05\n   Duration  1.08s (transform 183ms, setup 0ms, import 916ms, tests 27ms, environment 0ms)",
-      "startedAt": "2026-09-10T05:13:04.444Z",
-      "finishedAt": "2026-09-10T05:13:06.265Z",
+      "stdoutTail": "\n RUN  v4.1.11 D:/Codex-Boss\n\n········\n\n Test Files  1 passed (1)\n      Tests  8 passed (8)\n   Start at  17:25:29\n   Duration  1.21s (transform 186ms, setup 0ms, import 1.03s, tests 24ms, environment 0ms)",
+      "startedAt": "2026-09-10T07:25:28.538Z",
+      "finishedAt": "2026-09-10T07:25:30.500Z",
       "status": "PASS"
     },
     {
@@ -255,11 +255,11 @@
       "program": "engine",
       "device": "command",
       "requires": "offline",
-      "durationMs": 1358,
+      "durationMs": 1203,
       "exitCode": 0,
-      "stdoutTail": "\n RUN  v4.1.11 D:/Codex-Boss\n\n···········\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  15:13:06\n   Duration  577ms (transform 73ms, setup 0ms, import 298ms, tests 122ms, environment 0ms)",
-      "startedAt": "2026-09-10T05:13:06.265Z",
-      "finishedAt": "2026-09-10T05:13:07.623Z",
+      "stdoutTail": "\n RUN  v4.1.11 D:/Codex-Boss\n\n···········\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  17:25:31\n   Duration  505ms (transform 79ms, setup 0ms, import 321ms, tests 38ms, environment 0ms)",
+      "startedAt": "2026-09-10T07:25:30.501Z",
+      "finishedAt": "2026-09-10T07:25:31.704Z",
       "status": "PASS"
     },
     {
@@ -271,8 +271,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --extended, and only once artifacts/v1-acceptance-manifest.json exists (it is absent on this branch)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "legacy:vision",
@@ -283,8 +283,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --extended (opens real provider pages and captures screenshots)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "legacy:seeded-engineering",
@@ -295,8 +295,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --extended (clones, installs and runs a full suite per bug class; ~3 min each)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "closure:soak-2h",
@@ -307,8 +307,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --soak (2h of continuous runtime; see the bounded P3 tiers for routine runs)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "host:doctor",
@@ -319,8 +319,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --all (P7 entry point)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "host:fault-lab",
@@ -331,8 +331,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --all (P2 entry point)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "host:observability",
@@ -343,8 +343,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --all (P4 entry point)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "host:evidence-inspector",
@@ -355,8 +355,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --all (P5 entry point)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "host:regression-sentinel",
@@ -367,8 +367,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --all (P6 entry point)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     },
     {
       "id": "host:soak-30m",
@@ -379,8 +379,8 @@
       "status": "SKIPPED_WITH_REASON",
       "reason": "opt-in: --soak (P3, continuous 30 minutes of real runtime)",
       "durationMs": 0,
-      "startedAt": "2026-09-10T05:12:20.128Z",
-      "finishedAt": "2026-09-10T05:12:20.128Z"
+      "startedAt": "2026-09-10T07:24:44.792Z",
+      "finishedAt": "2026-09-10T07:24:44.792Z"
     }
   ],
   "summary": {

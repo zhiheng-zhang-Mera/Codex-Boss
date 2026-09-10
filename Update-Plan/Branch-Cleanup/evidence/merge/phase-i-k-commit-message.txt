@@ -1,0 +1,50 @@
+docs(cleanup): phase I-K records - 2h soak, sentinel analysis, final acceptance
+
+Complete phases I, J and K of Update-Plan/cleanup.md on A-main-integration.
+No ref was created, moved or deleted; main, owner-result, 9-10-M and 9-10-A
+are all untouched.
+
+Phase I - merged-tree 2h soak (this is the run cleanup.md section 12 requires,
+because A's 7202s evidence belongs to the A tree and M's 1800s evidence belongs
+to the M tree):
+  tier 2h, 7200s completed, 59,881 tasks completed, 0 failed,
+  0 unexpected restarts, 0 orphans after reaping, queue drained,
+  RSS 59.4 -> 130.4 MiB, heap 5.1 -> 9.2 MiB.
+  11/11 invariants PASS. Two dimensions reported UNAVAILABLE with reasons
+  (renderer health is unobservable headless; checkpoint injection is out of
+  this harness's scope) and neither was counted as a pass.
+
+Phase J - live gates recorded honestly: 5 Acceptance Hub rows are
+BLOCKED_EXTERNAL because no codex CLI is on PATH, and R-202 remains
+BLOCKED_EXTERNAL in the closure manifest. Nothing was converted to PASS.
+
+Phase K - FINAL-ACCEPTANCE.md with the full phase table, test/build results,
+harness results, soak results, capability retention, known limitations and the
+owner acceptance view.
+
+Regression Sentinel analysis (recorded in FINAL-ACCEPTANCE.md section 5):
+Two measurement traps were found and resolved rather than accepted.
+1. The committed P6 baseline (revision 766c2ca) records only 12 acceptance rows
+   while a current hub run selects 28, so comparing them reported
+   PASS -> BLOCKED_EXTERNAL as a "regression". Reproduced with the same 12 ids
+   and got an identical digest (b4753c10) and identical PASS verdict, which
+   proves the acceptance surface is unchanged and only the scope differed. The
+   P6 snapshot was left unmodified as historical evidence.
+2. Capturing a fresh baseline and comparing it to itself returns PASS
+   trivially, so it proves nothing.
+Resolution: the M tree was checked out into a temporary detached worktree, the
+electron project was built there, and a baseline was captured with the
+identical capture code (950 interfaces, 273 schemas, 13 dependencies). The
+definitive M -> integration comparison reports regressions: 0, with 0 interface,
+0 schema and 0 dependency findings. The two DRIFT findings are new .css/.html
+file *formats* from pre-existing gitignored build output (dist/,
+artifacts/, .live-acceptance/), not from the merge.
+
+Also recorded: a transient legacy:uia EBUSY failure caused by my own concurrent
+gate runs (an isolated re-run passes, and every clean sequential run reports
+PASS), and a toolchain incident where removing the temporary worktree also
+removed the shared node_modules/.bin shim directory. The pnpm store and all
+package symlinks were intact; .bin was rebuilt from each package's declared bin
+field by scripts/restore-node-bin.ps1. Verified afterwards: npx resolves,
+npm run typecheck exits 0, full suite 82 files / 687 tests PASS, and the hub
+reproduces its exact previous digest (68d1b836).

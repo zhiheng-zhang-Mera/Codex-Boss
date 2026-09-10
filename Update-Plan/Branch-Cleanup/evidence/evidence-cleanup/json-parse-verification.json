@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "BRANCH_CLEANUP_JSON_PARSE_VERIFICATION",
+  "generatedAt": "2026-09-10T07:19:18.303Z",
+  "parsedRevision": "9bde9e937a074172b02d4901dea1060defbd7a4a",
+  "authority": "Update-Plan/cleanup.md section 11.1 — all committed JSON parseable by standard JSON.parse",
+  "reader": "Node.js JSON.parse, applied to git blobs at HEAD (UTF-8 BOM stripped before parsing)",
+  "totals": {
+    "jsonFiles": 230,
+    "jsonFilesParsed": 230,
+    "jsonFilesFailed": 0,
+    "jsonFilesWithBom": 0,
+    "jsonlFiles": 1,
+    "jsonlLinesParsed": 1685,
+    "jsonlLinesFailed": 0
+  },
+  "verdict": "PASS",
+  "bomFiles": [],
+  "failures": [],
+  "jsonlFailures": []
+}

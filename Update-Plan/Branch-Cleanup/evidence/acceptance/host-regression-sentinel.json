@@ -1,23 +1,64 @@
 {
   "schemaVersion": 1,
   "kind": "HOST_SENTINEL_REPORT",
-  "generatedAt": "2026-09-10T05:11:42.379Z",
+  "generatedAt": "2026-09-10T07:22:49.734Z",
   "baseline": {
-    "revision": "766c2ca324859ecb9b943114a6b75979734ab567",
-    "branch": "9-10-M",
-    "capturedAt": "2026-09-10T03:56:51.155Z"
+    "revision": "86e32d12a0e35ab928580509b615dbcbae2c4d01",
+    "branch": "HEAD",
+    "capturedAt": "2026-09-10T07:22:37.206Z"
   },
   "candidate": {
-    "revision": "94c1bc23033d26814285f81112be2a8c8dee4b1c",
+    "revision": "9bde9e937a074172b02d4901dea1060defbd7a4a",
     "branch": "A-main-integration",
-    "capturedAt": "2026-09-10T05:11:39.932Z"
+    "capturedAt": "2026-09-10T07:22:49.672Z"
   },
   "findings": [
+    {
+      "dimension": "acceptance",
+      "severity": "UNAVAILABLE",
+      "key": "acceptance",
+      "detail": "no baseline acceptance record"
+    },
     {
       "dimension": "benchmark",
       "severity": "UNAVAILABLE",
       "key": "benchmark",
       "detail": "no baseline benchmark"
+    },
+    {
+      "dimension": "build-size",
+      "severity": "INFO",
+      "key": "dist",
+      "detail": "new artifact",
+      "candidate": 317522
+    },
+    {
+      "dimension": "file-formats",
+      "severity": "DRIFT",
+      "key": ".css",
+      "detail": "a new file format appeared",
+      "candidate": 1
+    },
+    {
+      "dimension": "file-formats",
+      "severity": "DRIFT",
+      "key": ".html",
+      "detail": "a new file format appeared",
+      "candidate": 1
+    },
+    {
+      "dimension": "file-formats",
+      "severity": "INFO",
+      "key": ".js",
+      "detail": "329 → 330",
+      "baseline": 329,
+      "candidate": 330
+    },
+    {
+      "dimension": "provider-success",
+      "severity": "UNAVAILABLE",
+      "key": "provider-success",
+      "detail": "no baseline provider sample"
     },
     {
       "dimension": "tests",
@@ -30,13 +71,13 @@
   ],
   "summary": {
     "regressions": 0,
-    "drift": 0,
+    "drift": 2,
     "improvements": 0,
-    "info": 1,
-    "unavailable": 1,
-    "total": 2
+    "info": 3,
+    "unavailable": 3,
+    "total": 8
   },
-  "overall": "PASS",
-  "verdictReason": "PASS: 0 regression(s), 0 drift, 0 improvement(s), 1 informational, 1 unavailable dimension(s)",
+  "overall": "DRIFT",
+  "verdictReason": "DRIFT: 0 regression(s), 2 drift, 0 improvement(s), 3 informational, 3 unavailable dimension(s)",
   "policy": "REPORT_ONLY"
 }

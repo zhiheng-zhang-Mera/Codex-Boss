@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "HOST_DOCTOR",
-  "generatedAt": "2026-09-10T05:11:30.609Z",
+  "generatedAt": "2026-09-10T07:19:08.499Z",
   "repoRoot": "D:\\Codex-Boss",
   "dataRoot": "D:\\Codex-Boss\\runtime-data",
   "checks": [
@@ -30,7 +30,7 @@
       "observed": "package.json, tsconfig.json, src/, electron/ present",
       "expected": "package.json, tsconfig.json and src/ are present",
       "status": "READY",
-      "durationMs": 1
+      "durationMs": 0
     },
     {
       "id": "dependency.installed",
@@ -39,7 +39,7 @@
       "observed": "electron, react, react-dom, typescript, vitest present",
       "expected": "node_modules/ contains the declared runtime packages",
       "status": "READY",
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "id": "dependency.build-artifacts",
@@ -66,7 +66,7 @@
       "observed": "write=true, cleanup=true",
       "expected": "a probe file can be written, read back and removed",
       "status": "READY",
-      "durationMs": 2
+      "durationMs": 3
     },
     {
       "id": "filesystem.data-root",
@@ -90,7 +90,7 @@
       "id": "filesystem.free-space",
       "area": "filesystem",
       "label": "free disk space",
-      "observed": "283.3 GiB free on the temp volume",
+      "observed": "282.0 GiB free on the temp volume",
       "expected": "at least 1 GiB free",
       "status": "READY",
       "durationMs": 0
@@ -156,7 +156,7 @@
       "status": "SKIPPED",
       "reason": "no provider session has been opened on this data root",
       "remedy": "delete a corrupt session-lifecycle.json; Boss rebuilds it from live probes",
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "id": "ipc.surface",
@@ -165,7 +165,7 @@
       "observed": "75 ipcMain.handle call(s); preload exposes the bridge=true, typed=true",
       "expected": "main.ts registers ipcMain handlers and preload.ts exposes the bridge",
       "status": "READY",
-      "durationMs": 76
+      "durationMs": 0
     },
     {
       "id": "fleet.node-registry",
@@ -196,7 +196,7 @@
       "observed": "2 workspace(s)",
       "expected": "the workspace registry parses, or no workspace is recorded yet",
       "status": "READY",
-      "durationMs": 11
+      "durationMs": 0
     },
     {
       "id": "knowledge.store",
@@ -207,7 +207,7 @@
       "status": "SKIPPED",
       "reason": "this data root has no knowledge store yet",
       "remedy": "a corrupt knowledge record is quarantined by the store; run the evidence inspector to identify it",
-      "durationMs": 1
+      "durationMs": 0
     },
     {
       "id": "learning.flag-store",
@@ -235,10 +235,10 @@
       "id": "compatibility.build-freshness",
       "area": "compatibility",
       "label": "compiled output is newer than the sources",
-      "observed": "newest source 2026-09-10T03:53:54.859Z, compiled 2026-09-10T05:07:27.503Z",
+      "observed": "newest source 2026-09-10T03:53:54.859Z, compiled 2026-09-10T07:18:49.033Z",
       "expected": "dist-electron is at least as new as electron/ and src/shared/",
       "status": "READY",
-      "durationMs": 18
+      "durationMs": 11
     },
     {
       "id": "compatibility.tsconfig",
@@ -259,5 +259,5 @@
   },
   "overall": "READY",
   "verdictReason": "every check that could run is READY (9 check(s) skipped for want of evidence)",
-  "revision": "94c1bc23033d26814285f81112be2a8c8dee4b1c"
+  "revision": "9bde9e937a074172b02d4901dea1060defbd7a4a"
 }
