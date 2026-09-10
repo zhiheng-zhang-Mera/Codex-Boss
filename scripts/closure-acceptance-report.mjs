@@ -22,6 +22,8 @@ import {
   evaluateTerminal,
   evidenceIntegrityForPass,
   validateBlockerEvidenceShape,
+  validateR202Evidence,
+  validateR901Evidence,
   matrixRows,
 } from "./closure-terminal-logic.mjs";
 
@@ -75,6 +77,47 @@ for (const req of reqs) {
 
 const counts = countAllStatuses(reqs);
 const verdict = evaluateTerminal({ requirements: reqs, evidenceOk, blockerEvidenceOk });
+
+// Host-A S5: R-202 and R-901 must run their DEDICATED validators. Only assert a
+// problem when the requirement already claims a terminal status (PASS /
+// BLOCKED_EXTERNAL) or actually carries evidence; a still-pending LIVE_REQUIRED
+// item is reported through `pending`, not as an evidence problem.
+const dedicatedValidators = {};
+for (const id of ["R-202", "R-901"]) {
+  const req = reqs.find((r) => r.id === id);
+  if (!req) continue;
+  const refs = (Array.isArray(req.evidence) ? req.evidence : []).filter((e) => typeof e === "string" && /\.json$/.test(e.trim()));
+  if (refs.length === 0 && !["PASS", "BLOCKED_EXTERNAL", "FAILED_WITH_EVIDENCE"].includes(req.status)) continue;
+  const loaded = [];
+  for (const f of refs) {
+    for (const root of io.roots) {
+      const cand = io.resolve(root, f);
+      try { loaded.push({ file: f, value: JSON.parse(fs.readFileSync(cand, "utf8").replace(/^\uFEFF/, "")) }); break; } catch { /* next root */ }
+    }
+  }
+  if (id === "R-202") {
+    const verdicts = loaded.map((l) => ({ file: l.file, ...validateR202Evidence(l.value) }));
+    dedicatedValidators[id] = { ok: verdicts.some((v) => v.ok), verdicts };
+  } else {
+    const verdicts = loaded.map((l) => {
+      const ev = l.value;
+      const hbFile = path.resolve(evidenceDir, `r901-${ev.runId}.heartbeat.jsonl`);
+      const heartbeats = fs.existsSync(hbFile)
+        ? fs.readFileSync(hbFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line))
+        : [];
+      return { file: l.file, ...validateR901Evidence(ev, heartbeats, { formal: true }) };
+    });
+    dedicatedValidators[id] = { ok: verdicts.some((v) => v.ok), verdicts };
+  }
+}
+for (const [id, result] of Object.entries(dedicatedValidators)) {
+  if (!result.ok) {
+    evidenceProblems[id] = [
+      ...(evidenceProblems[id] ?? []),
+      `dedicated validator failed: ${result.verdicts.flatMap((v) => v.reasons ?? []).join("; ") || "no evidence file"}`,
+    ];
+  }
+}
 
 const rows = matrixRows(reqs);
 const pendingLabel = verdict.pending.map((id) => {
