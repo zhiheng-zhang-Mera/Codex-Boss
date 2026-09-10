@@ -1,1 +1,208 @@
+# Codex-Boss CODEOWNERS
+#
+# Root owner: @zhiheng-zhang-Mera
+#
+# Purpose
+# -------
+# Keep normal Codex-Boss evolution autonomous while requiring the Root Owner
+# to approve changes that can alter:
+#   - who controls the repository,
+#   - the CI / promotion gate,
+#   - Root Authority,
+#   - credential boundaries,
+#   - critical acceptance / soak gates.
+#
+# IMPORTANT
+# ---------
+# 1. Do NOT add a repository-wide rule such as:
+#       * @zhiheng-zhang-Mera
+#    That would force Owner review for ordinary Boss changes and defeat
+#    unattended autonomous evolution.
+#
+# 2. The GitHub ruleset should keep:
+#       - Require pull request before merging
+#       - Required approvals = 0
+#       - Require review from Code Owners = ON
+#       - Required status check: validate
+#       - Require branch to be up to date = ON
+#       - Block force pushes = ON
+#       - Restrict deletions = ON
+#       - Boss has NO bypass
+#       - Root Owner user is the only Always-allow bypass actor
+#
+# 3. Owner credentials / private keys / PATs / emergency secrets must NEVER
+#    be committed to this repository. CODEOWNERS is a review boundary, not
+#    a secret-storage mechanism.
 
+
+# ============================================================================
+# 1. GitHub governance and CI definition
+# ============================================================================
+
+# Protect this file itself so Boss cannot redefine its own Root review surface.
+/.github/CODEOWNERS                         @zhiheng-zhang-Mera
+
+# Any workflow can influence required checks, permissions, releases, or
+# promotion behavior, so all GitHub Actions workflows are Root-owned.
+/.github/workflows/                        @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 2. CI command indirection / dependency execution surface
+# ============================================================================
+
+# Current Desktop CI invokes pnpm scripts from package.json. Changing those
+# scripts can silently weaken "validate", so package.json is a Root surface.
+/package.json                              @zhiheng-zhang-Mera
+
+# Dependency resolution can change executable code used by CI and packaging.
+/pnpm-lock.yaml                            @zhiheng-zhang-Mera
+
+# Future package-manager configuration files are protected if introduced.
+/pnpm-workspace.yaml                       @zhiheng-zhang-Mera
+/.npmrc                                    @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 3. Build / typecheck / test-runner configuration
+# ============================================================================
+
+# These files can change what code is compiled, typechecked, or tested.
+# Entries are harmless if a file does not yet exist.
+/tsconfig.json                             @zhiheng-zhang-Mera
+/tsconfig.electron.json                    @zhiheng-zhang-Mera
+/tsconfig.*.json                           @zhiheng-zhang-Mera
+/vite.config.*                             @zhiheng-zhang-Mera
+/vitest.config.*                           @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 4. Critical promotion / acceptance gates used by CI
+# ============================================================================
+
+# Direct CI gate scripts currently referenced by .github/workflows/ci.yml.
+/scripts/benchmark.cjs                     @zhiheng-zhang-Mera
+/scripts/package-portable.cjs              @zhiheng-zhang-Mera
+/scripts/smoke-portable.ps1                @zhiheng-zhang-Mera
+/scripts/acceptance-restart.cjs            @zhiheng-zhang-Mera
+
+# Acceptance harnesses define whether a Candidate is considered healthy.
+# Boss may execute them freely, but changing the gate itself requires Owner.
+/scripts/acceptance-*.cjs                  @zhiheng-zhang-Mera
+/scripts/acceptance-*.ps1                  @zhiheng-zhang-Mera
+
+# Soak / stability gates.
+/scripts/*soak*.cjs                        @zhiheng-zhang-Mera
+/scripts/*soak*.ps1                        @zhiheng-zhang-Mera
+/scripts/r901-soak.cjs                     @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 5. Root Authority policy surface
+# ============================================================================
+#
+# These paths intentionally include future modules. CODEOWNERS will begin
+# protecting them automatically as soon as they are created.
+
+# Repository-side Root policy metadata only.
+# Secrets and signing private keys must remain outside the repository.
+/.codex-boss/root/                         @zhiheng-zhang-Mera
+/.codex-boss/config/root-*.json            @zhiheng-zhang-Mera
+/.codex-boss/config/root-*.schema.json     @zhiheng-zhang-Mera
+
+# Root authority implementation.
+/electron/root-authority/                  @zhiheng-zhang-Mera
+/src/root-authority/                       @zhiheng-zhang-Mera
+/src/**/root-authority/                    @zhiheng-zhang-Mera
+
+# Owner identity / authority verification.
+/electron/owner-authority/                 @zhiheng-zhang-Mera
+/src/owner-authority/                      @zhiheng-zhang-Mera
+/src/**/owner-authority/                   @zhiheng-zhang-Mera
+
+# Explicit self-elevation guards.
+/electron/self-elevation/                  @zhiheng-zhang-Mera
+/src/self-elevation/                       @zhiheng-zhang-Mera
+/src/**/self-elevation/                    @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 6. Credential boundary
+# ============================================================================
+#
+# These modules may verify/use Boss credentials, but must never contain Owner
+# secrets. Their purpose is to prevent autonomous workers from crossing into
+# Owner-only credentials or administration authority.
+
+/electron/credential-boundary/             @zhiheng-zhang-Mera
+/electron/security/credential-boundary/    @zhiheng-zhang-Mera
+/src/credential-boundary/                  @zhiheng-zhang-Mera
+/src/**/credential-boundary/               @zhiheng-zhang-Mera
+
+/electron/root-credential*/                @zhiheng-zhang-Mera
+/src/**/root-credential*/                  @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 7. Promotion / Stable-Candidate authority boundary
+# ============================================================================
+
+/electron/promotion-gate/                  @zhiheng-zhang-Mera
+/electron/engineering/promotion-gate/      @zhiheng-zhang-Mera
+/src/promotion-gate/                       @zhiheng-zhang-Mera
+/src/**/promotion-gate/                    @zhiheng-zhang-Mera
+
+/electron/stable-candidate/                @zhiheng-zhang-Mera
+/src/stable-candidate/                     @zhiheng-zhang-Mera
+/src/**/stable-candidate/                  @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 8. Emergency stop / recovery authority
+# ============================================================================
+
+/electron/emergency-control/               @zhiheng-zhang-Mera
+/src/emergency-control/                    @zhiheng-zhang-Mera
+/src/**/emergency-control/                 @zhiheng-zhang-Mera
+
+/electron/root-recovery/                   @zhiheng-zhang-Mera
+/src/root-recovery/                        @zhiheng-zhang-Mera
+/src/**/root-recovery/                     @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# 9. Root-invariant tests
+# ============================================================================
+#
+# Ordinary feature tests remain autonomous. Only tests whose names explicitly
+# define Root / Owner / credential / promotion invariants require Owner review.
+
+/tests/**/root-authority*.test.*           @zhiheng-zhang-Mera
+/tests/**/owner-authority*.test.*          @zhiheng-zhang-Mera
+/tests/**/self-elevation*.test.*           @zhiheng-zhang-Mera
+/tests/**/credential-boundary*.test.*      @zhiheng-zhang-Mera
+/tests/**/promotion-gate*.test.*           @zhiheng-zhang-Mera
+/tests/**/stable-candidate*.test.*         @zhiheng-zhang-Mera
+/tests/**/emergency-control*.test.*        @zhiheng-zhang-Mera
+/tests/**/root-recovery*.test.*            @zhiheng-zhang-Mera
+
+
+# ============================================================================
+# Root invariant
+# ============================================================================
+#
+# Boss may autonomously evolve its capabilities, implementation, architecture,
+# providers, fleet, knowledge system, UI, research pipeline, and ordinary
+# engineering logic.
+#
+# Boss may NOT autonomously redefine, bypass, revoke, impersonate, or supersede
+# the Root Owner or the controls that enforce Root Owner authority.
+#
+# Changes matching this CODEOWNERS file require:
+#
+#     @zhiheng-zhang-Mera approval
+#
+# Everything else remains eligible for the normal autonomous path:
+#
+#     Candidate -> PR -> validate PASS -> merge -> Stable
+#
