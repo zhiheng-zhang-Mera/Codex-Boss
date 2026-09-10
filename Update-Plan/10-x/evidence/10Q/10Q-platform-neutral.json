@@ -1,0 +1,20 @@
+{
+  "phase": "10Q",
+  "requirement": "10Q-heterogeneous-platform-contract",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Platform-neutral contract audit + host adapter seam — shared 10.x protocols contain no host API; OS/device work is confined behind one adapter per platform",
+  "implementation": [
+    "electron/tenx/platform-audit.ts: auditSharedContracts — static scan of src/shared/tenx for node:/electron imports, process/os()/fs usage; any violation fails the audit (CI-gateable)",
+    "electron/tenx/host-adapter.ts: TenxHostAdapter seam (windows/linux/macos/android/ios/harmonyos) — identity/refreshFacts/inspect/providerMatrix/loginHealth implemented per host; shared schema (node/network/provider/session contracts) never changes across platforms",
+    "No OS API written into any shared protocol."
+  ],
+  "tests": [
+    "tests/unit/tenx-phase-10q.test.ts (3 tests): static audit zero violations across >=9 shared contract files; injected bad file is caught by the audit (guard works); shared contracts carry no electron/node: imports"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_10Q": "tests/unit/tenx-phase-10q.test.ts 3/3 PASS; 10A neutrality regression 4/4 PASS"
+  },
+  "notes": "Desktop adapters (Windows/Linux/macOS) + future mobile (Android/iOS/HarmonyOS) all implement TenxHostAdapter behind unchanged contracts."
+}
