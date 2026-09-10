@@ -9,6 +9,8 @@ import {
   matrixRows,
   TERMINAL_OK,
   validateBlockerEvidenceShape,
+  validateR202Evidence,
+  validateR901Evidence,
 } from "../../scripts/closure-terminal-logic.mjs";
 
 const req = (id, status, { required = true, evidence = [] } = {}) => ({ id, required, status, evidence });
@@ -129,6 +131,97 @@ describe("closure-terminal-logic: PASS evidence integrity (Phase C)", () => {
     expect(looksLikeEvidenceFileRef("tests foo (+3)")).toBe(false);
     expect(looksLikeEvidenceFileRef("round-25 live battery")).toBe(false);
     expect(looksLikeEvidenceFileRef("C:\\repo\\evidence\\r1.json")).toBe(true);
+  });
+});
+
+describe("closure-terminal-logic: R-901 evidence validator (Host-A §5/D4)", () => {
+  const baseStats = {
+    durationSec: 7200, activeTaskCount: 2, completed: 500, fatalFailed: 0,
+    slowdownObserved: 3, retryObserved: 3, checkpointWritten: 300, checkpointResumed: 2,
+    degradationObserved: 2, fallbackContinuationObserved: 5, providerRecoveryObserved: 2,
+  };
+  const goodEv = {
+    requirement: "R-901", status: "PASS", formal: true, runId: "run-1", pid: 12,
+    gitHead: "abcdef1234567890", startedAt: "2026-09-10T00:00:00Z", hostId: "host-1",
+    nodeVersion: "v24", harnessVersion: "r901-soak-1", stats: baseStats,
+    continuity: { startWallTime: "2026-09-10T00:00:00Z", endWallTime: "2026-09-10T02:00:00Z", maxHeartbeatGapMs: 5000 },
+    schedule: [],
+  };
+  const heartbeats = [
+    { ts: "2026-09-10T00:00:00Z" },
+    { ts: "2026-09-10T01:00:00Z" },
+    { ts: "2026-09-10T02:00:00Z" },
+  ];
+  const fineHeartbeats = Array.from({ length: 121 }, (_, i) => ({ ts: new Date(Date.UTC(2026, 8, 10, 0, i, 0)).toISOString() }));
+
+  it("accepts a qualifying formal R-901 evidence", () => {
+    const r = validateR901Evidence(goodEv, fineHeartbeats);
+    expect(r.ok).toBe(true);
+    expect(r.qualifiesForAcceptance).toBe(true);
+  });
+
+  it("rejects a short formal run (fail-closed 7200s)", () => {
+    const ev = { ...goodEv, stats: { ...baseStats, durationSec: 7199 } };
+    const r = validateR901Evidence(ev, fineHeartbeats);
+    expect(r.ok).toBe(false);
+    expect(r.reasons.some((x) => x.includes("durationSec"))).toBe(true);
+  });
+
+  it("rejects fatal failures and missing required counters", () => {
+    const ev1 = { ...goodEv, stats: { ...baseStats, fatalFailed: 1 } };
+    expect(validateR901Evidence(ev1, fineHeartbeats).ok).toBe(false);
+    const ev2 = { ...goodEv, stats: { ...baseStats, slowdownObserved: 0 } };
+    expect(validateR901Evidence(ev2, fineHeartbeats).ok).toBe(false);
+    const ev3 = { ...goodEv, stats: { ...baseStats, checkpointResumed: 0 } };
+    expect(validateR901Evidence(ev3, fineHeartbeats).ok).toBe(false);
+  });
+
+  it("rejects an unprovable continuity gap for a formal run", () => {
+    const ev = { ...goodEv, continuity: { startWallTime: "2026-09-10T00:00:00Z", endWallTime: "2026-09-10T02:00:00Z", maxHeartbeatGapMs: 9 * 60 * 1000 } };
+    const sparse = [{ ts: "2026-09-10T00:00:00Z" }, { ts: "2026-09-10T01:30:00Z" }];
+    const r = validateR901Evidence(ev, sparse);
+    expect(r.ok).toBe(false);
+  });
+
+  it("a validation (non-formal) run never qualifiesForAcceptance", () => {
+    const ev = { ...goodEv, status: "VALIDATION", formal: false };
+    const r = validateR901Evidence(ev, heartbeats, { formal: false });
+    expect(r.qualifiesForAcceptance).toBe(false);
+  });
+});
+
+describe("closure-terminal-logic: R-202 evidence validator (Host-A §E4/§5)", () => {
+  const livePass = {
+    requirement: "R-202", status: "PASS", provider: "qwen", providerUrl: "https://chat.qwen.ai",
+    authenticated: true, initialAction: "FAILED", recoveryEntered: true, recoverySlot: "computer-use",
+    executor: "provider-page-repair/dom", readinessPassed: true,
+    repairPlanSteps: ["capture", "readiness", "repair", "verify"], repairStatus: "REPAIRED",
+    postConditionVerified: true, runId: "r202-1", gitHead: "abcdef1234567890",
+  };
+
+  it("accepts a live REPAIRED PASS evidence", () => {
+    expect(validateR202Evidence(livePass).ok).toBe(true);
+  });
+
+  it("rejects a live evidence missing required fields", () => {
+    const { gitHead: _g, ...missing } = livePass;
+    const r = validateR202Evidence(missing);
+    expect(r.ok).toBe(false);
+    expect(r.reasons.some((x) => x.includes("gitHead"))).toBe(true);
+  });
+
+  it("never accepts REPAIRED without a verified post-condition", () => {
+    expect(validateR202Evidence({ ...livePass, postConditionVerified: false }).ok).toBe(false);
+  });
+
+  it("accepts a legal structured BLOCKED_EXTERNAL evidence", () => {
+    const blocker = {
+      requirement: "R-202", status: "BLOCKED_EXTERNAL", attemptedAt: "2026-09-10T00:00:00Z",
+      externalDependency: "operator login", observedState: "auth:false",
+      operatorActionRequired: "log in to provider", retryCondition: "after login",
+      attemptEvidence: ["evidence/r202-attempt.json"],
+    };
+    expect(validateR202Evidence(blocker).ok).toBe(true);
   });
 });
 

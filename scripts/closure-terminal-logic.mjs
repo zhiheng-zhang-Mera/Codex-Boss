@@ -167,3 +167,105 @@ export function matrixRows(requirements) {
     return `| ${req.id} | ${req.status} | ${impl} | ${ev} |`;
   }).join("\n");
 }
+
+/* ------------------------------------------------------------------ *
+ * Requirement-specific validators (Host-A §5: R-202 and R-901 must use
+ * dedicated validators). All pure; IO injected.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Host-A §D4 required counter minimums for a qualifying R-901 run.
+ */
+export const R901_MIN_COUNTERS = {
+  slowdownObserved: 1,
+  retryObserved: 1,
+  checkpointWritten: 1,
+  checkpointResumed: 1,
+  degradationObserved: 1,
+  fallbackContinuationObserved: 1,
+  providerRecoveryObserved: 1,
+};
+
+/**
+ * Validate R-901 soak evidence (Host-A §D1/D2/D4/D5).
+ * @param {object} ev evidence object r901-<runId>.json
+ * @param {Array<object>} [heartbeats] parsed heartbeat jsonl rows
+ * @param {{minAcceptanceSeconds?:number, formal?:boolean, allowSleep?:number}} [opts]
+ * @returns {{ok:boolean, qualifiesForAcceptance:boolean, reasons:Array<string>}}
+ */
+export function validateR901Evidence(ev, heartbeats = [], opts = {}) {
+  const reasons = [];
+  const minSeconds = opts.minAcceptanceSeconds ?? 7200;
+  const formal = opts.formal ?? ev?.formal === true;
+  const heartbeatGapAllowMs = opts.allowSleepMs ?? 5 * 60 * 1000;
+
+  if (!ev || typeof ev !== "object") return { ok: false, qualifiesForAcceptance: false, reasons: ["evidence is not an object"] };
+  for (const field of ["requirement", "runId", "pid", "gitHead", "startedAt", "hostId", "nodeVersion", "harnessVersion", "status", "stats", "continuity", "schedule"]) {
+    if (ev[field] === undefined || ev[field] === null) reasons.push(`missing field: ${field}`);
+  }
+  if (ev.requirement !== "R-901") reasons.push("requirement must be R-901");
+
+  const stats = ev.stats ?? {};
+  const durationSec = stats.durationSec ?? 0;
+  if (formal && durationSec < minSeconds) reasons.push(`durationSec ${durationSec} < MIN_ACCEPTANCE_SECONDS ${minSeconds}`);
+  if (!(stats.activeTaskCount > 0)) reasons.push("activeTaskCount must be > 0");
+  if (!(stats.completed > 0)) reasons.push("completed must be > 0");
+  if (stats.fatalFailed !== 0) reasons.push(`fatalFailed must be 0 (got ${stats.fatalFailed})`);
+  for (const [counter, min] of Object.entries(R901_MIN_COUNTERS)) {
+    if ((stats[counter] ?? 0) < min) reasons.push(`${counter} must be >= ${min} (got ${stats[counter] ?? 0})`);
+  }
+
+  // D5 continuity: heartbeat rows must be present and gaps explainable.
+  const rows = Array.isArray(heartbeats) && heartbeats.length ? heartbeats : (Array.isArray(ev.heartbeats) ? ev.heartbeats : []);
+  if (rows.length === 0 && formal) reasons.push("no heartbeat rows recorded (continuity unprovable)");
+  if (rows.length >= 2) {
+    let maxGapMs = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const gap = new Date(rows[i].ts || rows[i].at || rows[i].updatedAt).getTime() - new Date(rows[i - 1].ts || rows[i - 1].at || rows[i - 1].updatedAt).getTime();
+      if (Number.isFinite(gap) && gap > maxGapMs) maxGapMs = gap;
+    }
+    if (ev.continuity && maxGapMs > (ev.continuity.maxHeartbeatGapMs ?? 0)) {
+      // Use the larger observed value so the validator never under-reports.
+      maxGapMs = Math.max(maxGapMs, ev.continuity.maxHeartbeatGapMs ?? 0);
+    }
+    if (formal && maxGapMs > heartbeatGapAllowMs) reasons.push(`maxHeartbeatGapMs ${maxGapMs} exceeds allowed ${heartbeatGapAllowMs} (host suspend / process pause unproven continuous)`);
+  }
+  const continuity = ev.continuity ?? {};
+  if (formal && continuity.endWallTime && continuity.startWallTime) {
+    const wall = new Date(continuity.endWallTime).getTime() - new Date(continuity.startWallTime).getTime();
+    if (Number.isFinite(wall) && wall / 1000 < minSeconds) reasons.push(`wall span ${Math.round(wall / 1000)}s < ${minSeconds}s`);
+  }
+
+  const ok = reasons.length === 0;
+  return { ok, qualifiesForAcceptance: ok && formal, reasons };
+}
+
+/**
+ * Validate R-202 live-provider-repair evidence (Host-A §E4) OR a legal
+ * structured BLOCKED_EXTERNAL evidence (Host-A §5). Pure; shape-only.
+ * @param {object} ev
+ * @returns {{ok:boolean, reasons:Array<string>}}
+ */
+export function validateR202Evidence(ev) {
+  if (!ev || typeof ev !== "object") return { ok: false, reasons: ["evidence is not an object"] };
+  if (ev.status === BLOCKER_STATE) return validateBlockerEvidenceShape(ev);
+  const reasons = [];
+  if (ev.requirement !== "R-202") reasons.push("requirement must be R-202");
+  const requiredLive = [
+    "provider", "providerUrl", "authenticated", "initialAction", "recoveryEntered",
+    "recoverySlot", "executor", "readinessPassed", "repairPlanSteps", "repairStatus",
+    "postConditionVerified", "runId", "gitHead",
+  ];
+  for (const field of requiredLive) {
+    if (ev[field] === undefined || ev[field] === null || ev[field] === "") reasons.push(`missing field: ${field}`);
+  }
+  if (ev.authenticated !== true) reasons.push("authenticated must be true for a REPAIRED PASS");
+  if (!["FAILED", "UNVERIFIED"].includes(ev.initialAction)) reasons.push("initialAction must be FAILED or UNVERIFIED");
+  if (ev.recoveryEntered !== true) reasons.push("recoveryEntered must be true");
+  if (!(ev.repairStatus === "REPAIRED" || ev.repairStatus === "REPAIR_FAILED")) reasons.push("repairStatus must be REPAIRED or REPAIR_FAILED");
+  if (ev.repairStatus === "REPAIRED" && ev.postConditionVerified !== true) reasons.push("postConditionVerified must be true when REPAIRED");
+  if (!Array.isArray(ev.repairPlanSteps) || ev.repairPlanSteps.length === 0) reasons.push("repairPlanSteps must be a non-empty array");
+  if (ev.runId && typeof ev.runId !== "string") reasons.push("runId must be a string");
+  if (ev.gitHead && !/^[0-9a-f]{7,40}$/.test(ev.gitHead)) reasons.push("gitHead must be a commit sha");
+  return { ok: reasons.length === 0, reasons };
+}
