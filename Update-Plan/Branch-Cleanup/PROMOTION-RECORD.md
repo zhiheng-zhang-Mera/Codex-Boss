@@ -11,14 +11,15 @@ superseded by this record.
 |---|---|
 | Accepted integration HEAD | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
 | Promotion-gate HEAD (tested) | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
-| `main` (final) | `d8b91882f588c6be6521bce060254e703de473a5` |
-| `origin/main` | `d8b91882f588c6be6521bce060254e703de473a5` |
-| `owner-result` (final) | `d8b91882f588c6be6521bce060254e703de473a5` |
-| `origin/owner-result` | `d8b91882f588c6be6521bce060254e703de473a5` |
+| `main` (final) | `9f54e34d2cff6e31145bee36d6305573797526e4` |
+| `origin/main` | `9f54e34d2cff6e31145bee36d6305573797526e4` |
+| `owner-result` (final) | `9f54e34d2cff6e31145bee36d6305573797526e4` |
+| `origin/owner-result` | `9f54e34d2cff6e31145bee36d6305573797526e4` |
 | `main == owner-result == origin/main == origin/owner-result` | **TRUE** |
 | Remote branches after Phase N | **2** (`main`, `owner-result`) |
 | Local branches after Phase N | **2** (`main`, `owner-result`) |
 | Tags (local == remote) | **17** |
+| GitHub CI | **success** on `main` and `owner-result` @ `9f54e34` |
 
 Every promotion was a **fast-forward**. No force push was used anywhere, and no
 history was rewritten.
@@ -176,19 +177,20 @@ unmodified guard.
 ## 7. Final verification
 
 ```text
-origin branches : d8b9188 refs/heads/main
-                  d8b9188 refs/heads/owner-result
+origin branches : 9f54e34 refs/heads/main
+                  9f54e34 refs/heads/owner-result
                   (exactly 2)
 
 local branches  : main, owner-result            (exactly 2)
 tags            : 17 local, 17 on origin
 main == owner-result == origin/main == origin/owner-result
-                == d8b91882f588c6be6521bce060254e703de473a5
-v10.0.0 == v10.0.0-accepted == archive/9-10-integration-final
-                == 148c342b6b4eefc5d2824ef4143c6434d3281a96
+                == 9f54e34d2cff6e31145bee36d6305573797526e4
+v10.0.0 == v10.0.0-accepted == 9f54e34d2cff6e31145bee36d6305573797526e4
+archive/9-10-integration-final == 148c342b6b4eefc5d2824ef4143c6434d3281a96
 ```
 
-Product verification on the final `main` (`d8b9188`): `npm test` → **687 passed (687)**.
+GitHub `Desktop CI` on `9f54e34`: **success** (main and owner-result).
+Product verification on the final `main`: `npm test` → **687 passed (687)**.
 
 ## 8. cleanup.md §27 owner view (final)
 
@@ -197,19 +199,80 @@ Product verification on the final `main` (`d8b9188`): `npm test` → **687 passe
 | 1 | Which branches were merged? | `9-10-A` into `A-main-integration`. 0 conflicts. |
 | 2 | Which branches were archived? | All 15 candidate branches, via 17 tags pushed to `origin`. |
 | 3 | Which branches were deleted? | 14 remote + 10 local: the 8 dated, 2 closure, `9-10-A`, `9-10-M`, `A-main-integration`. |
-| 4 | `main` SHA? | `d8b91882f588c6be6521bce060254e703de473a5` |
-| 5 | `owner-result` SHA? | `d8b91882f588c6be6521bce060254e703de473a5` (identical to `main`) |
-| 6 | `v10.0.0` points at? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` (the verified release commit) |
+| 4 | `main` SHA? | `9f54e34d2cff6e31145bee36d6305573797526e4` |
+| 5 | `owner-result` SHA? | `9f54e34d2cff6e31145bee36d6305573797526e4` (identical to `main`) |
+| 6 | `v10.0.0` points at? | `9f54e34d2cff6e31145bee36d6305573797526e4` (CI verified green) |
 | 7 | A/M capabilities retained? | Yes — M product surfaces byte-identical; A closure assets present; 687 tests PASS. |
 | 8 | Full test PASS? | Yes — 82 files / 687 tests. |
 | 9 | Integration 2h soak PASS? | Yes — 7200s, 0 failed, 11/11 invariants (run on this HEAD, not re-run for promotion). |
 | 10 | Still BLOCKED_EXTERNAL? | Yes — the 5 codex-CLI rows and R-202. Reported honestly; not blockers of promotion. |
 
-## 9. Final branch structure (§18)
+## 10. GitHub CI — the one real defect the merge exposed, and the fix
+
+`Desktop CI` (`.github/workflows/ci.yml`) was **red on every commit**, including the
+pre-cleanup ones. The failing step was `pnpm test`, with two failures in
+`tests/unit/closure-terminal-logic.test.ts`:
+
+```
+a formal soak shorter than MIN_ACCEPTANCE_SECONDS is refused (exit 2)
+  -> expected 2, received 1
+a validate-only run never claims acceptance (exit 0, qualifiesForAcceptance=false)
+  -> expected 0, received 1
+```
+
+**Root cause.** Those tests spawn `scripts/r901-soak.cjs` and
+`scripts/closure-soak-2h.cjs`. Those harnesses — along with
+`scripts/benchmark.cjs` and the whole `scripts/acceptance-*.cjs` family — `require`
+the compiled modules under `dist-electron` **at module load time**:
+
+```js
+const { ExecutionSupervisor } = require("../dist-electron/electron/commander/execution-supervisor.js");
+```
+
+`dist-electron` is a gitignored build output (`.gitignore:5`), so it does not exist
+on a fresh checkout. The workflow ran `pnpm test` **before** `pnpm run build`, so the
+child process died with
+
+```
+Error: Cannot find module '../dist-electron/electron/commander/execution-supervisor.js'
+```
+
+and Node exited 1 instead of the harness's documented exit code. The test assertions
+were correct; the step order was wrong.
+
+**Fix.** Moved `pnpm run build` ahead of `pnpm test` in the workflow. The scripts,
+the tests and every acceptance standard were left untouched — nothing was weakened to
+obtain a green run.
+
+**Verification.** Reproduced locally by moving `dist-electron` aside (exit 1, exactly
+as CI) and back (exit 0 / exit 2 as documented), then confirmed the new order end to
+end. GitHub then reported **success** on both `main` and `owner-result` runs for
+commit `9f54e34` — all 13 steps green, including `package:portable`,
+`smoke-portable.ps1` and `acceptance-restart.cjs`.
+
+Note that the two later Electron-GUI steps were never the problem: `electron/main.ts`
+runs the smoke lane headless (`offscreen: isSmokeTest`, `show: !isSmokeTest`,
+hardware acceleration disabled), so they pass on the `windows-latest` runner.
+
+## 11. Release-tag correction
+
+`v10.0.0` and `v10.0.0-accepted` were first created at the accepted HEAD
+`148c342` — the commit whose CI ran red because of the ordering defect above. Since
+the defect was in the workflow rather than in the product, the tags were **moved
+forward to `9f54e34`**, the commit whose full pipeline GitHub reports as successful.
+`148c342` is an ancestor of `9f54e34`, and the moved tags are still reachable at
+`archive/9-10-integration-final`.
+
+This is recorded rather than done silently. There were **no GitHub Releases**
+referencing the old tags, and the version had been promoted minutes earlier, so the
+correction is safe; it was chosen so that the release tag points at a commit whose CI
+is genuinely verified green.
+
+## 12. Final branch structure (§18)
 
 ```text
-main            ← v10.0.0 formal stable release @ d8b9188 (release tag at 148c342)
-owner-result    ← current acceptance baseline @ d8b9188
+main            ← v10.0.0 formal stable release @ 9f54e34 (release tag at 9f54e34)
+owner-result    ← current acceptance baseline @ 9f54e34
 ```
 
 No dated construction branch, Host temporary branch, closure branch or integration
