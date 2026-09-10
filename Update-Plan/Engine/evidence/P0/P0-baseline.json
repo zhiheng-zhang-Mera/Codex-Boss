@@ -1,0 +1,19 @@
+{
+  "phase": "Engine-P0",
+  "requirement": "Phase 0 — Baseline / Compatibility",
+  "date": "2026-09-10",
+  "status": "PASS",
+  "summary": "Baseline regression oracle recorded for RuntimeResult/RoleRouter/TaskIR + five adaptive feature flags with an all-OFF default and single kill switch",
+  "implementation": [
+    "src/shared/adaptive-flags.ts: AdaptiveFlagId (adaptiveProviderLearning, semanticOutcomeEvaluation, modelIdentityObservation, adaptiveRouting, behaviourEpochDetection); DEFAULT_ADAPTIVE_FLAGS all false; resolveAdaptiveFlags (only explicit boolean true enables — fail-closed to off); adaptiveFlagsAllOff; enabledAdaptiveFlags; adaptiveCapabilityEnabled (child capabilities require the umbrella learning flag)",
+    "electron/learning/adaptive-flag-store.ts: AdaptiveFlagStore — durable schemaVersion 1 flag file, per-flag set, setAll single kill switch, corrupt/unreadable file ⇒ ALL OFF + degradedReason (fail-open toward the deterministic router)"
+  ],
+  "tests": [
+    "tests/unit/engine-phase-0.test.ts (11 tests): RoleRouter oracle — registry order preserved when no preference/token applies; cheapest-sufficient brand ordering only under capability tokens; pin wins; hard exclusions never returned; capability filtering; RuntimeResult status vocabulary + optional model identity fields absent for legacy adapters; TaskIR deterministic compile + unchanged risk semantics; five flags default false; explicit-true-only resolution; umbrella gating for child capabilities; durable store persistence + corrupted-file fail-open; setAll(false) kill switch"
+  ],
+  "gates": {
+    "typecheck": "PASS (tsconfig.json + tsconfig.electron.json)",
+    "vitest_p0": "tests/unit/engine-phase-0.test.ts 11/11 PASS"
+  },
+  "notes": "Oracle tests were written against OBSERVED behaviour (registry order preserved on tied scores), not assumed behaviour — the first draft asserted a wrong expectation and was corrected to the real baseline."
+}
