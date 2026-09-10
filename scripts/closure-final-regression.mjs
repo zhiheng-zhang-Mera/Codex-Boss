@@ -33,6 +33,10 @@ const dir = path.join("Update-Plan", "2026-09-09-closure");
 const manifestPath = path.join(dir, "requirement-manifest.json");
 const evidenceDir = path.join(dir, "evidence");
 const validatorsOnly = process.argv.includes("--validators-only");
+const outIndex = process.argv.indexOf("--out");
+const outFile = outIndex >= 0 && process.argv[outIndex + 1]
+  ? path.resolve(process.argv[outIndex + 1])
+  : path.join(evidenceDir, "final-regression.json");
 
 function sha256File(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
@@ -181,7 +185,7 @@ const report = {
     : undefined,
   terminal: verdict.terminal,
 };
-fs.writeFileSync(path.join(evidenceDir, "final-regression.json"), JSON.stringify(report, null, 2), "utf8");
+fs.writeFileSync(outFile, JSON.stringify(report, null, 2), "utf8");
 console.log(JSON.stringify({
   gitHead: report.gitHead, gates: Object.fromEntries(Object.entries(gates).map(([k, v]) => [k, v.status ?? v])),
   testFiles: report.testFiles, testCount: report.testCount, buildResult: report.buildResult,
