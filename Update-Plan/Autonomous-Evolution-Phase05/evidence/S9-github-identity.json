@@ -1,6 +1,6 @@
 {
   "phase": "S9",
-  "generatedAt": "2026-09-10T11:57:41.083Z",
+  "generatedAt": "2026-09-10T12:04:57.025Z",
   "requirement": "a dedicated Boss GitHub identity exists and shares no Owner credential",
   "verdict": "BLOCKED_EXTERNAL",
   "external": {

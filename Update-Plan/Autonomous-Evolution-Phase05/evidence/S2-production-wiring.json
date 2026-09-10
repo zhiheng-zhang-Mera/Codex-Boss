@@ -1,6 +1,6 @@
 {
   "phase": "S2",
-  "generatedAt": "2026-09-10T11:57:41.080Z",
+  "generatedAt": "2026-09-10T12:04:57.022Z",
   "compositionRoot": "electron/self-evolution/self-evolution-coordinator.ts SelfEvolutionCoordinator.run()",
   "componentsWired": [
     "SelfTargetResolver",
@@ -24,7 +24,7 @@
     "target": "tests/unit/self-evolution-route.test.ts",
     "passed": true,
     "exitCode": 0,
-    "durationMs": 35206,
+    "durationMs": 35316,
     "testFilesPassed": 1,
     "testFilesFailed": 0,
     "testsPassed": 16,

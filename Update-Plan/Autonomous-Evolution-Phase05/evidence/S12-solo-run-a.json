@@ -1,6 +1,6 @@
 {
   "phase": "S12/S13 Run A",
-  "generatedAt": "2026-09-10T11:57:41.084Z",
+  "generatedAt": "2026-09-10T12:04:57.026Z",
   "requirement": "an ordinary low-risk self-improvement completes end to end without Harness intervention",
   "harness": "tests/unit/self-evolution-route.test.ts (Solo Flight runs A/B/C) through the real SelfEvolutionCoordinator",
   "observedChain": [

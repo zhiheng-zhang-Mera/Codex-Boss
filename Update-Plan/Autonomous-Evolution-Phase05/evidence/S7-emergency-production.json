@@ -1,6 +1,6 @@
 {
   "phase": "S7",
-  "generatedAt": "2026-09-10T11:57:41.082Z",
+  "generatedAt": "2026-09-10T12:04:57.024Z",
   "requirement": "the production coordinator honours an Owner freeze at every checkpoint",
   "checkpoints": [
     "before candidate creation (SelfEvolutionCoordinator.run)",
@@ -20,7 +20,7 @@
     "target": "tests/unit/self-evolution-route.test.ts",
     "passed": true,
     "exitCode": 0,
-    "durationMs": 35206,
+    "durationMs": 35316,
     "testFilesPassed": 1,
     "testFilesFailed": 0,
     "testsPassed": 16,

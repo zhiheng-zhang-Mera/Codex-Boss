@@ -1,6 +1,6 @@
 {
   "phase": "S6",
-  "generatedAt": "2026-09-10T11:57:41.081Z",
+  "generatedAt": "2026-09-10T12:04:57.023Z",
   "requirement": "candidate code is really executed and each attack is really contained",
   "kind": "executed-code",
   "suite": "tests/unit/evolution-sandbox.test.ts",
@@ -82,7 +82,7 @@
     "target": "tests/unit/evolution-sandbox.test.ts",
     "passed": true,
     "exitCode": 0,
-    "durationMs": 46323,
+    "durationMs": 47730,
     "testFilesPassed": 1,
     "testFilesFailed": 0,
     "testsPassed": 14,

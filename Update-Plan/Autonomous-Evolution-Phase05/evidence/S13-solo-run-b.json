@@ -1,6 +1,6 @@
 {
   "phase": "S13 Run B",
-  "generatedAt": "2026-09-10T11:57:41.085Z",
+  "generatedAt": "2026-09-10T12:04:57.026Z",
   "requirement": "an injected Candidate failure is absorbed without Harness repair and Stable stays online",
   "injectedFailure": "the coder seam throws, so the Candidate aborts after the finding is raised",
   "observed": [
