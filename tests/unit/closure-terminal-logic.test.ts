@@ -266,6 +266,36 @@ describe("closure-terminal-logic: manifest state machine (Host-A Phase F single-
   });
 });
 
+describe("closure-terminal-logic: R-901 harness fail-closed guard (Host-A §D1/D6)", () => {
+  it("a formal soak shorter than MIN_ACCEPTANCE_SECONDS is refused (exit 2)", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const res = spawnSync(process.execPath, ["scripts/r901-soak.cjs", "--seconds", "60"], { cwd: process.cwd(), encoding: "utf8" });
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/R901_FAIL_CLOSED/);
+    expect(res.stderr).toMatch(/MIN_ACCEPTANCE_SECONDS=7200/);
+  });
+
+  it("the legacy soak harness can no longer emit acceptance evidence (exit 2)", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const res = spawnSync(process.execPath, ["scripts/closure-soak-2h.cjs"], { cwd: process.cwd(), encoding: "utf8" });
+    expect(res.status).toBe(2);
+    expect(res.stderr).toMatch(/R901_LEGACY_HARNESS_DISABLED/);
+  });
+
+  it("a validate-only run never claims acceptance (exit 0, qualifiesForAcceptance=false)", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const res = spawnSync(process.execPath, ["scripts/r901-soak.cjs", "--validate-only", "--validate-seconds", "5", "--cooldown-ms", "1000"], { cwd: process.cwd(), encoding: "utf8", timeout: 120000 });
+    expect(res.status).toBe(0);
+    // Extract the final JSON summary object from stdout robustly.
+    const out = res.stdout ?? "";
+    const start = out.indexOf("{");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const parsed = JSON.parse(out.slice(start));
+    expect(parsed.status).toBe("VALIDATION");
+    expect(parsed.qualifiesForAcceptance).toBe(false);
+  });
+});
+
 describe("closure-terminal-logic: helpers", () => {
   it("counts all statuses", () => {
     const requirements = [req("R-1", "PASS"), req("R-2", "LIVE_REQUIRED"), req("R-3", "PASS")];
