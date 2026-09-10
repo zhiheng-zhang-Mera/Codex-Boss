@@ -10,18 +10,32 @@ superseded by this record.
 | Item | Value |
 |---|---|
 | Accepted integration HEAD | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
-| `main` | `148c342…` |
-| `origin/main` | `148c342…` |
-| `owner-result` | `148c342…` |
-| `origin/owner-result` | `148c342…` |
-| `main == owner-result == accepted integration HEAD` | **TRUE** |
+| Promotion-gate HEAD (tested) | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
+| `main` (final) | `d8b91882f588c6be6521bce060254e703de473a5` |
+| `origin/main` | `d8b91882f588c6be6521bce060254e703de473a5` |
+| `owner-result` (final) | `d8b91882f588c6be6521bce060254e703de473a5` |
+| `origin/owner-result` | `d8b91882f588c6be6521bce060254e703de473a5` |
+| `main == owner-result == origin/main == origin/owner-result` | **TRUE** |
 | Remote branches after Phase N | **2** (`main`, `owner-result`) |
 | Local branches after Phase N | **2** (`main`, `owner-result`) |
-| Tags (local = remote) | **17** |
-| Tags created | 16 archive/release tags + `archive/9-10-integration-final` |
+| Tags (local == remote) | **17** |
 
 Every promotion was a **fast-forward**. No force push was used anywhere, and no
 history was rewritten.
+
+### 1.1 One final linear step, recorded
+
+After the promotion commit `d8b9188` (which records these phases in the repository)
+landed on `main`, `main` and `owner-result` were temporarily one commit apart:
+`main` had advanced to `d8b9188` while `owner-result` was still at the accepted HEAD
+`148c342`. Because `148c342` is an ancestor of `d8b9188`, `owner-result` was
+fast-forwarded to `d8b9188` with `git update-ref` and pushed — again with **no
+force**. The required equality is re-established at `d8b9188`, and the promotion-gate
+HEAD remains the ancestor `148c342` whose gate, soak and harness results are recorded
+below.
+
+The release tags were deliberately **not** moved: `v10.0.0` and `v10.0.0-accepted`
+still point at the verified `148c342`, not at the documentation commit.
 
 ## 2. Phase B — archive tags created, verified and pushed
 
@@ -162,17 +176,19 @@ unmodified guard.
 ## 7. Final verification
 
 ```text
-origin branches : 148c342 refs/heads/main
-                  148c342 refs/heads/owner-result
+origin branches : d8b9188 refs/heads/main
+                  d8b9188 refs/heads/owner-result
                   (exactly 2)
 
 local branches  : main, owner-result            (exactly 2)
-tags on origin  : 17
-main == owner-result == origin/main == origin/owner-result == v10.0.0
-                == v10.0.0-accepted == archive/9-10-integration-final
+tags            : 17 local, 17 on origin
+main == owner-result == origin/main == origin/owner-result
+                == d8b91882f588c6be6521bce060254e703de473a5
+v10.0.0 == v10.0.0-accepted == archive/9-10-integration-final
+                == 148c342b6b4eefc5d2824ef4143c6434d3281a96
 ```
 
-Product verification on the final `main`: `npm test` → **687 passed (687)**.
+Product verification on the final `main` (`d8b9188`): `npm test` → **687 passed (687)**.
 
 ## 8. cleanup.md §27 owner view (final)
 
@@ -181,9 +197,9 @@ Product verification on the final `main`: `npm test` → **687 passed (687)**.
 | 1 | Which branches were merged? | `9-10-A` into `A-main-integration`. 0 conflicts. |
 | 2 | Which branches were archived? | All 15 candidate branches, via 17 tags pushed to `origin`. |
 | 3 | Which branches were deleted? | 14 remote + 10 local: the 8 dated, 2 closure, `9-10-A`, `9-10-M`, `A-main-integration`. |
-| 4 | `main` SHA? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
-| 5 | `owner-result` SHA? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` (identical to `main`) |
-| 6 | `v10.0.0` points at? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` |
+| 4 | `main` SHA? | `d8b91882f588c6be6521bce060254e703de473a5` |
+| 5 | `owner-result` SHA? | `d8b91882f588c6be6521bce060254e703de473a5` (identical to `main`) |
+| 6 | `v10.0.0` points at? | `148c342b6b4eefc5d2824ef4143c6434d3281a96` (the verified release commit) |
 | 7 | A/M capabilities retained? | Yes — M product surfaces byte-identical; A closure assets present; 687 tests PASS. |
 | 8 | Full test PASS? | Yes — 82 files / 687 tests. |
 | 9 | Integration 2h soak PASS? | Yes — 7200s, 0 failed, 11/11 invariants (run on this HEAD, not re-run for promotion). |
@@ -192,8 +208,8 @@ Product verification on the final `main`: `npm test` → **687 passed (687)**.
 ## 9. Final branch structure (§18)
 
 ```text
-main            ← v10.0.0 formal stable release @ 148c342
-owner-result    ← current acceptance baseline @ 148c342
+main            ← v10.0.0 formal stable release @ d8b9188 (release tag at 148c342)
+owner-result    ← current acceptance baseline @ d8b9188
 ```
 
 No dated construction branch, Host temporary branch, closure branch or integration
