@@ -49,6 +49,7 @@ export const OWNER_CREDENTIAL_VARIABLES: readonly string[] = [
   "GOOGLE_APPLICATION_CREDENTIALS",
   "NPM_TOKEN",
   "NODE_AUTH_TOKEN",
+  "PGPASSWORD",
   // Boss Root Authority material. Root policy is policy-only; if any of these
   // ever exist they are signing/authority secrets and never enter a Candidate.
   "CODEX_BOSS_ROOT_SECRET",

@@ -27,7 +27,9 @@ const STABLE_SENTINEL = "STABLE_SENTINEL_UNTOUCHED";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "boss-sandbox-rt-"));
 const candidateRoot = path.join(root, "evolution");
-const runId = "rt-sandbox";
+// Nested acceptance runs can execute this file concurrently with the parent
+// suite. A per-process AppContainer avoids cross-run profile/ACL interference.
+const runId = `rt-sandbox-${process.pid}`;
 const run = path.join(candidateRoot, runId);
 const workspace = path.join(run, "workspace");
 const temp = path.join(run, "temp");

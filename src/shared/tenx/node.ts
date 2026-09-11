@@ -10,6 +10,7 @@
  */
 
 import type { RouteId } from "./network";
+import type { GitHubCapability } from "../github-machine";
 
 
 export type DeviceType = "desktop" | "laptop" | "server" | "embedded" | "mobile" | "unknown";
@@ -42,6 +43,8 @@ export interface NodeCapabilityFlags {
   localModel: boolean;
   /** Node can keep running offline-capable tasks when network is unavailable. */
   offlineCapable: boolean;
+  /** Observed host capabilities used for Git/GitHub task delegation. */
+  github?: Partial<Record<GitHubCapability, boolean>>;
 }
 
 /**
@@ -91,7 +94,8 @@ export function refreshAdvertisement(previous: NodeCapabilityAdvertisement, fact
         providers: facts.capabilities.providers ?? previous.capabilities.providers,
         browser: facts.capabilities.browser ?? previous.capabilities.browser,
         localModel: facts.capabilities.localModel ?? previous.capabilities.localModel,
-        offlineCapable: facts.capabilities.offlineCapable ?? previous.capabilities.offlineCapable
+        offlineCapable: facts.capabilities.offlineCapable ?? previous.capabilities.offlineCapable,
+        github: facts.capabilities.github ?? previous.capabilities.github
       }
     : previous.capabilities;
   return { ...previous, hardware, capabilities, seq: previous.seq + 1 };

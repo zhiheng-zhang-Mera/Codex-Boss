@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "logicalIdentity": "Codex-Boss",
+  "appId": "000000",
+  "installationId": "00000000",
+  "privateKeyRef": "github/codex-boss",
+  "allowedRepositories": [
+    "owner/repository"
+  ]
+}

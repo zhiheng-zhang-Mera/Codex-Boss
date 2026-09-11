@@ -7,6 +7,8 @@ coverage/
 .codex-boss/*
 !.codex-boss/config/
 !.codex-boss/config/*.json
+.codex-boss/config/github-machine-identity.json
+!.codex-boss/config/github-machine-identity.example.json
 # Root Authority policy surface (Isolation-Finalization.md §7.1). Policy only:
 # this directory must never contain a token, private key or Owner session.
 !.codex-boss/root/
@@ -21,6 +23,16 @@ Thumbs.db
 artifacts/
 runtime-data/
 secrets/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+credential-cache/
+.credentials/
 
 .boss/worktrees/
 .boss/tmp/
