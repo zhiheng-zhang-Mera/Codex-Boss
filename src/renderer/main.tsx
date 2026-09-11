@@ -12,6 +12,8 @@ import { GoalRunPanel } from "./components/GoalRunPanel";
 import { OwnerSummary } from "./components/OwnerSummary";
 import { ProviderIntelligence } from "./components/ProviderIntelligence";
 import type { HumanInterventionRequest } from "../shared/intervention";
+import type { RunMode } from "../shared/owner-result";
+import type { WorkAgentCount } from "../shared/work-mode";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ApiProtocol, AppMode, AppSnapshot, BossTask, FinalizationPolicy, ProviderId, RemoteChannel, RunTransport, TaskMode, ViewBounds } from "../shared/contracts";
@@ -35,6 +37,8 @@ function App() {
   const [appMode, setAppMode] = useState<AppMode>("chat");
   const [finalizationPolicy, setFinalizationPolicy] = useState<FinalizationPolicy | "">("");
   const [reviewMode, setReviewMode] = useState<ReviewMode>("BALANCED");
+  const [workAgentCount, setWorkAgentCount] = useState<WorkAgentCount>(3);
+  const [runMode, setRunMode] = useState<RunMode>("OWNER_RESULT");
   const [workspacePath, setWorkspacePath] = useState("");
   const [transportChoices, setTransportChoices] = useState<Record<ProviderId, RunTransport>>({});
   const [historyDialog, setHistoryDialog] = useState<HistoryDialogState | null>(null);
@@ -181,6 +185,16 @@ function App() {
   // this conversation (uploads ride with the next message until bound).
   const consumedInputIds = useMemo(() => new Set(snapshot.tasks.filter((task) => task.conversationId === snapshot.activeConversationId).flatMap((task) => task.inputObjectIds ?? [])), [snapshot.tasks, snapshot.activeConversationId]);
   const pendingAttachments = useMemo(() => (activeConversation?.inputObjects ?? []).filter((ref) => !consumedInputIds.has(ref.id)), [activeConversation, consumedInputIds]);
+  const hasComposerPrimaryInput = Boolean(prompt.trim() || (appMode === "work" && pendingAttachments.length));
+  const hasValidDispatchGroup = isDispatchGroupSize(selectedProviders.length)
+    || (Boolean(prompt.trim()) && prompt.length <= 100000 && compileIntent(prompt).estimatedComplexity === "L0");
+  const composerBlockReason = appMode === "chat" && !prompt.trim() && pendingAttachments.length > 0
+    ? "Chat 模式需要任务文字；仅工作书请切换到 Work"
+    : !hasComposerPrimaryInput
+    ? appMode === "work" ? "请输入任务文字或上传至少一个附件" : "请输入任务文字"
+    : !hasValidDispatchGroup
+      ? "请选择 1–5 个已打开的 AI；附件-only 任务至少需要 1 个 AI"
+      : "";
   const activeTasks = useMemo(() => snapshot.tasks.filter((task) => !task.parentTaskId && task.conversationId === snapshot.activeConversationId).slice(0, 50).reverse(), [snapshot.tasks, snapshot.activeConversationId]);
   useEffect(() => {
     const pane = conversationRef.current;
@@ -259,12 +273,14 @@ function App() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!prompt.trim() || sending) return;
+    if (sending) return;
+    if (!hasComposerPrimaryInput) { setError(appMode === "work" ? "无法提交：请输入任务文字或上传至少一个附件" : "无法提交：Chat 模式需要任务文字；仅工作书请切换到 Work"); return; }
+    if (!hasValidDispatchGroup) { setError("无法提交：请选择 1–5 个已打开的 AI"); return; }
     setSending(true);
     setError("");
     try {
-      const title = prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48);
-      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim(), providerIds: selectedProviders, mode, appMode, workspacePath: workspacePath.trim() || undefined, reviewPolicy: { mode: reviewMode, maxRetries: 2 }, finalizationPolicy: finalizationPolicy || undefined, transportByProvider: appMode === "chat" ? {} : transportChoices, conversationId: snapshot.activeConversationId, inputObjectIds: pendingAttachments.length ? pendingAttachments.map((ref) => ref.id) : undefined }));
+      const title = prompt.trim() ? prompt.trim().split(/\r?\n/, 1)[0].slice(0, 48) : undefined;
+      setSnapshot(await window.boss.dispatchTask({ title, prompt: prompt.trim() || undefined, providerIds: selectedProviders, mode, appMode, workspacePath: workspacePath.trim() || undefined, reviewPolicy: { mode: reviewMode, maxRetries: 2 }, finalizationPolicy: finalizationPolicy || undefined, transportByProvider: appMode === "chat" ? {} : transportChoices, conversationId: snapshot.activeConversationId, inputObjectIds: pendingAttachments.length ? pendingAttachments.map((ref) => ref.id) : undefined, workAgentCount: appMode === "work" ? workAgentCount : undefined, runMode: appMode === "work" ? runMode : undefined }));
       setPrompt("");
     } catch (reason) {
       setError(String(reason));
@@ -600,17 +616,26 @@ function App() {
           const evidence = snapshot.evidenceBundles.find((item) => finalResponse ? item.id === finalResponse.evidenceBundleId : item.taskId === task.id);
           const checkpoint = snapshot.dispatchCheckpoints.find((item) => item.taskId === task.id && item.round === (council?.round ?? runs[0]?.round ?? 1));
           const artifactCount = snapshot.artifacts.filter((artifact) => artifact.taskId === task.id).length;
+          const workbook = task.workbookDispatch;
           const allComplete = runs.length > 0 && runs.every((run) => run.phase === "completed");
           const canCapture = runs.some((run) => run.phase === "waiting");
           const canRetry = checkpoint?.status === "ROLLED_BACK" && !checkpoint.requiresReconciliation;
           const roundCommitted = checkpoint?.status === "COMMITTED" && !checkpoint.requiresReconciliation;
           return <article className="conversation-turn" key={task.id}>
-          <div className="user-message"><span>你</span><p>{task.prompt}</p></div>
+          <div className="user-message"><span>你</span><p>{task.prompt || (workbook?.documents.length ? `仅工作书：${workbook.documents.map((document) => document.file_name).join("、")}` : "附件任务")}</p></div>
           <div className="boss-message">
             <div className="boss-avatar">B</div>
             <div><strong className="task-state" data-task-state={presentation.state} role="status">{presentation.label}</strong>
               <span className="task-provider-label">{task.plan?.estimatedComplexity === "L0" ? "本地任务" : "已分派到"} {task.providerIds.filter((id) => id !== "native:tools").map((id) => snapshot.providers.find((item) => item.id === id)?.name ?? id).join("、")}</span>
               <details className="task-technical-summary"><summary>任务信息</summary><p>{task.plan?.estimatedComplexity ?? "L1"} · {task.appMode.toUpperCase()} · {task.mode === "council" ? `Council · ${council?.stage ?? "初始化"} · 第 ${council?.round ?? 1} 轮` : "Direct"}，任务状态：{task.executionPhase ? executionLabel(task.executionPhase) : task.status}。</p></details>
+              {workbook && <section className={`workbook-status workbook-${workbook.stage.toLowerCase()}`} aria-label="WorkBook 执行状态">
+                <header><div><b>{workbook.classification ?? "WORKBOOK INTAKE"}</b>{workbook.confidence !== undefined && <span>置信度 {Math.round(workbook.confidence * 100)}%</span>}</div><strong>{workbook.stage}</strong></header>
+                <p>{workbook.analysis_only ? "只分析：已编译，不会执行修改" : workbook.auto_run ? "可执行工作书：已自动进入执行链" : "未自动执行：参考资料、歧义输入或被策略阻止"}</p>
+                {workbook.blocked_reason && <p className="workbook-blocked" role="alert">{workbook.blocked_reason}</p>}
+                <ol className="workbook-stage-list">{workbook.stageHistory.map((entry, index) => <li key={`${entry.at}-${entry.stage}-${index}`}><b>{entry.stage}</b><span>{entry.detail}</span><time>{shortTime(entry.at)}</time></li>)}</ol>
+                {workbook.conflicts.length > 0 && <details className="workbook-conflicts"><summary>冲突与隔离 · {workbook.conflicts.length}</summary>{workbook.conflicts.map((conflict, index) => <p key={`${conflict.kind}-${index}`}><b>{conflict.severity} · {conflict.kind}</b> {conflict.message}</p>)}</details>}
+                {workbook.contract && <details className="workbook-contract"><summary>已编译 Task Contract</summary><dl><dt>Goal</dt><dd>{workbook.contract.goal.flatMap((item) => item.items).join("；") || "未声明"}</dd><dt>Scope</dt><dd>{workbook.contract.scope.flatMap((item) => item.items).join("；") || "未声明"}</dd><dt>Deliverables</dt><dd>{workbook.contract.deliverables.flatMap((item) => item.items).join("；") || "未声明"}</dd><dt>Acceptance</dt><dd>{workbook.contract.acceptance_criteria.flatMap((item) => item.items).join("；") || "未声明"}</dd></dl></details>}
+              </section>}
               {waitingLine(task) && <p className="wait-readout" role="status">{waitingLine(task)}</p>}
               {task.modeTransition && task.interactionMode === "WORK_PROPOSED" && !task.modeTransition.approvedAt && <section className="mode-escalation-card" role="alert" aria-live="polite">
                 <p><b>是否升级到 Work？</b> {task.modeTransition.reason}{task.modeTransition.requiredCapabilities.length > 0 && <small> 需要能力：{task.modeTransition.requiredCapabilities.join("、")}</small>}</p>
@@ -625,6 +650,10 @@ function App() {
               {runs.map((run) => run.message && <small className="run-message" key={`${run.id}-message`}>{run.providerId} — {run.message}</small>)}
               {runs.filter((run) => run.review?.status === "PASS" && run.response).map((run) => <details className="worker-answer" open={!finalResponse && task.mode === "direct"} key={run.id + "-answer"}><summary>{run.providerId === "native:tools" ? "本地执行结果" : (snapshot.providers.find((provider) => provider.id === run.providerId)?.name ?? run.providerId) + " 的回答"}</summary><pre>{run.response!.content}</pre></details>)}
               <div className="task-actions">
+                {task.status === "queued" && <button className="confirm-send" onClick={() => void window.boss.updateTask(task.id, "running").then(setSnapshot).catch((reason) => setError(String(reason)))} disabled={sending}>开始</button>}
+                {task.status === "running" && <button onClick={() => void window.boss.updateTask(task.id, "paused").then(setSnapshot).catch((reason) => setError(String(reason)))} disabled={sending}>停止</button>}
+                {(task.status === "paused" || task.status === "waiting") && <button className="confirm-send" onClick={() => void window.boss.updateTask(task.id, "running").then(setSnapshot).catch((reason) => setError(String(reason)))} disabled={sending}>恢复</button>}
+                {task.status === "failed" && <button className="confirm-send" onClick={() => void taskAction(task.id, "dispatch")} disabled={sending}>重试</button>}
                 {canRetry && <button className="confirm-send" onClick={() => void taskAction(task.id, "dispatch")} disabled={sending}>重新提交整组</button>}
                 {canCapture && <button onClick={() => void taskAction(task.id, "capture")} disabled={sending}>并发采集本轮回答</button>}
                 {task.mode === "council" && allComplete && roundCommitted && council && ["proposals", "peer_review", "synthesis"].includes(council.stage) && <button onClick={() => void taskAction(task.id, "advance")} disabled={sending}>提交下一轮到全部 AI</button>}
@@ -656,7 +685,7 @@ function App() {
           {compileResult && <div className={`research-status compile-result compile-${compileResult.status.toLowerCase()}`} role="status"><b>LaTeX {compileResult.status === "PASS" ? "编译成功" : "编译失败"}</b>{compileResult.pdf && <span>PDF: {compileResult.pdf}</span>}{compileResult.tex && <span>TEX: {compileResult.tex}</span>}{compileResult.cache && <span>Research cache: {compileResult.cache}</span>}{compileResult.message && <small>{compileResult.message}</small>}</div>}
           {researchRuns.length > 0 && <details className="research-runs"><summary><b>已有研究（{researchRuns.length}）</b><span className="research-runs-hint">已完成的成果已自动导出到 工作区 Research/主题/ 下；旧研究不参与新研究，展开后可单独查看/编译/处理</span></summary><div className="research-run-list">{researchRuns.map((run) => <div className="research-run-row" key={run.id}><span>{run.goal.slice(0, 80)}</span><small>{run.state} · {run.updatedAt.slice(0, 16).replace("T", " ")}{run.protocolHash ? " · 已冻结" : ""}{run.pendingStage ? ` · 待办 ${run.pendingStage}` : ""}</small><button type="button" onClick={() => void window.boss.researchStatus(run.id).then((record) => setResearchStatus({ id: run.id, state: (record as { ir: { state: string; protocolHash?: string } }).ir.state, protocolHash: (record as { ir: { state: string; protocolHash?: string } }).ir.protocolHash })).catch(() => {})}>查看</button><button type="button" onClick={() => void compileResearchPdf(run.id)}>编译 PDF</button></div>)}</div></details>}
         </form> : view === "goal" ? <GoalRunPanel busy={sending} onBusyChange={setSending} onError={(message) => setError(message)} /> : <>
-        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label>}</div></>}
+        <div className="execution-options"><label>审查策略 <select aria-label="审查策略" value={reviewMode} onChange={(event) => setReviewMode(event.target.value as ReviewMode)}><option value="STRICT">严格</option><option value="BALANCED">平衡</option><option value="AUTONOMOUS">自主</option></select></label><label>最终答复 <select aria-label="最终答复策略" value={finalizationPolicy} onChange={(event) => setFinalizationPolicy(event.target.value as FinalizationPolicy | "")}><option value="">自动</option><option value="DIRECT">直接交付</option><option value="CODEX_IF_AVAILABLE">尝试 Codex 整理</option><option value="CODEX_REQUIRED">等待 Codex 整理</option></select></label>{appMode === "work" && <><label>AI 数量 <select aria-label="Work AI 数量" value={workAgentCount} onChange={(event) => setWorkAgentCount(Number(event.target.value) as WorkAgentCount)}><option value={1}>1</option><option value={3}>3</option><option value={5}>5</option></select></label><label>执行模式 <select aria-label="Work 执行模式" value={runMode} onChange={(event) => setRunMode(event.target.value as RunMode)}><option value="OWNER_RESULT">Owner-Result</option><option value="AUTONOMOUS">自主</option><option value="ASSISTED">协助</option></select></label><label>工作区 <input aria-label="工作区路径" value={workspacePath} onChange={(event) => setWorkspacePath(event.target.value)} placeholder="本地项目目录" /></label></>}</div></>}
         <div className="mode-switch"><button className={mode === "direct" ? "active" : ""} onClick={() => setMode("direct")}>Direct</button><button className={mode === "council" ? "active" : ""} onClick={() => setMode("council")}>Council</button><span>{mode === "council" ? "独立提案 → 匿名评审 → 冲突保留 → 综合" : "一次任务分派到所选页面"}</span></div>
         <div className="provider-picker">
           <div className="picker-label"><span>调用页面</span><b>{selectedProviders.length} / {MAX_ACTIVE_PROVIDERS}</b></div>
@@ -678,7 +707,8 @@ function App() {
         <form className="prompt-composer" onSubmit={submit}>
           <AttachmentTray pending={pendingAttachments} busy={sending} onFiles={(files) => uploadFiles(files)} onPick={() => pickAttachments()} onRemove={(id) => removeAttachment(id)} />
           <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="向多个网页 AI 发起任务…" rows={3} onPaste={(event) => { const files = Array.from(event.clipboardData.files ?? []); if (files.length) { event.preventDefault(); void uploadFiles(files); } }} />
-          <div className="composer-footer"><span>{appMode === "chat" ? "Chat：全部使用可见网页" : "Work：任务输入后锁定各 AI 的网页/API 通道"}；所选 AI 回答通过审查后继续{pendingAttachments.length ? ` · ${pendingAttachments.length} 个附件` : ""}</span><button type="submit" title={`提交到全部 ${selectedProviders.length} 个 AI${pendingAttachments.length ? `（含 ${pendingAttachments.length} 个附件）` : ""}`} disabled={!prompt.trim() || sending || (!isDispatchGroupSize(selectedProviders.length) && (!prompt.trim() || (prompt.length > 100000 || compileIntent(prompt).estimatedComplexity !== "L0")))}>{sending ? "…" : "↑"}</button></div>
+          {composerBlockReason && <p className="composer-block-reason" role="status">{composerBlockReason}</p>}
+          <div className="composer-footer"><span>{appMode === "chat" ? "Chat：全部使用可见网页" : "Work：工作书可作为唯一输入，任务输入后锁定各 AI 的网页/API 通道"}；所选 AI 回答通过审查后继续{pendingAttachments.length ? ` · ${pendingAttachments.length} 个附件` : ""}</span><button type="submit" title={composerBlockReason || `提交到全部 ${selectedProviders.length} 个 AI${pendingAttachments.length ? `（含 ${pendingAttachments.length} 个附件）` : ""}`} disabled={Boolean(composerBlockReason) || sending}>{sending ? "…" : "↑"}</button></div>
         </form>
         {error && <div className="inline-error">{error}</div>}
       </div>

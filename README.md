@@ -41,6 +41,13 @@ Fresh screenshots taken from the running app (web-AI panes hidden for privacy du
 
 ## What you can do / 你能做什么
 
+- **WorkBook intake** — attach Markdown, text, PDF, DOCX, CSV, JSON, YAML, or XLSX in Work mode.
+  Boss classifies the material as reference, executable, ambiguous, or invalid; compiles a durable
+  task contract; parks reference-only material without provider dispatch; honours analysis-only
+  requests; and blocks credential disclosure or root-policy bypass before any provider run starts.
+  **WorkBook 摄入** —— 在 Work 模式附加 Markdown、文本、PDF、DOCX、CSV、JSON、YAML 或 XLSX；
+  Boss 会判定参考资料/可执行任务/歧义/无效输入，编译并持久化任务契约。纯参考资料不会派发，
+  “只分析”不会执行修改，凭据泄露或根策略绕过会在 Provider 启动前被阻断。
 - **Chat & Work** — send one request to 1–5 visible web AI pages, or switch a page to its API channel;
   every answer passes a deterministic review gate and evidence checks before final delivery.
   **聊天 / 工作** —— 一次请求分派给 1–5 个可见网页 AI，或把某页切成 API 通道；
@@ -124,6 +131,13 @@ Standalone smoke verification uses an isolated data directory:
 
 ## Status & verification / 状态与验证
 
+- WorkBook completion branch local acceptance (2026-09-12): **108 test files / 1012 tests green**,
+  typecheck, full build, tracked-secret scan, production dependency audit, portable package smoke,
+  and controlled cross-process restart all PASS. Live provider mutation and remote CI remain separate
+  evidence gates and are not inferred from these local checks.
+  WorkBook 完成分支本地验收（2026-09-12）：**108 个测试文件 / 1012 项测试全绿**，类型检查、
+  完整构建、已跟踪文件密钥扫描、生产依赖审计、便携包冒烟和受控跨进程恢复均 PASS；
+  实况 Provider 修改与远程 CI 仍是独立证据门，不能由本地检查推断。
 - The deterministic test suite is committed with the repository under `tests/unit/`
   (layered layout; includes git/process-heavy integration cases). Trunk snapshot
   (Owner-Result branch `owner-result`, merged into `main` — both at R41, 2026-09-09):

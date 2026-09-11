@@ -15,7 +15,7 @@ import fs from "node:fs";
 import { migrateBrowserProfile, migrateLegacyPersistentData } from "./runtime-paths";
 import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
-import { DEFAULT_PROVIDER_IDS, isDispatchGroupSize, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
+import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
 import { roleBriefsForWorkerOrder } from "../src/shared/work-mode";
 import { ProviderAutomation } from "./provider-automation";
@@ -28,7 +28,6 @@ import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
 import { ContextManager } from "./commander/context-manager";
 import { ExecutionGate } from "./commander/execution-gate";
-import { compileIntent } from "../src/shared/task-ir";
 import { decideEscalation, detectCapabilityNeeds } from "../src/shared/capability-needs";
 import type { InputObjectKind } from "../src/shared/input-object";
 import { ResourceController } from "./commander/resource-controller";
@@ -42,6 +41,9 @@ import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
+import { assertDispatchGroupSize } from "./commander/provider-dispatch-guard";
+import { WorkbookRegistry } from "./ingestion/workbook-registry";
+import { assertPrimaryInput, hydrateWorkBookAttachmentPaths, runWorkBookDispatch, shouldRunWorkBookIntake } from "./commander/workbook-dispatch";
 import { ExperienceStore } from "./experience/experience-store";
 import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
@@ -235,6 +237,58 @@ function escalateDecisionFor(task: import("../src/shared/contracts").BossTask) {
     .map((id) => conversation?.inputObjects?.find((ref) => ref.id === id)?.kind)
     .filter((kind): kind is InputObjectKind => kind !== undefined);
   return decideEscalation(detectCapabilityNeeds({ message: task.prompt, inputKinds }));
+}
+
+/*
+ * WORK_UNIT_2: WorkBook dispatch bridge. The orchestration lives in
+ * commander/workbook-dispatch; this file only resolves conversation-scoped refs,
+ * records the outcome and decides whether provider work may start.
+ */
+function conversationScopedInputRefs(conversationId: string, inputObjectIds?: string[]): InputObjectRef[] {
+  const bound = new Set(inputObjectIds ?? []);
+  return (store.inputObjectsFor(conversationId) ?? []).filter((ref) => bound.has(ref.id));
+}
+
+/** Durable duplicate/resume registry for ingested WorkBooks. */
+function workbookRegistry(): WorkbookRegistry {
+  return new WorkbookRegistry(path.join(app.getPath("userData"), ".boss", "workbook-registry.json"));
+}
+
+function workbookAttachments(input: CreateTaskInput, conversationId: string, extraIds: string[] = []): InputObjectRef[] {
+  const ids = [...new Set([...(input.inputObjectIds ?? []), ...extraIds])];
+  const refs = conversationScopedInputRefs(conversationId, ids);
+  if (!attachmentStore) return refs;
+  return hydrateWorkBookAttachmentPaths(refs, (scopedConversationId, inputObjectId) =>
+    attachmentStore?.localPathFor(scopedConversationId, inputObjectId)
+  );
+}
+
+/**
+ * WORK_UNIT_2 (REPAIR_BATCH_3): dispatch group-size validation lives in
+ * commander/provider-dispatch-guard so it is testable against the real helper
+ * boundary; re-exported here for callers that already import from the bridge.
+ */
+export { assertDispatchGroupSize } from "./commander/provider-dispatch-guard";
+
+/** Deterministic task title: explicit, else WorkBook title/file name, else prompt. */
+function titleForTask(input: CreateTaskInput, attachments: InputObjectRef[]): string {  const explicit = input.title?.trim();
+  if (explicit) return explicit;
+  const named = attachments.find((ref) => ref.originalName?.trim());
+  if (named?.originalName) return named.originalName.replace(/\.[A-Za-z0-9]{1,8}$/, "") || named.originalName;
+  return (input.prompt ?? "").trim().split(/\r?\n/)[0].slice(0, 80) || "Untitled task";
+}
+
+/**
+ * Existing WorkBook tasks keyed by their recorded content hash, so an exact
+ * duplicate attachment resumes that task instead of creating a second one.
+ */
+function workflowTasksByHash(): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const task of store.snapshot().tasks) {
+    const hash = task.workbookDispatch?.workbook_hash;
+    if (hash) map[hash] ??= task.id;
+  }
+  return map;
 }
 
 /**
@@ -923,23 +977,37 @@ if (ownsInstance) app.whenReady().then(() => {
     return openProjectState(target).summary(target);
   });
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
-    if (!input.title.trim() || !input.prompt.trim()) throw new Error("Title and prompt are required");
+    // WORK_UNIT_2: text OR a bound attachment OR a repository is enough; an
+    // empty text with no inputs is still a clear error.
+    const conversationId = input.conversationId ?? store.snapshot().activeConversationId;
+    const attachments = workbookAttachments(input, conversationId);
+    assertPrimaryInput(input.prompt ?? "", attachments);
     const providerIds = [...new Set(input.providerIds)];
     if (providerIds.length === 0) throw new Error("At least one provider is required");
     if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
     providerIds.forEach(provider);
     const { appMode, transports } = taskTransports(input, providerIds);
-    commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId: input.conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: input.inputObjectIds, workAgentCount: input.workAgentCount, runMode: input.runMode, conversationPolicy: input.conversationPolicy });
+    if (appMode === "chat" && !(input.prompt ?? "").trim()) {
+      throw new Error("Chat 模式需要任务文字；仅附件任务请使用 Work 模式");
+    }
+    const title = titleForTask(input, attachments);
+    const objective = (input.prompt ?? "").trim() || `Prepare task from attached input: ${attachments.map((ref) => ref.originalName ?? ref.id).join(", ")}`;
+    commander.createTask({ title, objective, providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: input.inputObjectIds, workAgentCount: input.workAgentCount, runMode: input.runMode, conversationPolicy: input.conversationPolicy });
     return publish();
   });
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
     const providerIds = [...new Set(input.providerIds)];
-    if (!input.title.trim() || !input.prompt.trim()) throw new Error("Title and prompt are required");
-    if (compileIntent(input.prompt).estimatedComplexity !== "L0" && !isDispatchGroupSize(providerIds.length)) throw new Error("请选择 1–5 个 AI；默认使用单 AI");
+    const requestedConversationId = input.conversationId ?? store.snapshot().activeConversationId;
+    const preAttachments = workbookAttachments(input, requestedConversationId);
+    assertPrimaryInput(input.prompt ?? "", preAttachments);
+    assertDispatchGroupSize(input.prompt ?? "", "", providerIds.length);
     providerIds.forEach(provider);
     const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
     if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
     const { appMode, transports } = taskTransports(input, providerIds);
+    if (appMode === "chat" && !(input.prompt ?? "").trim()) {
+      throw new Error("Chat 模式需要任务文字；仅附件任务请使用 Work 模式");
+    }
     // Auto workspace layout (Overcomplete live): a dispatch to MORE than three
     // web AI pages pops the processors into the second (DETACHED) window so
     // five pages don't crowd the controller; three or fewer stay merged in the
@@ -952,9 +1020,91 @@ if (ownsInstance) app.whenReady().then(() => {
     const conversationId = input.conversationId ?? store.snapshot().activeConversationId;
     // Phase F: a GitHub URL in the message is an input object, not prose —
     // materialize once and bind it so WORK can scan real code.
-    const githubInput = await materializeGithubInput(conversationId, input.prompt);
+    const githubInput = await materializeGithubInput(conversationId, input.prompt ?? "");
     const inputObjectIds = [...new Set([...(input.inputObjectIds ?? []), ...(githubInput ? [githubInput.id] : [])])];
-    const task = commander.createTask({ title: input.title.trim(), objective: input.prompt.trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined, workAgentCount: input.workAgentCount, runMode: input.runMode, conversationPolicy: input.conversationPolicy });
+    const attachments = workbookAttachments(input, conversationId, githubInput ? [githubInput.id] : []);
+    const workspace = githubInput?.localPath ?? (input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath());
+
+    // WORK_UNIT_2: Work-mode intake runs BEFORE the task exists. It decides the
+    // title, the executable objective and whether a provider dispatch may
+    // happen; it never creates, starts or dispatches anything itself.
+    if (shouldRunWorkBookIntake(appMode, attachments)) {
+      const outcome = await runWorkBookDispatch({
+        prompt: input.prompt ?? "",
+        title: input.title ?? "",
+        conversationId,
+        attachments,
+        inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined,
+        workspacePath: workspace,
+        allowProviderDispatch: true,
+        existingWorkbookTasks: workflowTasksByHash()
+      }, { registry: workbookRegistry() });
+
+      // The compiled objective is now available: it is the authoritative intent
+      // for an attachment-only request, so the group check runs against it.
+      assertDispatchGroupSize(input.prompt ?? "", outcome.objective, providerIds.length);
+
+      // Exact duplicate: resume the existing task, create nothing.
+      if (outcome.reused && outcome.reuse_task_id) {
+        if (store.snapshot().tasks.some((item) => item.id === outcome.reuse_task_id)) return publish();
+      }
+
+      const task = commander.createTask({
+        title: outcome.title || titleForTask(input, attachments),
+        objective: outcome.objective || (input.prompt ?? "").trim(),
+        providerIds,
+        mode: input.mode ?? "direct",
+        appMode,
+        transports,
+        conversationId,
+        reviewPolicy: input.reviewPolicy,
+        finalizationPolicy: input.finalizationPolicy,
+        inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined,
+        workAgentCount: input.workAgentCount,
+        runMode: input.runMode,
+        conversationPolicy: input.conversationPolicy
+      });
+      store.setWorkbookDispatch(task.id, outcome.record);
+      // Revisions were recorded before this task existed (so duplicate/resume
+      // could run first); link them to the task that owns them now.
+      const registry = workbookRegistry();
+      for (const document of outcome.record.documents) {
+        if (document.status === "FAILED") continue;
+        registry.linkRevisionTask(document.hash, task.id);
+      }
+
+      if (outcome.blocked) {
+        store.discardUnstartedRuns(task.id);
+        store.setTaskStatus(task.id, "failed", outcome.record.blocked_reason ?? "WorkBook intake refused");
+        return publish();
+      }
+      if (outcome.analysisOnly) {
+        // The compiled contract is the deliverable: never dispatch a provider,
+        // and complete through the narrow analysis-only path (no provider run
+        // exists, so the normal evidence gate cannot apply).
+        store.completeWorkbookAnalysis(task.id);
+        return publish();
+      }
+      if (!outcome.autoRun) {
+        // Reference/ambiguous WorkBook: keep the durable record, never dispatch.
+        store.discardUnstartedRuns(task.id);
+        return publish();
+      }
+
+      // Exactly one dispatch path: the existing commander -> deterministic/plan
+      // -> provider fallback. The intake module does not dispatch.
+      store.setTaskStageRecord(task.id, "RUNNING");
+      commander.startTask(task.id);
+      publish();
+      try {
+        if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id);
+      } catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
+      await automation.continueIfReady(task.id);
+      return publish();
+    }
+
+    const task = commander.createTask({ title: titleForTask(input, attachments), objective: (input.prompt ?? "").trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined, workAgentCount: input.workAgentCount, runMode: input.runMode, conversationPolicy: input.conversationPolicy });
+
     // Phase E: Chat is the default entry. When a chat request actually needs
     // WORK capability, propose once instead of firing web providers blindly.
     if (appMode === "chat" && escalateDecisionFor(task).escalate) {
@@ -991,7 +1141,6 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     commander.startTask(task.id);
     publish();
-    const workspace = githubInput?.localPath ?? (input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath());
     try { if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id); }
     catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
     await automation.continueIfReady(task.id);
@@ -1222,11 +1371,33 @@ if (ownsInstance) app.whenReady().then(() => {
     return publish();
   });
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
-    store.setTaskStatus(taskId, status);
+    const before = store.snapshot().tasks.find((item) => item.id === taskId);
+    if (!before) throw new Error(`Unknown task: ${taskId}`);
+    if (status === "running") {
+      if (["queued", "paused"].includes(before.status)) store.ensureUnstartedRuns(taskId);
+      commander.startTask(taskId);
+    }
+    else if (status === "paused") commander.pauseTask(taskId);
+    else if (status === "cancelled") commander.cancelTask(taskId);
+    else store.setTaskStatus(taskId, status);
     if (status === "cancelled") automation?.cancelRuns(taskId);
-    if (status === "running" && recoveryScheduler.resumeTask(taskId)) {
-      const deadline = Math.min(...recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt));
-      store.setRecoveryState(taskId, deadline, "用户已继续任务；按记录的时间恢复原会话");
+    const resumedRecovery = status === "running" ? recoveryScheduler.resumeTask(taskId) : 0;
+    if (resumedRecovery) {
+      const deadlines = recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt);
+      store.setRecoveryState(taskId, deadlines.length ? Math.min(...deadlines) : undefined, "任务已恢复；按记录的时间恢复原会话");
+    } else if (status === "running" && ["queued", "paused"].includes(before.status)) {
+      // Starting a READY/reference WorkBook or resuming a paused task must
+      // enter the real execution path; changing only the visible label would
+      // be a false state transition.
+      const workspace = before.workspacePath && fs.existsSync(before.workspacePath) ? fs.realpathSync(before.workspacePath) : app.getAppPath();
+      try {
+        if (!await commander.executeDeterministic(taskId, workspace) && !await commander.executePlan(taskId, workspace)) await automation.dispatchTask(taskId);
+        await automation.continueIfReady(taskId);
+      } catch (error) {
+        store.setRecoveryState(taskId, undefined, String(error));
+        publish();
+        throw error;
+      }
     }
     if (status === "running" && store.snapshot().tasks.find((item) => item.id === taskId)?.finalizationBlocker) await commander.finalizeTask(taskId, publish);
     return publish();

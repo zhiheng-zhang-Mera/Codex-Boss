@@ -74,6 +74,12 @@ export interface BossTask {
   verificationEvidence?: import("./result-validator").GateResult[];
   /** Durable last verdict of the verification plan (PASS or REWORK + missing). */
   verificationVerdict?: import("./result-validator").VerifyVerdict;
+  /**
+   * WORK_UNIT_2: concise durable WorkBook execution record (hashes,
+   * classification, compiled contract, roles/conflicts, discovery, stage
+   * history). Absent for legacy text-only tasks.
+   */
+  workbookDispatch?: import("./workbook-dispatch").WorkBookDispatchRecord;
   providerIds: ProviderId[];
   status: TaskStatus;
   mode: TaskMode;
@@ -351,8 +357,14 @@ export interface CreateTaskInput {
   finalizationPolicy?: FinalizationPolicy;
   workspacePath?: string;
   reviewPolicy?: ReviewPolicy;
-  title: string;
-  prompt: string;
+  /**
+   * Optional at the bridge boundary: when absent the title is resolved
+   * deterministically from the WorkBook title, then the file name, then the
+   * message. Owned by the caller's fallback rule, never left blank.
+   */
+  title?: string;
+  /** Optional: an attachment or a repository may carry the whole request. */
+  prompt?: string;
   /** Input objects bound to this task; ids must already exist on the conversation. */
   inputObjectIds?: string[];
   /** Optional explicit work pool size 1|3|5 (defaults: 1 for 1 worker, else 3 for ≤3, 5 for >3). */

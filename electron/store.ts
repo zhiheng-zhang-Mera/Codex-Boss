@@ -834,7 +834,95 @@ export class StateStore {
     this.persist();
   }
 
-  setTaskStatus(taskId: string, status: TaskStatus): void {
+  /**
+   * WORK_UNIT_2: appends one stage to the durable WorkBook record, exactly once
+   * per transition. History is never rewritten or duplicated; `stage` becomes
+   * the current stage. A refusal reason can be recorded with the blocked stage.
+   */
+  setTaskStageRecord(taskId: string, stage: import("../src/shared/workbook-dispatch").WorkBookStage, detail = ""): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    this.appendWorkbookStage(task, stage, detail);
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /** Appends a stage exactly once (no duplicate entries, no history rewrite). */
+  private appendWorkbookStage(task: BossTask, stage: import("../src/shared/workbook-dispatch").WorkBookStage, detail = ""): void {
+    const record = task.workbookDispatch;
+    if (!record) return; // legacy text-only task: nothing to mirror
+    const last = record.stageHistory[record.stageHistory.length - 1];
+    if (last?.stage === stage) return;
+    record.stageHistory.push({ stage, at: new Date().toISOString(), detail });
+    record.stage = stage;
+  }
+
+  /**
+   * WORK_UNIT_2: durable WorkBook execution record on the task. Written at every
+   * stage transition so a restart can report exactly how far intake got.
+   */
+  setWorkbookDispatch(taskId: string, record: import("../src/shared/workbook-dispatch").WorkBookDispatchRecord): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    task.workbookDispatch = record;
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
+  /**
+   * WORK_UNIT_2 (REPAIR_BATCH_3): completes an analysis-only WorkBook task.
+   *
+   * Analysis-only work has no provider run, so the normal evidence gate cannot
+   * apply — but it also must not be weakened. This narrow path succeeds only
+   * when the durable record says the request was analysis-only AND carries a
+   * compiled contract; anything else falls through to the normal, evidence-
+   * gated completion (which will reject it).
+   */
+  completeWorkbookAnalysis(taskId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    const record = task.workbookDispatch;
+    if (!record) throw new Error("Completion requires persisted passing evidence");
+    if (record.analysis_only !== true || !record.contract) {
+      throw new Error("Completion requires persisted passing evidence");
+    }
+    this.discardUnstartedRuns(taskId, false);
+    task.status = "completed";
+    task.executionPhase = "COMPLETED";
+    task.nextAction = "REPORT_EVIDENCE";
+    this.appendWorkbookStage(task, "COMPLETED", "analysis-only: compiled contract is the deliverable");
+    task.updatedAt = new Date().toISOString();
+    this.event("task.status", `任务“${task.title}”状态变更为 completed`, { taskId });
+    this.persist();
+  }
+
+  /**
+   * Removes provider-run placeholders only while they are still genuinely
+   * unstarted. Local-only WorkBook terminal paths use this so durable truth is
+   * NOT_RUN instead of a misleading queued provider execution.
+   */
+  discardUnstartedRuns(taskId: string, persist = true): void {
+    const taskRuns = this.runsForTask(taskId);
+    if (taskRuns.some((run) => run.phase !== "queued")) {
+      throw new Error("Cannot discard a provider run after execution has started");
+    }
+    this.snapshotValue.runs = this.snapshotValue.runs.filter((run) => run.taskId !== taskId);
+    if (persist) this.persist();
+  }
+
+  /** Recreates the initial provider placeholders when a parked task is started. */
+  ensureUnstartedRuns(taskId: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    if (this.runsForTask(taskId).length) return;
+    if (!['queued', 'paused'].includes(task.status)) throw new Error("Only a parked task can prepare provider runs");
+    this.snapshotValue.runs.push(...task.providerIds.map((providerId) =>
+      this.newRun(task.id, providerId, 1, task.prompt, task.transportByProvider[providerId] ?? "web")
+    ));
+    this.persist();
+  }
+
+  setTaskStatus(taskId: string, status: TaskStatus, stageReason?: string): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);
     if (status === "completed") {
@@ -844,6 +932,12 @@ export class StateStore {
       task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE";
     } else if (status === "failed") { task.executionPhase = "FAILED"; task.nextAction = "STOP"; }
     task.status = status;
+    // WORK_UNIT_2: terminal/running task statuses mirror onto the workbook
+    // record's stage ladder without erasing or reordering its history.
+    if (status === "running") this.appendWorkbookStage(task, "RUNNING");
+    else if (status === "completed") this.appendWorkbookStage(task, "COMPLETED");
+    else if (status === "failed") this.appendWorkbookStage(task, "FAILED", stageReason ?? "");
+    else if (status === "waiting") this.appendWorkbookStage(task, "WAITING");
     task.updatedAt = new Date().toISOString();
     this.event(status === "running" ? "task.started" : "task.status", `任务“${task.title}”状态变更为 ${status}`, { taskId });
     this.persist();

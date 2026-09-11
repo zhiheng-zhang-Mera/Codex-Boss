@@ -91,6 +91,7 @@ button { color: inherit; }
 .prompt-composer textarea::placeholder { color: #676d70; }
 .composer-footer { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 8px 14px; }
 .composer-footer span { color: #666c6f; font-size: 8px; }.composer-footer button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 9px; background: #d9f99d; color: #19210f; font-weight: 800; cursor: pointer; }.composer-footer button:disabled { opacity: .3; cursor: default; }
+.composer-block-reason { margin: 2px 14px 0; color: #d7aa78; font-size: 9px; }
 .inline-error { max-width: 700px; margin: 7px auto 0; color: #f29991; font-size: 9px; }
 .remote-inbox { max-width: 700px; margin: 0 auto 8px; padding: 8px; border: 1px solid #5a5334; border-radius: 10px; background: #211f16; }.remote-inbox > header { display: flex; justify-content: space-between; color: #e6d99b; font-size: 9px; }.remote-inbox article { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #403b27; }.remote-inbox article div { min-width: 0; }.remote-inbox strong, .remote-inbox small { margin-right: 7px; font-size: 8px; }.remote-inbox small { color: #827d65; }.remote-inbox p { overflow: hidden; margin: 3px 0 0; color: #c9c4ad; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }.remote-inbox button { border: 1px solid #4e4a35; border-radius: 6px; padding: 4px 7px; background: #2c291c; color: #ded39d; font-size: 8px; cursor: pointer; }.remote-inbox button:disabled { opacity: .35; cursor: not-allowed; }
 
@@ -169,6 +170,19 @@ button { color: inherit; }
 .task-provider-label { display: block; margin-top: 4px; color: #8d9395; font-size: 11px; }
 .task-technical-summary { margin-top: 6px; font-size: 11px; color: #8d9395; }
 .task-technical-summary summary { cursor: pointer; }
+.workbook-status { margin: 8px 0; padding: 10px; border: 1px solid #39463d; border-radius: 10px; background: #151b18; }
+.workbook-status > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.workbook-status > header div { display: flex; align-items: baseline; gap: 8px; }
+.workbook-status > header b { color: #d9f99d; font-size: 10px; }
+.workbook-status > header span, .workbook-status > header strong { color: #8fa397; font-size: 9px; }
+.workbook-status.workbook-blocked, .workbook-status.workbook-failed { border-color: #70433e; background: #211716; }
+.workbook-blocked { padding: 6px 8px; border-left: 2px solid #d87c68; color: #f0a897 !important; background: #2a1918; }
+.workbook-stage-list { display: grid; gap: 3px; max-height: 150px; margin: 8px 0; padding: 0; overflow: auto; list-style: none; }
+.workbook-stage-list li { display: grid; grid-template-columns: 92px 1fr auto; gap: 8px; align-items: baseline; padding: 4px 6px; border-radius: 5px; background: #1b221e; font-size: 9px; }
+.workbook-stage-list li b { color: #b8caa6; }.workbook-stage-list li span { color: #8d9991; }.workbook-stage-list li time { color: #626d66; }
+.workbook-conflicts summary, .workbook-contract summary { cursor: pointer; color: #c4cfbd; font-size: 10px; }
+.workbook-contract dl { display: grid; grid-template-columns: 82px 1fr; gap: 5px 8px; margin: 8px 0 0; font-size: 9px; }
+.workbook-contract dt { color: #8fa397; }.workbook-contract dd { margin: 0; color: #c2c9c1; white-space: pre-wrap; }
 .task-state[data-task-state="COMPLETED"] { color: #a9d9b6; }
 .task-state[data-task-state="FAILED"], .task-state[data-task-state="WAITING_FOR_USER"] { color: #e6bc83; }
 .retry-finalization { padding: 7px 10px; background: #202925; color: #dce8df; border: 1px solid #536458; border-radius: 6px; cursor: pointer; }

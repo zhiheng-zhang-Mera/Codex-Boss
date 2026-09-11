@@ -23,20 +23,24 @@
     "install:electron": "node node_modules/electron/install.js"
   },
   "dependencies": {
-    "cross-env": "latest",
-    "electron": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "cross-env": "10.1.0",
+    "electron": "44.0.0",
+    "fflate": "0.8.3",
+    "mammoth": "1.12.2",
+    "pdfjs-dist": "6.3.289",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
-    "concurrently": "latest",
-    "typescript": "latest",
-    "vite": "latest",
-    "vitest": "latest",
-    "wait-on": "latest"
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "concurrently": "10.0.5",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11",
+    "wait-on": "9.1.0"
   }
 }
