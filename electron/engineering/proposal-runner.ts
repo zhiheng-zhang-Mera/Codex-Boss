@@ -2,9 +2,10 @@ import fs from "node:fs";
 import { workspacePath, executeNative } from "./native-tools";
 import { parseManifest, applyManifest } from "./change-manifest";
 import { digest, verifyAndRepair, type CheckSpec, type ChangeEvidence, type CheckEvidence } from "./verification";
+import type { RunAllowedCommandOptions } from "./command-runner";
 export interface ProposalResult { verificationHistory?: CheckEvidence[]; status: "PASS" | "FAIL"; changes: ChangeEvidence[]; checks: CheckEvidence[]; repairs: number; diff: string; }
 export class ProposalRunner {
-  constructor(private readonly worker: (prompt: string) => Promise<string>) {}
+  constructor(private readonly worker: (prompt: string) => Promise<string>, private readonly checkOptions: RunAllowedCommandOptions = {}) {}
   async run(root: string, objective: string, authorizedPaths: string[], requiredChecks: CheckSpec[]): Promise<ProposalResult> {
     if (!authorizedPaths.length || !requiredChecks.length) throw new Error("Engineering requires explicit file and verification scope");
     const changes: ChangeEvidence[] = []; const verificationHistory: CheckEvidence[] = []; let repairs = 0;
@@ -25,7 +26,7 @@ export class ProposalRunner {
     };
     await propose();
     // Worker checks are advisory. Required checks are selected by the host before proposal.
-    const checks = await verifyAndRepair(root, requiredChecks, async (failures, attempt) => { repairs = attempt; await propose(failures); }, 2, (evidence) => verificationHistory.push(...evidence));
+    const checks = await verifyAndRepair(root, requiredChecks, async (failures, attempt) => { repairs = attempt; await propose(failures); }, 2, (evidence) => verificationHistory.push(...evidence), this.checkOptions);
     const diff = (await executeNative(root, { kind: "git_diff" })).output;
     return { status: checks.every((item) => item.passed) ? "PASS" : "FAIL", changes, checks, repairs, diff, verificationHistory };
   }

@@ -1,0 +1,25 @@
+{
+  "phase": "S11",
+  "generatedAt": "2026-09-10T12:04:57.025Z",
+  "requirement": "a Root Surface change really requires Owner approval",
+  "verdict": "BLOCKED_EXTERNAL",
+  "reason": "Create a dedicated Boss GitHub App / bot identity (Contents: write for Candidate branches, Pull requests: write, Checks: read, Metadata: read), then export CODEX_BOSS_GITHUB_TOKEN and CODEX_BOSS_GITHUB_IDENTITY for the Stable host only. Never reuse the Owner token.",
+  "whatIsProvenLocally": [
+    "a Root Surface change reaches a PR and a CI PASS and then stops at WAITING_FOR_ROOT_OWNER",
+    "the promotion record carries rootOwnerApproval = null",
+    "no merge request is issued and Stable is byte-identical afterwards"
+  ],
+  "whatIsNotProven": "that github.com itself demands a Code Owner approval on the real repository, because no PR was opened",
+  "evidence": {
+    "target": "tests/unit/self-evolution-route.test.ts",
+    "passed": true,
+    "exitCode": 0,
+    "durationMs": 35316,
+    "testFilesPassed": 1,
+    "testFilesFailed": 0,
+    "testsPassed": 16,
+    "testsFailed": 0,
+    "failures": []
+  },
+  "pass": "BLOCKED_EXTERNAL"
+}

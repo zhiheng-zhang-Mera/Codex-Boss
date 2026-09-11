@@ -5,6 +5,29 @@ import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
 export type AllowedCommand = "test" | "typecheck" | "build" | "lint";
 export interface CommandEvidence { command: AllowedCommand; args: string[]; passed: boolean; exitCode: number | null; output: string; }
+export interface CommandSandboxRequest {
+  command: AllowedCommand;
+  /** Host-computed argv: tool entry point plus host-selected flags. */
+  args: readonly string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}
+export interface CommandSandboxOutcome {
+  passed: boolean;
+  exitCode: number | null;
+  output: string;
+}
+/**
+ * Host-enforced execution sandbox (plan §9, §10).
+ *
+ * When present, the child process is created by the sandbox instead of by this
+ * module. The allow-list, the file budget and the argv are still computed here —
+ * the sandbox only decides *how* the process is confined — so attaching one can
+ * never widen what may run.
+ */
+export interface CommandSandbox {
+  run(request: CommandSandboxRequest): Promise<CommandSandboxOutcome>;
+}
 export interface RunAllowedCommandOptions {
   /**
    * Explicit child environment. Defaults to the developer's own `process.env`,
@@ -14,6 +37,12 @@ export interface RunAllowedCommandOptions {
    * Candidate worker may not inherit the Owner's ambient credentials.
    */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Hard execution sandbox for Candidate subprocesses. Supplying this is the
+   * production route for autonomous evolution; omitting it keeps the
+   * interactive/engineering behaviour byte-identical.
+   */
+  sandbox?: CommandSandbox;
 }
 // Direct executable arguments only. No model-supplied shell, flags, or package scripts.
 export async function runAllowedCommand(root: string, command: AllowedCommand, files: string[] = [], options: RunAllowedCommandOptions = {}): Promise<CommandEvidence> {
@@ -64,5 +93,11 @@ export async function runAllowedCommand(root: string, command: AllowedCommand, f
   // Default env is the developer's own environment (interactive path, unchanged).
   // An autonomous Candidate passes a sanitized env instead (plan §9.2).
   const baseEnvironment = options.env ?? process.env;
-  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: { ...baseEnvironment, ELECTRON_RUN_AS_NODE: "1", TEMP: temp, TMP: temp, TMPDIR: temp } }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
+  const environment = { ...baseEnvironment, ELECTRON_RUN_AS_NODE: "1", TEMP: temp, TMP: temp, TMPDIR: temp };
+  if (options.sandbox) {
+    // The sandbox owns the process boundary; it reports the same evidence shape.
+    const outcome = await options.sandbox.run({ command, args, cwd, env: environment });
+    return { command, args, passed: outcome.passed, exitCode: outcome.exitCode, output: outcome.output };
+  }
+  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: environment }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
 }

@@ -209,3 +209,6 @@ this branch live under `Update-Plan/overcomplete/` (plan documents themselves st
 - [Structure / 仓库结构](STRUCTURE.md)
 - [Contributing / 贡献指南](CONTRIBUTING.md)
 - [Security policy / 安全策略](SECURITY.md)
+# GitHub machine identity
+
+Codex-Boss supports a node-agnostic GitHub App identity with secure node-local key storage, installation-token refresh, Guardian/repository double boundaries, capability-based delegation and a mock end-to-end acceptance. See [docs/github-machine-identity.md](docs/github-machine-identity.md). Real credentials must be registered locally with the documented bootstrap and must never be pasted into an AI conversation.

@@ -36,6 +36,12 @@ export interface LiveEngineeringOperationsOptions {
   worker: EngineeringRoleWorker;
   /** Max candidate files a single finding may touch (default 40). */
   maxScopeFiles?: number;
+  /**
+   * Sanitized child environment and hard execution sandbox for every child this
+   * factory spawns. Absent keeps the interactive path byte-identical; the
+   * self-evolution coordinator always supplies both (plan §9, §9.2).
+   */
+  checkOptions?: import("./command-runner").RunAllowedCommandOptions;
 }
 
 export interface ImplementOutcome {
@@ -105,7 +111,7 @@ export function createLiveEngineeringOperations(options: LiveEngineeringOperatio
     const checks = engineeringChecksFor(root, candidates);
     const outcome: ImplementOutcome = { changedFiles: [], verification: { checksTotal: checks.length, checksPassed: 0, repairs: 0, diff: "" } };
     try {
-      const proposal = await new ProposalRunner((prompt) => options.worker.ask("coder", prompt)).run(
+      const proposal = await new ProposalRunner((prompt) => options.worker.ask("coder", prompt), options.checkOptions ?? {}).run(
         root,
         `${options.goal.objective}\n\nFINDING ${finding.id} [${finding.area}] ${finding.description}\n${finding.evidence ? "EVIDENCE:\n" + finding.evidence.slice(0, 4000) : ""}`,
         candidates,

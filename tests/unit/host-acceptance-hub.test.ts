@@ -369,8 +369,12 @@ describe("acceptance process seam (P1)", () => {
   it("resolves the npx shim to its Node entry point so no shell is needed on Windows", () => {
     const resolved = resolveCommand("npx", ["tsc", "--noEmit"], "win32");
     expect(resolved.command).toBe(process.execPath);
-    expect(resolved.args[0]).toMatch(/npx-cli\.js$/);
-    expect(resolved.args.slice(1)).toEqual(["tsc", "--noEmit"]);
+    if (/npx-cli\.js$/.test(resolved.args[0])) {
+      expect(resolved.args.slice(1)).toEqual(["tsc", "--noEmit"]);
+    } else {
+      expect(resolved.args[0]).toMatch(/pnpm\.(?:mjs|cjs)$/);
+      expect(resolved.args.slice(1)).toEqual(["exec", "tsc", "--noEmit"]);
+    }
   });
 
   it("keeps plain commands shell-free on every platform", () => {

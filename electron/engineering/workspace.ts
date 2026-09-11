@@ -4,8 +4,12 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { validId } from "../commander/durable-json";
 import { workspaceStrategy } from "./verification";
+import { assertMutationAllowed } from "../self-evolution/mutation-guard";
 function git(root: string, args: string[]): Promise<string> { return new Promise((resolve, reject) => execFile("git", args, { cwd: root, windowsHide: true, timeout: 30000 }, (error, stdout, stderr) => error ? reject(new Error(String(stderr) || error.message)) : resolve(stdout.trim()))); }
 export async function prepareWorkspace(root: string, taskId: string, risk: "low" | "medium" | "high", parallel: boolean): Promise<{ path: string; strategy: "current" | "branch" | "worktree"; branch?: string; base?: string }> {
+  // §7.3: creating an isolation branch or worktree inside the Boss repository is
+  // itself a mutation of Stable and must be covered by an evolution run.
+  assertMutationAllowed(root);
   const directory = fs.realpathSync(root); const strategy = workspaceStrategy(risk, parallel);
   if (strategy === "current") return { path: directory, strategy };
   const branch = `codex/${validId(taskId)}`;
@@ -20,6 +24,7 @@ export async function prepareWorkspace(root: string, taskId: string, risk: "low"
 }
 
 export async function prepareStepWorkspace(root: string, stepId: string, files: string[]): Promise<string> {
+  assertMutationAllowed(root);
   const target = path.join(fs.realpathSync(root), ".boss", "worktrees", validId(stepId));
   if (fs.existsSync(target)) throw new Error("Step isolation already exists; reconcile it before retry");
   fs.mkdirSync(path.dirname(target), { recursive: true });

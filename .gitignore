@@ -7,6 +7,8 @@ coverage/
 .codex-boss/*
 !.codex-boss/config/
 !.codex-boss/config/*.json
+.codex-boss/config/github-machine-identity.json
+!.codex-boss/config/github-machine-identity.example.json
 # Root Authority policy surface (Isolation-Finalization.md §7.1). Policy only:
 # this directory must never contain a token, private key or Owner session.
 !.codex-boss/root/
@@ -21,6 +23,16 @@ Thumbs.db
 artifacts/
 runtime-data/
 secrets/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+credential-cache/
+.credentials/
 
 .boss/worktrees/
 .boss/tmp/
@@ -39,6 +51,10 @@ secrets/
 # (Isolation-Finalization.md §22). The blanket `*.log` rule above would hide them.
 !/Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/
 !/Update-Plan/Autonomous-Evolution-Phase0/evidence/gate-logs/*.log
+# Phase 0.5 (Alien-Prestart.md §22) — the requirements set, the architecture, the
+# sandbox threat model, the side-effect audit and the machine-derived evidence
+# under evidence/ are the deliverable for this phase.
+!/Update-Plan/Autonomous-Evolution-Phase05/
 /research-output/
 .live-acceptance/
 

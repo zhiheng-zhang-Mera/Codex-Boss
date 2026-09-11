@@ -7,6 +7,8 @@
  * a failed allocation reports which node(s) were blocked and by which policy.
  */
 
+import type { GitHubCapability } from "../github-machine";
+
 export type AllocationPolicy =
   | "local-preferred"
   | "provider-preferred"
@@ -16,7 +18,8 @@ export type AllocationPolicy =
   | "browser-required"
   | "direct-network-required"
   | "proxy-required"
-  | "offline-capable";
+  | "offline-capable"
+  | "capability-required";
 
 export const ALLOCATION_POLICIES: readonly AllocationPolicy[] = [
   "local-preferred",
@@ -27,7 +30,8 @@ export const ALLOCATION_POLICIES: readonly AllocationPolicy[] = [
   "browser-required",
   "direct-network-required",
   "proxy-required",
-  "offline-capable"
+  "offline-capable",
+  "capability-required"
 ];
 
 /** Requirements a task places on candidate nodes (platform-neutral). */
@@ -40,6 +44,8 @@ export interface TaskRequirements {
   preferredNode?: string; // local-preferred target
   dataLocality?: { artifactRef?: string; knowledgeIds?: string[] };
   risk: "low" | "medium" | "high";
+  /** Capability routing remains independent of physical host and performance mode. */
+  requiredCapabilities?: GitHubCapability[];
 }
 
 /** The subset of a node's advertisement the scheduler may read. */
@@ -58,6 +64,7 @@ export interface SchedulerNodeView {
   offlineCapable: boolean;
   /** Optional live load observation (0..100), used by low-latency ordering. */
   loadPercent?: number;
+  capabilities?: Partial<Record<GitHubCapability, boolean>>;
 }
 
 export interface AllocationResult {
@@ -96,6 +103,10 @@ export function policySatisfied(policy: AllocationPolicy, task: TaskRequirements
       return { ok: node.networkEffective !== "DIRECT" && node.networkEffective !== "OFFLINE", reason: `network is ${node.networkEffective}` };
     case "offline-capable":
       return { ok: node.offlineCapable, reason: "node not offline-capable" };
+    case "capability-required": {
+      const missing = (task.requiredCapabilities ?? []).filter((capability) => node.capabilities?.[capability] !== true);
+      return { ok: missing.length === 0, reason: missing.length ? `missing capabilities: ${missing.join(", ")}` : undefined };
+    }
   }
 }
 
@@ -110,6 +121,11 @@ export function allocateTask(task: TaskRequirements, nodes: SchedulerNodeView[])
   for (const node of nodes) {
     if (!nodeCanHost(node)) {
       blocked.push({ nodeId: node.nodeId, policy: task.policies[0], reason: node.busy ? "node busy" : `node state ${node.state}` });
+      continue;
+    }
+    const missingCapabilities = (task.requiredCapabilities ?? []).filter((capability) => node.capabilities?.[capability] !== true);
+    if (missingCapabilities.length) {
+      blocked.push({ nodeId: node.nodeId, policy: "capability-required", reason: `missing capabilities: ${missingCapabilities.join(", ")}` });
       continue;
     }
     const applied: AllocationPolicy[] = [];

@@ -62,7 +62,8 @@ export function advertisementToView(advertisement: NodeCapabilityAdvertisement, 
     browser: advertisement.capabilities.browser,
     networkEffective: advertisement.capabilities.networkRoutes.includes("direct") ? "DIRECT" : "OFFLINE",
     offlineCapable: advertisement.capabilities.offlineCapable,
-    loadPercent: advertisement.hardware.cpu.loadPercent
+    loadPercent: advertisement.hardware.cpu.loadPercent,
+    capabilities: advertisement.capabilities.github
   };
 }
 

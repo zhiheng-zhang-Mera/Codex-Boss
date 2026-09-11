@@ -1,0 +1,70 @@
+{
+  "phase": "final",
+  "generatedAt": "2026-09-10T12:07:04.512Z",
+  "baseSha": "6f9f2974923325fd523fe9b697c0189e07f15957",
+  "candidateSha": "4951a86f991007c2ec4349e84692356cac740a35",
+  "branch": "Prestart",
+  "gates": {
+    "typecheck": true,
+    "build": true,
+    "fullTest": true,
+    "benchmark": null,
+    "portableSmoke": null,
+    "restartAcceptance": null
+  },
+  "suites": {
+    "selfTarget": {
+      "target": "tests/unit/self-target-resolver.test.ts",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 12882,
+      "testFilesPassed": 1,
+      "testFilesFailed": 0,
+      "testsPassed": 11,
+      "testsFailed": 0,
+      "failures": []
+    },
+    "productionRoute": {
+      "target": "tests/unit/self-evolution-route.test.ts",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 35316,
+      "testFilesPassed": 1,
+      "testFilesFailed": 0,
+      "testsPassed": 16,
+      "testsFailed": 0,
+      "failures": []
+    },
+    "sandboxRedTeam": {
+      "target": "tests/unit/evolution-sandbox.test.ts",
+      "passed": true,
+      "exitCode": 0,
+      "durationMs": 47730,
+      "testFilesPassed": 1,
+      "testFilesFailed": 0,
+      "testsPassed": 14,
+      "testsFailed": 0,
+      "failures": []
+    }
+  },
+  "readiness": {
+    "READY_FOR_SELF_EVOLUTION_COMPONENTS": true,
+    "READY_FOR_CONTROLLED_REAL_SELF_EVOLUTION": true,
+    "READY_FOR_SOLO_REMOTE_PROMOTION": false,
+    "READY_FOR_REAL_AUTONOMOUS_EVOLUTION": false
+  },
+  "blockedExternal": {
+    "configured": false,
+    "tokenVariablePresent": false,
+    "identityVariablePresent": false,
+    "requiredExternalAction": "Create a dedicated Boss GitHub App / bot identity (Contents: write for Candidate branches, Pull requests: write, Checks: read, Metadata: read), then export CODEX_BOSS_GITHUB_TOKEN and CODEX_BOSS_GITHUB_IDENTITY for the Stable host only. Never reuse the Owner token."
+  },
+  "unexpectedFail": 0,
+  "regressions": 0,
+  "harnessInterventionsDuringSoloRuns": 0,
+  "notes": [
+    "READY_FOR_SOLO_REMOTE_PROMOTION is false because no dedicated Boss GitHub identity is configured on this host.",
+    "The Solo Flight runs were driven through the real coordinator with deterministic editor/reviewer seams and a recorded GitHub transport, because a live Boss worker and a Boss identity are not available here.",
+    "benchmark / portableSmoke / restartAcceptance are recorded as null: they were not run in this round and are therefore not claimed."
+  ]
+}

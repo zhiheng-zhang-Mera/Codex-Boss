@@ -56,6 +56,29 @@ import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
 
+/**
+ * §6 — the narrow handoff surface `MainCommander` is allowed to use. The
+ * commander decides *nothing* about evolution: it asks whether the target is
+ * Boss itself and, if so, hands the task over.
+ */
+export interface SelfEvolutionHost {
+  /** True when `workspace` is the Boss repository the running app came from. */
+  isSelfTarget(workspace: string): boolean;
+  runTask(input: {
+    taskId: string;
+    objective: string;
+    workspace: string;
+    plan: import("../../src/shared/task-ir").TaskIR;
+  }): Promise<{
+    outcome: string;
+    runId: string;
+    changedFiles: string[];
+    protectedPaths: string[];
+    detail: string;
+    blockedExternal?: string;
+  }>;
+}
+
 export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; /** Rev.2 §20–§22: when set, MODEL_DONE may not complete the task until its risk-gated verification plan passes. */ verification?: VerificationContract; /** R-204: explicit conversation policy; absent → deterministic default. */ conversationPolicy?: ConversationPolicy; }
 
 export class MainCommander {
@@ -80,7 +103,14 @@ export class MainCommander {
     readonly breaker?: CircuitBreaker,
     readonly events?: import("./event-bus").DomainEventBus,
     readonly workspaces?: import("../workspace/workspace-registry").WorkspaceRegistry,
-    readonly leases?: import("../computer/software-lease").SoftwareLeaseRegistry
+    readonly leases?: import("../computer/software-lease").SoftwareLeaseRegistry,
+    /**
+     * §7.2 — the Self-Evolution handoff. When installed, a task whose target
+     * repository is the Boss installation and whose plan mutates files is given
+     * to SelfEvolutionCoordinator instead of the ordinary engineering path.
+     * Absent keeps every other behaviour byte-identical.
+     */
+    readonly selfEvolution?: SelfEvolutionHost
   ) { if (ledger) { this.supervisor = new ExecutionSupervisor(ledger, scheduler, resources, recovery, budgets, breaker, events); this.degradation = new DegradedController(ledger, budgets); this.memory = new ScopedMemory(path.join(ledger.root, "..", "memory")); }
     recovery?.register("runtime", async (record) => {
       const payload = record.payload as { request: RuntimeRequest; runtimeIds: string[] };
@@ -196,6 +226,27 @@ export class MainCommander {
     // (replans may change L2↔L3); idempotent when unchanged.
     if (this.ledger) applyTaskPolicy(this.ledger, taskId, plan.estimatedComplexity);
     if (plan.steps.some((step) => step.kind === "edit")) {
+      // §7.2 — mandatory self-evolution route. When the target repository is the
+      // Boss installation, the ordinary engineering path is not allowed to
+      // create a branch/worktree in Stable: the task is handed to
+      // SelfEvolutionCoordinator, which builds a Candidate and runs the same
+      // engineering loop inside it. There is deliberately no fallback.
+      if (this.selfEvolution && this.selfEvolution.isSelfTarget(workspace)) {
+        const run = await this.selfEvolution.runTask({
+          taskId,
+          objective: task.prompt,
+          workspace,
+          plan
+        });
+        if (this.ledger) {
+          this.ledger.update(taskId, `self-evolution ${run.outcome}`, (record) => {
+            record.nextAction = `SELF_EVOLUTION_${run.outcome}`;
+            record.modifiedFiles = [...new Set([...record.modifiedFiles, ...run.changedFiles])];
+          });
+        }
+        this.store.setTaskStatus(taskId, run.outcome === "CANDIDATE_FAILED" || run.outcome === "REJECTED" ? "failed" : "waiting");
+        return true;
+      }
       const savedWorkspace = this.ledger.load(taskId)?.workspace;
       const isolated = savedWorkspace ?? await prepareWorkspace(workspace, taskId, plan.riskLevel, plan.estimatedComplexity === "L3");
       if (!savedWorkspace) this.ledger.update(taskId, "engineering workspace prepared", (record) => { record.workspace = isolated; });

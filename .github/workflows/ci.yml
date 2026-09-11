@@ -22,6 +22,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run install:electron
       - run: pnpm run typecheck
+      - run: pnpm run security:scan
       # The build must precede the test run. Several acceptance harnesses
       # (scripts/r901-soak.cjs, scripts/closure-soak-2h.cjs, the acceptance-*.cjs
       # family, scripts/benchmark.cjs) `require` the compiled modules under
@@ -32,6 +33,7 @@ jobs:
       # documented exit code, failing two tests on every run.
       - run: pnpm run build
       - run: pnpm test
+      - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
       - run: powershell -NoProfile -File scripts/smoke-portable.ps1

@@ -84,6 +84,9 @@ import { ApiSettingsStore } from "./api-settings";
 import { ProviderApiClient } from "./provider-api";
 import { HistoryRepository } from "./history-repository";
 import { RemoteCommandRelay } from "./remote-relay";
+import { createSelfEvolutionHost } from "./self-evolution/self-evolution-host";
+import { SHIPPED_ROOT_OWNER } from "./root-authority/root-policy-loader";
+import { createGitHubMachineRuntime } from "./github/github-machine-runtime";
 
 let mainWindow: BrowserWindow | null = null;
 let store: StateStore;
@@ -115,6 +118,7 @@ let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
 let capabilityRegistry: ProviderCapabilityRegistry | undefined;
 let githubResolver: GithubResolver | undefined;
+let githubMachine: ReturnType<typeof createGitHubMachineRuntime> | undefined;
 let externalSessions: ExternalSessionLedger | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
@@ -565,6 +569,21 @@ if (ownsInstance) app.whenReady().then(() => {
     },
     (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
   );
+  try {
+    githubMachine = createGitHubMachineRuntime({
+      userData: app.getPath("userData"),
+      crypto: {
+        protect: (plainText) => {
+          if (!safeStorage.isEncryptionAvailable()) throw new Error("platform secure storage unavailable");
+          return safeStorage.encryptString(plainText).toString("base64");
+        },
+        unprotect: (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
+      }
+    });
+  } catch {
+    // Invalid/missing node-local GitHub configuration degrades only GitHub.
+    githubMachine = { configured: false };
+  }
   providerApi = new ProviderApiClient(apiSettings);
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   sessionLifecycleLedger = new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json"));
@@ -620,11 +639,42 @@ if (ownsInstance) app.whenReady().then(() => {
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
   const circuitBreaker = new CircuitBreaker(path.join(app.getPath("userData"), ".boss", "circuit-breaker.json"));
+  // §7.2 — the mandatory Self-Evolution route. It is installed here, in the
+  // composition root, so a self-target edit task can never reach the ordinary
+  // engineering path: `MainCommander` hands such a task to the coordinator, and
+  // the mutation guard refuses any seam that bypasses it.
+  const selfEvolution = createSelfEvolutionHost({
+    appPath: app.getAppPath(),
+    userData: app.getPath("userData"),
+    rootOwner: SHIPPED_ROOT_OWNER,
+    worker: () => ({
+      ask: async (role, prompt) => {
+        // §19 — Self-Evolution is a strict subset of Work capability: it must
+        // not inherit arbitrary browser/desktop automation. The turn is pinned
+        // to the codex runtime, so a logged-in provider web view can never serve
+        // a Candidate's coder or reviewer turn; if codex is unavailable the
+        // worker throws and the Candidate fails closed.
+        const result = await commander.dispatchRole(
+          `self-evolution-${role}`,
+          role === "coder" ? "coder" : "reviewer",
+          prompt,
+          { preferredRuntimes: ["codex"] },
+          {},
+          ""
+        );
+        if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? `Self-evolution ${role} unavailable`);
+        return result.content;
+      }
+    })
+  });
   commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), domPageSurface: providerDomSurface(() => providerViews), readBrowser: async (id) => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
-  }, permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId()) }, circuitBreaker, domainEvents, workspaces, softwareLeases);
+  }, permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId()) }, circuitBreaker, domainEvents, workspaces, softwareLeases, {
+    isSelfTarget: (workspace) => selfEvolution.isSelfTarget(workspace),
+    runTask: async (input) => selfEvolution.runTask(input)
+  });
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   // Headless mode still creates the (hidden) main window: provider views are
   // attached to it and ProviderAutomation dispatches through those views.
@@ -680,14 +730,24 @@ if (ownsInstance) app.whenReady().then(() => {
     for (const record of sessionLifecycleLedger?.list() ?? []) lifecycles[record.providerId] = record.state;
     return loginScan(accounts, lifecycles);
   });
-  ipcMain.handle("boss:node-status", () => {
+  ipcMain.handle("boss:node-status", async () => {
     // R-302 device self-inspection: probe this device (observed facts only) and
     // refresh the local node capability registry.
     const loggedIn = store.snapshot().accounts.filter((account) => account.mode === "READY").map((account) => account.providerId);
     const probe = inspectDevice({ loggedInProviderIds: loggedIn });
     const result = nodeRegistry?.refresh("desktop", probe);
     const status = nodeRegistry?.status("desktop");
-    return { state: result?.state ?? "UNINITIALIZED", reason: result?.reason ?? "not inspected yet", verdicts: status?.verdicts ?? [], sampledAt: probe.sampledAt, loggedIn };
+    const github = githubMachine?.configured
+      ? await githubMachine.selfCheck().catch(() => ({
+          configured: true, credentialProviderAvailable: false, authenticationHealthy: false,
+          installationReachable: false,
+          capabilities: { git: false, "github.read": false, "github.write": false, "credential.github": false, filesystem: false, test: false, network: false },
+          error: "UNKNOWN_GITHUB_ERROR"
+        }))
+      : { configured: false, credentialProviderAvailable: false, authenticationHealthy: false, installationReachable: false,
+          capabilities: { git: false, "github.read": false, "github.write": false, "credential.github": false, filesystem: false, test: false, network: false },
+          error: "AUTH_MISSING" };
+    return { state: result?.state ?? "UNINITIALIZED", reason: result?.reason ?? "not inspected yet", verdicts: status?.verdicts ?? [], sampledAt: probe.sampledAt, loggedIn, github };
   });
   ipcMain.handle("boss:provider-intelligence", () => {
     // Engine §18: Owner-facing provider intelligence panel. Learning is a

@@ -1,0 +1,28 @@
+{
+  "phase": "S8",
+  "generatedAt": "2026-09-10T12:04:57.024Z",
+  "requirement": "the change set comes from a real git diff and any Root file yields WAITING_FOR_ROOT_OWNER",
+  "implementation": [
+    "electron/self-evolution/host-operations.ts parseNameStatus + HostOperationHandlers.nameStatus",
+    "electron/self-evolution/self-evolution-coordinator.ts -> ProtectedSurfaceGuard.assessChanges",
+    "electron/promotion-gate/promotion-controller.ts evaluate (protectedSurfaceTouched)"
+  ],
+  "observed": [
+    "an ordinary 12-file diff classifies ALLOW",
+    "a Root file diluted by more than 30 ordinary files still classifies REQUIRE_OWNER",
+    "a rename out of the Root Surface is classified on both sides",
+    "the coordinator reaches WAITING_FOR_ROOT_OWNER, records no Owner approval and issues no merge"
+  ],
+  "evidence": {
+    "target": "tests/unit/self-evolution-route.test.ts",
+    "passed": true,
+    "exitCode": 0,
+    "durationMs": 35316,
+    "testFilesPassed": 1,
+    "testFilesFailed": 0,
+    "testsPassed": 16,
+    "testsFailed": 0,
+    "failures": []
+  },
+  "pass": true
+}

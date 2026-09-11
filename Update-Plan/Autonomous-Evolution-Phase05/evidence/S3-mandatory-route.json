@@ -1,0 +1,29 @@
+{
+  "phase": "S3",
+  "generatedAt": "2026-09-10T12:04:57.021Z",
+  "requirement": "all self mutation routes enter the coordinator; a direct Stable mutation without an EvolutionRunContext is denied",
+  "suite": "tests/unit/self-evolution-route.test.ts",
+  "result": {
+    "target": "tests/unit/self-evolution-route.test.ts",
+    "passed": true,
+    "exitCode": 0,
+    "durationMs": 35316,
+    "testFilesPassed": 1,
+    "testFilesFailed": 0,
+    "testsPassed": 16,
+    "testsFailed": 0,
+    "failures": []
+  },
+  "productionSeam": {
+    "handoff": "electron/commander/main-commander.ts runPlan -> SelfEvolutionHost.runTask",
+    "guard": "electron/self-evolution/mutation-guard.ts assertMutationAllowed",
+    "guardedBoundaries": [
+      "electron/engineering/workspace.ts prepareWorkspace",
+      "electron/engineering/workspace.ts prepareStepWorkspace",
+      "electron/engineering/verification.ts applyScopedChanges"
+    ],
+    "compositionRoot": "electron/main.ts createSelfEvolutionHost -> MainCommander(selfEvolution)",
+    "installed": true
+  },
+  "pass": true
+}

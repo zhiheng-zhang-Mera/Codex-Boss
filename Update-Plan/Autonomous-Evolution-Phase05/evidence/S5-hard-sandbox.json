@@ -1,0 +1,37 @@
+{
+  "phase": "S5",
+  "generatedAt": "2026-09-10T12:04:57.023Z",
+  "requirement": "a real host mechanism enforces Candidate containment",
+  "mechanism": "windows-appcontainer",
+  "enforcement": "operating-system",
+  "implementation": [
+    "electron/self-evolution/sandbox/sandbox-backend.ts",
+    "electron/self-evolution/sandbox/sandbox-capability.ts",
+    "electron/self-evolution/sandbox/sandbox-drive.ts",
+    "electron/self-evolution/sandbox/windows-appcontainer-backend.ts",
+    "electron/self-evolution/sandbox/windows-appcontainer/launcher.cs"
+  ],
+  "primitives": [
+    "AppContainer lowbox token with zero capabilities (filesystem and network denied by the OS)",
+    "Job Object with JOB_OBJECT_LIMIT_ACTIVE_PROCESS and kill-on-close",
+    "CREATE_SUSPENDED then AssignProcessToJobObject then ResumeThread",
+    "explicit host-supplied environment block installed on the launcher and inherited"
+  ],
+  "suite": "tests/unit/evolution-sandbox.test.ts",
+  "observed": {
+    "capabilityProbe": "AppContainer SID derived, Job Object created, child created suspended",
+    "positiveControl": "candidate code really runs and can read/write its own workspace"
+  },
+  "evidence": {
+    "target": "tests/unit/evolution-sandbox.test.ts",
+    "passed": true,
+    "exitCode": 0,
+    "durationMs": 47730,
+    "testFilesPassed": 1,
+    "testFilesFailed": 0,
+    "testsPassed": 14,
+    "testsFailed": 0,
+    "failures": []
+  },
+  "pass": true
+}

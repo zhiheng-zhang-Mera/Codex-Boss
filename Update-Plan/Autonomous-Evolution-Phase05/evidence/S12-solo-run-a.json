@@ -1,0 +1,25 @@
+{
+  "phase": "S12/S13 Run A",
+  "generatedAt": "2026-09-10T12:04:57.026Z",
+  "requirement": "an ordinary low-risk self-improvement completes end to end without Harness intervention",
+  "harness": "tests/unit/self-evolution-route.test.ts (Solo Flight runs A/B/C) through the real SelfEvolutionCoordinator",
+  "observedChain": [
+    "Owner high-level goal",
+    "self target recognized",
+    "Candidate created from the frozen base SHA",
+    "Stable remains running and byte-identical",
+    "planner/coder/reviewer seams used as in production",
+    "real file modification inside the Candidate",
+    "sandboxed build/test",
+    "convergence (ENGINEERING_CONVERGED)",
+    "git diff name-status assessed",
+    "non-Root ALLOW",
+    "PR created through the Boss identity channel",
+    "validate read",
+    "exact SHA matched",
+    "merge executed",
+    "evidence persisted"
+  ],
+  "outcome": "PROMOTED",
+  "pass": true
+}
