@@ -49,6 +49,21 @@ export interface WorkbookLedgerFile {
   byHash: Record<string, string>;
 }
 
+/**
+ * The minimal document facts a revision needs. Accepting this instead of the
+ * full CanonicalTaskDocument is what lets recovery rebuild a revision from a
+ * durable BossTask WorkBook record (REPAIR_BATCH_4).
+ */
+export interface WorkbookRevisionInput {
+  id: string;
+  hash: string;
+  file_name: string;
+  title: string;
+  created_at: string;
+  status: CanonicalTaskDocument["status"];
+  logical_key: string;
+}
+
 export interface RelationDecision {
   document_id: string;
   file_name: string;
@@ -99,7 +114,7 @@ export class WorkbookRegistry {
   }
 
   /** Records an ingested document as a revision of its logical workbook. */
-  record(document: CanonicalTaskDocument, taskId?: string): WorkbookRevision {
+  record(document: WorkbookRevisionInput, taskId?: string): WorkbookRevision {
     const file = this.read();
     const entry = file.entries.find((candidate) => candidate.logical_key === document.logical_key);
     const existingByHash = file.byHash[document.hash];
@@ -146,7 +161,7 @@ export class WorkbookRegistry {
     return revision;
   }
 
-  recordAll(documents: CanonicalTaskDocument[], taskId?: string): WorkbookRevision[] {
+  recordAll(documents: WorkbookRevisionInput[], taskId?: string): WorkbookRevision[] {
     return documents.map((document) => this.record(document, taskId));
   }
 
@@ -173,6 +188,39 @@ export class WorkbookRegistry {
       }
     }
     return false;
+  }
+
+  /**
+   * WORK_UNIT_3: recovers revisions left unlinked by a crash.
+   *
+   * Intake records a revision before the task exists and the link happens after
+   * creation, so a crash in that window leaves `task_id` unset. Given the
+   * authoritative hash -> task map (built from durable task records), this
+   * re-links every orphaned revision. Idempotent: already-linked revisions are
+   * untouched, and an unknown hash stays unlinked rather than being guessed.
+   */
+  recoverTaskLinks(hashToTaskId: Record<string, string>): { recovered: number; stillUnlinked: number } {
+    const file = this.read();
+    let recovered = 0;
+    let stillUnlinked = 0;
+    let dirty = false;
+    for (const entry of file.entries) {
+      for (const revision of entry.revisions) {
+        if (revision.task_id) continue;
+        const taskId = hashToTaskId[revision.hash];
+        if (!taskId) { stillUnlinked += 1; continue; }
+        revision.task_id = taskId;
+        recovered += 1;
+        dirty = true;
+      }
+    }
+    if (dirty) writeJson(this.file, file);
+    return { recovered, stillUnlinked };
+  }
+
+  /** Every revision still missing a task association (diagnostics/recovery). */
+  unlinkedRevisions(): WorkbookRevision[] {
+    return this.read().entries.flatMap((entry) => entry.revisions).filter((revision) => !revision.task_id);
   }
 
   /**

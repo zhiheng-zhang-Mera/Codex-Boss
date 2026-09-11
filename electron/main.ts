@@ -42,8 +42,14 @@ import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
 import { assertDispatchGroupSize } from "./commander/provider-dispatch-guard";
+import {
+  reconcileWorkbookLinks,
+  resumeWorkBookTask,
+  resumeWorkspaceFor,
+  runWorkDispatch
+} from "./commander/workbook-production";
 import { WorkbookRegistry } from "./ingestion/workbook-registry";
-import { assertPrimaryInput, hydrateWorkBookAttachmentPaths, runWorkBookDispatch, shouldRunWorkBookIntake } from "./commander/workbook-dispatch";
+import { assertPrimaryInput, hydrateWorkBookAttachmentPaths, shouldRunWorkBookIntake } from "./commander/workbook-dispatch";
 import { ExperienceStore } from "./experience/experience-store";
 import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
@@ -276,19 +282,6 @@ function titleForTask(input: CreateTaskInput, attachments: InputObjectRef[]): st
   const named = attachments.find((ref) => ref.originalName?.trim());
   if (named?.originalName) return named.originalName.replace(/\.[A-Za-z0-9]{1,8}$/, "") || named.originalName;
   return (input.prompt ?? "").trim().split(/\r?\n/)[0].slice(0, 80) || "Untitled task";
-}
-
-/**
- * Existing WorkBook tasks keyed by their recorded content hash, so an exact
- * duplicate attachment resumes that task instead of creating a second one.
- */
-function workflowTasksByHash(): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const task of store.snapshot().tasks) {
-    const hash = task.workbookDispatch?.workbook_hash;
-    if (hash) map[hash] ??= task.id;
-  }
-  return map;
 }
 
 /**
@@ -611,6 +604,13 @@ function headlessPreflightStaleRuns(): void {
 if (ownsInstance) app.whenReady().then(() => {
   historyRepository = new HistoryRepository(path.join(overrideDataRoot ? dataRoot : app.getAppPath(), "history"));
   store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
+  // WORK_UNIT_3 crash recovery: a revision recorded just before a crash has no
+  // task association yet. Re-link every orphan against the durable task records
+  // at startup so the revision→task relation is eventually consistent.
+  try {
+    const recovery = reconcileWorkbookLinks(store, workbookRegistry());
+    if (recovery.recovered > 0) console.info(`Recovered ${recovery.recovered} WorkBook revision→task link(s) at startup`);
+  } catch (error) { console.error("WorkBook revision recovery failed", error); }
   // Attachment blobs live beside the durable ledger under <dataRoot>/.boss.
   attachmentStore = new AttachmentStore(path.join(app.getPath("userData"), ".boss", "attachments"));
   capabilityRegistry = new ProviderCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "provider-capabilities.json"));
@@ -1025,81 +1025,32 @@ if (ownsInstance) app.whenReady().then(() => {
     const attachments = workbookAttachments(input, conversationId, githubInput ? [githubInput.id] : []);
     const workspace = githubInput?.localPath ?? (input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath());
 
-    // WORK_UNIT_2: Work-mode intake runs BEFORE the task exists. It decides the
-    // title, the executable objective and whether a provider dispatch may
-    // happen; it never creates, starts or dispatches anything itself.
+    // WORK_UNIT_3 / REPAIR_BATCH_4: the WorkBook branch DELEGATES to the single
+    // production entry point. The old inline chain (intake -> createTask ->
+    // link revisions -> start/dispatch) lived here and is deleted; tests exercise
+    // the same runWorkDispatch the IPC handler calls.
     if (shouldRunWorkBookIntake(appMode, attachments)) {
-      const outcome = await runWorkBookDispatch({
+      const outcome = await runWorkDispatch({
         prompt: input.prompt ?? "",
         title: input.title ?? "",
         conversationId,
+        providerIds,
         attachments,
         inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined,
         workspacePath: workspace,
-        allowProviderDispatch: true,
-        existingWorkbookTasks: workflowTasksByHash()
-      }, { registry: workbookRegistry() });
-
-      // The compiled objective is now available: it is the authoritative intent
-      // for an attachment-only request, so the group check runs against it.
-      assertDispatchGroupSize(input.prompt ?? "", outcome.objective, providerIds.length);
-
-      // Exact duplicate: resume the existing task, create nothing.
-      if (outcome.reused && outcome.reuse_task_id) {
-        if (store.snapshot().tasks.some((item) => item.id === outcome.reuse_task_id)) return publish();
-      }
-
-      const task = commander.createTask({
-        title: outcome.title || titleForTask(input, attachments),
-        objective: outcome.objective || (input.prompt ?? "").trim(),
-        providerIds,
         mode: input.mode ?? "direct",
         appMode,
         transports,
-        conversationId,
+        registry: workbookRegistry(),
         reviewPolicy: input.reviewPolicy,
         finalizationPolicy: input.finalizationPolicy,
-        inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined,
         workAgentCount: input.workAgentCount,
         runMode: input.runMode,
         conversationPolicy: input.conversationPolicy
-      });
-      store.setWorkbookDispatch(task.id, outcome.record);
-      // Revisions were recorded before this task existed (so duplicate/resume
-      // could run first); link them to the task that owns them now.
-      const registry = workbookRegistry();
-      for (const document of outcome.record.documents) {
-        if (document.status === "FAILED") continue;
-        registry.linkRevisionTask(document.hash, task.id);
-      }
-
-      if (outcome.blocked) {
-        store.discardUnstartedRuns(task.id);
-        store.setTaskStatus(task.id, "failed", outcome.record.blocked_reason ?? "WorkBook intake refused");
-        return publish();
-      }
-      if (outcome.analysisOnly) {
-        // The compiled contract is the deliverable: never dispatch a provider,
-        // and complete through the narrow analysis-only path (no provider run
-        // exists, so the normal evidence gate cannot apply).
-        store.completeWorkbookAnalysis(task.id);
-        return publish();
-      }
-      if (!outcome.autoRun) {
-        // Reference/ambiguous WorkBook: keep the durable record, never dispatch.
-        store.discardUnstartedRuns(task.id);
-        return publish();
-      }
-
-      // Exactly one dispatch path: the existing commander -> deterministic/plan
-      // -> provider fallback. The intake module does not dispatch.
-      store.setTaskStageRecord(task.id, "RUNNING");
-      commander.startTask(task.id);
-      publish();
-      try {
-        if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id);
-      } catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
-      await automation.continueIfReady(task.id);
+      }, { store, commander, automation, publish });
+      // Every outcome maps to the snapshot the caller receives; the durable
+      // state was already written by the orchestration.
+      void outcome;
       return publish();
     }
 
@@ -1373,6 +1324,16 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
     const before = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!before) throw new Error(`Unknown task: ${taskId}`);
+    // REPAIR_BATCH_5: resuming a WAITING WorkBook task must re-enter the real
+    // provider-driving chain, not merely relabel the task. It reuses the same
+    // task id, appends RUNNING after WAITING once, and never re-ingests or
+    // re-registers the WorkBook (no second task is created).
+    if (status === "running" && before.status === "waiting" && before.workbookDispatch?.auto_run === true) {
+      const resume = await resumeWorkBookTask(before, {
+        workspacePath: resumeWorkspaceFor(before, app.getAppPath())
+      }, { store, commander, automation });
+      if (resume) return publish();
+    }
     if (status === "running") {
       if (["queued", "paused"].includes(before.status)) store.ensureUnstartedRuns(taskId);
       commander.startTask(taskId);

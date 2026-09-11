@@ -161,29 +161,33 @@ describe("REPAIR_BATCH_3", () => {
     expect(reloaded.runsForTask(task.id)[0].phase).toBe("queued");
   });
 
-  it("links pre-creation registry revisions to the real task id, idempotently", async () => {
+  it("links registry revisions to the real task id, idempotently", async () => {
     const registry = new WorkbookRegistry(path.join(root, "registry-link.json"));
     const ref = attachmentOnDisk("spec.md", EXECUTABLE);
 
-    // Intake records revisions before the task exists, so task_id is unset.
+    // REPAIR_BATCH_4: intake plans the revision but writes nothing; the caller
+    // commits it with the task id once the task durably exists.
     const outcome = await runWorkBookDispatch(
       { prompt: "", conversationId, attachments: [ref], workspacePath: root },
       { registry }
     );
-    const before = registry.list().flatMap((entry) => entry.revisions);
-    expect(before).toHaveLength(1);
-    expect(before[0].task_id).toBeUndefined();
-    const hash = before[0].hash;
+    expect(registry.list()).toEqual([]);
+    expect(outcome.revisionPlan).toHaveLength(1);
+    const revision = outcome.revisionPlan[0];
+    const hash = revision.hash;
 
-    // Linking binds the recorded revision to the created task.
-    expect(registry.linkRevisionTask(hash, "task-linked")).toBe(true);
+    // The commit is what creates the relation, already bound to the task.
+    registry.record(revision, "task-linked");
     expect(registry.list().flatMap((entry) => entry.revisions)[0].task_id).toBe("task-linked");
 
-    // Idempotent: repeating the link neither duplicates nor rewrites.
-    expect(registry.linkRevisionTask(hash, "task-linked")).toBe(true);
+    // Idempotent: repeating the commit neither duplicates nor rewrites.
+    registry.record(revision, "task-linked");
     const after = registry.list().flatMap((entry) => entry.revisions);
     expect(after).toHaveLength(1);
     expect(after[0].task_id).toBe("task-linked");
+
+    // Linking an already-recorded revision stays idempotent too.
+    expect(registry.linkRevisionTask(hash, "task-linked")).toBe(true);
 
     // Durable across a reload, and a never-ingested hash is not invented.
     const reopened = new WorkbookRegistry(path.join(root, "registry-link.json"));

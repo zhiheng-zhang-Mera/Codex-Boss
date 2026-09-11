@@ -1,6 +1,6 @@
 import { taskPresentation } from "../shared/task-presentation";
 import { timelineForTask } from "../shared/task-timeline";
-import { currentFinalResponse } from "../shared/final-response";
+import { currentFinalResponse, isAnalysisOnlyCompletion } from "../shared/final-response";
 import type { ProjectStateSummary } from "../shared/project-tree";
 import { HistoryNameDialog, type HistoryDialogState } from "./components/HistoryNameDialog";
 import { ConversationContextMenu, type ConversationMenuState } from "./components/ConversationContextMenu";
@@ -643,6 +643,9 @@ function App() {
               </section>}
               {task.finalizationBlocker && !finalResponse && <p><button className="retry-finalization" onClick={() => void window.boss.updateTask(task.id, "running").then(setSnapshot).catch((reason) => setError(String(reason)))}>重试整理答复</button></p>}
               {finalResponse && <section className="final-response" aria-label="最终回答"><pre>{finalResponse.content}</pre></section>}
+              {/* WORK_UNIT_3: analysis-only work completes with no provider run and
+                  no provider answer; the compiled Task Contract is the deliverable. */}
+              {!finalResponse && isAnalysisOnlyCompletion(task) && <section className="final-response analysis-only-deliverable" aria-label="分析交付物"><p>只分析任务已完成：交付物是上方已编译的 Task Contract，未调用任何 AI，也没有 provider 证据。</p></section>}
               <details className="execution-details"><summary>执行与证据详情</summary>
               <div className="run-statuses">{runs.map((run) => <span className={`run-${run.phase}`} key={run.id}>{snapshot.providers.find((item) => item.id === run.providerId)?.name ?? run.providerId} [{run.transport}]: {run.phase}{run.outcome ? ` · ${run.outcome}` : ""}</span>)}</div>
               {timeline.length > 0 && <details className="task-timeline"><summary>任务时间线 · {timeline.length}</summary><ol>{timeline.map((entry, index) => <li key={`${entry.timestamp}-${entry.event}-${index}`}><time>{shortTime(entry.timestamp)}</time><span>{entry.message}</span>{entry.runtimeId && <code>{entry.runtimeId}</code>}{entry.evidenceRef && <code title={entry.evidenceRef}>证据 {entry.evidenceRef.slice(0, 8)}</code>}</li>)}</ol></details>}

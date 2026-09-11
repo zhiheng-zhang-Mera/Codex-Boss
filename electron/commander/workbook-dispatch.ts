@@ -29,7 +29,7 @@ import {
 } from "../../src/shared/workbook-dispatch";
 import { scanRepo, type RepoSnapshot } from "../engineering/repo-inspector";
 import { assignRoles } from "../ingestion/role-assignment";
-import { WorkbookRegistry } from "../ingestion/workbook-registry";
+import { WorkbookRegistry, type WorkbookRevisionInput } from "../ingestion/workbook-registry";
 import { ingestDocuments, type DocumentSource, type IngestionLimits } from "../ingestion/ingest";
 import type { InputObjectRef } from "../../src/shared/input-object";
 
@@ -40,13 +40,8 @@ export type { DiscoverySummary, WorkBookDispatchRecord, WorkBookRefusal, WorkBoo
 export const AUTO_RUN_KINDS = AUTO_RUN_CLASSIFICATIONS;
 
 export interface WorkBookDispatchDeps {
-  /** Registry used for duplicate/resume/amend relations. */
+  /** Registry used to PLAN duplicate/resume/amend relations (never written here). */
   registry?: WorkbookRegistry;
-  /**
-   * Task id recorded on every registry revision this run produces. Revision
-   * bookkeeping is per-task, so a revision can be traced back to its task.
-   */
-  taskId?: string;
   /** Injected for tests; defaults to the real ingestion pipeline. */
   ingest?: (sources: DocumentSource[], options: { limits?: Partial<IngestionLimits> }) => Promise<{ documents: CanonicalTaskDocument[] }>;
   /** Injected for tests; defaults to scanRepo. */
@@ -56,8 +51,6 @@ export interface WorkBookDispatchDeps {
 }
 
 export interface WorkBookDispatchRequest {
-  /** Optional: intake runs before the task exists, so there may be no task yet. */
-  taskId?: string;
   /** User message; optional when attachments or a repository carry the request. */
   prompt?: string;
   title?: string;
@@ -81,8 +74,7 @@ export interface WorkBookDispatchRequest {
 export interface WorkBookDispatchResult {
   stage: WorkBookStage;
   /** Fresh record for the caller to persist; this module never persists. */
-  record: WorkBookDispatchRecord;
-  /** Deterministic title: caller title, else WorkBook title, else file name. */
+  record: WorkBookDispatchRecord;  /** Deterministic title: caller title, else WorkBook title, else file name. */
   title: string;
   /**
    * Concise executable objective derived from the compiled contract plus the
@@ -96,6 +88,12 @@ export interface WorkBookDispatchResult {
   /** True when an exact duplicate resumed an existing WorkBook task. */
   reused: boolean;
   reuse_task_id?: string;
+  /**
+   * Revisions the caller commits AFTER the task is durably persisted.
+   * Intake itself never writes the registry (REPAIR_BATCH_4): that ordering is
+   * what removes the unrecoverable orphan window.
+   */
+  revisionPlan: WorkbookRevisionInput[];
 }
 
 /* ------------------------------------------------------------------ *
@@ -147,7 +145,11 @@ export interface GuardianRefusal {
   reason: string;
 }
 
-/** WorkBook intake augments attachment/repository Work tasks, not plain text Work. */
+/**
+ * WorkBook intake augments attachment/repository Work tasks, not plain text
+ * Work: a text-only Work request keeps the legacy path even though the input
+ * rule would accept it. Chat never enters intake.
+ */
 export function shouldRunWorkBookIntake(appMode: "chat" | "work", attachments: InputObjectRef[]): boolean {
   return appMode === "work" && attachments.length > 0;
 }
@@ -396,7 +398,8 @@ export async function runWorkBookDispatch(
       analysisOnly: false,
       blocked: true,
       refusal: "EMPTY_INPUT",
-      reused: false
+      reused: false,
+      revisionPlan: []
     };
   }
   push("INPUT_RECEIVED", `${attachments.length} attachment ref(s), text ${state.text ? "present" : "absent"}${state.repository ? ", repository bound" : ""}`);
@@ -433,7 +436,8 @@ export async function runWorkBookDispatch(
       analysisOnly,
       blocked: false,
       reused: true,
-      reuse_task_id: reuse.task_id
+      reuse_task_id: reuse.task_id,
+      revisionPlan: []
     };
   }
 
@@ -460,11 +464,14 @@ export async function runWorkBookDispatch(
   const roleByDocument = new Map(roleAssignment.assignments.map((entry) => [entry.document_id, entry]));
   push("CLASSIFYING", `${documents.length} document(s) classified`);
 
+  // RELATION PLAN ONLY (REPAIR_BATCH_4): intake must not write the registry.
+  // Recording before the task exists is what created an unrecoverable orphan
+  // window. The plan is computed here in memory, the caller creates and
+  // durably persists the task (including this record), and only then commits
+  // the revisions with the real task id.
   const registry = deps.registry;
   const relations = registry ? registry.plan(documents) : undefined;
-  // Only readable documents are recorded: a corrupt file has no revision.
   const readable = documents.filter((document) => document.status !== "FAILED");
-  if (registry && readable.length) registry.recordAll(readable, deps.taskId);
   const relationByDocument = new Map((relations?.decisions ?? []).map((decision) => [decision.document_id, decision]));
 
   const summaries: WorkBookDocumentSummary[] = documents.map((document) => {
@@ -532,7 +539,8 @@ export async function runWorkBookDispatch(
       analysisOnly,
       blocked: true,
       refusal: "GUARDIAN_DENIED",
-      reused: false
+      reused: false,
+      revisionPlan: revisionPlanFor(readable, registry !== undefined)
     };
   }
 
@@ -568,8 +576,26 @@ export async function runWorkBookDispatch(
     analysisOnly,
     blocked: false,
     reused: false,
+    revisionPlan: revisionPlanFor(readable, registry !== undefined),
     ...(analysisOnly ? { refusal: "NO_PROVIDER_DISPATCH" as WorkBookRefusal } : {})
   };
+}
+
+/** Revisions the caller must commit once the task durably exists. */
+function revisionPlanFor(
+  readable: CanonicalTaskDocument[],
+  hasRegistry: boolean
+): WorkbookRevisionInput[] {
+  if (!hasRegistry) return [];
+  return readable.map((document) => ({
+    id: document.id,
+    hash: document.hash,
+    file_name: document.file_name,
+    title: document.title,
+    created_at: document.created_at,
+    status: document.status,
+    logical_key: document.logical_key
+  }));
 }
 
 /** Only refs the task bound and that belong to this conversation are ingested. */

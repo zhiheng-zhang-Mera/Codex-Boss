@@ -886,6 +886,13 @@ export class StateStore {
     if (record.analysis_only !== true || !record.contract) {
       throw new Error("Completion requires persisted passing evidence");
     }
+    // WORK_UNIT_3: prove the provider was never driven. Task creation seeds one
+    // queued placeholder run per provider, so "no runs at all" is impossible;
+    // the real invariant is that no run ever left the queued state. A started
+    // execution means this is not analysis-only work and must not complete here.
+    if (this.runsForTask(taskId).some((run) => run.phase !== "queued")) {
+      throw new Error("Completion requires persisted passing evidence");
+    }
     this.discardUnstartedRuns(taskId, false);
     task.status = "completed";
     task.executionPhase = "COMPLETED";
@@ -922,6 +929,23 @@ export class StateStore {
     this.persist();
   }
 
+  /**
+   * WORK_UNIT_3 (REPAIR_BATCH_4): a transient dispatch failure leaves the task
+   * waiting and retryable. The WorkBook stage says WAITING too, so outcome,
+   * task status and stage can never contradict each other.
+   */
+  enterRecoveryWaiting(taskId: string, message: string): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error(`Unknown task: ${taskId}`);
+    task.status = "waiting";
+    task.recoveryAt = undefined;
+    task.recoveryMessage = message;
+    this.appendWorkbookStage(task, "WAITING", message);
+    task.updatedAt = new Date().toISOString();
+    this.event("task.status", `任务“${task.title}”等待恢复：${message}`, { taskId });
+    this.persist();
+  }
+
   setTaskStatus(taskId: string, status: TaskStatus, stageReason?: string): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);
@@ -930,13 +954,27 @@ export class StateStore {
       const current = runs.filter((run) => run.round === round);
       if (!current.length || !current.every((run) => run.artifactId && run.review?.status === "PASS" && run.phase === "completed")) throw new Error("Completion requires persisted passing evidence");
       task.executionPhase = "COMPLETED"; task.nextAction = "REPORT_EVIDENCE";
-    } else if (status === "failed") { task.executionPhase = "FAILED"; task.nextAction = "STOP"; }
+    } else if (status === "failed") {
+      task.executionPhase = "FAILED"; task.nextAction = "STOP";
+      // A guardian refusal that already blocked the WorkBook boundary stays
+      // BLOCKED: the boundary is the last real thing that happened, not a
+      // failed provider run. The reason is preserved on the record.
+      if (task.workbookDispatch?.stage !== "BLOCKED") this.appendWorkbookStage(task, "FAILED");
+      if (stageReason && task.workbookDispatch) task.workbookDispatch.blocked_reason = stageReason;
+    }
     task.status = status;
-    // WORK_UNIT_2: terminal/running task statuses mirror onto the workbook
-    // record's stage ladder without erasing or reordering its history.
+    // REPAIR_BATCH_5: a successful transition away from a transient failure must
+    // clear the recovery marker, or a running task would still report a stale
+    // failure message.
+    if (status === "running" || status === "completed") {
+      task.recoveryAt = undefined;
+      task.recoveryMessage = undefined;
+    }
+    // WORK_UNIT_3: provider-driving statuses mirror onto the workbook record's
+    // stage ladder without erasing or reordering its history. FAILED is handled
+    // above so it can respect an existing BLOCKED refusal.
     if (status === "running") this.appendWorkbookStage(task, "RUNNING");
     else if (status === "completed") this.appendWorkbookStage(task, "COMPLETED");
-    else if (status === "failed") this.appendWorkbookStage(task, "FAILED", stageReason ?? "");
     else if (status === "waiting") this.appendWorkbookStage(task, "WAITING");
     task.updatedAt = new Date().toISOString();
     this.event(status === "running" ? "task.started" : "task.status", `任务“${task.title}”状态变更为 ${status}`, { taskId });

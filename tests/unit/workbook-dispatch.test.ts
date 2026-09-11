@@ -230,13 +230,20 @@ describe("REPAIR_BATCH_2: intake is a decision, not a dispatcher", () => {
       { registry, taskId: "task-42" }
     );
 
-    // Both documents are reported, but only the readable one becomes a revision.
+    // REPAIR_BATCH_4: intake plans the revisions and never writes the registry
+    // itself; the caller commits them after the task exists.
     expect(outcome.record.documents.map((document) => document.status)).toEqual(["OK", "FAILED"]);
+    expect(registry.list()).toEqual([]);
+    // Only the readable document is planned; the corrupt file has no revision.
+    expect(outcome.revisionPlan.map((revision) => revision.file_name)).toEqual(["spec.md"]);
+    expect(outcome.revisionPlan.some((revision) => revision.hash === sha256(badText))).toBe(false);
+
+    // Committing with the real task id is what creates the relation.
+    for (const revision of outcome.revisionPlan) registry.record(revision, "task-42");
     const revisions = registry.list().flatMap((entry) => entry.revisions);
     expect(revisions).toHaveLength(1);
     expect(revisions[0].task_id).toBe("task-42");
     expect(revisions[0].file_name).toBe("spec.md");
-    // The corrupt file's hash is not registered as an ingested revision.
     expect(registry.documentIdForHash(sha256(badText))).toBeUndefined();
     expect(registry.documentIdForHash(sha256(EXECUTABLE))).toBeTruthy();
 
