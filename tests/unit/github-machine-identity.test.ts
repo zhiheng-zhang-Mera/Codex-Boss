@@ -195,4 +195,23 @@ describe("node self-check, scheduler delegation and mock E2E", () => {
     expect((await gateway.createPullRequest("owner/repo", { head: "feature", base: "main", title: "controlled", body: "mock" })).ok).toBe(true);
     expect((await gateway.inspectStatus("owner/repo", "c1")).ok).toBe(true);
   });
+
+  it("creates a detached Git commit before a distinct non-force push", async () => {
+    const transport = new QueueTransport([
+      token(),
+      { status: 200, body: '{"tree":{"sha":"tree-base"}}' },
+      { status: 201, body: '{"sha":"blob-1"}' },
+      { status: 201, body: '{"sha":"tree-1"}' },
+      { status: 201, body: '{"sha":"commit-1"}' },
+      { status: 200, body: '{"object":{"sha":"commit-1"}}' }
+    ]);
+    const gateway = new GitHubGateway({ config, auth: auth(transport), transport, nodeId: "node-live" });
+    expect((await gateway.createDetachedCommit("owner/repo", {
+      parentCommitSha: "base", path: "acceptance.txt", message: "acceptance", contentBase64: "T0s="
+    }))).toMatchObject({ ok: true, value: { sha: "commit-1" } });
+    expect((await gateway.push("owner/repo", "acceptance/live", "commit-1")).ok).toBe(true);
+    const push = transport.calls.at(-1);
+    expect(push?.method).toBe("PATCH");
+    expect(JSON.parse(push?.body ?? "{}")).toEqual({ sha: "commit-1", force: false });
+  });
 });

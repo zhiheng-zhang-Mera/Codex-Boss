@@ -18,7 +18,7 @@ Scheduler requirements now include `git`, `github.read`, `github.write`, `creden
 
 ## Tests and E2E
 
-- Full suite: `98` test files passed; `913` tests passed; `0` failed.
+- Full suite: `98` test files passed; `914` tests passed; `0` failed.
 - TypeScript renderer/electron typecheck: passed.
 - Production renderer/electron build: passed.
 - Tracked-secret scan: `PASS`, `1053` tracked and delivery-candidate files inspected at the time of validation.
@@ -31,4 +31,8 @@ The baseline CI failures were also repaired: `PGPASSWORD` is now removed from Ca
 
 ## Real GitHub
 
-`REAL_CREDENTIAL_ACCEPTANCE_PENDING`. No known node-local machine-identity config or approved private-key reference was present during this run. The current Owner `gh` session was used only to deliver this authorized development branch/PR and is not counted as Boss identity evidence. Root Owner must perform the documented local bootstrap, auth self-check, harmless read and controlled branch/PR test without sharing PEM content with an AI conversation.
+`REAL_CREDENTIAL_ACCEPTANCE_PASS` on 2026-09-11. Root Owner completed the visible local credential ceremony for App ID `4903952`, installation `160744736`, with the local and installation repository boundaries restricted to `zhiheng-zhang-Mera/Codex-Boss`. The private key remained inside the platform-encrypted node-local SecretVault path; no PEM, JWT, installation token or Authorization header was recorded in this evidence.
+
+The production runtime self-check reported `configured`, `credentialProviderAvailable`, `authenticationHealthy`, `installationReachable`, `github.read` and `github.write` as true. The controlled Gateway authenticated as the GitHub App installation, inspected the repository, created `acceptance/github-machine-identity-20260911015734`, created detached commit `5be8123cd48bcf7c79eb7a88c81622782014258a`, advanced the branch with `force: false`, created and re-read [PR #3](https://github.com/zhiheng-zhang-Mera/Codex-Boss/pull/3), and inspected commit status plus Actions run `34552741729` through the same installation credential. The PR actor was `codex-boss[bot]`; the workflow completed with conclusion `success`.
+
+Live acceptance exposed a bootstrap/runtime data-root mismatch and the lack of a detached-commit seam for independently observable commit and push steps. The data-root composition was aligned with the production runtime, a guarded Git-data commit path and reusable live acceptance runner were added, and Windows clean-clone acceptance was hardened to avoid unsupported local hardlinks and to build untracked production output inside the clone. Guardian policy, Root Owner policy, GitHub App permissions, repository visibility, protection/rulesets, secrets and installation scope were not changed.

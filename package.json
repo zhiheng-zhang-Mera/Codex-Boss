@@ -18,6 +18,7 @@
     "benchmark": "node scripts/benchmark.cjs",
     "security:scan": "node scripts/scan-tracked-secrets.cjs",
     "acceptance:github-machine": "node scripts/acceptance-github-machine-identity.cjs",
+    "acceptance:github-machine:live": "electron dist-electron/electron/github/live-acceptance.js",
     "bootstrap:github-machine": "electron dist-electron/electron/github/bootstrap.js",
     "install:electron": "node node_modules/electron/install.js"
   },

@@ -128,6 +128,29 @@ export class GitHubGateway {
     }, input.branch);
   }
 
+  /** Create a commit object without advancing a branch. This keeps commit
+   * creation distinct from the later non-force push used by live acceptance. */
+  async createDetachedCommit(repository: string, input: { parentCommitSha: string; path: string; message: string; contentBase64: string }): Promise<GitHubResult<Json>> {
+    const parent = await this.request<Json>("commit.create", repository, "GET", `/repos/${repository}/git/commits/${encodeURIComponent(input.parentCommitSha)}`);
+    if (!parent.ok) return parent;
+    const baseTreeSha = (parent.value.tree as { sha?: unknown } | undefined)?.sha;
+    if (typeof baseTreeSha !== "string") return { ok: false, code: "UNKNOWN_GITHUB_ERROR", message: "GitHub parent commit did not include a tree SHA", retryable: false };
+    const blob = await this.request<Json>("commit.create", repository, "POST", `/repos/${repository}/git/blobs`, { content: input.contentBase64, encoding: "base64" });
+    if (!blob.ok) return blob;
+    const blobSha = blob.value.sha;
+    if (typeof blobSha !== "string") return { ok: false, code: "UNKNOWN_GITHUB_ERROR", message: "GitHub blob response did not include a SHA", retryable: false };
+    const tree = await this.request<Json>("commit.create", repository, "POST", `/repos/${repository}/git/trees`, {
+      base_tree: baseTreeSha,
+      tree: [{ path: input.path, mode: "100644", type: "blob", sha: blobSha }]
+    });
+    if (!tree.ok) return tree;
+    const treeSha = tree.value.sha;
+    if (typeof treeSha !== "string") return { ok: false, code: "UNKNOWN_GITHUB_ERROR", message: "GitHub tree response did not include a SHA", retryable: false };
+    return this.request("commit.create", repository, "POST", `/repos/${repository}/git/commits`, {
+      message: input.message, tree: treeSha, parents: [input.parentCommitSha]
+    });
+  }
+
   push(repository: string, branch: string, commitSha: string): Promise<GitHubResult<Json>> {
     return this.request("push", repository, "PATCH", `/repos/${repository}/git/refs/heads/${encodeURIComponent(branch)}`, { sha: commitSha, force: false }, branch);
   }
@@ -146,5 +169,9 @@ export class GitHubGateway {
 
   inspectWorkflow(repository: string, runId: number): Promise<GitHubResult<Json>> {
     return this.request("workflow.inspect", repository, "GET", `/repos/${repository}/actions/runs/${runId}`);
+  }
+
+  inspectWorkflowRuns(repository: string, branch: string): Promise<GitHubResult<Json>> {
+    return this.request("workflow.inspect", repository, "GET", `/repos/${repository}/actions/runs?branch=${encodeURIComponent(branch)}&event=pull_request&per_page=20`, undefined, branch);
   }
 }

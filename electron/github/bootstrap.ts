@@ -4,6 +4,16 @@ import { app, dialog, safeStorage } from "electron";
 import { SecretVaultStore } from "../security/secret-vault-store";
 import { BOSS_GITHUB_LOGICAL_IDENTITY, validateGitHubMachineIdentityConfig } from "../../src/shared/github-machine";
 
+// Keep the one-time credential ceremony on the same durable data root as the
+// production Electron runtime. Without this, a standalone Electron entrypoint
+// falls back to Electron's generic roaming profile and Boss cannot see the
+// successfully registered credential.
+const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
+const dataRoot = overrideDataRoot
+  ? path.resolve(overrideDataRoot)
+  : path.join(app.isPackaged ? app.getAppPath() : process.cwd(), "runtime-data");
+app.setPath("userData", dataRoot);
+
 function argument(name: string): string {
   const index = process.argv.indexOf(name);
   const value = index >= 0 ? process.argv[index + 1] : undefined;
