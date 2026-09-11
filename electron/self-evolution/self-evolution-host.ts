@@ -33,7 +33,7 @@ export interface CreateSelfEvolutionHostOptions {
   stableRoot?: string;
   /** Host-owned evolution run root; defaults to `<userData>/evolution`. */
   evolutionRoot?: string;
-  /** Governance root; defaults to `<userData>/evolution/governance`. */
+  /** Governance root; defaults outside Candidate space at `<userData>/evolution-governance`. */
   governanceRoot?: string;
   /** Root the app was launched from (`app.getAppPath()`). */
   appPath: string;
@@ -70,6 +70,10 @@ export interface SelfEvolutionHostHandle {
   evolutionRoot(): string;
   pointer(): StableRuntimePointer;
   lastRun(): SelfEvolutionRunReport | undefined;
+}
+
+export function defaultEvolutionGovernanceRoot(userData: string): string {
+  return path.resolve(userData, "evolution-governance");
 }
 
 /** The git-backed default host handlers (host-selected argv only). */
@@ -116,7 +120,10 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
   const appPath = path.resolve(options.appPath);
   const stableRoot = path.resolve(options.stableRoot ?? detectRepositoryRoot(appPath) ?? appPath);
   const evolutionRoot = path.resolve(options.evolutionRoot ?? path.join(options.userData, "evolution"));
-  const governanceRoot = path.resolve(options.governanceRoot ?? path.join(evolutionRoot, "governance"));
+  // Root controls must be a sibling of the Candidate tree. Keeping governance
+  // under evolutionRoot made the production composition root fail closed at
+  // startup and caused every packaged smoke run to hang before renderer boot.
+  const governanceRoot = path.resolve(options.governanceRoot ?? defaultEvolutionGovernanceRoot(options.userData));
   fs.mkdirSync(governanceRoot, { recursive: true });
 
   const productRepository = options.productRepository ?? "zhiheng-zhang-Mera/Codex-Boss";

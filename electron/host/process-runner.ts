@@ -57,10 +57,28 @@ export function resolveCommand(
   if (entry) {
     const cli = findPackageManagerEntry(entry);
     if (cli) return { command: process.execPath, args: [cli, ...args] };
+    // The bundled Codex runtime intentionally ships pnpm without npm/npx.
+    // Preserve shell-free execution by translating npx to `pnpm exec` rather
+    // than falling back to a non-existent npx.cmd shim.
+    if (name === "npx") {
+      const pnpm = findBundledPnpmEntry();
+      if (pnpm) return { command: process.execPath, args: [pnpm, "exec", ...args] };
+    }
   }
   if (platform !== "win32") return { command: name, args: [...args] };
   if (WINDOWS_SHIM_NAMES.has(name)) return { command: `${name}.cmd`, args: [...args] };
   return { command: name, args: [...args] };
+}
+
+function findBundledPnpmEntry(): string | undefined {
+  const nodeRoot = path.dirname(process.execPath);
+  const candidates = [
+    path.join(path.dirname(nodeRoot), "node_modules", "pnpm", "bin", "pnpm.mjs"),
+    path.join(nodeRoot, "node_modules", "pnpm", "bin", "pnpm.cjs")
+  ];
+  return candidates.find((candidate) => {
+    try { return fs.existsSync(candidate); } catch { return false; }
+  });
 }
 
 /**

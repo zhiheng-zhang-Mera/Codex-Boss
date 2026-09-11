@@ -13,6 +13,7 @@ export type SecretShape =
   | "bearer-token"
   | "aws-access-key"
   | "github-token"
+  | "jwt"
   | "private-key"
   | "generic-long-token";
 
@@ -32,6 +33,8 @@ const SECRET_PATTERNS: SecretPattern[] = [
   { shape: "aws-access-key", label: "aws-access-key", regex: /\b(AKIA[0-9A-Z]{16})\b/g },
   // GitHub personal access tokens.
   { shape: "github-token", label: "github-token", regex: /\b(gh[pousr]_[A-Za-z0-9]{20,})\b/g },
+  // Signed JWTs, including short-lived GitHub App assertions.
+  { shape: "jwt", label: "jwt", regex: /\b(eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g },
   // PEM private key blocks.
   { shape: "private-key", label: "private-key", regex: /(-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----)/g },
   // Generic high-entropy tokens inside common labels.

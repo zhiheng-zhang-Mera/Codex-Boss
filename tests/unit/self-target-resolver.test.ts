@@ -71,7 +71,8 @@ describe("SF-001 self repo factually recognized", () => {
   it("recognizes the installation root itself", () => {
     const resolution = resolver.resolve(bossRepo);
     expect(resolution.isSelf).toBe(true);
-    expect(resolution.stableRoot?.toLowerCase()).toBe(fs.realpathSync(bossRepo).toLowerCase());
+    const canonicalBossRepo = fs.realpathSync.native ? fs.realpathSync.native(bossRepo) : fs.realpathSync(bossRepo);
+    expect(resolution.stableRoot?.toLowerCase()).toBe(canonicalBossRepo.toLowerCase());
     expect(resolution.stableHeadSha).toMatch(/^[0-9a-f]{40}$/);
     expect(resolution.evidence.signals).toContain("canonical-git-root");
     expect(resolution.evidence.repositoryMatches).toBe(true);
