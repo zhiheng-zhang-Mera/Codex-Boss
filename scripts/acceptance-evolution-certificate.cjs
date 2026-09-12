@@ -813,12 +813,16 @@ const reportBytesVerified = evidenceMode === "FULL";
     if (unique.length) problems.push(`${gate}: ${unique.slice(0, 2).join("; ")}`);
     else satisfied.push(gate);
   }
-  // Evidence the certificate ignores is worse than absent evidence.
+  // self-evlo §47/§100: one repository declares suites for more than one certificate.
+  // The evolution suites are attested AFTER Prestart in the same CI run, so their
+  // attestations legitimately sit next to a Prestart certificate that does not cover
+  // them: the certificate lists exactly what it covers and its seal is unaffected.
+  // They are reported as notes. An attestation for a gate this repository does not
+  // declare at all remains a failure — that is real extra evidence.
   for (const contract of CONTRACTS) {
     if (coreGates.includes(contract.gate) || supportingRequired.includes(contract.gate)) continue;
-    if (fs.existsSync(attestationFileOf(contract.gate))) {
-      problems.push(`${contract.gate}: the bundle holds an attestation for a suite this certificate does not cover`);
-    }
+    if (!fs.existsSync(attestationFileOf(contract.gate))) continue;
+    note(`${contract.gate}: the bundle also holds an attestation for a later-phase suite this certificate does not cover (declared by this repository, attested after it)`);
   }
   const uncovered = CONTRACTS.filter((contract) => !coreGates.includes(contract.gate)
     && !supportingRequired.includes(contract.gate)).map((contract) => contract.gate);
