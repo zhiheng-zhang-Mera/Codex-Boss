@@ -80,6 +80,11 @@ Fail-closed rules, each with a unit test:
 | equal strength, different content | `QUARANTINE` + conflict set left `UNRESOLVED` |
 | byte-identical fact at the same standing | `ACCEPT` (deduplicated, nothing written) |
 
+An explicit `supersedes` request (an AMENDED WorkBook revision replacing its
+predecessor) selects its target, but is honoured **only at equal or greater
+strength** — otherwise naming a fact would be a way around the authority check.
+Self-review found that hole and it is now pinned by a regression test.
+
 ### 2.3 Conflict handling — `resolveKnowledgeConflict()` / `decideConflict()`
 
 A conflict records a **conflict set** whose members each carry authority,
@@ -88,7 +93,10 @@ freshness, source hash, verification state and the claim text, and then decides
 stays in the base with `status: "SUPERSEDED"`, and a quarantined claim stays in
 the quarantine area with the conflict's decision as its status.
 `KnowledgeBase.decideConflict()` is the owner surface for closing an
-`UNRESOLVED` set; the loser is marked, never removed.
+`UNRESOLVED` set; the loser is marked, never removed, and if the owner picks the
+parked challenger it is **promoted into the active set** (exactly one ACTIVE
+revision, version 1, linked to the conflict set) instead of being marked active
+inside the quarantine area where nothing could read it.
 
 ### 2.4 Task-aware retrieval — `selectKnowledgeForTask()` / `renderKnowledgeSection()`
 
