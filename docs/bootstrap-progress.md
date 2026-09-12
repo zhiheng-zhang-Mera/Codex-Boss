@@ -30,7 +30,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | `34685821961` |
 | CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | `34686925547` |
 | CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | `34687917864` |
-| CP17 Soak Test + §51 plan | §53, §51 | `src/shared/soak.ts`, `electron/engineering/soak-runner.ts` | `acceptance:soak` SK-01..SK-06 (26 observations) | _pending in this push_ |
+| CP17 Soak Test + §51 plan | §53, §51 | `src/shared/soak.ts`, `electron/engineering/soak-runner.ts` | `acceptance:soak` SK-01..SK-06 (26 observations) | `34688973195` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
