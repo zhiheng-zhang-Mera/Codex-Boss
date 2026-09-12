@@ -1,11 +1,14 @@
 # Codex Boss — Bootstrap Completion progress ledger
 
-Living index for `Update-Plan/checkpoint-1.md`. Every entry below is backed by a
-green remote CI run on the cloud branch `Prestart-checkpoint-2`, not by a claim.
-Kept up to date at the end of each checkpoint so the next session can continue
-from the workspace alone.
+Living index for `Update-Plan/checkpoint-1.md` (CP2–CP18) and
+`Update-Plan/checkpoint-2.md` (CP19–CP24). Every entry below is backed by a green
+remote CI run on the cloud branch `Prestart-checkpoint-3`, not by a claim. Kept up
+to date at the end of each checkpoint so the next session can continue from the
+workspace alone.
 
-Cloud branch: `Prestart-checkpoint-2`
+Cloud branch: `Prestart-checkpoint-3`
+Certification: `docs/prestart-completion.md` (authority:
+`artifacts/acceptance/prestart-attestation.json` + the CI run that produced it)
 Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 
 ---
@@ -32,6 +35,12 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | `34687917864` |
 | CP17 Soak Test + §51 plan | §53, §51 | `src/shared/soak.ts`, `electron/engineering/soak-runner.ts` | `acceptance:soak` SK-01..SK-06 (26 observations) | `34688973195` |
 | CP18 Bootstrap Completion audit | §57, §58, §43 | `src/shared/bootstrap-audit.ts`, `electron/engineering/bootstrap-completion.ts`, durable desktop report | `acceptance:bootstrap-completion` BC-01..BC-06 (30 observations) + the real audit | `34690483100` |
+| CP19 Acceptance session + strict evidence attestations | checkpoint-2 §5 | `src/shared/{acceptance-contracts,acceptance-evidence}.ts`, `electron/engineering/acceptance-session.ts`, `scripts/acceptance-{session-start,attest}.cjs` | `acceptance:evidence-integrity` EI-01..EI-12 | `34695416659` |
+| CP20 Desktop black-box contract | checkpoint-2 §6 | `src/shared/desktop-black-box-contract.ts`, `scripts/acceptance-desktop-workbook.cjs` (claims bound to the contract) | `acceptance:desktop-contract` DB-01..DB-12 + the real 89/89 run | `34695416659` |
+| CP21 Owner intervention truth ledger | checkpoint-2 §7 | `src/shared/owner-intervention.ts`, `electron/engineering/owner-intervention-ledger.ts`, `scripts/acceptance-intervention.cjs` | `acceptance:owner-ledger` OI-01..OI-10 | `34695416659` |
+| CP22 Trusted root auditor | checkpoint-2 §8 | `src/shared/bootstrap-audit.ts` (schemaVersion 2), `electron/engineering/bootstrap-completion.ts`, source manifest + root hash | `acceptance:root-hardening` RA-01..RA-12 | `34695416659` |
+| CP23 Adversarial mutation acceptance | checkpoint-2 §9 | `tests/acceptance/prestart-adversarial.test.ts` (20 mutations + positive control) | `acceptance:adversarial` AD-01..AD-20 + AD-POSITIVE, false positives 0 | `34695416659` |
+| CP24 Prestart Graduation | checkpoint-2 §10–§12 | `scripts/acceptance-prestart.cjs`, CI session/attest/graduation steps, certificate artifact | `acceptance:prestart` → `PRESTART_CERTIFIED` / `BOOTSTRAP_COMPLETE` | `34695416659` |
 
 **BOOTSTRAP_COMPLETE — verified on the CI runner** (run `34690483100`, commit
 `3ca9761`, branch `Prestart-checkpoint-2`):
@@ -39,6 +48,32 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 PASS, capabilities 13/13, owner interventions 0` and
 `[bootstrap] Bootstrap Completion audit PASS`. Every checkpoint from Phase 0 to CP18
 has its own gate, its own CI run and its own record in `docs/`.
+
+**PRESTART_CERTIFIED — verified on the CI runner** (run `34695416659`, commit
+`ed9ce13`, branch `Prestart-checkpoint-3`, session
+`session-2026-09-12T130744824-b046578f`):
+
+```
+[prestart] gate evidence        16/16 PASS
+[prestart] source integrity     19/19 VERIFIED
+[prestart] desktop black box    89/89 PASS
+[prestart] capabilities         13/13 ESTABLISHED
+[prestart] owner intervention   0
+[prestart] provenance           SAME_SESSION / SAME_COMMIT
+[prestart] mutation defense     PASS
+[prestart] root manifest        VERIFIED
+[prestart] trust suites         5/5 PASS
+[prestart] root hash            fd0867a50e9343712ba7952ab2336b809d05bb0cd670c7edda1f43883f55636e
+[prestart] PRESTART_CERTIFIED
+[prestart] BOOTSTRAP_COMPLETE
+```
+
+The test counts below are from the local full-chain rehearsal that preceded the
+authoritative run: `pnpm test` 147 test files / 1508 tests passed (the six trust
+suites are included: EI 12, DB 12, OI 10, RA 12, AD 21, BC 6), all sixteen gate
+attestations valid, the real Electron black box 89/89 under `desktop-blackbox-1`,
+and `acceptance:prestart` exit 0. The authoritative CI run then reproduced it on the
+runner.
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -146,16 +181,28 @@ preview all persist under `<userData>/.boss/`.
 ## 3. CI gate chain (`.github/workflows/ci.yml`)
 
 `install → install:electron → typecheck → security:scan → build → test →
-acceptance:workbook → acceptance:knowledge → acceptance:architecture →
-acceptance:theme → acceptance:requirements → acceptance:plan →
-acceptance:verify → acceptance:review → acceptance:self-healing →
-acceptance:capability-gap → acceptance:candidate →
-acceptance:version-checkpoint → acceptance:publish → acceptance:ci-repair →
-acceptance:final → acceptance:soak → acceptance:github-machine → benchmark →
+acceptance:session:start --certify --clean →
+[acceptance:workbook → acceptance:attest -- acceptance-workbook] →
+… the same pair for knowledge, architecture, theme, requirements, plan, verify,
+review, self-healing, capability-gap, candidate, version-checkpoint, publish,
+ci-repair, final, soak → acceptance:github-machine → benchmark →
 package:portable → portable smoke → restart acceptance →
-acceptance:desktop-workbook`
+acceptance:desktop-workbook → acceptance:attest -- acceptance-desktop-workbook →
+acceptance:bootstrap-completion →
+acceptance:{evidence-integrity,desktop-contract,owner-ledger,root-hardening,adversarial}
+each followed by its own `acceptance:attest` → acceptance:prestart →
+upload the certificate and its evidence`
 
-Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`.
+The chain is fail-closed at three levels: a gate fails when its required ids are not
+PASS, `acceptance:attest` fails when the report is incomplete, inconsistent,
+unattributable or changed since it was hashed, and `acceptance:prestart` fails
+unless the whole certified set — session, sixteen attestations, the desktop
+contract, the trust suites, the empty Owner ledger, the source manifest and the
+adversarial result — agrees.
+
+Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`
+for CP2–CP18; the CP19–CP24 chain is the CI list above (a local rehearsal of it
+produced the same certificate).
 
 ## 4. Remaining checkpoints and their exact scope
 
@@ -179,6 +226,16 @@ Local equivalent (same order, prints exit codes): `scripts/phase0-validation-cha
 | CP16 | §42, §51, §52 | final acceptance + benchmark suite + seeded failure battery + restart recovery at every stage |
 | CP17 | §53 | soak test (multi-round fresh clone → completion) |
 | CP18 | §57 | Bootstrap Completion black box: real work book + UI theme black box, 0 owner interventions |
+| CP19 | checkpoint-2 §5 | acceptance session (session_id/commit/clean tree) + strict report contract + hash-bound gate attestations; EI-01..EI-12 |
+| CP20 | checkpoint-2 §6 | versioned desktop black-box claim contract (`desktop-blackbox-1`, 89 stable ids) enforced as an exact set; DB-01..DB-12 |
+| CP21 | checkpoint-2 §7 | Owner intervention truth ledger with a single writer; the count is derived, and no API accepts one; OI-01..OI-10 |
+| CP22 | checkpoint-2 §8 | trusted root auditor over attestation-bound evidence, source manifest and root hash; RA-01..RA-12 |
+| CP23 | checkpoint-2 §9 | adversarial evidence mutation acceptance: 20 mutations refused, positive control accepted, 0 false positives |
+| CP24 | checkpoint-2 §10–§12 | `acceptance:prestart` — the single graduation command and the `prestart-attestation.json` certificate |
+
+**Prestart is finished.** CP24 is the hard end of this phase: the next work is
+Post-Prestart (Self-Iteration / Operational Bootstrap), not another checkpoint-N
+Prestart.
 
 Additional §56 event names already in the domain vocabulary:
 `THEME_DRAFT_CREATED`, `THEME_PREVIEWED`, `THEME_VALIDATED`, `THEME_INSTALLED`,
@@ -189,6 +246,15 @@ Additional §56 event names already in the domain vocabulary:
 - **Acceptance is a script, not a claim.** Every checkpoint adds
   `scripts/acceptance-*.cjs` + a CI step; each verifies its own machine-readable
   report under `artifacts/acceptance/` and fails unless the required ids PASS.
+- **Since CP19, a report is not evidence on its own.** An authoritative run starts a
+  certification session (`acceptance:session:start --certify --clean`), every gate's
+  report is strictly validated and bound to its SHA-256, session and commit by
+  `acceptance:attest`, and only `acceptance:prestart` turns that into
+  `PRESTART_CERTIFIED`. Reports from an earlier run are archived to
+  `artifacts/acceptance/history/<session_id>/` and can never join a new one.
+- **"0 Owner interventions" is a derived fact.** It is the event count of
+  `owner-interventions.json`; no caller passes a number, and any recorded event
+  makes the run INCOMPLETE.
 - **Fail closed.** Missing provenance, unevidenced claims, unresolvable scopes,
   invalid themes and quarantined requirements are refused or parked, never
   guessed.

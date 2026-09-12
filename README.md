@@ -5,6 +5,18 @@ A local-first Electron control plane for visible, browser-driven AI work.
 多 AI 会话、研究、自主工程都以一个本地控制器为长期状态源。
 
 [![CI (main)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/workflows/ci.yml?query=branch%3Amain)
+[![Prestart certified](https://img.shields.io/badge/Prestart-PRESTART__CERTIFIED%20%2F%20BOOTSTRAP__COMPLETE-2f855a)](docs/prestart-completion.md)
+
+**Prestart: `PRESTART_CERTIFIED` / `BOOTSTRAP_COMPLETE`** — certified on commit
+`ed9ce13` by CI run
+[`34695416659`](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/34695416659):
+16/16 attested gates, the real Electron black box 89/89 under `desktop-blackbox-1`,
+13/13 capabilities from trusted evidence, 0 Owner interventions derived from the run's
+ledger, and 0 false-positive adversarial acceptances. The authority is
+`artifacts/acceptance/prestart-attestation.json` plus that CI run; the record is
+[`docs/prestart-completion.md`](docs/prestart-completion.md).
+Prestart 认证：16/16 门禁、真实 Electron 黑盒 89/89 声明、13/13 能力、0 次 Owner 介入，
+由 CI 运行中的 `acceptance:prestart` 机器证书推出，而非文档声明。
 
 ---
 
