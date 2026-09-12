@@ -1,8 +1,0 @@
-{
-    "at":  "2026-09-08T14:33:41.9075770Z",
-    "provider":  "deepseek",
-    "change":  "adapter sendMode=enter + trusted sendInputEvent Enter (webContents), verified input-cleared before advancing",
-    "final":  "DEEPSEEK-OK2",
-    "kind":  "LIVE_1AI_DEEPSEEK_ENTER",
-    "status":  "PASS"
-}

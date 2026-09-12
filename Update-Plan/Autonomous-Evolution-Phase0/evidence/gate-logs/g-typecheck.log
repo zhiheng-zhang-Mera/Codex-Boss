@@ -1,9 +1,0 @@
-=== typecheck ===
-corepack : $ tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json
-At line:4 char:48
-+ ... check.log"; corepack pnpm run typecheck *>> "$log\g-typecheck.log"; " ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: ($ tsc --noEmit ...g.electron.json:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-exit=0
