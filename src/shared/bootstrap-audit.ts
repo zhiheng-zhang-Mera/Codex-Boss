@@ -12,6 +12,7 @@
  */
 import { bootstrapCompletion, CRITICAL_CAPABILITIES, type BootstrapCompletionVerdict } from "./final-acceptance";
 import { contentHashOf } from "./workbook";
+import { deriveOwnerInterventions, type OwnerInterventionLedger } from "./owner-intervention";
 
 export const BOOTSTRAP_AUDIT_VERSION = "bootstrap-audit-1" as const;
 
@@ -111,10 +112,24 @@ export interface BootstrapAudit {
   capability_evidence: { capability: string; gates: string[]; established: boolean }[];
   /** §57: the real-application black box. */
   desktop: GateAudit;
-  /** §53/§57: owner interventions must be zero. */
+  /**
+   * §53/§57/§7.5: the derived Owner intervention count. It is the runtime ledger's
+   * own event count — there is no input parameter that can set it.
+   */
   owner_interventions: number;
+  /** §7.5: the ledger the count came from, and the problems found in it. */
+  owner_intervention_ledger: { session_id: string; commit_sha: string; events: number; hash: string };
+  owner_ledger_problems: string[];
   reasons: string[];
   hash: string;
+}
+
+/** §7.5: the audit takes the ledger, never a number. */
+export interface BootstrapAuditInput {
+  reports: Readonly<Record<string, GateReport | undefined>>;
+  ownerLedger: OwnerInterventionLedger;
+  /** Session/commit/count/digest problems the host found in that ledger. */
+  ownerLedgerProblems?: readonly string[];
 }
 
 /**
@@ -122,12 +137,10 @@ export interface BootstrapAudit {
  *
  * Complete requires: every gate report present and passing, the desktop black box
  * passing (the real application, not the units), every critical capability
- * established, and zero Owner interventions — anything less is honestly INCOMPLETE.
+ * established, a trustworthy Owner intervention ledger, and zero events in it —
+ * anything less is honestly INCOMPLETE.
  */
-export function auditBootstrap(input: {
-  reports: Readonly<Record<string, GateReport | undefined>>;
-  owner_interventions?: number;
-}): BootstrapAudit {
+export function auditBootstrap(input: BootstrapAuditInput): BootstrapAudit {
   const gates = Object.entries(GATE_REQUIREMENTS).map(([gate, required]) => auditGate(gate, input.reports[gate], required));
   const desktop = auditGate(DESKTOP_BLACK_BOX, input.reports[DESKTOP_BLACK_BOX], []);
   // The real application's black box is evidence for a capability too, so it counts
@@ -142,12 +155,14 @@ export function auditBootstrap(input: {
     return { capability, gates: proof.filter((gate) => input.reports[gate] !== undefined), established: proof.length > 0 && provenBy.length === proof.length };
   });
   const completion = bootstrapCompletion(capabilityEvidence.filter((entry) => entry.established).map((entry) => entry.capability));
-  const ownerInterventions = Math.max(0, input.owner_interventions ?? 0);
+  const ownerInterventions = deriveOwnerInterventions(input.ownerLedger);
+  const ledgerProblems = [...(input.ownerLedgerProblems ?? [])];
   const reasons: string[] = [];
   const failing = gates.filter((audit) => audit.verdict !== "PASS");
   for (const audit of failing) reasons.push(...audit.reasons);
   if (desktop.verdict !== "PASS") reasons.push(...desktop.reasons);
   if (!completion.complete) reasons.push(completion.reason);
+  if (ledgerProblems.length) reasons.push(`§7: the Owner intervention ledger is not trustworthy (${ledgerProblems.slice(0, 4).join(", ")})`);
   if (ownerInterventions > 0) reasons.push(`§57: ${ownerInterventions} Owner intervention(s) were needed; the black box forbids them`);
   const decision = reasons.length === 0 ? "BOOTSTRAP_COMPLETE" : "INCOMPLETE";
   const audit: Omit<BootstrapAudit, "hash"> = {
@@ -161,8 +176,15 @@ export function auditBootstrap(input: {
     capability_evidence: capabilityEvidence,
     desktop,
     owner_interventions: ownerInterventions,
+    owner_intervention_ledger: {
+      session_id: input.ownerLedger.session_id,
+      commit_sha: input.ownerLedger.commit_sha,
+      events: input.ownerLedger.events.length,
+      hash: input.ownerLedger.ledger_hash
+    },
+    owner_ledger_problems: ledgerProblems,
     reasons: decision === "BOOTSTRAP_COMPLETE"
-      ? [`§57/§58: every one of the ${gates.length} gates passed, the desktop black box passed, all ${CRITICAL_CAPABILITIES.length} capabilities are established and no Owner intervention was needed`]
+      ? [`§57/§58: every one of the ${gates.length} gates passed, the desktop black box passed, all ${CRITICAL_CAPABILITIES.length} capabilities are established and the Owner intervention ledger is empty`]
       : reasons
   };
   return { ...audit, hash: contentHashOf(JSON.stringify(audit)) };

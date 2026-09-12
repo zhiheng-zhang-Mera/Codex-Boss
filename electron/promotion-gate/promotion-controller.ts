@@ -1,4 +1,5 @@
 import { readJson, writeJson } from "../commander/durable-json";
+import { recordOwnerIntervention } from "../engineering/owner-intervention-ledger";
 import {
   assertTransition,
   canTransition,
@@ -241,9 +242,21 @@ export class PromotionController {
       candidateSha: input.binding.candidateHeadSha
     });
 
-    return this.transition(record, mapOutcomeToState(outcome), outcome.reasons.length ? outcome.reasons : [`state:${outcome.state}`]);
+    const nextState = mapOutcomeToState(outcome);
+    // checkpoint-2 §7.4: a durable Owner wait is an Owner intervention, and the only
+    // way one is recorded is the central ledger. Without an active acceptance session
+    // this is a no-op, so ordinary product runs are unaffected.
+    if (nextState === "WAITING_FOR_ROOT_OWNER") {
+      recordOwnerIntervention({
+        source: "promotion-gate",
+        blocker_class: "HB1_AUTHORITY",
+        reason: `promoting ${input.binding.candidateHeadSha ?? "an unbound candidate"} touches the Root Surface, and only the Owner may approve it`,
+        requested_action: "approve or reject the promotion for this exact SHA",
+        outcome: "WAITING_FOR_ROOT_OWNER"
+      });
+    }
+    return this.transition(record, nextState, outcome.reasons.length ? outcome.reasons : [`state:${outcome.state}`]);
   }
-
   /**
    * The only path into `PROMOTING`. Requires PROMOTABLE, or an Owner approval
    * already bound to this exact SHA.

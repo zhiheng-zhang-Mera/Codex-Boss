@@ -10,6 +10,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createBootstrapAuditor, REPORT_FILES, BOOTSTRAP_AUDIT_RECORD } from "../../electron/engineering/bootstrap-completion";
 import { auditBootstrap, auditGate, DESKTOP_BLACK_BOX, GATE_REQUIREMENTS } from "../../src/shared/bootstrap-audit";
 import { CRITICAL_CAPABILITIES } from "../../src/shared/final-acceptance";
+import { appendOwnerIntervention, emptyOwnerLedger } from "../../src/shared/owner-intervention";
+import { initializeOwnerLedger, recordOwnerIntervention } from "../../electron/engineering/owner-intervention-ledger";
+import { startAcceptanceSession } from "../../electron/engineering/acceptance-session";
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "boss-bootstrap-audit-"));
 const ARTIFACTS = path.join(ROOT, "artifacts", "acceptance");
@@ -46,7 +49,7 @@ async function scenario(id: string, title: string, body: (item: Item) => Promise
   results.push(item.result());
 }
 
-/** Writes a report set where every required id passes. */
+/** Writes a report set where every required id passes, plus the session and ledger. */
 function writeCleanReports(): void {
   fs.mkdirSync(ARTIFACTS, { recursive: true });
   for (const [gate, file] of Object.entries(REPORT_FILES)) {
@@ -59,10 +62,21 @@ function writeCleanReports(): void {
       unit: gate.toLocaleUpperCase().replace(/-/g, "_"),
       requirementResults,
       totals: { pass: requirementResults.length, fail: 0, notRun: 0 },
-      passed: true,
-      owner_interventions: 0
+      passed: true
     }, null, 2), "utf8");
   }
+  // checkpoint-2 §7.5: the audit reads a session and a session-bound ledger, and
+  // derives the Owner intervention count from the ledger's own events.
+  const session = startAcceptanceSession({
+    root: ROOT,
+    artifacts: ARTIFACTS,
+    certify: true,
+    sessionId: "session-bc-fixture",
+    commit: "a".repeat(40),
+    workingTreeStatus: ""
+  });
+  if (!session.ok || !session.session) throw new Error(`session fixture failed: ${session.reason}`);
+  initializeOwnerLedger(session.session, ARTIFACTS);
 }
 writeCleanReports();
 const auditor = () => createBootstrapAuditor({ root: ROOT, artifacts: ARTIFACTS });
@@ -86,12 +100,14 @@ describe("checkpoint-18 §57/§58 Bootstrap Completion audit", () => {
 
   it("BC-02 a complete report set yields BOOTSTRAP_COMPLETE", async () => {
     await scenario("BC-02", "§57/§58 the verdict", async (item) => {
-      const outcome = auditor().evaluate({ owner_interventions: 0 });
+      const outcome = auditor().evaluate();
       item.check("every gate passed", outcome.audit.gates_passed, outcome.audit.gates_required);
       item.check("the desktop black box passed", "PASS", outcome.audit.desktop.verdict);
       item.check("every capability is established", true, outcome.audit.capability_evidence.every((entry) => entry.established));
       item.check("the decision is BOOTSTRAP_COMPLETE", "BOOTSTRAP_COMPLETE", outcome.audit.decision);
       item.check("no Owner intervention was needed", 0, outcome.audit.owner_interventions);
+      item.check("because the ledger has no events", 0, outcome.ownerLedger.events);
+      item.check("and the ledger itself is trustworthy", 0, outcome.ownerLedger.problems.length);
       item.check("the audit is hashed", true, /^[0-9a-f]{64}$/.test(outcome.audit.hash));
       item.check("the record is durable", true, fs.existsSync(path.join(ARTIFACTS, BOOTSTRAP_AUDIT_RECORD)));
       item.check("all seventeen reports were found", 17, outcome.reports.filter((entry) => entry.present).length);
@@ -105,7 +121,7 @@ describe("checkpoint-18 §57/§58 Bootstrap Completion audit", () => {
       const file = path.join(ARTIFACTS, REPORT_FILES["acceptance-publish"]!);
       const saved = fs.readFileSync(file, "utf8");
       fs.rmSync(file);
-      const outcome = auditor().evaluate({ owner_interventions: 0 });
+      const outcome = auditor().evaluate();
       item.check("the decision is INCOMPLETE", "INCOMPLETE", outcome.audit.decision);
       item.check("the missing gate is named", true, outcome.audit.gates.some((gate) => gate.gate === "acceptance-publish" && gate.verdict === "MISSING"));
       item.check("and its capability is not established", true, outcome.audit.capability_evidence.some((entry) => entry.capability === "GitHub publishing" && !entry.established));
@@ -134,24 +150,44 @@ describe("checkpoint-18 §57/§58 Bootstrap Completion audit", () => {
 
   it("BC-05 an Owner intervention forbids completion", async () => {
     await scenario("BC-05", "§57 no human engineering", async (item) => {
-      const outcome = auditor().evaluate({ owner_interventions: 1 });
-      item.check("the intervention is recorded", 1, outcome.audit.owner_interventions);
+      const session = {
+        schemaVersion: 1 as const,
+        session_id: "session-bc-fixture",
+        commit_sha: "a".repeat(40),
+        started_at: new Date(0).toISOString(),
+        certification_mode: true,
+        working_tree_clean: true,
+        working_tree_status: ""
+      };
+      const event = recordOwnerIntervention(
+        { source: "acceptance-run", blocker_class: "HB3_MISSING_EXTERNAL_RESOURCE", reason: "the Owner had to supply a resource" },
+        { artifacts: ARTIFACTS, session }
+      );
+      item.check("the intervention was recorded in the ledger", true, event !== undefined);
+      const outcome = auditor().evaluate();
+      item.check("the derived count is one", 1, outcome.audit.owner_interventions);
+      item.check("it came from the ledger", 1, outcome.ownerLedger.events);
       item.check("the decision is INCOMPLETE", "INCOMPLETE", outcome.audit.decision);
       item.check("and the reason says the black box forbids it", true, outcome.audit.reasons.some((reason) => reason.includes("forbids them")));
-      item.check("the pure audit agrees", "INCOMPLETE", auditBootstrap({ reports: {}, owner_interventions: 2 }).decision);
+      const ledger = appendOwnerIntervention(appendOwnerIntervention(emptyOwnerLedger(session), { source: "run", at: new Date(0).toISOString(), reason: "one" }), { source: "run", at: new Date(0).toISOString(), reason: "two" });
+      item.check("the pure audit agrees", "INCOMPLETE", auditBootstrap({ reports: {}, ownerLedger: ledger }).decision);
+      // Put the run back on a clean ledger: completion returns.
+      initializeOwnerLedger(session, ARTIFACTS);
+      const clean = auditor().evaluate();
+      item.check("an empty ledger completes again", "BOOTSTRAP_COMPLETE", clean.audit.decision);
       shared.bc05 = { reasons: outcome.audit.reasons.slice(-1) };
-      item.cite("owner_interventions");
+      item.cite("recordOwnerIntervention");
     });
   });
 
   it("BC-06 the thirteen capabilities are each traceable to evidence", async () => {
     await scenario("BC-06", "§43 capability evidence", async (item) => {
       item.check("thirteen capabilities", 13, CRITICAL_CAPABILITIES.length);
-      const outcome = auditor().evaluate({ owner_interventions: 0 });
+      const outcome = auditor().evaluate();
       item.check("every capability maps to at least one gate", true, outcome.audit.capability_evidence.every((entry) => entry.gates.length > 0));
       item.check("the theme capability includes the real black box", true, outcome.audit.capability_evidence.find((entry) => entry.capability === "theme engine")?.gates.includes(DESKTOP_BLACK_BOX));
       item.check("the completion verdict is complete", true, outcome.audit.completion.complete);
-      const empty = auditBootstrap({ reports: {} });
+      const empty = auditBootstrap({ reports: {}, ownerLedger: emptyOwnerLedger({ session_id: "s", commit_sha: "b".repeat(40) }) });
       item.check("with no reports nothing is established", 0, empty.capability_evidence.filter((entry) => entry.established).length);
       item.check("and the decision is INCOMPLETE", "INCOMPLETE", empty.decision);
       shared.bc06 = { capabilities: outcome.audit.capability_evidence.length, complete: outcome.audit.completion.complete };

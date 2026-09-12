@@ -35,14 +35,15 @@ console.log(`[bootstrap] acceptance totals: PASS ${report.totals?.pass ?? 0} FAI
 const missing = REQUIRED.filter((id) => verdicts.get(id) !== "PASS");
 if (missing.length || report.totals?.fail) { console.error(`[bootstrap] acceptance FAILED: missing=${missing.join(",") || "-"}`); process.exit(1); }
 
-/* The real audit: the reports this chain just wrote. */
+/* The real audit: the reports this chain just wrote, the session, and the derived
+ * Owner intervention ledger. checkpoint-2 §2.5/§7.5: the caller passes no count. */
 const built = path.join(root, "dist-electron", "electron", "engineering", "bootstrap-completion.js");
 if (!fs.existsSync(built)) { console.error(`[bootstrap] the built auditor is missing (run the build first): ${built}`); process.exit(1); }
 const { createBootstrapAuditor } = require(built);
-const outcome = createBootstrapAuditor({ root }).evaluate({ owner_interventions: 0 });
+const outcome = createBootstrapAuditor({ root }).evaluate();
 console.log("");
 console.log(`[bootstrap] real audit: ${outcome.audit.decision}`);
-console.log(`[bootstrap] gates: ${outcome.audit.gates_passed}/${outcome.audit.gates_required} passed, desktop black box ${outcome.audit.desktop.verdict}, capabilities ${outcome.audit.capability_evidence.filter((entry) => entry.established).length}/${outcome.audit.capability_evidence.length}, owner interventions ${outcome.audit.owner_interventions}`);
+console.log(`[bootstrap] gates: ${outcome.audit.gates_passed}/${outcome.audit.gates_required} passed, desktop black box ${outcome.audit.desktop.verdict}, capabilities ${outcome.audit.capability_evidence.filter((entry) => entry.established).length}/${outcome.audit.capability_evidence.length}, owner interventions ${outcome.audit.owner_interventions} (ledger events ${outcome.ownerLedger.events})`);
 for (const gate of outcome.audit.gates.filter((entry) => entry.verdict !== "PASS")) console.log(`[bootstrap]   ${gate.gate}: ${gate.verdict} — ${gate.reasons[0] ?? ""}`);
 console.log(`[bootstrap] record: ${path.relative(root, outcome.recordPath)}`);
 if (outcome.audit.decision !== "BOOTSTRAP_COMPLETE") {

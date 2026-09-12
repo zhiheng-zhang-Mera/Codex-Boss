@@ -28,6 +28,7 @@
     "acceptance:bootstrap-completion": "node scripts/acceptance-bootstrap-completion.cjs",    "acceptance:desktop-workbook": "node scripts/acceptance-desktop-workbook.cjs",
     "acceptance:session:start": "node scripts/acceptance-session-start.cjs",
     "acceptance:attest": "node scripts/acceptance-attest.cjs",
+    "acceptance:intervention": "node scripts/acceptance-intervention.cjs",
     "test:seeded": "node scripts/acceptance-seeded-engineering.cjs AB",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",

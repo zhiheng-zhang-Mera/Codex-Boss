@@ -21,7 +21,6 @@ export const ACCEPTANCE_RELATIVE = path.join("artifacts", "acceptance");
 export const SESSION_FILE = "session.json";
 export const ATTESTATION_DIRECTORY = "attestations";
 export const HISTORY_DIRECTORY = "history";
-export const OWNER_LEDGER_FILE = "owner-interventions.json";
 
 /** The acceptance artifacts directory for a repository root. */
 export function acceptanceDirectory(root: string): string {
