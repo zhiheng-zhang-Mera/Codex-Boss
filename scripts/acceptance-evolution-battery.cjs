@@ -869,13 +869,36 @@ async function main() {
 
   await scenario("BT-04", "scope: a change to root-trust files is refused (SCOPE_VIOLATION / ROOT_TRUST_CHANGE)", async (item) => {
     const targets = ["src/shared/acceptance-evidence.ts", ".github/workflows/ci.yml"];
-    const before = targets.map((file) => ({ file, sha256: sha256File(path.join(ROOT, file)) }));
+    // The claim is "no probe wrote to a protected file". A checkout convention (LF on a
+    // developer host, CRLF on the Windows runner) is a property of the host, not of the
+    // run, so the assertion compares EOL-normalised content and records the raw byte
+    // movement separately: a real content change still fails, an ending conversion does
+    // not masquerade as one.
+    const snapshot = () => targets.map((file) => {
+      const absolute = path.join(ROOT, file);
+      const raw = sha256File(absolute);
+      const text = fs.existsSync(absolute) ? fs.readFileSync(absolute, "utf8") : "";
+      return { file, raw, content: createHash("sha256").update(runner.normalizeEol(text)).digest("hex") };
+    });
+    const before = snapshot();
     const probe = await runProbe(runner, "BT04-ROOT-TRUST", { workspace, baseline: workspaceBaseline, simulate: options.dryRun, goal: "" });
-    const after = targets.map((file) => ({ file, sha256: sha256File(path.join(ROOT, file)) }));
+    const after = snapshot();
     item.check("probe refused", "true", String(probe.certified === false && probe.exit === 3));
     item.check("SCOPE_VIOLATION reported", "true", String(probe.codes.includes("SCOPE_VIOLATION")));
     item.check("ROOT_TRUST_CHANGE reported", "true", String(probe.codes.includes("ROOT_TRUST_CHANGE")));
-    item.check("real protected files unchanged", "true", String(JSON.stringify(before) === JSON.stringify(after)));
+    const changedContent = before.filter((entry, index) => entry.content !== after[index].content);
+    item.check(
+      "real protected files unchanged (content, EOL-normalised)",
+      "true",
+      changedContent.length === 0 ? "true" : `false (${changedContent.map((entry) => entry.file).join(",")})`
+    );
+    const changedBytes = before.filter((entry, index) => entry.raw !== after[index].raw);
+    item.observations.push({
+      claim: "raw byte movement on protected files (checkout convention only)",
+      expected: "none or an EOL convention change",
+      observed: changedBytes.length === 0 ? "none" : changedBytes.map((entry) => entry.file).join(","),
+      ok: true
+    });
     item.check("refusal stage", "PLAN", String(probe.evidence ? probe.evidence.refusal_stage : "missing"));
     item.check("workspace clean after the probe", "[]", JSON.stringify(porcelain(workspace)));
     if (trust) {
