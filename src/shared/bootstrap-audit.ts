@@ -1,191 +1,307 @@
 /**
- * Update-Plan/checkpoint-1.md §57 + §58 — the Bootstrap Completion audit.
+ * Update-Plan/checkpoint-1.md §57/§58 + checkpoint-2.md §8 — the trusted Bootstrap
+ * root audit.
  *
- * §57's black box is the whole product: a real WorkBook driven through the app with
- * no human engineering, followed by the UI theme black box. Every stage of that path
- * already has its own gate in this repository, so the Completion audit does not
- * re-run them — it reads what they wrote and refuses to call the system complete
- * unless every gate passed, the desktop black box passed, and no Owner intervention
- * was needed.
+ * §57's black box is the whole product. Until checkpoint-2 this audit read the
+ * reports the delivery chain wrote and judged them against a list of ids. That made
+ * "the report file exists" and "a caller says the count is zero" load-bearing, which
+ * they may not be (§2.1/§2.2/§2.5).
+ *
+ * The audit now accepts only evidence that carries its own provenance: a strict
+ * report validation, a gate attestation bound to this session and this commit, and
+ * the SHA-256 of the exact report bytes. Capabilities are derived from trusted PASS
+ * evidence only, the Owner intervention count is the runtime ledger's own event
+ * count, every source is listed with its hash, and the whole decision is sealed by a
+ * root hash over that canonical manifest.
  *
  * Pure: no fs, no clock, no process.
  */
 import { bootstrapCompletion, CRITICAL_CAPABILITIES, type BootstrapCompletionVerdict } from "./final-acceptance";
-import { contentHashOf } from "./workbook";
-import { deriveOwnerInterventions, type OwnerInterventionLedger } from "./owner-intervention";
+import {
+  ACCEPTANCE_GATE_CONTRACTS,
+  CAPABILITY_GATES,
+  DESKTOP_BLACK_BOX_CONTRACT,
+  DESKTOP_BLACK_BOX_GATE,
+  GATE_REQUIREMENTS,
+  type AcceptanceGateContract
+} from "./acceptance-contracts";
+import {
+  canonicalSha256,
+  sessionProblems,
+  validateDesktopBlackBoxReport,
+  validateGateReport,
+  verifyGateAttestation,
+  type AcceptanceSession,
+  type StrictReportValidation
+} from "./acceptance-evidence";
+import { deriveOwnerInterventions, verifyOwnerLedger, type OwnerInterventionLedger } from "./owner-intervention";
 
-export const BOOTSTRAP_AUDIT_VERSION = "bootstrap-audit-1" as const;
+export const BOOTSTRAP_AUDIT_VERSION = "bootstrap-audit-2" as const;
 
-/** Each gate of the delivery chain and the ids it must have passed. */
-export const GATE_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = {
-  "acceptance-workbook": ["WB-01", "WB-02", "WB-03", "WB-04", "WB-05", "WB-06", "WB-07", "WB-08", "WB-09", "WB-10"],
-  "acceptance-knowledge": ["K-01", "K-02", "K-03", "K-04"],
-  "acceptance-architecture": ["A-01", "A-02", "A-03", "A-04", "A-05", "A-06", "A-07", "A-08", "A-09", "A-10"],
-  "acceptance-theme": ["TH-01", "TH-02", "TH-03", "TH-04", "TH-05", "TH-06", "TH-07", "TH-08", "TH-09", "TH-10", "TH-11", "TH-12", "TH-13", "TH-14", "TH-15", "T-TOKENS"],
-  "acceptance-requirements": ["R-01", "R-02", "R-03", "R-04", "R-05", "R-06", "R-07", "R-08"],
-  "acceptance-plan": ["P-01", "P-02", "P-03", "P-04", "P-05", "P-06"],
-  "acceptance-verify": ["V-01", "V-02", "V-03", "V-04", "V-05", "V-06", "V-07", "V-08", "V-09", "V-10"],
-  "acceptance-review": ["C-01", "C-02", "C-03", "C-04", "C-05", "C-06", "C-07", "C-08", "C-09", "C-10", "C-11"],
-  "acceptance-self-healing": ["RC-01", "RC-02", "RC-03", "RC-04", "RC-05", "RC-06", "RC-07", "RC-08", "RC-09", "RC-10"],
-  "acceptance-capability-gap": ["CG-01", "CG-02", "CG-03", "CG-04", "CG-05", "CG-06", "CG-07", "CG-08", "CG-09", "CG-10"],
-  "acceptance-candidate": ["GD-01", "GD-02", "GD-03", "GD-04", "GD-05", "GD-06", "GD-07", "GD-08", "GD-09", "GD-10"],
-  "acceptance-version-checkpoint": ["VC-01", "VC-02", "VC-03", "VC-04", "VC-05", "VC-06", "VC-07", "VC-08"],
-  "acceptance-publish": ["PB-01", "PB-02", "PB-03", "PB-04", "PB-05", "PB-06", "PB-07", "PB-08", "PB-09", "PB-10"],
-  "acceptance-ci-repair": ["CR-01", "CR-02", "CR-03", "CR-04", "CR-05", "CR-06", "CR-07", "CR-08"],
-  "acceptance-final": ["FS-01", "FS-02", "FS-03", "FS-04", "FS-05", "FS-06", "FS-07", "FS-08"],
-  "acceptance-soak": ["SK-01", "SK-02", "SK-03", "SK-04", "SK-05", "SK-06"]
-};
+/** §57: the name of the desktop black-box gate. */
+export const DESKTOP_BLACK_BOX = DESKTOP_BLACK_BOX_GATE;
 
-/** §57: the black-box claims that prove the real application, not the units. */
-export const DESKTOP_BLACK_BOX = "acceptance-desktop-workbook";
+/** §8.1: the sixteen gates whose trusted evidence the root audit requires. */
+export { GATE_REQUIREMENTS, CAPABILITY_GATES };
 
-/** Which capability each gate's evidence establishes (for §43). */
-const CAPABILITY_GATES: Readonly<Record<string, readonly string[]>> = {
-  "knowledge foundation": ["acceptance-knowledge", "acceptance-final"],
-  "architecture and UI discovery": ["acceptance-architecture"],
-  "theme engine": ["acceptance-theme", DESKTOP_BLACK_BOX],
-  "requirements graph": ["acceptance-requirements"],
-  "execution planner": ["acceptance-plan"],
-  "verification engine": ["acceptance-verify"],
-  "review layers": ["acceptance-review"],
-  "self-healing": ["acceptance-self-healing"],
-  "capability gap loop": ["acceptance-capability-gap"],
-  "candidate and Guardian gate": ["acceptance-candidate"],
-  "version impact and Git checkpoint": ["acceptance-version-checkpoint"],
-  "GitHub publishing": ["acceptance-publish"],
-  "CI repair loop": ["acceptance-ci-repair"]
-};
-
-export interface GateReport {
-  /** The gate's unit label, as its report writes it. */
-  unit?: string;
-  requirementResults?: { id: string; verdict: string }[];
-  totals?: { pass?: number; fail?: number; notRun?: number };
-  passed?: boolean;
-}
-
-export interface GateAudit {
+/** One gate's evidence as the host read it from disk. */
+export interface GateEvidence {
   gate: string;
+  report_file: string;
+  report: unknown;
+  /** SHA-256 of the report file's exact bytes; "" when the file does not exist. */
+  report_sha256: string;
+  attestation_file: string;
+  attestation: unknown;
+  attestation_sha256: string;
+}
+
+export interface TrustedBootstrapInput {
+  session?: AcceptanceSession;
+  /** SHA-256 of the session manifest. */
+  session_sha256: string;
+  session_file?: string;
+  gates: readonly GateEvidence[];
+  desktop?: GateEvidence;
+  ownerLedger?: OwnerInterventionLedger;
+  ownerLedgerSha256: string;
+  ownerLedgerFile?: string;
+}
+
+export interface TrustedEvidenceSource {
+  kind: "gate" | "desktop" | "owner_ledger" | "session";
+  gate: string;
+  report_file: string;
+  report_sha256: string;
+  attestation_file: string;
+  attestation_sha256: string;
   verdict: "PASS" | "FAIL" | "MISSING";
-  required: number;
-  verified: number;
-  missing_ids: string[];
-  reasons: string[];
+  required_ids: number;
+  verified_ids: number;
+  problems: string[];
 }
 
-/** §57/§58: one gate's report judged against the ids it must have passed. */
-export function auditGate(gate: string, report: GateReport | undefined, required: readonly string[]): GateAudit {
-  if (!report) return { gate, verdict: "MISSING", required: required.length, verified: 0, missing_ids: [...required], reasons: [`${gate} wrote no report`] };
-  const verdicts = new Map((report.requirementResults ?? []).map((entry) => [entry.id, entry.verdict]));
-  const failed: string[] = [];
-  const unverified: string[] = [];
-  for (const id of required) {
-    const verdict = verdicts.get(id);
-    if (verdict === "PASS") continue;
-    if (verdict === undefined) unverified.push(id);
-    else failed.push(id);
-  }
-  const problems = [
-    ...failed.map((id) => `${gate}:${id} was ${verdicts.get(id)}`),
-    ...unverified.map((id) => `${gate}:${id} was not reported`)
-  ];
-  if (report.passed === false && !problems.length) problems.push(`${gate} reported passed=false`);
-  return {
-    gate,
-    verdict: problems.length ? "FAIL" : "PASS",
-    required: required.length,
-    verified: required.length - problems.length,
-    missing_ids: [...failed, ...unverified],
-    reasons: problems.length ? problems.slice(0, 6) : [`${gate}: ${required.length} required id(s) passed`]
-  };
-}
-
-export interface BootstrapAudit {
-  schemaVersion: 1;
+export interface TrustedBootstrapAudit {
+  schemaVersion: 2;
   version: typeof BOOTSTRAP_AUDIT_VERSION;
+  session_id: string;
+  commit_sha: string;
   decision: "BOOTSTRAP_COMPLETE" | "INCOMPLETE";
-  gates: GateAudit[];
   gates_passed: number;
   gates_required: number;
-  /** §43 over the capabilities the passing gates establish. */
-  completion: BootstrapCompletionVerdict;
+  /** §8.2: one entry per delivery gate, with the reasons it did or did not pass. */
+  gates: TrustedEvidenceSource[];
+  /** §8.6: the real-application black box under its versioned claim contract. */
+  desktop: TrustedEvidenceSource & { contract: string; verified_claims: number; required_claims: number };
+  /** §8.6: 13/13 only when every mapped gate's evidence is trusted. */
+  capabilities: { passed: number; required: number };
   capability_evidence: { capability: string; gates: string[]; established: boolean }[];
-  /** §57: the real-application black box. */
-  desktop: GateAudit;
-  /**
-   * §53/§57/§7.5: the derived Owner intervention count. It is the runtime ledger's
-   * own event count — there is no input parameter that can set it.
-   */
+  completion: BootstrapCompletionVerdict;
   owner_interventions: number;
-  /** §7.5: the ledger the count came from, and the problems found in it. */
-  owner_intervention_ledger: { session_id: string; commit_sha: string; events: number; hash: string };
-  owner_ledger_problems: string[];
+  owner_intervention_ledger: { session_id: string; commit_sha: string; events: number; hash: string; sha256: string };
+  provenance: { same_session: boolean; same_commit: boolean; source_hashes_verified: boolean };
+  /** §8.4/§2.7: the root evidence manifest — every source, with its hashes. */
+  sources: TrustedEvidenceSource[];
+  /** §2.1: every reason the run is not complete. Empty exactly when it is complete. */
   reasons: string[];
+  /** The one-line record of what was proven, present when the decision is complete. */
+  summary: string;
+  /** §8.5: the digest that binds session, commit, sources, capabilities, ledger and decision. */
+  root_hash: string;
+  /** Convenience alias so existing readers of the record keep working. */
   hash: string;
 }
 
-/** §7.5: the audit takes the ledger, never a number. */
-export interface BootstrapAuditInput {
-  reports: Readonly<Record<string, GateReport | undefined>>;
-  ownerLedger: OwnerInterventionLedger;
-  /** Session/commit/count/digest problems the host found in that ledger. */
-  ownerLedgerProblems?: readonly string[];
+function requiredProblems(validation: StrictReportValidation | undefined, required: number): number {
+  if (!validation) return required;
+  return validation.reasons.filter((reason) => reason.startsWith("REQUIRED_ID_MISSING") || reason.startsWith("REQUIRED_ID_NOT_PASS")).length;
+}
+
+/** §8.2: raw report + valid attestation + matching source SHA, all three. */
+function judgeGateEvidence(input: {
+  contract: AcceptanceGateContract;
+  evidence: GateEvidence | undefined;
+  session: AcceptanceSession | undefined;
+  exact: boolean;
+}): { source: TrustedEvidenceSource; validation?: StrictReportValidation } {
+  const { contract, evidence, session } = input;
+  const problems: string[] = [];
+  let validation: StrictReportValidation | undefined;
+  // "MISSING" means the file is not there at all. A file that exists but cannot be
+  // understood is a FAIL: something was produced and it is not evidence.
+  const fileMissing = !evidence || evidence.report_sha256 === "";
+  if (!evidence) {
+    problems.push("EVIDENCE_MISSING");
+  } else {
+    if (fileMissing) problems.push("REPORT_FILE_MISSING");
+    validation = input.exact
+      ? validateDesktopBlackBoxReport({ contract, report: evidence.report })
+      : validateGateReport({ gate: contract.gate, contract, report: evidence.report });
+    if (validation.verdict !== "PASS") problems.push(...validation.reasons.slice(0, 10));
+    if (!session) problems.push("SESSION_MISSING");
+    else {
+      problems.push(...verifyGateAttestation({
+        gate: contract.gate,
+        contract,
+        session,
+        attestation: evidence.attestation,
+        report: evidence.report,
+        source_sha256: evidence.report_sha256
+      }).slice(0, 10));
+    }
+    if (evidence.attestation_sha256 === "") problems.push("ATTESTATION_FILE_MISSING");
+  }
+  const required = contract.required_ids.length;
+  const verdict: TrustedEvidenceSource["verdict"] = fileMissing ? "MISSING" : problems.length ? "FAIL" : "PASS";
+  const source: TrustedEvidenceSource = {
+    kind: contract.gate === DESKTOP_BLACK_BOX_GATE ? "desktop" : "gate",
+    gate: contract.gate,
+    report_file: evidence?.report_file ?? contract.report_file,
+    report_sha256: evidence?.report_sha256 ?? "",
+    attestation_file: evidence?.attestation_file ?? "",
+    attestation_sha256: evidence?.attestation_sha256 ?? "",
+    verdict,
+    required_ids: required,
+    verified_ids: verdict === "PASS" ? required : Math.max(0, required - requiredProblems(validation, required)),
+    problems
+  };
+  return { source, ...(validation ? { validation } : {}) };
 }
 
 /**
- * §57/§58 evaluated.
- *
- * Complete requires: every gate report present and passing, the desktop black box
- * passing (the real application, not the units), every critical capability
- * established, a trustworthy Owner intervention ledger, and zero events in it —
- * anything less is honestly INCOMPLETE.
+ * §8.1/§8.2/§8.3: the trusted root audit. Complete requires trusted PASS evidence for
+ * all sixteen gates and the black box, all thirteen capabilities derived from that
+ * evidence, a session-bound ledger with zero events, and a verifiable source
+ * manifest — otherwise the decision is honestly INCOMPLETE.
  */
-export function auditBootstrap(input: BootstrapAuditInput): BootstrapAudit {
-  const gates = Object.entries(GATE_REQUIREMENTS).map(([gate, required]) => auditGate(gate, input.reports[gate], required));
-  const desktop = auditGate(DESKTOP_BLACK_BOX, input.reports[DESKTOP_BLACK_BOX], []);
-  // The real application's black box is evidence for a capability too, so it counts
-  // alongside the chain's gates when it passed.
-  const established = new Set([
-    ...gates.filter((audit) => audit.verdict === "PASS").map((audit) => audit.gate),
-    ...(desktop.verdict === "PASS" ? [DESKTOP_BLACK_BOX] : [])
+export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedBootstrapAudit {
+  const reasons: string[] = [];
+  const session = input.session;
+  if (!session) reasons.push("§5.2: no acceptance session was found, so no evidence can be attributed to a run");
+  else reasons.push(...sessionProblems(session).map((problem) => `§5.2: ${problem}`));
+  if (input.session_sha256 === "") reasons.push("§5.2: the session manifest file is missing");
+
+  const gateJudgements = ACCEPTANCE_GATE_CONTRACTS.map((contract) => judgeGateEvidence({
+    contract,
+    evidence: input.gates.find((entry) => entry.gate === contract.gate),
+    session,
+    exact: false
+  }));
+  const gateSources = gateJudgements.map((judgement) => judgement.source);
+  const desktopJudgement = judgeGateEvidence({ contract: DESKTOP_BLACK_BOX_CONTRACT, evidence: input.desktop, session, exact: true });
+  const desktopSource = desktopJudgement.source;
+  for (const source of [...gateSources, desktopSource]) reasons.push(...source.problems.map((problem) => `${source.gate}: ${problem}`));
+
+  const ledgerProblems = input.ownerLedger
+    ? (session ? verifyOwnerLedger({ ledger: input.ownerLedger, session }) : ["LEDGER_SESSION_UNVERIFIABLE"])
+    : ["OWNER_LEDGER_MISSING"];
+  reasons.push(...ledgerProblems.map((problem) => `§7: ${problem}`));
+  if (input.ownerLedgerSha256 === "") reasons.push("§7: the Owner intervention ledger file is missing");
+  const ownerInterventions = input.ownerLedger ? deriveOwnerInterventions(input.ownerLedger) : 0;
+  if (ownerInterventions > 0) reasons.push(`§57: ${ownerInterventions} Owner intervention(s) were needed; the black box forbids them`);
+
+  const ledgerSource: TrustedEvidenceSource = {
+    kind: "owner_ledger",
+    gate: "owner-interventions",
+    report_file: input.ownerLedgerFile ?? "",
+    report_sha256: input.ownerLedgerSha256,
+    attestation_file: "",
+    attestation_sha256: "",
+    verdict: ledgerProblems.length === 0 && input.ownerLedgerSha256 !== "" ? "PASS" : "FAIL",
+    required_ids: 0,
+    verified_ids: input.ownerLedger?.events.length ?? 0,
+    problems: ledgerProblems
+  };
+  const sessionSource: TrustedEvidenceSource = {
+    kind: "session",
+    gate: "acceptance-session",
+    report_file: input.session_file ?? "",
+    report_sha256: input.session_sha256,
+    attestation_file: "",
+    attestation_sha256: "",
+    verdict: session && sessionProblems(session).length === 0 && input.session_sha256 !== "" ? "PASS" : "FAIL",
+    required_ids: 0,
+    verified_ids: 0,
+    problems: session ? sessionProblems(session) : ["SESSION_NOT_OBJECT"]
+  };
+
+  const trusted = new Set<string>([
+    ...gateSources.filter((source) => source.verdict === "PASS").map((source) => source.gate),
+    ...(desktopSource.verdict === "PASS" ? [DESKTOP_BLACK_BOX_GATE] : [])
   ]);
   const capabilityEvidence = CRITICAL_CAPABILITIES.map((capability) => {
     const proof = CAPABILITY_GATES[capability] ?? [];
-    const provenBy = proof.filter((gate) => established.has(gate));
-    return { capability, gates: proof.filter((gate) => input.reports[gate] !== undefined), established: proof.length > 0 && provenBy.length === proof.length };
+    const provenBy = proof.filter((gate) => trusted.has(gate));
+    return { capability, gates: [...proof], established: proof.length > 0 && provenBy.length === proof.length };
   });
-  const completion = bootstrapCompletion(capabilityEvidence.filter((entry) => entry.established).map((entry) => entry.capability));
-  const ownerInterventions = deriveOwnerInterventions(input.ownerLedger);
-  const ledgerProblems = [...(input.ownerLedgerProblems ?? [])];
-  const reasons: string[] = [];
-  const failing = gates.filter((audit) => audit.verdict !== "PASS");
-  for (const audit of failing) reasons.push(...audit.reasons);
-  if (desktop.verdict !== "PASS") reasons.push(...desktop.reasons);
+  const established = capabilityEvidence.filter((entry) => entry.established).map((entry) => entry.capability);
+  const completion = bootstrapCompletion(established);
   if (!completion.complete) reasons.push(completion.reason);
-  if (ledgerProblems.length) reasons.push(`§7: the Owner intervention ledger is not trustworthy (${ledgerProblems.slice(0, 4).join(", ")})`);
-  if (ownerInterventions > 0) reasons.push(`§57: ${ownerInterventions} Owner intervention(s) were needed; the black box forbids them`);
-  const decision = reasons.length === 0 ? "BOOTSTRAP_COMPLETE" : "INCOMPLETE";
-  const audit: Omit<BootstrapAudit, "hash"> = {
-    schemaVersion: 1,
+
+  const sources = [...gateSources, desktopSource, ledgerSource, sessionSource];
+  const provenance = {
+    same_session: !sources.some((source) => source.problems.some((problem) => problem.includes("SESSION_MISMATCH"))),
+    same_commit: !sources.some((source) => source.problems.some((problem) => problem.includes("COMMIT_MISMATCH"))),
+    source_hashes_verified: !sources.some((source) => source.problems.some((problem) => problem.includes("SOURCE_HASH_MISMATCH"))
+      || source.problems.includes("REPORT_MISSING")
+      || source.problems.includes("ATTESTATION_FILE_MISSING"))
+  };
+  if (!provenance.same_session) reasons.push("§2.3: the evidence does not all belong to this session");
+  if (!provenance.same_commit) reasons.push("§2.4: the evidence does not all belong to this commit");
+  if (!provenance.source_hashes_verified) reasons.push("§2.7: at least one source hash could not be verified");
+
+  const gatesPassed = gateSources.filter((source) => source.verdict === "PASS").length;
+  const decision: TrustedBootstrapAudit["decision"] = reasons.length === 0 ? "BOOTSTRAP_COMPLETE" : "INCOMPLETE";
+  const rootHash = canonicalSha256({
+    schema: "prestart-bootstrap-root-1",
+    session_id: session?.session_id ?? "",
+    commit_sha: session?.commit_sha ?? "",
+    sources: sources.map((source) => ({
+      kind: source.kind,
+      gate: source.gate,
+      report_file: source.report_file,
+      report_sha256: source.report_sha256,
+      attestation_file: source.attestation_file,
+      attestation_sha256: source.attestation_sha256,
+      verdict: source.verdict
+    })),
+    owner_interventions: ownerInterventions,
+    capabilities: { passed: established.length, required: CRITICAL_CAPABILITIES.length },
+    decision
+  });
+
+  const audit: Omit<TrustedBootstrapAudit, "hash" | "root_hash"> = {
+    schemaVersion: 2,
     version: BOOTSTRAP_AUDIT_VERSION,
+    session_id: session?.session_id ?? "",
+    commit_sha: session?.commit_sha ?? "",
     decision,
-    gates,
-    gates_passed: gates.filter((entry) => entry.verdict === "PASS").length,
-    gates_required: gates.length,
-    completion,
+    gates_passed: gatesPassed,
+    gates_required: gateSources.length,
+    gates: gateSources,
+    desktop: {
+      ...desktopSource,
+      contract: DESKTOP_BLACK_BOX_CONTRACT.contract_version,
+      verified_claims: desktopJudgement.validation?.counts.pass ?? 0,
+      required_claims: desktopSource.required_ids
+    },
+    capabilities: { passed: established.length, required: CRITICAL_CAPABILITIES.length },
     capability_evidence: capabilityEvidence,
-    desktop,
+    completion,
     owner_interventions: ownerInterventions,
     owner_intervention_ledger: {
-      session_id: input.ownerLedger.session_id,
-      commit_sha: input.ownerLedger.commit_sha,
-      events: input.ownerLedger.events.length,
-      hash: input.ownerLedger.ledger_hash
+      session_id: input.ownerLedger?.session_id ?? "",
+      commit_sha: input.ownerLedger?.commit_sha ?? "",
+      events: ownerInterventions,
+      hash: input.ownerLedger?.ledger_hash ?? "",
+      sha256: input.ownerLedgerSha256
     },
-    owner_ledger_problems: ledgerProblems,
-    reasons: decision === "BOOTSTRAP_COMPLETE"
-      ? [`§57/§58: every one of the ${gates.length} gates passed, the desktop black box passed, all ${CRITICAL_CAPABILITIES.length} capabilities are established and the Owner intervention ledger is empty`]
-      : reasons
+    provenance,
+    sources,
+    reasons,
+    summary: decision === "BOOTSTRAP_COMPLETE"
+      ? `§57/§58: ${gatesPassed}/${gateSources.length} gates produced trusted evidence, the desktop black box satisfied its complete claim contract, all ${CRITICAL_CAPABILITIES.length} capabilities are established, and the Owner intervention ledger is empty`
+      : `§57/§58: INCOMPLETE — ${reasons.length} reason(s)`
   };
-  return { ...audit, hash: contentHashOf(JSON.stringify(audit)) };
+  return { ...audit, root_hash: rootHash, hash: rootHash };
 }

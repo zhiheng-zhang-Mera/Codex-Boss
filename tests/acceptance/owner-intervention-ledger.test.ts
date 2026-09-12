@@ -153,7 +153,7 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
       const overridden = (auditor.evaluate as unknown as (input?: unknown) => ReturnType<typeof auditor.evaluate>)({ owner_interventions: 0 });
       item.check("the caller's zero is ignored", 1, overridden.audit.owner_interventions);
       item.check("and the run is INCOMPLETE", "INCOMPLETE", overridden.audit.decision);
-      item.check("the ledger event is what the audit reports", 1, overridden.ownerLedger.events);
+      item.check("the ledger event is what the audit reports", 1, overridden.audit.owner_intervention_ledger.events);
 
       const request = { source: "run", at: new Date(0).toISOString(), reason: "one", count: 0 };
       const smuggled = appendOwnerIntervention(emptyOwnerLedger(fixture.session), request as unknown as Parameters<typeof appendOwnerIntervention>[1]);
@@ -243,7 +243,7 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
       item.check("the host auditor never names an owner count", false, /owner_interventions/.test(host));
       item.check("the driver passes no owner count", false, /owner_interventions\s*:\s*\d/.test(driver) || /evaluate\(\s*\{/.test(driver));
       item.check("the audit takes the ledger instead", true, /ownerLedger/.test(audit));
-      item.check("the host reads the ledger", true, /inspectOwnerLedger/.test(host));
+      item.check("the host reads the ledger", true, /readOwnerLedger/.test(host));
       item.check("and the driver takes no arguments at all", true, /\.evaluate\(\)/.test(driver));
       item.cite("evaluate()");
     });

@@ -43,8 +43,8 @@ const { createBootstrapAuditor } = require(built);
 const outcome = createBootstrapAuditor({ root }).evaluate();
 console.log("");
 console.log(`[bootstrap] real audit: ${outcome.audit.decision}`);
-console.log(`[bootstrap] gates: ${outcome.audit.gates_passed}/${outcome.audit.gates_required} passed, desktop black box ${outcome.audit.desktop.verdict}, capabilities ${outcome.audit.capability_evidence.filter((entry) => entry.established).length}/${outcome.audit.capability_evidence.length}, owner interventions ${outcome.audit.owner_interventions} (ledger events ${outcome.ownerLedger.events})`);
-for (const gate of outcome.audit.gates.filter((entry) => entry.verdict !== "PASS")) console.log(`[bootstrap]   ${gate.gate}: ${gate.verdict} — ${gate.reasons[0] ?? ""}`);
+console.log(`[bootstrap] gates: ${outcome.audit.gates_passed}/${outcome.audit.gates_required} passed, desktop black box ${outcome.audit.desktop.verdict} (${outcome.audit.desktop.verified_claims}/${outcome.audit.desktop.required_claims} claims), capabilities ${outcome.audit.capabilities.passed}/${outcome.audit.capabilities.required}, owner interventions ${outcome.audit.owner_interventions} (ledger events ${outcome.audit.owner_intervention_ledger.events})`);
+for (const gate of outcome.audit.gates.filter((entry) => entry.verdict !== "PASS")) console.log(`[bootstrap]   ${gate.gate}: ${gate.verdict} — ${gate.problems[0] ?? ""}`);
 console.log(`[bootstrap] record: ${path.relative(root, outcome.recordPath)}`);
 if (outcome.audit.decision !== "BOOTSTRAP_COMPLETE") {
   console.error(`[bootstrap] FAILED: ${outcome.audit.reasons.slice(0, 4).join(" | ")}`);
