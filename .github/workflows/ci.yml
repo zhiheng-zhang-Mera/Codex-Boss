@@ -182,6 +182,30 @@ jobs:
       # PRESTART_CERTIFIED / BOOTSTRAP_COMPLETE only if every condition of §12 holds,
       # and writes artifacts/acceptance/prestart-attestation.json (+ .md).
       - run: pnpm run acceptance:prestart
+      # Update-Plan/self-evlo.md Phase A–E (Post-Prestart trust hardening): the
+      # identity/build/dependency/contract/test binding, the Root Trust Surface and
+      # trust epoch boundary, the independent certificate verifier, and the expanded
+      # adversarial/fuzz/metamorphic batteries. Each is attested like every other
+      # gate, so the evolution certificate cannot inherit a claim it did not verify.
+      - run: pnpm run acceptance:evolution-identity
+      - run: pnpm run acceptance:attest -- acceptance-evolution-identity
+      - run: pnpm run acceptance:evolution-trust
+      - run: pnpm run acceptance:attest -- acceptance-evolution-trust
+      - run: pnpm run acceptance:evolution-independent
+      - run: pnpm run acceptance:attest -- acceptance-evolution-independent
+      - run: pnpm run acceptance:evolution-adversarial
+      - run: pnpm run acceptance:attest -- acceptance-evolution-adversarial
+      # Phase F (§72–§75, §94/§95): the real trial battery — 20 seeded evolution
+      # rounds in this checkout (change → verify → evidence → rollback), plus budget,
+      # scope, containment, mid-round process kill, negative and self-corruption
+      # cases. It refuses to run on a dirty tree.
+      - run: pnpm run acceptance:evolution-battery -- --rounds 20
+      - run: pnpm run acceptance:attest -- acceptance-evolution-trial
+      # §18/§19: an independent verifier re-derives the Prestart certificate without
+      # importing the trust modules, and the graduation command requires validator A
+      # AND validator B to agree before it prints AUTONOMOUS_EVOLUTION_CERTIFIED.
+      - run: pnpm run verify:certificate
+      - run: pnpm run acceptance:autonomous-evolution
       # checkpoint-2 §2.8/§11: the authority is the attestation plus this CI run, so
       # the whole evidence set is published with the run (even when it failed).
       - uses: actions/upload-artifact@v4
@@ -191,8 +215,11 @@ jobs:
           path: |
             artifacts/acceptance/prestart-attestation.json
             artifacts/acceptance/prestart-attestation.md
+            artifacts/acceptance/autonomous-evolution-attestation.json
+            artifacts/acceptance/autonomous-evolution-attestation.md
             artifacts/acceptance/bootstrap-completion.json
             artifacts/acceptance/session.json
             artifacts/acceptance/owner-interventions.json
+            artifacts/acceptance/evolution-*.json
             artifacts/acceptance/attestations/
           if-no-files-found: warn

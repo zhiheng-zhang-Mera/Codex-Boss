@@ -28,6 +28,7 @@ import {
   SESSION_FILE
 } from "./acceptance-session";
 import { OWNER_LEDGER_FILE, ownerLedgerPath, readOwnerLedger } from "./owner-intervention-ledger";
+import { writeFileAtomicSync } from "./atomic-file";
 
 /** The record the Bootstrap Completion audit writes. */
 export const BOOTSTRAP_AUDIT_RECORD = "bootstrap-completion.json";
@@ -39,6 +40,12 @@ export interface BootstrapAuditGate {
   root: string;
   artifacts?: string;
   now?: () => Date;
+  /**
+   * §2.8/§8.5: when false the auditor is read-only. The graduation command uses this
+   * so it can compare its recomputation against the record an earlier step wrote —
+   * an auditor that rewrites the record it is verifying can never fail that check.
+   */
+  write?: boolean;
 }
 
 export interface BootstrapAuditOutcome {
@@ -96,8 +103,11 @@ export function createBootstrapAuditor(config: BootstrapAuditGate): {
           ...(typeof parsed?.unit === "string" ? { unit: parsed.unit } : {})
         };
       });
-      fs.mkdirSync(artifacts, { recursive: true });
-      fs.writeFileSync(recordPath, JSON.stringify({ ...audit, audited_at: now().toISOString(), artifacts, session_problems: sessionInspection.problems }, null, 2), "utf8");
+      const record = { ...audit, audited_at: now().toISOString(), artifacts, session_problems: sessionInspection.problems };
+      if (config.write !== false) {
+        fs.mkdirSync(artifacts, { recursive: true });
+        writeFileAtomicSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+      }
       return { audit, reports, recordPath };
     }
   };

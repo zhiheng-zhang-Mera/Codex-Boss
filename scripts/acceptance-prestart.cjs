@@ -89,9 +89,11 @@ for (const problem of identityProblems) console.error(`[prestart] identity ${pro
 /* ------------------------------------------------------------------ *
  * 3. the trusted root audit (16 gates + desktop + ledger + session)
  * ------------------------------------------------------------------ */
-const audit = createBootstrapAuditor({ root }).evaluate().audit;
+/* §2.8: read the record an earlier step wrote FIRST, then recompute. An auditor that
+ * rewrites the record before comparing it can never fail that comparison. */
 const storedRecordPath = path.join(artifacts, BOOTSTRAP_RECORD);
 const storedRecord = readJsonFile(storedRecordPath);
+const audit = createBootstrapAuditor({ root, write: false }).evaluate().audit;
 const recordProblems = [];
 if (!storedRecord) recordProblems.push("BOOTSTRAP_RECORD_MISSING");
 else {
@@ -187,17 +189,10 @@ const reasons = [
   ...supporting.filter((entry) => entry.verdict !== "PASS").flatMap((entry) => entry.problems.slice(0, 3).map((problem) => `${entry.gate}: ${problem}`))
 ];
 const certified = reasons.length === 0;
-const rootHash = canonicalSha256({
-  schema: "prestart-attestation-1",
-  session_id: session.session_id,
-  commit_sha: session.commit_sha,
-  tree_sha: session.tree_sha ?? "",
-  bootstrap_root_hash: audit.root_hash,
-  supporting: supporting.map((entry) => ({ gate: entry.gate, report_sha256: entry.report_sha256, attestation_sha256: entry.attestation_sha256 })),
-  manifest: manifest.map((entry) => ({ gate: entry.gate, sha256: entry.sha256, attestation_sha256: entry.attestation_sha256 })),
-  decision: certified ? "PRESTART_CERTIFIED" : "PRESTART_INCOMPLETE"
-});
-const attestation = {
+/* §97: the certificate's own bytes are the sealed object — `root_hash` is the
+ * canonical digest of everything except `root_hash` and `certified_at`, so any
+ * independent verifier can recompute it from the file alone. */
+const attestationBody = {
   schemaVersion: PRESTART_SCHEMA_VERSION,
   state: certified ? "PRESTART_CERTIFIED" : "PRESTART_INCOMPLETE",
   bootstrap: certified ? "BOOTSTRAP_COMPLETE" : "INCOMPLETE",
@@ -247,10 +242,10 @@ const attestation = {
   })),
   bootstrap_record: { file: BOOTSTRAP_RECORD, sha256: sha256File(storedRecordPath), root_hash: audit.root_hash, problems: recordProblems },
   sources: manifest,
-  reasons,
-  root_hash: rootHash,
-  certified_at: new Date().toISOString()
+  reasons
 };
+const rootHash = canonicalSha256(attestationBody);
+const attestation = { ...attestationBody, root_hash: rootHash, certified_at: new Date().toISOString() };
 fs.mkdirSync(artifacts, { recursive: true });
 /* §96: the machine certificate is written atomically — a reader must never see a
  * half-written certificate — and its bytes are re-hashed before the seal is printed. */

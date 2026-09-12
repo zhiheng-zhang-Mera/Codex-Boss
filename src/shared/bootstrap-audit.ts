@@ -112,11 +112,13 @@ export interface TrustedBootstrapAudit {
   completion: BootstrapCompletionVerdict;
   owner_interventions: number;
   owner_intervention_ledger: { session_id: string; commit_sha: string; events: number; hash: string; sha256: string };
-  provenance: { same_session: boolean; same_commit: boolean; source_hashes_verified: boolean };
+  provenance: { same_session: boolean; same_commit: boolean; same_tree: boolean; source_hashes_verified: boolean; evidence_present: boolean; flags: Record<string, boolean> };
   /** §8.4/§2.7: the root evidence manifest — every source, with its hashes. */
   sources: TrustedEvidenceSource[];
   /** §2.1: every reason the run is not complete. Empty exactly when it is complete. */
   reasons: string[];
+  /** §44: the same refusals as machine codes, so no caller has to parse prose. */
+  problems: TrustProblem[];
   /** The one-line record of what was proven, present when the decision is complete. */
   summary: string;
   /** §8.5: the digest that binds session, commit, sources, capabilities, ledger and decision. */
@@ -213,7 +215,6 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
   if (input.ownerLedgerSha256 === "") reasons.push("§7: the Owner intervention ledger file is missing");
   const ownerInterventions = input.ownerLedger ? deriveOwnerInterventions(input.ownerLedger) : 0;
   if (ownerInterventions > 0) reasons.push(`§57: ${ownerInterventions} Owner intervention(s) were needed; the black box forbids them`);
-
   const ledgerSource: TrustedEvidenceSource = {
     kind: "owner_ledger",
     gate: "owner-interventions",
@@ -280,6 +281,23 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
   if (!provenance.same_tree) reasons.push("§6: the evidence does not all belong to this tree");
   if (!provenance.source_hashes_verified) reasons.push("§2.7: at least one source hash could not be verified");
 
+  /* §44: every refusal the audit makes is also a machine code. The prose above is a
+   * projection; a caller (and the adversarial suite) must never have to parse it. */
+  const problems: TrustProblem[] = [];
+  if (!session) problems.push(trustProblem(TRUST_CODES.SESSION_MISSING));
+  problems.push(...sessionProblemList);
+  if (input.session_sha256 === "") problems.push(trustProblem(TRUST_CODES.SESSION_FILE_MISSING));
+  problems.push(...allProblems);
+  problems.push(...ledgerProblems);
+  if (!completion.complete) {
+    problems.push(trustProblem(TRUST_CODES.CAPABILITY_INCOMPLETE, completion.missing.join(",")));
+  }
+  if (ownerInterventions > 0) problems.push(trustProblem(TRUST_CODES.OWNER_INTERVENTION_PRESENT, String(ownerInterventions)));
+  if (!provenance.same_session) problems.push(trustProblem(TRUST_CODES.MIXED_SESSION));
+  if (!provenance.same_commit) problems.push(trustProblem(TRUST_CODES.MIXED_COMMIT));
+  if (!provenance.same_tree) problems.push(trustProblem(TRUST_CODES.MIXED_TREE));
+  if (!provenance.source_hashes_verified) problems.push(trustProblem(TRUST_CODES.SOURCE_HASHES_UNVERIFIED));
+
   const gatesPassed = gateSources.filter((source) => source.verdict === "PASS").length;
   const decision: TrustedBootstrapAudit["decision"] = reasons.length === 0 ? "BOOTSTRAP_COMPLETE" : "INCOMPLETE";
   const rootHash = canonicalSha256({
@@ -330,6 +348,7 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
     provenance,
     sources,
     reasons,
+    problems,
     summary: decision === "BOOTSTRAP_COMPLETE"
       ? `§57/§58: ${gatesPassed}/${gateSources.length} gates produced trusted evidence, the desktop black box satisfied its complete claim contract, all ${CRITICAL_CAPABILITIES.length} capabilities are established, and the Owner intervention ledger is empty`
       : `§57/§58: INCOMPLETE — ${reasons.length} reason(s)`
