@@ -33,6 +33,7 @@ import { WorldModelStore, buildWorldModelWithGraph } from "./engineering/world-m
 import { UISurfaceRegistryStore, discoverUISurfaces } from "./engineering/ui-surface-discovery";
 import { summarizeUISurfaceRegistry, defaultSurfaceContracts } from "../src/shared/ui-surface";
 import { ThemeService } from "./theme/theme-service";
+import os from "node:os";
 import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture } from "./theme/visual-capture";
 import { recordThemeKnowledge } from "./theme/theme-knowledge";
 import { generateThemeDraft } from "../src/shared/theme-generation";
@@ -778,9 +779,43 @@ if (ownsInstance) app.whenReady().then(() => {
   // theme is still valid, and fall back to a built-in when it is not.
   const themeBootstrap = themeService.bootstrap();
   if (themeBootstrap.fallback) console.warn("[theme] active theme fell back", themeBootstrap.diagnostics.slice(-3));
+  let lastPlanContext: import("../src/shared/execution-planner").PlanContext | undefined;
   const establishWorldModel = (root: string) => {
     const built = buildWorldModelWithGraph(fs.realpathSync(root));
     worldModelStore.put(built.model);
+    // checkpoint-1 §29: the planner scopes nodes against what was actually
+    // observed here — real files, real test files, real host commands.
+    lastPlanContext = {
+      files: built.model.modules.map((module) => module.path).concat(built.model.tests),
+      tests: built.model.tests.slice(0, 20),
+      entry_points: built.model.entry_points,
+      build_tools: built.model.build_system.map((entry) => entry.tool),
+      commands: {
+        ...(built.model.build_system.some((entry) => entry.tool === "tsc") ? { typecheck: "pnpm run typecheck" } : {}),
+        ...(built.model.tests.length ? { unit: "pnpm test" } : {}),
+        ...(built.model.build_system.some((entry) => entry.tool === "vite") ? { build: "pnpm run build" } : {})
+      },
+      // §29.3: the concurrency level is derived from what THIS host observes —
+      // cores, free memory, provider health and the load already in flight.
+      resources: (() => {
+        const providers = store.snapshot().providers.filter((item) => item.windowOpen);
+        const accounts = store.snapshot().accounts;
+        const rateLimited = store.snapshot().runs.filter((run) => run.outcome === "RATE_LIMITED").length;
+        const available = providers.filter((provider) => accounts.find((account) => account.providerId === provider.id)?.mode !== "AUTH_REQUIRED").length;
+        const activeTasks = store.snapshot().tasks.filter((task) => ["running", "queued", "waiting"].includes(task.status)).length;
+        const cores = os.cpus()?.length ?? 2;
+        const load = typeof os.loadavg === "function" ? (os.loadavg()[0] ?? 0) / Math.max(1, cores) : 0;
+        return {
+          cpu_cores: cores,
+          free_memory_mb: Math.round(os.freemem() / (1024 * 1024)),
+          gpu_available: false,
+          available_providers: available,
+          rate_limited_providers: rateLimited,
+          active_tasks: activeTasks,
+          load_average: Number(load.toFixed(3))
+        };
+      })()
+    };
     // The UI surface registry describes the APPLICATION (see ensureUiSurfaces),
     // so it is read from the persisted registry here rather than rebuilt inside
     // the dispatch path: a task must never pay for a second full-model scan.
@@ -1177,7 +1212,8 @@ if (ownsInstance) app.whenReady().then(() => {
         // never allowed to fail the task (§2.5).
         knowledge,
         onKnowledgeDiagnostic: (detail) => console.warn("[knowledge] WorkBook knowledge write degraded", detail),
-        worldModel: establishWorldModel
+        worldModel: establishWorldModel,
+        planContext: () => lastPlanContext
       });
       // Every outcome maps to the snapshot the caller receives; the durable
       // state was already written by the orchestration.

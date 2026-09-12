@@ -14,6 +14,7 @@
     "acceptance:architecture": "node scripts/acceptance-architecture.cjs",
     "acceptance:theme": "node scripts/acceptance-theme.cjs",
     "acceptance:requirements": "node scripts/acceptance-requirements.cjs",
+    "acceptance:plan": "node scripts/acceptance-plan.cjs",
     "acceptance:desktop-workbook": "node scripts/acceptance-desktop-workbook.cjs",
     "test:seeded": "node scripts/acceptance-seeded-engineering.cjs AB",
     "build:renderer": "vite build",

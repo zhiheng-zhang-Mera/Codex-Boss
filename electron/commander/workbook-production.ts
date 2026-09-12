@@ -136,6 +136,8 @@ export interface WorkDispatchDeps {
    * model is the host's job; intake only records the summaries.
    */
   worldModel?: (root: string) => { summary: import("../../src/shared/repo-world-model").WorldModelSummary; surfaces?: import("../../src/shared/ui-surface").UISurfaceSummary } | undefined;
+  /** checkpoint-1 §29: the observed files/tests/commands the planner uses. */
+  planContext?: (root: string) => import("../../src/shared/execution-planner").PlanContext | undefined;
 }
 
 /** The narrow slice of the knowledge foundation this orchestration needs. */
@@ -314,7 +316,8 @@ export async function runWorkDispatch(
   }, {
     registry: request.registry,
     ...(request.limits ? { limits: request.limits } : {}),
-    ...(deps.worldModel ? { worldModel: deps.worldModel } : {})
+    ...(deps.worldModel ? { worldModel: deps.worldModel } : {}),
+    ...(deps.planContext ? { planContext: deps.planContext } : {})
   });
 
   // The compiled objective is the authoritative intent for a blank message.

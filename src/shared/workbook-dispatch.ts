@@ -131,6 +131,12 @@ export interface WorkBookDispatchRecord {
    * (types, dependency edges, states and the evidence each requirement needs).
    */
   requirements?: import("./requirements-graph").RequirementsGraph;
+  /**
+   * checkpoint-1 §29: the execution DAG derived from the requirement graph —
+   * every node's objective, scope, allowed files, outputs, verification,
+   * dependencies and rollback.
+   */
+  execution_plan?: import("./execution-planner").ExecutionPlan;
   discovery?: DiscoverySummary;
   /** Trustworthy refusal/failure text; never a stack trace. */
   blocked_reason?: string;

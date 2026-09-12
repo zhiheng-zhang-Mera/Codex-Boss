@@ -58,6 +58,11 @@ jobs:
       # quarantined conflicting requirements) and checks the §28.4 acceptance
       # binding, including the fail-closed rule that a claim is not evidence.
       - run: pnpm run acceptance:requirements
+      # checkpoint-1 §29: the execution planner gate. The DAG is built inside the
+      # real dispatch and every node must carry objective/requirements/inputs/
+      # scope/allowed files/outputs/verification/dependencies/rollback, with
+      # concurrency derived from the host's observed resources.
+      - run: pnpm run acceptance:plan
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

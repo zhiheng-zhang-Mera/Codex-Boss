@@ -18,6 +18,7 @@ import path from "node:path";
 import { detectAnalysisOnly, type CanonicalTaskDocument, type WorkBookVerdict } from "../../src/shared/workbook";
 import { compileTaskContract, type CompiledTaskContract, isolateRequirements } from "../../src/shared/task-contract";
 import { buildRequirementsGraph } from "../../src/shared/requirements-graph";
+import { planExecution, type PlanContext } from "../../src/shared/execution-planner";
 import { changeAllowed } from "../../src/shared/guardian";
 import {
   AUTO_RUN_CLASSIFICATIONS,
@@ -55,6 +56,8 @@ export interface WorkBookDispatchDeps {
    * failure (§2.5).
    */
   worldModel?: (root: string) => { summary: import("../../src/shared/repo-world-model").WorldModelSummary; surfaces?: import("../../src/shared/ui-surface").UISurfaceSummary } | undefined;
+  /** checkpoint-1 §29: observed files/tests/commands the planner scopes nodes to. */
+  planContext?: (root: string) => PlanContext | undefined;
   limits?: Partial<IngestionLimits>;
   now?: () => Date;
 }
@@ -531,6 +534,13 @@ export async function runWorkBookDispatch(
     const match = requirements.nodes.find((node) => node.text === entry.item);
     if (match && match.state !== "QUARANTINED") { match.state = "QUARANTINED"; match.state_reason = entry.reason; }
   }
+  // checkpoint-1 §29: the requirements graph becomes an execution DAG whose
+  // nodes carry allowed files, verification commands and a rollback plan.
+  const executionPlan = planExecution({
+    requirements,
+    ...(deps.planContext ? (() => { const context = deps.planContext(repositoryRootFor(request) ?? ""); return context ? { context } : {}; })() : {}),
+    now: now().toISOString()
+  });
 
   const primaryDocument = documents.find((document) => document.id === roleAssignment.primary_document_id)
     ?? readable[0]
@@ -555,6 +565,7 @@ export async function runWorkBookDispatch(
         conflicts: roleAssignment.diagnostics,
         contract,
         requirements,
+        execution_plan: executionPlan,
         blocked_reason: `${refusal.code}: ${refusal.reason}`,
         ...(primaryDocument ? { workbook_hash: primaryDocument.hash } : {})
       }),
@@ -595,6 +606,7 @@ export async function runWorkBookDispatch(
       conflicts: roleAssignment.diagnostics,
       contract,
       requirements,
+      execution_plan: executionPlan,
       discovery
     }),
     title,
