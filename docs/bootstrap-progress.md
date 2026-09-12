@@ -30,6 +30,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | `34685821961` |
 | CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | `34686925547` |
 | CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | `34687917864` |
+| CP17 Soak Test + §51 plan | §53, §51 | `src/shared/soak.ts`, `electron/engineering/soak-runner.ts` | `acceptance:soak` SK-01..SK-06 (26 observations) | _pending in this push_ |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -80,15 +81,22 @@ evaluated over the other checkpoints' real artifacts, an empty artifact set is
 rejected with five items NOT_VERIFIED, and §43/§44/§45 plus the §51/§52 catalogues
 are pinned).
 
+Local evidence for CP17: the 28-step chain is green (`acceptance:soak` SK-01..SK-06
+PASS with 26 observations, offline — three rounds really clone from a bare remote,
+bootstrap, change, roll back, name a policy branch, read their own ledger and
+complete, with every stage evidenced and no metric moved).
+
+**In flight — CP18 next**: §57's Bootstrap Completion black box — a real WorkBook
+driven through the app plus a UI theme black box with zero Owner interventions —
+together with the final end-to-end re-verification of the cloud branch delivery.
+
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
 path still runs the older `verifyAndRepair` seam unchanged. Wiring the loop into
 the live path (with its iterations recorded on the durable task) is deliberately
 left to a later checkpoint rather than half-done.
 
-**In flight — CP17 next**: §53's soak test (repeated fresh clone → bootstrap →
-task rounds) and a one-shot benchmark runner that walks all eighteen §51 scenarios,
-followed by CP18's Bootstrap Completion black box (§57).
+| CP17 | §53, §51 | **delivered**: the soak rounds (fresh clone → bootstrap → task → repair → PR → CI → completion) with the six §53 metrics as absolutes and early stop on a repeated failure, plus §51's eighteen scenarios as one ordered plan |
 
 Per-checkpoint records: `docs/checkpoint-2-knowledge-foundation.md`,
 `checkpoint-3-architecture-ui-discovery.md`,
@@ -134,8 +142,9 @@ acceptance:theme → acceptance:requirements → acceptance:plan →
 acceptance:verify → acceptance:review → acceptance:self-healing →
 acceptance:capability-gap → acceptance:candidate →
 acceptance:version-checkpoint → acceptance:publish → acceptance:ci-repair →
-acceptance:final → acceptance:github-machine → benchmark → package:portable →
-portable smoke → restart acceptance → acceptance:desktop-workbook`
+acceptance:final → acceptance:soak → acceptance:github-machine → benchmark →
+package:portable → portable smoke → restart acceptance →
+acceptance:desktop-workbook`
 
 Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`.
 

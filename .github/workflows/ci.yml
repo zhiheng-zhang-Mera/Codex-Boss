@@ -114,6 +114,11 @@ jobs:
       # wrote, a missing artifact is NOT_VERIFIED (never a pass), §44/§45 decide what
       # may block, and the §51/§52 catalogues point at gates that really run.
       - run: pnpm run acceptance:final
+      # checkpoint-1 §53: the soak gate (SK-01..SK-06). Rounds really clone from a
+      # bare remote, bootstrap, change, roll back, name a policy branch, read their
+      # own ledger and complete; the six §53 metrics are absolutes, a repeated
+      # identical failure stops the soak, and §51's eighteen scenarios are ordered.
+      - run: pnpm run acceptance:soak
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
