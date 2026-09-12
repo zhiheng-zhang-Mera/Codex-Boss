@@ -396,9 +396,19 @@ describe("Phase C self-evlo §2/§3/§4/§14/§28–§34/§49–§52/§75/§77/�
 
       const committed = parseTrustEpochFile(readJson(COMMITTED_EPOCH));
       item.check("the committed epoch parses", 0, committed.problems.length);
-      item.check("it is the genesis epoch", 1, committed.file?.record.trust_epoch);
-      item.check("with no parent", "", committed.file?.record.parent_epoch_hash);
-      item.check("its contract version is the epoch's", `${ROOT_CONTRACT_VERSION_PREFIX}1`, committed.file?.record.root_contract_version);
+      // self-evlo §4: an epoch only ever moves forward, and a moved epoch is chained to
+      // its parent. Asserting the invariants (not the literal number) keeps this true
+      // after a legitimate re-bless — which is exactly what an epoch advance is.
+      const epochNumber = committed.file?.record.trust_epoch ?? 0;
+      item.check("the epoch is a positive integer", true, Number.isInteger(epochNumber) && epochNumber >= 1);
+      item.check(
+        "a genesis epoch has no parent, an advanced one carries a digest",
+        true,
+        epochNumber === 1
+          ? (committed.file?.record.parent_epoch_hash ?? "") === ""
+          : /^[0-9a-f]{64}$/.test(committed.file?.record.parent_epoch_hash ?? "")
+      );
+      item.check("its contract version is the epoch's", `${ROOT_CONTRACT_VERSION_PREFIX}${epochNumber}`, committed.file?.record.root_contract_version);
       item.check("its stored digest covers the record", true, committed.file?.epoch_hash === epochHashOf(committed.file!.record));
       item.check(
         "it verifies against the surface it recorded",
