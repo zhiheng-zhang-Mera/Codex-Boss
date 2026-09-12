@@ -137,8 +137,8 @@ const adversarialFalsePositives = (adversarial?.report?.false_positive_cases ?? 
 const evolutionFalsePositives = (evolutionAdversarial?.report?.false_positive_cases ?? null);
 if (adversarialFalsePositives !== 0) fail(`adversarial:false_positive_cases=${String(adversarialFalsePositives)}`);
 if (evolutionFalsePositives !== 0) fail(`evolution-adversarial:false_positive_cases=${String(evolutionFalsePositives)}`);
-const fuzzCases = (evolutionAdversarial?.report?.fuzz_cases ?? 0);
-const metamorphicCases = (evolutionAdversarial?.report?.metamorphic_cases ?? 0);
+const fuzzCases = evolutionAdversarial?.report?.fuzz_count ?? 0;
+const metamorphicCases = evolutionAdversarial?.report?.ids?.mm ?? 0;
 
 /* ------------------------------------------------------------------ *
  * 3. identity layer: source freeze, dependency, build, contracts, tests
@@ -370,8 +370,8 @@ const certificate = {
   state: certified ? "AUTONOMOUS_EVOLUTION_CERTIFIED" : "AUTONOMOUS_EVOLUTION_INCOMPLETE",
   self_iteration: certified ? "AUTHORIZED" : "EXPERIMENTAL",
   run_id: option("run-id", `evolution-${new Date().toISOString().replace(/[:.]/g, "")}`),
-  trust_epoch: epoch?.trust_epoch ?? null,
-  root_contract_version: epoch?.root_contract_version ?? null,
+  trust_epoch: epoch?.record?.trust_epoch ?? null,
+  root_contract_version: epoch?.record?.root_contract_version ?? null,
   baseline_commit: session.commit_sha,
   candidate_commit: session.commit_sha,
   candidate_tree: session.tree_sha ?? "",
