@@ -29,7 +29,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP13 Version Impact + Git Checkpoint | §37, §38 | `src/shared/{version-impact,git-checkpoint}.ts`, `electron/engineering/git-checkpoint.ts` | `acceptance:version-checkpoint` VC-01..VC-08 (50 observations) | `34684778075` |
 | CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | `34685821961` |
 | CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | `34686925547` |
-| CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | _pending in this push_ |
+| CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | `34687917864` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -73,6 +73,12 @@ Local evidence for CP15: the 26-step chain is green (139 test files / 1421 tests
 `tsc`/`node --test` log is parsed and classified, the repair is applied through the
 host, the local typecheck passes, the fix is pushed to a bare remote and the re-read
 is green; a failed CI read and a non-converging repair both end at a Hard Blocker).
+
+Local evidence for CP16: the 27-step chain is green (140 test files / 1429 tests,
+`acceptance:final` FS-01..FS-08 PASS with 55 observations — the §42 checklist is
+evaluated over the other checkpoints' real artifacts, an empty artifact set is
+rejected with five items NOT_VERIFIED, and §43/§44/§45 plus the §51/§52 catalogues
+are pinned).
 
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
