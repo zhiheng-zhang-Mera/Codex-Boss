@@ -1,7 +1,20 @@
 import type { RuntimeResult } from "../runtimes/runtime";
 
 /** Domain events (plan §13.1) the scheduler/runtime layers publish and consume. */
-export type DomainEventType = "WORKER_COMPLETED" | "WORKER_FAILED" | "DEPENDENCY_READY" | "PROVIDER_AVAILABLE" | "TOOL_RESULT_READY" | "HUMAN_APPROVED";
+export type DomainEventType =
+  | "WORKER_COMPLETED"
+  | "WORKER_FAILED"
+  | "DEPENDENCY_READY"
+  | "PROVIDER_AVAILABLE"
+  | "TOOL_RESULT_READY"
+  | "HUMAN_APPROVED"
+  // checkpoint-1 §56: the structured theme lifecycle events.
+  | "THEME_DRAFT_CREATED"
+  | "THEME_PREVIEWED"
+  | "THEME_VALIDATED"
+  | "THEME_INSTALLED"
+  | "THEME_ACTIVATED"
+  | "THEME_FALLBACK";
 
 export interface DomainEvent {
   type: DomainEventType;

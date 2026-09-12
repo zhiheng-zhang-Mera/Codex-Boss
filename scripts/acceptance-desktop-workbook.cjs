@@ -174,6 +174,13 @@ function connectCdp(webSocketDebuggerUrl) {
     const socket = new WebSocket(webSocketDebuggerUrl);
     const pending = new Map();
     let nextId = 0;
+    // A closed socket must reject everything in flight: otherwise the harness
+    // would simply run out of handles and exit 0 with no output, which is the
+    // worst possible failure mode for a black box.
+    const failPending = (reason) => {
+      for (const entry of pending.values()) entry.reject(new Error(`${reason} (during ${entry.method})`));
+      pending.clear();
+    };
     socket.onmessage = (event) => {
       let message;
       try { message = JSON.parse(String(event.data)); } catch { return; }
@@ -184,7 +191,8 @@ function connectCdp(webSocketDebuggerUrl) {
         else entry.resolve(message.result);
       }
     };
-    socket.onerror = () => reject(new Error("CDP socket error"));
+    socket.onerror = () => { failPending("CDP socket error"); reject(new Error("CDP socket error")); };
+    socket.onclose = () => failPending("CDP socket closed");
     socket.onopen = () => resolve({
       call(method, params = {}) {
         const id = ++nextId;
@@ -205,6 +213,16 @@ async function evaluate(client, expression) {
     throw new Error(`renderer evaluation failed: ${detail}`);
   }
   return result.result.value;
+}
+
+/** True when the debugger session still answers (a dropped session is not fatal). */
+async function sessionAlive(client) {
+  try {
+    await evaluate(client, "1 + 1");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -381,12 +399,15 @@ function readJson(file) {
 }
 
 /** Waits until the WorkBook task and its dispatch checkpoint stop changing. */
-async function waitForSettledTask(deadline) {
+async function waitForSettledTask(deadline, onPoll) {
   let previous = "";
   let stable = 0;
   let snapshot;
+  let polls = 0;
   while (Date.now() < deadline) {
+    polls += 1;
     snapshot = readJson(STATE_FILE);
+    if (onPoll) await onPoll(polls, snapshot);
     if (snapshot?.tasks?.length) {
       const task = snapshot.tasks.find((item) => item.workbookDispatch);
       if (task) {
@@ -436,6 +457,8 @@ function freePort() {
 }
 
 async function main() {
+  const trace = (message) => { try { fs.appendFileSync(path.join(ROOT, "harness-trace.log"), `${message}\n`); } catch { /* diagnostics only */ } };
+  trace("main:start");
   prepareFixtures();
   const port = await freePort();
   const electron = path.join(PROJECT, "node_modules", "electron", "dist", "electron.exe");
@@ -462,6 +485,7 @@ async function main() {
   let driver;
   let durable;
   let screenshot = false;
+  let sessionReconnects = 0;
   const claims = new Claims();
 
   try {
@@ -484,8 +508,14 @@ async function main() {
       // capture failure is recorded but never turns a verified path red.
       console.warn(`[desktop-smoke] screenshot unavailable: ${String(error.message ?? error)}`);
     }
+    trace(`after-screenshot; liveness=${await evaluate(client, "1 + 1").then((value) => value, (error) => `dead:${error.message}`)}`);
 
-    durable = await waitForSettledTask(Date.now() + SETTLE_TIMEOUT_MS);
+    durable = await waitForSettledTask(Date.now() + SETTLE_TIMEOUT_MS, async (poll, snapshot) => {
+      const task = (snapshot?.tasks ?? []).find((item) => item.workbookDispatch);
+      const run = (snapshot?.runs ?? [])[0];
+      trace(`poll=${poll} task=${task?.status ?? "-"} stage=${task?.workbookDispatch?.stage ?? "-"} run=${run?.phase ?? "-"} alive=${await sessionAlive(client)}`);
+    });
+    trace("after-settle");
   } finally {
     if (client) client.close();
     if (exit === undefined) { try { child.kill(); } catch { /* already gone */ } }
@@ -575,6 +605,108 @@ async function main() {
     claims.check("no world model diagnostic was recorded", undefined, record.discovery?.world_model_error);
   }
 
+  /* ------------------------------------------------------------------ *
+   * PHASE 2 — checkpoint-1 §10/§21/§48: the theme engine in a RESTARTED app.
+   *
+   * The theme is verified in a second launch over the SAME data directory. That
+   * is deliberate on two counts: it proves the registry and the active theme
+   * survive a restart (§48/TH-13), and it keeps this check independent of the
+   * long post-dispatch renderer session — whose debugger endpoint was observed
+   * to disappear a couple of seconds after a rolled-back provider dispatch while
+   * the app itself stayed up (recorded in the report as a harness note).
+   * ------------------------------------------------------------------ */
+  claims.check("phase one needed no debugger reconnect", 0, sessionReconnects);
+  try { client.close(); } catch { /* already closed */ }
+  if (exit === undefined) { try { child.kill(); } catch { /* already gone */ } }
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
+  const themePort = await freePort();
+  const themeOut = fs.openSync(path.join(ROOT, "electron-theme.stdout.log"), "w");
+  const themeErr = fs.openSync(path.join(ROOT, "electron-theme.stderr.log"), "w");
+  const themeChild = spawn(electron, [
+    PROJECT,
+    "--boss-workbook-smoke",
+    "--boss-offline-providers",
+    "--boss-data-dir=" + DATA_ROOT,
+    "--remote-debugging-port=" + themePort
+  ], { cwd: PROJECT, env, windowsHide: true, stdio: ["ignore", themeOut, themeErr] });
+  let themeSession;
+  let themePanel = { ok: false, reason: "phase two did not start" };
+  try {
+    const themeTarget = await waitForTarget(themePort, Date.now() + BOOT_TIMEOUT_MS);
+    themeSession = await connectCdp(themeTarget.webSocketDebuggerUrl);
+    await waitForRendererBoot(themeSession, Date.now() + BOOT_TIMEOUT_MS);
+    trace("phase-two renderer ready");
+    themePanel = await evaluate(themeSession, `(async () => {
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const textOf = (element) => (element && element.textContent ? element.textContent.trim() : "");
+    const read = () => ({
+      themeId: document.getElementById("boss-theme")?.getAttribute("data-boss-theme") ?? null,
+      bgRoot: getComputedStyle(document.documentElement).getPropertyValue("--boss-bg-root").trim(),
+      shellBackground: getComputedStyle(document.querySelector(".desktop-shell") ?? document.body).backgroundColor
+    });
+    const settingsButton = [...document.querySelectorAll("button")].find((button) => textOf(button).includes("\\u8bbe\\u7f6e"));
+    if (!settingsButton) return { ok: false, reason: "settings button missing" };
+    settingsButton.click();
+    const openDeadline = Date.now() + 10000;
+    let panel;
+    while (Date.now() < openDeadline && !(panel = document.querySelector(".theme-settings"))) await sleep(50);
+    if (!panel) return { ok: false, reason: "theme panel missing" };
+    const before = read();
+    const rows = [...panel.querySelectorAll(".theme-row")];
+    const rowFor = (name) => rows.find((row) => textOf(row.querySelector(".theme-name b")) === name);
+    const buttonIn = (row, label) => row ? [...row.querySelectorAll("button")].find((button) => textOf(button) === label) : undefined;
+    const lightRow = rowFor("Light");
+    const activateLight = buttonIn(lightRow, "\\u6fc0\\u6d3b");
+    if (!activateLight || activateLight.disabled) return { ok: false, reason: "Light activate button unavailable", rows: rows.map((row) => textOf(row.querySelector(".theme-name b"))) };
+    activateLight.click();
+    let after = read();
+    const changedDeadline = Date.now() + 10000;
+    while (Date.now() < changedDeadline && after.themeId !== "builtin-light") { await sleep(100); after = read(); }
+    const layout = {
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+      composer: Boolean(document.querySelector(".composer-zone")),
+      taskVisible: Boolean(document.querySelector(".workbook-status"))
+    };
+    const restoreDark = buttonIn(rowFor("Dark"), "\\u6fc0\\u6d3b");
+    if (restoreDark) restoreDark.click();
+    let restored = read();
+    const restoredDeadline = Date.now() + 10000;
+    while (Date.now() < restoredDeadline && restored.themeId !== "builtin-dark") { await sleep(100); restored = read(); }
+    const closeButton = [...document.querySelectorAll(".settings-panel header button")].pop();
+    if (closeButton) closeButton.click();
+    return { ok: true, before, after, restored, layout, rows: rows.map((row) => textOf(row.querySelector(".theme-name b"))) };
+    })()`);
+  } catch (error) {
+    themePanel = { ok: false, reason: `phase two failed: ${String(error.message ?? error)}` };
+  } finally {
+    try { themeSession?.close(); } catch { /* already closed */ }
+    try { themeChild.kill(); } catch { /* already gone */ }
+    try { fs.closeSync(themeOut); fs.closeSync(themeErr); } catch { /* best effort */ }
+  }
+
+  claims.check("the restarted app serves the theme panel from the real UI", true, themePanel.ok);
+  if (!themePanel.ok) claims.check("phase two reason", "theme panel driven", String(themePanel.reason));
+  if (themePanel.ok) {
+    claims.check("the theme registry survived the restart (active theme restored)", "builtin-dark", themePanel.before.themeId);
+    claims.check("the canvas shows the restored theme token on boot", "#0c0e10", themePanel.before.bgRoot);
+    claims.check("activating Light through the panel switches the active theme", "builtin-light", themePanel.after.themeId);
+    claims.check("the canvas token really changed", true, themePanel.after.bgRoot !== themePanel.before.bgRoot);
+    claims.check("the Light token is the value the engine shipped", "#f4f6f2", themePanel.after.bgRoot);
+    claims.check("the rendered surface colour follows the token", true, themePanel.after.shellBackground !== themePanel.before.shellBackground);
+    claims.check("restoring Dark returns the original canvas", themePanel.before.bgRoot, themePanel.restored.bgRoot);
+    claims.check("no layout overflow after the theme switch", true, themePanel.layout.scrollWidth <= themePanel.layout.innerWidth + 8);
+    claims.check("the composer survives the theme switch (no blank screen)", true, themePanel.layout.composer);
+    claims.check("both built-ins are listed in the panel", true, themePanel.rows.includes("Light") && themePanel.rows.includes("Dark"));
+    const themeRegistry = readJson(path.join(DATA_ROOT, ".boss", "theme-registry.json"));
+    claims.check("the theme registry was persisted by the real app", true, themeRegistry !== undefined);
+    claims.check("the persisted active theme is back to the built-in default", "builtin-dark", themeRegistry?.activeThemeId);
+    claims.check("both built-ins are registered and locked", 2, (themeRegistry?.records ?? []).filter((entry) => entry.builtIn === true && entry.deletable === false).length);
+    claims.check("built-in validation passed in the real app", true, (themeRegistry?.records ?? []).every((entry) => entry.validation?.ok === true));
+  }
+
+  trace("before-report");
   const report = {
     schemaVersion: 1,
     unit: "PHASE_0_DESKTOP_WORKBOOK_SMOKE",

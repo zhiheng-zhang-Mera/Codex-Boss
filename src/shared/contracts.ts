@@ -480,6 +480,19 @@ export interface BossBridge {
   engineeringGoalRun(input: EngineeringGoalRunInput): Promise<EngineeringGoalRunResult>;
   rehydrateEvidence(taskId: string): Promise<AppSnapshot>;
   runCodexReview(taskId: string): Promise<AppSnapshot>;
+  /* ---- checkpoint-1 §8/§13: theme manager surface (CP4) ---- */
+  /** Active theme tokens + rendered CSS + the registry list. */
+  themeSnapshot(): Promise<import("./theme").ThemeSnapshot>;
+  /** Activates a registered theme; falls back to a built-in when it cannot be used. */
+  themeActivate(themeId: string): Promise<import("./theme").ThemeSnapshot>;
+  /** Duplicates any theme into a complete, independent custom package (§11). */
+  themeDuplicate(sourceId: string, input: { id: string; name: string }): Promise<import("./theme").ThemeSnapshot>;
+  /** §22 deletion order; built-in themes are refused. */
+  themeDelete(themeId: string): Promise<import("./theme").ThemeSnapshot>;
+  /** §12: restores the locked built-in default. */
+  themeRestoreDefault(): Promise<import("./theme").ThemeSnapshot>;
+  /** §20: re-runs the validator and returns its report. */
+  themeValidate(themeId: string): Promise<import("./theme").ThemeValidationReport | undefined>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
   layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;

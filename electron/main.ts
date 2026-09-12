@@ -31,7 +31,8 @@ import { KnowledgeBase } from "./knowledge/knowledge-base";
 import { KnowledgeFoundation } from "./knowledge/knowledge-foundation";
 import { WorldModelStore, buildWorldModelWithGraph } from "./engineering/world-model";
 import { UISurfaceRegistryStore, discoverUISurfaces } from "./engineering/ui-surface-discovery";
-import { summarizeUISurfaceRegistry } from "../src/shared/ui-surface";
+import { summarizeUISurfaceRegistry, defaultSurfaceContracts } from "../src/shared/ui-surface";
+import { ThemeService } from "./theme/theme-service";
 import { ExecutionGate } from "./commander/execution-gate";
 import { decideEscalation, detectCapabilityNeeds } from "../src/shared/capability-needs";
 import type { InputObjectKind } from "../src/shared/input-object";
@@ -739,17 +740,56 @@ if (ownsInstance) app.whenReady().then(() => {
   // restart (or a later task) reads the model instead of rebuilding it blind.
   const worldModelStore = new WorldModelStore(path.join(app.getPath("userData"), ".boss", "world-model"));
   const uiSurfaceStore = new UISurfaceRegistryStore(path.join(app.getPath("userData"), ".boss", "ui-surfaces.json"));
+  /**
+   * The UI surface registry describes BOSS's own interface (§7.1/§9/§15), not the
+   * user's workspace, so it is discovered from the application path and memoized
+   * per application fingerprint. It is also the contract table the theme engine
+   * validates and renders against — a theme may only touch a registered surface.
+   */
+  let uiSurfaceCache: { fingerprint: string; contracts: ReturnType<typeof defaultSurfaceContracts> } | undefined;
+  const ensureUiSurfaces = () => {
+    try {
+      const built = buildWorldModelWithGraph(app.getAppPath());
+      if (uiSurfaceCache?.fingerprint !== built.model.fingerprint) {
+        const discovery = discoverUISurfaces(built.model);
+        if (discovery.validation.ok) uiSurfaceStore.put(discovery.registry);
+        else console.warn("[ui-surfaces] registry rejected", discovery.validation.problems);
+        uiSurfaceCache = { fingerprint: built.model.fingerprint, contracts: discovery.registry.contracts };
+      }
+      return uiSurfaceCache.contracts;
+    } catch (error) {
+      console.warn("[ui-surfaces] discovery failed; using the locked contract table", error);
+      return defaultSurfaceContracts();
+    }
+  };
+  const themeService = new ThemeService({
+    root: path.join(app.getPath("userData"), ".boss", "themes"),
+    registryFile: path.join(app.getPath("userData"), ".boss", "theme-registry.json"),
+    contracts: ensureUiSurfaces
+  });
+  // §12/§21/§48: materialize the locked built-ins, prove the persisted active
+  // theme is still valid, and fall back to a built-in when it is not.
+  const themeBootstrap = themeService.bootstrap();
+  if (themeBootstrap.fallback) console.warn("[theme] active theme fell back", themeBootstrap.diagnostics.slice(-3));
   const establishWorldModel = (root: string) => {
     const built = buildWorldModelWithGraph(fs.realpathSync(root));
     worldModelStore.put(built.model);
-    const discovery = discoverUISurfaces(built.model);
-    let surfaces = summarizeUISurfaceRegistry(discovery.registry);
-    if (discovery.validation.ok) {
-      uiSurfaceStore.put(discovery.registry);
-    } else {
-      // Fail closed: an invalid registry is reported, never persisted as truth.
-      console.warn("[ui-surfaces] registry rejected", discovery.validation.problems);
-    }
+    // The UI surface registry describes the APPLICATION (see ensureUiSurfaces),
+    // so it is read from the persisted registry here rather than rebuilt inside
+    // the dispatch path: a task must never pay for a second full-model scan.
+    const registry = uiSurfaceStore.get();
+    const surfaces = registry ? summarizeUISurfaceRegistry(registry) : summarizeUISurfaceRegistry({
+      schemaVersion: 1,
+      version: "ui-surface-registry-1",
+      generated_at: new Date().toISOString(),
+      root: app.getAppPath(),
+      contracts: defaultSurfaceContracts(),
+      unbound: defaultSurfaceContracts().map((contract) => contract.id),
+      tokens: [],
+      tokens_applied: false,
+      style_files: [],
+      component_files: []
+    });
     return { summary: built.summary, surfaces };
   };
   contextManager.setKnowledgeSectionProvider((taskId, role, maxChars) => {
@@ -1405,6 +1445,29 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     return publish();
   });
+  ipcMain.handle("boss:theme-snapshot", () => themeService.snapshot());
+  ipcMain.handle("boss:theme-activate", (_event, themeId: string) => {
+    const result = themeService.activate(themeId);
+    domainEvents.publish({ type: result.ok ? "THEME_ACTIVATED" : "THEME_FALLBACK", message: `theme ${themeId}: ${result.reason}` });
+    return themeService.snapshot();
+  });
+  ipcMain.handle("boss:theme-duplicate", (_event, sourceId: string, input: { id: string; name: string }) => {
+    const safeId = `custom-${String(input?.id ?? "").replace(/^custom-/, "").replace(/[^a-z0-9._-]/gi, "").toLowerCase().slice(0, 48)}`;
+    const result = themeService.duplicate(sourceId, { id: safeId, name: String(input?.name ?? safeId).slice(0, 60) });
+    if (!result.ok) throw new Error(result.reason);
+    domainEvents.publish({ type: "THEME_INSTALLED", message: `theme ${result.themeId} installed from ${sourceId}` });
+    return themeService.snapshot();
+  });
+  ipcMain.handle("boss:theme-delete", (_event, themeId: string) => {
+    const result = themeService.delete(themeId);
+    if (!result.ok) throw new Error(result.reason);
+    return themeService.snapshot();
+  });
+  ipcMain.handle("boss:theme-restore-default", () => {
+    themeService.activate("builtin-dark");
+    return themeService.snapshot();
+  });
+  ipcMain.handle("boss:theme-validate", (_event, themeId: string) => themeService.validate(themeId));
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
     const before = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!before) throw new Error(`Unknown task: ${taskId}`);

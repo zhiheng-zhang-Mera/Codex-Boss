@@ -49,6 +49,10 @@ jobs:
       # analysis, capability verdicts) and the UI surface registry with
       # evidence-backed bindings.
       - run: pnpm run acceptance:architecture
+      # checkpoint-1 §25: the theme engine gate (TH-01..TH-15). TH-04/05/06 —
+      # prompt-driven generation and the preview sandbox — are explicit NOT_RUN
+      # until CP5; every other item must pass.
+      - run: pnpm run acceptance:theme
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

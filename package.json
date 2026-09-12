@@ -12,6 +12,7 @@
     "acceptance:workbook": "node scripts/acceptance-workbook-production.cjs",
     "acceptance:knowledge": "node scripts/acceptance-knowledge-foundation.cjs",
     "acceptance:architecture": "node scripts/acceptance-architecture.cjs",
+    "acceptance:theme": "node scripts/acceptance-theme.cjs",
     "acceptance:desktop-workbook": "node scripts/acceptance-desktop-workbook.cjs",
     "test:seeded": "node scripts/acceptance-seeded-engineering.cjs AB",
     "build:renderer": "vite build",
