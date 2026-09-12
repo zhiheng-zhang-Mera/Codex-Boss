@@ -29,6 +29,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP13 Version Impact + Git Checkpoint | §37, §38 | `src/shared/{version-impact,git-checkpoint}.ts`, `electron/engineering/git-checkpoint.ts` | `acceptance:version-checkpoint` VC-01..VC-08 (50 observations) | `34684778075` |
 | CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | `34685821961` |
 | CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | `34686925547` |
+| CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | _pending in this push_ |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -79,11 +80,9 @@ path still runs the older `verifyAndRepair` seam unchanged. Wiring the loop into
 the live path (with its iterations recorded on the durable task) is deliberately
 left to a later checkpoint rather than half-done.
 
-**In flight — CP16 next**: §42's final acceptance (all mandatory requirements
-verified, no HIGH/MEDIUM findings, no unresolved secret or destructive action,
-knowledge write complete, version impact complete, CI green, candidate matches the
-Owner's goal — with the theme checks when UI is involved), plus §51's benchmark
-suite, §52's seeded failure battery and §53's restart recovery at every stage.
+**In flight — CP17 next**: §53's soak test (repeated fresh clone → bootstrap →
+task rounds) and a one-shot benchmark runner that walks all eighteen §51 scenarios,
+followed by CP18's Bootstrap Completion black box (§57).
 
 Per-checkpoint records: `docs/checkpoint-2-knowledge-foundation.md`,
 `checkpoint-3-architecture-ui-discovery.md`,
@@ -108,6 +107,7 @@ workbook attach (UI drop / IPC)
   → version impact + local Git checkpoint (precondition for §39/§40) §37/§38
   → publish: policy branch → commit trailers → push → PR body   §39/§40
   → CI repair loop (parse → classify → repair → verify → push)   §41
+  → final acceptance (§42 checklist over the artifacts above)     §42–§45/§51/§52
   → provider dispatch boundary                           (bounded/offline in acceptance)
   → knowledge write gate (host-derived facts only)       §5
 ```
@@ -128,8 +128,8 @@ acceptance:theme → acceptance:requirements → acceptance:plan →
 acceptance:verify → acceptance:review → acceptance:self-healing →
 acceptance:capability-gap → acceptance:candidate →
 acceptance:version-checkpoint → acceptance:publish → acceptance:ci-repair →
-acceptance:github-machine → benchmark → package:portable → portable smoke →
-restart acceptance → acceptance:desktop-workbook`
+acceptance:final → acceptance:github-machine → benchmark → package:portable →
+portable smoke → restart acceptance → acceptance:desktop-workbook`
 
 Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`.
 
@@ -145,6 +145,7 @@ Local equivalent (same order, prints exit codes): `scripts/phase0-validation-cha
 | CP13 | §37, §38 | **delivered**: the host-decided version impact (NONE/PATCH/MINOR/MAJOR from API/schema/behaviour/compatibility/migration/user-facing evidence, with a worker's conflicting claim rejected) and the local Git checkpoint (real HEAD/branch/diff/task/candidate/evidence, a remote-write guard, and a rollback that needs the Owner before discarding commits) |
 | CP14 | §39, §40 | **delivered**: the branch policy (`boss/<task-id>/<slug>`), the §39.2 commit trailers, the §40 PR sections and a release sequence where §38 is a precondition — executed for real against a bare remote and the real `GitHubGateway` (recording transport, in-memory App key, no network) |
 | CP15 | §41 | **delivered**: the CI repair loop — a real CI log parsed into step/diagnostics/tests/exit code, classified in §33's vocabulary, repaired through the §30 loop, verified on the gates the class demands, pushed through §39/§40 and re-read, bounded, with a failed CI read never counted as a pass |
+| CP16 | §42–§45, §51, §52 | **delivered**: the final-acceptance checklist evaluated over the other checkpoints' artifacts (a missing artifact is NOT_VERIFIED, never a pass), §43's BOOTSTRAP_COMPLETE definition, §44/§45's blocker rules as a refusal, and the §51/§52 catalogues pointing at gates that really run |
 | CP10 | §33 | failure classification (TRANSIENT…THEME/UI/UNKNOWN) + recovery ladder + HNS positioning as fallback that emits CapabilityGap |
 | CP11 | §34 | CapabilityGap → improvement task → regression test → knowledge update → capability registry |
 | CP12 | §35, §36 | Candidate state + Guardian final gate (+ knowledge write gate re-check) |

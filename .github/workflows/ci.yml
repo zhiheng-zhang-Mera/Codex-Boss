@@ -109,6 +109,11 @@ jobs:
       # through the §30 loop, verified locally, pushed with the §39/§40 runner and
       # re-read — bounded, never claiming PASS without a green CI read.
       - run: pnpm run acceptance:ci-repair
+      # checkpoint-1 §42–§45 + §51/§52: the final-acceptance gate (FS-01..FS-08).
+      # The §42 checklist is evaluated over the artifacts the earlier checkpoints
+      # wrote, a missing artifact is NOT_VERIFIED (never a pass), §44/§45 decide what
+      # may block, and the §51/§52 catalogues point at gates that really run.
+      - run: pnpm run acceptance:final
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

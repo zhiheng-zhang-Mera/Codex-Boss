@@ -409,6 +409,13 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - **验收**：`pnpm run acceptance:ci-repair`（亦为 CI 门禁与本地链一步）**CR-01..CR-08 全 PASS（44 项观测）且离线**：真实 `tsc` 失败日志解析出 step/文件/行/`TS2322`/退出码；真实 `node --test` 失败解析出失败测试名；两类失败分类为 BUILD/TEST 且本地闸门为 TYPECHECK/UNIT、目标点名文件与测试；只有绿色结论算通过而读取失败不算（回路据此硬阻塞而非假装通过）；secret-scan 的 CI 失败为 TERMINAL→HARD_BLOCKER 且不修复；永不转绿的修复在边界处停止、逐次记录且什么都没推送；**完整周期真实跑通**（已提交的坏状态 → 真实失败日志 → 经宿主应用的修复 → 本地 typecheck 通过 → 真实推送 `boss/t-15/fix-the-gateway`（远端提交带 §39.2 trailers）→ 再读为绿）并记为 PASS；记录带版本、逐次编号、保留失败签名且归属明确。
 - 诚实边界（写入 `docs/checkpoint-15-ci-repair.md`）：CI 经**注入的读取器**读取（`gatewayCiReader` 组合真实 gateway 的 workflow runs → workflow → 失败步骤，但验收在**网络边界**打桩，喂进去的是真实命令输出）；修复 worker 由调用方注入（回路决定“修什么、必须再通过什么”，谁写修复则外包，其改动同样走受限且被验证的写入缝）；解析器认识的是**本仓库 CI 的日志形状**（tsc、node --test、`##[error]` 与退出码包装），别的 CI 格式需要自己的模式——解析如实报告所见而非静默失败；再读为绿即结束回路，其后的 Final Gate（§42）属下一 checkpoint，因此此处的 PASS **不是发布**；尝试次数受 §33.2 预算与 `maxAttempts`（默认 3，硬上限 5）双重约束，触顶一律报 Hard Blocker。
 
+### Phase 17（§42）+ §43–§45、§51、§52 — Final Acceptance（CP16）
+
+- **§42 验收清单**（`src/shared/final-acceptance.ts`，纯）：`evaluateFinalAcceptance` 逐项判定八项（涉 UI 时为十二项），每项给出 `VERIFIED`/`FAILED`/`NOT_VERIFIED` 与“看过什么、为什么”。通过要求**每一项都必须 VERIFIED**：`NOT_VERIFIED` 即拒绝——这正是“查过且没问题”与“没人看过”的区别。**§43** `bootstrapCompletion` 在十三项关键能力上判定并点名缺哪些（比较改为大小写不敏感——**这是验收自己抓出来的 bug**：`architecture and UI discovery` 里的 `UI` 让串比对永远失败）。**§44/§45** `assessBlocker` 把“什么可以阻塞”实现为拒绝：§45 列出的情境即使被包装成 blocker 也拒绝，四个 §44 类别只有在各自证据齐备时（策略拒绝、需要 Owner 独有权限、不可逆决策、外部资源不存在）才被授予，否则必须由 Boss 自行决定。**§51/§52 目录**各十八条与十三条，每条都指向本仓库**真正会跑的门禁**，因此目录不会漂移成空想。
+- **宿主门禁**（`electron/engineering/final-acceptance-gate.ts`）：从前面各 checkpoint 真正写下的产物取证（`review-loop.json`、`candidate-guardian.json`、`knowledge-foundation.json`、`version-checkpoint.json`、`ci-repair.json`）、§31.3 账本（含“最新一行是 FAIL 的需求”）、以及用真实密钥扫描器扫过候选写入的文件，并写出终验记录以及“读了什么/缺了什么”。**验收在此抓出一个缺陷值得一提**：初版即使产物缺失也会构造 evidence 对象，于是“缺失的审查报告”变成 `blocking: 0` 而该项**在无证据的情况下通过**；现在仅当产物存在才设置对应 evidence 键——伪造的零正是 §42 要防的东西。
+- **验收**：`pnpm run acceptance:final`（亦为 CI 门禁与本地链一步）**FS-01..FS-08 全 PASS（55 项观测）**：八项/十二项清单与“无证据不得通过”；真实产物集 + 真实爬梯证据使每一项 VERIFIED 且门禁 ACCEPTED 并列出读过的产物；空产物集则拒绝并把审查/破坏性/知识/版本/CI 标为 NOT_VERIFIED；真实 `AKIA…`、未闭合 HIGH/MEDIUM 发现、未经批准的删除各自击落对应项；未验证需求、账本里有 FAIL 行的需求、红色 CI 各自击落对应项（绿色 CI 则通过）；§43 完整性判定；§44 恰好授予四类且 §45 拒绝全部十三种自主情境（含一个被包装成 HB1 的）；§51/§52 目录为 18/13 条、编号 B01..B18 与 S01..S13，且每条证明都指向本仓库真实存在的门禁。
+- 诚实边界（写入 `docs/checkpoint-16-final-acceptance.md`）：终验门禁读的是**产物而非活流水线**（它是各 checkpoint 证据的汇聚点；把它接进真实任务/发布路径——使发布无法在没有 ACCEPTED 记录时进行——属在应用内整合的 checkpoint）；§51/§52 目录由**既有门禁**证明而非新造 harness（每条点名今天就在跑该情境的门禁；一次跑完十八项的一次性 benchmark runner 属 CP17 的 soak 测试及以后）；`VERSION_IMPACT_COMPLETE` **重读** §37 记录而不是重新评估（评估属 CP13，在这里重跑会掩盖过期记录）；主题四项仅在涉 UI 时必需且由调用方提供（主题运行时检查在 CP4/CP5），涉 UI 却缺失即 `NOT_VERIFIED` 并被拒绝。
+
 
 
 
