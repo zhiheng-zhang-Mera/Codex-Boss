@@ -104,6 +104,11 @@ jobs:
       # real GitHubGateway (with a recording transport and a locally generated App
       # key) shows the exact REST calls — no network, no stored credential.
       - run: pnpm run acceptance:publish
+      # checkpoint-1 §41: the CI repair-loop gate (CR-01..CR-08). A real failing
+      # tsc/node --test log is parsed, classified in §33's vocabulary, repaired
+      # through the §30 loop, verified locally, pushed with the §39/§40 runner and
+      # re-read — bounded, never claiming PASS without a green CI read.
+      - run: pnpm run acceptance:ci-repair
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
