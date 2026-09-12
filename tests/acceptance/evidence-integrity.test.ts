@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { AcceptanceRun, acceptanceArtifacts, cleanGateReport, type FixtureReport } from "../helpers/acceptance-report";
-import { cleanupFixtures, gitRepo, tempDir } from "../helpers/root-fixtures";
+import { gitRepo, tempDir, revParse, cleanupFixtures } from "../helpers/root-fixtures";
 import { gateContract } from "../../src/shared/acceptance-contracts";
 import {
   buildGateAttestation,
@@ -18,6 +18,7 @@ import {
   verifyGateAttestation,
   type AcceptanceSession
 } from "../../src/shared/acceptance-evidence";
+import { TRUST_CODES } from "../../src/shared/trust-problems";
 import {
   ACCEPTANCE_RELATIVE,
   HISTORY_DIRECTORY,
@@ -75,6 +76,10 @@ describe("checkpoint-2 §5.6 CP19 evidence integrity", () => {
       item.check("the session id is unique to the run", true, /^session-/.test(String(outcome.session?.session_id)));
       item.check("the manifest is durable", true, fs.existsSync(path.join(artifacts, "session.json")));
       item.check("the manifest is structurally sound", 0, sessionProblems(outcome.session).length);
+      // self-evlo §6: the tree is part of the identity the certificate binds.
+      item.check("it records the commit tree", revParse(repo.root, "HEAD^{tree}"), outcome.session?.tree_sha);
+      item.check("a certification session without a tree is refused", true, sessionProblems({ ...outcome.session, tree_sha: undefined }).some((problem) => problem.code === TRUST_CODES.SESSION_TREE_MISSING));
+      item.check("a malformed tree is refused", true, sessionProblems({ ...outcome.session, tree_sha: "not-a-tree" }).some((problem) => problem.code === TRUST_CODES.SESSION_TREE_INVALID));
       item.cite(path.join(ACCEPTANCE_RELATIVE, "session.json"));
     });
   });
@@ -95,7 +100,7 @@ describe("checkpoint-2 §5.6 CP19 evidence integrity", () => {
       item.check(
         "a certification manifest on a dirty tree is rejected",
         true,
-        sessionProblems({ ...development.session, certification_mode: true }).includes("SESSION_CERTIFICATION_ON_DIRTY_TREE")
+        sessionProblems({ ...development.session, certification_mode: true }).some((problem) => problem.code === TRUST_CODES.SESSION_CERTIFICATION_ON_DIRTY_TREE)
       );
       item.cite("startAcceptanceSession");
     });
@@ -133,8 +138,8 @@ describe("checkpoint-2 §5.6 CP19 evidence integrity", () => {
         report: cleanGateReport(WORKBOOK),
         source_sha256: sha256File(reportPath)
       });
-      item.check("the stale attestation is refused by the new session", true, problems.some((problem) => problem.startsWith("ATTESTATION_SESSION_MISMATCH")));
-      item.check("and the missing current report is refused too", true, problems.includes("ATTESTATION_SOURCE_MISSING"));
+      item.check("the stale attestation is refused by the new session", true, problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_SESSION_MISMATCH));
+      item.check("and the missing current report is refused too", true, problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_SOURCE_MISSING));
       item.cite(path.join(ACCEPTANCE_RELATIVE, HISTORY_DIRECTORY));
     });
   });
@@ -288,7 +293,7 @@ describe("checkpoint-2 §5.6 CP19 evidence integrity", () => {
         report: tampered,
         source_sha256: sha256File(reportPath)
       });
-      item.check("the tampered bytes are named", true, after.some((problem) => problem.startsWith("SOURCE_HASH_MISMATCH")));
+      item.check("the tampered bytes are named", true, after.some((problem) => problem.code === TRUST_CODES.SOURCE_HASH_MISMATCH));
       item.check("the report itself still validates (so only the hash caught it)", "PASS", validateGateReport({ gate: WORKBOOK.gate, contract: WORKBOOK, report: tampered }).verdict);
       item.cite("SOURCE_HASH_MISMATCH");
     });
@@ -319,7 +324,7 @@ describe("checkpoint-2 §5.6 CP19 evidence integrity", () => {
         report,
         source_sha256: sha256File(reportPath)
       });
-      item.check("the session mismatch is named", true, problems.some((problem) => problem.startsWith("ATTESTATION_SESSION_MISMATCH")));
+      item.check("the session mismatch is named", true, problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_SESSION_MISMATCH));
       item.cite("ATTESTATION_SESSION_MISMATCH");
     });
   });
@@ -349,7 +354,7 @@ describe("checkpoint-2 §5.6 CP19 evidence integrity", () => {
         report,
         source_sha256: sha256File(reportPath)
       });
-      item.check("the commit mismatch is named", true, problems.some((problem) => problem.startsWith("ATTESTATION_COMMIT_MISMATCH")));
+      item.check("the commit mismatch is named", true, problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_COMMIT_MISMATCH));
       item.check("the attestation itself is internally consistent", 0, verifyGateAttestation({
         gate: WORKBOOK.gate,
         contract: WORKBOOK,

@@ -15,6 +15,7 @@ import {
   type AcceptanceSession,
   type GateAttestation
 } from "../../src/shared/acceptance-evidence";
+import { TRUST_CODES, trustProblem, type TrustProblem } from "../../src/shared/trust-problems";
 
 /** Where every transient acceptance artifact lives, relative to the repository root. */
 export const ACCEPTANCE_RELATIVE = path.join("artifacts", "acceptance");
@@ -67,9 +68,9 @@ export function readSession(artifacts: string): AcceptanceSession | undefined {
 }
 
 /** The session as it is on disk, including why it is unusable when it is. */
-export function inspectSession(artifacts: string): { session?: AcceptanceSession; problems: string[] } {
+export function inspectSession(artifacts: string): { session?: AcceptanceSession; problems: TrustProblem[] } {
   const parsed = readJsonFile(sessionPath(artifacts));
-  if (parsed === undefined) return { problems: ["SESSION_FILE_MISSING"] };
+  if (parsed === undefined) return { problems: [trustProblem(TRUST_CODES.SESSION_FILE_MISSING)] };
   const problems = sessionProblems(parsed);
   return problems.length ? { problems } : { session: parsed as AcceptanceSession, problems: [] };
 }
@@ -102,10 +103,53 @@ export function gitHead(root: string): string {
   return result.ok ? result.output : "";
 }
 
+/**
+ * §6: the commit's tree. Two different trees can share a commit message and even a
+ * parent, so the tree — not just the SHA — is what the certificate binds.
+ */
+export function gitTree(root: string): string {
+  const result = git(root, ["rev-parse", "HEAD^{tree}"]);
+  return result.ok ? result.output : "";
+}
+
 /** `git status --porcelain` output: empty means the working tree is clean. */
 export function gitWorkingTreeStatus(root: string): string {
   const result = git(root, ["status", "--porcelain"]);
   return result.ok ? result.output : "UNKNOWN";
+}
+
+/** §5: `git diff --quiet` over the index (staged changes) — exit 0 means clean. */
+export function gitIndexClean(root: string): boolean {
+  return git(root, ["diff", "--cached", "--quiet"]).ok;
+}
+
+/** §5: `git diff --quiet` over the working tree — exit 0 means clean. */
+export function gitWorktreeClean(root: string): boolean {
+  return git(root, ["diff", "--quiet"]).ok;
+}
+
+/**
+ * §5: the full graduation-time identity lock. The session start check is not
+ * enough — a run can be mutated after it began (TOCTOU), so the same facts are
+ * re-read immediately before the certificate is written.
+ */
+export interface GitIdentity {
+  commit_sha: string;
+  tree_sha: string;
+  worktree_clean: boolean;
+  index_clean: boolean;
+  status: string;
+}
+
+export function readGitIdentity(root: string): GitIdentity {
+  const status = gitWorkingTreeStatus(root);
+  return {
+    commit_sha: gitHead(root),
+    tree_sha: gitTree(root),
+    worktree_clean: gitWorktreeClean(root),
+    index_clean: gitIndexClean(root),
+    status
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -123,6 +167,8 @@ export interface StartSessionOptions {
   /** Test seams: they never change production behaviour when unset. */
   sessionId?: string;
   commit?: string;
+  /** §6: the tree the session certifies. Defaults to `git rev-parse HEAD^{tree}`. */
+  tree?: string;
   workingTreeStatus?: string;
 }
 
@@ -146,6 +192,10 @@ export function startAcceptanceSession(options: StartSessionOptions): SessionSta
   if (!/^[0-9a-f]{40}$/.test(commit)) {
     return { ok: false, artifacts, reason: `git rev-parse HEAD did not return a commit sha (got "${commit || "nothing"}")` };
   }
+  const tree = options.tree ?? gitTree(options.root);
+  if (options.certify === true && !/^[0-9a-f]{40}$/.test(tree)) {
+    return { ok: false, artifacts, reason: `§6: git rev-parse HEAD^{tree} did not return a tree sha (got "${tree || "nothing"}"), so the session cannot bind the tree it certifies` };
+  }
   const status = options.workingTreeStatus ?? gitWorkingTreeStatus(options.root);
   if (status === "UNKNOWN") {
     return { ok: false, artifacts, reason: "git status --porcelain could not be read, so the working tree cannot be certified clean" };
@@ -166,6 +216,7 @@ export function startAcceptanceSession(options: StartSessionOptions): SessionSta
     schemaVersion: ACCEPTANCE_SESSION_SCHEMA_VERSION,
     session_id: options.sessionId ?? `session-${now().toISOString().replace(/[:.]/g, "").replace("Z", "")}-${randomUUID().slice(0, 8)}`,
     commit_sha: commit,
+    ...(tree ? { tree_sha: tree } : {}),
     started_at: now().toISOString(),
     certification_mode: options.certify === true,
     working_tree_clean: workingTreeClean,

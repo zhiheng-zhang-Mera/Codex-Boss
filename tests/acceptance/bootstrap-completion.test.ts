@@ -17,6 +17,7 @@ import { ACCEPTANCE_GATE_CONTRACTS, DESKTOP_BLACK_BOX_CONTRACT, GATE_REQUIREMENT
 import { DESKTOP_BLACK_BOX, evaluateTrustedBootstrap } from "../../src/shared/bootstrap-audit";
 import { validateGateReport } from "../../src/shared/acceptance-evidence";
 import { emptyOwnerLedger } from "../../src/shared/owner-intervention";
+import { TRUST_CODES } from "../../src/shared/trust-problems";
 import { CRITICAL_CAPABILITIES } from "../../src/shared/final-acceptance";
 import { createBootstrapAuditor, BOOTSTRAP_AUDIT_RECORD } from "../../electron/engineering/bootstrap-completion";
 
@@ -75,7 +76,7 @@ describe("checkpoint-18 §57/§58 Bootstrap Completion audit (hardened)", () => 
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       item.check("the missing gate is named", true, audit.gates.some((gate) => gate.gate === "acceptance-publish" && gate.verdict === "MISSING"));
       item.check("and its capability is not established", true, audit.capability_evidence.some((entry) => entry.capability === "GitHub publishing" && !entry.established));
-      item.check("the reason says the report is missing", true, audit.gates.find((gate) => gate.gate === "acceptance-publish")?.problems.includes("REPORT_FILE_MISSING"));
+      item.check("the reason says the report is missing", true, audit.gates.find((gate) => gate.gate === "acceptance-publish")?.problems.some((problem) => problem.code === TRUST_CODES.REPORT_FILE_MISSING));
       shared.bc03 = { decision: audit.decision };
       item.cite("a deleted report");
     });
@@ -91,7 +92,7 @@ describe("checkpoint-18 §57/§58 Bootstrap Completion audit (hardened)", () => 
       fixture.attest("acceptance-ci-repair");
       const audit = fixture.evaluate();
       item.check("the gate fails", true, audit.gates.some((gate) => gate.gate === "acceptance-ci-repair" && gate.verdict === "FAIL"));
-      item.check("the id is named", true, audit.gates.find((gate) => gate.gate === "acceptance-ci-repair")?.problems.some((problem) => problem.includes("CR-07")));
+      item.check("the id is named", true, audit.gates.find((gate) => gate.gate === "acceptance-ci-repair")?.problems.some((problem) => (problem.detail ?? "").includes("CR-07")));
       item.check("so the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       shared.bc04 = { decision: audit.decision };
       item.cite("a NOT_RUN id");

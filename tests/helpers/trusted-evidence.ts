@@ -67,6 +67,9 @@ export function cleanDesktopReport(): ReturnType<typeof desktopBlackBoxReport> {
  */
 export const FIXTURE_INSTANT = "2026-01-01T00:00:00.000Z";
 
+/** §6: the deterministic tree the fixture sessions certify (their roots are not git repos). */
+export const FIXTURE_TREE = "e".repeat(40);
+
 /** Pins a fixture report's timestamp so the evidence is reproducible. */
 function pinInstant<T extends { generatedAt?: string }>(report: T): T {
   if (typeof report.generatedAt === "string") report.generatedAt = FIXTURE_INSTANT;
@@ -79,7 +82,7 @@ function validateFor(gate: string, contract: AcceptanceGateContract, report: unk
     : validateGateReport({ gate, contract, report });
 }
 
-export function trustedFixture(options: { sessionId?: string; commit?: string } = {}): TrustedFixture {
+export function trustedFixture(options: { sessionId?: string; commit?: string; tree?: string } = {}): TrustedFixture {
   const root = tempDir("boss-trusted-");
   const artifacts = acceptanceDirectory(root);
   const outcome = startAcceptanceSession({
@@ -89,6 +92,7 @@ export function trustedFixture(options: { sessionId?: string; commit?: string } 
     clean: true,
     sessionId: options.sessionId ?? "session-trusted",
     commit: options.commit ?? "c".repeat(40),
+    tree: options.tree ?? FIXTURE_TREE,
     workingTreeStatus: "",
     now: () => new Date(FIXTURE_INSTANT)
   });

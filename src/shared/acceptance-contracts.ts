@@ -244,6 +244,67 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     ],
     out_of_scope_ids: [],
     exact_ids: true
+  },
+  {
+    gate: "acceptance-evolution-identity",
+    contract_version: "evolution-identity-1",
+    report_file: "evolution-identity.json",
+    required_ids: [
+      "EV-01", "EV-02", "EV-03", "EV-04", "EV-05", "EV-06", "EV-07", "EV-08",
+      "EV-09", "EV-10", "EV-11", "EV-12", "EV-13", "EV-14", "EV-15", "EV-16"
+    ],
+    out_of_scope_ids: [],
+    exact_ids: true
+  },
+  {
+    gate: "acceptance-evolution-trust",
+    contract_version: "evolution-trust-1",
+    report_file: "evolution-trust.json",
+    required_ids: [
+      "TE-01", "TE-02", "TE-03", "TE-04", "TE-05", "TE-06", "TE-07", "TE-08",
+      "TE-09", "TE-10", "TE-11", "TE-12"
+    ],
+    out_of_scope_ids: [],
+    exact_ids: true
+  },
+  {
+    gate: "acceptance-evolution-independent",
+    contract_version: "evolution-independent-1",
+    report_file: "evolution-independent.json",
+    required_ids: [
+      "VB-01", "VB-02", "VB-03", "VB-04", "VB-05", "VB-06", "VB-07", "VB-08",
+      "VB-09", "VB-10", "VB-11", "VB-12"
+    ],
+    out_of_scope_ids: [],
+    exact_ids: true
+  },
+  {
+    gate: "acceptance-evolution-adversarial",
+    contract_version: "evolution-adversarial-1",
+    report_file: "evolution-adversarial.json",
+    required_ids: [
+      "AD-21", "AD-22", "AD-23", "AD-24", "AD-25", "AD-26", "AD-27", "AD-28", "AD-29", "AD-30",
+      "AD-31", "AD-32", "AD-33", "AD-34", "AD-35", "AD-36", "AD-37", "AD-38", "AD-39", "AD-40",
+      "AD-41", "AD-42", "AD-43", "AD-44", "AD-45", "AD-46", "AD-47", "AD-48", "AD-49", "AD-50",
+      "FX-01", "FX-02", "FX-03", "FX-04", "FX-05", "FX-06",
+      "MM-01", "MM-02", "MM-03", "MM-04", "MM-05", "MM-06"
+    ],
+    out_of_scope_ids: [],
+    exact_ids: true
+  },
+  {
+    gate: "acceptance-evolution-trial",
+    contract_version: "evolution-trial-1",
+    report_file: "evolution-trial.json",
+    required_ids: [
+      "RN-01", "RN-02", "RN-03", "RN-04", "RN-05", "RN-06", "RN-07", "RN-08", "RN-09", "RN-10",
+      "RN-11", "RN-12", "RN-13", "RN-14", "RN-15", "RN-16", "RN-17", "RN-18", "RN-19", "RN-20",
+      "BT-01", "BT-02", "BT-03", "BT-04", "BT-05", "BT-06", "BT-07", "BT-08",
+      "NEG-01", "NEG-02", "NEG-03",
+      "SC-01", "SC-02", "SC-03"
+    ],
+    out_of_scope_ids: [],
+    exact_ids: true
   }
 ];
 

@@ -168,9 +168,9 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
       const ledger = appendOwnerIntervention(emptyOwnerLedger(fixture.session), { source: "acceptance-run", at: new Date(0).toISOString(), reason: "one real request" });
       const tampered: OwnerInterventionLedger = { ...ledger, count: 0, ledger_hash: ownerLedgerHashOf({ ...ledger, count: 0 }) };
       const problems = verifyOwnerLedger({ ledger: tampered, session: fixture.session });
-      item.check("the forged count is named", true, problems.includes("LEDGER_COUNT_MISMATCH:0!=1"));
+      item.check("the forged count is named", true, problems.some((problem) => problem.code === "LEDGER_COUNT_MISMATCH" && problem.detail === "0!=1"));
       const rehash: OwnerInterventionLedger = { ...ledger, count: 0 };
-      item.check("and an unrehashed edit is caught too", true, verifyOwnerLedger({ ledger: rehash, session: fixture.session }).includes("LEDGER_HASH_MISMATCH"));
+      item.check("and an unrehashed edit is caught too", true, verifyOwnerLedger({ ledger: rehash, session: fixture.session }).some((problem) => problem.code === "LEDGER_HASH_MISMATCH"));
       item.check("the honest ledger verifies", 0, verifyOwnerLedger({ ledger, session: fixture.session }).length);
       item.cite("LEDGER_COUNT_MISMATCH");
     });
@@ -182,9 +182,9 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
       const b = fixtureSession("boss-oi-session-b-");
       const ledger = appendOwnerIntervention(emptyOwnerLedger(a.session), { source: "acceptance-run", at: new Date(0).toISOString(), reason: "asked while certifying A" });
       const problems = verifyOwnerLedger({ ledger, session: b.session });
-      item.check("the session mismatch is named", true, problems.some((problem) => problem.startsWith("LEDGER_SESSION_MISMATCH")));
+      item.check("the session mismatch is named", true, problems.some((problem) => problem.code === "LEDGER_SESSION_MISMATCH"));
       const wrongCommit = { ...b.session, commit_sha: "b".repeat(40) };
-      item.check("a commit mismatch is named", true, verifyOwnerLedger({ ledger: emptyOwnerLedger(wrongCommit), session: b.session }).some((problem) => problem.startsWith("LEDGER_COMMIT_MISMATCH")));
+      item.check("a commit mismatch is named", true, verifyOwnerLedger({ ledger: emptyOwnerLedger(wrongCommit), session: b.session }).some((problem) => problem.code === "LEDGER_COMMIT_MISMATCH"));
       item.check("and a ledger file from another session is quarantined, not merged", true, (() => {
         const ledgerPath = path.join(a.artifacts, "owner-interventions.json");
         writeOwnerLedger(a.artifacts, ledger);
@@ -225,7 +225,7 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
       // No assessBlocker verdict, no event: the ledger is untouched by a refused ask.
       initializeOwnerLedger(fixture.session, fixture.artifacts);
       item.check("the ledger stays empty", 0, inspectOwnerLedger(fixture.session, fixture.artifacts).count);
-      item.check("and a ledger-less run cannot claim a count", "OWNER_LEDGER_MISSING", inspectOwnerLedger(fixture.session, tempDir("boss-oi-empty-")).problems[0]);
+      item.check("and a ledger-less run cannot claim a count", "OWNER_LEDGER_MISSING", inspectOwnerLedger(fixture.session, tempDir("boss-oi-empty-")).problems[0]?.code);
       item.check("recording without a session is refused", undefined, (() => {
         const bare = gitRepo("boss-oi-nosession-");
         return recordOwnerIntervention({ source: "acceptance-run", reason: "no session is active" }, { artifacts: acceptanceDirectory(bare.root) });

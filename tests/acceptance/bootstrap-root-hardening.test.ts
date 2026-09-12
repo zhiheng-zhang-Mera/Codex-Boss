@@ -13,6 +13,7 @@ import { cleanupFixtures } from "../helpers/root-fixtures";
 import { trustedFixture } from "../helpers/trusted-evidence";
 import { ACCEPTANCE_GATE_CONTRACTS, DESKTOP_BLACK_BOX_CONTRACT } from "../../src/shared/acceptance-contracts";
 import { emptyOwnerLedger } from "../../src/shared/owner-intervention";
+import { TRUST_CODES } from "../../src/shared/trust-problems";
 
 const run = new AcceptanceRun("CHECKPOINT_22_ROOT_HARDENING");
 const REPORT_DIR = acceptanceArtifacts();
@@ -46,7 +47,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       const gate = audit.gates.find((entry) => entry.gate === PUBLISH_GATE)!;
       item.check("the gate fails", "FAIL", gate.verdict);
-      item.check("because the attestation is missing", true, gate.problems.some((problem) => problem.startsWith("ATTESTATION_NOT_OBJECT")));
+      item.check("because the attestation is missing", true, gate.problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_NOT_OBJECT));
       item.check("and the capability it establishes is not", false, audit.capability_evidence.find((entry) => entry.capability === "GitHub publishing")!.established);
       item.cite("ATTESTATION_NOT_OBJECT");
     });
@@ -62,7 +63,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       const audit = fixture.evaluate();
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       item.check("the gate fails", "FAIL", audit.gates.find((entry) => entry.gate === VERIFY_GATE)!.verdict);
-      item.check("the hash mismatch is named", true, audit.gates.find((entry) => entry.gate === VERIFY_GATE)!.problems.some((problem) => problem.startsWith("SOURCE_HASH_MISMATCH")));
+      item.check("the hash mismatch is named", true, audit.gates.find((entry) => entry.gate === VERIFY_GATE)!.problems.some((problem) => problem.code === TRUST_CODES.SOURCE_HASH_MISMATCH));
       item.check("and provenance reports unverified sources", false, audit.provenance.source_hashes_verified);
       item.cite("SOURCE_HASH_MISMATCH");
     });
@@ -77,7 +78,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       fs.writeFileSync(fixture.attestationFile(VERIFY_GATE), JSON.stringify(stale), "utf8");
       const audit = fixture.evaluate();
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
-      item.check("the attestation digest is refused", true, audit.gates.find((entry) => entry.gate === VERIFY_GATE)!.problems.includes("ATTESTATION_HASH_MISMATCH"));
+      item.check("the attestation digest is refused", true, audit.gates.find((entry) => entry.gate === VERIFY_GATE)!.problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_HASH_MISMATCH));
       item.cite("ATTESTATION_HASH_MISMATCH");
     });
   });
@@ -92,7 +93,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       const audit = fixture.evaluate();
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       const gate = audit.gates.find((entry) => entry.gate === VERIFY_GATE)!;
-      item.check("the commit mismatch is named", true, gate.problems.some((problem) => problem.startsWith("ATTESTATION_COMMIT_MISMATCH")));
+      item.check("the commit mismatch is named", true, gate.problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_COMMIT_MISMATCH));
       item.check("and provenance says the commits differ", false, audit.provenance.same_commit);
       item.cite("ATTESTATION_COMMIT_MISMATCH");
     });
@@ -107,7 +108,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       const audit = fixture.evaluate();
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       const gate = audit.gates.find((entry) => entry.gate === VERIFY_GATE)!;
-      item.check("the session mismatch is named", true, gate.problems.some((problem) => problem.startsWith("ATTESTATION_SESSION_MISMATCH")));
+      item.check("the session mismatch is named", true, gate.problems.some((problem) => problem.code === TRUST_CODES.ATTESTATION_SESSION_MISMATCH));
       item.check("and provenance says the sessions differ", false, audit.provenance.same_session);
       item.cite("ATTESTATION_SESSION_MISMATCH");
     });
@@ -124,7 +125,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       const audit = fixture.evaluate();
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       item.check("the black box fails", "FAIL", audit.desktop.verdict);
-      item.check("because a claim is missing", true, audit.desktop.problems.some((problem) => problem.startsWith("EXACT_IDS_MISSING")));
+      item.check("because a claim is missing", true, audit.desktop.problems.some((problem) => problem.code === TRUST_CODES.EXACT_IDS_MISSING));
       item.check("and the theme capability is not established", false, audit.capability_evidence.find((entry) => entry.capability === "theme engine")!.established);
       item.cite("EXACT_IDS_MISSING");
     });
@@ -166,7 +167,7 @@ describe("checkpoint-2 §8.7 CP22 trusted root hardening", () => {
       item.check("the decision is INCOMPLETE", "INCOMPLETE", audit.decision);
       const gate = audit.gates.find((entry) => entry.gate === VERIFY_GATE)!;
       item.check("the gate fails", "FAIL", gate.verdict);
-      item.check("because no object could be read", true, gate.problems.includes("REPORT_NOT_OBJECT:undefined"));
+      item.check("because no object could be read", true, gate.problems.some((problem) => problem.code === TRUST_CODES.REPORT_NOT_OBJECT && problem.detail === "undefined"));
       item.cite("REPORT_NOT_OBJECT");
     });
   });

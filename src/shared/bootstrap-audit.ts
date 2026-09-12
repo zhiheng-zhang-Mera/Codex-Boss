@@ -34,7 +34,17 @@ import {
   type AcceptanceSession,
   type StrictReportValidation
 } from "./acceptance-evidence";
-import { deriveOwnerInterventions, verifyOwnerLedger, type OwnerInterventionLedger } from "./owner-intervention";
+import { deriveOwnerInterventions, OWNER_LEDGER_CODES, verifyOwnerLedger, type OwnerInterventionLedger } from "./owner-intervention";
+import {
+  PROVENANCE_CODES,
+  REQUIRED_ID_CODES,
+  TRUST_CODES,
+  hasAnyTrustCode,
+  hasTrustCode,
+  renderTrustProblems,
+  trustProblem,
+  type TrustProblem
+} from "./trust-problems";
 
 export const BOOTSTRAP_AUDIT_VERSION = "bootstrap-audit-2" as const;
 
@@ -78,7 +88,10 @@ export interface TrustedEvidenceSource {
   verdict: "PASS" | "FAIL" | "MISSING";
   required_ids: number;
   verified_ids: number;
-  problems: string[];
+  /** §44: the structured truth. */
+  problems: TrustProblem[];
+  /** Display projection of `problems`. */
+  reasons: string[];
 }
 
 export interface TrustedBootstrapAudit {
@@ -114,7 +127,7 @@ export interface TrustedBootstrapAudit {
 
 function requiredProblems(validation: StrictReportValidation | undefined, required: number): number {
   if (!validation) return required;
-  return validation.reasons.filter((reason) => reason.startsWith("REQUIRED_ID_MISSING") || reason.startsWith("REQUIRED_ID_NOT_PASS")).length;
+  return validation.problems.filter((problem) => REQUIRED_ID_CODES.includes(problem.code)).length;
 }
 
 /** §8.2: raw report + valid attestation + matching source SHA, all three. */
@@ -125,20 +138,20 @@ function judgeGateEvidence(input: {
   exact: boolean;
 }): { source: TrustedEvidenceSource; validation?: StrictReportValidation } {
   const { contract, evidence, session } = input;
-  const problems: string[] = [];
+  const problems: TrustProblem[] = [];
   let validation: StrictReportValidation | undefined;
   // "MISSING" means the file is not there at all. A file that exists but cannot be
   // understood is a FAIL: something was produced and it is not evidence.
   const fileMissing = !evidence || evidence.report_sha256 === "";
   if (!evidence) {
-    problems.push("EVIDENCE_MISSING");
+    problems.push(trustProblem(TRUST_CODES.EVIDENCE_MISSING));
   } else {
-    if (fileMissing) problems.push("REPORT_FILE_MISSING");
+    if (fileMissing) problems.push(trustProblem(TRUST_CODES.REPORT_FILE_MISSING));
     validation = input.exact
       ? validateDesktopBlackBoxReport({ contract, report: evidence.report })
       : validateGateReport({ gate: contract.gate, contract, report: evidence.report });
-    if (validation.verdict !== "PASS") problems.push(...validation.reasons.slice(0, 10));
-    if (!session) problems.push("SESSION_MISSING");
+    if (validation.verdict !== "PASS") problems.push(...validation.problems.slice(0, 10));
+    if (!session) problems.push(trustProblem(TRUST_CODES.SESSION_MISSING));
     else {
       problems.push(...verifyGateAttestation({
         gate: contract.gate,
@@ -149,7 +162,7 @@ function judgeGateEvidence(input: {
         source_sha256: evidence.report_sha256
       }).slice(0, 10));
     }
-    if (evidence.attestation_sha256 === "") problems.push("ATTESTATION_FILE_MISSING");
+    if (evidence.attestation_sha256 === "") problems.push(trustProblem(TRUST_CODES.ATTESTATION_FILE_MISSING));
   }
   const required = contract.required_ids.length;
   const verdict: TrustedEvidenceSource["verdict"] = fileMissing ? "MISSING" : problems.length ? "FAIL" : "PASS";
@@ -163,7 +176,8 @@ function judgeGateEvidence(input: {
     verdict,
     required_ids: required,
     verified_ids: verdict === "PASS" ? required : Math.max(0, required - requiredProblems(validation, required)),
-    problems
+    problems,
+    reasons: renderTrustProblems(problems)
   };
   return { source, ...(validation ? { validation } : {}) };
 }
@@ -178,7 +192,7 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
   const reasons: string[] = [];
   const session = input.session;
   if (!session) reasons.push("§5.2: no acceptance session was found, so no evidence can be attributed to a run");
-  else reasons.push(...sessionProblems(session).map((problem) => `§5.2: ${problem}`));
+  else reasons.push(...renderTrustProblems(sessionProblems(session)).map((problem) => `§5.2: ${problem}`));
   if (input.session_sha256 === "") reasons.push("§5.2: the session manifest file is missing");
 
   const gateJudgements = ACCEPTANCE_GATE_CONTRACTS.map((contract) => judgeGateEvidence({
@@ -190,12 +204,12 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
   const gateSources = gateJudgements.map((judgement) => judgement.source);
   const desktopJudgement = judgeGateEvidence({ contract: DESKTOP_BLACK_BOX_CONTRACT, evidence: input.desktop, session, exact: true });
   const desktopSource = desktopJudgement.source;
-  for (const source of [...gateSources, desktopSource]) reasons.push(...source.problems.map((problem) => `${source.gate}: ${problem}`));
+  for (const source of [...gateSources, desktopSource]) reasons.push(...source.reasons.map((problem) => `${source.gate}: ${problem}`));
 
-  const ledgerProblems = input.ownerLedger
-    ? (session ? verifyOwnerLedger({ ledger: input.ownerLedger, session }) : ["LEDGER_SESSION_UNVERIFIABLE"])
-    : ["OWNER_LEDGER_MISSING"];
-  reasons.push(...ledgerProblems.map((problem) => `§7: ${problem}`));
+  const ledgerProblems: TrustProblem[] = input.ownerLedger
+    ? (session ? verifyOwnerLedger({ ledger: input.ownerLedger, session }) : [trustProblem(OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH, "unverifiable")])
+    : [trustProblem(OWNER_LEDGER_CODES.LEDGER_MISSING)];
+  reasons.push(...renderTrustProblems(ledgerProblems).map((problem) => `§7: ${problem}`));
   if (input.ownerLedgerSha256 === "") reasons.push("§7: the Owner intervention ledger file is missing");
   const ownerInterventions = input.ownerLedger ? deriveOwnerInterventions(input.ownerLedger) : 0;
   if (ownerInterventions > 0) reasons.push(`§57: ${ownerInterventions} Owner intervention(s) were needed; the black box forbids them`);
@@ -210,8 +224,10 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
     verdict: ledgerProblems.length === 0 && input.ownerLedgerSha256 !== "" ? "PASS" : "FAIL",
     required_ids: 0,
     verified_ids: input.ownerLedger?.events.length ?? 0,
-    problems: ledgerProblems
+    problems: ledgerProblems,
+    reasons: renderTrustProblems(ledgerProblems)
   };
+  const sessionProblemList = session ? sessionProblems(session) : [trustProblem(TRUST_CODES.SESSION_NOT_OBJECT)];
   const sessionSource: TrustedEvidenceSource = {
     kind: "session",
     gate: "acceptance-session",
@@ -219,10 +235,11 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
     report_sha256: input.session_sha256,
     attestation_file: "",
     attestation_sha256: "",
-    verdict: session && sessionProblems(session).length === 0 && input.session_sha256 !== "" ? "PASS" : "FAIL",
+    verdict: session && sessionProblemList.length === 0 && input.session_sha256 !== "" ? "PASS" : "FAIL",
     required_ids: 0,
     verified_ids: 0,
-    problems: session ? sessionProblems(session) : ["SESSION_NOT_OBJECT"]
+    problems: sessionProblemList,
+    reasons: renderTrustProblems(sessionProblemList)
   };
 
   const trusted = new Set<string>([
@@ -239,15 +256,28 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
   if (!completion.complete) reasons.push(completion.reason);
 
   const sources = [...gateSources, desktopSource, ledgerSource, sessionSource];
+  // §43: provenance is derived from structured flags, not from matching prose.
+  const allProblems = sources.flatMap((source) => source.problems);
   const provenance = {
-    same_session: !sources.some((source) => source.problems.some((problem) => problem.includes("SESSION_MISMATCH"))),
-    same_commit: !sources.some((source) => source.problems.some((problem) => problem.includes("COMMIT_MISMATCH"))),
-    source_hashes_verified: !sources.some((source) => source.problems.some((problem) => problem.includes("SOURCE_HASH_MISMATCH"))
-      || source.problems.includes("REPORT_MISSING")
-      || source.problems.includes("ATTESTATION_FILE_MISSING"))
+    same_session: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_SESSION_MISMATCH) && !hasTrustCode(allProblems, OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH),
+    same_commit: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_COMMIT_MISMATCH) && !hasTrustCode(allProblems, OWNER_LEDGER_CODES.LEDGER_COMMIT_MISMATCH),
+    same_tree: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_TREE_MISMATCH),
+    source_hashes_verified: !hasAnyTrustCode(allProblems, PROVENANCE_CODES),
+    evidence_present: !hasAnyTrustCode(allProblems, [TRUST_CODES.EVIDENCE_MISSING, TRUST_CODES.REPORT_FILE_MISSING, TRUST_CODES.ATTESTATION_FILE_MISSING]),
+    /** §43: the structured flags the certificate carries, straight from the codes. */
+    flags: {
+      reportPresent: !hasTrustCode(allProblems, TRUST_CODES.REPORT_FILE_MISSING) && !hasTrustCode(allProblems, TRUST_CODES.EVIDENCE_MISSING),
+      attestationPresent: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_FILE_MISSING) && !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_NOT_OBJECT),
+      reportHashValid: !hasTrustCode(allProblems, TRUST_CODES.SOURCE_HASH_MISMATCH),
+      attestationHashValid: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_HASH_MISMATCH),
+      sessionMatch: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_SESSION_MISMATCH),
+      commitMatch: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_COMMIT_MISMATCH),
+      treeMatch: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_TREE_MISMATCH)
+    }
   };
   if (!provenance.same_session) reasons.push("§2.3: the evidence does not all belong to this session");
   if (!provenance.same_commit) reasons.push("§2.4: the evidence does not all belong to this commit");
+  if (!provenance.same_tree) reasons.push("§6: the evidence does not all belong to this tree");
   if (!provenance.source_hashes_verified) reasons.push("§2.7: at least one source hash could not be verified");
 
   const gatesPassed = gateSources.filter((source) => source.verdict === "PASS").length;

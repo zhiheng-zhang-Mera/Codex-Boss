@@ -11,8 +11,26 @@
  * `electron/engineering/owner-intervention-ledger.ts`.
  */
 import { canonicalSha256, type AcceptanceSession } from "./acceptance-evidence";
+import { trustProblem, type TrustProblem } from "./trust-problems";
 
 export const OWNER_LEDGER_SCHEMA_VERSION = 1 as const;
+
+/** §44: the ledger's machine codes. */
+export const OWNER_LEDGER_CODES = {
+  LEDGER_NOT_OBJECT: "LEDGER_NOT_OBJECT",
+  LEDGER_MISSING: "OWNER_LEDGER_MISSING",
+  LEDGER_SCHEMA_UNSUPPORTED: "LEDGER_SCHEMA_UNSUPPORTED",
+  LEDGER_SESSION_MISMATCH: "LEDGER_SESSION_MISMATCH",
+  LEDGER_COMMIT_MISMATCH: "LEDGER_COMMIT_MISMATCH",
+  LEDGER_EVENTS_NOT_ARRAY: "LEDGER_EVENTS_NOT_ARRAY",
+  LEDGER_EVENT_INVALID: "LEDGER_EVENT_INVALID",
+  LEDGER_EVENT_FIELD_MISSING: "LEDGER_EVENT_FIELD_MISSING",
+  LEDGER_EVENT_AT_INVALID: "LEDGER_EVENT_AT_INVALID",
+  LEDGER_EVENT_ID_DUPLICATE: "LEDGER_EVENT_ID_DUPLICATE",
+  LEDGER_COUNT_MISSING: "LEDGER_COUNT_MISSING",
+  LEDGER_COUNT_MISMATCH: "LEDGER_COUNT_MISMATCH",
+  LEDGER_HASH_MISMATCH: "LEDGER_HASH_MISMATCH"
+} as const;
 
 /** §7.3: one recorded request for the Owner to decide or act. */
 export interface OwnerInterventionEvent {
@@ -92,40 +110,41 @@ export function deriveOwnerInterventions(ledger: OwnerInterventionLedger): numbe
 /**
  * §7.5: the ledger must belong to this session and this commit, its count must be
  * its event count, every event must be complete and the digest must hold.
+ * §44: the result is structured; the caller branches on codes, never on prose.
  */
-export function verifyOwnerLedger(input: { ledger: unknown; session: AcceptanceSession }): string[] {
-  const problems: string[] = [];
+export function verifyOwnerLedger(input: { ledger: unknown; session: AcceptanceSession }): TrustProblem[] {
+  const problems: TrustProblem[] = [];
   const value = input.ledger;
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return ["LEDGER_NOT_OBJECT"];
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return [trustProblem(OWNER_LEDGER_CODES.LEDGER_NOT_OBJECT)];
   const ledger = value as Partial<OwnerInterventionLedger>;
-  if (ledger.schemaVersion !== OWNER_LEDGER_SCHEMA_VERSION) problems.push(`LEDGER_SCHEMA_UNSUPPORTED:${String(ledger.schemaVersion)}`);
-  if (ledger.session_id !== input.session.session_id) problems.push(`LEDGER_SESSION_MISMATCH:${String(ledger.session_id)}!=${input.session.session_id}`);
-  if (ledger.commit_sha !== input.session.commit_sha) problems.push(`LEDGER_COMMIT_MISMATCH:${String(ledger.commit_sha)}!=${input.session.commit_sha}`);
+  if (ledger.schemaVersion !== OWNER_LEDGER_SCHEMA_VERSION) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_SCHEMA_UNSUPPORTED, String(ledger.schemaVersion)));
+  if (ledger.session_id !== input.session.session_id) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH, `${String(ledger.session_id)}!=${input.session.session_id}`));
+  if (ledger.commit_sha !== input.session.commit_sha) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_COMMIT_MISMATCH, `${String(ledger.commit_sha)}!=${input.session.commit_sha}`));
   const events = ledger.events;
   if (!Array.isArray(events)) {
-    problems.push("LEDGER_EVENTS_NOT_ARRAY");
+    problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_EVENTS_NOT_ARRAY));
     return problems;
   }
   const ids = new Set<string>();
   events.forEach((entry, index) => {
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
-      problems.push(`LEDGER_EVENT_INVALID:${index}`);
+      problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_EVENT_INVALID, String(index)));
       return;
     }
     const event = entry as Partial<OwnerInterventionEvent>;
     for (const field of ["id", "at", "source", "blocker_class", "reason", "requested_action", "outcome"] as const) {
-      if (typeof event[field] !== "string" || String(event[field]).trim() === "") problems.push(`LEDGER_EVENT_FIELD_MISSING:${index}.${field}`);
+      if (typeof event[field] !== "string" || String(event[field]).trim() === "") problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_EVENT_FIELD_MISSING, `${index}.${field}`));
     }
-    if (typeof event.at === "string" && Number.isNaN(Date.parse(event.at))) problems.push(`LEDGER_EVENT_AT_INVALID:${index}`);
+    if (typeof event.at === "string" && Number.isNaN(Date.parse(event.at))) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_EVENT_AT_INVALID, String(index)));
     if (typeof event.id === "string") {
-      if (ids.has(event.id)) problems.push(`LEDGER_EVENT_ID_DUPLICATE:${event.id}`);
+      if (ids.has(event.id)) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_EVENT_ID_DUPLICATE, event.id));
       ids.add(event.id);
     }
   });
-  if (typeof ledger.count !== "number") problems.push("LEDGER_COUNT_MISSING");
-  else if (ledger.count !== events.length) problems.push(`LEDGER_COUNT_MISMATCH:${ledger.count}!=${events.length}`);
+  if (typeof ledger.count !== "number") problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_COUNT_MISSING));
+  else if (ledger.count !== events.length) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_COUNT_MISMATCH, `${ledger.count}!=${events.length}`));
   const { ledger_hash: _ignored, ...body } = ledger as OwnerInterventionLedger;
-  if (typeof ledger.ledger_hash !== "string" || ledger.ledger_hash !== ownerLedgerHashOf(body)) problems.push("LEDGER_HASH_MISMATCH");
+  if (typeof ledger.ledger_hash !== "string" || ledger.ledger_hash !== ownerLedgerHashOf(body)) problems.push(trustProblem(OWNER_LEDGER_CODES.LEDGER_HASH_MISMATCH));
   return problems;
 }
 

@@ -31,6 +31,7 @@ import {
   type AcceptanceSession
 } from "../../src/shared/acceptance-evidence";
 import { acceptanceDirectory, sha256File, startAcceptanceSession, writeAttestation } from "../../electron/engineering/acceptance-session";
+import { TRUST_CODES } from "../../src/shared/trust-problems";
 
 const run = new AcceptanceRun("CHECKPOINT_20_DESKTOP_BLACK_BOX_CONTRACT");
 const REPORT_DIR = acceptanceArtifacts();
@@ -249,7 +250,7 @@ describe("checkpoint-2 §6.5 CP20 desktop black-box contract", () => {
         report: JSON.parse(fs.readFileSync(reportFile, "utf8")),
         source_sha256: sha256File(reportFile)
       });
-      item.check("the tampered source is named", true, problems.some((problem) => problem.startsWith("SOURCE_HASH_MISMATCH")));
+      item.check("the tampered source is named", true, problems.some((problem) => problem.code === TRUST_CODES.SOURCE_HASH_MISMATCH));
       item.check("the tampered report still validates on its own", "PASS", validate(tampered).verdict);
       item.cite("SOURCE_HASH_MISMATCH");
     });

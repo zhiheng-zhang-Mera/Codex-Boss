@@ -1,0 +1,171 @@
+/**
+ * Update-Plan/self-evlo.md §43/§44 — structured trust problems.
+ *
+ * Until this point the trust layer decided provenance by matching human-readable
+ * reason strings (`reason.includes("SOURCE_HASH_MISMATCH")`). §44 forbids that: the
+ * core logic must branch on a machine code, and the prose is a display projection
+ * only. Every trust decision in this repository now produces `TrustProblem` values;
+ * `renderTrustProblem` exists for reports and logs, never for control flow.
+ *
+ * Pure: no fs, no clock, no process.
+ */
+
+export interface TrustProblem {
+  /** Stable machine code (SCREAMING_SNAKE_CASE). */
+  code: string;
+  /** Optional machine-usable detail (an id, a pair of hashes, an index). */
+  detail?: string;
+}
+
+/**
+ * The codes the trust layer branches on. Adding a code here is a Root Trust Surface
+ * change when it alters what can graduate, so the list is versioned with the trust
+ * epoch.
+ */
+export const TRUST_CODES = {
+  /* reports */
+  REPORT_NOT_OBJECT: "REPORT_NOT_OBJECT",
+  REPORT_FILE_MISSING: "REPORT_FILE_MISSING",
+  SCHEMA_VERSION_MISSING: "SCHEMA_VERSION_MISSING",
+  SCHEMA_VERSION_UNSUPPORTED: "SCHEMA_VERSION_UNSUPPORTED",
+  UNIT_MISSING: "UNIT_MISSING",
+  RESULTS_NOT_ARRAY: "RESULTS_NOT_ARRAY",
+  RESULTS_EMPTY: "RESULTS_EMPTY",
+  RESULT_NOT_OBJECT: "RESULT_NOT_OBJECT",
+  RESULT_ID_INVALID: "RESULT_ID_INVALID",
+  RESULT_VERDICT_INVALID: "RESULT_VERDICT_INVALID",
+  DUPLICATE_ID: "DUPLICATE_ID",
+  REQUIRED_ID_MISSING: "REQUIRED_ID_MISSING",
+  REQUIRED_ID_NOT_PASS: "REQUIRED_ID_NOT_PASS",
+  FAIL_PRESENT: "FAIL_PRESENT",
+  NOT_RUN_PRESENT: "NOT_RUN_PRESENT",
+  OUT_OF_SCOPE_ID_MISSING: "OUT_OF_SCOPE_ID_MISSING",
+  OUT_OF_SCOPE_ID_NOT_NOT_RUN: "OUT_OF_SCOPE_ID_NOT_NOT_RUN",
+  PASSED_MISSING: "PASSED_MISSING",
+  PASSED_NOT_TRUE: "PASSED_NOT_TRUE",
+  TOTALS_MISSING: "TOTALS_MISSING",
+  TOTALS_FIELD_INVALID: "TOTALS_FIELD_INVALID",
+  TOTALS_PASS_MISMATCH: "TOTALS_PASS_MISMATCH",
+  TOTALS_FAIL_MISMATCH: "TOTALS_FAIL_MISMATCH",
+  TOTALS_NOTRUN_MISMATCH: "TOTALS_NOTRUN_MISMATCH",
+  TOTALS_SUM_MISMATCH: "TOTALS_SUM_MISMATCH",
+  EXACT_IDS_EXTRA: "EXACT_IDS_EXTRA",
+  EXACT_IDS_MISSING: "EXACT_IDS_MISSING",
+  EXACT_IDS_COUNT_MISMATCH: "EXACT_IDS_COUNT_MISMATCH",
+
+  /* desktop contract */
+  DESKTOP_CONTRACT_MISSING: "DESKTOP_CONTRACT_MISSING",
+  DESKTOP_CONTRACT_VERSION_MISMATCH: "DESKTOP_CONTRACT_VERSION_MISMATCH",
+  DESKTOP_CONTRACT_COUNT_MISMATCH: "DESKTOP_CONTRACT_COUNT_MISMATCH",
+  DESKTOP_CONTRACT_HASH_MISMATCH: "DESKTOP_CONTRACT_HASH_MISMATCH",
+
+  /* attestations */
+  ATTESTATION_NOT_OBJECT: "ATTESTATION_NOT_OBJECT",
+  ATTESTATION_SCHEMA_UNSUPPORTED: "ATTESTATION_SCHEMA_UNSUPPORTED",
+  ATTESTATION_GATE_MISMATCH: "ATTESTATION_GATE_MISMATCH",
+  ATTESTATION_CONTRACT_VERSION_MISMATCH: "ATTESTATION_CONTRACT_VERSION_MISMATCH",
+  ATTESTATION_SESSION_MISMATCH: "ATTESTATION_SESSION_MISMATCH",
+  ATTESTATION_COMMIT_MISMATCH: "ATTESTATION_COMMIT_MISMATCH",
+  ATTESTATION_TREE_MISMATCH: "ATTESTATION_TREE_MISMATCH",
+  ATTESTATION_SOURCE_FILE_MISMATCH: "ATTESTATION_SOURCE_FILE_MISMATCH",
+  ATTESTATION_SOURCE_MISSING: "ATTESTATION_SOURCE_MISSING",
+  SOURCE_HASH_MISMATCH: "SOURCE_HASH_MISMATCH",
+  ATTESTATION_VALIDATION_NOT_PASS: "ATTESTATION_VALIDATION_NOT_PASS",
+  ATTESTATION_REQUIRED_IDS_HASH_MISMATCH: "ATTESTATION_REQUIRED_IDS_HASH_MISMATCH",
+  ATTESTATION_REQUIRED_IDS_MISMATCH: "ATTESTATION_REQUIRED_IDS_MISMATCH",
+  ATTESTATION_OUT_OF_SCOPE_MISMATCH: "ATTESTATION_OUT_OF_SCOPE_MISMATCH",
+  ATTESTATION_HASH_MISMATCH: "ATTESTATION_HASH_MISMATCH",
+  ATTESTATION_FILE_MISSING: "ATTESTATION_FILE_MISSING",
+  REVALIDATION_FAILED: "REVALIDATION_FAILED",
+
+  /* session */
+  SESSION_NOT_OBJECT: "SESSION_NOT_OBJECT",
+  SESSION_FILE_MISSING: "SESSION_FILE_MISSING",
+  SESSION_SCHEMA_UNSUPPORTED: "SESSION_SCHEMA_UNSUPPORTED",
+  SESSION_ID_MISSING: "SESSION_ID_MISSING",
+  SESSION_COMMIT_INVALID: "SESSION_COMMIT_INVALID",
+  SESSION_TREE_INVALID: "SESSION_TREE_INVALID",
+  SESSION_TREE_MISSING: "SESSION_TREE_MISSING",
+  SESSION_STARTED_AT_INVALID: "SESSION_STARTED_AT_INVALID",
+  SESSION_CERTIFICATION_MODE_MISSING: "SESSION_CERTIFICATION_MODE_MISSING",
+  SESSION_WORKING_TREE_FLAG_MISSING: "SESSION_WORKING_TREE_FLAG_MISSING",
+  SESSION_CERTIFICATION_ON_DIRTY_TREE: "SESSION_CERTIFICATION_ON_DIRTY_TREE",
+
+  /* graduation-time identity */
+  CURRENT_HEAD_MISMATCH: "CURRENT_HEAD_MISMATCH",
+  CURRENT_TREE_MISMATCH: "CURRENT_TREE_MISMATCH",
+  WORKTREE_DIRTY_AT_GRADUATION: "WORKTREE_DIRTY_AT_GRADUATION",
+  INDEX_DIRTY_AT_GRADUATION: "INDEX_DIRTY_AT_GRADUATION",
+
+  /* root audit */
+  EVIDENCE_MISSING: "EVIDENCE_MISSING",
+  SESSION_MISSING: "SESSION_MISSING",
+  MIXED_SESSION: "MIXED_SESSION",
+  MIXED_COMMIT: "MIXED_COMMIT",
+  MIXED_TREE: "MIXED_TREE",
+  SOURCE_HASHES_UNVERIFIED: "SOURCE_HASHES_UNVERIFIED",
+  BOOTSTRAP_RECORD_MISSING: "BOOTSTRAP_RECORD_MISSING",
+  BOOTSTRAP_RECORD_ROOT_HASH_MISMATCH: "BOOTSTRAP_RECORD_ROOT_HASH_MISMATCH",
+  BOOTSTRAP_RECORD_DECISION_MISMATCH: "BOOTSTRAP_RECORD_DECISION_MISMATCH",
+  BOOTSTRAP_RECORD_SESSION_MISMATCH: "BOOTSTRAP_RECORD_SESSION_MISMATCH"
+} as const;
+
+export type TrustCode = (typeof TRUST_CODES)[keyof typeof TRUST_CODES];
+
+export function trustProblem(code: TrustCode | string, detail?: string): TrustProblem {
+  return detail === undefined ? { code } : { code, detail };
+}
+
+/** The code of a problem, or "" when the value is not a problem. */
+export function trustCodeOf(problem: TrustProblem | undefined): string {
+  return problem && typeof problem.code === "string" ? problem.code : "";
+}
+
+export function hasTrustCode(problems: readonly TrustProblem[], code: string): boolean {
+  return problems.some((problem) => problem.code === code);
+}
+
+export function hasAnyTrustCode(problems: readonly TrustProblem[], codes: readonly string[]): boolean {
+  return problems.some((problem) => codes.includes(problem.code));
+}
+
+/**
+ * The display projection. `CODE` or `CODE:detail` — the same shape the earlier
+ * reason strings had, so reports and logs keep reading the way they did while the
+ * control flow moves to codes.
+ */
+export function renderTrustProblem(problem: TrustProblem): string {
+  return problem.detail === undefined ? problem.code : `${problem.code}:${problem.detail}`;
+}
+
+export function renderTrustProblems(problems: readonly TrustProblem[]): string[] {
+  return problems.map((problem) => renderTrustProblem(problem));
+}
+
+/** Problems that belong to a gate's required-id surface (used for progress counts). */
+export const REQUIRED_ID_CODES: readonly string[] = [TRUST_CODES.REQUIRED_ID_MISSING, TRUST_CODES.REQUIRED_ID_NOT_PASS];
+
+/** Problems that mean the evidence cannot be trusted even if it looks complete. */
+export const PROVENANCE_CODES: readonly string[] = [
+  TRUST_CODES.SOURCE_HASH_MISMATCH,
+  TRUST_CODES.ATTESTATION_SOURCE_MISSING,
+  TRUST_CODES.ATTESTATION_FILE_MISSING,
+  TRUST_CODES.REPORT_FILE_MISSING,
+  TRUST_CODES.ATTESTATION_HASH_MISMATCH,
+  TRUST_CODES.ATTESTATION_NOT_OBJECT
+];
+
+export const SESSION_CODES: readonly string[] = [
+  TRUST_CODES.ATTESTATION_SESSION_MISMATCH,
+  TRUST_CODES.SESSION_NOT_OBJECT,
+  TRUST_CODES.SESSION_FILE_MISSING
+];
+export const COMMIT_CODES: readonly string[] = [
+  TRUST_CODES.ATTESTATION_COMMIT_MISMATCH,
+  TRUST_CODES.SESSION_COMMIT_INVALID
+];
+export const TREE_CODES: readonly string[] = [
+  TRUST_CODES.ATTESTATION_TREE_MISMATCH,
+  TRUST_CODES.SESSION_TREE_MISSING,
+  TRUST_CODES.SESSION_TREE_INVALID
+];

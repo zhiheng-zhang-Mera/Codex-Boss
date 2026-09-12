@@ -14,11 +14,13 @@ import path from "node:path";
 import {
   appendOwnerIntervention,
   emptyOwnerLedger,
+  OWNER_LEDGER_CODES,
   verifyOwnerLedger,
   type OwnerInterventionEvent,
   type OwnerInterventionLedger
 } from "../../src/shared/owner-intervention";
 import { canonicalJson, type AcceptanceSession } from "../../src/shared/acceptance-evidence";
+import { trustProblem, type TrustProblem } from "../../src/shared/trust-problems";
 import {
   ACCEPTANCE_RELATIVE,
   HISTORY_DIRECTORY,
@@ -109,7 +111,7 @@ export function recordOwnerIntervention(
 
 export interface OwnerLedgerInspection {
   ledger?: OwnerInterventionLedger;
-  problems: string[];
+  problems: TrustProblem[];
   /** §7.5: the derived count — the ledger's own event count, never an input. */
   count: number;
 }
@@ -117,7 +119,7 @@ export interface OwnerLedgerInspection {
 /** Reads and verifies the ledger for a session; the root audit uses exactly this. */
 export function inspectOwnerLedger(session: AcceptanceSession, artifacts: string): OwnerLedgerInspection {
   const ledger = readOwnerLedger(artifacts);
-  if (!ledger) return { problems: ["OWNER_LEDGER_MISSING"], count: 0 };
+  if (!ledger) return { problems: [trustProblem(OWNER_LEDGER_CODES.LEDGER_MISSING)], count: 0 };
   const problems = verifyOwnerLedger({ ledger, session });
   return { ledger, problems, count: ledger.events.length };
 }

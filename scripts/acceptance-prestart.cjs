@@ -26,7 +26,8 @@ const modules = {
   evidence: path.join(dist, "src", "shared", "acceptance-evidence.js"),
   audit: path.join(dist, "electron", "engineering", "bootstrap-completion.js"),
   session: path.join(dist, "electron", "engineering", "acceptance-session.js"),
-  ledger: path.join(dist, "electron", "engineering", "owner-intervention-ledger.js")
+  ledger: path.join(dist, "electron", "engineering", "owner-intervention-ledger.js"),
+  atomic: path.join(dist, "electron", "engineering", "atomic-file.js")
 };
 for (const [name, file] of Object.entries(modules)) {
   if (!fs.existsSync(file)) {
@@ -39,6 +40,8 @@ const { canonicalJson, canonicalSha256, validateGateReport, verifyGateAttestatio
 const { createBootstrapAuditor } = require(modules.audit);
 const { inspectSession, readJsonFile } = require(modules.session);
 const { OWNER_LEDGER_FILE } = require(modules.ledger);
+const { readGitIdentity } = require(modules.session);
+const { writeFileAtomicSync, hashOnceStable } = require(modules.atomic);
 
 const PRESTART_SCHEMA_VERSION = 1;
 const PRESTART_ATTESTATION = "prestart-attestation.json";
@@ -69,7 +72,22 @@ if (session.certification_mode !== true) {
 }
 
 /* ------------------------------------------------------------------ *
- * 2. the trusted root audit (16 gates + desktop + ledger + session)
+ * 2. §5/§6 graduation-time identity lock (TOCTOU close)
+ * ------------------------------------------------------------------ */
+const identity = readGitIdentity(root);
+const identityProblems = [];
+if (identity.commit_sha !== session.commit_sha) identityProblems.push(`CURRENT_HEAD_MISMATCH:${identity.commit_sha || "unknown"}!=${session.commit_sha}`);
+if (session.tree_sha) {
+  if (identity.tree_sha !== session.tree_sha) identityProblems.push(`CURRENT_TREE_MISMATCH:${identity.tree_sha || "unknown"}!=${session.tree_sha}`);
+} else {
+  identityProblems.push("SESSION_TREE_MISSING");
+}
+if (!identity.worktree_clean) identityProblems.push("WORKTREE_DIRTY_AT_GRADUATION");
+if (!identity.index_clean) identityProblems.push("INDEX_DIRTY_AT_GRADUATION");
+for (const problem of identityProblems) console.error(`[prestart] identity ${problem}`);
+
+/* ------------------------------------------------------------------ *
+ * 3. the trusted root audit (16 gates + desktop + ledger + session)
  * ------------------------------------------------------------------ */
 const audit = createBootstrapAuditor({ root }).evaluate().audit;
 const storedRecordPath = path.join(artifacts, BOOTSTRAP_RECORD);
@@ -161,6 +179,7 @@ const sourcesVerified = audit.sources.filter((source) => source.report_sha256 !=
  * 5. the certificate
  * ------------------------------------------------------------------ */
 const reasons = [
+  ...identityProblems.map((problem) => `identity: ${problem}`),
   ...recordProblems.map((problem) => `bootstrap record: ${problem}`),
   ...audit.reasons,
   ...mutationDefense.map((problem) => `mutation defense: ${problem}`),
@@ -172,6 +191,7 @@ const rootHash = canonicalSha256({
   schema: "prestart-attestation-1",
   session_id: session.session_id,
   commit_sha: session.commit_sha,
+  tree_sha: session.tree_sha ?? "",
   bootstrap_root_hash: audit.root_hash,
   supporting: supporting.map((entry) => ({ gate: entry.gate, report_sha256: entry.report_sha256, attestation_sha256: entry.attestation_sha256 })),
   manifest: manifest.map((entry) => ({ gate: entry.gate, sha256: entry.sha256, attestation_sha256: entry.attestation_sha256 })),
@@ -183,6 +203,17 @@ const attestation = {
   bootstrap: certified ? "BOOTSTRAP_COMPLETE" : "INCOMPLETE",
   session_id: session.session_id,
   commit_sha: session.commit_sha,
+  /** §6: the tree is part of the certified identity. */
+  tree_sha: session.tree_sha ?? "",
+  /** §5: the identity re-read at graduation, not only at session start. */
+  graduate_identity: {
+    commit_sha: identity.commit_sha,
+    tree_sha: identity.tree_sha,
+    worktree_clean: identity.worktree_clean,
+    index_clean: identity.index_clean,
+    checked_at: new Date().toISOString(),
+    problems: identityProblems
+  },
   gates: { passed: audit.gates_passed, required: audit.gates_required },
   desktop_black_box: {
     contract_version: audit.desktop.contract,
@@ -221,7 +252,10 @@ const attestation = {
   certified_at: new Date().toISOString()
 };
 fs.mkdirSync(artifacts, { recursive: true });
-fs.writeFileSync(path.join(artifacts, PRESTART_ATTESTATION), `${canonicalJson(attestation)}\n`, "utf8");
+/* §96: the machine certificate is written atomically — a reader must never see a
+ * half-written certificate — and its bytes are re-hashed before the seal is printed. */
+writeFileAtomicSync(path.join(artifacts, PRESTART_ATTESTATION), `${canonicalJson(attestation)}\n`);
+const certificateStability = hashOnceStable(path.join(artifacts, PRESTART_ATTESTATION));
 
 /* ------------------------------------------------------------------ *
  * 6. the human-readable certificate (§20 deliverable 15)
@@ -236,6 +270,8 @@ const markdown = [
   `- Bootstrap: **${attestation.bootstrap}**`,
   `- Session: \`${session.session_id}\``,
   `- Commit: \`${session.commit_sha}\``,
+  `- Tree: \`${session.tree_sha ?? "(missing)"}\``,
+  `- Graduation identity: commit ${identity.commit_sha === session.commit_sha ? "SAME" : "MISMATCH"}, tree ${identity.tree_sha === session.tree_sha ? "SAME" : "MISMATCH"}, worktree ${identity.worktree_clean ? "CLEAN" : "DIRTY"}, index ${identity.index_clean ? "CLEAN" : "DIRTY"}`,
   `- Gates: ${audit.gates_passed}/${audit.gates_required} trusted PASS`,
   `- Desktop black box: ${audit.desktop.verified_claims}/${audit.desktop.required_claims} claims under \`${audit.desktop.contract}\``,
   `- Capabilities: ${audit.capabilities.passed}/${audit.capabilities.required} established`,
@@ -260,6 +296,7 @@ fs.writeFileSync(path.join(artifacts, "prestart-attestation.md"), markdown, "utf
 console.log("");
 line("gate evidence", `${audit.gates_passed}/${audit.gates_required} ${audit.gates_passed === audit.gates_required ? "PASS" : "FAIL"}`);
 line("source integrity", `${sourcesVerified}/${audit.sources.length} VERIFIED`);
+line("graduation identity", identityProblems.length === 0 ? `HEAD+TREE SAME, WORKTREE+INDEX CLEAN` : `FAIL (${identityProblems.length})`);
 line("desktop black box", `${audit.desktop.verified_claims}/${audit.desktop.required_claims} ${audit.desktop.verdict === "PASS" ? "PASS" : "FAIL"}`);
 line("capabilities", `${audit.capabilities.passed}/${audit.capabilities.required} ${audit.capabilities.passed === audit.capabilities.required ? "ESTABLISHED" : "INCOMPLETE"}`);
 line("owner intervention", String(audit.owner_interventions));
@@ -270,6 +307,7 @@ line("trust suites", `${supporting.filter((entry) => entry.verdict === "PASS").l
 console.log("");
 line("certificate", rel(path.join(artifacts, PRESTART_ATTESTATION)));
 line("root hash", rootHash);
+line("certificate file", certificateStability.stable ? "STABLE" : "UNSTABLE");
 console.log("");
 if (!certified) {
   for (const reason of reasons.slice(0, 10)) console.error(`[prestart]   ${reason}`);
