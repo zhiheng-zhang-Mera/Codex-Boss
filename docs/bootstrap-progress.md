@@ -22,10 +22,14 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP6 Requirements Graph | §28 | `src/shared/requirements-graph.ts` | `acceptance:requirements` R-01..R-08 | `34676022000` |
 | CP7 Execution Planner | §29 | `src/shared/execution-planner.ts` | `acceptance:plan` P-01..P-06 | `34676609713`, `34677536907` |
 | CP8 Verification Engine (host side of §30 + §31) | §30, §31 | `src/shared/verification.ts`, `electron/engineering/verification-engine.ts`, ladder extension in `execution-planner.ts`/`evidence-ledger.ts` | `acceptance:verify` V-01..V-10 (82 observations) | `34678305310` |
-| CP9 Implementation Loop + Multi-Layer Review | §30, §32 | `src/shared/review.ts`, `review-checks.ts`, `electron/engineering/{review-engine,implementation-loop}.ts` | `acceptance:review` C-01..C-11 (62 observations) | _pending in this push_ |
+| CP9 Implementation Loop + Multi-Layer Review | §30, §32 | `src/shared/review.ts`, `review-checks.ts`, `electron/engineering/{review-engine,implementation-loop}.ts` | `acceptance:review` C-01..C-11 (62 observations) | `34680401037` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
+
+Local evidence for CP9: the whole 20-step chain is green (129 test files /
+1292 tests, `acceptance:review` C-01..C-11 PASS with 62 observations, desktop
+black box 89/89 claims).
 
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
