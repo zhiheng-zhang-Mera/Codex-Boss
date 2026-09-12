@@ -30,8 +30,8 @@ for (const required of [contractsModule, evidenceModule, sessionModule]) {
     process.exit(1);
   }
 }
-const { gateContract } = require(contractsModule);
-const { buildGateAttestation, validateGateReport, requiredIdsHash } = require(evidenceModule);
+const { gateContract, DESKTOP_BLACK_BOX_GATE } = require(contractsModule);
+const { buildGateAttestation, validateGateReport, validateDesktopBlackBoxReport, requiredIdsHash } = require(evidenceModule);
 const { acceptanceDirectory, inspectSession, sha256File, writeAttestation, readJsonFile } = require(sessionModule);
 
 const contract = gateContract(gate);
@@ -50,7 +50,11 @@ if (!session) {
 const reportFile = path.join(artifacts, contract.report_file);
 const sourceSha256 = sha256File(reportFile);
 const raw = readJsonFile(reportFile);
-const validation = validateGateReport({ gate, contract, report: raw });
+// §6.3: the real-application black box is validated against its own versioned claim
+// contract as well as the generic strict report contract.
+const validation = gate === DESKTOP_BLACK_BOX_GATE
+  ? validateDesktopBlackBoxReport({ contract, report: raw })
+  : validateGateReport({ gate, contract, report: raw });
 if (sourceSha256 === "") {
   validation.reasons.unshift("REPORT_FILE_MISSING");
   validation.verdict = "FAIL";

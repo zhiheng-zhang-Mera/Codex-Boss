@@ -56,6 +56,18 @@ const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 
 const PROJECT = path.resolve(__dirname, "..");
+const CONTRACT_MODULE = path.join(PROJECT, "dist-electron", "src", "shared", "desktop-black-box-contract.js");
+if (!fs.existsSync(CONTRACT_MODULE)) {
+  console.error(`[desktop-smoke] the built black-box contract is missing (run \`pnpm run build\` first): ${CONTRACT_MODULE}`);
+  process.exit(1);
+}
+/* checkpoint-2 §6.1/§6.3: the claim set is a versioned contract, not an array index. */
+const {
+  DESKTOP_BLACK_BOX_CONTRACT_HASH,
+  DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+  DESKTOP_BLACK_BOX_REQUIRED_CLAIMS,
+  DESKTOP_BLACK_BOX_REQUIREMENTS
+} = require(CONTRACT_MODULE);
 const ROOT = path.join(PROJECT, "artifacts", "desktop-workbook-" + randomUUID());
 const DATA_ROOT = path.join(ROOT, "data");
 const WORKSPACE = path.join(ROOT, "workspace");
@@ -428,17 +440,60 @@ async function waitForSettledTask(deadline, onPoll) {
 }
 
 /* ------------------------------------------------------------------ *
- * Claims
+ * Claims — bound to the versioned contract (§6.1/§6.3)
  * ------------------------------------------------------------------ */
 
 class Claims {
-  constructor() { this.entries = []; }
+  constructor(requirements) {
+    this.requirements = requirements;
+    this.ids = new Map(requirements.map((requirement) => [requirement.title, requirement.id]));
+    this.entries = [];
+    this.seen = new Set();
+    this.unknown = [];
+    this.duplicates = [];
+    this.diagnostics = [];
+  }
   check(claim, expected, observed) {
     const expectedText = typeof expected === "string" ? expected : JSON.stringify(expected);
     const observedText = typeof observed === "string" ? observed : JSON.stringify(observed);
-    this.entries.push({ claim, expected: expectedText, observed: observedText, ok: expectedText === observedText });
+    const id = this.ids.get(claim);
+    if (id === undefined) this.unknown.push(claim);
+    else if (this.seen.has(id)) this.duplicates.push(id);
+    else this.seen.add(id);
+    this.entries.push({ id: id ?? null, title: claim, claim, expected: expectedText, observed: observedText, ok: expectedText === observedText });
   }
   get failed() { return this.entries.filter((entry) => !entry.ok); }
+  get missing() { return this.requirements.filter((requirement) => !this.seen.has(requirement.id)); }
+  /**
+   * A diagnostic note that is NOT a contract claim: it only ever appears on a path
+   * that already failed, and it must never look like evidence of a passing claim.
+   */
+  diagnostic(label, detail) {
+    this.diagnostics.push({ label, detail: String(detail) });
+  }
+  /** §6.3: the report carries exactly the contract's claim set, in contract order. */
+  contractResults() {
+    const byId = new Map(this.entries.filter((entry) => entry.id !== null).map((entry) => [entry.id, entry]));
+    return this.requirements.map((requirement) => {
+      const entry = byId.get(requirement.id);
+      const verdict = entry === undefined ? "NOT_RUN" : entry.ok ? "PASS" : "FAIL";
+      return {
+        id: requirement.id,
+        title: requirement.title,
+        verdict,
+        observations: entry ? [{ claim: entry.claim, expected: entry.expected, observed: entry.observed, ok: entry.ok }] : [],
+        evidence: ["artifacts/desktop-workbook-smoke.md"]
+      };
+    });
+  }
+  /** Any claim the harness asserts that the contract does not know — and vice versa. */
+  contractViolations() {
+    return [
+      ...this.unknown.map((title) => `claim asserted but not in the contract: ${title}`),
+      ...this.duplicates.map((id) => `claim id asserted twice: ${id}`),
+      ...this.missing.map((requirement) => `required claim never established: ${requirement.id} (${requirement.title})`)
+    ];
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -486,7 +541,7 @@ async function main() {
   let durable;
   let screenshot = false;
   let sessionReconnects = 0;
-  const claims = new Claims();
+  const claims = new Claims(DESKTOP_BLACK_BOX_REQUIREMENTS);
 
   try {
     const target = await waitForTarget(port, Date.now() + BOOT_TIMEOUT_MS);
@@ -769,7 +824,7 @@ async function main() {
   }
 
   claims.check("the restarted app serves the theme panel from the real UI", true, themePanel.ok);
-  if (!themePanel.ok) claims.check("phase two reason", "theme panel driven", String(themePanel.reason));
+  if (!themePanel.ok) claims.diagnostic("phase two failure", themePanel.reason);
   if (themePanel.ok) {
     claims.check("the theme registry survived the restart (active theme restored)", "builtin-dark", themePanel.before.themeId);
     claims.check("the canvas shows the restored theme token on boot", "#0c0e10", themePanel.before.bgRoot);
@@ -806,6 +861,25 @@ async function main() {
   }
 
   trace("before-report");
+  /* §6.3: the published evidence is exactly the versioned claim contract. A claim
+   * the contract does not know, or a contract claim the run never established, is
+   * recorded as its own FAIL — the black box cannot quietly shrink. */
+  const requirementResults = claims.contractResults();
+  const contractViolations = claims.contractViolations();
+  for (const [index, violation] of contractViolations.entries()) {
+    requirementResults.push({
+      id: `DB-CONTRACT-${String(index + 1).padStart(3, "0")}`,
+      title: `contract violation: ${violation}`,
+      verdict: "FAIL",
+      observations: [{ claim: "the report carries exactly the versioned claim contract", expected: "true", observed: "false", ok: false }],
+      evidence: ["artifacts/desktop-workbook-smoke.md"]
+    });
+  }
+  const contractBlock = {
+    version: DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+    required_claims: DESKTOP_BLACK_BOX_REQUIRED_CLAIMS,
+    claim_ids_hash: DESKTOP_BLACK_BOX_CONTRACT_HASH
+  };
   const report = {
     schemaVersion: 1,
     unit: "PHASE_0_DESKTOP_WORKBOOK_SMOKE",
@@ -813,13 +887,18 @@ async function main() {
     providerExecution: "BOUNDED_OFFLINE_PROVIDER",
     externalLiveProviderExecution: "NOT_RUN",
     screenshotCaptured: screenshot,
+    contract: contractBlock,
+    contractErrors: contractViolations,
     driver,
     claims: claims.entries,
+    diagnostics: claims.diagnostics,
+    requirementResults,
     totals: {
-      pass: claims.entries.filter((entry) => entry.ok).length,
-      fail: claims.failed.length
+      pass: requirementResults.filter((entry) => entry.verdict === "PASS").length,
+      fail: requirementResults.filter((entry) => entry.verdict === "FAIL").length,
+      notRun: requirementResults.filter((entry) => entry.verdict === "NOT_RUN").length
     },
-    passed: claims.failed.length === 0,
+    passed: contractViolations.length === 0 && claims.failed.length === 0,
     artifacts: {
       root: ROOT,
       state: fs.existsSync(STATE_FILE) ? STATE_FILE : undefined,
@@ -831,32 +910,18 @@ async function main() {
   fs.mkdirSync(ROOT, { recursive: true });
   fs.writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2), "utf8");
   fs.writeFileSync(REPORT_FILE, renderMarkdown(report), "utf8");
-  // checkpoint-1 §57/§58: the Bootstrap Completion audit reads every gate's report
-  // from `artifacts/acceptance/`, so the black box publishes a durable one too —
-  // the same evidence, in the shape the audit understands.
+  // checkpoint-2 §6.1/§10.3: the same evidence, in the shape the strict validator and
+  // the root auditor read. There is no second, friendlier report.
   const acceptanceDir = path.join(PROJECT, "artifacts", "acceptance");
   fs.mkdirSync(acceptanceDir, { recursive: true });
-  fs.writeFileSync(path.join(acceptanceDir, "desktop-workbook.json"), JSON.stringify({
-    schemaVersion: 1,
-    unit: "PHASE_0_DESKTOP_WORKBOOK_SMOKE",
-    generatedAt: report.generatedAt,
-    providerExecution: report.providerExecution,
-    owner_interventions: 0,
-    requirementResults: claims.entries.map((entry, index) => ({
-      id: `DB-${String(index + 1).padStart(3, "0")}`,
-      title: entry.claim,
-      verdict: entry.ok ? "PASS" : "FAIL",
-      observations: [{ claim: entry.claim, expected: String(entry.expected), observed: String(entry.observed), ok: entry.ok }],
-      evidence: ["artifacts/desktop-workbook-smoke.md"]
-    })),
-    totals: { pass: report.totals.pass, fail: report.totals.fail, notRun: 0 },
-    passed: report.passed
-  }, null, 2), "utf8");
+  fs.writeFileSync(path.join(acceptanceDir, "desktop-workbook.json"), JSON.stringify(report, null, 2), "utf8");
 
   for (const entry of claims.entries) {
     console.log(`[desktop-smoke] ${entry.ok ? "PASS" : "FAIL"} ${entry.claim} — expected ${entry.expected}, observed ${entry.observed}`);
   }
-  console.log(`[desktop-smoke] totals: PASS ${report.totals.pass} FAIL ${report.totals.fail}`);
+  console.log(`[desktop-smoke] contract ${contractBlock.version} (${contractBlock.required_claims} claims, ${contractBlock.claim_ids_hash.slice(0, 16)}…)`);
+  for (const violation of contractViolations) console.error(`[desktop-smoke] CONTRACT VIOLATION ${violation}`);
+  console.log(`[desktop-smoke] totals: PASS ${report.totals.pass} FAIL ${report.totals.fail} NOT_RUN ${report.totals.notRun}`);
   console.log(`[desktop-smoke] report: ${path.relative(PROJECT, RESULT_FILE)}`);
   if (screenshot) console.log(`[desktop-smoke] screenshot: ${path.relative(PROJECT, SCREENSHOT_FILE)}`);
   if (!report.passed) {

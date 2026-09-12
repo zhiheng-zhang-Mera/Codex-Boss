@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect } from "vitest";
 import type { AcceptanceGateContract } from "../../src/shared/acceptance-contracts";
+import {
+  DESKTOP_BLACK_BOX_CONTRACT_HASH,
+  DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+  DESKTOP_BLACK_BOX_REQUIRED_CLAIMS,
+  DESKTOP_BLACK_BOX_REQUIREMENTS
+} from "../../src/shared/desktop-black-box-contract";
 
 /**
  * Shared shape for the Prestart acceptance suites (checkpoint-2 §5.6, §6.5, §7.6,
@@ -156,6 +162,56 @@ export function cleanGateReport(contract: AcceptanceGateContract, mutate?: (repo
       pass: requirementResults.filter((entry) => entry.verdict === "PASS").length,
       fail: requirementResults.filter((entry) => entry.verdict === "FAIL").length,
       notRun: requirementResults.filter((entry) => entry.verdict === "NOT_RUN").length
+    },
+    passed: true
+  };
+  if (mutate) mutate(report);
+  return report;
+}
+
+export interface DesktopFixtureReport {
+  schemaVersion: number;
+  unit: string;
+  generatedAt: string;
+  contract: { version: string; required_claims: number; claim_ids_hash: string };
+  requirementResults: {
+    id: string;
+    title: string;
+    verdict: Verdict;
+    observations: { claim: string; expected: string; observed: string; ok: boolean }[];
+    evidence: string[];
+  }[];
+  totals: { pass: number; fail: number; notRun: number };
+  passed: boolean;
+}
+
+/**
+ * §6.3 fixture: the real black-box report shape — the versioned contract block plus
+ * every contract claim PASS. The mutator is how the hostile suite turns it into a
+ * `{}`, a single claim, an 88/89 report, a lying total or a tampered contract hash.
+ */
+export function desktopBlackBoxReport(mutate?: (report: DesktopFixtureReport) => void): DesktopFixtureReport {
+  const requirementResults: DesktopFixtureReport["requirementResults"] = DESKTOP_BLACK_BOX_REQUIREMENTS.map((requirement) => ({
+    id: requirement.id,
+    title: requirement.title,
+    verdict: "PASS" as Verdict,
+    observations: [{ claim: requirement.title, expected: "true", observed: "true", ok: true }],
+    evidence: ["artifacts/desktop-workbook-smoke.md"]
+  }));
+  const report: DesktopFixtureReport = {
+    schemaVersion: 1,
+    unit: "PHASE_0_DESKTOP_WORKBOOK_SMOKE",
+    generatedAt: new Date().toISOString(),
+    contract: {
+      version: DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+      required_claims: DESKTOP_BLACK_BOX_REQUIRED_CLAIMS,
+      claim_ids_hash: DESKTOP_BLACK_BOX_CONTRACT_HASH
+    },
+    requirementResults,
+    totals: {
+      pass: requirementResults.length,
+      fail: 0,
+      notRun: 0
     },
     passed: true
   };

@@ -20,6 +20,11 @@ import {
   ACCEPTANCE_SUPPORTED_SCHEMA_VERSIONS,
   type AcceptanceGateContract
 } from "./acceptance-contracts";
+import {
+  DESKTOP_BLACK_BOX_CONTRACT_HASH,
+  DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+  DESKTOP_BLACK_BOX_REQUIRED_CLAIMS
+} from "./desktop-black-box-contract";
 
 export const ACCEPTANCE_SESSION_SCHEMA_VERSION = 1 as const;
 export const GATE_ATTESTATION_SCHEMA_VERSION = 1 as const;
@@ -111,6 +116,7 @@ export interface StrictValidationInput {
   /**
    * §2.6/§6.3/§9.3: when true the report must carry *exactly* the contract's id
    * set — an extra or missing id is a failure even if every required id passed.
+   * Defaults to the contract's own `exact_ids` declaration.
    */
   exact_ids?: boolean;
 }
@@ -122,7 +128,7 @@ function problemText(key: string, detail?: string): string {
 /** §5.4 + §2.1 evaluated. Anything that cannot be proven is a FAIL, never a pass. */
 export function validateGateReport(input: StrictValidationInput): StrictReportValidation {
   const { gate, contract, report } = input;
-  const exactIds = input.exact_ids === true;
+  const exactIds = input.exact_ids ?? contract.exact_ids === true;
   const reasons: string[] = [];
   const required = [...contract.required_ids];
   const outOfScope = contract.out_of_scope_ids.map((entry) => entry.id);
@@ -226,7 +232,12 @@ export function validateGateReport(input: StrictValidationInput): StrictReportVa
   }
 
   if (exactIds) {
-    const extras = results.filter((entry) => !requiredSet.has(entry.id)).map((entry) => entry.id);
+    // Repeated occurrences of a required id are extras too: the contract fixes the
+    // claim set, not just the claim names.
+    const extras = [...new Set([
+      ...results.filter((entry) => !requiredSet.has(entry.id)).map((entry) => entry.id),
+      ...duplicateIds
+    ])];
     const missing = required.filter((id) => !verdictOf.has(id));
     if (extras.length) reasons.push(problemText("EXACT_IDS_EXTRA", extras.join(",")));
     if (missing.length) reasons.push(problemText("EXACT_IDS_MISSING", missing.join(",")));
@@ -315,8 +326,6 @@ export interface VerifyAttestationInput {
   report: unknown;
   /** SHA-256 of the report file's exact current bytes; "" when the file is gone. */
   source_sha256: string;
-  /** §2.4: the exact-id contract (desktop black box) also re-checks the id set. */
-  exact_ids?: boolean;
 }
 
 /**
@@ -348,11 +357,50 @@ export function verifyGateAttestation(input: VerifyAttestationInput): string[] {
   const revalidation = validateGateReport({
     gate: input.gate,
     contract: input.contract,
-    report: input.report,
-    ...(input.exact_ids ? { exact_ids: true } : {})
+    report: input.report
   });
   if (revalidation.verdict !== "PASS") problems.push(...revalidation.reasons.map((reason) => problemText("REVALIDATION_FAILED", reason)));
   return problems;
+}
+
+/* ------------------------------------------------------------------ *
+ * §2.6/§6.3 the desktop black-box contract
+ * ------------------------------------------------------------------ */
+
+export interface DesktopValidationInput {
+  contract: AcceptanceGateContract;
+  report: unknown;
+}
+
+/**
+ * §2.6: the desktop black box is not "a report exists". It must declare the
+ * versioned claim contract it ran under, carry that contract's exact claim set,
+ * and pass every one of its claims. A report under a different contract version,
+ * a different claim digest, or a subset of the claims is refused.
+ */
+export function validateDesktopBlackBoxReport(input: DesktopValidationInput): StrictReportValidation {
+  const validation = validateGateReport({ gate: input.contract.gate, contract: input.contract, report: input.report });
+  const reasons = [...validation.reasons];
+  const report = input.report !== null && typeof input.report === "object" && !Array.isArray(input.report)
+    ? input.report as { contract?: unknown }
+    : undefined;
+  const declared = report?.contract;
+  if (declared === null || typeof declared !== "object" || Array.isArray(declared)) {
+    reasons.push("DESKTOP_CONTRACT_MISSING");
+  } else {
+    const value = declared as { version?: unknown; required_claims?: unknown; claim_ids_hash?: unknown; required_ids_hash?: unknown };
+    if (value.version !== DESKTOP_BLACK_BOX_CONTRACT_VERSION) reasons.push(problemText("DESKTOP_CONTRACT_VERSION_MISMATCH", String(value.version)));
+    if (value.required_claims !== DESKTOP_BLACK_BOX_REQUIRED_CLAIMS) reasons.push(problemText("DESKTOP_CONTRACT_COUNT_MISMATCH", String(value.required_claims)));
+    const declaredHash = typeof value.claim_ids_hash === "string" ? value.claim_ids_hash : value.required_ids_hash;
+    if (declaredHash !== DESKTOP_BLACK_BOX_CONTRACT_HASH) reasons.push(problemText("DESKTOP_CONTRACT_HASH_MISMATCH", String(declaredHash)));
+  }
+  const validationOut: StrictReportValidation = {
+    ...validation,
+    reasons,
+    verdict: reasons.length === 0 ? "PASS" : "FAIL"
+  };
+  const { hash: _discarded, ...body } = validationOut;
+  return { ...body, hash: canonicalSha256(body) };
 }
 
 /* ------------------------------------------------------------------ *

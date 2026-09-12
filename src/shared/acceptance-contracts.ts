@@ -9,8 +9,19 @@
  *
  * Pure: no fs, no clock, no process.
  */
+import {
+  DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+  DESKTOP_BLACK_BOX_REQUIRED_IDS
+} from "./desktop-black-box-contract";
 
 export const ACCEPTANCE_CONTRACT_VERSION = "acceptance-contracts-1" as const;
+
+/**
+ * The desktop black-box gate. Unlike the delivery gates it is not a suite report:
+ * it is the real Electron product path, so its required ids come from the
+ * versioned claim contract (§6.1) rather than from a list kept here.
+ */
+export const DESKTOP_BLACK_BOX_GATE = "acceptance-desktop-workbook" as const;
 
 /** Report schema versions the strict validator understands (checkpoint-2 §5.4). */
 export const ACCEPTANCE_SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1];
@@ -35,6 +46,13 @@ export interface AcceptanceGateContract {
   required_ids: readonly string[];
   /** Ids that may be NOT_RUN, and only these (§6.4/§21 exclusions). */
   out_of_scope_ids: readonly AcceptanceOutOfScopeId[];
+  /**
+   * §2.6/§6.3: the producer emits exactly this id set — no extras, nothing missing.
+   * Set for the desktop black box and for the trust-boundary suites, whose reports
+   * this repository generates itself. The sixteen delivery gates report extra
+   * passing checks of their own, so they leave it unset.
+   */
+  exact_ids?: boolean;
 }
 
 /**
@@ -165,6 +183,19 @@ export const ACCEPTANCE_GATE_CONTRACTS: readonly AcceptanceGateContract[] = [
 ];
 
 /**
+ * §6.1–§6.3: the real-application black box. Its required ids are the contract's
+ * own claim ids, and the count comes from the contract, never from a literal.
+ */
+export const DESKTOP_BLACK_BOX_CONTRACT: AcceptanceGateContract = {
+  gate: DESKTOP_BLACK_BOX_GATE,
+  contract_version: DESKTOP_BLACK_BOX_CONTRACT_VERSION,
+  report_file: "desktop-workbook.json",
+  required_ids: [...DESKTOP_BLACK_BOX_REQUIRED_IDS],
+  out_of_scope_ids: [],
+  exact_ids: true
+};
+
+/**
  * §5.6/§6.5/§7.6/§8.7/§9 — the acceptance suites that harden the trust boundary
  * itself. They are attested exactly like the delivery gates so the final
  * certificate carries their evidence instead of a prose claim.
@@ -175,28 +206,32 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     contract_version: "evidence-integrity-1",
     report_file: "evidence-integrity.json",
     required_ids: ["EI-01", "EI-02", "EI-03", "EI-04", "EI-05", "EI-06", "EI-07", "EI-08", "EI-09", "EI-10", "EI-11", "EI-12"],
-    out_of_scope_ids: []
+    out_of_scope_ids: [],
+    exact_ids: true
   },
   {
     gate: "acceptance-desktop-contract",
     contract_version: "desktop-contract-1",
     report_file: "desktop-contract.json",
     required_ids: ["DB-01", "DB-02", "DB-03", "DB-04", "DB-05", "DB-06", "DB-07", "DB-08", "DB-09", "DB-10", "DB-11", "DB-12"],
-    out_of_scope_ids: []
+    out_of_scope_ids: [],
+    exact_ids: true
   },
   {
     gate: "acceptance-owner-ledger",
     contract_version: "owner-ledger-1",
     report_file: "owner-ledger.json",
     required_ids: ["OI-01", "OI-02", "OI-03", "OI-04", "OI-05", "OI-06", "OI-07", "OI-08", "OI-09", "OI-10"],
-    out_of_scope_ids: []
+    out_of_scope_ids: [],
+    exact_ids: true
   },
   {
     gate: "acceptance-root-hardening",
     contract_version: "root-hardening-1",
     report_file: "bootstrap-root-hardening.json",
     required_ids: ["RA-01", "RA-02", "RA-03", "RA-04", "RA-05", "RA-06", "RA-07", "RA-08", "RA-09", "RA-10", "RA-11", "RA-12"],
-    out_of_scope_ids: []
+    out_of_scope_ids: [],
+    exact_ids: true
   },
   {
     gate: "acceptance-adversarial",
@@ -207,15 +242,23 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
       "AD-11", "AD-12", "AD-13", "AD-14", "AD-15", "AD-16", "AD-17", "AD-18", "AD-19", "AD-20",
       "AD-POSITIVE"
     ],
-    out_of_scope_ids: []
+    out_of_scope_ids: [],
+    exact_ids: true
   }
+];
+
+/** Every contract the trust boundary knows: the sixteen gates, the black box, the suites. */
+export const ALL_ACCEPTANCE_CONTRACTS: readonly AcceptanceGateContract[] = [
+  ...ACCEPTANCE_GATE_CONTRACTS,
+  DESKTOP_BLACK_BOX_CONTRACT,
+  ...ACCEPTANCE_SUPPORTING_CONTRACTS
 ];
 
 /** §43: which gate's trusted evidence establishes which critical capability. */
 export const CAPABILITY_GATES: Readonly<Record<string, readonly string[]>> = {
   "knowledge foundation": ["acceptance-knowledge", "acceptance-final"],
   "architecture and UI discovery": ["acceptance-architecture"],
-  "theme engine": ["acceptance-theme", "acceptance-desktop-workbook"],
+  "theme engine": ["acceptance-theme", DESKTOP_BLACK_BOX_GATE],
   "requirements graph": ["acceptance-requirements"],
   "execution planner": ["acceptance-plan"],
   "verification engine": ["acceptance-verify"],
@@ -229,7 +272,7 @@ export const CAPABILITY_GATES: Readonly<Record<string, readonly string[]>> = {
 };
 
 const BY_NAME: ReadonlyMap<string, AcceptanceGateContract> = new Map(
-  [...ACCEPTANCE_GATE_CONTRACTS, ...ACCEPTANCE_SUPPORTING_CONTRACTS].map((contract) => [contract.gate, contract])
+  ALL_ACCEPTANCE_CONTRACTS.map((contract) => [contract.gate, contract])
 );
 
 /** The contract for a gate, or undefined when the gate is not a known contract. */
@@ -237,9 +280,9 @@ export function gateContract(gate: string): AcceptanceGateContract | undefined {
   return BY_NAME.get(gate);
 }
 
-/** Every gate name that has a declared contract (delivery gates and supporting suites). */
+/** Every gate name that has a declared contract (delivery gates, black box, suites). */
 export function contractedGates(): string[] {
-  return [...ACCEPTANCE_GATE_CONTRACTS, ...ACCEPTANCE_SUPPORTING_CONTRACTS].map((contract) => contract.gate);
+  return ALL_ACCEPTANCE_CONTRACTS.map((contract) => contract.gate);
 }
 
 /** §8.1 back-compat shape: gate name → the ids that must PASS. */
@@ -249,5 +292,5 @@ export const GATE_REQUIREMENTS: Readonly<Record<string, readonly string[]>> = Ob
 
 /** Report file each gate writes, relative to `artifacts/acceptance/`. */
 export const REPORT_FILES: Readonly<Record<string, string>> = Object.fromEntries(
-  [...ACCEPTANCE_GATE_CONTRACTS, ...ACCEPTANCE_SUPPORTING_CONTRACTS].map((contract) => [contract.gate, contract.report_file])
+  ALL_ACCEPTANCE_CONTRACTS.map((contract) => [contract.gate, contract.report_file])
 );
