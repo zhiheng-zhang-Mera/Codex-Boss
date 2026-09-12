@@ -25,6 +25,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP9 Implementation Loop + Multi-Layer Review | §30, §32 | `src/shared/review.ts`, `review-checks.ts`, `electron/engineering/{review-engine,implementation-loop}.ts` | `acceptance:review` C-01..C-11 (62 observations) | `34680401037` |
 | CP10 Self-Healing / Recovery | §33 | `src/shared/recovery.ts`, `electron/engineering/recovery-engine.ts`, loop repair stage | `acceptance:self-healing` RC-01..RC-10 (64 observations) | `34681594017` |
 | CP11 Capability Gap → Self Improvement | §34 | `src/shared/capability-gap.ts`, `electron/engineering/improvement-loop.ts` | `acceptance:capability-gap` CG-01..CG-10 (64 observations) | `34682736930` |
+| CP12 Candidate State + Guardian Gate | §35, §36 | `src/shared/candidate-gate.ts`, `electron/engineering/candidate-guardian.ts` | `acceptance:candidate` GD-01..GD-10 (52 observations) | _pending in this push_ |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -76,6 +77,7 @@ workbook attach (UI drop / IPC)
   → verification engine (ladder + §31.3 ledger)          §30/§31 (host modules)
   → recovery classification + ladder + CapabilityGap     §33/§33.3
   → capability-gap chain (task → regression → knowledge → registry) §34
+  → candidate lifecycle + Guardian final gate (release permission)  §35/§36
   → provider dispatch boundary                           (bounded/offline in acceptance)
   → knowledge write gate (host-derived facts only)       §5
 ```
@@ -94,8 +96,8 @@ preview all persist under `<userData>/.boss/`.
 acceptance:workbook → acceptance:knowledge → acceptance:architecture →
 acceptance:theme → acceptance:requirements → acceptance:plan →
 acceptance:verify → acceptance:review → acceptance:self-healing →
-acceptance:capability-gap → acceptance:github-machine → benchmark →
-package:portable → portable smoke → restart acceptance →
+acceptance:capability-gap → acceptance:candidate → acceptance:github-machine →
+benchmark → package:portable → portable smoke → restart acceptance →
 acceptance:desktop-workbook`
 
 Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`.
@@ -108,6 +110,7 @@ Local equivalent (same order, prints exit codes): `scripts/phase0-validation-cha
 | CP9 | §32 | **delivered**: three review layers + §32.1 dimensions (and the four theme ones) + all twelve §32.2 adversarial probes + §32.3 routing (HIGH/MEDIUM → repair) + the §30 implementation loop (Plan → Worker → Host Verification → Review → Repair → Reverify) driving the CP8 engine, with the §2.3 completion gate |
 | CP10 | §33 | **delivered**: 13-class failure classification from real evidence, the §33.2 recovery order with per-step budgets and reasons (theme ladder included), Owner hand-off for AUTH/WORKSPACE, and §33.3's HNS rules with the mandatory durable CapabilityGap |
 | CP11 | §34 | **delivered**: capability-gap aggregation by capability, the "conditions met" thresholds, the six-stage chain walked with real machinery (improvement task → §30 loop → real regression climb → §5.3 knowledge update → capability probe), and closure that requires the probe to actually move |
+| CP12 | §35, §36 | **delivered**: the §35 lifecycle as a state machine (RUNNING → … → CANDIDATE → ACCEPTED, jumps refused, CANDIDATE = complete-but-unreleased) and the §36 Guardian Gate over eleven checks evaluated on real artifacts, where a check that could not run blocks and any failure returns the Candidate to repair |
 | CP10 | §33 | failure classification (TRANSIENT…THEME/UI/UNKNOWN) + recovery ladder + HNS positioning as fallback that emits CapabilityGap |
 | CP11 | §34 | CapabilityGap → improvement task → regression test → knowledge update → capability registry |
 | CP12 | §35, §36 | Candidate state + Guardian final gate (+ knowledge write gate re-check) |

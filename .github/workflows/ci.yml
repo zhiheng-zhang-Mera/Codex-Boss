@@ -86,6 +86,12 @@ jobs:
       # real machinery (the §30 loop, a real regression climb, the §5.3 gate, a
       # real capability probe), and a gap closes only when the probe moved.
       - run: pnpm run acceptance:capability-gap
+      # checkpoint-1 §35/§36: the candidate + Guardian gate (GD-01..GD-10). The
+      # §35 lifecycle is walked (RUNNING → … → CANDIDATE → ACCEPTED, and a jump is
+      # refused), then the §36 checklist decides release over real artifacts: the
+      # §31.3 ledger, the §32 coverage, the real secret scanner, git's deletions,
+      # the contract's overrides and real theme packages.
+      - run: pnpm run acceptance:candidate
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
