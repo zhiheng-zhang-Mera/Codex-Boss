@@ -81,6 +81,11 @@ jobs:
       # recovery order is walked with budgets, and every HNS fallback must leave a
       # durable CapabilityGap.
       - run: pnpm run acceptance:self-healing
+      # checkpoint-1 §34: the capability-gap gate (CG-01..CG-10). A real §33.3
+      # backlog is aggregated by capability, the improvement chain is walked with
+      # real machinery (the §30 loop, a real regression climb, the §5.3 gate, a
+      # real capability probe), and a gap closes only when the probe moved.
+      - run: pnpm run acceptance:capability-gap
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
