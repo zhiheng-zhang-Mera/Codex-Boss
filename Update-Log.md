@@ -324,4 +324,14 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - **验收**：`pnpm run acceptance:requirements`（亦为 CI 门禁）用**真实 runWorkDispatch**（真摄取 + 冲突双 spec 工作书 + 主题工作书）跑 R-01..R-08 全 PASS（54 项观测）：R-01 持久记录带类型与完整 provenance；R-02 每条边有理由、无环、可拓扑排序、双向一致；R-03 冲突需求 QUARANTINED 且其余可执行；R-04 状态机拒绝非法跳转；R-05 验收项需实现+测试+审查；R-06 视觉需求走视觉分支；R-07 **声称不等于证据**（无证据零验证、测试 FAIL 保持未验证、完整证据下仅隔离项仍开放）；R-08 报告版本化、机器可读且逐条自解释。
 - 诚实边界（写入 `docs/checkpoint-6-requirements-graph.md`）：需求尚未绑定到实现它的*文件*（属 CP7 执行 DAG 与 CP8 证据账本）；非声明式边为词面启发式（相似度阈值与理由都可见）；VISUAL 判定基于关键词；证据目前由验收 harness 产生而非流水线自动产生（CP8/CP9 接线）；BLOCKED/FAILED 已可达但尚无恢复阶梯驱动（CP10）。
 
+### Phase 4（§29）— Execution Planner（CP7）
+
+- **§29.1 Execution DAG**（`src/shared/execution-planner.ts`，纯）：从 §28 需求图派生节点——功能/交付物需求→IMPLEMENT，禁止/约束/验收/视觉需求→VERIFY，可选需求→永不阻塞的独立节点；每个节点带齐九项字段（objective / requirements / inputs / scope / **allowed_files** / expected_outputs / **verification**（闸门+真实宿主命令+§28.4 证据种类）/ dependencies / **rollback**（点名可触碰文件））。
+- **作用域 fail-closed**：`resolveAllowedFiles` 只在宿主**实际观测**到的文件里匹配需求 scope；匹配为空则 `allowed_files` 为空、标记 `unbounded_scope` 并留诊断——worker 得到的是**没有写权限**，而不是整个仓库。
+- **§29.2 并行/顺序**：wave = 节点 DAG 最长路径分层；`plan_parallelism` 与 `scheduleExecution({completed, running})` 都受自适应上限约束；同一 wave 内绝不出现互相依赖的节点。
+- **§29.3 动态并发**：`decideConcurrency` 由 CPU 核数、空闲内存、GPU、可用/限流 provider、在飞任务、负载均值、电源受限推导 1..8，并随决策返回**输入快照与理由**；调度路径中不存在常量。
+- **生产接线**：CP3 的世界模型额外产出 `PlanContext`（真实文件/测试文件/入口/构建工具/宿主命令 + `main.ts` 用 `os` 与 provider/account/run 状态生成的实时资源快照）；`workbook-dispatch` 在需求图之后立即规划，DAG 记入持久记录 `task.workbookDispatch.execution_plan`。
+- **验收**：`pnpm run acceptance:plan`（亦为 CI 门禁）用**真实 runWorkDispatch**（真实工作区 + 真实工作书）跑 P-01..P-06 全 PASS（52 项观测）：持久且带版本的计划、九字段齐备（含真实 `src/gateway.ts` 作用域、无节点被授予整仓）、验证依赖实现且绝不同 wave、wave 内无相互依赖、**资源派生并发**（大而空闲的主机 > 受限主机；1 个可用 provider 即封顶；恒 1..8；理由自解释）、不可解析作用域被拒而非放宽。实测：2 节点 / 2 wave / 并发 3（8 核 8192MiB ⇒ 7；3 provider ⇒ 3）。
+- 诚实边界（写入 `docs/checkpoint-7-execution-planner.md`）：节点尚未绑定到真实证据（属 CP8）；wave 已排序但并行执行器未建（属 CP8）；`gpu_available` 目前恒为 false（无 GPU 探针）；作用域匹配为词面（不匹配即 unbounded 并可见）；rollback 只被表达未被演练（依赖 CP13 的 Git checkpoint）；CP7 的代码/测试/门禁与本文档不在同一提交（本文档于次轮补齐，已在文档中如实记录）。
+
 
