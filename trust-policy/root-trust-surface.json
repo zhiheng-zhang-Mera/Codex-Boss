@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "unit": "AUTONOMOUS_EVOLUTION_TRUST",
+  "generator": "src/shared/autonomous-evolution-trust.ts#declaredRootTrustSurface",
+  "machine_generated": true,
+  "note": "Do not hand-edit: regenerate from ROOT_TRUST_SURFACE_PATHS. A hand edit here is itself a Root Trust change (§3).",
+  "declared": {
+    "paths": [
+      "src/shared/acceptance-contracts.ts",
+      "src/shared/acceptance-evidence.ts",
+      "src/shared/bootstrap-audit.ts",
+      "src/shared/owner-intervention.ts",
+      "electron/engineering/acceptance-session.ts",
+      "electron/engineering/bootstrap-completion.ts",
+      "electron/engineering/owner-intervention-ledger.ts",
+      "scripts/acceptance-attest.cjs",
+      "scripts/acceptance-prestart.cjs",
+      "scripts/acceptance-session-start.cjs",
+      ".github/workflows/ci.yml",
+      "tests/acceptance/**",
+      "tests/helpers/trusted-evidence.ts",
+      "autonomous-evolution-*.ts",
+      "acceptance-evolution-*.cjs",
+      "trust-policy/**",
+      "src/shared/autonomous-evolution-*.ts",
+      "scripts/acceptance-evolution-*.cjs",
+      "scripts/acceptance-autonomous-evolution.cjs",
+      "src/shared/trust-problems.ts",
+      "tests/acceptance/autonomous-evolution-*.test.ts",
+      "tests/helpers/acceptance-report.ts"
+    ],
+    "count": 22,
+    "boundary_hash": "6765efaf264ab372849faf48c343b64cb95c50f0dd47056d1ff045560108c4b0"
+  }
+}

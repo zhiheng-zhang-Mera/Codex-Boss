@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "record": {
+    "trust_epoch": 1,
+    "root_contract_version": "boss-root-trust-1",
+    "root_surface_hash": "f98e9f46db63be80c4d22a1b830ff7c258d0246a58064477536003aedfe8e05f",
+    "parent_epoch_hash": "",
+    "created_at": "2026-09-12T14:14:33.035Z"
+  },
+  "epoch_hash": "71c4cffc94d4cb0ee8c364ae5852b508d3704e15df5e37df411821ead06c5227"
+}
