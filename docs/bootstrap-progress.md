@@ -28,7 +28,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP12 Candidate State + Guardian Gate | §35, §36 | `src/shared/candidate-gate.ts`, `electron/engineering/candidate-guardian.ts` | `acceptance:candidate` GD-01..GD-10 (52 observations) | `34683821940` |
 | CP13 Version Impact + Git Checkpoint | §37, §38 | `src/shared/{version-impact,git-checkpoint}.ts`, `electron/engineering/git-checkpoint.ts` | `acceptance:version-checkpoint` VC-01..VC-08 (50 observations) | `34684778075` |
 | CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | `34685821961` |
-| CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | _pending in this push_ |
+| CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | `34686925547` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -66,6 +66,12 @@ bare remote receives the pushed `boss/t-14/...` branch whose commit keeps its
 trailers, and the real `GitHubGateway` over a recording transport performs
 `POST /app/installations/…/access_tokens` then `POST /repos/owner/name/pulls` with
 the §40 body).
+
+Local evidence for CP15: the 26-step chain is green (139 test files / 1421 tests,
+`acceptance:ci-repair` CR-01..CR-08 PASS with 44 observations, offline — a real
+`tsc`/`node --test` log is parsed and classified, the repair is applied through the
+host, the local typecheck passes, the fix is pushed to a bare remote and the re-read
+is green; a failed CI read and a non-converging repair both end at a Hard Blocker).
 
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
