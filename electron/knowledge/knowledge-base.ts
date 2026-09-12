@@ -259,7 +259,9 @@ export class KnowledgeBase {
 
   /**
    * §5.4 owner decision surface: closes an UNRESOLVED conflict without deleting
-   * anything. The loser becomes SUPERSEDED, never absent.
+   * anything. The loser becomes SUPERSEDED, never absent; if the owner picks the
+   * parked challenger, it is PROMOTED into the active set (a quarantined claim
+   * can only become knowledge through exactly this decision).
    */
   decideConflict(setId: string, decision: { owner: string; winnerId?: string; resolution: "ACTIVE" | "SUPERSEDED"; reason: string }): KnowledgeConflictSet {
     const set = this.value.conflicts.find((entry) => entry.id === setId);
@@ -272,10 +274,18 @@ export class KnowledgeBase {
     set.reasons = [...set.reasons, `owner decision by ${decision.owner}: ${decision.reason}`];
     set.updatedAt = at;
     for (const member of set.members) {
+      const isWinner = member.object_id === winner;
       const object = this.value.objects.find((entry) => entry.id === member.object_id);
-      if (object) { object.status = member.object_id === winner ? "ACTIVE" : "SUPERSEDED"; object.updatedAt = at; }
-      const parked = this.value.quarantine.find((entry) => entry.id === member.object_id);
-      if (parked) parked.status = member.object_id === winner ? "ACTIVE" : "SUPERSEDED";
+      if (object) { object.status = isWinner ? "ACTIVE" : "SUPERSEDED"; object.updatedAt = at; }
+      const parkedIndex = this.value.quarantine.findIndex((entry) => entry.id === member.object_id);
+      if (parkedIndex < 0) continue;
+      const parked = this.value.quarantine[parkedIndex];
+      if (!isWinner) { parked.status = "SUPERSEDED"; parked.updatedAt = at; continue; }
+      // Promote the owner-approved claim into the active set and drop the parked
+      // copy, so exactly one ACTIVE revision of the fact exists.
+      this.value.quarantine.splice(parkedIndex, 1);
+      const promoted: KnowledgeObject = { ...parked, status: "ACTIVE", version: 1, conflict_set: set.id, updatedAt: at };
+      this.value.objects.push(promoted);
     }
     this.persist();
     return set;

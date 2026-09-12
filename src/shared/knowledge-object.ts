@@ -321,9 +321,13 @@ export function gateKnowledgeWrite(
   const strongest = strongestActive(active);
   const requested = candidate.supersedes ? active.find((object) => object.id === candidate.supersedes) : undefined;
   const comparison = compareCandidateToActive(candidate, strongest);
-  if (comparison > 0 || requested) {
-    const target = requested ?? strongest;
-    record("GATE", true, `candidate is stronger than ${target.id} (${comparison > 0 ? "authority/verification/freshness" : "explicit supersede"}) — supersede`);
+  // An explicit supersede is a host/owner decision (an AMENDED WorkBook revision
+  // replacing its predecessor), so it can pick its target — but it can never let
+  // a strictly weaker claim overwrite a stronger one. That is what keeps the
+  // "never overwrite" rule independent of who set `supersedes`.
+  if (comparison > 0 || (requested !== undefined && comparison === 0)) {
+    const target = comparison > 0 ? strongest : requested!;
+    record("GATE", true, `candidate is stronger than ${target.id} (${comparison > 0 ? "authority/verification/freshness" : "explicit supersede at equal strength"}) — supersede`);
     return {
       outcome: "SUPERSEDE",
       phases,

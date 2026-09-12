@@ -142,8 +142,7 @@ export function extractKnowledgeFromDispatch(input: KnowledgeExtractionInput): K
       taskId: input.taskId,
       observedAt: input.observedAt,
       evidence: [`workspace:${input.workspacePath ?? discovery?.root ?? "unknown"}`, `repo fingerprint ${discovery?.fingerprint ?? "unknown"}`],
-      confidence: 0.95,
-      freshness: discovery?.fingerprint ? input.observedAt : input.observedAt
+      confidence: 0.95
     }));
   }
 

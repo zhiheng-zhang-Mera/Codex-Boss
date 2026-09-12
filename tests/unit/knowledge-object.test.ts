@@ -197,6 +197,32 @@ describe("§5.3 gate outcomes", () => {
     expect(result.reasons.join(" ")).toContain("unresolved");
   });
 
+  it("never lets an explicit supersede overwrite a stronger fact", () => {
+    const existing = accepted({ authority: "OWNER" });
+    const result = gateKnowledgeWrite(candidate({
+      authority: "REVIEWER",
+      verification: "VERIFIED",
+      verification_evidence: ["review:3"],
+      content: "the checkout response may take up to five seconds",
+      summary: "checkout latency budget is 5 s",
+      supersedes: existing.id
+    }), [existing]);
+    expect(result.outcome).toBe("QUARANTINE");
+    expect(result.conflicts_with).toEqual([existing.id]);
+  });
+
+  it("honours an explicit supersede between equals (an amended work book)", () => {
+    const existing = accepted({ freshness: AT });
+    const amended = gateKnowledgeWrite(candidate({
+      freshness: AT,
+      content: "the guard must not add more than 100 ms of overhead per request",
+      summary: "latency guard overhead budget (amended)",
+      supersedes: existing.id
+    }), [existing]);
+    expect(amended.outcome).toBe("SUPERSEDE");
+    expect(amended.supersedes).toBe(existing.id);
+  });
+
   it("compares strength on authority, then verification, then freshness", () => {
     const existing = accepted({ freshness: AT });
     expect(compareCandidateToActive(candidate({ authority: "OWNER" }), existing)).toBe(1);

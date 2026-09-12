@@ -120,6 +120,8 @@ function candidate(overrides: Partial<KnowledgeCandidate> = {}): KnowledgeCandid
 }
 
 describe("§5.3/§5.4 durable knowledge base", () => {
+  const activeId = (base: KnowledgeBase): string => base.active()[0].id;
+
   it("round-trips through disk and keeps a superseded fact forever", () => {
     const file = path.join(ROOT, "round-trip.json");
     const base = new KnowledgeBase(file, () => AT);
@@ -181,6 +183,30 @@ describe("§5.3/§5.4 durable knowledge base", () => {
     expect(base.objects()).toHaveLength(1);
     expect(base.quarantine()).toHaveLength(1);
     expect(base.quarantine()[0].status).toBe("SUPERSEDED");
+    expect(base.unresolvedConflicts()).toHaveLength(0);
+  });
+
+  it("promotes an owner-approved parked claim into the active set exactly once", () => {
+    const base = new KnowledgeBase(path.join(ROOT, "promote.json"), () => AT);
+    const original = base.commit(candidate());
+    expect(original.outcome).toBe("ACCEPT");
+    const tie = base.commit(candidate({ content: "the guard may add up to five seconds", summary: "latency guard overhead budget (other)" }));
+    expect(tie.outcome).toBe("QUARANTINE");
+    const open = base.unresolvedConflicts();
+    expect(open).toHaveLength(1);
+    const challenger = open[0].members.find((member) => member.object_id !== activeId(base));
+    expect(challenger).toBeDefined();
+    expect(base.quarantine()).toHaveLength(1);
+
+    base.decideConflict(open[0].id, { owner: "owner@example", winnerId: challenger!.object_id, resolution: "ACTIVE", reason: "the newer wording wins" });
+    const promoted = base.active();
+    expect(promoted.map((object) => object.id)).toEqual([challenger!.object_id]);
+    expect(promoted[0].version).toBe(1);
+    expect(promoted[0].conflict_set).toBe(open[0].id);
+    // The previously active fact is retained as SUPERSEDED, and the parked copy
+    // of the winner is gone (it is active now, not duplicated).
+    expect(base.objects().filter((object) => object.status === "SUPERSEDED")).toHaveLength(1);
+    expect(base.quarantine()).toHaveLength(0);
     expect(base.unresolvedConflicts()).toHaveLength(0);
   });
 
