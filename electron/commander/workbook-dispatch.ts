@@ -46,6 +46,14 @@ export interface WorkBookDispatchDeps {
   ingest?: (sources: DocumentSource[], options: { limits?: Partial<IngestionLimits> }) => Promise<{ documents: CanonicalTaskDocument[] }>;
   /** Injected for tests; defaults to scanRepo. */
   discover?: (root: string) => RepoSnapshot;
+  /**
+   * checkpoint-1 §6: establishes the Repository World Model (and the §9 UI
+   * surface registry) BEFORE any engineering execution. The host persists the
+   * full model; the durable record only carries the summaries. Optional and
+   * fail-soft: a model failure is recorded as a diagnostic, never as a task
+   * failure (§2.5).
+   */
+  worldModel?: (root: string) => { summary: import("../../src/shared/repo-world-model").WorldModelSummary; surfaces?: import("../../src/shared/ui-surface").UISurfaceSummary } | undefined;
   limits?: Partial<IngestionLimits>;
   now?: () => Date;
 }
@@ -639,7 +647,7 @@ function runDiscovery(
   try {
     const snapshot = discover(repositoryRoot);
     void documents;
-    return {
+    const summary: DiscoverySummary = {
       repository: true,
       root: snapshot.root,
       files: snapshot.files.length,
@@ -650,6 +658,23 @@ function runDiscovery(
       // task in this project can reuse it instead of scanning again.
       repository_model: repositoryModelFrom(snapshot)
     };
+    // checkpoint-1 §6/§9: the Repository World Model and the UI surface registry
+    // must exist before engineering execution. Both are host-derived and both
+    // degrade into a diagnostic rather than failing the task.
+    if (deps.worldModel) {
+      try {
+        const built = deps.worldModel(repositoryRoot);
+        if (built) {
+          summary.world_model = built.summary;
+          if (built.surfaces) summary.ui_surfaces = built.surfaces;
+        } else {
+          summary.world_model_error = "world model builder returned no model";
+        }
+      } catch (error) {
+        summary.world_model_error = String((error as Error).message ?? error).slice(0, 400);
+      }
+    }
+    return summary;
   } catch (error) {
     return { repository: true, root: repositoryRoot, files: 0, test_files: 0, skipped_directories: 0, reason: `repository scan failed: ${(error as Error).message}` };
   }

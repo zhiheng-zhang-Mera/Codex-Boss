@@ -95,6 +95,15 @@ export interface DiscoverySummary {
   /** Non-empty when discovery was requested but could not run. */
   reason?: string;
   repository_model?: RepositoryModelSummary;
+  /**
+   * checkpoint-1 §6: the repository world model established BEFORE execution.
+   * The full model is persisted by the host; the record carries this summary.
+   */
+  world_model?: import("./repo-world-model").WorldModelSummary;
+  /** checkpoint-1 §9: the discovered UI surface registry, summarized. */
+  ui_surfaces?: import("./ui-surface").UISurfaceSummary;
+  /** Non-empty when the world model or UI discovery degraded. */
+  world_model_error?: string;
 }
 
 /** Durable per-task WorkBook execution record: hashes, verdicts, provenance. */

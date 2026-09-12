@@ -43,6 +43,12 @@ jobs:
       # first task's architecture/test/UI/constraint/decision knowledge with the
       # project directory deleted, i.e. with no rescan possible.
       - run: pnpm run acceptance:knowledge
+      # checkpoint-1 §6/§9: the architecture and UI surface discovery gate. It
+      # builds the Repository World Model for this very repository (layout,
+      # package managers, CI, languages, entry points, dependency graph, impact
+      # analysis, capability verdicts) and the UI surface registry with
+      # evidence-backed bindings.
+      - run: pnpm run acceptance:architecture
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

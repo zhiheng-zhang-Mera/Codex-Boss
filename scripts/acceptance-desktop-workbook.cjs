@@ -65,6 +65,12 @@ const SCREENSHOT_FILE = path.join(ROOT, "desktop-workbook-smoke.png");
 const STATE_FILE = path.join(DATA_ROOT, "state.json");
 const REGISTRY_FILE = path.join(DATA_ROOT, ".boss", "workbook-registry.json");
 const KNOWLEDGE_FILE = path.join(DATA_ROOT, ".boss", "knowledge-base.json");
+const UI_SURFACES_FILE = path.join(DATA_ROOT, ".boss", "ui-surfaces.json");
+
+/** Bounded directory listing; a missing directory is simply empty. */
+function safeReaddir(directory) {
+  try { return fs.readdirSync(directory); } catch { return []; }
+}
 
 const WORKBOOK_NAME = "latency-guard-workbook.md";
 const WORKBOOK_TEXT = [
@@ -554,6 +560,19 @@ async function main() {
     claims.check("the knowledge write gate logged the decision", true, knowledgeLog.length > 0);
     claims.check("nothing was quarantined or rejected for this dispatch", 0, knowledgeLog.filter((entry) => entry.outcome === "QUARANTINE" || entry.outcome === "REJECT").length);
     claims.check("the recorded knowledge names a real knowledge type", true, knowledgeObjects.every((object) => /^[A-Z_]+$/.test(object.type)));
+
+    // checkpoint-1 §6/§9: the same real dispatch must have established the
+    // Repository World Model and the UI surface registry before executing.
+    const worldModel = record.discovery?.world_model;
+    const worldModelFiles = safeReaddir(path.join(DATA_ROOT, ".boss", "world-model"));
+    const surfaces = record.discovery?.ui_surfaces;
+    claims.check("the real app recorded a repository world model for this dispatch", true, worldModel !== undefined);
+    claims.check("the world model is content-addressed and identifies the workspace", true, String(worldModel?.id ?? "").startsWith("wm-") && (worldModel?.fingerprint ?? "").length === 64);
+    claims.check("the world model names the workspace package manager", true, (worldModel?.package_managers ?? []).includes("npm"));
+    claims.check("the world model was persisted for later phases", true, worldModelFiles.some((name) => name.startsWith("wm-") && name.endsWith(".json")));
+    claims.check("the real app summarized the UI surface registry", 23, surfaces?.surfaces ?? 0);
+    claims.check("the UI surface registry was persisted", true, fs.existsSync(UI_SURFACES_FILE));
+    claims.check("no world model diagnostic was recorded", undefined, record.discovery?.world_model_error);
   }
 
   const report = {

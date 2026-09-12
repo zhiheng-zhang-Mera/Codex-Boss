@@ -130,6 +130,12 @@ export interface WorkDispatchDeps {
   knowledge?: WorkDispatchKnowledge;
   /** Receives a knowledge-write diagnostic instead of the default console log. */
   onKnowledgeDiagnostic?: (detail: { taskId: string; error?: string; failures?: string[]; rejected?: number }) => void;
+  /**
+   * checkpoint-1 §6: builds the Repository World Model (and the §9 UI surface
+   * registry) for the task's workspace before execution. Persisting the full
+   * model is the host's job; intake only records the summaries.
+   */
+  worldModel?: (root: string) => { summary: import("../../src/shared/repo-world-model").WorldModelSummary; surfaces?: import("../../src/shared/ui-surface").UISurfaceSummary } | undefined;
 }
 
 /** The narrow slice of the knowledge foundation this orchestration needs. */
@@ -305,7 +311,11 @@ export async function runWorkDispatch(
     workspacePath: request.workspacePath,
     allowProviderDispatch: true,
     existingWorkbookTasks: workflowTasksByHash(store)
-  }, { registry: request.registry, ...(request.limits ? { limits: request.limits } : {}) });
+  }, {
+    registry: request.registry,
+    ...(request.limits ? { limits: request.limits } : {}),
+    ...(deps.worldModel ? { worldModel: deps.worldModel } : {})
+  });
 
   // The compiled objective is the authoritative intent for a blank message.
   assertDispatchGroupSize(request.prompt ?? "", outcome.objective, request.providerIds.length);

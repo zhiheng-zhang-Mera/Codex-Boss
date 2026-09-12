@@ -29,6 +29,9 @@ import { Scheduler } from "./commander/scheduler";
 import { ContextManager } from "./commander/context-manager";
 import { KnowledgeBase } from "./knowledge/knowledge-base";
 import { KnowledgeFoundation } from "./knowledge/knowledge-foundation";
+import { WorldModelStore, buildWorldModelWithGraph } from "./engineering/world-model";
+import { UISurfaceRegistryStore, discoverUISurfaces } from "./engineering/ui-surface-discovery";
+import { summarizeUISurfaceRegistry } from "../src/shared/ui-surface";
 import { ExecutionGate } from "./commander/execution-gate";
 import { decideEscalation, detectCapabilityNeeds } from "../src/shared/capability-needs";
 import type { InputObjectKind } from "../src/shared/input-object";
@@ -731,6 +734,24 @@ if (ownsInstance) app.whenReady().then(() => {
   // second task in the same project reuses the first task's facts instead of
   // re-deriving them.
   const knowledge = new KnowledgeFoundation(new KnowledgeBase(path.join(app.getPath("userData"), ".boss", "knowledge-base.json")));
+  // checkpoint-1 §6/§9: the Repository World Model and the UI surface registry
+  // are established here, before any engineering execution, and persisted so a
+  // restart (or a later task) reads the model instead of rebuilding it blind.
+  const worldModelStore = new WorldModelStore(path.join(app.getPath("userData"), ".boss", "world-model"));
+  const uiSurfaceStore = new UISurfaceRegistryStore(path.join(app.getPath("userData"), ".boss", "ui-surfaces.json"));
+  const establishWorldModel = (root: string) => {
+    const built = buildWorldModelWithGraph(fs.realpathSync(root));
+    worldModelStore.put(built.model);
+    const discovery = discoverUISurfaces(built.model);
+    let surfaces = summarizeUISurfaceRegistry(discovery.registry);
+    if (discovery.validation.ok) {
+      uiSurfaceStore.put(discovery.registry);
+    } else {
+      // Fail closed: an invalid registry is reported, never persisted as truth.
+      console.warn("[ui-surfaces] registry rejected", discovery.validation.problems);
+    }
+    return { summary: built.summary, surfaces };
+  };
   contextManager.setKnowledgeSectionProvider((taskId, role, maxChars) => {
     const task = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) return undefined;
@@ -1108,7 +1129,8 @@ if (ownsInstance) app.whenReady().then(() => {
         // through the knowledge write gate. A knowledge failure is reported,
         // never allowed to fail the task (§2.5).
         knowledge,
-        onKnowledgeDiagnostic: (detail) => console.warn("[knowledge] WorkBook knowledge write degraded", detail)
+        onKnowledgeDiagnostic: (detail) => console.warn("[knowledge] WorkBook knowledge write degraded", detail),
+        worldModel: establishWorldModel
       });
       // Every outcome maps to the snapshot the caller receives; the durable
       // state was already written by the orchestration.

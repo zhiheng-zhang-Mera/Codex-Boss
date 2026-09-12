@@ -14,6 +14,7 @@ $steps = @(
   @{ name = "test"; cmd = "corepack pnpm test" },
   @{ name = "acceptance:workbook"; cmd = "corepack pnpm run acceptance:workbook" },
   @{ name = "acceptance:knowledge"; cmd = "corepack pnpm run acceptance:knowledge" },
+  @{ name = "acceptance:architecture"; cmd = "corepack pnpm run acceptance:architecture" },
   @{ name = "acceptance:github-machine"; cmd = "corepack pnpm run acceptance:github-machine" },
   @{ name = "benchmark"; cmd = "corepack pnpm run benchmark" },
   @{ name = "package:portable"; cmd = "corepack pnpm run package:portable" },

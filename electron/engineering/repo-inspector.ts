@@ -62,6 +62,31 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
 };
 const MODEL_LIMITS = { topLevel: 24, manifests: 12, entryPoints: 12, testFiles: 40, uiFiles: 40, languages: 6 };
 
+/** Generated/derived directories the scanner skips, with the reason to report. */
+export const GENERATED_DIRECTORIES: ReadonlyArray<{ path: string; reason: string }> = [
+  { path: "node_modules", reason: "installed dependencies" },
+  { path: "dist", reason: "build output" },
+  { path: "dist-electron", reason: "compiled electron output" },
+  { path: "artifacts", reason: "generated acceptance evidence" },
+  { path: "runtime-data", reason: "application runtime state" },
+  { path: "history", reason: "archived conversation history" },
+  { path: "coverage", reason: "test coverage output" },
+  { path: ".cache", reason: "content/scan cache" },
+  { path: ".codex-boss", reason: "tool state" },
+  { path: ".codex-controller", reason: "tool state" }
+];
+
+/** Languages observed by file extension (shared by the model and the scanner). */
+export function languageOfFile(file: string): string | undefined {
+  return LANGUAGE_BY_EXTENSION[extensionOf(file)];
+}
+
+/** True for files that look like a process/program entry point. */
+export function isEntryPointFile(file: string): boolean {
+  const base = file.split("/").pop() ?? "";
+  return ENTRY_NAMES.has(base) || /^electron\/main\.[cm]?[jt]s$/.test(file);
+}
+
 function extensionOf(file: string): string {
   const match = /\.[A-Za-z0-9]+$/.exec(file);
   return match ? match[0].toLocaleLowerCase() : "";
