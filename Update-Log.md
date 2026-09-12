@@ -301,4 +301,17 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - **验收**：`pnpm run acceptance:theme`（亦为 CI 门禁）TH-01..TH-15 + T-TOKENS：TH-01/02/03/07/08/09/10/11/12/13/14/15 与 T-TOKENS 全 PASS（69 项观测），TH-04/05/06（prompt 生成 / 预览沙箱 / 反馈修订）显式 `NOT_RUN`——属 CP5，未在此声称。桌面黑盒新增第二阶段：在**重启后的真实 Electron 应用**里验证主题引擎（注册表跨重启恢复、画布 token 为恢复主题的值、经真实面板启用 Light 后计算样式变为 `#f4f6f2` 且外壳颜色随之变化、Dark 复原、无布局溢出），77/77 claims。
 - 诚实边界（写入 `docs/checkpoint-4-theme-engine-foundation.md`）：TH-04/05/06 属 CP5；仅画布/表面/文字/边线/滚动条 token 化；`--boss-shadow`/`--boss-blur`/`--boss-spacing-density` 等已声明但样式表尚未消费；对比度按 token 配对而非真实像素测量；黑盒观察到“回退后的 provider dispatch 约 2 秒后 renderer 调试端点消失而进程仍在”的现象，未归因，故主题阶段改为同数据目录二次启动（顺带证明 §48 重启持久化），并让 harness 在调试会话丢失时响亮失败而非静默退出。
 
+### Phase 2B 续（§14–§17、§19、§24、§26）— Theme Generator + Preview + Visual Verification（CP5）
+
+- **§14 Theme Intent Parser**（`src/shared/theme-intent.ts`，纯）：把自然语言风格请求解析成**每个信号都带原句证据**的结构化 intent——参考风格（macOS/Win11/VS Code/终端/赛博/纸张/Notion/Linear/玻璃/粗野/复古）、冷暖、明暗、半透明（含“再透明一些/不要那么透明”这类**增量修订**）、密度、圆角、字体、对比度偏好、命名色（hex 字面使用）与色调方向、以及“保持不变”。带 `previous` 解析即为修订：未提及轴继承，仅动的轴变化。
+- **§19 生成边界**：请求若涉及移动/删除/新增/重排界面元素，或触碰 IPC/快捷键/拖拽/重写，则**升级为界面工程任务**而非主题，并给出触发短语与理由（“去掉半透明”属样式，“去掉设置按钮”不属——模式要求出现界面元素）。
+- **§15 Theme Generator**（`src/shared/theme-generation.ts`，纯）：**没有当前 token 与 §9 契约表就直接抛错**——不允许只凭一句话写 CSS。确定性推导并逐 token 记录决策：明暗重排中性色阶、色温/色调/命名色 → accent/on-accent/表面着色、半透明 → 分层 alpha（画布最不透明）+ blur/opacity、密度 → spacing/行高、圆角 → 三档、字体栈、对比度偏好 + 有界**可读性修复**（对每个背景把文本对比度抬到 4.5:1 以上并如实上报修复项）；override 只发往契约表中存在且允许该属性的表面；输出是完整自足包（§11）。
+- **§17 预览沙箱**：`startPreview` 校验后写入 `<theme-root>/.preview/`（package.json + 渲染好的 preview.css）与持久 `preview.json`，记录 intent/决策数/取证摘要/修订计数，**注册表与活动主题完全不动**；同 id 再次预览即修订（计数递增且跨重启保留，§47）；`acceptPreview` 重新读回草稿字节走正常门禁并（默认）激活，校验不通过则拒绝；`cancelPreview` 丢弃草稿且活动主题不受影响。渲染层在**独立** `<style>` 中应用预览，取消后无残留。
+- **§16/§16.1 视觉取证**：设计前先截取当前界面（主窗口 + 各已打开 AI 面板），截取前先注入**脱敏模式**（消息正文、输入值、下拉与媒体视觉移除），截完即撤；帧与 `captures.json` 索引（surface/文件/字节/sha256/尺寸）写入 `.boss/theme-captures/<ts>/`；关闭的面板如实进 `skipped`，绝不静默丢弃，也不因此让请求失败。
+- **§26 视觉回归**：渲染层**测量**（各表面盒模型/可见性/计算色/滚动指标/控件状态），纯模块**判定**：MAJOR_SURFACE_VISIBLE、TEXT_READABLE（实测对比度，<3:1 记 ERROR）、CONTROLS_VISIBLE、MODAL_USABLE、SIDEBAR_USABLE、INPUT_USABLE、SCROLLING_USABLE、NO_CATASTROPHIC_OVERFLOW、NO_TRANSPARENT_ON_TRANSPARENT；结论落到 `.boss/theme-visual-check.json`。
+- **§24 主题↔知识**：intent、推导出的 tokens/overrides、用户反馈原文与校验结论（含被拒的 `/surface.property` 组合）经 **CP2 写入门禁**记为宿主可验证的 `THEME`/`THEME_VALIDATION`/`USER_OVERRIDE`；**不写任何图像**——只有取证*摘要*进入知识，脱敏帧留在自己的目录。
+- **接线与 UI**：7 个 IPC（generate/preview/preview-revise/preview-accept/preview-cancel/capture/visual-check）、§56 事件 THEME_DRAFT_CREATED/THEME_PREVIEWED，设置面板新增生成器面板（提示词、草稿卡：参考风格/取证摘要/决策/可读性修复/校验错误与警告、预览动作：接受并激活/仅安装/取消、修改意见输入、视觉检查与脱敏取证按钮）。
+- **验收**：`pnpm run acceptance:theme` 现为 **21 项全 PASS、0 FAIL、0 NOT_RUN**：TH-04（提示词→完整可解释包→安装激活）、TH-05（预览不注册不动活动主题、取消即弃、预览与活动主题不同）、TH-06（后续消息修订并继承未提及轴、修订计数递增且持久）+ T-GEN（确定性：同意图同包哈希 / 完整性 / 逐条解释 / override 受约束）、T-BOUNDARY（4 类布局/行为请求全部升级且不产出包）、T-CAPTURE（脱敏进出、真实 PNG + 带哈希索引、关闭面板如实 skipped）、T-VISUAL（健康通过、不可读/塌陷/溢出按规则失败）、T-KNOWLEDGE（intent/反馈/校验入知识，图像不入）。桌面黑盒第二阶段在**重启后的真实应用**中跑通全链（提示词→草稿→预览层（活动主题不动）→自然语言修订→视觉检查→接受并激活→恢复默认），**89/89 claims**。
+- 诚实边界（写入 `docs/checkpoint-5-theme-generator-preview.md`）：意图解析是词面而非语义（超出词表即诚实报“无可用风格信号”）；生成器是从活动主题做确定性推导，取证图像只作设计证据、无视觉模型读取；无观测绑定的表面会被生成器跳过；视觉检查基于浏览器计算布局而非像素；取证脱敏是视觉层而非取证级；解析失败尚未接入 CP11 的能力缺口闭环。
+
 

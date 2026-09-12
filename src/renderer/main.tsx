@@ -12,8 +12,8 @@ import { GoalRunPanel } from "./components/GoalRunPanel";
 import { OwnerSummary } from "./components/OwnerSummary";
 import { ProviderIntelligence } from "./components/ProviderIntelligence";
 import { ThemePanel } from "./components/ThemePanel";
-import { applyTheme } from "./theme";
-import { EMPTY_THEME_SNAPSHOT, type ThemeSnapshot } from "../shared/theme";
+import { applyTheme, applyPreview, clearPreview } from "./theme";
+import { EMPTY_THEME_SNAPSHOT, type ThemePreviewView, type ThemeSnapshot } from "../shared/theme";
 import type { HumanInterventionRequest } from "../shared/intervention";
 import type { RunMode } from "../shared/owner-result";
 import type { WorkAgentCount } from "../shared/work-mode";
@@ -38,12 +38,18 @@ function App() {
    * activation decision; this state is only the applied result.
    */
   const [theme, setTheme] = useState<ThemeSnapshot>(EMPTY_THEME_SNAPSHOT);
+  /** §17: the pending preview renders in its own layer, never as the active theme. */
+  const [themePreview, setThemePreview] = useState<ThemePreviewView | undefined>();
 
   useEffect(() => {
     let cancelled = false;
     void window.boss.themeSnapshot()
       .then((next) => { if (!cancelled) setTheme(next); })
       .catch(() => { /* a theme read failure leaves the shipped appearance in place */ });
+    // §47: a preview started before a restart is offered again instead of lost.
+    void window.boss.themePreview()
+      .then((pending) => { if (!cancelled && pending) setThemePreview(pending); })
+      .catch(() => { /* no pending preview */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -51,6 +57,12 @@ function App() {
     const result = applyTheme(theme);
     if (!result.applied && result.reason) console.warn("[theme] not applied:", result.reason);
   }, [theme]);
+
+  useEffect(() => {
+    if (!themePreview) { clearPreview(); return; }
+    const result = applyPreview(themePreview.css, themePreview.id);
+    if (!result.applied) console.warn("[theme] preview not applied:", result.reason);
+  }, [themePreview]);
   const [workspaceView, setWorkspaceViewUi] = useState<"MERGED" | "DETACHED">("MERGED");
   const [progress, setProgress] = useState<Array<import("../shared/progress").ProgressSummary>>([]);
   const [interventions, setInterventions] = useState<HumanInterventionRequest[]>([]);
@@ -738,7 +750,7 @@ function App() {
         {error && <div className="inline-error">{error}</div>}
       </div>
       {managerOpen && <ManagerPanel snapshot={snapshot} onClose={() => setManagerOpen(false)} onChanged={(next) => setSnapshot(next)} onError={(message) => setError(message)} />}
-      {settingsOpen && <div className="settings-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-panel"><header><div><strong>Codex Boss 设置</strong><span>API Key 加密保存；微信/QQ 指令仅从本机可见窗口读取</span></div><button onClick={() => setSettingsOpen(false)}>×</button></header><div className="api-settings-list"><ThemePanel theme={theme} onTheme={setTheme} onError={(message) => setError(message)} /><section className="remote-settings"><div className="settings-section-title"><b>PC 远程指令</b><span>先登录桌面客户端；仅识别前缀消息并进入人工确认队列</span></div>{snapshot.remoteChannels.map((setting) => <form key={`${setting.channel}-${setting.updatedAt}`} className="remote-setting-card" onSubmit={(event) => void saveRemoteChannel(event, setting.channel)}><div><b>{setting.channel === "wechat" ? "微信" : "QQ"}</b><i className={`remote-status status-${setting.status}`} /> <span>{setting.status}</span><small>{setting.message}</small></div><label>前缀 <input name="commandPrefix" defaultValue={setting.commandPrefix} pattern="/[^\\s]{1,19}" required /></label><label><input name="enabled" type="checkbox" defaultChecked={setting.enabled} /> 启用</label><button type="submit">保存</button></form>)}</section>{snapshot.providers.map((provider) => { const setting = snapshot.apiSettings.find((item) => item.providerId === provider.id); return <form key={`${provider.id}-${setting?.updatedAt ?? "new"}`} onSubmit={(event) => void saveApiSetting(event, provider.id)} className="api-setting-card"><div className="api-setting-title"><b>{provider.name}</b><span>{setting?.hasApiKey ? (setting.keyTail ? `密钥已保存 · sk-••••••••${setting.keyTail}` : "密钥已保存") : "未保存密钥"}</span><label><input name="enabled" type="checkbox" defaultChecked={setting?.enabled} /> 启用</label></div><div className="api-setting-fields"><select name="protocol" defaultValue={setting?.protocol ?? "openai-compatible"}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select><input name="baseUrl" type="url" required defaultValue={setting?.baseUrl ?? "https://"} placeholder="API Base URL" /><input name="model" required defaultValue={setting?.model ?? ""} placeholder="模型名称" /><input name="apiKey" type="password" placeholder={setting?.hasApiKey ? "留空保留现有密钥" : "API Key"} /></div><div className="api-setting-actions"><label><input name="clearApiKey" type="checkbox" /> 清除已有密钥</label><button type="submit">保存</button></div></form>; })}</div></section></div>}
+      {settingsOpen && <div className="settings-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}><section className="settings-panel"><header><div><strong>Codex Boss 设置</strong><span>API Key 加密保存；微信/QQ 指令仅从本机可见窗口读取</span></div><button onClick={() => setSettingsOpen(false)}>×</button></header><div className="api-settings-list"><ThemePanel theme={theme} onTheme={setTheme} onError={(message) => setError(message)} onPreview={setThemePreview} /><section className="remote-settings"><div className="settings-section-title"><b>PC 远程指令</b><span>先登录桌面客户端；仅识别前缀消息并进入人工确认队列</span></div>{snapshot.remoteChannels.map((setting) => <form key={`${setting.channel}-${setting.updatedAt}`} className="remote-setting-card" onSubmit={(event) => void saveRemoteChannel(event, setting.channel)}><div><b>{setting.channel === "wechat" ? "微信" : "QQ"}</b><i className={`remote-status status-${setting.status}`} /> <span>{setting.status}</span><small>{setting.message}</small></div><label>前缀 <input name="commandPrefix" defaultValue={setting.commandPrefix} pattern="/[^\\s]{1,19}" required /></label><label><input name="enabled" type="checkbox" defaultChecked={setting.enabled} /> 启用</label><button type="submit">保存</button></form>)}</section>{snapshot.providers.map((provider) => { const setting = snapshot.apiSettings.find((item) => item.providerId === provider.id); return <form key={`${provider.id}-${setting?.updatedAt ?? "new"}`} onSubmit={(event) => void saveApiSetting(event, provider.id)} className="api-setting-card"><div className="api-setting-title"><b>{provider.name}</b><span>{setting?.hasApiKey ? (setting.keyTail ? `密钥已保存 · sk-••••••••${setting.keyTail}` : "密钥已保存") : "未保存密钥"}</span><label><input name="enabled" type="checkbox" defaultChecked={setting?.enabled} /> 启用</label></div><div className="api-setting-fields"><select name="protocol" defaultValue={setting?.protocol ?? "openai-compatible"}><option value="openai-compatible">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="gemini">Gemini</option></select><input name="baseUrl" type="url" required defaultValue={setting?.baseUrl ?? "https://"} placeholder="API Base URL" /><input name="model" required defaultValue={setting?.model ?? ""} placeholder="模型名称" /><input name="apiKey" type="password" placeholder={setting?.hasApiKey ? "留空保留现有密钥" : "API Key"} /></div><div className="api-setting-actions"><label><input name="clearApiKey" type="checkbox" /> 清除已有密钥</label><button type="submit">保存</button></div></form>; })}</div></section></div>}
     </section>
 
     {openProviders.length === 3 && <div className="controller-resizer" role="separator" aria-label="调整 Controller 宽度" aria-orientation="vertical" aria-valuemin={20} aria-valuemax={55} aria-valuenow={controllerWidth} tabIndex={0} title="拖动调整 Controller 宽度；双击恢复 30%" onDoubleClick={() => setControllerWidth(30)} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); resizeController(event.clientX); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeController(event.clientX); }} onKeyDown={(event) => { if (event.key === "ArrowLeft") setControllerWidth((value) => Math.max(20, value - 1)); else if (event.key === "ArrowRight") setControllerWidth((value) => Math.min(55, value + 1)); else if (event.key === "Home") setControllerWidth(30); }} />}

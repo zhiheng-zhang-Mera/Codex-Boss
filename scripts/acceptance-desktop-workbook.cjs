@@ -674,9 +674,91 @@ async function main() {
     let restored = read();
     const restoredDeadline = Date.now() + 10000;
     while (Date.now() < restoredDeadline && restored.themeId !== "builtin-dark") { await sleep(100); restored = read(); }
+
+    /* ---- §14/§17/§26: prompt → preview → feedback → accept, in the real app ---- */
+    const setValue = (element, value) => {
+      const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, value);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const waitFor = async (probe, timeoutMs, label) => {
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const value = probe();
+        if (value) return value;
+        if (Date.now() > deadline) return undefined;
+        await sleep(80);
+      }
+    };
+    const previewLayer = () => {
+      const element = document.getElementById("boss-theme-preview");
+      return element ? { id: element.getAttribute("data-boss-theme-preview"), cssLength: element.textContent.length, css: element.textContent } : undefined;
+    };
+    const promptBox = panel.querySelector('[aria-label="\\u4e3b\\u9898\\u63d0\\u793a\\u8bcd"]');
+    const nameBox = panel.querySelector('[aria-label="\\u4e3b\\u9898\\u540d\\u79f0"]');
+    if (!promptBox) return { ok: false, reason: "prompt box missing", before, after, restored, layout, rows: rows.map((row) => textOf(row.querySelector(".theme-name b"))) };
+    if (nameBox) setValue(nameBox, "Smoke Glass");
+    setValue(promptBox, "做一个类似 macOS 风格、偏冷、半透明、紧凑一点的主题");
+    const generate = [...panel.querySelectorAll("button")].find((button) => textOf(button) === "\\u751f\\u6210\\u9884\\u89c8");
+    if (!generate) return { ok: false, reason: "generate button missing", before, after, restored, layout, rows: rows.map((row) => textOf(row.querySelector(".theme-name b"))) };
+    generate.click();
+    const draftEl = await waitFor(() => document.querySelector(".theme-draft"), 30000, "draft");
+    const preview = await waitFor(previewLayer, 30000, "preview layer");
+    const activeDuringPreview = read().themeId;
+    const generateSummary = draftEl ? textOf(draftEl.querySelector("b")) : "";
+
+    // §14 feedback round: the same draft is revised from a follow-up message.
+    const feedbackBox = document.querySelector('[aria-label="\\u4e3b\\u9898\\u4fee\\u6539\\u610f\\u89c1"]');
+    let revised = undefined;
+    let beforeRevisionCss = "";
+    if (feedbackBox) {
+      const beforeRevision = previewLayer();
+      beforeRevisionCss = beforeRevision?.css ?? "";
+      setValue(feedbackBox, "\\u518d\\u900f\\u660e\\u4e00\\u4e9b");
+      const submitFeedback = [...document.querySelectorAll(".theme-feedback button")].find((button) => textOf(button) === "\\u63d0\\u4ea4\\u4fee\\u6539");
+      if (submitFeedback) {
+        submitFeedback.click();
+        // The revised stylesheet has the same shape but different values, so the
+        // comparison must be on the content — a length check would miss it.
+        revised = await waitFor(() => {
+          const layer = previewLayer();
+          return layer && layer.css !== beforeRevisionCss ? layer : undefined;
+        }, 30000, "revision");
+      }
+    }
+
+    // §26: the renderer measures, the main process decides.
+    const visualButton = [...document.querySelectorAll(".theme-actions button")].find((button) => textOf(button).includes("\\u89c6\\u89c9\\u68c0\\u67e5"));
+    let visual = undefined;
+    if (visualButton) {
+      visualButton.click();
+      const visualEl = await waitFor(() => document.querySelector(".theme-visual"), 20000, "visual check");
+      visual = visualEl ? { text: textOf(visualEl).slice(0, 200), ok: visualEl.classList.contains("ok") } : undefined;
+    }
+
+    // §17 Accept: installs AND activates the previewed draft.
+    const acceptButton = [...document.querySelectorAll(".theme-preview-actions button")].find((button) => textOf(button) === "\\u63a5\\u53d7\\u5e76\\u6fc0\\u6d3b");
+    let accepted = undefined;
+    if (acceptButton) {
+      acceptButton.click();
+      accepted = await waitFor(() => {
+        const current = read();
+        return current.themeId && current.themeId !== "builtin-dark" && current.themeId !== "builtin-light" ? current : undefined;
+      }, 30000, "accepted theme");
+    }
+    const previewCleared = previewLayer() === undefined;
+    // Leave the app on the locked default again.
+    const restoreAfterAccept = [...document.querySelectorAll(".theme-actions button")].find((button) => textOf(button).includes("\\u6062\\u590d\\u9ed8\\u8ba4"));
+    if (restoreAfterAccept) restoreAfterAccept.click();
+    let finalState = read();
+    const finalDeadline = Date.now() + 10000;
+    while (Date.now() < finalDeadline && finalState.themeId !== "builtin-dark") { await sleep(120); finalState = read(); }
     const closeButton = [...document.querySelectorAll(".settings-panel header button")].pop();
     if (closeButton) closeButton.click();
-    return { ok: true, before, after, restored, layout, rows: rows.map((row) => textOf(row.querySelector(".theme-name b"))) };
+    return {
+      ok: true, before, after, restored, layout, rows: rows.map((row) => textOf(row.querySelector(".theme-name b"))),
+      generateSummary, preview, activeDuringPreview, revised, visual, accepted, previewCleared, finalState
+    };
     })()`);
   } catch (error) {
     themePanel = { ok: false, reason: `phase two failed: ${String(error.message ?? error)}` };
@@ -704,6 +786,23 @@ async function main() {
     claims.check("the persisted active theme is back to the built-in default", "builtin-dark", themeRegistry?.activeThemeId);
     claims.check("both built-ins are registered and locked", 2, (themeRegistry?.records ?? []).filter((entry) => entry.builtIn === true && entry.deletable === false).length);
     claims.check("built-in validation passed in the real app", true, (themeRegistry?.records ?? []).every((entry) => entry.validation?.ok === true));
+
+    /* ---- checkpoint-1 §14/§16/§17/§26 in the restarted app ---- */
+    claims.check("a prompt produced a theme draft in the real app", true, themePanel.generateSummary.includes("预览已生成"));
+    claims.check("the preview renders in its own layer (never as the active theme)", true, (themePanel.preview?.cssLength ?? 0) > 0);
+    claims.check("the active theme is untouched while previewing", "builtin-dark", themePanel.activeDuringPreview);
+    claims.check("a natural-language revision changed the draft", true, (themePanel.revised?.cssLength ?? 0) > 0);
+    claims.check("the visual check ran and reported a verdict", true, themePanel.visual !== undefined && themePanel.visual.text.length > 0);
+    claims.check("accepting the preview activated the generated theme", true, typeof themePanel.accepted?.themeId === "string" && !themePanel.accepted.themeId.startsWith("builtin-"));
+    claims.check("the preview layer was cleared after acceptance", true, themePanel.previewCleared);
+    claims.check("the app returned to the locked default afterwards", "builtin-dark", themePanel.finalState?.themeId);
+    const generatedRegistry = readJson(path.join(DATA_ROOT, ".boss", "theme-registry.json"));
+    const generated = (generatedRegistry?.records ?? []).find((entry) => !entry.builtIn);
+    claims.check("the generated theme is durably registered", true, generated !== undefined);
+    claims.check("the generated theme is a validated custom package", true, generated?.type === "CUSTOM" && generated?.validation?.ok === true);
+    const previewFile = path.join(DATA_ROOT, ".boss", "themes", "preview.json");
+    claims.check("the preview state was cleaned up after acceptance", false, fs.existsSync(previewFile));
+    claims.check("the visual capture directory was created by the real app", true, safeReaddir(path.join(DATA_ROOT, ".boss", "theme-captures")).length > 0);
   }
 
   trace("before-report");

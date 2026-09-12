@@ -533,3 +533,44 @@ export const EMPTY_THEME_SNAPSHOT: ThemeSnapshot = {
   themes: [],
   diagnostics: []
 };
+
+/* ------------------------------------------------------------------ *
+ * §14/§17 generation + preview surface (renderer <-> main contract)
+ * ------------------------------------------------------------------ */
+
+/** The renderer's view of a pending §17 preview. */
+export interface ThemePreviewView {
+  id: string;
+  name: string;
+  prompt: string;
+  intent: string;
+  decisions: number;
+  revisions: number;
+  valid: boolean;
+  /** Rendered stylesheet the preview layer applies (never the active theme). */
+  css: string;
+  tokens: ThemeTokens;
+  errors: string[];
+  warnings: string[];
+  createdAt: string;
+}
+
+/**
+ * The result of one prompt → intent → draft → preview cycle. §19 is represented
+ * by `escalated`: a layout/behaviour request never produces a theme, it produces
+ * an escalation the caller must turn into a UI Engineering Task.
+ */
+export interface ThemeGenerationOutcome {
+  ok: boolean;
+  escalated: boolean;
+  reason: string;
+  prompt: string;
+  references: string[];
+  /** One line per derived token decision, for the user and for knowledge (§24). */
+  decisions: string[];
+  /** Readability repairs the generator had to make, if any. */
+  repairs: string[];
+  captureSummary?: string;
+  preview?: ThemePreviewView;
+  snapshot: ThemeSnapshot;
+}

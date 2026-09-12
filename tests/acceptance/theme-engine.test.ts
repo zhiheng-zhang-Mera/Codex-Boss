@@ -18,11 +18,18 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { ThemeService } from "../../electron/theme/theme-service";
 import { builtInPackages } from "../../electron/theme/builtin-themes";
+import { captureSurfacesForThemeDesign, summarizeCapture } from "../../electron/theme/visual-capture";
+import { recordThemeKnowledge } from "../../electron/theme/theme-knowledge";
+import { KnowledgeBase } from "../../electron/knowledge/knowledge-base";
+import { generateThemeDraft } from "../../src/shared/theme-generation";
+import { parseThemeIntent, requiresUiEngineering } from "../../src/shared/theme-intent";
+import { checkThemeVisuals, DEFAULT_MAJOR_SURFACES, REQUIRED_CONTROL_IDS } from "../../src/shared/theme-visual-check";
 import { defaultSurfaceContracts, UI_TOKEN_GROUPS } from "../../src/shared/ui-surface";
 import {
   REQUIRED_THEME_TOKENS,
   THEME_SCHEMA_VERSION,
   renderThemeCss,
+  themePackageHash,
   validateThemePackage,
   type ThemePackage
 } from "../../src/shared/theme";
@@ -77,9 +84,13 @@ function notRun(id: string, title: string, note: string): void {
   results.push(item.result("NOT_RUN", note));
 }
 
-/** The ids CP4 must prove; everything else in §25 is reported as NOT_RUN. */
-const REQUIRED_PASS_IDS = ["TH-01", "TH-02", "TH-03", "TH-07", "TH-08", "TH-09", "TH-10", "TH-11", "TH-12", "TH-13", "TH-14", "TH-15", "T-TOKENS"];
-const REQUIRED_NOT_RUN_IDS = ["TH-04", "TH-05", "TH-06"];
+/** The ids CP4/CP5 must prove. */
+const REQUIRED_PASS_IDS = [
+  "TH-01", "TH-02", "TH-03", "TH-04", "TH-05", "TH-06", "TH-07", "TH-08", "TH-09", "TH-10",
+  "TH-11", "TH-12", "TH-13", "TH-14", "TH-15", "T-TOKENS",
+  "T-GEN", "T-BOUNDARY", "T-CAPTURE", "T-VISUAL", "T-KNOWLEDGE"
+];
+const REQUIRED_NOT_RUN_IDS: string[] = [];
 
 let services = 0;
 function newService(name = "svc"): ThemeService {
@@ -149,9 +160,8 @@ describe("checkpoint-1 §25 theme acceptance", () => {
       item.cite("DeletionPlan code BUILT_IN_LOCKED");
     });
 
-    notRun("TH-04", "Create custom from prompt", "requires the CP5 theme generator (prompt → intent → tokens); CP4 installs explicit packages, which T-TOKENS and TH-07 prove");
-    notRun("TH-05", "Preview before install", "requires the CP5 preview runtime; installation is already gated by the §20 validator in CP4");
-    notRun("TH-06", "Feedback revision", "requires CP5; CP4 provides the mechanism it will drive (ThemeService.update re-validates every edit)");
+    // TH-04/05/06 (prompt generation, preview sandbox, feedback revision) are
+    // driven in the §14/§17 block below.
 
     await scenario("TH-07", "Register custom theme", (item) => {
       const created = service.duplicate("builtin-dark", { id: "custom-th07", name: "TH07 Theme" });
@@ -295,6 +305,182 @@ describe("checkpoint-1 §25 theme acceptance", () => {
       item.check("every migrated declaration keeps a literal fallback", true, (css.match(/var\(--boss-[a-z0-9-]+,\s*[^)]+\)/g) ?? []).length === (css.match(/var\(--boss-[a-z0-9-]+/g) ?? []).length);
       item.check("the scrollbar surface is bound by a real rule", true, css.includes("::-webkit-scrollbar-thumb"));
       item.cite("src/renderer/styles.css token usage");
+    });
+  });
+
+  it("TH-04/05/06 and the CP5 generator surface", async () => {
+    const service = newService("cp5");
+    service.bootstrap();
+
+    await scenario("TH-04", "Create custom from prompt", (item) => {
+      const intent = parseThemeIntent("做一个类似 macOS 风格、偏冷、半透明、紧凑一点的主题");
+      const generated = generateThemeDraft({
+        intent,
+        base: { tokens: service.packageOf("builtin-dark")!.tokens, overrides: [] },
+        contracts: defaultSurfaceContracts(),
+        id: "custom-from-prompt",
+        name: "Frost",
+        now: "2026-01-01T00:00:00.000Z"
+      });
+      const preview = service.startPreview(generated.pkg, { intent: generated.interpretation, decisions: generated.decisions.length, prompt: intent.prompt });
+      item.check("the prompt produced a usable intent", true, intent.usable);
+      item.check("the intent named the reference style", "macOS", intent.references[0]?.value);
+      item.check("the draft is a complete valid package", true, preview.valid);
+      item.check("the draft has enough to be a theme", true, generated.decisions.length >= 8);
+      item.check("the style direction reached the tokens", true, generated.pkg.tokens["--boss-bg-surface"] !== service.packageOf("builtin-dark")!.tokens["--boss-bg-surface"]);
+      item.check("the draft explains itself", true, generated.pkg.manifest.description?.includes("macOS") === true);
+      const accepted = service.acceptPreview({ activate: true });
+      item.check("accepting installs and activates it", true, accepted.ok && accepted.activeThemeId === "custom-from-prompt");
+      item.check("the package is durable on disk", true, fs.existsSync(path.join(service.root(), "custom-from-prompt", "theme.json")));
+      item.cite("ThemeIntent.trace + ThemeGenerationDecision[]");
+    });
+
+    await scenario("TH-05", "Preview before install", (item) => {
+      service.activate("builtin-dark");
+      const activeBefore = service.snapshot().activeThemeId;
+      const registryBefore = service.list().map((entry) => entry.id).join(",");
+      const intent = parseThemeIntent("明亮一点，圆角更大");
+      const generated = generateThemeDraft({ intent, base: { tokens: service.packageOf("builtin-dark")!.tokens, overrides: [] }, contracts: defaultSurfaceContracts(), id: "custom-preview", name: "Preview", now: "2026-01-01T00:00:00.000Z" });
+      const preview = service.startPreview(generated.pkg, { intent: generated.interpretation, decisions: generated.decisions.length, prompt: intent.prompt });
+      item.check("a preview is pending", true, preview.valid && service.preview() !== undefined);
+      item.check("the active theme is untouched while previewing", activeBefore, service.snapshot().activeThemeId);
+      item.check("nothing was registered by previewing", registryBefore, service.list().map((entry) => entry.id).join(","));
+      item.check("the preview carries its own stylesheet", true, preview.css.includes(":root {") && preview.css.includes("--boss-bg-root"));
+      item.check("the preview differs from the active theme", true, preview.tokens["--boss-bg-root"] !== service.snapshot().tokens["--boss-bg-root"]);
+      const cancelled = service.cancelPreview();
+      item.check("cancel discards the draft", true, cancelled.ok);
+      item.check("cancel leaves the active theme alone", activeBefore, cancelled.activeThemeId);
+      item.check("no preview remains", undefined, service.preview());
+      item.check("still nothing registered", registryBefore, service.list().map((entry) => entry.id).join(","));
+      item.cite("themes/preview.json + .preview/preview.css");
+    });
+
+    await scenario("TH-06", "Feedback revision", (item) => {
+      const service2 = newService("cp5-revise");
+      service2.bootstrap();
+      const first = parseThemeIntent("偏冷、紧凑");
+      const firstDraft = generateThemeDraft({ intent: first, base: { tokens: service2.packageOf("builtin-dark")!.tokens, overrides: [] }, contracts: defaultSurfaceContracts(), id: "custom-revise", name: "Revise", now: "2026-01-01T00:00:00.000Z" });
+      const firstPreview = service2.startPreview(firstDraft.pkg, { intent: firstDraft.interpretation, decisions: firstDraft.decisions.length, prompt: first.prompt });
+      const revised = parseThemeIntent(`${first.prompt}\n再透明一些`, { previous: first });
+      const revisedDraft = generateThemeDraft({ intent: revised, base: { tokens: service2.packageOf("builtin-dark")!.tokens, overrides: [] }, contracts: defaultSurfaceContracts(), id: "custom-revise", name: "Revise", now: "2026-01-01T00:00:00.000Z" });
+      const preview = service2.startPreview(revisedDraft.pkg, { intent: revisedDraft.interpretation, decisions: revisedDraft.decisions.length, prompt: revised.prompt });
+      item.check("the first draft was revision zero", 0, firstPreview.revisions);
+      item.check("the revision counter advanced", firstPreview.revisions + 1, preview.revisions);
+      item.check("the feedback enabled translucency", true, revised.translucency?.value.enabled === true);
+      item.check("the unchanged axes were inherited", "COOL", revised.temperature?.value);
+      item.check("the revised draft is still valid", true, preview.valid);
+      item.check("the revised token really changed", true, preview.tokens["--boss-bg-root"] !== firstDraft.pkg.tokens["--boss-bg-root"]);
+      item.check("the revision is recorded in the durable preview", true, (service2.preview()?.revisions ?? 0) === 1);
+      item.cite("ThemePreviewState.revisions + inherited intent");
+    });
+
+    await scenario("T-GEN", "generation is deterministic, complete and explainable", (item) => {
+      const intent = parseThemeIntent("偏冷、半透明、圆角更大");
+      const input = { intent, base: { tokens: service.packageOf("builtin-dark")!.tokens, overrides: [] }, contracts: defaultSurfaceContracts(), id: "custom-gen", name: "Gen", now: "2026-01-01T00:00:00.000Z" };
+      const first = generateThemeDraft(input);
+      const second = generateThemeDraft(input);
+      item.check("the same intent yields the same tokens", themePackageHash(first.pkg), themePackageHash(second.pkg));
+      item.check("every required token is present", true, REQUIRED_THEME_TOKENS.every((token) => first.pkg.tokens[token]));
+      item.check("the package validates", true, validateThemePackage(first.pkg, defaultSurfaceContracts()).ok);
+      item.check("every decision explains itself", true, first.decisions.every((entry) => entry.evidence.length > 0 && entry.rule.length > 0));
+      item.check("overrides stay inside the §9 contract", true, first.pkg.overrides.every((override) => {
+        const contract = defaultSurfaceContracts().find((entry) => entry.id === override.surface);
+        return contract !== undefined && contract.allowedProperties.includes(override.property);
+      }));
+      item.check("the generator records which generator made it", "theme-generator-1", first.generator);
+      item.cite("ThemeGenerationResult.decisions");
+    });
+
+    await scenario("T-BOUNDARY", "a layout request is escalated, not themed (§19)", (item) => {
+      const service2 = newService("cp5-boundary");
+      service2.bootstrap();
+      const registryBefore = service2.list().map((entry) => entry.id).join(",");
+      for (const prompt of ["把侧栏挪到右边", "删掉设置按钮", "新增一个导出面板", "改一下 IPC 逻辑"]) {
+        const intent = parseThemeIntent(prompt);
+        item.check(`escalated: ${prompt}`, true, requiresUiEngineering(intent));
+      }
+      item.check("no package was produced for the escalated prompts", registryBefore, service2.list().map((entry) => entry.id).join(","));
+      item.check("the escalation names the offending phrase", true, (parseThemeIntent("把侧栏挪到右边").escalations[0]?.phrase.length ?? 0) > 0);
+      item.check("the escalation explains why", true, (parseThemeIntent("把侧栏挪到右边").escalations[0]?.reason ?? "").includes("layout"));
+      item.check("a style request is not escalated", false, requiresUiEngineering(parseThemeIntent("偏冷、半透明")));
+      item.cite("ThemeIntent.escalations");
+    });
+
+    await scenario("T-CAPTURE", "visual capture is sanitized and never blocks the theme request (§16/§16.1)", async (item) => {
+      const directory = path.join(ROOT, "captures");
+      const executed: string[] = [];
+      const fakeContents = (ok: boolean) => ({
+        isDestroyed: () => !ok,
+        executeJavaScript: async (script: string) => { executed.push(script.includes("classList.add") ? "sanitize" : "restore"); return true; },
+        capturePage: async () => ({ toPNG: () => Buffer.from("PNGDATA"), getSize: () => ({ width: 1440, height: 900 }) })
+      });
+      const result = await captureSurfacesForThemeDesign(
+        [
+          { surface: "MAIN_WORKSPACE", webContents: fakeContents(true) as never },
+          { surface: "AI_PANE_CLOSED", webContents: fakeContents(false) as never }
+        ],
+        { directory, now: () => "2026-01-01T00:00:00.000Z" }
+      );
+      item.check("one frame was captured", 1, result.frames.length);
+      item.check("the frame is a real PNG file", true, fs.existsSync(path.join(directory, "main_workspace.png")));
+      item.check("the capture is marked sanitized", true, result.sanitized);
+      item.check("the renderer was put into and out of sanitize mode", "sanitize,restore", executed.join(","));
+      item.check("a closed view is reported, not silently dropped", 1, result.skipped.length);
+      item.check("the index was written", true, fs.existsSync(path.join(directory, "captures.json")));
+      item.check("the index carries hashes, not just names", true, (result.frames[0].sha256 ?? "").length === 64);
+      item.check("the summary never claims a screenshot is knowledge", true, summarizeCapture(result).includes("frame"));
+      item.cite("theme-captures/<ts>/captures.json");
+    });
+
+    await scenario("T-VISUAL", "visual regression decides on measured facts (§26)", (item) => {
+      const healthy = checkThemeVisuals({
+        themeId: "custom-visual",
+        surfaces: DEFAULT_MAJOR_SURFACES.map((surface) => ({ surface, present: true, visible: true, width: 400, height: 200 })),
+        controls: REQUIRED_CONTROL_IDS.map((id) => ({ id, present: true, visible: true, enabled: true, width: 40, height: 24 })),
+        viewport: { width: 1440, height: 900, scrollWidth: 1440, scrollHeight: 900 }
+      });
+      item.check("a healthy theme passes", true, healthy.ok);
+      const broken = checkThemeVisuals({
+        themeId: "custom-broken",
+        surfaces: [
+          { surface: "APP_BACKGROUND", present: true, visible: true, width: 1440, height: 900 },
+          { surface: "SURFACE_PRIMARY", present: true, visible: true, width: 400, height: 200, color: "#101010", background: "#0d0d0d" },
+          { surface: "SIDEBAR", present: true, visible: true, width: 30, height: 200 }
+        ],
+        controls: [{ id: "composer", present: false, visible: false, enabled: false, width: 0, height: 0 }],
+        viewport: { width: 1000, height: 800, scrollWidth: 1500, scrollHeight: 800 }
+      });
+      item.check("an unreadable theme fails", false, broken.ok);
+      item.check("text contrast was measured, not assumed", true, broken.contrast[0].ratio < 3);
+      item.check("the report names every rule that failed", true, ["MAJOR_SURFACE_VISIBLE", "TEXT_READABLE", "CONTROLS_VISIBLE", "NO_CATASTROPHIC_OVERFLOW"].every((rule) => broken.findings.some((entry) => entry.rule === rule)));
+      item.cite(".boss/theme-visual-check.json");
+    });
+
+    await scenario("T-KNOWLEDGE", "theme intent and validation reach knowledge, screenshots do not (§24)", (item) => {
+      const base = new KnowledgeBase(path.join(ROOT, "theme-knowledge", "knowledge-base.json"), () => "2026-01-01T00:00:00.000Z");
+      const foundation = { base };
+      const intent = parseThemeIntent("偏冷、半透明");
+      const generated = generateThemeDraft({ intent, base: { tokens: service.packageOf("builtin-dark")!.tokens, overrides: [] }, contracts: defaultSurfaceContracts(), id: "custom-know", name: "Know", now: "2026-01-01T00:00:00.000Z" });
+      const report = validateThemePackage(generated.pkg, defaultSurfaceContracts());
+      const recorded = recordThemeKnowledge({
+        scope: "project:codex-boss-ui",
+        taskRef: "theme:custom-know",
+        intent,
+        pkg: generated.pkg,
+        packageHash: themePackageHash(generated.pkg),
+        validation: report,
+        feedback: "再透明一些",
+        observedAt: "2026-01-01T00:00:00.000Z",
+        captureSummary: "1 sanitized frame"
+      }, foundation);
+      const types = recorded.recorded.map((entry) => entry.type);
+      item.check("the intent was recorded", true, types.includes("THEME"));
+      item.check("the validation outcome was recorded", true, types.includes("THEME_VALIDATION"));
+      item.check("the user's feedback was recorded", true, types.includes("USER_OVERRIDE"));
+      item.check("everything was accepted by the write gate", true, recorded.recorded.every((entry) => entry.outcome === "ACCEPT" || entry.outcome === "SUPERSEDE"));
+      item.check("no raw image data was stored", false, JSON.stringify(base.objects()).includes("PNGDATA"));
+      item.check("the capture is recorded as a summary only", true, JSON.stringify(base.objects()).includes("sanitized frame"));
+      item.cite("knowledge-base.json THEME/THEME_VALIDATION/USER_OVERRIDE objects");
     });
   });
 });

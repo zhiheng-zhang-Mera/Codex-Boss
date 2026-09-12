@@ -33,6 +33,13 @@ import { WorldModelStore, buildWorldModelWithGraph } from "./engineering/world-m
 import { UISurfaceRegistryStore, discoverUISurfaces } from "./engineering/ui-surface-discovery";
 import { summarizeUISurfaceRegistry, defaultSurfaceContracts } from "../src/shared/ui-surface";
 import { ThemeService } from "./theme/theme-service";
+import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture } from "./theme/visual-capture";
+import { recordThemeKnowledge } from "./theme/theme-knowledge";
+import { generateThemeDraft } from "../src/shared/theme-generation";
+import { parseThemeIntent, requiresUiEngineering, type ThemeIntent } from "../src/shared/theme-intent";
+import { checkThemeVisuals, type VisualCheckInput } from "../src/shared/theme-visual-check";
+import { themePackageHash, type ThemeGenerationOutcome, type ThemePreviewView } from "../src/shared/theme";
+import { writeJson } from "./commander/durable-json";
 import { ExecutionGate } from "./commander/execution-gate";
 import { decideEscalation, detectCapabilityNeeds } from "../src/shared/capability-needs";
 import type { InputObjectKind } from "../src/shared/input-object";
@@ -1468,6 +1475,139 @@ if (ownsInstance) app.whenReady().then(() => {
     return themeService.snapshot();
   });
   ipcMain.handle("boss:theme-validate", (_event, themeId: string) => themeService.validate(themeId));
+  /**
+   * checkpoint-1 §14/§15/§17/§19/§24 — one prompt → intent → draft → preview
+   * cycle. Nothing here installs or activates: the draft lives in the preview
+   * sandbox until the user accepts it (or cancels it).
+   */
+  const themeDraft = async (input: { prompt: string; name?: string; capture?: boolean; previous?: ThemeIntent; feedback?: string }) => {
+    // §19: a layout/behaviour request is not a theme task.
+    const intent = parseThemeIntent(input.prompt, input.previous ? { previous: input.previous } : {});
+    if (requiresUiEngineering(intent)) {
+      const reason = `该请求属于界面工程（布局/行为）而非主题：${intent.escalations.map((entry) => `${entry.phrase} — ${entry.reason}`).join("；")}`;
+      domainEvents.publish({ type: "THEME_VALIDATED", message: `theme request escalated to UI engineering: ${intent.escalations[0]?.phrase ?? ""}` });
+      return {
+        ok: false, escalated: true, reason, prompt: intent.prompt,
+        references: intent.references.map((entry) => entry.value), decisions: [], repairs: [], snapshot: themeService.snapshot()
+      } as ThemeGenerationOutcome;
+    }
+    // §16: capture the current interface (sanitized) before designing.
+    let captureSummary: string | undefined;
+    let captures: Awaited<ReturnType<typeof captureSurfacesForThemeDesign>> | undefined;
+    if (input.capture !== false) {
+      const openProviders = store.snapshot().providers.filter((item) => item.windowOpen)
+        .map((item) => ({ surface: `AI_PANE_${item.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`, webContents: providerViews.get(item.id)?.webContents }))
+        .filter((entry): entry is { surface: string; webContents: import("electron").WebContents } => entry.webContents !== undefined);
+      captures = await captureSurfacesForThemeDesign(
+        defaultCaptureTargets({ window: mainWindow ?? undefined, providerViews: openProviders }),
+        { directory: path.join(app.getPath("userData"), ".boss", "theme-captures", new Date().toISOString().replace(/[:.]/g, "-")) }
+      );
+      captureSummary = summarizeCapture(captures);
+    }
+    // §15: the generator always starts from the theme the user is looking at.
+    const basePackage = themeService.packageOf(themeService.snapshot().activeThemeId);
+    if (!basePackage) {
+      return { ok: false, escalated: false, reason: "当前主题包不可读，无法生成（§15 要求先看到当前 UI 与 token）", prompt: intent.prompt, references: [], decisions: [], repairs: [], snapshot: themeService.snapshot() } as ThemeGenerationOutcome;
+    }
+    const draftId = input.name
+      ? `custom-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`
+      : `custom-${Date.now().toString(36)}`;
+    const generated = generateThemeDraft({
+      intent,
+      base: { tokens: basePackage.tokens, overrides: basePackage.overrides },
+      contracts: ensureUiSurfaces(),
+      id: draftId,
+      name: input.name?.trim() || `主题 ${new Date().toISOString().slice(5, 16)}`,
+      now: new Date().toISOString(),
+      ...(captureSummary ? { captureSummary } : {})
+    });
+    const preview = themeService.startPreview(generated.pkg, {
+      intent: generated.interpretation,
+      decisions: generated.decisions.length,
+      prompt: intent.prompt,
+      ...(captureSummary ? { captureSummary } : {})
+    });
+    lastThemeIntent = intent;
+    // §24: record the intent, the decisions and the validation outcome durably —
+    // the sanitized frames themselves stay in the capture directory, never in
+    // knowledge.
+    try {
+      recordThemeKnowledge({
+        scope: knowledge.projectScopeFor({ projectId: "codex-boss-ui" }),
+        taskRef: `theme:${generated.pkg.manifest.id}`,
+        intent,
+        pkg: generated.pkg,
+        packageHash: themePackageHash(generated.pkg),
+        validation: preview.validation,
+        observedAt: new Date().toISOString(),
+        ...(input.feedback ? { feedback: input.feedback } : {}),
+        ...(captureSummary ? { captureSummary } : {}),
+        incompatibleSurfaces: generated.decisions.length === 0 ? [] : []
+      }, knowledge);
+    } catch (error) {
+      console.warn("[theme] knowledge recording degraded", error);
+    }
+    domainEvents.publish({ type: "THEME_DRAFT_CREATED", message: `theme draft ${generated.pkg.manifest.id} from ${generated.decisions.length} decision(s)` });
+    domainEvents.publish({ type: "THEME_PREVIEWED", message: `theme preview ${generated.pkg.manifest.id} valid=${preview.valid}` });
+    const outcome: ThemeGenerationOutcome = {
+      ok: preview.valid,
+      escalated: false,
+      reason: preview.valid ? `预览已生成：${generated.interpretation}` : `草稿未通过校验：${preview.validation.diagnostics.filter((entry) => entry.severity === "ERROR").map((entry) => entry.message).slice(0, 3).join("; ")}`,
+      prompt: intent.prompt,
+      references: intent.references.map((entry) => entry.value),
+      decisions: generated.decisions.map((entry) => `${entry.token} = ${entry.value} (${entry.rule})`),
+      repairs: generated.repairs,
+      ...(captureSummary ? { captureSummary } : {}),
+      preview: toPreviewView(preview),
+      snapshot: themeService.snapshot()
+    };
+    void captures;
+    return outcome;
+  };
+  let lastThemeIntent: ThemeIntent | undefined;
+  ipcMain.handle("boss:theme-generate", (_event, input: { prompt: string; name?: string; capture?: boolean }) => themeDraft(input));
+  ipcMain.handle("boss:theme-preview", () => {
+    const preview = themeService.preview();
+    return preview ? toPreviewView(preview) : undefined;
+  });
+  ipcMain.handle("boss:theme-preview-revise", (_event, input: { feedback: string }) => {
+    const pending = themeService.preview();
+    if (!pending) throw new Error("当前没有待预览的主题草稿");
+    return themeDraft({
+      prompt: `${pending.prompt}\n${input.feedback}`,
+      name: pending.name,
+      capture: false,
+      ...(lastThemeIntent ? { previous: lastThemeIntent } : {}),
+      feedback: input.feedback
+    });
+  });
+  ipcMain.handle("boss:theme-preview-accept", (_event, input: { activate?: boolean }) => {
+    const result = themeService.acceptPreview({ activate: input?.activate !== false });
+    if (!result.ok) throw new Error(result.reason);
+    domainEvents.publish({ type: "THEME_INSTALLED", message: `theme ${result.themeId} installed from a preview` });
+    return themeService.snapshot();
+  });
+  ipcMain.handle("boss:theme-preview-cancel", () => {
+    const result = themeService.cancelPreview();
+    if (!result.ok && result.reason !== "no preview is pending") throw new Error(result.reason);
+    return themeService.snapshot();
+  });
+  ipcMain.handle("boss:theme-capture", async () => {
+    const openProviders = store.snapshot().providers.filter((item) => item.windowOpen)
+      .map((item) => ({ surface: `AI_PANE_${item.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`, webContents: providerViews.get(item.id)?.webContents }))
+      .filter((entry): entry is { surface: string; webContents: import("electron").WebContents } => entry.webContents !== undefined);
+    const result = await captureSurfacesForThemeDesign(
+      defaultCaptureTargets({ window: mainWindow ?? undefined, providerViews: openProviders }),
+      { directory: path.join(app.getPath("userData"), ".boss", "theme-captures", new Date().toISOString().replace(/[:.]/g, "-")) }
+    );
+    return { frames: result.frames.map((frame) => ({ surface: frame.surface, file: frame.file, bytes: frame.bytes })), skipped: result.skipped, directory: result.directory };
+  });
+  ipcMain.handle("boss:theme-visual-check", (_event, input: VisualCheckInput) => {
+    const report = checkThemeVisuals(input, { now: new Date().toISOString() });
+    // §26 evidence is durable: the numbers that decided are kept next to the theme.
+    try { writeJson(path.join(app.getPath("userData"), ".boss", "theme-visual-check.json"), report); } catch { /* evidence is advisory */ }
+    return report;
+  });
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
     const before = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!before) throw new Error(`Unknown task: ${taskId}`);
@@ -1608,6 +1748,24 @@ if (ownsInstance) app.whenReady().then(() => {
     setTimeout(() => { void smoke().catch((error) => { console.error(error); app.exit(1); }); }, 1500);
   }
 });
+
+/** §17: the renderer's view of a pending preview (never the active theme). */
+function toPreviewView(preview: import("./theme/theme-service").ThemePreviewState): ThemePreviewView {
+  return {
+    id: preview.id,
+    name: preview.name,
+    prompt: preview.prompt,
+    intent: preview.intent,
+    decisions: preview.decisions,
+    revisions: preview.revisions,
+    valid: preview.valid,
+    css: preview.css,
+    tokens: preview.tokens,
+    errors: preview.validation.diagnostics.filter((entry) => entry.severity === "ERROR").map((entry) => `${entry.rule}: ${entry.message}`),
+    warnings: preview.validation.diagnostics.filter((entry) => entry.severity === "WARN").map((entry) => `${entry.rule}: ${entry.message}`),
+    createdAt: preview.createdAt
+  };
+}
 
 app.on("window-all-closed", () => {
   recoveryScheduler?.dispose();

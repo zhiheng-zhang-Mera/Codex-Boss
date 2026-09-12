@@ -493,6 +493,21 @@ export interface BossBridge {
   themeRestoreDefault(): Promise<import("./theme").ThemeSnapshot>;
   /** §20: re-runs the validator and returns its report. */
   themeValidate(themeId: string): Promise<import("./theme").ThemeValidationReport | undefined>;
+  /* ---- checkpoint-1 §14/§16/§17/§26: generate, preview, capture, verify ---- */
+  /** §14: prompt → intent → draft → §17 preview (never installs or activates). */
+  themeGenerate(input: { prompt: string; name?: string; capture?: boolean }): Promise<import("./theme").ThemeGenerationOutcome>;
+  /** The pending preview, if any (durable across a restart). */
+  themePreview(): Promise<import("./theme").ThemePreviewView | undefined>;
+  /** §17 Accept. */
+  themePreviewAccept(input: { activate?: boolean }): Promise<import("./theme").ThemeSnapshot>;
+  /** §14 feedback round: revises the pending preview from a follow-up message. */
+  themePreviewRevise(input: { feedback: string }): Promise<import("./theme").ThemeGenerationOutcome>;
+  /** §17 Cancel: the draft is discarded and the active theme is untouched. */
+  themePreviewCancel(): Promise<import("./theme").ThemeSnapshot>;
+  /** §16: sanitized visual capture for theme design. */
+  themeCapture(): Promise<{ frames: { surface: string; file: string; bytes: number }[]; skipped: { surface: string; reason: string }[]; directory: string } | undefined>;
+  /** §26: the renderer measures, the main process decides. */
+  themeVisualCheck(input: import("./theme-visual-check").VisualCheckInput): Promise<import("./theme-visual-check").VisualCheckReport>;
   openProvider(providerId: ProviderId): Promise<AppSnapshot>;
   closeProvider(providerId: ProviderId): Promise<AppSnapshot>;
   layoutViews(layout: Partial<Record<ProviderId, ViewBounds>>): Promise<void>;

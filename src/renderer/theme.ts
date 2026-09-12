@@ -58,3 +58,39 @@ export function appliedTheme(doc: Document = document): { themeId: string | unde
 export function clearTheme(doc: Document = document): void {
   doc.getElementById(THEME_STYLE_ELEMENT_ID)?.remove();
 }
+
+/* ------------------------------------------------------------------ *
+ * §17 preview layer
+ * ------------------------------------------------------------------ */
+
+export const THEME_PREVIEW_ELEMENT_ID = "boss-theme-preview";
+
+/**
+ * Applies a PENDING preview without touching the active theme: the preview lives
+ * in its own <style> element, so previewing is always reversible and a cancelled
+ * preview leaves no trace (the active theme was never unregistered or changed).
+ */
+export function applyPreview(css: string, themeId: string, doc: Document = document): { applied: boolean; cssLength: number; reason?: string } {
+  if (typeof css !== "string") return { applied: false, cssLength: 0, reason: "preview has no stylesheet" };
+  if (/<\s*\/?\s*script|javascript\s*:|expression\s*\(/i.test(css)) return { applied: false, cssLength: 0, reason: "preview stylesheet contains executable content" };
+  const existing = doc.getElementById(THEME_PREVIEW_ELEMENT_ID);
+  const element = existing instanceof HTMLStyleElement ? existing : doc.createElement("style");
+  if (!(existing instanceof HTMLStyleElement)) {
+    element.id = THEME_PREVIEW_ELEMENT_ID;
+    doc.head.appendChild(element);
+  }
+  element.textContent = css;
+  element.setAttribute("data-boss-theme-preview", themeId || "unknown");
+  return { applied: true, cssLength: css.length };
+}
+
+/** Removes the preview layer; the active theme keeps rendering. */
+export function clearPreview(doc: Document = document): void {
+  doc.getElementById(THEME_PREVIEW_ELEMENT_ID)?.remove();
+}
+
+/** Reads the pending preview state of the document. */
+export function previewedTheme(doc: Document = document): { themeId: string | undefined; cssLength: number } {
+  const element = doc.getElementById(THEME_PREVIEW_ELEMENT_ID);
+  return { themeId: element?.getAttribute("data-boss-theme-preview") ?? undefined, cssLength: element?.textContent?.length ?? 0 };
+}

@@ -420,6 +420,123 @@ export class ThemeService {
   persisted(): boolean {
     return fs.existsSync(this.options.registryFile);
   }
+
+  /* ---------------- §17 preview sandbox ---------------- */
+
+  /**
+   * §17: a draft is previewed in a SANDBOX — it is written where the engine can
+   * render it, but the active theme is not touched and nothing is registered as
+   * installed until the user accepts it. Only one preview exists at a time.
+   */
+  startPreview(pkg: ThemePackage, evidence: { intent: string; decisions: number; captureSummary?: string; prompt: string }): ThemePreviewState {
+    const report = validateThemePackage(pkg, this.contracts(), { now: this.now() });
+    const directory = path.join(path.resolve(this.options.root), ".preview");
+    fs.mkdirSync(directory, { recursive: true });
+    writeJson(path.join(directory, "package.json"), pkg);
+    const css = renderThemeCss(pkg, this.contracts());
+    fs.writeFileSync(path.join(directory, "preview.css"), css, "utf8");
+    // §14: replacing the pending preview of the same draft IS a revision, so the
+    // counter has to survive the new draft rather than restart at zero.
+    const previous = this.preview();
+    const revisions = previous && previous.id === pkg.manifest.id ? previous.revisions + 1 : 0;
+    const state: ThemePreviewState = {
+      schemaVersion: 1,
+      id: pkg.manifest.id,
+      name: pkg.manifest.name,
+      prompt: evidence.prompt,
+      intent: evidence.intent,
+      decisions: evidence.decisions,
+      ...(evidence.captureSummary ? { captureSummary: evidence.captureSummary } : {}),
+      css,
+      tokens: { ...pkg.tokens },
+      valid: report.ok,
+      validation: report,
+      createdAt: this.now(),
+      revisions
+    };
+    writeJson(path.join(path.resolve(this.options.root), "preview.json"), state);
+    this.log(`preview ${revisions > 0 ? `revision ${revisions} of ` : "started for "}${pkg.manifest.id} (valid=${report.ok}, ${report.diagnostics.filter((entry) => entry.severity === "ERROR").length} error(s))`);
+    this.persist();
+    if (report.ok) domainPreviewEvents.draft(this, pkg.manifest.id);
+    return state;
+  }
+
+  /** The pending preview, if any (survives a restart; §47 durable preview state). */
+  preview(): ThemePreviewState | undefined {
+    const state = readJson<ThemePreviewState>(path.join(path.resolve(this.options.root), "preview.json"));
+    return state?.schemaVersion === 1 ? state : undefined;
+  }
+
+  /** §17 "Cancel": the draft disappears and the active theme was never touched. */
+  cancelPreview(): { ok: boolean; reason: string; activeThemeId: string } {
+    const preview = this.preview();
+    if (!preview) return { ok: false, reason: "no preview is pending", activeThemeId: this.value.activeThemeId };
+    fs.rmSync(path.join(path.resolve(this.options.root), "preview.json"), { force: true });
+    fs.rmSync(path.join(path.resolve(this.options.root), ".preview"), { recursive: true, force: true });
+    this.log(`preview of ${preview.id} cancelled; active theme ${this.value.activeThemeId} untouched`);
+    this.persist();
+    return { ok: true, reason: `preview of ${preview.id} discarded`, activeThemeId: this.value.activeThemeId };
+  }
+
+  /**
+   * §17 "Accept": the previewed draft is installed (validated again, from the
+   * previewed bytes) and may be activated in the same step. A preview that no
+   * longer validates cannot be accepted.
+   */
+  acceptPreview(options: { activate?: boolean } = {}): ThemeOperationResult {
+    const preview = this.preview();
+    if (!preview) return { ok: false, themeId: "", activeThemeId: this.value.activeThemeId, fallback: false, reason: "no preview is pending" };
+    const pkg = readJson<ThemePackage>(path.join(path.resolve(this.options.root), ".preview", "package.json"));
+    if (!pkg) return { ok: false, themeId: preview.id, activeThemeId: this.value.activeThemeId, fallback: false, reason: "the previewed package could not be read back" };
+    const installed = this.install(pkg, { state: "INSTALLED" });
+    if (!installed.ok) {
+      this.log(`accept refused: ${installed.reason}`);
+      return installed;
+    }
+    const result = options.activate === false ? installed : this.activate(preview.id);
+    fs.rmSync(path.join(path.resolve(this.options.root), "preview.json"), { force: true });
+    fs.rmSync(path.join(path.resolve(this.options.root), ".preview"), { recursive: true, force: true });
+    domainPreviewEvents.install(this, preview.id);
+    this.log(`preview of ${preview.id} accepted${options.activate === false ? "" : ` and activated (${result.activeThemeId})`}`);
+    this.persist();
+    return result;
+  }
+
+  /** §14 "User Feedback → Theme Revision" is counted by `startPreview`. */
+}
+
+/**
+ * §56 lifecycle events. The service is not allowed to import the domain event
+ * bus (it would create a cycle), so the composition root subscribes here.
+ */
+export const domainPreviewEvents = {
+  handlers: [] as Array<{ kind: "draft" | "install"; run: (themeId: string) => void }>,
+  draft(_service: ThemeService, themeId: string): void {
+    for (const handler of this.handlers.filter((entry) => entry.kind === "draft")) handler.run(themeId);
+  },
+  install(_service: ThemeService, themeId: string): void {
+    for (const handler of this.handlers.filter((entry) => entry.kind === "install")) handler.run(themeId);
+  },
+  on(kind: "draft" | "install", run: (themeId: string) => void): void {
+    this.handlers.push({ kind, run });
+  }
+};
+
+/** §17 durable preview state. */
+export interface ThemePreviewState {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  prompt: string;
+  intent: string;
+  decisions: number;
+  captureSummary?: string;
+  css: string;
+  tokens: ThemeTokens;
+  valid: boolean;
+  validation: ThemeValidationReport;
+  createdAt: string;
+  revisions: number;
 }
 
 function describe(report: ThemeValidationReport): string {

@@ -2,11 +2,11 @@
 /**
  * checkpoint-1 §25 reproducible theme acceptance command.
  *
- * Runs the TH-01..TH-15 (plus T-TOKENS) suite, then verifies and prints the
- * machine-readable report it produced under `artifacts/acceptance/`. Exits
- * non-zero unless every item is PASS or an explicit NOT_RUN — TH-04/05/06 belong
- * to CP5 (prompt-driven generation and the preview sandbox) and are reported as
- * NOT_RUN rather than being claimed here.
+ * Runs the TH-01..TH-15 (plus T-TOKENS and the CP5 generator items) suite, then
+ * verifies and prints the machine-readable report it produced under
+ * `artifacts/acceptance/`. Exits non-zero unless every item is PASS: TH-04/05/06
+ * (prompt-driven creation, preview-before-install, feedback revision) became
+ * real PASS items in CP5, so nothing is allowed to remain NOT_RUN.
  *
  * Usage: node scripts/acceptance-theme.cjs
  */
@@ -19,8 +19,13 @@ const path = require("node:path");
 const root = process.cwd();
 const suite = path.join("tests", "acceptance", "theme-engine.test.ts");
 const reportFile = path.join(root, "artifacts", "acceptance", "theme-engine.json");
-const REQUIRED_PASS = ["TH-01", "TH-02", "TH-03", "TH-07", "TH-08", "TH-09", "TH-10", "TH-11", "TH-12", "TH-13", "TH-14", "TH-15", "T-TOKENS"];
-const REQUIRED_NOT_RUN = ["TH-04", "TH-05", "TH-06"];
+const REQUIRED_PASS = [
+  "TH-01", "TH-02", "TH-03", "TH-04", "TH-05", "TH-06", "TH-07", "TH-08", "TH-09", "TH-10",
+  "TH-11", "TH-12", "TH-13", "TH-14", "TH-15", "T-TOKENS",
+  "T-GEN", "T-BOUNDARY", "T-CAPTURE", "T-VISUAL", "T-KNOWLEDGE"
+];
+/** Everything CP4/CP5 owns must now be green; nothing may stay NOT_RUN. */
+const REQUIRED_NOT_RUN = [];
 
 function runSuite() {
   const vitestEntry = path.join(root, "node_modules", "vitest", "vitest.mjs");
