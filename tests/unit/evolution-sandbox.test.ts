@@ -83,6 +83,20 @@ function reported(result: Awaited<ReturnType<typeof runScript>>): string {
   return `${result.stdout}\n${result.stderr}`;
 }
 
+/**
+ * The hook below is not a fixture setup — it is the sandbox bootstrap. It
+ * compiles the host-owned C# launcher with csc.exe and then creates a real
+ * AppContainer profile and proves the Job Object, so it costs seconds of CPU on
+ * an idle machine and considerably more when 100+ suites share a CI runner.
+ * Vitest's default hookTimeout (10s) measured that bootstrap on a loaded
+ * windows-latest runner and aborted the suite before a single attack ran
+ * (GitHub run 34669938246: "Hook timed out in 10000ms"), which reads as a
+ * containment failure when it is only a scheduling one. The budget below is
+ * explicit and generous for the same reason the SB-04/SB-05 cases carry their
+ * own 180s budgets; nothing in the hook is weakened, skipped or retried.
+ */
+const SANDBOX_BOOTSTRAP_TIMEOUT_MS = 180_000;
+
 beforeAll(async () => {
   fs.mkdirSync(workspace, { recursive: true });
   fs.mkdirSync(temp, { recursive: true });
@@ -103,7 +117,7 @@ beforeAll(async () => {
     denyRoots: [stable, outside]
   });
   capability = await sandbox.probe();
-});
+}, SANDBOX_BOOTSTRAP_TIMEOUT_MS);
 
 afterAll(() => {
   const releasable = sandbox as unknown as { release?: () => void };

@@ -33,6 +33,11 @@ jobs:
       # documented exit code, failing two tests on every run.
       - run: pnpm run build
       - run: pnpm test
+      # checkpoint-1 §4.1/§4.2: the WorkBook production acceptance is its own
+      # gate — it re-runs the WB-01..WB-10 suite AND verifies the machine
+      # readable report it produced, so a scenario that silently degrades to
+      # NOT_RUN cannot pass as green.
+      - run: pnpm run acceptance:workbook
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
@@ -40,3 +45,9 @@ jobs:
       # Overcomplete §17.4 Tier 2: controlled Electron restart smoke — the app
       # is killed mid-task and must resume without duplicating side effects.
       - run: node scripts/acceptance-restart.cjs
+      # checkpoint-1 §4.3: the desktop WorkBook black box. A real Electron
+      # instance is driven over CDP through the real renderer (Work mode →
+      # workspace → dropped WorkBook → submit) and the durable main-process
+      # state is verified afterwards, so UI → IPC → main → WorkBook production
+      # path is exercised in CI, not only by direct function calls.
+      - run: pnpm run acceptance:desktop-workbook

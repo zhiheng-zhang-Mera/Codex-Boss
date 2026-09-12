@@ -139,6 +139,33 @@ app.setPath("sessionData", path.join(dataRoot, "Session Data"));
 const ownsInstance = app.requestSingleInstanceLock();
 const isSmokeTest = process.argv.includes("--codex-boss-smoke-test");
 if (isSmokeTest) app.disableHardwareAcceleration();
+/**
+ * Bounded desktop WorkBook acceptance (Update-Plan/checkpoint-1.md §4.3).
+ *
+ * `--boss-workbook-smoke` boots the ordinary app for an EXTERNAL black-box
+ * driver (scripts/acceptance-desktop-workbook.cjs talks CDP to this renderer)
+ * and changes exactly three things, all of them about the network and the
+ * window — never about the WorkBook path:
+ *
+ *   1. the controller window renders offscreen like `--codex-boss-smoke-test`,
+ *      so the same run works on a headless CI runner;
+ *   2. no provider is auto-opened and no task is auto-resumed at startup, so
+ *      the only provider that exists is the one the driver creates through the
+ *      real UI;
+ *   3. provider panes open WITHOUT navigating (`--boss-offline-providers`), so
+ *      acceptance never contacts a live AI page and never sends a message to
+ *      one.
+ *
+ * Everything the acceptance asserts — intake, classification, the compiled
+ * Task Contract, the registry revision, the dispatch boundary and the truthful
+ * failure recorded there — is produced by the normal production code below.
+ */
+const workbookSmoke = process.argv.includes("--boss-workbook-smoke");
+/** Offline panes: real WebContentsViews, deliberately never navigated. */
+const boundedProviderPane = workbookSmoke || process.argv.includes("--boss-offline-providers");
+/** Window rendering mode shared by the smoke entry points (offscreen, hidden). */
+const headlessWindow = isSmokeTest || workbookSmoke;
+if (workbookSmoke) app.disableHardwareAcceleration();
 // Headless live-acceptance mode: boot Boss without the GUI main window, open
 // the chosen web providers, run ONE human-defined research autopilot to READY,
 // write a result JSON next to the research root, then exit — so E2E-C can be
@@ -318,7 +345,10 @@ function openProviderWithinLimit(providerId: ProviderId): void {
   const target = provider(providerId);
   const openCount = store.snapshot().providers.filter((item) => item.windowOpen).length;
   if (!target.windowOpen && openCount >= MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时打开 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
-  providerViews.open(target);
+  // Bounded acceptance opens the pane but never navigates it: the dispatch
+  // boundary is still traversed by the real code and its outcome is recorded
+  // truthfully, it just cannot reach a live AI page.
+  providerViews.open(target, !boundedProviderPane);
 }
 
 function openProjectState(workspaceId: string): ProjectStateStore {
@@ -446,7 +476,7 @@ function attachProviderViews(): void {
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
-    show: !isSmokeTest && !headlessResearch,
+    show: !headlessWindow && !headlessResearch,
     width: 1440,
     height: 920,
     minWidth: 1080,
@@ -456,8 +486,8 @@ function createMainWindow(): void {
     titleBarStyle: "hiddenInset",
     autoHideMenuBar: true,
     webPreferences: {
-      offscreen: isSmokeTest,
-      backgroundThrottling: !isSmokeTest,
+      offscreen: headlessWindow,
+      backgroundThrottling: !headlessWindow,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -758,7 +788,7 @@ if (ownsInstance) app.whenReady().then(() => {
       } catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); }
     }
   };
-  if (!isSmokeTest && !headlessResearch) {
+  if (!isSmokeTest && !headlessResearch && !workbookSmoke) {
     DEFAULT_PROVIDER_IDS.forEach(openProviderWithinLimit);
     void automation.resumePending().catch((error) => console.error("Resume paused", error));
     void resumeLocalTasks();
