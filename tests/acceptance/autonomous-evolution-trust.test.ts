@@ -454,7 +454,9 @@ describe("Phase C self-evlo §2/§3/§4/§14/§28–§34/§49–§52/§75/§77/�
       item.check(
         "a forged parent is refused",
         true,
-        hasCode(verifyTrustEpoch({ record: next, rootSurfaceHash: driftedSurface, parent: { ...previous, trust_epoch: 7 } }), EVOLUTION_TRUST_CODES.TRUST_EPOCH_PARENT_MISMATCH)
+        // The forgery must differ from the real previous record whatever the committed
+        // epoch number happens to be (it advances on every Root Trust change).
+        hasCode(verifyTrustEpoch({ record: next, rootSurfaceHash: driftedSurface, parent: { ...previous, trust_epoch: previous.trust_epoch + 99 } }), EVOLUTION_TRUST_CODES.TRUST_EPOCH_PARENT_MISMATCH)
       );
       item.check(
         "a tampered epoch digest is refused",
