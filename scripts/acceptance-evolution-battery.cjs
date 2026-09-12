@@ -1328,7 +1328,11 @@ function setupWorkspace(runner) {
     ) {
       return { ok: false, detail: "CATALOG_BASELINE_MISMATCH: the committed trial surface/test differ from the frozen catalog baseline" };
     }
-    const branch = git(["checkout", "-B", state.scratchBranch, state.baselineCommit]);
+    // A trust trial must not rewrite the bytes of the workspace it runs in. On a host
+    // with `core.autocrlf=true` a plain `checkout -B` converts every LF blob to CRLF in
+    // the working tree, which changes the content of files this trial never declared
+    // (and silently breaks the "root trust files unchanged" assertion).
+    const branch = git(["-c", "core.autocrlf=false", "checkout", "-B", state.scratchBranch, state.baselineCommit]);
     if (branch.status !== 0) return { ok: false, detail: `scratch branch creation failed: ${branch.stderr.trim()}` };
     const after = porcelain(ROOT);
     if (after.length > 0) return { ok: false, detail: `workspace not clean after branch creation: ${after.join(",")}` };
