@@ -33,92 +33,116 @@ jobs:
       # documented exit code, failing two tests on every run.
       - run: pnpm run build
       - run: pnpm test
+      # checkpoint-2 §5.2/§5.3/§10.1: the authoritative Prestart run starts here. It
+      # fixes the exact commit, refuses a dirty working tree in certification mode and
+      # archives the previous run's transient evidence, so no stale report can join
+      # this certification.
+      - run: pnpm run acceptance:session:start -- --certify --clean
       # checkpoint-1 §4.1/§4.2: the WorkBook production acceptance is its own
       # gate — it re-runs the WB-01..WB-10 suite AND verifies the machine
       # readable report it produced, so a scenario that silently degrades to
       # NOT_RUN cannot pass as green.
       - run: pnpm run acceptance:workbook
+      # checkpoint-2 §5.5/§10.3: every gate's report is strictly validated and bound
+      # to its SHA-256, this session and this commit. A failed attestation fails CI
+      # immediately, before Graduation is even reachable.
+      - run: pnpm run acceptance:attest -- acceptance-workbook
       # checkpoint-1 §5: the Knowledge Foundation gate. It drives two real
       # WorkBook dispatches in one project and proves the second task reuses the
       # first task's architecture/test/UI/constraint/decision knowledge with the
       # project directory deleted, i.e. with no rescan possible.
       - run: pnpm run acceptance:knowledge
+      - run: pnpm run acceptance:attest -- acceptance-knowledge
       # checkpoint-1 §6/§9: the architecture and UI surface discovery gate. It
       # builds the Repository World Model for this very repository (layout,
       # package managers, CI, languages, entry points, dependency graph, impact
       # analysis, capability verdicts) and the UI surface registry with
       # evidence-backed bindings.
       - run: pnpm run acceptance:architecture
+      - run: pnpm run acceptance:attest -- acceptance-architecture
       # checkpoint-1 §25: the theme engine gate (TH-01..TH-15). TH-04/05/06 —
       # prompt-driven generation and the preview sandbox — are explicit NOT_RUN
       # until CP5; every other item must pass.
       - run: pnpm run acceptance:theme
+      - run: pnpm run acceptance:attest -- acceptance-theme
       # checkpoint-1 §28: the requirements graph gate. It compiles the graph
       # inside the real WorkBook dispatch (types, explained dependency edges,
       # quarantined conflicting requirements) and checks the §28.4 acceptance
       # binding, including the fail-closed rule that a claim is not evidence.
       - run: pnpm run acceptance:requirements
+      - run: pnpm run acceptance:attest -- acceptance-requirements
       # checkpoint-1 §29: the execution planner gate. The DAG is built inside the
       # real dispatch and every node must carry objective/requirements/inputs/
       # scope/allowed files/outputs/verification/dependencies/rollback, with
       # concurrency derived from the host's observed resources.
       - run: pnpm run acceptance:plan
+      - run: pnpm run acceptance:attest -- acceptance-plan
       # checkpoint-1 §30/§31: the verification engine gate (V-01..V-10). It drives
       # the real host engine against a real git fixture — scope-bounded atomic
       # change units, §30.2 git/hash/existence verification of a worker's claim,
       # the §31.1 ladder with real tsc and real node --test, and the durable §31.3
       # Evidence Ledger.
       - run: pnpm run acceptance:verify
+      - run: pnpm run acceptance:attest -- acceptance-verify
       # checkpoint-1 §30/§32: the implementation loop + multi-layer review gate
       # (C-01..C-11). It drives the real loop — bounded worker, host verification,
       # §32 review over real artifacts (secret scan, ledger, generated-file
       # classification), HIGH/MEDIUM back to repair — and refuses COMPLETED unless
       # every required review dimension was actually reviewed.
       - run: pnpm run acceptance:review
+      - run: pnpm run acceptance:attest -- acceptance-review
       # checkpoint-1 §33: the self-healing gate (RC-01..RC-10). Failures the host
       # really produced (a tsc diagnostic, a missing module, a failing node --test,
       # the §7.3 mutation refusal, a theme validation report) are classified, the
       # recovery order is walked with budgets, and every HNS fallback must leave a
       # durable CapabilityGap.
       - run: pnpm run acceptance:self-healing
+      - run: pnpm run acceptance:attest -- acceptance-self-healing
       # checkpoint-1 §34: the capability-gap gate (CG-01..CG-10). A real §33.3
       # backlog is aggregated by capability, the improvement chain is walked with
       # real machinery (the §30 loop, a real regression climb, the §5.3 gate, a
       # real capability probe), and a gap closes only when the probe moved.
       - run: pnpm run acceptance:capability-gap
+      - run: pnpm run acceptance:attest -- acceptance-capability-gap
       # checkpoint-1 §35/§36: the candidate + Guardian gate (GD-01..GD-10). The
       # §35 lifecycle is walked (RUNNING → … → CANDIDATE → ACCEPTED, and a jump is
       # refused), then the §36 checklist decides release over real artifacts: the
       # §31.3 ledger, the §32 coverage, the real secret scanner, git's deletions,
       # the contract's overrides and real theme packages.
       - run: pnpm run acceptance:candidate
+      - run: pnpm run acceptance:attest -- acceptance-candidate
       # checkpoint-1 §37/§38: the version-impact + Git-checkpoint gate (VC-01..VC-08).
       # The host decides NONE/PATCH/MINOR/MAJOR from real source inspection, refuses
       # a worker's conflicting claim, records a real checkpoint (HEAD/branch/diff/
       # task/candidate/evidence), refuses a remote write without one, and rolls back
       # for real — with the Owner's approval required before discarding commits.
       - run: pnpm run acceptance:version-checkpoint
+      - run: pnpm run acceptance:attest -- acceptance-version-checkpoint
       # checkpoint-1 §39/§40: the publishing gate (PB-01..PB-10). The branch policy,
       # the commit trailers and the PR sections are enforced, and the release is
       # exercised for real: a real bare remote receives the pushed branch, and the
       # real GitHubGateway (with a recording transport and a locally generated App
       # key) shows the exact REST calls — no network, no stored credential.
       - run: pnpm run acceptance:publish
+      - run: pnpm run acceptance:attest -- acceptance-publish
       # checkpoint-1 §41: the CI repair-loop gate (CR-01..CR-08). A real failing
       # tsc/node --test log is parsed, classified in §33's vocabulary, repaired
       # through the §30 loop, verified locally, pushed with the §39/§40 runner and
       # re-read — bounded, never claiming PASS without a green CI read.
       - run: pnpm run acceptance:ci-repair
+      - run: pnpm run acceptance:attest -- acceptance-ci-repair
       # checkpoint-1 §42–§45 + §51/§52: the final-acceptance gate (FS-01..FS-08).
       # The §42 checklist is evaluated over the artifacts the earlier checkpoints
       # wrote, a missing artifact is NOT_VERIFIED (never a pass), §44/§45 decide what
       # may block, and the §51/§52 catalogues point at gates that really run.
       - run: pnpm run acceptance:final
+      - run: pnpm run acceptance:attest -- acceptance-final
       # checkpoint-1 §53: the soak gate (SK-01..SK-06). Rounds really clone from a
       # bare remote, bootstrap, change, roll back, name a policy branch, read their
       # own ledger and complete; the six §53 metrics are absolutes, a repeated
       # identical failure stops the soak, and §51's eighteen scenarios are ordered.
       - run: pnpm run acceptance:soak
+      - run: pnpm run acceptance:attest -- acceptance-soak
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
@@ -132,8 +156,29 @@ jobs:
       # state is verified afterwards, so UI → IPC → main → WorkBook production
       # path is exercised in CI, not only by direct function calls.
       - run: pnpm run acceptance:desktop-workbook
-      # checkpoint-1 §57/§58: the Bootstrap Completion audit, last in the chain so
-      # every report it reads has just been produced. It requires all seventeen gate
-      # audits to pass, the desktop black box to pass, all thirteen critical
-      # capabilities to be established and no Owner intervention to have been needed.
+      # checkpoint-2 §6.3: the real application must satisfy its complete versioned
+      # claim contract — exactly 89 stable claim ids, every one PASS. A 1/89 or 88/89
+      # report (or one modified after attestation) fails here.
+      - run: pnpm run acceptance:attest -- acceptance-desktop-workbook
+      # checkpoint-1 §57/§58 + checkpoint-2 §8: the trusted root audit. It reads the
+      # session, the sixteen attested gate reports, the desktop black box under its
+      # contract and the Owner intervention ledger, derives the thirteen capabilities
+      # from trusted evidence only and seals the decision with a root hash.
       - run: pnpm run acceptance:bootstrap-completion
+      # checkpoint-2 §5.6/§6.5/§7.6/§8.7/§9: the suites that harden the trust boundary
+      # itself. They are re-run here, after the session started, so their evidence is
+      # attested against this run rather than against the `pnpm test` phase.
+      - run: pnpm run acceptance:evidence-integrity
+      - run: pnpm run acceptance:attest -- acceptance-evidence-integrity
+      - run: pnpm run acceptance:desktop-contract
+      - run: pnpm run acceptance:attest -- acceptance-desktop-contract
+      - run: pnpm run acceptance:owner-ledger
+      - run: pnpm run acceptance:attest -- acceptance-owner-ledger
+      - run: pnpm run acceptance:root-hardening
+      - run: pnpm run acceptance:attest -- acceptance-root-hardening
+      - run: pnpm run acceptance:adversarial
+      - run: pnpm run acceptance:attest -- acceptance-adversarial
+      # checkpoint-2 §10.4/§12: the single authoritative graduation command. It prints
+      # PRESTART_CERTIFIED / BOOTSTRAP_COMPLETE only if every condition of §12 holds,
+      # and writes artifacts/acceptance/prestart-attestation.json (+ .md).
+      - run: pnpm run acceptance:prestart
