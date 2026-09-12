@@ -126,6 +126,11 @@ export interface WorkBookDispatchRecord {
   primary_document_id?: string;
   conflicts: WorkBookConflictSummary[];
   contract?: CompiledTaskContract;
+  /**
+   * checkpoint-1 §28: the compiled contract expressed as a requirement graph
+   * (types, dependency edges, states and the evidence each requirement needs).
+   */
+  requirements?: import("./requirements-graph").RequirementsGraph;
   discovery?: DiscoverySummary;
   /** Trustworthy refusal/failure text; never a stack trace. */
   blocked_reason?: string;

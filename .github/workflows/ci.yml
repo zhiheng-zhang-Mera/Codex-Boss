@@ -53,6 +53,11 @@ jobs:
       # prompt-driven generation and the preview sandbox — are explicit NOT_RUN
       # until CP5; every other item must pass.
       - run: pnpm run acceptance:theme
+      # checkpoint-1 §28: the requirements graph gate. It compiles the graph
+      # inside the real WorkBook dispatch (types, explained dependency edges,
+      # quarantined conflicting requirements) and checks the §28.4 acceptance
+      # binding, including the fail-closed rule that a claim is not evidence.
+      - run: pnpm run acceptance:requirements
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

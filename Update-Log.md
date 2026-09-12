@@ -314,4 +314,14 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - **验收**：`pnpm run acceptance:theme` 现为 **21 项全 PASS、0 FAIL、0 NOT_RUN**：TH-04（提示词→完整可解释包→安装激活）、TH-05（预览不注册不动活动主题、取消即弃、预览与活动主题不同）、TH-06（后续消息修订并继承未提及轴、修订计数递增且持久）+ T-GEN（确定性：同意图同包哈希 / 完整性 / 逐条解释 / override 受约束）、T-BOUNDARY（4 类布局/行为请求全部升级且不产出包）、T-CAPTURE（脱敏进出、真实 PNG + 带哈希索引、关闭面板如实 skipped）、T-VISUAL（健康通过、不可读/塌陷/溢出按规则失败）、T-KNOWLEDGE（intent/反馈/校验入知识，图像不入）。桌面黑盒第二阶段在**重启后的真实应用**中跑通全链（提示词→草稿→预览层（活动主题不动）→自然语言修订→视觉检查→接受并激活→恢复默认），**89/89 claims**。
 - 诚实边界（写入 `docs/checkpoint-5-theme-generator-preview.md`）：意图解析是词面而非语义（超出词表即诚实报“无可用风格信号”）；生成器是从活动主题做确定性推导，取证图像只作设计证据、无视觉模型读取；无观测绑定的表面会被生成器跳过；视觉检查基于浏览器计算布局而非像素；取证脱敏是视觉层而非取证级；解析失败尚未接入 CP11 的能力缺口闭环。
 
+### Phase 3（§28）— Requirements Graph（CP6）
+
+- **§28.1 需求类型与来源**（`src/shared/requirements-graph.ts`，纯）：把已编译 Task Contract 变成 `RequirementNode`，每个节点都带契约已建立的 provenance（文档/小节/标题/声明类型/条目序号）+ authority + 是否可被用户覆盖。类型映射表：GOAL→GOAL、SCOPE→FUNCTIONAL、CONSTRAINTS/PERMISSIONS→CONSTRAINT、INPUTS/DEPENDENCIES→DEPENDENCY、DELIVERABLES→DELIVERABLE、ACCEPTANCE_CRITERIA→ACCEPTANCE、RISK→PROHIBITION、EXECUTION_STRATEGY→NON_FUNCTIONAL；再按文本细化：标注可选（`(optional)`/`可选`）→OPTIONAL，含禁止语气（must not/不得/不要）→PROHIBITION（因此“must not slow checkout”这类约束条目会被判为禁止项），外观类条目（UI/主题/配色/字体/对比度/CSS/截屏/preview…）→VISUAL，且所有视觉节点都带 `visual: true`，使 §28.4 的视觉分支对视觉验收项同样生效。
+- **§28.2 依赖边**：每条边都写明理由——非目标/非验收项服务目标（DERIVES）、交付物依赖声明输入（DEPENDS_ON）、验收项按词面相似度（≥0.25）验证对应交付物（VERIFIES，无匹配则验证全部交付物并如实写明）、视觉验收项额外验证外观项、条目文本里点名其它需求 id（FR-1/AC-2）时建立 DEPENDS_ON。`depends_on`/`blocks` 双向一致，环检测作为**诊断**上报而非崩溃，并提供依赖优先排序与“依赖已满足”的 ready 集合。
+- **§28.3 状态机**：九态（UNSTARTED/READY/RUNNING/BLOCKED/QUARANTINED/IMPLEMENTED/VERIFIED/FAILED/SUPERSEDED）与合法迁移表；非法跳转被拒绝并回显允许集合；SUPERSEDED 终态；VERIFIED 因回归可重开为 RUNNING；不允许直接跳到 VERIFIED。位于**冲突小节**内的需求直接以 `QUARANTINED` 起始（复用契约级 `isolateRequirements` 结果），只阻塞该需求并保留隔离理由。
+- **§28.4 验收绑定**：`RequirementEvidence`（IMPLEMENTATION/TEST/REVIEW/PREVIEW/SCREENSHOT/VISUAL_VERIFICATION/COMMAND × PASS/FAIL/MISSING/NOT_RUN + source/detail/时间/命令/产物/哈希）→ 各类型所需证据（ACCEPTANCE：实现+测试+审查；VISUAL：实现+预览+截图+视觉核验；DELIVERABLE/FUNCTIONAL：实现+测试；其余：实现）；缺失、NOT_RUN 或 FAIL 一律保持未验证，只有实现证据可推进到 IMPLEMENTED，`VERIFIED` 要求每种所需证据都 PASS；隔离/被取代需求只上报、永不验证；报告含 bindings/visual/totals/未验证清单。
+- **生产接线**：`workbook-dispatch.ts` 在编译契约后立即构建需求图并写入持久 WorkBook 记录（`task.workbookDispatch.requirements`），后续阶段（规划、worker 验证、审查、Guardian）都可以引用需求 id 而非散文。
+- **验收**：`pnpm run acceptance:requirements`（亦为 CI 门禁）用**真实 runWorkDispatch**（真摄取 + 冲突双 spec 工作书 + 主题工作书）跑 R-01..R-08 全 PASS（54 项观测）：R-01 持久记录带类型与完整 provenance；R-02 每条边有理由、无环、可拓扑排序、双向一致；R-03 冲突需求 QUARANTINED 且其余可执行；R-04 状态机拒绝非法跳转；R-05 验收项需实现+测试+审查；R-06 视觉需求走视觉分支；R-07 **声称不等于证据**（无证据零验证、测试 FAIL 保持未验证、完整证据下仅隔离项仍开放）；R-08 报告版本化、机器可读且逐条自解释。
+- 诚实边界（写入 `docs/checkpoint-6-requirements-graph.md`）：需求尚未绑定到实现它的*文件*（属 CP7 执行 DAG 与 CP8 证据账本）；非声明式边为词面启发式（相似度阈值与理由都可见）；VISUAL 判定基于关键词；证据目前由验收 harness 产生而非流水线自动产生（CP8/CP9 接线）；BLOCKED/FAILED 已可达但尚无恢复阶梯驱动（CP10）。
+
 

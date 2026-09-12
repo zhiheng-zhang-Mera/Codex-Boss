@@ -16,7 +16,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { detectAnalysisOnly, type CanonicalTaskDocument, type WorkBookVerdict } from "../../src/shared/workbook";
-import { compileTaskContract, type CompiledTaskContract } from "../../src/shared/task-contract";
+import { compileTaskContract, type CompiledTaskContract, isolateRequirements } from "../../src/shared/task-contract";
+import { buildRequirementsGraph } from "../../src/shared/requirements-graph";
 import { changeAllowed } from "../../src/shared/guardian";
 import {
   AUTO_RUN_CLASSIFICATIONS,
@@ -515,6 +516,21 @@ export async function runWorkBookDispatch(
     title,
     scoped
   );
+  // checkpoint-1 §28: the contract becomes a requirements graph, so every later
+  // stage can bind evidence to a requirement instead of to prose. Requirements
+  // inside conflicting sections start QUARANTINED (§28.3) rather than being
+  // silently dropped or silently executable.
+  const isolation = isolateRequirements(contract, documents, roleAssignment.diagnostics);
+  const requirements = buildRequirementsGraph({
+    contract,
+    quarantined: isolation.quarantined,
+    untraceable: isolation.untraceable,
+    now: now().toISOString()
+  });
+  for (const entry of isolation.quarantined) {
+    const match = requirements.nodes.find((node) => node.text === entry.item);
+    if (match && match.state !== "QUARANTINED") { match.state = "QUARANTINED"; match.state_reason = entry.reason; }
+  }
 
   const primaryDocument = documents.find((document) => document.id === roleAssignment.primary_document_id)
     ?? readable[0]
@@ -538,6 +554,7 @@ export async function runWorkBookDispatch(
         roles: roleAssignment.winners,
         conflicts: roleAssignment.diagnostics,
         contract,
+        requirements,
         blocked_reason: `${refusal.code}: ${refusal.reason}`,
         ...(primaryDocument ? { workbook_hash: primaryDocument.hash } : {})
       }),
@@ -577,6 +594,7 @@ export async function runWorkBookDispatch(
       roles: roleAssignment.winners,
       conflicts: roleAssignment.diagnostics,
       contract,
+      requirements,
       discovery
     }),
     title,
