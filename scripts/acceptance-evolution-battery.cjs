@@ -1328,12 +1328,17 @@ function setupWorkspace(runner) {
     ) {
       return { ok: false, detail: "CATALOG_BASELINE_MISMATCH: the committed trial surface/test differ from the frozen catalog baseline" };
     }
-    // A trust trial must not rewrite the bytes of the workspace it runs in. On a host
-    // with `core.autocrlf=true` a plain `checkout -B` converts every LF blob to CRLF in
-    // the working tree, which changes the content of files this trial never declared
-    // (and silently breaks the "root trust files unchanged" assertion).
-    const branch = git(["-c", "core.autocrlf=false", "checkout", "-B", state.scratchBranch, state.baselineCommit]);
+    // A trust trial must not rewrite the bytes of the workspace it runs in. `git
+    // checkout` does rewrite them: with `core.autocrlf=true` (this host, and the
+    // Windows runner) it converts LF blobs to CRLF, and forcing autocrlf=false
+    // converts them back — either way files the trial never declared change content
+    // while git still reports a clean tree, which is exactly what BT-04 measures.
+    // Creating the branch ref and re-pointing HEAD touches no file at all, and the
+    // teardown already restores HEAD the same way.
+    const branch = git(["branch", "-f", state.scratchBranch, state.baselineCommit]);
     if (branch.status !== 0) return { ok: false, detail: `scratch branch creation failed: ${branch.stderr.trim()}` };
+    const head = git(["symbolic-ref", "HEAD", `refs/heads/${state.scratchBranch}`]);
+    if (head.status !== 0) return { ok: false, detail: `scratch branch switch failed: ${head.stderr.trim()}` };
     const after = porcelain(ROOT);
     if (after.length > 0) return { ok: false, detail: `workspace not clean after branch creation: ${after.join(",")}` };
     state.workspace = ROOT;
