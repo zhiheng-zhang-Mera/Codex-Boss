@@ -92,6 +92,12 @@ jobs:
       # §31.3 ledger, the §32 coverage, the real secret scanner, git's deletions,
       # the contract's overrides and real theme packages.
       - run: pnpm run acceptance:candidate
+      # checkpoint-1 §37/§38: the version-impact + Git-checkpoint gate (VC-01..VC-08).
+      # The host decides NONE/PATCH/MINOR/MAJOR from real source inspection, refuses
+      # a worker's conflicting claim, records a real checkpoint (HEAD/branch/diff/
+      # task/candidate/evidence), refuses a remote write without one, and rolls back
+      # for real — with the Owner's approval required before discarding commits.
+      - run: pnpm run acceptance:version-checkpoint
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
