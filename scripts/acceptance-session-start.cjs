@@ -22,15 +22,25 @@ if (!fs.existsSync(built)) {
   console.error(`[prestart-session] the built session module is missing (run \`pnpm run build\` first): ${built}`);
   process.exit(1);
 }
+const ledgerBuilt = path.join(root, "dist-electron", "electron", "engineering", "owner-intervention-ledger.js");
+if (!fs.existsSync(ledgerBuilt)) {
+  console.error(`[prestart-session] the built ledger module is missing (run \`pnpm run build\` first): ${ledgerBuilt}`);
+  process.exit(1);
+}
 const { startAcceptanceSession } = require(built);
+const { initializeOwnerLedger, OWNER_LEDGER_FILE } = require(ledgerBuilt);
 const outcome = startAcceptanceSession({ root, certify, clean });
 if (!outcome.ok) {
   console.error(`[prestart-session] ${outcome.reason}`);
   console.error("[prestart-session] no acceptance session was created; the run cannot be certified");
   process.exit(1);
 }
+// checkpoint-2 §7.1: the run's Owner intervention ledger starts empty and bound to
+// this session, so "0 interventions" is an empty ledger rather than a missing file.
+const ledger = initializeOwnerLedger(outcome.session, outcome.artifacts);
 console.log(`[prestart-session] session: ${outcome.session.session_id}`);
 console.log(`[prestart-session] commit:  ${outcome.session.commit_sha}`);
 console.log(`[prestart-session] mode:    ${outcome.session.certification_mode ? "CERTIFICATION" : "DEVELOPMENT"} (working tree ${outcome.session.working_tree_clean ? "clean" : "dirty"})`);
+console.log(`[prestart-session] ledger:  ${OWNER_LEDGER_FILE} (${ledger.events.length} events, ${ledger.ledger_hash.slice(0, 16)}…)`);
 if (outcome.history) console.log(`[prestart-session] previous evidence archived to history/${outcome.history.label}/ (${outcome.history.moved.length} entr${outcome.history.moved.length === 1 ? "y" : "ies"})`);
 console.log(`[prestart-session] manifest: ${path.relative(root, outcome.sessionPath)}`);
