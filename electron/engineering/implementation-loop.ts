@@ -70,6 +70,15 @@ export interface IterationRecord {
     total: number;
     refused: string[];
   };
+  /** §33: how this iteration's failure was classified, and what recovery is due. */
+  recovery?: {
+    failure_class: string;
+    severity: string;
+    reason: string;
+    next_step?: string;
+    hard_blocker: boolean;
+    requires_owner?: string;
+  };
   coverage_not_run: string[];
   label: ReviewReport["label"];
   reason: string;
@@ -92,6 +101,24 @@ export interface LoopInput {
   }) => ReviewOutcome;
   /** The §32 plan, so a review layer can be told exactly what to answer. */
   reviewPlan?: (requirements: readonly VerifiableRequirement[]) => { probes: string[]; dimensions: readonly unknown[] };
+  /**
+   * §33: the repair stage asks for a failure classification and the recovery step
+   * that is due. Absent means no classification was made, which the record shows
+   * as such rather than inventing one.
+   */
+  recover?: (input: {
+    iteration: number;
+    gateFailures: { gate: VerificationGate; detail?: string; exit_code?: number }[];
+    findings: ReviewFinding[];
+    changedFiles: string[];
+  }) => {
+    failure_class: string;
+    severity: string;
+    reason: string;
+    next_step?: string;
+    hard_blocker: boolean;
+    requires_owner?: { kind: string; reason: string };
+  } | undefined;
   /** Records supplied by another review layer (e.g. a model reviewer). */
   reviewerRecords?: (context: { iteration: number; changedFiles: string[]; findings: ReviewFinding[]; probes: string[]; dimensions: string[] }) => ReviewRecord[];
   reviewerFindings?: (context: { iteration: number; changedFiles: string[] }) => ReviewFinding[];
@@ -155,7 +182,7 @@ export async function runImplementationLoop(input: LoopInput): Promise<LoopOutco
     let claims: { confirmed: number; refused: number; problems: string[] } = { confirmed: 0, refused: 0, problems: [] };
     let claimVerdicts: ClaimVerdict[] = [];
     if (applied.applied && proposal.claims?.length) {
-      const verification = input.engine.verifyClaims(proposal.claims);
+      const verification = input.engine.verifyClaims(proposal.claims, applied.changes);
       claimVerdicts = verification.verdicts;
       claims = {
         confirmed: claimVerdicts.filter((verdict) => verdict.ok).length,
@@ -164,7 +191,7 @@ export async function runImplementationLoop(input: LoopInput): Promise<LoopOutco
       };
     } else if (applied.applied) {
       // No explicit claim: the applied unit itself is the claim, verified by git.
-      const verification = input.engine.verifyClaims(changedFiles.map((file) => ({ path: file })));
+      const verification = input.engine.verifyClaims(changedFiles.map((file) => ({ path: file })), applied.changes);
       claimVerdicts = verification.verdicts;
       claims = {
         confirmed: claimVerdicts.filter((verdict) => verdict.ok).length,
@@ -175,6 +202,7 @@ export async function runImplementationLoop(input: LoopInput): Promise<LoopOutco
 
     // §31.1: climb the ladder for every requirement this node serves.
     const gates: { gate: VerificationGate; result: GateOutcome }[] = [];
+    const gateRuns: GateRun[] = [];
     const ladders: IterationRecord["ladders"] = [];
     for (const requirement of input.requirements) {
       const selection = input.engine.selectFor(requirement);
@@ -182,7 +210,7 @@ export async function runImplementationLoop(input: LoopInput): Promise<LoopOutco
       const record: IterationRecord["ladders"][number] = { requirement_id: requirement.id, outcome: run.outcome.outcome };
       if (run.outcome.failed_at) record.failed_at = run.outcome.failed_at;
       ladders.push(record);
-      for (const gateRun of run.outcome.ran as GateRun[]) gates.push({ gate: gateRun.gate, result: gateRun.result });
+      for (const gateRun of run.outcome.ran) { gates.push({ gate: gateRun.gate, result: gateRun.result }); gateRuns.push(gateRun); }
     }
 
     // §32: review the real artifacts of this iteration.
@@ -201,6 +229,24 @@ export async function runImplementationLoop(input: LoopInput): Promise<LoopOutco
     const routed = routeFindings(reviewOutcome.findings);
     blocking = routed.repair;
 
+    // §33: classify this iteration's failure and record the recovery that is due.
+    const gateFailures = gateRuns
+      .filter((run) => run.result === "FAIL")
+      .map((run) => ({ gate: run.gate, ...(run.detail ? { detail: run.detail } : {}), ...(run.exit_code !== undefined ? { exit_code: run.exit_code } : {}) }));
+    const recovery = input.recover && (gateFailures.length || routed.repair.length)
+      ? input.recover({ iteration, gateFailures, findings: routed.repair, changedFiles })
+      : undefined;
+    const recoveryRecord: IterationRecord["recovery"] = recovery
+      ? {
+          failure_class: recovery.failure_class,
+          severity: recovery.severity,
+          reason: recovery.reason,
+          ...(recovery.next_step ? { next_step: recovery.next_step } : {}),
+          hard_blocker: recovery.hard_blocker,
+          ...(recovery.requires_owner ? { requires_owner: `${recovery.requires_owner.kind}: ${recovery.requires_owner.reason}` } : {})
+        }
+      : undefined;
+
     iterations.push({
       iteration,
       ...(proposal.note ? { worker_note: proposal.note } : {}),
@@ -217,6 +263,7 @@ export async function runImplementationLoop(input: LoopInput): Promise<LoopOutco
         total: reviewOutcome.findings.length,
         refused: routed.refused.map((entry) => entry.finding.id)
       },
+      ...(recoveryRecord ? { recovery: recoveryRecord } : {}),
       coverage_not_run: reviewOutcome.report.coverage.not_run,
       label: reviewOutcome.report.label,
       reason: reviewOutcome.report.reasons.join("; ") || reviewOutcome.report.label

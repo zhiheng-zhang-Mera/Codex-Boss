@@ -184,6 +184,18 @@ describe("checkpoint-8 §30.2/§30.3 worker claims, scope and change units", () 
     expect(verdicts).toEqual([{ path: "src/a.ts", ok: true }]);
   });
 
+  it("accepts a real change that git cannot see because it restored the committed content", () => {
+    // The unit recorded a difference; the file now matches the commit, so
+    // `git status` is clean even though the worker really did change it.
+    const verdicts = verifyChangeClaims(
+      [{ path: "src/a.ts" }],
+      [{ path: "src/a.ts", exists: true, sha256: "aaa", modified: false, changed_by_unit: true }]
+    );
+    expect(verdicts).toEqual([{ path: "src/a.ts", ok: true }]);
+    // Without the unit's own record the claim is still refused.
+    expect(verifyChangeClaims([{ path: "src/a.ts" }], [{ path: "src/a.ts", exists: true, sha256: "aaa", modified: false }])[0]?.ok).toBe(false);
+  });
+
   it("fails a change unit that leaves the granted scope", () => {
     const scope = { allowed_files: ["src/gateway.ts"] };
     const problems = changeUnitProblems({ changes: [{ path: "src/gateway.ts", content: "ok" }, { path: "src/other.ts", content: "no" }] }, scope);

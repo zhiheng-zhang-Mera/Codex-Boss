@@ -120,7 +120,7 @@ export interface VerificationEngine {
   scopeFor(node: { allowed_files: readonly string[]; requirements: readonly string[]; verification?: { commands?: readonly string[] } }): WorkerScope;
   applyChangeUnit(scope: Pick<WorkerScope, "allowed_files">, unit: ChangeUnit): ApplyResult;
   /** §30.2: what the worker actually did, checked against git and the disk. */
-  verifyClaims(claims: readonly ChangeClaim[]): ClaimVerification;
+  verifyClaims(claims: readonly ChangeClaim[], applied?: readonly AppliedChange[]): ClaimVerification;
   /** §31.2: the plan for one requirement on this host. */
   selectFor(requirement: VerifiableRequirement): GateSelection;
   /** §31.1: climbs the ladder for one selection and records every rung. */
@@ -233,14 +233,23 @@ export function createVerificationEngine(config: EngineConfig): VerificationEngi
         }
       };
     },
-    verifyClaims(claims) {
+    verifyClaims(claims, applied) {
       const status = git();
+      const appliedHashes = new Map((applied ?? []).map((change) => [change.path, change]));
       const paths = [...new Set([...claims.map((claim) => claim.path), ...status.changed])].sort();
       const observations: ChangeObservation[] = paths.map((relative) => {
         const target = absolute(relative);
         const exists = fs.existsSync(target) && fs.statSync(target).isFile();
         const observation: ChangeObservation = { path: relative, exists, modified: status.changed.includes(relative) };
-        if (exists) observation.sha256 = sha256(fs.readFileSync(target, "utf8"));
+        if (exists) {
+          const sha = sha256(fs.readFileSync(target, "utf8"));
+          observation.sha256 = sha;
+          // §30.2: the applied change unit is evidence too. A unit that restored the
+          // committed content leaves no diff against HEAD, so without this a real
+          // change would be denied by git alone.
+          const record = appliedHashes.get(relative);
+          if (record) observation.changed_by_unit = record.before_sha256 !== record.after_sha256 && sha === record.after_sha256;
+        }
         return observation;
       });
       const verdicts = status.available
@@ -371,12 +380,18 @@ export function createVerificationEngine(config: EngineConfig): VerificationEngi
   async function fromCommand(command: AllowedCommand, files: string[]): Promise<{ command: string; result: GateOutcome; extra: Partial<GateRun> }> {
     const evidence = await runAllowed(command, files);
     const argv = evidence.args.length ? [process.execPath, ...evidence.args].join(" ") : `${command} (no local tooling)`;
+    // The ledger row is the evidence a §33 classifier reads, so the detail keeps
+    // the diagnostic lines rather than a tail of timing summaries: an error-shaped
+    // line is worth more than "duration_ms 30.5".
+    const lines = evidence.output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const diagnostic = lines.filter((line) => /error|fail|not ok|assertionerror|✖|×|TS\d{4}|cannot find/i.test(line)).slice(0, 4);
+    const detail = (diagnostic.length ? diagnostic : lines.slice(-3)).join(" | ").slice(0, 600);
     return {
       command: argv,
       result: evidence.passed ? "PASS" : "FAIL",
       extra: {
         ...(evidence.exitCode !== null ? { exit_code: evidence.exitCode } : {}),
-        detail: evidence.output.trim().split(/\r?\n/).filter(Boolean).slice(-3).join(" | ").slice(0, 400) || `${command} produced no output`
+        detail: detail || `${command} produced no output`
       }
     };
   }

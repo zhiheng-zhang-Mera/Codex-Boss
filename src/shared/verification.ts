@@ -363,6 +363,12 @@ export interface ChangeObservation {
   sha256?: string;
   /** True when `git diff --name-only` reports the path as modified. */
   modified: boolean;
+  /**
+   * True when the applied change unit itself recorded a different hash before and
+   * after. A change that restores a file to its committed content leaves no diff
+   * against HEAD, so git alone would deny a modification that really happened.
+   */
+  changed_by_unit?: boolean;
 }
 
 export interface ClaimVerdict {
@@ -388,7 +394,7 @@ export function verifyChangeClaims(
     const observed = byPath.get(claim.path);
     if (!observed) return { path: claim.path, ok: false, problem: "the host never observed this path" };
     if (!observed.exists) return { path: claim.path, ok: false, problem: "the claimed file does not exist" };
-    if (options.requiresGitDiff !== false && !observed.modified) {
+    if (options.requiresGitDiff !== false && !observed.modified && !observed.changed_by_unit) {
       return { path: claim.path, ok: false, problem: "git reports the file unchanged, so the claimed modification did not happen" };
     }
     if (claim.claimed_sha256 && observed.sha256 && claim.claimed_sha256 !== observed.sha256) {

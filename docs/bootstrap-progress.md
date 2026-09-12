@@ -23,6 +23,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP7 Execution Planner | §29 | `src/shared/execution-planner.ts` | `acceptance:plan` P-01..P-06 | `34676609713`, `34677536907` |
 | CP8 Verification Engine (host side of §30 + §31) | §30, §31 | `src/shared/verification.ts`, `electron/engineering/verification-engine.ts`, ladder extension in `execution-planner.ts`/`evidence-ledger.ts` | `acceptance:verify` V-01..V-10 (82 observations) | `34678305310` |
 | CP9 Implementation Loop + Multi-Layer Review | §30, §32 | `src/shared/review.ts`, `review-checks.ts`, `electron/engineering/{review-engine,implementation-loop}.ts` | `acceptance:review` C-01..C-11 (62 observations) | `34680401037` |
+| CP10 Self-Healing / Recovery | §33 | `src/shared/recovery.ts`, `electron/engineering/recovery-engine.ts`, loop repair stage | `acceptance:self-healing` RC-01..RC-10 (64 observations) | _pending in this push_ |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -31,17 +32,21 @@ Local evidence for CP9: the whole 20-step chain is green (129 test files /
 1292 tests, `acceptance:review` C-01..C-11 PASS with 62 observations, desktop
 black box 89/89 claims).
 
+Local evidence for CP10: the 21-step chain is green (`acceptance:self-healing`
+RC-01..RC-10 PASS with 64 observations; the failures it classifies are produced by
+real `tsc`, real `node --test`, a real missing module, the real §7.3 mutation
+refusal and a real theme validation report).
+
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
 path still runs the older `verifyAndRepair` seam unchanged. Wiring the loop into
 the live path (with its iterations recorded on the durable task) is deliberately
 left to a later checkpoint rather than half-done.
 
-**In flight — CP10 next**: §33 failure classification (TRANSIENT…THEME/UI/UNKNOWN),
-the recovery ladder (native retry → local recovery → alternate internal path →
-alternate provider → degraded mode → HNS fallback → Hard Blocker) and HNS
-positioned as fallback/diagnostic/external executor, with the loop's repair step
-consuming it.
+**In flight — CP11 next**: §34's capability-gap loop (CapabilityGap → Improvement
+Task → Implementation → Regression Test → Knowledge Update → Capability
+Registry), which consumes the CP10 gap records and their frequency/severity
+inputs.
 
 Per-checkpoint records: `docs/checkpoint-2-knowledge-foundation.md`,
 `checkpoint-3-architecture-ui-discovery.md`,
@@ -60,6 +65,7 @@ workbook attach (UI drop / IPC)
   → Execution DAG (allowed files, gates, rollback)       §29
   → implementation loop (worker → verify → review → repair, §30/§32)
   → verification engine (ladder + §31.3 ledger)          §30/§31 (host modules)
+  → recovery classification + ladder + CapabilityGap     §33/§33.3
   → provider dispatch boundary                           (bounded/offline in acceptance)
   → knowledge write gate (host-derived facts only)       §5
 ```
@@ -67,7 +73,8 @@ workbook attach (UI drop / IPC)
 Recorded durably on each task: `workbookDispatch.{documents,contract,
 requirements,execution_plan,discovery{repository_model,world_model,ui_surfaces}}`.
 Verification runs additionally persist their §31.3 Evidence Ledger at
-`<workspace>/artifacts/acceptance/verification-ledger.json` (write-through).
+`<workspace>/artifacts/acceptance/verification-ledger.json` (write-through), and
+§33.3 capability gaps at `<workspace>/artifacts/acceptance/capability-gaps.json`.
 Theme engine, UI surface registry, knowledge base, world model store and theme
 preview all persist under `<userData>/.boss/`.
 
@@ -76,9 +83,9 @@ preview all persist under `<userData>/.boss/`.
 `install → install:electron → typecheck → security:scan → build → test →
 acceptance:workbook → acceptance:knowledge → acceptance:architecture →
 acceptance:theme → acceptance:requirements → acceptance:plan →
-acceptance:verify → acceptance:review → acceptance:github-machine → benchmark →
-package:portable → portable smoke → restart acceptance →
-acceptance:desktop-workbook`
+acceptance:verify → acceptance:review → acceptance:self-healing →
+acceptance:github-machine → benchmark → package:portable → portable smoke →
+restart acceptance → acceptance:desktop-workbook`
 
 Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`.
 
@@ -88,6 +95,7 @@ Local equivalent (same order, prints exit codes): `scripts/phase0-validation-cha
 | --- | --- | --- |
 | CP8 | §30, §31 | **delivered**: bounded worker scope + atomic change units + rollback + real file verification (git/hash/existence/syntax/typecheck/targeted tests), Verification Ladder (11 rungs), requirement-aware gates, durable Evidence Ledger |
 | CP9 | §32 | **delivered**: three review layers + §32.1 dimensions (and the four theme ones) + all twelve §32.2 adversarial probes + §32.3 routing (HIGH/MEDIUM → repair) + the §30 implementation loop (Plan → Worker → Host Verification → Review → Repair → Reverify) driving the CP8 engine, with the §2.3 completion gate |
+| CP10 | §33 | **delivered**: 13-class failure classification from real evidence, the §33.2 recovery order with per-step budgets and reasons (theme ladder included), Owner hand-off for AUTH/WORKSPACE, and §33.3's HNS rules with the mandatory durable CapabilityGap |
 | CP10 | §33 | failure classification (TRANSIENT…THEME/UI/UNKNOWN) + recovery ladder + HNS positioning as fallback that emits CapabilityGap |
 | CP11 | §34 | CapabilityGap → improvement task → regression test → knowledge update → capability registry |
 | CP12 | §35, §36 | Candidate state + Guardian final gate (+ knowledge write gate re-check) |

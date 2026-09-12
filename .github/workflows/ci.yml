@@ -75,6 +75,12 @@ jobs:
       # classification), HIGH/MEDIUM back to repair — and refuses COMPLETED unless
       # every required review dimension was actually reviewed.
       - run: pnpm run acceptance:review
+      # checkpoint-1 §33: the self-healing gate (RC-01..RC-10). Failures the host
+      # really produced (a tsc diagnostic, a missing module, a failing node --test,
+      # the §7.3 mutation refusal, a theme validation report) are classified, the
+      # recovery order is walked with budgets, and every HNS fallback must leave a
+      # durable CapabilityGap.
+      - run: pnpm run acceptance:self-healing
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
