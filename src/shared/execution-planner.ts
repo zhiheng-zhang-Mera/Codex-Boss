@@ -22,14 +22,22 @@ export const EXECUTION_PLAN_VERSION = "execution-plan-1" as const;
  * §29.1 nodes
  * ------------------------------------------------------------------ */
 
+/**
+ * §31.1 rungs, cheapest first. `BENCHMARK` and `BLACKBOX` were added by
+ * checkpoint-8's verification engine so the ladder in the plan is expressible
+ * without faking it: a benchmark is a measured command, and the desktop
+ * black-box smoke is the real-app runtime gate.
+ */
 export const VERIFICATION_GATES = [
-  "SYNTAX", "TYPECHECK", "UNIT", "MODULE", "INTEGRATION", "FULL", "BUILD", "RUNTIME", "VISUAL"
+  "SYNTAX", "TYPECHECK", "UNIT", "MODULE", "INTEGRATION", "FULL", "BUILD",
+  "BENCHMARK", "RUNTIME", "BLACKBOX", "VISUAL"
 ] as const;
 export type VerificationGate = (typeof VERIFICATION_GATES)[number];
 
 /** The ladder position of each gate, so "at least TYPECHECK" is expressible. */
 export const GATE_RANK: Readonly<Record<VerificationGate, number>> = {
-  SYNTAX: 1, TYPECHECK: 2, UNIT: 3, MODULE: 4, INTEGRATION: 5, FULL: 6, BUILD: 7, RUNTIME: 8, VISUAL: 9
+  SYNTAX: 1, TYPECHECK: 2, UNIT: 3, MODULE: 4, INTEGRATION: 5, FULL: 6, BUILD: 7,
+  BENCHMARK: 8, RUNTIME: 9, BLACKBOX: 10, VISUAL: 11
 };
 
 export interface VerificationPlan {

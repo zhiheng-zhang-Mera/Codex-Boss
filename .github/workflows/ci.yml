@@ -63,6 +63,12 @@ jobs:
       # scope/allowed files/outputs/verification/dependencies/rollback, with
       # concurrency derived from the host's observed resources.
       - run: pnpm run acceptance:plan
+      # checkpoint-1 §30/§31: the verification engine gate (V-01..V-10). It drives
+      # the real host engine against a real git fixture — scope-bounded atomic
+      # change units, §30.2 git/hash/existence verification of a worker's claim,
+      # the §31.1 ladder with real tsc and real node --test, and the durable §31.3
+      # Evidence Ledger.
+      - run: pnpm run acceptance:verify
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

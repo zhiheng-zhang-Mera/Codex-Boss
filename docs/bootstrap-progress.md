@@ -21,12 +21,17 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP5 Generator + Preview + Visual Verification | §14–§17, §19, §24, §26 | `src/shared/{theme-intent,theme-generation,theme-visual-check}.ts`, `electron/theme/{visual-capture,theme-knowledge}.ts`, `src/renderer/theme-measure.ts` | `acceptance:theme` (21 items, TH-04/05/06 now PASS) | `34675400615` |
 | CP6 Requirements Graph | §28 | `src/shared/requirements-graph.ts` | `acceptance:requirements` R-01..R-08 | `34676022000` |
 | CP7 Execution Planner | §29 | `src/shared/execution-planner.ts` | `acceptance:plan` P-01..P-06 | `34676609713`, `34677536907` |
+| CP8 Verification Engine (host side of §30 + §31) | §30, §31 | `src/shared/verification.ts`, `electron/engineering/verification-engine.ts`, ladder extension in `execution-planner.ts`/`evidence-ledger.ts` | `acceptance:verify` V-01..V-10 (82 observations) | _pending in this push_ |
+
+Local evidence for CP8: the whole 19-step chain is green (127 test files /
+1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
 
 Per-checkpoint records: `docs/checkpoint-2-knowledge-foundation.md`,
 `checkpoint-3-architecture-ui-discovery.md`,
 `checkpoint-4-theme-engine-foundation.md`,
 `checkpoint-5-theme-generator-preview.md`, `checkpoint-6-requirements-graph.md`,
-`checkpoint-7-execution-planner.md`. Narrative history: `Update-Log.md`.
+`checkpoint-7-execution-planner.md`, `checkpoint-8-verification-engine.md`.
+Narrative history: `Update-Log.md`.
 
 ## 2. What the pipeline does today (end to end, verified)
 
@@ -36,12 +41,15 @@ workbook attach (UI drop / IPC)
   → Task Contract                                       (+ world model + UI registry)
   → Requirements Graph (types, edges, states, binding)   §28
   → Execution DAG (allowed files, gates, rollback)       §29
+  → verification engine (ladder + §31.3 ledger)          §30/§31 (host module; consumed by CP9's loop)
   → provider dispatch boundary                           (bounded/offline in acceptance)
   → knowledge write gate (host-derived facts only)       §5
 ```
 
 Recorded durably on each task: `workbookDispatch.{documents,contract,
 requirements,execution_plan,discovery{repository_model,world_model,ui_surfaces}}`.
+Verification runs additionally persist their §31.3 Evidence Ledger at
+`<workspace>/artifacts/acceptance/verification-ledger.json` (write-through).
 Theme engine, UI surface registry, knowledge base, world model store and theme
 preview all persist under `<userData>/.boss/`.
 
@@ -50,8 +58,8 @@ preview all persist under `<userData>/.boss/`.
 `install → install:electron → typecheck → security:scan → build → test →
 acceptance:workbook → acceptance:knowledge → acceptance:architecture →
 acceptance:theme → acceptance:requirements → acceptance:plan →
-acceptance:github-machine → benchmark → package:portable → portable smoke →
-restart acceptance → acceptance:desktop-workbook`
+acceptance:verify → acceptance:github-machine → benchmark → package:portable →
+portable smoke → restart acceptance → acceptance:desktop-workbook`
 
 Local equivalent (same order, prints exit codes): `scripts/phase0-validation-chain.ps1`.
 
@@ -59,8 +67,8 @@ Local equivalent (same order, prints exit codes): `scripts/phase0-validation-cha
 
 | Checkpoint | Plan | Deliverable |
 | --- | --- | --- |
-| CP8 | §30, §31 | bounded worker + **real file verification** (git diff, existence, syntax, typecheck, targeted tests) + atomic change units; Verification Engine with the ladder (syntax→…→visual), requirement-aware gates, Evidence Ledger (`requirement/command/environment/result/artifact/timestamp/hash`) |
-| CP9 | §32 | internal + adversarial review with findings HIGH/MEDIUM/LOW/INFO; HIGH/MEDIUM return to the repair loop |
+| CP8 | §30, §31 | **delivered**: bounded worker scope + atomic change units + rollback + real file verification (git/hash/existence/syntax/typecheck/targeted tests), Verification Ladder (11 rungs), requirement-aware gates, durable Evidence Ledger. Consumed in-app by CP9 |
+| CP9 | §32 | internal + adversarial review with findings HIGH/MEDIUM/LOW/INFO; HIGH/MEDIUM return to the repair loop; the §30 implementation loop (Plan → Worker → Host Verification → Review → Repair → Reverify) drives the CP8 engine |
 | CP10 | §33 | failure classification (TRANSIENT…THEME/UI/UNKNOWN) + recovery ladder + HNS positioning as fallback that emits CapabilityGap |
 | CP11 | §34 | CapabilityGap → improvement task → regression test → knowledge update → capability registry |
 | CP12 | §35, §36 | Candidate state + Guardian final gate (+ knowledge write gate re-check) |

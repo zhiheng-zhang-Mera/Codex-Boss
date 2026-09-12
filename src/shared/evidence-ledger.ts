@@ -167,6 +167,10 @@ export function evidenceKindForGate(gate: VerificationGate): EvidenceKind[] {
   if (gate === "SYNTAX" || gate === "TYPECHECK") return ["IMPLEMENTATION"];
   if (gate === "UNIT" || gate === "MODULE" || gate === "INTEGRATION" || gate === "FULL") return ["TEST"];
   if (gate === "BUILD") return ["TEST"];
+  // checkpoint-1 §31.1: a benchmark is a measured host command, not a test, and
+  // the desktop black box is real-app runtime behaviour. Neither is a screenshot.
+  if (gate === "BENCHMARK") return ["COMMAND"];
+  if (gate === "BLACKBOX") return ["VISUAL_VERIFICATION"];
   if (gate === "RUNTIME" || gate === "VISUAL") return ["VISUAL_VERIFICATION"];
   return ["IMPLEMENTATION"];
 }
