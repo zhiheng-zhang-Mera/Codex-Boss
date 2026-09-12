@@ -22,7 +22,7 @@ import {
   requiredEvidenceKinds,
   type EvidenceKind,
   type RequirementEvidence,
-  type RequirementsGraph
+  type RequirementNode
 } from "./requirements-graph";
 
 export const EVIDENCE_LEDGER_VERSION = "evidence-ledger-1" as const;
@@ -82,6 +82,11 @@ export interface EvidenceInput {
  * Appends one observation. A second identical observation is not appended twice
  * (same command, same result, same gate, same requirements) — a retried gate that
  * still passes is one fact, not two.
+ *
+ * The repeat is not discarded, though: it refreshes the row's timestamp and
+ * measurements, because "this gate passes" is a statement about the current tree.
+ * Without the refresh a later failure would look older than the pass it replaced,
+ * and a review of the *current* state would judge a repaired tree by a stale row.
  */
 export function recordEvidence(ledger: EvidenceLedgerFile, input: EvidenceInput): { entry: EvidenceEntry; appended: boolean } {
   const hash = input.artifact_hash ?? contentHashOf([input.command, input.result, input.artifact ?? "", ...(input.requirement_ids ?? [])].join("\u0000"));
@@ -99,9 +104,16 @@ export function recordEvidence(ledger: EvidenceLedgerFile, input: EvidenceInput)
   if (input.artifact) entry.artifact = input.artifact;
   if (input.duration_ms !== undefined) entry.duration_ms = input.duration_ms;
   if (input.detail) entry.detail = input.detail;
-  const duplicate = ledger.entries.some((existing) => existing.hash === entry.hash && existing.result === entry.result);
-  if (!duplicate) ledger.entries.push(entry);
-  return { entry, appended: !duplicate };
+  const existing = ledger.entries.find((candidate) => candidate.hash === entry.hash && candidate.result === entry.result);
+  if (existing) {
+    existing.captured_at = entry.captured_at;
+    if (entry.exit_code !== undefined) existing.exit_code = entry.exit_code;
+    if (entry.duration_ms !== undefined) existing.duration_ms = entry.duration_ms;
+    if (entry.detail) existing.detail = entry.detail;
+    return { entry: existing, appended: false };
+  }
+  ledger.entries.push(entry);
+  return { entry, appended: true };
 }
 
 /** Entries for one requirement, newest last, ordered by captured_at then id. */
@@ -183,7 +195,7 @@ export function evidenceStatusFor(result: GateOutcome): "PASS" | "FAIL" | "MISSI
 /** Converts the ledger into the §28.4 evidence list for a requirements graph. */
 export function evidenceForRequirements(
   ledger: EvidenceLedgerFile,
-  graph: Pick<RequirementsGraph, "nodes">,
+  graph: { nodes: readonly unknown[] },
   options: { requirementIds?: readonly string[] } = {}
 ): RequirementEvidence[] {
   const wanted = options.requirementIds ? new Set(options.requirementIds) : undefined;
@@ -216,7 +228,7 @@ export function evidenceForRequirements(
  */
 export function outstandingEvidence(
   ledger: EvidenceLedgerFile,
-  graph: Pick<RequirementsGraph, "nodes">
+  graph: { nodes: readonly Pick<RequirementNode, "id" | "type" | "visual">[] }
 ): { requirement_id: string; missing: EvidenceKind[] }[] {
   const provided = new Map<string, Set<EvidenceKind>>();
   for (const entry of evidenceForRequirements(ledger, graph)) {

@@ -69,6 +69,12 @@ jobs:
       # the §31.1 ladder with real tsc and real node --test, and the durable §31.3
       # Evidence Ledger.
       - run: pnpm run acceptance:verify
+      # checkpoint-1 §30/§32: the implementation loop + multi-layer review gate
+      # (C-01..C-11). It drives the real loop — bounded worker, host verification,
+      # §32 review over real artifacts (secret scan, ledger, generated-file
+      # classification), HIGH/MEDIUM back to repair — and refuses COMPLETED unless
+      # every required review dimension was actually reviewed.
+      - run: pnpm run acceptance:review
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable
