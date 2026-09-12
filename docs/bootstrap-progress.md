@@ -25,7 +25,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP9 Implementation Loop + Multi-Layer Review | §30, §32 | `src/shared/review.ts`, `review-checks.ts`, `electron/engineering/{review-engine,implementation-loop}.ts` | `acceptance:review` C-01..C-11 (62 observations) | `34680401037` |
 | CP10 Self-Healing / Recovery | §33 | `src/shared/recovery.ts`, `electron/engineering/recovery-engine.ts`, loop repair stage | `acceptance:self-healing` RC-01..RC-10 (64 observations) | `34681594017` |
 | CP11 Capability Gap → Self Improvement | §34 | `src/shared/capability-gap.ts`, `electron/engineering/improvement-loop.ts` | `acceptance:capability-gap` CG-01..CG-10 (64 observations) | `34682736930` |
-| CP12 Candidate State + Guardian Gate | §35, §36 | `src/shared/candidate-gate.ts`, `electron/engineering/candidate-guardian.ts` | `acceptance:candidate` GD-01..GD-10 (52 observations) | _pending in this push_ |
+| CP12 Candidate State + Guardian Gate | §35, §36 | `src/shared/candidate-gate.ts`, `electron/engineering/candidate-guardian.ts` | `acceptance:candidate` GD-01..GD-10 (52 observations) | `34683821940` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -46,17 +46,21 @@ capability probe, and the registry records
 `receipt rounding engine MISSING -> EXISTS (GAINED)` while an unclosed gap stays
 `OPEN`).
 
+Local evidence for CP12: the 23-step chain is green (135 test files / 1380 tests,
+`acceptance:candidate` GD-01..GD-10 PASS with 52 observations; the Guardian decides
+over the real §31.3 ledger, the real secret scanner, git's deletions and real theme
+packages, and the jump `RUNNING → ACCEPTED` is refused by the lifecycle).
+
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
 path still runs the older `verifyAndRepair` seam unchanged. Wiring the loop into
 the live path (with its iterations recorded on the durable task) is deliberately
 left to a later checkpoint rather than half-done.
 
-**In flight — CP12 next**: §35 Candidate state (RUNNING → IMPLEMENTED → VERIFYING
-→ REVIEWING → CANDIDATE → ACCEPTED, themes included) and §36 the Guardian final
-gate (goal compliance, requirement coverage, secret scan, scope validation,
-evidence completeness, destructive change check, Owner override compliance, plus
-the four theme checks), with any failure returning the Candidate to repair.
+**In flight — CP13 next**: §37 version impact assessment (which artefacts/consumers
+a change touches, and what therefore needs re-verification) and §38's local Git
+checkpoint/rollback, which is also the first place the §29 rollback plans get
+exercised for real.
 
 Per-checkpoint records: `docs/checkpoint-2-knowledge-foundation.md`,
 `checkpoint-3-architecture-ui-discovery.md`,
