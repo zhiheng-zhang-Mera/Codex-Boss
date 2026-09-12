@@ -98,6 +98,12 @@ jobs:
       # task/candidate/evidence), refuses a remote write without one, and rolls back
       # for real — with the Owner's approval required before discarding commits.
       - run: pnpm run acceptance:version-checkpoint
+      # checkpoint-1 §39/§40: the publishing gate (PB-01..PB-10). The branch policy,
+      # the commit trailers and the PR sections are enforced, and the release is
+      # exercised for real: a real bare remote receives the pushed branch, and the
+      # real GitHubGateway (with a recording transport and a locally generated App
+      # key) shows the exact REST calls — no network, no stored credential.
+      - run: pnpm run acceptance:publish
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

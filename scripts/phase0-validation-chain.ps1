@@ -24,6 +24,7 @@ $steps = @(
   @{ name = "acceptance:capability-gap"; cmd = "corepack pnpm run acceptance:capability-gap" },
   @{ name = "acceptance:candidate"; cmd = "corepack pnpm run acceptance:candidate" },
   @{ name = "acceptance:version-checkpoint"; cmd = "corepack pnpm run acceptance:version-checkpoint" },
+  @{ name = "acceptance:publish"; cmd = "corepack pnpm run acceptance:publish" },
   @{ name = "acceptance:github-machine"; cmd = "corepack pnpm run acceptance:github-machine" },
   @{ name = "benchmark"; cmd = "corepack pnpm run benchmark" },
   @{ name = "package:portable"; cmd = "corepack pnpm run package:portable" },
