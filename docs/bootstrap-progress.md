@@ -31,12 +31,14 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP15 CI Repair Loop | §41 | `src/shared/ci-repair.ts`, `electron/engineering/ci-repair-loop.ts` | `acceptance:ci-repair` CR-01..CR-08 (44 observations) | `34686925547` |
 | CP16 Final Acceptance + §43–§45/§51/§52 | §42–§45, §51, §52 | `src/shared/final-acceptance.ts`, `electron/engineering/final-acceptance-gate.ts` | `acceptance:final` FS-01..FS-08 (55 observations) | `34687917864` |
 | CP17 Soak Test + §51 plan | §53, §51 | `src/shared/soak.ts`, `electron/engineering/soak-runner.ts` | `acceptance:soak` SK-01..SK-06 (26 observations) | `34688973195` |
-| CP18 Bootstrap Completion audit | §57, §58, §43 | `src/shared/bootstrap-audit.ts`, `electron/engineering/bootstrap-completion.ts`, durable desktop report | `acceptance:bootstrap-completion` BC-01..BC-06 (30 observations) + the real audit | _pending in this push_ |
+| CP18 Bootstrap Completion audit | §57, §58, §43 | `src/shared/bootstrap-audit.ts`, `electron/engineering/bootstrap-completion.ts`, durable desktop report | `acceptance:bootstrap-completion` BC-01..BC-06 (30 observations) + the real audit | `34690483100` |
 
-**BOOTSTRAP_COMPLETE (local, over this repository's own artifacts):**
+**BOOTSTRAP_COMPLETE — verified on the CI runner** (run `34690483100`, commit
+`3ca9761`, branch `Prestart-checkpoint-2`):
 `[bootstrap] real audit: BOOTSTRAP_COMPLETE — gates 16/16 passed, desktop black box
-PASS, capabilities 13/13, owner interventions 0` (record:
-`artifacts/acceptance/bootstrap-completion.json`).
+PASS, capabilities 13/13, owner interventions 0` and
+`[bootstrap] Bootstrap Completion audit PASS`. Every checkpoint from Phase 0 to CP18
+has its own gate, its own CI run and its own record in `docs/`.
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
