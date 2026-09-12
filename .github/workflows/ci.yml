@@ -182,3 +182,17 @@ jobs:
       # PRESTART_CERTIFIED / BOOTSTRAP_COMPLETE only if every condition of §12 holds,
       # and writes artifacts/acceptance/prestart-attestation.json (+ .md).
       - run: pnpm run acceptance:prestart
+      # checkpoint-2 §2.8/§11: the authority is the attestation plus this CI run, so
+      # the whole evidence set is published with the run (even when it failed).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prestart-attestation
+          path: |
+            artifacts/acceptance/prestart-attestation.json
+            artifacts/acceptance/prestart-attestation.md
+            artifacts/acceptance/bootstrap-completion.json
+            artifacts/acceptance/session.json
+            artifacts/acceptance/owner-interventions.json
+            artifacts/acceptance/attestations/
+          if-no-files-found: warn
