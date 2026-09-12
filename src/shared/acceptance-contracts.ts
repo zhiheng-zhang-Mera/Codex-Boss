@@ -53,6 +53,12 @@ export interface AcceptanceGateContract {
    * passing checks of their own, so they leave it unset.
    */
   exact_ids?: boolean;
+  /**
+   * self-evlo §47/§100: which certificate requires this suite. Prestart certifies the
+   * Prestart trust boundary (default); the autonomous-evolution certificate also
+   * requires the evolution suites, which run after Prestart in CI.
+   */
+  phase?: "prestart" | "evolution";
 }
 
 /**
@@ -249,6 +255,7 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     gate: "acceptance-evolution-identity",
     contract_version: "evolution-identity-1",
     report_file: "evolution-identity.json",
+    phase: "evolution",
     required_ids: [
       "EV-01", "EV-02", "EV-03", "EV-04", "EV-05", "EV-06", "EV-07", "EV-08",
       "EV-09", "EV-10", "EV-11", "EV-12", "EV-13", "EV-14", "EV-15", "EV-16"
@@ -260,6 +267,7 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     gate: "acceptance-evolution-trust",
     contract_version: "evolution-trust-1",
     report_file: "evolution-trust.json",
+    phase: "evolution",
     required_ids: [
       "TE-01", "TE-02", "TE-03", "TE-04", "TE-05", "TE-06", "TE-07", "TE-08",
       "TE-09", "TE-10", "TE-11", "TE-12"
@@ -271,6 +279,7 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     gate: "acceptance-evolution-independent",
     contract_version: "evolution-independent-1",
     report_file: "evolution-independent.json",
+    phase: "evolution",
     required_ids: [
       "VB-01", "VB-02", "VB-03", "VB-04", "VB-05", "VB-06", "VB-07", "VB-08",
       "VB-09", "VB-10", "VB-11", "VB-12"
@@ -282,6 +291,7 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     gate: "acceptance-evolution-adversarial",
     contract_version: "evolution-adversarial-1",
     report_file: "evolution-adversarial.json",
+    phase: "evolution",
     required_ids: [
       "AD-21", "AD-22", "AD-23", "AD-24", "AD-25", "AD-26", "AD-27", "AD-28", "AD-29", "AD-30",
       "AD-31", "AD-32", "AD-33", "AD-34", "AD-35", "AD-36", "AD-37", "AD-38", "AD-39", "AD-40",
@@ -296,6 +306,7 @@ export const ACCEPTANCE_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] 
     gate: "acceptance-evolution-trial",
     contract_version: "evolution-trial-1",
     report_file: "evolution-trial.json",
+    phase: "evolution",
     required_ids: [
       "RN-01", "RN-02", "RN-03", "RN-04", "RN-05", "RN-06", "RN-07", "RN-08", "RN-09", "RN-10",
       "RN-11", "RN-12", "RN-13", "RN-14", "RN-15", "RN-16", "RN-17", "RN-18", "RN-19", "RN-20",
@@ -314,6 +325,19 @@ export const ALL_ACCEPTANCE_CONTRACTS: readonly AcceptanceGateContract[] = [
   DESKTOP_BLACK_BOX_CONTRACT,
   ...ACCEPTANCE_SUPPORTING_CONTRACTS
 ];
+
+/**
+ * self-evlo §47: the suites the PRESTART certificate requires. The evolution suites
+ * run after Prestart in CI — they attest the trust-epoch boundary, the independent
+ * verifier and the trial battery — so they belong to the autonomous-evolution
+ * certificate instead of blocking Prestart on evidence that cannot exist yet.
+ */
+export const PRESTART_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] =
+  ACCEPTANCE_SUPPORTING_CONTRACTS.filter((contract) => (contract.phase ?? "prestart") === "prestart");
+
+/** self-evlo §47/§100: the suites the autonomous-evolution certificate requires. */
+export const EVOLUTION_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] =
+  ACCEPTANCE_SUPPORTING_CONTRACTS.filter((contract) => contract.phase === "evolution");
 
 /** §43: which gate's trusted evidence establishes which critical capability. */
 export const CAPABILITY_GATES: Readonly<Record<string, readonly string[]>> = {

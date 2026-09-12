@@ -36,6 +36,10 @@ for (const [name, file] of Object.entries(modules)) {
   }
 }
 const { ACCEPTANCE_SUPPORTING_CONTRACTS, DESKTOP_BLACK_BOX_GATE } = require(modules.contracts);
+/* self-evlo §47: Prestart certifies the Prestart trust boundary. The evolution suites
+ * (trust epoch, independent verifier, adversarial expansion, trial battery) are
+ * attested after this step in CI and are required by the evolution certificate. */
+const PRESTART_SUITES = (require(modules.contracts).PRESTART_SUPPORTING_CONTRACTS ?? ACCEPTANCE_SUPPORTING_CONTRACTS);
 const { canonicalJson, canonicalSha256, validateGateReport, verifyGateAttestation } = require(modules.evidence);
 const { createBootstrapAuditor } = require(modules.audit);
 const { inspectSession, readJsonFile } = require(modules.session);
@@ -105,7 +109,7 @@ else {
 /* ------------------------------------------------------------------ *
  * 3. the trust-boundary suites, attested exactly like the gates
  * ------------------------------------------------------------------ */
-const supporting = ACCEPTANCE_SUPPORTING_CONTRACTS.map((contract) => {
+const supporting = PRESTART_SUITES.map((contract) => {
   const reportFile = path.join(artifacts, contract.report_file);
   const attestationFile = path.join(artifacts, "attestations", `${contract.gate}.json`);
   const reportSha256 = sha256File(reportFile);
