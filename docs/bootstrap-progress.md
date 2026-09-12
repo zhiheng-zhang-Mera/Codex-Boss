@@ -27,7 +27,7 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP11 Capability Gap → Self Improvement | §34 | `src/shared/capability-gap.ts`, `electron/engineering/improvement-loop.ts` | `acceptance:capability-gap` CG-01..CG-10 (64 observations) | `34682736930` |
 | CP12 Candidate State + Guardian Gate | §35, §36 | `src/shared/candidate-gate.ts`, `electron/engineering/candidate-guardian.ts` | `acceptance:candidate` GD-01..GD-10 (52 observations) | `34683821940` |
 | CP13 Version Impact + Git Checkpoint | §37, §38 | `src/shared/{version-impact,git-checkpoint}.ts`, `electron/engineering/git-checkpoint.ts` | `acceptance:version-checkpoint` VC-01..VC-08 (50 observations) | `34684778075` |
-| CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | _pending in this push_ |
+| CP14 GitHub App Execution + PR Automation | §39, §40 | `src/shared/publish-plan.ts`, `electron/engineering/release-runner.ts` | `acceptance:publish` PB-01..PB-10 (62 observations) | `34685821961` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
@@ -58,6 +58,13 @@ Local evidence for CP13: the 24-step chain is green (137 test files / 1403 tests
 computed from `git show HEAD:<path>` against the disk, the checkpoint carries the
 real HEAD/branch/diff, and a rollback really restores the tree — including deleting
 a path that never existed at the recorded HEAD).
+
+Local evidence for CP14: the 25-step chain is green (138 test files / 1413 tests,
+`acceptance:publish` PB-01..PB-10 PASS with 62 observations, **no network** — a real
+bare remote receives the pushed `boss/t-14/...` branch whose commit keeps its
+trailers, and the real `GitHubGateway` over a recording transport performs
+`POST /app/installations/…/access_tokens` then `POST /repos/owner/name/pulls` with
+the §40 body).
 
 **Known CP9 boundary**: the loop, the verification engine and the review engine are
 exported host modules exercised by their gates; the live WorkBook/commander task
