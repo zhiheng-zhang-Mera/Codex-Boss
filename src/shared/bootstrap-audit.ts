@@ -92,7 +92,7 @@ export interface TrustedBootstrapAudit {
   /** §8.2: one entry per delivery gate, with the reasons it did or did not pass. */
   gates: TrustedEvidenceSource[];
   /** §8.6: the real-application black box under its versioned claim contract. */
-  desktop: TrustedEvidenceSource & { contract: string; verified_claims: number; required_claims: number };
+  desktop: TrustedEvidenceSource & { contract: string; passed: boolean; verified_claims: number; required_claims: number };
   /** §8.6: 13/13 only when every mapped gate's evidence is trusted. */
   capabilities: { passed: number; required: number };
   capability_evidence: { capability: string; gates: string[]; established: boolean }[];
@@ -282,6 +282,7 @@ export function evaluateTrustedBootstrap(input: TrustedBootstrapInput): TrustedB
     desktop: {
       ...desktopSource,
       contract: DESKTOP_BLACK_BOX_CONTRACT.contract_version,
+      passed: desktopSource.verdict === "PASS",
       verified_claims: desktopJudgement.validation?.counts.pass ?? 0,
       required_claims: desktopSource.required_ids
     },
