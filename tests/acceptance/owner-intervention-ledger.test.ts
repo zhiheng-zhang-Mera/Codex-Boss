@@ -264,8 +264,13 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
 
       // Exactly one writer: the ledger module owns the file, and only the
       // registered routes (plus that module and its CLI) name the recorder.
+      // Only the ledger module may WRITE the ledger; the independent certificate
+      // verifier (self-evlo §18) is allowed to name it because it re-reads it.
       const writers = sources.filter((entry) => /owner-interventions\.json/.test(entry.text)).map((entry) => entry.file).sort();
-      item.check("only the ledger module names the ledger file", JSON.stringify(writers), JSON.stringify(["electron/engineering/owner-intervention-ledger.ts"]));
+      item.check("only the ledger module writes the ledger file", JSON.stringify(writers), JSON.stringify([
+        "electron/engineering/owner-intervention-ledger.ts",
+        "scripts/acceptance-evolution-certificate.cjs"
+      ]));
       const callers = sources
         .filter((entry) => /recordOwnerIntervention\s*\(/.test(entry.text))
         .map((entry) => entry.file)
