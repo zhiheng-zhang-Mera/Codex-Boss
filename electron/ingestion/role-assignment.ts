@@ -63,6 +63,28 @@ const PLAN_PATTERNS = [/^(?:tasks?|steps?|work\s*items?|sub-?tasks?|milestones?|
 const ACCEPTANCE_PATTERNS = [/^(?:acceptance\s+criteria|definition\s+of\s+done|done\s+criteria|验收标准|验收条件|完成标准|测试标准|成功标准)\b/i];
 const REFERENCE_PATTERNS = [/^(?:references?|appendix|appendices|bibliography|glossary|参考文献|附录|术语表|参考资料)\b/i, /revision\s+history|changelog|修订历史|版本历史|变更记录/i];
 
+/**
+ * Structural sections carry lists that LEGITIMATELY differ between files
+ * (a project README's references vs an acceptance file's criteria). Treating a
+ * low lexical overlap there as a contradiction would quarantine ordinary work,
+ * so they are merge-only: exact duplication is still reported, conflicts are not.
+ */
+const STRUCTURAL_HEADINGS = /^(?:goal|objective|purpose|scope|background|overview|deliverables?|outputs?|acceptance\s+criteria|definition\s+of\s+done|tasks?|steps?|references?|appendix|appendices|revision\s+history|changelog|目标|任务目标|范围|交付物|验收标准|任务|参考资料|参考文献|修订历史|版本历史)\b/i;
+
+function isStructuralSection(heading: string | undefined): boolean {
+  if (!heading) return false;
+  return STRUCTURAL_HEADINGS.test(heading.trim());
+}
+
+/**
+ * Floor for a genuinely contradictory pair: two texts that share this much
+ * vocabulary but still diverge strongly are amendments of the same statement
+ * (e.g. "within 100ms" vs "up to five seconds"). Below it the sections are
+ * simply about different things, which is not a contradiction.
+ */
+const MIN_CONTRADICTION_SIMILARITY = 0.1;
+const CONTRADICTION_MAX_SIMILARITY = 0.5;
+
 function headingMatches(section: CanonicalSection, patterns: RegExp[]): boolean {
   if (!section.heading) return false;
   return patterns.some((pattern) => pattern.test(section.heading!.trim()));
@@ -181,7 +203,25 @@ export function assignRoles(documents: CanonicalTaskDocument[]): RoleAssignment 
     });
   }
 
-  const primary = winners.PRIMARY_SPEC;
+  // The primary document must be designated whenever a WorkBook exists: a file
+  // set that never claims PRIMARY_SPEC (README + tasks + acceptance) still needs
+  // one owner for the combined contract. Deterministic: the first document that
+  // was assigned the role, else the first document in ingestion order.
+  const primary = winners.PRIMARY_SPEC
+    ?? assignments.find((entry) => entry.role === "PRIMARY_SPEC")?.document_id
+    ?? documents[0]?.id;
+  if (primary) {
+    winners.PRIMARY_SPEC = primary;
+    const entry = assignments.find((candidate) => candidate.document_id === primary);
+    if (entry && entry.role !== "PRIMARY_SPEC") {
+      diagnostics.push({
+        kind: "ROLE_CONFLICT",
+        severity: "INFO",
+        message: `"${entry.file_name}" is the deterministic primary document: no file claimed PRIMARY_SPEC`,
+        sections: [{ document_id: entry.document_id, file_name: entry.file_name, section_id: "", hash: "" }]
+      });
+    }
+  }
   diagnostics.push(...detectSectionConflicts(documents));
   const result: RoleAssignment = {
     assignments,
@@ -215,7 +255,10 @@ export function detectSectionConflicts(documents: CanonicalTaskDocument[]): Conf
       if (!ownHeading && section.kind === "TITLE") continue;
       if (section.text.trim().length < 40) continue;
       const bucket = byHeading.get(key) ?? [];
-      bucket.push({ document, section });
+      // A headingless body inherits its section heading so the diagnostic can
+      // name the conflicting block, not just its id.
+      const entry = ownHeading ? section : { ...section, heading: currentHeading };
+      bucket.push({ document, section: entry });
       byHeading.set(key, bucket);
     }
   }
@@ -254,7 +297,32 @@ export function detectSectionConflicts(documents: CanonicalTaskDocument[]): Conf
           });
           continue;
         }
-        if (similarity <= 0.5) {
+        if (similarity <= CONTRADICTION_MAX_SIMILARITY) {
+          // A contradictory pair shares vocabulary but diverges hard. Two texts
+          // with almost no overlap are about different things, not in conflict,
+          // and a structural list that merely differs is merged (below).
+          if (similarity < MIN_CONTRADICTION_SIMILARITY) {
+            diagnostics.push({
+              kind: "REVIEW_SECTION",
+              severity: "INFO",
+              message: `"${a.section.heading}" covers different content in ${a.document.file_name} and ${b.document.file_name} (similarity ${similarity.toFixed(2)}); not a contradiction`,
+              sections,
+              similarity: Number(similarity.toFixed(4)),
+              normalized_heading: key
+            });
+            continue;
+          }
+          if (isStructuralSection(a.section.heading) || isStructuralSection(b.section.heading)) {
+            diagnostics.push({
+              kind: "REVIEW_SECTION",
+              severity: "INFO",
+              message: `"${a.section.heading}" differs between ${a.document.file_name} and ${b.document.file_name} (similarity ${similarity.toFixed(2)}); structural sections are merged, not quarantined`,
+              sections,
+              similarity: Number(similarity.toFixed(4)),
+              normalized_heading: key
+            });
+            continue;
+          }
           diagnostics.push({
             kind: "CONFLICTING_SECTION",
             severity: "WARN",

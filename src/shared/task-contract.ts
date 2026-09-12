@@ -33,6 +33,20 @@ export const DECLARATION_KINDS: readonly DeclarationKind[] = [
 
 export type ContractAuthority = "WORKBOOK" | "USER";
 
+/**
+ * Per-item provenance: merging declarations from several documents must never
+ * pretend every item came from the winning section. Items that genuinely belong
+ * to the winner are listed here; items inherited from another document keep
+ * their own source in `inherited_items`, so requirement isolation can trace
+ * every item back to the section that actually contains it.
+ */
+export interface ContractItemProvenance {
+  item: string;
+  source_document_id: string;
+  source_section_id?: string;
+  heading?: string;
+}
+
 export interface ContractDeclaration {
   kind: DeclarationKind;
   authority: ContractAuthority;
@@ -43,6 +57,8 @@ export interface ContractDeclaration {
   text: string;
   /** True when the user's message may replace this declaration. */
   overridable: boolean;
+  /** Provenance for every item, in `items` order. */
+  item_provenance: ContractItemProvenance[];
 }
 
 export interface ContractInput {
@@ -270,18 +286,28 @@ function declarationFrom(found: FoundDeclaration, overridable: boolean): Contrac
   // The heading is provenance: it is kept in `text` for context but never
   // becomes a bullet in `items`.
   const text = heading && bodyText && !bodyText.startsWith(heading) ? `${heading}\n${bodyText}` : bodyText || heading || "";
+  const items = itemsFromDeclarationText(bodyText || heading || "");
   const declaration: ContractDeclaration = {
     kind: found.kind,
     authority: "WORKBOOK",
     source_document_id: found.documentId,
-    items: itemsFromDeclarationText(bodyText || heading || ""),
+    items,
     text,
-    overridable
+    overridable,
+    item_provenance: []
   };
   const first = found.sections[0];
   if (first) declaration.source_section_id = first.id;
   else if (found.headingSectionId) declaration.source_section_id = found.headingSectionId;
   if (heading) declaration.heading = heading;
+  // Every item starts with the declaration's own provenance; the merge step
+  // rewrites the entries that actually came from another document.
+  declaration.item_provenance = items.map((item) => {
+    const provenance: ContractItemProvenance = { item, source_document_id: found.documentId };
+    if (declaration.source_section_id) provenance.source_section_id = declaration.source_section_id;
+    if (heading) provenance.heading = heading;
+    return provenance;
+  });
   return declaration;
 }
 
@@ -382,6 +408,9 @@ export function compileTaskContract(input: CompileTaskContractInput): CompiledTa
       const mergedDeclaration: ContractDeclaration = {
         ...winner,
         items: [...winner.items, ...loser.items],
+        // Item provenance survives the merge: an inherited item keeps the
+        // document/section that actually contains it, never the winner's.
+        item_provenance: [...winner.item_provenance, ...loser.item_provenance],
         text: `${winner.text}\n${loser.text}`.trim(),
         overridable: winner.overridable || loser.overridable
       };
@@ -469,4 +498,195 @@ export function compileTaskContract(input: CompileTaskContractInput): CompiledTa
  */
 export function userOverridesWorkbook(hasWorkbook: boolean, userText: string): boolean {
   return hasWorkbook && userText.trim().length > 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Requirement isolation (WB-06)
+ * ------------------------------------------------------------------ */
+
+export interface QuarantinedRequirement {
+  kind: DeclarationKind;
+  item: string;
+  /** Documents whose sections disagree about this requirement. */
+  document_ids: string[];
+  /** Section ids that produced the conflict, so the reason is auditable. */
+  section_ids: string[];
+  /** Headings of the conflicting sections, when the extractor found one. */
+  headings: string[];
+  reason: string;
+}
+
+export interface RequirementIsolationView {
+  /** Items inside conflicting sections: blocked until a human resolves them. */
+  quarantined: QuarantinedRequirement[];
+  /** Items outside every conflicting section: still representable/executable. */
+  executable: QuarantinedRequirement[];
+  /** Declaration items that could not be traced to a section (never assumed safe). */
+  untraceable: QuarantinedRequirement[];
+  /**
+   * Conflicting sections that no declaration represents. These are blocked too
+   * (they are conflicting source text), but they cannot be expressed as contract
+   * items — reporting them keeps "only conflicting requirements are blocked"
+   * honest instead of silently dropping them.
+   */
+  unrepresented_conflicts: { section_ids: string[]; headings: string[]; documents: string[]; similarity?: number }[];
+  /** Diagnostic summaries that prove which sections conflict and where. */
+  conflict_provenance: { kind: string; severity: string; similarity?: number; section_ids: string[]; headings: string[]; documents: string[] }[];
+  /** False when no conflict was reported, so callers can state that plainly. */
+  has_conflicts: boolean;
+}
+
+/** One conflicting or duplicate section pair, as role assignment reports it. */
+export interface SectionConflictInput {
+  kind: string;
+  severity: "INFO" | "WARN" | "ERROR";
+  similarity?: number;
+  normalized_heading?: string;
+  sections: { document_id: string; file_name: string; section_id: string; heading?: string; hash: string }[];
+}
+
+/**
+ * Item-level requirement isolation (WB-06).
+ *
+ * A conflict is only ever claimed at section granularity by the role/conflict
+ * pass, so this view quarantines exactly the declaration items whose text lives
+ * inside a conflicting section and leaves every other item executable. An item
+ * that cannot be traced back to a section is quarantined too — isolation is
+ * never assumed just because provenance is missing.
+ *
+ * Deterministic and pure: it reads the compiled contract plus the conflict
+ * diagnostics and never rewrites the contract.
+ */
+export function isolateRequirements(
+  contract: CompiledTaskContract,
+  documents: CanonicalTaskDocument[],
+  conflicts: SectionConflictInput[]
+): RequirementIsolationView {
+  // Section ids are only unique WITHIN a document (every extractor numbers them
+  // s1..sN), so provenance must always be the (document, section) pair. Keying
+  // by section id alone would silently quarantine the wrong requirements.
+  const sectionKey = (documentId: string, sectionId: string) => `${documentId}\u0000${sectionId}`;
+  const sectionByKey = new Map<string, CanonicalSection>();
+  for (const document of documents) {
+    for (const section of document.sections) sectionByKey.set(sectionKey(document.id, section.id), section);
+  }
+
+  const conflicting = new Map<string, SectionConflictInput>();
+  for (const conflict of conflicts) {
+    if (conflict.kind !== "CONFLICTING_SECTION") continue;
+    for (const section of conflict.sections) conflicting.set(sectionKey(section.document_id, section.section_id), conflict);
+  }
+
+  const quarantined: QuarantinedRequirement[] = [];
+  const executable: QuarantinedRequirement[] = [];
+  const untraceable: QuarantinedRequirement[] = [];
+  /** Whitespace-folded containment test (never case), matching the conflict test. */
+  const foldWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+
+  const declarations: ContractDeclaration[] = [
+    ...contract.goal, ...contract.scope, ...contract.constraints, ...contract.dependencies,
+    ...contract.deliverables, ...contract.acceptance_criteria, ...contract.risk, ...contract.permissions
+  ];
+
+  for (const declaration of declarations) {
+    // Per-item provenance: a merged declaration may hold items from several
+    // documents, and each item must be traced to the section that truly
+    // contains it. Falls back to the declaration's own source only when the
+    // declaration carries no per-item provenance.
+    const provenanceFor = (item: string, index: number): ContractItemProvenance => {
+      // Match on the item text first: provenance order is the merge order, and
+      // an index lookup would attach the wrong source when items interleave.
+      const byText = declaration.item_provenance?.find((entry) => entry.item === item);
+      if (byText) return byText;
+      const explicit = declaration.item_provenance?.[index];
+      if (explicit) return explicit;
+      const fallback: ContractItemProvenance = { item, source_document_id: declaration.source_document_id };
+      if (declaration.source_section_id) fallback.source_section_id = declaration.source_section_id;
+      if (declaration.heading) fallback.heading = declaration.heading;
+      return fallback;
+    };
+
+    for (const [index, item] of declaration.items.entries()) {
+      const provenance = provenanceFor(item, index);
+      const sourceSection = provenance.source_section_id
+        ? sectionByKey.get(sectionKey(provenance.source_document_id, provenance.source_section_id))
+        : undefined;
+      if (!sourceSection) {
+        untraceable.push({ kind: declaration.kind, item, document_ids: [provenance.source_document_id], section_ids: [], headings: provenance.heading ? [provenance.heading] : [], reason: "item has no traceable source section" });
+        continue;
+      }
+      const conflict = conflicting.get(sectionKey(provenance.source_document_id, sourceSection.id));
+      if (conflict) {
+        // The item lives inside a section the documents disagree about, so it is
+        // blocked regardless of which half of that section it came from.
+        quarantined.push({
+          kind: declaration.kind,
+          item,
+          document_ids: [...new Set(conflict.sections.map((section) => section.document_id))],
+          section_ids: conflict.sections.map((section) => section.section_id),
+          headings: conflict.sections.map((section) => section.heading).filter((heading): heading is string => Boolean(heading)),
+          reason: conflict.normalized_heading
+            ? `"${conflict.normalized_heading}" disagrees across documents`
+            : "source section disagrees across documents"
+        });
+        continue;
+      }
+      // An item that cannot be located inside its own section is untraceable.
+      // Whitespace is folded (never case), matching the duplicate/conflict test.
+      if (!foldWhitespace(sourceSection.text).includes(foldWhitespace(item))) {
+        untraceable.push({ kind: declaration.kind, item, document_ids: [provenance.source_document_id], section_ids: [sourceSection.id], headings: sourceSection.heading ? [sourceSection.heading] : [], reason: "item text is not present in its source section" });
+        continue;
+      }
+      // Extractors model a heading as its own section, so a body section often
+      // has no heading of its own; the declaration's recorded heading is the
+      // truthful label in that case.
+      const heading = sourceSection.heading ?? provenance.heading;
+      executable.push({ kind: declaration.kind, item, document_ids: [provenance.source_document_id], section_ids: [sourceSection.id], headings: heading ? [heading] : [], reason: "outside every conflicting section" });
+    }
+  }
+
+  const conflictProvenance = conflicts
+    .filter((conflict) => conflict.kind === "CONFLICTING_SECTION")
+    .map((conflict) => {
+      const entry: RequirementIsolationView["conflict_provenance"][number] = {
+        kind: conflict.kind,
+        severity: conflict.severity,
+        section_ids: conflict.sections.map((section) => section.section_id),
+        headings: conflict.sections.map((section) => section.heading).filter((heading): heading is string => Boolean(heading)),
+        documents: conflict.sections.map((section) => section.file_name)
+      };
+      if (conflict.similarity !== undefined) entry.similarity = conflict.similarity;
+      return entry;
+    });
+
+  // A conflicting section that no declaration maps to cannot be expressed as an
+  // item. It is still blocked source text, so it is reported explicitly.
+  const represented = new Set<string>();
+  for (const declaration of declarations) {
+    for (const provenance of declaration.item_provenance ?? []) {
+      if (provenance.source_section_id) represented.add(sectionKey(provenance.source_document_id, provenance.source_section_id));
+    }
+    if (declaration.source_section_id) represented.add(sectionKey(declaration.source_document_id, declaration.source_section_id));
+  }
+  const unrepresented = conflicts
+    .filter((conflict) => conflict.kind === "CONFLICTING_SECTION")
+    .filter((conflict) => conflict.sections.every((section) => !represented.has(sectionKey(section.document_id, section.section_id))))
+    .map((conflict) => {
+      const entry: RequirementIsolationView["unrepresented_conflicts"][number] = {
+        section_ids: conflict.sections.map((section) => section.section_id),
+        headings: conflict.sections.map((section) => section.heading).filter((heading): heading is string => Boolean(heading)),
+        documents: conflict.sections.map((section) => section.file_name)
+      };
+      if (conflict.similarity !== undefined) entry.similarity = conflict.similarity;
+      return entry;
+    });
+
+  return {
+    quarantined,
+    executable,
+    untraceable,
+    unrepresented_conflicts: unrepresented,
+    conflict_provenance: conflictProvenance,
+    has_conflicts: conflictProvenance.length > 0
+  };
 }

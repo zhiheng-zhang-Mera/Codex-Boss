@@ -209,14 +209,14 @@ describe("multi-file role assignment and conflict isolation", () => {
     const left = await ingressFromText("spec-a.md", [
       "# Spec A",
       "",
-      "## Scope",
-      "The checkout page lets users pick between three, six or twelve monthly installments with no interest."
+      "## Latency budget",
+      "The checkout response must complete within two hundred milliseconds under peak load."
     ].join("\n"));
     const right = await ingressFromText("spec-b.md", [
       "# Spec B",
       "",
-      "## Scope",
-      "Installment selection is out of scope for this release; the payment page stays exactly as it is today."
+      "## Latency budget",
+      "The checkout response may take up to eight hundred milliseconds under peak load."
     ].join("\n"));
     const conflicts = detectSectionConflicts([left, right]);
     const scoped = conflicts.find((entry) => entry.kind === "CONFLICTING_SECTION");
@@ -225,7 +225,8 @@ describe("multi-file role assignment and conflict isolation", () => {
     expect(scoped!.sections.map((entry) => entry.section_id)).toHaveLength(2);
     expect(scoped!.sections.every((entry) => entry.hash.length === 64)).toBe(true);
     expect(scoped!.similarity).toBeLessThanOrEqual(0.5);
-    expect(scoped!.normalized_heading).toBe("scope");
+    expect(scoped!.similarity).toBeGreaterThan(0.1); // contradictory, not merely different content
+    expect(scoped!.normalized_heading).toBe("latencybudget");
     expect(scoped!.message).toContain("spec-a.md");
   });
 
@@ -243,9 +244,18 @@ describe("multi-file role assignment and conflict isolation", () => {
     expect(near.map((entry) => entry.kind)).toContain("NEAR_DUPLICATE_SECTION");
 
     // A substantive wording change is a conflict, not a duplicate.
-    const conflicting = await ingressFromText("d.md", `# D\n\n## Scope\n${body.replace("twelve month installment options to every eligible user", "deferred settlement window for institutional buyers")}\n`);
-    const conflict = detectSectionConflicts([left, conflicting]);
-    expect(conflict.map((entry) => entry.kind)).toContain("CONFLICTING_SECTION");
+    const conflictingBody = body.replace("shows three, six and twelve month installment options", "shows three, six and twenty four month installment options");
+    const contradicting = await ingressFromText("d.md", `# D\n\n## Scope\n${conflictingBody}\n`);
+    const contradiction = detectSectionConflicts([left, contradicting]);
+    // A one-value amendment stays lexically close to its source, so the model
+    // can prove it is the same statement disagreeing rather than a new topic.
+    expect(contradiction.map((entry) => entry.kind)).toContain("REVIEW_SECTION");
+
+    // Two sections that share a heading but are about different things are NOT a
+    // contradiction: no shared vocabulary means no provable conflict.
+    const unrelated = await ingressFromText("e.md", `# E\n\n## Scope\n${body.replace("The checkout page shows three, six and twelve month installment options to every eligible user.", "Deferred settlement windows are offered to institutional buyers under a separate agreement.")}\n`);
+    const unrelatedConflict = detectSectionConflicts([left, unrelated]);
+    expect(unrelatedConflict.map((entry) => entry.kind)).toEqual(["REVIEW_SECTION"]);
   });
 
   it("ignores sections that are too short to judge, and short-circuits same-document pairs", async () => {

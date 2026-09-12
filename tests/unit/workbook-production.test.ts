@@ -479,7 +479,7 @@ describe("REPAIR_BATCH_5: truthfulness of failure and real Resume", () => {
     expect(classifyExecutionError(new TerminalExecutionError("UNSUPPORTED", "nope")).kind).toBe("TERMINAL");
     expect(classifyExecutionError(Object.assign(new Error("bad code"), { retryable: false })).kind).toBe("TERMINAL");
     expect(classifyExecutionError(Object.assign(new Error("x"), { code: "AUTH_REQUIRED" })).kind).toBe("TERMINAL");
-    expect(classifyExecutionError(new Error("input is invalid")).kind).toBe("TERMINAL");
+    expect(classifyExecutionError(Object.assign(new Error("Invalid input"), { code: "INVALID_INPUT" })).kind).toBe("TERMINAL");
     expect(classifyExecutionError(new Error("no such file or directory")).kind).toBe("TERMINAL");
     expect(classifyExecutionError(new Error("page not ready")).kind).toBe("TRANSIENT");
     expect(classifyExecutionError(new Error("provider dispatch failed")).kind).toBe("TRANSIENT");

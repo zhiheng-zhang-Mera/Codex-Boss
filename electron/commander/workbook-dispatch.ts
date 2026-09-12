@@ -563,6 +563,7 @@ export async function runWorkBookDispatch(
       auto_run: autoRun,
       has_workbook: documents.length > 0,
       ...(primaryDocument ? { workbook_hash: primaryDocument.hash } : {}),
+      ...(roleAssignment.primary_document_id ? { primary_document_id: roleAssignment.primary_document_id } : {}),
       ...(primaryVerdict ? { classification: primaryVerdict.kind, confidence: primaryVerdict.confidence, classification_reasons: reasonLines(primaryVerdict) } : {}),
       documents: summaries,
       roles: roleAssignment.winners,
