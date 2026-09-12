@@ -21,10 +21,20 @@ Tag: `prestart-checkpoint-1-complete` (at `3e814cf`)
 | CP5 Generator + Preview + Visual Verification | §14–§17, §19, §24, §26 | `src/shared/{theme-intent,theme-generation,theme-visual-check}.ts`, `electron/theme/{visual-capture,theme-knowledge}.ts`, `src/renderer/theme-measure.ts` | `acceptance:theme` (21 items, TH-04/05/06 now PASS) | `34675400615` |
 | CP6 Requirements Graph | §28 | `src/shared/requirements-graph.ts` | `acceptance:requirements` R-01..R-08 | `34676022000` |
 | CP7 Execution Planner | §29 | `src/shared/execution-planner.ts` | `acceptance:plan` P-01..P-06 | `34676609713`, `34677536907` |
-| CP8 Verification Engine (host side of §30 + §31) | §30, §31 | `src/shared/verification.ts`, `electron/engineering/verification-engine.ts`, ladder extension in `execution-planner.ts`/`evidence-ledger.ts` | `acceptance:verify` V-01..V-10 (82 observations) | _pending in this push_ |
+| CP8 Verification Engine (host side of §30 + §31) | §30, §31 | `src/shared/verification.ts`, `electron/engineering/verification-engine.ts`, ladder extension in `execution-planner.ts`/`evidence-ledger.ts` | `acceptance:verify` V-01..V-10 (82 observations) | `34678305310` |
 
 Local evidence for CP8: the whole 19-step chain is green (127 test files /
 1262 tests, every acceptance gate exit 0, desktop black box 89/89 claims).
+
+**In flight — CP9 part 1**: `src/shared/review.ts` (the pure §32 review layer:
+three layers, §32.1 dimensions, the four theme dimensions, the twelve §32.2
+adversarial probes, §32.3 finding routing, coverage and the §2.3 completion gate
+that refuses to say COMPLETED while a HIGH/MEDIUM finding is open, a required
+dimension is unreviewed, or a requirement is still owed evidence) with
+`tests/unit/review-layer.test.ts` (19 cases). CP9 is **not** delivered: the host
+reviewer that derives findings from real artifacts and the §30 loop that consumes
+it (worker → host verification → review → repair → reverify) are still ahead, as
+is the acceptance gate.
 
 Per-checkpoint records: `docs/checkpoint-2-knowledge-foundation.md`,
 `checkpoint-3-architecture-ui-discovery.md`,
