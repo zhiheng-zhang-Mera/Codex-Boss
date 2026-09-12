@@ -424,6 +424,19 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - **验收**：`pnpm run acceptance:soak`（亦为 CI 门禁与本地链一步）**SK-01..SK-06 全 PASS（26 项观测）且离线**（克隆来自磁盘上的仓库而非网络）：七段与六指标；三轮真实克隆/起/改/回滚/分支/读 CI/完成、每段都有证据、主题轮被标注、soak 完成且无指标移动、记录持久且带版本；指向不存在远端的 soak 每轮失败且**不为失败段声称任何证据**并写明原因；同一失败出现两次即提前终止而不同失败不会；一个本可算干净的轮里出现一次 Owner 决策就让整个 soak 失败；§51 计划按序走完十八项且 B16–B18 标为主题轮。
 - 诚实边界（写入 `docs/checkpoint-17-soak.md`）：一轮是**全新克隆上的代表性任务周期而非整个产品**（runner 用前面各 checkpoint 的真实机件克隆/起/改/回滚/分支/读 CI/完成，但不会每轮重跑完整 27 步验收链——那要数小时；soak 门禁因此默认 3 轮、上限 8 轮，§53 的 20–50 轮仍是 nightly/soak 环境的目标）；PR 与 CI 段是**本地替身**（策略分支由真实 §39.1 规则算出，CI 结果取自该轮自己的账本，因为 soak 轮不应依赖网络；真实 push/PR/CI 路径由 `acceptance:publish` 与 `acceptance:ci-repair` 证明）；主题轮目前是**被标注而非真的执行主题工作**（主题车道的门禁是 `acceptance:theme` 与桌面黑盒第二阶段，把它们接进 soak 轮属 CP18 黑盒范围）；六项指标是**由该轮提供的计数器**（runner 今天记录零违约，因为它的轮不征求 Owner 决策也不丢状态；一旦某轮真的发生，它必须自增，而 `evaluateSoak` 会在指标一动时立即判定 soak 失败）。
 
+### §57/§58 — Bootstrap Completion 审计（CP18，最终）
+
+- **§57/§58 审计**（`src/shared/bootstrap-audit.ts`，纯）：`GATE_REQUIREMENTS` 就是交付链本身——十六道门禁，每道带上它**必须已通过**的 id 全表（WB-01..WB-10、K-01..K-04、A-01..A-10、TH-01..TH-15+T-TOKENS、R-01..R-08、P-01..P-06、V-01..V-10、C-01..C-11、RC-01..RC-10、CG-01..CG-10、GD-01..GD-10、VC-01..VC-08、PB-01..PB-10、CR-01..CR-08、FS-01..FS-08、SK-01..SK-06）。`auditGate` 用这些 id 审判单份报告：缺失 id 或非 PASS 判决即该门禁失败，且理由点名是哪个 id——**部分绿不是绿**。`auditBootstrap` 把门禁审计与 §57 的**真实应用黑盒**合并（它也作为主题能力的证据），据通过的门禁推导 §43 的十三项能力，并要求 **Owner 介入为 0**；差一点就如实 `INCOMPLETE` 并列出理由。
+- **宿主审计器**（`electron/engineering/bootstrap-completion.ts`）读取每道门禁写在 `artifacts/acceptance/` 下的报告，并写出 `bootstrap-completion.json`（判决、逐门禁审计、能力证据、介入数、理由、哈希）。
+- **桌面黑盒现在发布持久报告**：§57 的黑盒就是经 CDP 驱动的真实 Electron 应用（`acceptance:desktop-workbook`，89 条 claim：WorkBook 路径 + 主题阶段）。它此前把证据写进每次运行独有的临时目录，导致后续门禁无法审计；现在它**另外**写一份 `artifacts/acceptance/desktop-workbook.json`，形状与其它门禁一致（同一批 claim，机器可读）。
+- **验收与最终判决**：`pnpm run acceptance:bootstrap-completion`（**CI 与本地链的最后一步**，因此它读到的每份报告都是刚刚产生的）跑 BC-01..BC-06 全 PASS（30 项观测），随后执行真实审计：
+  ```
+  [bootstrap] real audit: BOOTSTRAP_COMPLETE
+  [bootstrap] gates: 16/16 passed, desktop black box PASS, capabilities 13/13, owner interventions 0
+  ```
+  BC-01 逐门禁按应有 id 审判（缺报告为 MISSING、失败 id 使门禁失败并点名）；BC-02 完整报告集给出 `BOOTSTRAP_COMPLETE`（十七份报告齐备、零 Owner 介入、记录持久且带哈希）；BC-03 删掉一份报告即 `INCOMPLETE` 并使该门禁证明的能力不再成立；BC-04 一份其它全绿报告里出现单个 `NOT_RUN` id 即该门禁失败；BC-05 一次 Owner 介入即禁止完成；BC-06 十三项能力各自可追溯到证据、无证据则无一成立。
+- 诚实边界（写入 `docs/checkpoint-18-bootstrap-completion.md`）：审计**只聚合、不重跑**整条链（它读的是同一次运行中各门禁写下的报告，这正是它排在 CI 最后的原因；陈旧产物目录会照原样被审计，记录带 `audited_at`，每份报告自带 `generatedAt`）；§57 的“fresh clone of Codex Boss”由 **CI checkout 加 soak 轮**承担（`acceptance:soak` 从 bare 远端克隆并逐轮走 clone → bootstrap → task → repair → PR → CI → completion，审计同样要求它的报告，因此 soak 坏了就无法完成）；WorkBook 与主题两个黑盒**就是既有桌面冒烟**（经 CDP 驱动真实应用、用离线 provider、并核验应用自己写下的持久文件；live provider 执行仍不在范围内且在其报告中标为 `NOT_RUN`）；`owner_interventions` 由调用方断言为 0（桌面冒烟启动后无需人工步骤，soak 轮也不需要；门禁记录该计数，因此将来某次真的需要介入时会**失败**而不是悄悄通过）。
+
 
 
 

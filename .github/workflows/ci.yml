@@ -132,3 +132,8 @@ jobs:
       # state is verified afterwards, so UI → IPC → main → WorkBook production
       # path is exercised in CI, not only by direct function calls.
       - run: pnpm run acceptance:desktop-workbook
+      # checkpoint-1 §57/§58: the Bootstrap Completion audit, last in the chain so
+      # every report it reads has just been produced. It requires all seventeen gate
+      # audits to pass, the desktop black box to pass, all thirteen critical
+      # capabilities to be established and no Owner intervention to have been needed.
+      - run: pnpm run acceptance:bootstrap-completion

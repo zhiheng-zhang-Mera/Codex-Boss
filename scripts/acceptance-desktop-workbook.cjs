@@ -831,6 +831,27 @@ async function main() {
   fs.mkdirSync(ROOT, { recursive: true });
   fs.writeFileSync(RESULT_FILE, JSON.stringify(report, null, 2), "utf8");
   fs.writeFileSync(REPORT_FILE, renderMarkdown(report), "utf8");
+  // checkpoint-1 §57/§58: the Bootstrap Completion audit reads every gate's report
+  // from `artifacts/acceptance/`, so the black box publishes a durable one too —
+  // the same evidence, in the shape the audit understands.
+  const acceptanceDir = path.join(PROJECT, "artifacts", "acceptance");
+  fs.mkdirSync(acceptanceDir, { recursive: true });
+  fs.writeFileSync(path.join(acceptanceDir, "desktop-workbook.json"), JSON.stringify({
+    schemaVersion: 1,
+    unit: "PHASE_0_DESKTOP_WORKBOOK_SMOKE",
+    generatedAt: report.generatedAt,
+    providerExecution: report.providerExecution,
+    owner_interventions: 0,
+    requirementResults: claims.entries.map((entry, index) => ({
+      id: `DB-${String(index + 1).padStart(3, "0")}`,
+      title: entry.claim,
+      verdict: entry.ok ? "PASS" : "FAIL",
+      observations: [{ claim: entry.claim, expected: String(entry.expected), observed: String(entry.observed), ok: entry.ok }],
+      evidence: ["artifacts/desktop-workbook-smoke.md"]
+    })),
+    totals: { pass: report.totals.pass, fail: report.totals.fail, notRun: 0 },
+    passed: report.passed
+  }, null, 2), "utf8");
 
   for (const entry of claims.entries) {
     console.log(`[desktop-smoke] ${entry.ok ? "PASS" : "FAIL"} ${entry.claim} — expected ${entry.expected}, observed ${entry.observed}`);

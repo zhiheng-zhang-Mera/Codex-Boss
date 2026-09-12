@@ -33,7 +33,8 @@ $steps = @(
   @{ name = "package:portable"; cmd = "corepack pnpm run package:portable" },
   @{ name = "smoke-portable"; cmd = "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-portable.ps1" },
   @{ name = "acceptance-restart"; cmd = "node scripts\acceptance-restart.cjs" },
-  @{ name = "acceptance:desktop-workbook"; cmd = "corepack pnpm run acceptance:desktop-workbook" }
+  @{ name = "acceptance:desktop-workbook"; cmd = "corepack pnpm run acceptance:desktop-workbook" },
+  @{ name = "acceptance:bootstrap-completion"; cmd = "corepack pnpm run acceptance:bootstrap-completion" }
 )
 $results = @()
 foreach ($step in $steps) {
