@@ -45,6 +45,13 @@ export class ContextManager {
   private readonly contexts = new Map<string, TaskContext>();
   /** Optional knowledge provider (plan AP10 seam): routes domain knowledge into capsules. */
   private knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[];
+  /**
+   * checkpoint-1 §5.5 seam: renders the bounded reusable-knowledge section for a
+   * prompt. Distinct from `knowledgeProvider` (which the older capsule path
+   * consumes) because this one carries provenance and its own budget and is the
+   * one the running app wires to the Knowledge Foundation.
+   */
+  private knowledgeSectionProvider?: (taskId: string, role: RoleId, maxChars: number) => string | undefined;
   constructor(private readonly filePath?: string, knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]) {
     this.knowledgeProvider = knowledgeProvider;
     this.restore();
@@ -52,6 +59,9 @@ export class ContextManager {
 
   /** Attach (or replace) the knowledge provider after construction (AP10 domain routing). */
   setKnowledgeProvider(provider: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]): void { this.knowledgeProvider = provider; }
+
+  /** Attach (or replace) the §5.5 knowledge-section provider. */
+  setKnowledgeSectionProvider(provider: (taskId: string, role: RoleId, maxChars: number) => string | undefined): void { this.knowledgeSectionProvider = provider; }
 
   save(context: TaskContext): void { this.contexts.set(context.taskId, structuredClone(context)); this.persist(); }
   get(taskId: string): TaskContext | undefined { const value = this.contexts.get(taskId); return value && structuredClone(value); }
@@ -75,16 +85,26 @@ export class ContextManager {
     const context = this.get(taskId);
     if (!context) throw new Error(`Unknown task context: ${taskId}`);
     const maxArtifacts = Math.max(0, budget.maxArtifacts ?? 20);
-    const sections = [
+    const maxChars = Math.min(budget.maxChars ?? 24000, (budget.maxTokens ?? Number.MAX_SAFE_INTEGER) * 4);
+    const head = [
       `ROLE: ${role}\n${roleInstructions}`,
       `OBJECTIVE:\n${context.objective}`,
-      `CONSTRAINTS:\n${context.constraints.join("\n")}`,
+      `CONSTRAINTS:\n${context.constraints.join("\n")}`
+    ];
+    // §5.5: reusable project knowledge gets at most a third of what is left
+    // after the task's own instructions, so a large base can never crowd out the
+    // objective. With no provider attached the assembled string is byte-for-byte
+    // what it was before this seam existed.
+    const remaining = maxChars - head.join("\n\n").length;
+    const knowledge = remaining > 0 ? this.knowledgeSectionProvider?.(taskId, role, Math.floor(remaining / 3)) : undefined;
+    const sections = [
+      ...head,
+      ...(knowledge ? [`PROJECT_KNOWLEDGE:\n${knowledge}`] : []),
       `PROTOCOL: ${context.currentProtocol} / ${context.currentRound}`,
       `ARTIFACT_REFS:\n${context.artifactRefs.slice(-maxArtifacts).join("\n")}`,
       `OPEN_DISPUTES:\n${context.openDisputes.map((item) => `${item.id}: ${item.topic}`).join("\n")}`,
       `SUMMARIES:\n${context.summaries.map((item) => item.text).join("\n")}`
     ];
-    const maxChars = Math.min(budget.maxChars ?? 24000, (budget.maxTokens ?? Number.MAX_SAFE_INTEGER) * 4);
     return sections.join("\n\n").slice(0, maxChars);
   }
 

@@ -27,7 +27,7 @@ import {
   type WorkBookStage,
   type WorkBookStageEntry
 } from "../../src/shared/workbook-dispatch";
-import { scanRepo, type RepoSnapshot } from "../engineering/repo-inspector";
+import { scanRepo, repositoryModelFrom, type RepoSnapshot } from "../engineering/repo-inspector";
 import { assignRoles } from "../ingestion/role-assignment";
 import { WorkbookRegistry, type WorkbookRevisionInput } from "../ingestion/workbook-registry";
 import { ingestDocuments, type DocumentSource, type IngestionLimits } from "../ingestion/ingest";
@@ -645,7 +645,10 @@ function runDiscovery(
       files: snapshot.files.length,
       test_files: Object.values(snapshot.testMap).flat().length,
       fingerprint: snapshot.fingerprint,
-      skipped_directories: snapshot.skippedDirectories
+      skipped_directories: snapshot.skippedDirectories,
+      // checkpoint-1 §5: record the bounded repository model once, so a later
+      // task in this project can reuse it instead of scanning again.
+      repository_model: repositoryModelFrom(snapshot)
     };
   } catch (error) {
     return { repository: true, root: repositoryRoot, files: 0, test_files: 0, skipped_directories: 0, reason: `repository scan failed: ${(error as Error).message}` };

@@ -36,6 +36,91 @@ export function discoverTestFiles(root: string): string[] {
   return Object.values(snapshot.testMap).flat();
 }
 
+/* ------------------------------------------------------------------ *
+ * Bounded repository world model (checkpoint-1 §5)
+ * ------------------------------------------------------------------ */
+
+const MANIFEST_NAMES = new Set([
+  "package.json", "pnpm-lock.yaml", "package-lock.json", "yarn.lock", "tsconfig.json", "tsconfig.electron.json",
+  "vite.config.mjs", "vite.config.ts", "vitest.config.mjs", "vitest.config.ts", "pyproject.toml", "requirements.txt",
+  "setup.py", "Cargo.toml", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "Gemfile", "composer.json",
+  "Makefile", "CMakeLists.txt", "Dockerfile", "docker-compose.yml", ".github/workflows/ci.yml"
+]);
+const ENTRY_NAMES = new Set([
+  "index.html", "index.ts", "index.tsx", "index.js", "index.mjs", "index.cjs",
+  "main.ts", "main.tsx", "main.js", "main.mjs", "main.cjs", "main.py", "app.py", "manage.py", "main.go", "Main.java", "Program.cs"
+]);
+const UI_DIRECTORIES = ["renderer", "ui", "web", "frontend", "components", "views", "pages", "styles", "themes", "assets"];
+const UI_EXTENSIONS = new Set([".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss", ".sass", ".less", ".html"]);
+const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  ".ts": "TypeScript", ".tsx": "TypeScript", ".mts": "TypeScript", ".cts": "TypeScript",
+  ".js": "JavaScript", ".jsx": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript",
+  ".py": "Python", ".go": "Go", ".rs": "Rust", ".java": "Java", ".rb": "Ruby", ".cs": "C#", ".php": "PHP",
+  ".css": "CSS", ".scss": "CSS", ".less": "CSS", ".html": "HTML", ".vue": "Vue", ".svelte": "Svelte",
+  ".md": "Markdown", ".json": "JSON", ".yaml": "YAML", ".yml": "YAML", ".toml": "TOML", ".sql": "SQL",
+  ".sh": "Shell", ".ps1": "PowerShell"
+};
+const MODEL_LIMITS = { topLevel: 24, manifests: 12, entryPoints: 12, testFiles: 40, uiFiles: 40, languages: 6 };
+
+function extensionOf(file: string): string {
+  const match = /\.[A-Za-z0-9]+$/.exec(file);
+  return match ? match[0].toLocaleLowerCase() : "";
+}
+
+function isUiSurfaceFile(file: string): boolean {
+  const segments = file.split("/");
+  const inUiDirectory = segments.some((segment) => UI_DIRECTORIES.includes(segment.toLocaleLowerCase()));
+  return inUiDirectory || UI_EXTENSIONS.has(extensionOf(file));
+}
+
+/**
+ * Derives the reusable repository model from an existing scan. Nothing is read
+ * twice: the caller already paid for the scan, and every list is capped so a
+ * huge repository cannot flood a durable record or a prompt.
+ */
+export function repositoryModelFrom(snapshot: RepoSnapshot): import("../../src/shared/workbook-dispatch").RepositoryModelSummary {
+  const topLevel = new Set<string>();
+  const manifests: string[] = [];
+  const entryPoints: string[] = [];
+  const uiFiles: string[] = [];
+  const languageCounts = new Map<string, number>();
+
+  for (const file of snapshot.files) {
+    const segments = file.split("/");
+    topLevel.add(segments[0]);
+    const base = segments[segments.length - 1];
+    if (MANIFEST_NAMES.has(base) || file.startsWith(".github/workflows/")) manifests.push(file);
+    if (ENTRY_NAMES.has(base) || /^electron\/main\.[cm]?[jt]s$/.test(file)) entryPoints.push(file);
+    if (isUiSurfaceFile(file)) uiFiles.push(file);
+    const language = LANGUAGE_BY_EXTENSION[extensionOf(file)];
+    if (language) languageCounts.set(language, (languageCounts.get(language) ?? 0) + 1);
+  }
+
+  const testFiles = Object.values(snapshot.testMap).flat().sort((a, b) => a.localeCompare(b));
+  const languages = [...languageCounts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([language]) => language);
+
+  const cap = <T>(values: T[], limit: number): T[] => values.slice(0, limit);
+  const topLevelList = [...topLevel].sort((a, b) => a.localeCompare(b));
+  const model = {
+    schemaVersion: 1 as const,
+    top_level: cap(topLevelList, MODEL_LIMITS.topLevel),
+    manifests: cap(manifests.sort((a, b) => a.localeCompare(b)), MODEL_LIMITS.manifests),
+    entry_points: cap(entryPoints.sort((a, b) => a.localeCompare(b)), MODEL_LIMITS.entryPoints),
+    test_files: cap(testFiles, MODEL_LIMITS.testFiles),
+    ui_surface_files: cap(uiFiles.sort((a, b) => a.localeCompare(b)), MODEL_LIMITS.uiFiles),
+    languages: cap(languages, MODEL_LIMITS.languages),
+    truncated: topLevelList.length > MODEL_LIMITS.topLevel
+      || manifests.length > MODEL_LIMITS.manifests
+      || entryPoints.length > MODEL_LIMITS.entryPoints
+      || testFiles.length > MODEL_LIMITS.testFiles
+      || uiFiles.length > MODEL_LIMITS.uiFiles
+      || languages.length > MODEL_LIMITS.languages
+  };
+  return model;
+}
+
 /**
  * Targeted test selection seed (plan AP04): given changed files, return the
  * tests that live in the same directory or any of its subdirectories. When a

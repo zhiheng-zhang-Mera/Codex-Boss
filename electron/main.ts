@@ -27,6 +27,8 @@ import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
 import { ContextManager } from "./commander/context-manager";
+import { KnowledgeBase } from "./knowledge/knowledge-base";
+import { KnowledgeFoundation } from "./knowledge/knowledge-foundation";
 import { ExecutionGate } from "./commander/execution-gate";
 import { decideEscalation, detectCapabilityNeeds } from "../src/shared/capability-needs";
 import type { InputObjectKind } from "../src/shared/input-object";
@@ -722,6 +724,26 @@ if (ownsInstance) app.whenReady().then(() => {
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
   const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
   contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
+  // checkpoint-1 §5 Knowledge Foundation: ONE composition-root instance, exactly
+  // like the decision ledger below. Writes happen in the WorkBook dispatch path
+  // (see runWorkDispatch), reads happen here — the provider prompt gets a
+  // bounded, provenance-carrying section drawn from the durable base, so a
+  // second task in the same project reuses the first task's facts instead of
+  // re-deriving them.
+  const knowledge = new KnowledgeFoundation(new KnowledgeBase(path.join(app.getPath("userData"), ".boss", "knowledge-base.json")));
+  contextManager.setKnowledgeSectionProvider((taskId, role, maxChars) => {
+    const task = store.snapshot().tasks.find((item) => item.id === taskId);
+    if (!task) return undefined;
+    const result = knowledge.sectionForTask({
+      taskId,
+      goal: task.prompt || task.title,
+      role,
+      scope: knowledge.projectScopeFor({ workspacePath: task.workspacePath ?? app.getAppPath() }),
+      characterBudget: maxChars,
+      maxObjects: 12
+    });
+    return result.text || undefined;
+  });
   const circuitBreaker = new CircuitBreaker(path.join(app.getPath("userData"), ".boss", "circuit-breaker.json"));
   // §7.2 — the mandatory Self-Evolution route. It is installed here, in the
   // composition root, so a self-target edit task can never reach the ordinary
@@ -1077,7 +1099,17 @@ if (ownsInstance) app.whenReady().then(() => {
         workAgentCount: input.workAgentCount,
         runMode: input.runMode,
         conversationPolicy: input.conversationPolicy
-      }, { store, commander, automation, publish });
+      }, {
+        store,
+        commander,
+        automation,
+        publish,
+        // checkpoint-1 §5: the finished dispatch records its reusable facts
+        // through the knowledge write gate. A knowledge failure is reported,
+        // never allowed to fail the task (§2.5).
+        knowledge,
+        onKnowledgeDiagnostic: (detail) => console.warn("[knowledge] WorkBook knowledge write degraded", detail)
+      });
       // Every outcome maps to the snapshot the caller receives; the durable
       // state was already written by the orchestration.
       void outcome;

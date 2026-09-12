@@ -64,6 +64,7 @@ const REPORT_FILE = path.join(ROOT, "desktop-workbook-smoke.md");
 const SCREENSHOT_FILE = path.join(ROOT, "desktop-workbook-smoke.png");
 const STATE_FILE = path.join(DATA_ROOT, "state.json");
 const REGISTRY_FILE = path.join(DATA_ROOT, ".boss", "workbook-registry.json");
+const KNOWLEDGE_FILE = path.join(DATA_ROOT, ".boss", "knowledge-base.json");
 
 const WORKBOOK_NAME = "latency-guard-workbook.md";
 const WORKBOOK_TEXT = [
@@ -540,6 +541,19 @@ async function main() {
     claims.check("the registry revision is linked to the real task id", task.id, revisions[0]?.task_id);
     claims.check("the registry revision is the ingested content hash", record.workbook_hash, revisions[0]?.hash);
     claims.check("the bounded provider was refused honestly, not silently", true, /适配器|未找到|输入区域|发送/.test(String(checkpoints[0]?.message ?? "")));
+
+    // checkpoint-1 §5: the same real dispatch must have recorded project
+    // knowledge through the write gate — this is the Knowledge Foundation
+    // running inside the shipped app, not only inside the test suite.
+    const knowledge = readJson(KNOWLEDGE_FILE);
+    const knowledgeObjects = (knowledge?.objects ?? []).filter((object) => object?.provenance?.task_ref === task.id);
+    const knowledgeLog = (knowledge?.gate_log ?? []).filter((entry) => entry?.task_ref === task.id);
+    claims.check("the real app recorded project knowledge for this dispatch", true, knowledgeObjects.length > 0);
+    claims.check("every recorded object is ACTIVE", true, knowledgeObjects.every((object) => object.status === "ACTIVE"));
+    claims.check("every recorded object carries provenance", true, knowledgeObjects.every((object) => /^[0-9a-f]{64}$/.test(object.provenance.source_hash) && Boolean(object.provenance.produced_by) && Number.isFinite(Date.parse(object.provenance.captured_at))));
+    claims.check("the knowledge write gate logged the decision", true, knowledgeLog.length > 0);
+    claims.check("nothing was quarantined or rejected for this dispatch", 0, knowledgeLog.filter((entry) => entry.outcome === "QUARANTINE" || entry.outcome === "REJECT").length);
+    claims.check("the recorded knowledge names a real knowledge type", true, knowledgeObjects.every((object) => /^[A-Z_]+$/.test(object.type)));
   }
 
   const report = {
@@ -560,6 +574,7 @@ async function main() {
       root: ROOT,
       state: fs.existsSync(STATE_FILE) ? STATE_FILE : undefined,
       registry: fs.existsSync(REGISTRY_FILE) ? REGISTRY_FILE : undefined,
+      knowledge: fs.existsSync(KNOWLEDGE_FILE) ? KNOWLEDGE_FILE : undefined,
       screenshot: screenshot ? SCREENSHOT_FILE : undefined
     }
   };

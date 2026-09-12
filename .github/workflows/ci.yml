@@ -38,6 +38,11 @@ jobs:
       # readable report it produced, so a scenario that silently degrades to
       # NOT_RUN cannot pass as green.
       - run: pnpm run acceptance:workbook
+      # checkpoint-1 §5: the Knowledge Foundation gate. It drives two real
+      # WorkBook dispatches in one project and proves the second task reuses the
+      # first task's architecture/test/UI/constraint/decision knowledge with the
+      # project directory deleted, i.e. with no rescan possible.
+      - run: pnpm run acceptance:knowledge
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
       - run: pnpm run package:portable

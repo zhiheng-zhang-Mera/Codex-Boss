@@ -255,3 +255,28 @@ Milestone（20:18–23:56，9-7-milestone 线）：
 - 推送：`9-8-overcomplete` 连同上述文档与样式更新推送至云端（origin/9-8-overcomplete）。
 - 主干合并：按主开发线顺序把 `9-3 → 9-4 → 9-5 → 9-6 → 9-7 → 9-8 → 9-8-overcomplete` 全部合并入 `main`（`9-3-remote` 内容已含于 `9-4` 祖先链，不单独合并）；合并后 `main` 树与 `9-8-overcomplete` 完全一致，成为收口主干。
 - 推送 `main` 至云端；GitHub Actions（typecheck / tests / build / benchmark / portable / restart smoke）在 main 上触发。
+
+---
+
+## 2026-09-12（Prestart Checkpoint 1 收口 → Checkpoint 2 Knowledge Foundation，分支 `Prestart-checkpoint-2`）
+
+依据 `Update-Plan/checkpoint-1.md`，本轮不新增业务功能，只按工程书顺序收口与补缺。
+
+### Phase 0（§4）— Prestart Checkpoint 1 正式收口
+
+- **§4.1 远端 CI 失败根因**：`tests/unit/evolution-sandbox.test.ts` 的 `beforeAll` 是真实的沙箱引导（用 `csc.exe` 编译宿主 launcher + 创建 AppContainer 配置 + Job Object 探针），却继承了 vitest 默认 10s `hookTimeout`。GitHub run `34669938246` 因此在任何攻击用例执行前就以 `Hook timed out in 10000ms` 中止。现在该 hook 带显式 180s 预算（与同文件 SB-04/SB-05 的单测预算一致），**没有 skip / retry / 删测试 / 改断言 / 降覆盖**。
+- **§4.2 远端验证链**：`acceptance:workbook` 成为独立 CI 门禁（重跑 WB-01..WB-10 并校验其机器可读报告，任何降级为 NOT_RUN 都不得变绿）；`scripts/phase0-validation-chain.ps1` 本地依次真实执行 install → install:electron → typecheck → security:scan → build → test → acceptance:workbook → acceptance:github-machine → benchmark → package:portable → portable smoke → restart acceptance → desktop WorkBook smoke。
+- **§4.3 桌面黑盒冒烟（新）**：`scripts/acceptance-desktop-workbook.cjs` 启动真实 Electron（独立 `--boss-data-dir` + `--remote-debugging-port`），**只**通过 CDP 驱动真实渲染层：点 Work → 填工作区 → 经 composer 自定义 AI 表单开通一个 provider → 用真实 `DragEvent(drop)` 拖入可执行工作书 → 点提交；随后从主进程写下的 `state.json` / `.boss/workbook-registry.json` / `.boss/knowledge-base.json` 独立取证（分类、已编译 Task Contract、intake 阶段梯、dispatch checkpoint 与回退原因、知识写入），因此 **UI → IPC → main process → WorkBook production path** 是被证明贯通的，而不是只调函数。provider 面板以 `--boss-offline-providers` 打开且从不导航，使用无适配器的自定义 provider，全程不触网、不向真实 AI 发送任何消息；live provider execution 诚实记为 `NOT_RUN`。
+- **DoD**：本地链全绿（test 110 files / 1034 tests）+ 桌面冒烟 48/48 claims；云端 `Prestart-checkpoint-2` run `34671183374` **success**（含新增的 acceptance:workbook 与桌面黑盒门禁）。tag `prestart-checkpoint-1-complete` 已推送。
+
+### Phase 1（§5）— Knowledge Foundation（CP2）
+
+先做只读审计，结论记录在 `docs/checkpoint-2-knowledge-foundation.md`：仓内已有 **4 种互不兼容的知识记录类型**、5 种持久化 schema、3 个 store 类，且**没有一个能从 `electron/main.ts` 到达**（该文件此前完全不出现 `knowledge`；`ContextManager.setKnowledgeProvider` 零调用者），旧 `KnowledgeStore.put` 还会直接删掉被取代的记录。
+
+- `src/shared/knowledge-object.ts`（纯）：统一 `KnowledgeObject`（§5.1 全部字段 + 17 个类型值）、完整 provenance（source / sha256 / document-task-run / captured_at / producer / verification + evidence）、§5.3 写入门禁 `ACCEPT|REJECT|QUARANTINE|SUPERSEDE`（五阶段留痕；无来源、非 sha256、无 doc/task/run 引用、含密钥形状、声称已验证却无证据、被反驳 → REJECT；模型自证 → QUARANTINE；更强 → SUPERSEDE；更弱或同强冲突 → QUARANTINE）、§5.4 冲突集（记录 authority/freshness/source hash/verification 后判 `ACTIVE|SUPERSEDED|UNRESOLVED`，**永不删除**）、§5.5 取用（TaskFingerprint → 类型相关性过滤 → authority → freshness → 词面相关度 → 字符预算 + 对象上限，逐条记录入选/丢弃原因）。复用既有 `KnowledgeScope`/`TemporalValidity`/`tokenSimilarity`（tenx）与 `contentHashOf`（workbook），不新增第 4 个分词器/哈希器。
+- `src/shared/knowledge-extraction.ts`（纯）：从宿主已读过的字节**派生**知识（ARCHITECTURE/TEST/UI_SURFACE/CONSTRAINT/REQUIREMENT/DECISION），绝不向模型索要事实；为支持“不重扫”，discovery 阶段把有界 `RepositoryModelSummary` 记入 WorkBook 记录（`repo-inspector.repositoryModelFrom`）。
+- `electron/knowledge/knowledge-base.ts`：单文件持久库（只追加 + 隔离区 + 冲突集 + 门禁审计日志），损坏文件经 `loadFailure()` 上报而不阻止启动。`electron/knowledge/knowledge-foundation.ts`：组合根唯一的 facade，写入/读取/取证都不抛错（知识失败永不拖垮任务，§2.5）。
+- **生产接线**：`main.ts` 组合根实例化并把 `setKnowledgeSectionProvider` 接进 `ContextManager`；`runWorkDispatch` 在每条终态分支经门禁记录本次 dispatch 的事实；`ContextManager.assemble` 在任务自身指令之后追加有界 `PROJECT_KNOWLEDGE:` 段落（未接 provider 时输出与改动前**逐字节一致**，有回归测试钉住）。
+- **验收**：`pnpm run acceptance:knowledge`（也是 CI 门禁）跑 K-01..K-04 共 44 项观测全 PASS——K-01 真实 dispatch 自行写入六类知识且 provenance 完整；K-02 同项目第二个任务在**删除整个工程目录后**仍复用第一个任务的 architecture / test layout / UI surface / 约束 / 决策事实，`repositoryReads=0`，且引用的是第一个任务的 provenance；K-03 模型自证声明被隔离且已验证事实逐字节不变；K-04 重启后库与复用仍成立。桌面黑盒同时新增 6 项断言，证明这套知识写入在**真实 Electron 应用**里同样发生。
+- 回归：全量 114 files / 1081 tests PASS（原 110/1034，新增 47 项自身用例，无回归），typecheck/build 全绿。
+

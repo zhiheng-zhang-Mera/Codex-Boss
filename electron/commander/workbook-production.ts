@@ -121,6 +121,64 @@ export interface WorkDispatchDeps {
   publish?: () => void;
   /** Injected for tests; defaults to the real intake. */
   intake?: typeof runWorkBookDispatch;
+  /**
+   * checkpoint-1 §5 Knowledge Foundation. Optional and failure-isolated: when it
+   * is present the finished dispatch records its reusable facts through the
+   * knowledge write gate, and a knowledge failure is reported in the outcome
+   * rather than failing the task (§2.5 partial failure isolation).
+   */
+  knowledge?: WorkDispatchKnowledge;
+  /** Receives a knowledge-write diagnostic instead of the default console log. */
+  onKnowledgeDiagnostic?: (detail: { taskId: string; error?: string; failures?: string[]; rejected?: number }) => void;
+}
+
+/** The narrow slice of the knowledge foundation this orchestration needs. */
+export interface WorkDispatchKnowledge {
+  /** Scope for the project this dispatch belongs to. */
+  projectScopeFor(input: { workspacePath?: string; projectId?: string }): import("../../src/shared/tenx/knowledge").KnowledgeScope;
+  recordWorkBookDispatch(input: import("../../src/shared/knowledge-extraction").KnowledgeExtractionInput): {
+    ok: boolean;
+    accepted: string[];
+    quarantined: string[];
+    rejected: number;
+    failures: string[];
+    error?: string;
+  };
+}
+
+/**
+ * checkpoint-1 §5 knowledge write hook. It runs AFTER the dispatch decision is
+ * durable, so the recorded DECISION fact states what actually happened, and it
+ * never throws: knowledge is a by-product of the task, not a prerequisite.
+ */
+function recordDispatchKnowledge(
+  deps: WorkDispatchDeps,
+  input: { request: WorkDispatchRequest; taskId: string; record: WorkBookDispatchResult["record"]; result: WorkDispatchOutcome }
+): void {
+  const knowledge = deps.knowledge;
+  if (!knowledge) return;
+  try {
+    const scope = knowledge.projectScopeFor({ workspacePath: input.request.workspacePath });
+    const summary = knowledge.recordWorkBookDispatch({
+      taskId: input.taskId,
+      scope,
+      workspacePath: input.request.workspacePath,
+      record: input.record,
+      outcome: input.result.kind,
+      observedAt: new Date().toISOString(),
+      ...("message" in input.result ? { dispatchMessage: input.result.message } : {}),
+      ...("reason" in input.result ? { dispatchMessage: input.result.reason } : {})
+    });
+    if (!summary.ok || summary.failures.length) {
+      const detail = { taskId: input.taskId, error: summary.error, failures: summary.failures, rejected: summary.rejected };
+      if (deps.onKnowledgeDiagnostic) deps.onKnowledgeDiagnostic(detail);
+      else console.warn("[knowledge] WorkBook knowledge write degraded", detail);
+    }
+  } catch (error) {
+    const detail = { taskId: input.taskId, error: String((error as Error).message ?? error) };
+    if (deps.onKnowledgeDiagnostic) deps.onKnowledgeDiagnostic(detail);
+    else console.warn("[knowledge] WorkBook knowledge write failed", detail);
+  }
 }
 
 export type WorkDispatchOutcome =
@@ -265,6 +323,12 @@ export async function runWorkDispatch(
   store.setWorkbookDispatch(task.id, outcome.record);
   publish();
 
+  /** Every terminal branch of this dispatch records its facts once (§5.3). */
+  const finish = (result: WorkDispatchOutcome): WorkDispatchOutcome => {
+    recordDispatchKnowledge(deps, { request, taskId: task.id, record: outcome.record, result });
+    return result;
+  };
+
   // Step 3: commit revisions with the real task id, in ONE call per document,
   // and only for hashes the registry does not already know. A crash between 2
   // and 3 is repaired at startup from the durable record written above.
@@ -282,25 +346,25 @@ export async function runWorkDispatch(
     const reason = outcome.record.blocked_reason ?? "WorkBook intake refused";
     store.setTaskStatus(task.id, "failed", reason);
     publish();
-    return { kind: "BLOCKED", taskId: task.id, reason };
+    return finish({ kind: "BLOCKED", taskId: task.id, reason });
   }
 
   if (outcome.analysisOnly) {
     // The compiled contract is the deliverable: no provider work at all.
     store.completeWorkbookAnalysis(task.id);
     publish();
-    return { kind: "ANALYSIS_ONLY", taskId: task.id };
+    return finish({ kind: "ANALYSIS_ONLY", taskId: task.id });
   }
 
   if (!outcome.autoRun) {
     // Reference/ambiguous WorkBook: durable record kept, provider untouched.
     store.discardUnstartedRuns(task.id);
     publish();
-    return {
+    return finish({
       kind: "NO_AUTO_RUN",
       taskId: task.id,
       ...(outcome.record.classification ? { classification: outcome.record.classification } : {})
-    };
+    });
   }
 
   // Defensive: reaching this point with a zero-run boundary would be a bug in
@@ -308,16 +372,16 @@ export async function runWorkDispatch(
   if (requiresZeroProviderRuns(outcome.record.classification, outcome.analysisOnly)) {
     store.discardUnstartedRuns(task.id);
     publish();
-    return { kind: "NO_AUTO_RUN", taskId: task.id };
+    return finish({ kind: "NO_AUTO_RUN", taskId: task.id });
   }
 
   // Exactly one dispatch path, shared with Resume below.
   const execution = await triggerTaskExecution(task.id, { workspacePath: request.workspacePath }, deps);
   publish();
-  if (execution.ok) return { kind: "DISPATCHED", taskId: task.id };
-  return execution.terminal
+  if (execution.ok) return finish({ kind: "DISPATCHED", taskId: task.id });
+  return finish(execution.terminal
     ? { kind: "FAILED", taskId: task.id, message: execution.message }
-    : { kind: "RECOVERY_WAITING", taskId: task.id, message: execution.message };
+    : { kind: "RECOVERY_WAITING", taskId: task.id, message: execution.message });
 }
 
 /** Result of driving provider work for one existing task. */

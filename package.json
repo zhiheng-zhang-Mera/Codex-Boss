@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
     "test": "vitest run",
     "acceptance:workbook": "node scripts/acceptance-workbook-production.cjs",
+    "acceptance:knowledge": "node scripts/acceptance-knowledge-foundation.cjs",
     "acceptance:desktop-workbook": "node scripts/acceptance-desktop-workbook.cjs",
     "test:seeded": "node scripts/acceptance-seeded-engineering.cjs AB",
     "build:renderer": "vite build",

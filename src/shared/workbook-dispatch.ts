@@ -60,6 +60,31 @@ export interface WorkBookConflictSummary {
   similarity?: number;
 }
 
+/**
+ * Bounded repository world model captured by the discovery stage.
+ *
+ * checkpoint-1 §5 requires the facts an earlier task established to be reusable
+ * WITHOUT rescanning the repository. The scan already happened for discovery, so
+ * the model that matters is recorded here once and read back from the durable
+ * WorkBook record afterwards (see src/shared/knowledge-extraction.ts).
+ */
+export interface RepositoryModelSummary {
+  schemaVersion: 1;
+  /** First path segment of every file, sorted and capped. */
+  top_level: string[];
+  /** Dependency/build manifests seen at any depth. */
+  manifests: string[];
+  /** Files that look like process/program entry points. */
+  entry_points: string[];
+  test_files: string[];
+  /** Renderer/UI/customisation surface files. */
+  ui_surface_files: string[];
+  /** Observed languages, most files first. */
+  languages: string[];
+  /** True when any list above hit its cap, so the model is deliberately partial. */
+  truncated: boolean;
+}
+
 export interface DiscoverySummary {
   repository: boolean;
   root?: string;
@@ -69,6 +94,7 @@ export interface DiscoverySummary {
   skipped_directories: number;
   /** Non-empty when discovery was requested but could not run. */
   reason?: string;
+  repository_model?: RepositoryModelSummary;
 }
 
 /** Durable per-task WorkBook execution record: hashes, verdicts, provenance. */
