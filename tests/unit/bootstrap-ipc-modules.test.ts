@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceIpcModule, WORKSPACE_IPC_CHANNELS } from "../../electron/bootstrap/workspace-ipc";
 import { createAttachmentIpcModule, ATTACHMENT_IPC_CHANNELS, type AttachmentService } from "../../electron/bootstrap/attachment-ipc";
+import { createConversationIpcModule, CONVERSATION_IPC_CHANNELS, requireDeleteConfirmation, type ConversationService } from "../../electron/bootstrap/conversation-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -162,6 +163,78 @@ describe("Phase G — attachment IPC module", () => {
     await ipc.invoke("boss:remove-attachment", "conv-1", "obj-1");
     expect(calls).toEqual(["bytes:note.txt", "register:1", "removeAttachment", "removeInputObject"]);
     expect(await ipc.invoke("boss:attachment-path", "conv-1", "obj-1")).toBe("/tmp/attachment.bin");
+  });
+});
+
+describe("Phase G — conversation IPC module", () => {
+  function build(overrides: Partial<ConversationService> = {}) {
+    const calls: string[] = [];
+    const service: ConversationService = {
+      createFolder: (name) => { calls.push(`createFolder:${name}`); },
+      renameFolder: (folderId, name) => { calls.push(`renameFolder:${folderId}:${name}`); },
+      createConversation: (input) => { calls.push(`createConversation:${input.folderId}:${input.title}`); },
+      renameConversation: (conversationId, title) => { calls.push(`rename:${conversationId}:${title}`); },
+      moveConversation: (conversationId, folderId) => { calls.push(`move:${conversationId}:${folderId}`); },
+      selectConversation: (conversationId) => { calls.push(`select:${conversationId}`); },
+      setConversationArchived: (conversationId, archived) => { calls.push(`archive:${conversationId}:${archived}`); },
+      duplicateConversation: (conversationId) => { calls.push(`duplicate:${conversationId}`); },
+      deleteConversation: (conversationId) => { calls.push(`delete:${conversationId}`); },
+      exportRoot: () => "/data/exports",
+      exportConversation: (conversationId, root) => { calls.push(`export:${conversationId}:${root}`); return path.join(root, `${conversationId}.md`); },
+      revealInFileManager: (target) => { calls.push(`reveal:${target}`); },
+      ...overrides
+    };
+    const ipc = registrar();
+    const publish = vi.fn(() => "snapshot");
+    const module = createConversationIpcModule({ handle: ipc.handle.bind(ipc), conversations: service, publish });
+    return { ipc, module, calls, publish };
+  }
+
+  it("registers exactly the eleven channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...CONVERSATION_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "conversation-ipc", status: "READY" });
+    expect(module.health().detail).toContain("11/11");
+  });
+
+  it("refuses to delete without the explicit confirmation flag", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:delete-conversation", "conv-1", false)).rejects.toThrow(/明确确认/);
+    await expect(ipc.invoke("boss:delete-conversations", ["conv-1"], false)).rejects.toThrow(/批量删除需要明确确认/);
+    expect(calls).toEqual([]);
+  });
+
+  it("deletes one confirmed conversation and publishes", async () => {
+    const { ipc, calls, publish } = build();
+    await ipc.invoke("boss:delete-conversation", "conv-1", true);
+    expect(calls).toEqual(["delete:conv-1"]);
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps deleting the rest of a batch, de-duplicates it, and reports the failures", async () => {
+    const { ipc, calls } = build({ deleteConversation: (conversationId) => { if (conversationId === "bad") throw new Error("locked"); calls.push(`delete:${conversationId}`); } });
+    await expect(ipc.invoke("boss:delete-conversations", ["a", "bad", "a", "", "b"], true)).rejects.toThrow(/1 conversation\(s\) could not be deleted/);
+    expect(calls).toEqual(["delete:a", "delete:b"]);
+  });
+
+  it("routes the simple mutations and exports + reveals", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:create-folder", "Work");
+    await ipc.invoke("boss:rename-folder", "f1", "Renamed");
+    await ipc.invoke("boss:create-conversation", { folderId: "f1", title: "T" });
+    await ipc.invoke("boss:move-conversation", "c1", "f2");
+    await ipc.invoke("boss:archive-conversation", "c1", true);
+    const destination = await ipc.invoke("boss:export-conversation", "c1");
+    expect(calls).toEqual([
+      "createFolder:Work",
+      "renameFolder:f1:Renamed",
+      "createConversation:f1:T",
+      "move:c1:f2",
+      "archive:c1:true",
+      "export:c1:/data/exports",
+      `reveal:${path.join("/data/exports", "c1.md")}`
+    ]);
+    expect(destination).toBe(path.join("/data/exports", "c1.md"));
   });
 });
 

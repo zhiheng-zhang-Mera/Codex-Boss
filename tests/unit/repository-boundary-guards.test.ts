@@ -225,15 +225,24 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   const boot = sources(["electron/bootstrap"]);
 
   it("the extracted channels are registered by boot modules, not by main.ts", () => {
-    for (const channel of ["boss:select-workspace-directory", "boss:validate-workspace-path", "boss:workspace-selection", "boss:remember-workspace-path", "boss:pick-attachments", "boss:add-attachment-bytes", "boss:remove-attachment", "boss:attachment-path"]) {
+    const channels = [
+      "boss:select-workspace-directory", "boss:validate-workspace-path", "boss:workspace-selection", "boss:remember-workspace-path",
+      "boss:pick-attachments", "boss:add-attachment-bytes", "boss:remove-attachment", "boss:attachment-path",
+      "boss:create-folder", "boss:rename-folder", "boss:create-conversation", "boss:rename-conversation", "boss:move-conversation",
+      "boss:select-conversation", "boss:archive-conversation", "boss:delete-conversation", "boss:delete-conversations",
+      "boss:duplicate-conversation", "boss:export-conversation"
+    ];
+    for (const channel of channels) {
       expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
       expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
     }
+    expect(channels.length).toBeGreaterThanOrEqual(19);
   });
 
   it("main.ts registers the modules and reports their health", () => {
     expect(main).toContain("createWorkspaceIpcModule(");
     expect(main).toContain("createAttachmentIpcModule(");
+    expect(main).toContain("createConversationIpcModule(");
     expect(main).toContain("reportBootHealth(bootModules)");
   });
 
@@ -255,7 +264,7 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   });
 
   it("the boot modules each expose service + health + dispose", () => {
-    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts"]) {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts"]) {
       const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
       expect(text).toContain("BootModule<");
       expect(text).toMatch(/health:\s*\(\)\s*=>/);

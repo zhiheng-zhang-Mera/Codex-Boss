@@ -54,6 +54,7 @@ import { validateWorkspacePath } from "./workspace/path-utils";
 import { requireWorkspacePathSync } from "./workspace/path-utils";
 import { createWorkspaceIpcModule } from "./bootstrap/workspace-ipc";
 import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
+import { createConversationIpcModule } from "./bootstrap/conversation-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1380,33 +1381,27 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:update-role-route", (_event, role, runtimeIds: string[], fallback: boolean) => { store.setRoleRoute(role, runtimeIds, Boolean(fallback)); return publish(); });
   ipcMain.handle("boss:load-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "loaded"); return publish(); });
   ipcMain.handle("boss:dismiss-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "dismissed"); return publish(); });
-  ipcMain.handle("boss:create-folder", (_event, name: string) => { store.createFolder(name); return publish(); });
-  ipcMain.handle("boss:rename-folder", (_event, folderId: string, name: string) => { store.renameFolder(folderId, name); return publish(); });
-  ipcMain.handle("boss:create-conversation", (_event, input: CreateConversationInput) => { store.createConversation(input.folderId, input.title); return publish(); });
-  ipcMain.handle("boss:rename-conversation", (_event, conversationId: string, title: string) => { store.renameConversation(conversationId, title); return publish(); });
-  ipcMain.handle("boss:move-conversation", (_event, conversationId: string, folderId: string) => { store.moveConversation(conversationId, folderId); return publish(); });
-  ipcMain.handle("boss:select-conversation", (_event, conversationId: string) => { store.selectConversation(conversationId); return publish(); });
-  ipcMain.handle("boss:archive-conversation", (_event, conversationId: string, archived: boolean) => { store.setConversationArchived(conversationId, Boolean(archived)); return publish(); });
-  ipcMain.handle("boss:delete-conversation", (_event, conversationId: string, userConfirmed: boolean) => {
-    // U1 P1 (§13.1): delete requires an explicit user confirmation on the main
-    // process too — never trust a renderer-triggered cascade delete alone.
-    if (userConfirmed !== true) throw new Error("删除需要明确确认（该操作不可恢复）");
-    store.deleteConversation(conversationId);
-    attachmentStore?.removeConversation(conversationId);
-    return publish();
-  });
-  ipcMain.handle("boss:delete-conversations", (_event, conversationIds: string[], userConfirmed: boolean) => {
-    // U1 P1 (§13.1): bulk delete also requires an explicit confirmed flag.
-    if (userConfirmed !== true) throw new Error("批量删除需要明确确认（该操作不可恢复）");
-    for (const conversationId of [...new Set((conversationIds ?? []).filter(Boolean))]) {
-      try { store.deleteConversation(conversationId); attachmentStore?.removeConversation(conversationId); } catch { /* keep deleting the rest */ }
-    }
-    return publish();
-  });
-  ipcMain.handle("boss:duplicate-conversation", (_event, conversationId: string) => { store.duplicateConversation(conversationId); return publish(); });
-  // Boot modules (convergence book, Phase F/G): the workspace-path and attachment
-  // channels live in electron/bootstrap/*, receive a narrow service surface, and
-  // report their own health. The handler bodies here are now registration only.
+  // Boot modules (convergence book, Phase F/G): the workspace-path, attachment and
+  // conversation channels live in electron/bootstrap/*, receive a narrow service
+  // surface, and report their own health. Handler bodies here are registration only.
+  bootModules.push(createConversationIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    conversations: {
+      createFolder: (name) => store.createFolder(name),
+      renameFolder: (folderId, name) => store.renameFolder(folderId, name),
+      createConversation: (input) => { store.createConversation(input.folderId, input.title); },
+      renameConversation: (conversationId, title) => store.renameConversation(conversationId, title),
+      moveConversation: (conversationId, folderId) => store.moveConversation(conversationId, folderId),
+      selectConversation: (conversationId) => store.selectConversation(conversationId),
+      setConversationArchived: (conversationId, archived) => store.setConversationArchived(conversationId, archived),
+      duplicateConversation: (conversationId) => store.duplicateConversation(conversationId),
+      deleteConversation: (conversationId) => { store.deleteConversation(conversationId); attachmentStore?.removeConversation(conversationId); },
+      exportRoot: () => path.join(app.getPath("userData"), "exports"),
+      exportConversation: (conversationId, root) => historyRepository.exportConversation(store.snapshot(), conversationId, root),
+      revealInFileManager: async (target) => { const { shell } = await import("electron"); shell.showItemInFolder(target); }
+    },
+    publish
+  }));
   bootModules.push(createWorkspaceIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
     showOpenDialog: (options) => (mainWindow && !mainWindow.isDestroyed()
@@ -1431,13 +1426,6 @@ if (ownsInstance) app.whenReady().then(() => {
       : dialog.showOpenDialog(options as Electron.OpenDialogOptions))
   }));
   reportBootHealth(bootModules);
-  ipcMain.handle("boss:export-conversation", async (_event, conversationId: string) => {
-    const exportRoot = path.join(app.getPath("userData"), "exports");
-    const destination = historyRepository.exportConversation(store.snapshot(), conversationId, exportRoot);
-    const { shell } = await import("electron");
-    shell.showItemInFolder(destination);
-    return destination;
-  });
   ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
     const normalized = normalizeCustomProviderInput(input);
     store.addCustomProvider(normalized.name, normalized.url);
