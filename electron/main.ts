@@ -59,6 +59,7 @@ import { createProviderIpcModule } from "./bootstrap/provider-ipc";
 import { createStatusIpcModule, windowStateView } from "./bootstrap/status-ipc";
 import { createEngineeringSurfaceIpcModule } from "./bootstrap/engineering-surface-ipc";
 import { createResearchIpcModule } from "./bootstrap/research-ipc";
+import { createHostStatusIpcModule } from "./bootstrap/host-status-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -101,14 +102,11 @@ import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine"
 import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
-import { loginScan } from "../src/shared/login-scan";
-import { probeNetwork } from "../src/shared/network-policy";
 import { ResearchContractStore, auditRun } from "./research/research-contract-store";
 import { ReviewRoundStore } from "./research/review-round-store";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
-import { inspectDevice } from "./node/node-inspector";
 import { LearningService } from "./learning/learning-service";
 import { ExternalSessionLedger } from "./workspace/external-session-ledger";
 import { automatePendingExternalArchives } from "./workspace/external-archive-automation";
@@ -1007,71 +1005,22 @@ if (ownsInstance) app.whenReady().then(() => {
     void runHeadlessResearch(headlessWorkspace!, openIds).catch((error) => { console.error("Headless research failed:", error); app.exit(1); });
   }
 
-  ipcMain.handle("boss:login-scan", () => {
-    // R-205 fast-login scan: Boss-side status scan + guidance. MFA/CAPTCHA and
-    // account authorization remain genuine operator steps (externalOnly).
-    const accounts = store.snapshot().accounts.map((account) => ({ providerId: account.providerId, mode: account.mode as import("../src/shared/contracts").ProviderAccountMode | undefined }));
-    const lifecycles: Record<string, import("../src/shared/session-lifecycle").SessionLifecycle> = {};
-    for (const record of sessionLifecycleLedger?.list() ?? []) lifecycles[record.providerId] = record.state;
-    return loginScan(accounts, lifecycles);
-  });
-  ipcMain.handle("boss:node-status", async () => {
-    // R-302 device self-inspection: probe this device (observed facts only) and
-    // refresh the local node capability registry.
-    const loggedIn = store.snapshot().accounts.filter((account) => account.mode === "READY").map((account) => account.providerId);
-    const probe = inspectDevice({ loggedInProviderIds: loggedIn });
-    const result = nodeRegistry?.refresh("desktop", probe);
-    const status = nodeRegistry?.status("desktop");
-    const github = githubMachine?.configured
-      ? await githubMachine.selfCheck().catch(() => ({
-          configured: true, credentialProviderAvailable: false, authenticationHealthy: false,
-          installationReachable: false,
-          capabilities: { git: false, "github.read": false, "github.write": false, "credential.github": false, filesystem: false, test: false, network: false },
-          error: "UNKNOWN_GITHUB_ERROR"
-        }))
-      : { configured: false, credentialProviderAvailable: false, authenticationHealthy: false, installationReachable: false,
-          capabilities: { git: false, "github.read": false, "github.write": false, "credential.github": false, filesystem: false, test: false, network: false },
-          error: "AUTH_MISSING" };
-    return { state: result?.state ?? "UNINITIALIZED", reason: result?.reason ?? "not inspected yet", verdicts: status?.verdicts ?? [], sampledAt: probe.sampledAt, loggedIn, github };
-  });
-  ipcMain.handle("boss:provider-intelligence", () => {
-    // Engine §18: Owner-facing provider intelligence panel. Learning is a
-    // read-only projection here — a failure inside it can never affect tasks.
-    return learningService().panel();
-  });
-  ipcMain.handle("boss:learning-episode", (_event, episodeId: string) => {
-    return learningService().drilldown(String(episodeId ?? ""));
-  });
-  ipcMain.handle("boss:learning-control", (_event, action: string, enabled?: boolean) => {
-    // Engine §12 Owner controls: rebuild/reset derived data, disable adaptive
-    // routing while keeping learning, or disable learning entirely.
-    const learning = learningService();
-    switch (action) {
-      case "rebuild":
-        learning.rebuildDerived();
-        break;
-      case "reset":
-        learning.resetDerived();
-        break;
-      case "set-adaptive-routing":
-        learning.setAdaptiveRouting(enabled === true);
-        break;
-      case "set-learning":
-        learning.setLearning(enabled === true);
-        break;
-      default:
-        break;
+  // Phase F/G: the host/device/learning status channels live in
+  // electron/bootstrap/host-status-ipc.ts, with the probe orchestration and the
+  // degraded shapes they report. The composition root supplies accessors rather than
+  // values, because the node registry and the GitHub machine identity are created
+  // later in startup — after this point.
+  bootModules.push(createHostStatusIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    host: {
+      accounts: () => store.snapshot().accounts.map((account) => ({ providerId: account.providerId, mode: account.mode as import("../src/shared/contracts").ProviderAccountMode | undefined })),
+      sessionLifecycles: () => sessionLifecycleLedger?.list() ?? [],
+      nodeRegistry: () => nodeRegistry,
+      githubMachine: () => githubMachine,
+      learning: () => learningService(),
+      proxyConfigured: () => Boolean(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.ALL_PROXY || process.env.http_proxy || process.env.https_proxy)
     }
-    return learning.controlState();
-  });
-  ipcMain.handle("boss:network-status", () => {    // R-501/R-502: per-node network capability probe + route surface. Direct
-    // reachability comes from observed logged-in providers; proxies from the
-    // operator's environment configuration (system/user). Pure decision logic
-    // lives in shared/network-policy.ts.
-    const direct = store.snapshot().accounts.filter((account) => account.mode === "READY").map((account) => account.providerId);
-    const proxyEnv = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.ALL_PROXY || process.env.http_proxy || process.env.https_proxy;
-    return probeNetwork({ nodeId: "desktop", directReachableProviders: direct, userProxyConfigured: Boolean(proxyEnv) });
-  });
+  }));
   ipcMain.handle("boss:research-contract-record", (_event, id: string, contract: import("../src/shared/research-contract").ResearchContract) => {
     // R-701: persist the Research Contract for a run (durable; paper expansion
     // and the sufficiency gate read it from here).

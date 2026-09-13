@@ -9,6 +9,7 @@ import { createProviderIpcModule, PROVIDER_IPC_CHANNELS, sanitizeViewLayout } fr
 import { createStatusIpcModule, STATUS_IPC_CHANNELS, windowStateView } from "../../electron/bootstrap/status-ipc";
 import { createEngineeringSurfaceIpcModule, ENGINEERING_SURFACE_IPC_CHANNELS } from "../../electron/bootstrap/engineering-surface-ipc";
 import { createResearchIpcModule, RESEARCH_IPC_CHANNELS } from "../../electron/bootstrap/research-ipc";
+import { createHostStatusIpcModule, HOST_STATUS_IPC_CHANNELS, type HostStatusService } from "../../electron/bootstrap/host-status-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -473,6 +474,111 @@ describe("Phase G — research run-control module", () => {
     expect(raised).toHaveLength(1);
     // The context summary falls back to the question rather than being empty.
     expect(raised[0]).toMatchObject({ contextSummary: "which dataset?" });
+  });
+});
+
+describe("Phase G — host status and learning module", () => {
+  function build(overrides: Partial<HostStatusService> = {}) {
+    const ipc = registrar();
+    const host: HostStatusService = {
+      accounts: () => [{ providerId: "qwen", mode: "READY" }, { providerId: "codex", mode: "AUTH_REQUIRED" }],
+      sessionLifecycles: () => [],
+      nodeRegistry: () => undefined,
+      githubMachine: () => undefined,
+      learning: () => ({
+        panel: () => ({ episodes: 3 }),
+        drilldown: (episodeId) => ({ episodeId }),
+        rebuildDerived: () => undefined,
+        resetDerived: () => undefined,
+        setAdaptiveRouting: () => undefined,
+        setLearning: () => undefined,
+        controlState: () => ({ adaptiveRouting: true, learning: true })
+      }),
+      proxyConfigured: () => false,
+      ...overrides
+    };
+    const module = createHostStatusIpcModule({ handle: ipc.handle.bind(ipc), host });
+    return { ipc, module };
+  }
+
+  it("registers exactly the six channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...HOST_STATUS_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "host-status-ipc", status: "READY" });
+    expect(module.health().detail).toContain("6/6");
+  });
+
+  it("reports an uninitialised device rather than throwing when no registry is attached", async () => {
+    // The renderer polls this on a timer; a missing optional subsystem is an empty
+    // answer, not an error the pane should render as a failure.
+    const { ipc } = build();
+    const status = await ipc.invoke("boss:node-status") as Record<string, unknown>;
+    expect(status.state).toBe("UNINITIALIZED");
+    expect(status.reason).toBe("not inspected yet");
+    expect(status.verdicts).toEqual([]);
+    expect(status.loggedIn).toEqual(["qwen"]);
+  });
+
+  it("distinguishes an absent credential provider from an unreachable one", async () => {
+    const { ipc } = build({ githubMachine: () => ({ configured: false }) });
+    const absent = await ipc.invoke("boss:node-status") as { github: { error?: string; configured: boolean } };
+    expect(absent.github).toMatchObject({ configured: false, error: "AUTH_MISSING" });
+
+    const failing = build({
+      githubMachine: () => ({ configured: true, selfCheck: async () => { throw new Error("network down"); } })
+    });
+    const unreachable = await failing.ipc.invoke("boss:node-status") as { github: { error?: string; configured: boolean } };
+    // Configured but unreachable is a different answer from not configured at all.
+    expect(unreachable.github).toMatchObject({ configured: true, error: "UNKNOWN_GITHUB_ERROR" });
+  });
+
+  it("applies each learning control and always answers with the resulting state", async () => {
+    const calls: string[] = [];
+    const { ipc } = build({
+      learning: () => ({
+        panel: () => ({}),
+        drilldown: () => ({}),
+        rebuildDerived: () => { calls.push("rebuild"); },
+        resetDerived: () => { calls.push("reset"); },
+        setAdaptiveRouting: (on) => { calls.push(`adaptive:${on}`); },
+        setLearning: (on) => { calls.push(`learning:${on}`); },
+        controlState: () => ({ adaptiveRouting: false, learning: false })
+      })
+    });
+    expect(await ipc.invoke("boss:learning-control", "rebuild")).toEqual({ adaptiveRouting: false, learning: false });
+    await ipc.invoke("boss:learning-control", "reset");
+    await ipc.invoke("boss:learning-control", "set-adaptive-routing", true);
+    await ipc.invoke("boss:learning-control", "set-learning", false);
+    expect(calls).toEqual(["rebuild", "reset", "adaptive:true", "learning:false"]);
+
+    // An unknown action is a no-op that still reports state, so a newer renderer
+    // cannot break an older host.
+    await ipc.invoke("boss:learning-control", "something-new", true);
+    expect(calls).toHaveLength(4);
+  });
+
+  it("reads the proxy question from its dependency, not from this process's environment", async () => {
+    const { ipc } = build({ proxyConfigured: () => true });
+    const status = await ipc.invoke("boss:network-status") as { nodeId: string; capabilities: Array<{ id: string; available: boolean; providers?: string[] }> };
+    expect(status.nodeId).toBe("desktop");
+    const direct = status.capabilities.find((entry) => entry.id === "direct");
+    // Only READY accounts are directly reachable; AUTH_REQUIRED is not.
+    expect(direct?.available).toBe(true);
+    expect(direct?.providers).toEqual(["qwen"]);
+    // This is the assertion the module exists to make testable: the proxy answer
+    // came from the injected dependency rather than from process.env.
+    expect(status.capabilities.find((entry) => entry.id === "user-proxy")?.available).toBe(true);
+  });
+
+  it("passes the session lifecycle states into the login scan", async () => {
+    const { ipc } = build({ sessionLifecycles: () => [{ providerId: "qwen", state: "AUTHENTICATED" }] });
+    const scan = await ipc.invoke("boss:login-scan") as { providers: Array<{ providerId: string }>; readyCount: number; needsOperatorCount: number };
+    // Both accounts reach the scan. Order is the scan's own (it sorts), so this
+    // asserts the module's contract — pass the accounts through — not an ordering.
+    expect(scan.providers.map((entry) => entry.providerId).sort()).toEqual(["codex", "qwen"]);
+    expect(scan.readyCount).toBe(1);
+    // AUTH_REQUIRED is a genuine operator step, so it must be counted as one.
+    expect(scan.needsOperatorCount).toBe(1);
   });
 });
 
