@@ -9,7 +9,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { runGit as runGitCommand } from "../git/git-gateway";
 import type { GithubTarget } from "../../src/shared/github-url";
 import { githubCacheKey } from "../../src/shared/github-url";
 import { removeTree } from "../fs-util";
@@ -36,16 +36,23 @@ export class GithubResolver {
     fs.mkdirSync(cacheRoot, { recursive: true });
   }
 
-  private runGit(args: string[], cwd?: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      execFile(this.gitExec, args, { cwd, maxBuffer: 64 * 1024 * 1024, windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(`${this.gitExec} ${args.join(" ")} failed: ${(stderr || "").trim().slice(0, 400) || String(error)}`));
-          return;
-        }
-        resolve(stdout.trim());
-      });
+  private async runGit(args: string[], cwd?: string): Promise<string> {
+    // 64MB and 120s are this resolver's own bounds, stated rather than inherited: a
+    // clone of a large repository produces far more transcript than a status read,
+    // and the band table stops at 16MB. `cwd` stays optional here, and an absent one
+    // means this process's directory — which is what the child used to inherit.
+    const result = await runGitCommand(cwd ?? process.cwd(), args, {
+      timeoutMs: 120_000,
+      maxBufferBytes: 64 * 1024 * 1024,
+      // The binary is injectable so tests can point at a double; it is still the
+      // gateway that runs it.
+      gitBinary: this.gitExec
     });
+    if (!result.ok) {
+      const reason = result.stderr.trim().slice(0, 400) || result.spawnError || `exit code ${result.code ?? "unknown"}`;
+      throw new Error(`${this.gitExec} ${args.join(" ")} failed: ${reason}`);
+    }
+    return result.stdout.trim();
   }
 
   private originFor(target: GithubTarget, origin?: string): string {

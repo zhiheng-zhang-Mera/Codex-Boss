@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { runGit, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import type { BossGitHubCredentialProvider, AutomationCredential } from "../credential-boundary/github-credential-provider";
 
 /**
@@ -179,20 +179,21 @@ export class GitHubPromotionAdapter {
       GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
       GIT_TERMINAL_PROMPT: "0"
     };
-    return new Promise((resolve) => {
-      execFile(
-        "git",
-        ["push", "--porcelain", `https://github.com/${this.repository}.git`, `${input.sha}:refs/heads/${input.branch}`],
-        { cwd: input.workspace, windowsHide: true, timeout: 180000, maxBuffer: 8 * 1024 * 1024, env: environment },
-        (error, stdout, stderr) => {
-          if (error) {
-            resolve({ status: "BLOCKED_EXTERNAL", reason: `candidate branch push failed: ${String(stderr || error.message).slice(0, 800)}`, requiredExternalAction: "Verify the dedicated Boss identity has contents:write on this repository." });
-            return;
-          }
-          resolve({ status: "OK", value: { branch: input.branch, sha: input.sha } });
-        }
-      );
-    });
+    const result = await runGit(
+      input.workspace,
+      ["push", "--porcelain", `https://github.com/${this.repository}.git`, `${input.sha}:refs/heads/${input.branch}`],
+      // 180s: a push is bounded by the network and by how much history is new.
+      // The credential still travels only in the environment (rule 2 above).
+      { timeoutMs: 180_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large, env: environment }
+    );
+    if (!result.ok) {
+      return {
+        status: "BLOCKED_EXTERNAL",
+        reason: `candidate branch push failed: ${(result.stderr || result.spawnError || "").slice(0, 800)}`,
+        requiredExternalAction: "Verify the dedicated Boss identity has contents:write on this repository."
+      };
+    }
+    return { status: "OK", value: { branch: input.branch, sha: input.sha } };
   }
 
   /** Opens a pull request against the protected base branch. */

@@ -26,6 +26,18 @@ export interface GitRunOptions {
   timeoutMs?: number;
   /** Max captured output. Defaults to `GIT_MAX_BUFFER.standard`. */
   maxBufferBytes?: number;
+  /**
+   * The git binary to run. Defaults to `git` on PATH. A caller that resolves its own
+   * executable — a bundled git, a test double — states it here instead of spawning
+   * on its own, so the operation still has one entry point.
+   */
+  gitBinary?: string;
+  /**
+   * The child's entire environment. Defaults to inheriting this process's. An
+   * operation that needs a credential passes it through `GIT_CONFIG_*` here, so the
+   * secret reaches git without entering argv, where a process listing would show it.
+   */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface GitRunResult {
@@ -60,17 +72,21 @@ export const GIT_MAX_BUFFER_BYTES = {
   large: 16 * 1024 * 1024
 } as const;
 
-function resolveOptions(options: GitRunOptions): { timeoutMs: number; maxBufferBytes: number } {
+function resolveOptions(options: GitRunOptions): { timeoutMs: number; maxBufferBytes: number; gitBinary: string; env: NodeJS.ProcessEnv | undefined } {
   return {
     timeoutMs: options.timeoutMs ?? GIT_TIMEOUT_MS.standard,
-    maxBufferBytes: options.maxBufferBytes ?? GIT_MAX_BUFFER_BYTES.standard
+    maxBufferBytes: options.maxBufferBytes ?? GIT_MAX_BUFFER_BYTES.standard,
+    gitBinary: options.gitBinary ?? "git",
+    // `undefined` means "inherit this process's environment", which is what passing
+    // no `env` to the child has always meant.
+    env: options.env
   };
 }
 
 export function runGit(cwd: string, args: readonly string[], options: GitRunOptions = {}): Promise<GitRunResult> {
-  const { timeoutMs, maxBufferBytes } = resolveOptions(options);
+  const { timeoutMs, maxBufferBytes, gitBinary, env } = resolveOptions(options);
   return new Promise((resolve) => {
-    execFile("git", [...args], { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: maxBufferBytes, encoding: "utf8" },
+    execFile(gitBinary, [...args], { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: maxBufferBytes, encoding: "utf8", env },
       (error, stdout, stderr) => {
         const rawCode = error ? (error as { code?: unknown }).code : 0;
         const numeric = typeof rawCode === "number" ? rawCode : null;
@@ -87,8 +103,8 @@ export function runGit(cwd: string, args: readonly string[], options: GitRunOpti
 }
 
 export function runGitSync(cwd: string, args: readonly string[], options: GitRunOptions = {}): GitRunResult {
-  const { timeoutMs, maxBufferBytes } = resolveOptions(options);
-  const result = spawnSync("git", [...args], { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: maxBufferBytes, encoding: "utf8" });
+  const { timeoutMs, maxBufferBytes, gitBinary, env } = resolveOptions(options);
+  const result = spawnSync(gitBinary, [...args], { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: maxBufferBytes, encoding: "utf8", env });
   return {
     stdout: String(result.stdout ?? ""),
     stderr: String(result.stderr ?? ""),

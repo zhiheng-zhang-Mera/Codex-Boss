@@ -48,13 +48,17 @@ function initRepo(): string {
  */
 const DIRECT_GIT_SPAWN = /(?:execFile|execFileSync|spawnSync|spawn)\(\s*(?:"git"|'git'|this\.gitExec|gitExec|this\.git\b)/;
 
-/** Every file that spawns git directly today, with the reason it has not moved. */
+/**
+ * Every file that spawns git directly today, with the reason it has not moved.
+ *
+ * Only the Root Trust Surface three are left: moving any of them changes a file the
+ * trust epoch anchors, so each move is its own epoch-carrying change rather than part
+ * of a refactor. Everything else in the application now asks the gateway.
+ */
 const DECLARED_GIT_DEBT: Record<string, string> = {
   "electron/engineering/acceptance-session.ts": "Root Trust Surface: its move carries a trust-epoch advance",
   "electron/engineering/autonomous-evolution-identity.ts": "Root Trust Surface: its move carries a trust-epoch advance",
-  "electron/engineering/autonomous-evolution-runner.ts": "Root Trust Surface: its move carries a trust-epoch advance",
-  "electron/input/github-resolver.ts": "takes a configurable git binary path, which the gateway does not model yet",
-  "electron/promotion-gate/github-promotion-adapter.ts": "needs a per-push credential environment, which the gateway does not pass through yet"
+  "electron/engineering/autonomous-evolution-runner.ts": "Root Trust Surface: its move carries a trust-epoch advance"
 };
 
 /** The modules Phase M has already moved onto the gateway. */
@@ -73,7 +77,9 @@ const MIGRATED_TO_GATEWAY = [
   "electron/root-recovery/rollback-controller.ts",
   "electron/self-evolution/self-evolution-host.ts",
   "electron/self-evolution/self-evolution-coordinator.ts",
-  "electron/stable-candidate/workspace-manager.ts"
+  "electron/stable-candidate/workspace-manager.ts",
+  "electron/input/github-resolver.ts",
+  "electron/promotion-gate/github-promotion-adapter.ts"
 ];
 
 function repoFile(relative: string): string {
@@ -140,6 +146,29 @@ describe("Phase M — the git gateway", () => {
     expect(GIT_TIMEOUT_MS.standard).toBeLessThan(GIT_TIMEOUT_MS.large);
     expect(GIT_MAX_BUFFER_BYTES.small).toBeLessThan(GIT_MAX_BUFFER_BYTES.standard);
     expect(GIT_MAX_BUFFER_BYTES.standard).toBeLessThan(GIT_MAX_BUFFER_BYTES.large);
+  });
+
+  it("runs the binary it was given, and calls a missing one a launch failure", async () => {
+    // `gitBinary` exists so a caller with its own executable (a bundled git, a test
+    // double) still goes through the gateway. Pointing it at nothing must be reported
+    // as "never ran" rather than as an empty successful read.
+    const repo = initRepo();
+    const missing = await runGit(repo, ["rev-parse", "HEAD"], { gitBinary: "definitely-not-a-real-git-binary" });
+    expect(missing.ok).toBe(false);
+    expect(missing.spawnError).toBeTruthy();
+  });
+
+  it("passes the environment through, which is how a credential reaches git", async () => {
+    // The promotion adapter hands git a token through GIT_CONFIG_* rather than argv,
+    // so the secret never appears in a process listing. That only works if the
+    // gateway really passes `env` to the child, so this asserts it through the same
+    // mechanism instead of a proxy for it.
+    const repo = initRepo();
+    const result = await runGit(repo, ["config", "--get", "boss.gateway"], {
+      env: { ...process.env, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "boss.gateway", GIT_CONFIG_VALUE_0: "from-the-environment" }
+    });
+    expect(result.ok).toBe(true);
+    expect(result.stdout.trim()).toBe("from-the-environment");
   });
 
   it("is the only place the application spawns git", () => {
