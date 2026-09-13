@@ -1257,7 +1257,14 @@ function assessQuiescence(runner) {
     if (!parsed || parsed.run_id === options.runId) continue;
     const alive = isAlive(parsed.pid);
     foreignLocks.push({ run_id: parsed.run_id, pid: parsed.pid, alive, started_at: parsed.started_at, released: Boolean(parsed.released_at) });
-    if (alive) liveChildren.push(`pid ${parsed.pid} (battery ${parsed.run_id})`);
+    // A RELEASED lock is a finished run: whatever holds that pid now is an
+    // unrelated process (Windows reuses pids), and counting it as a live child
+    // makes this fail-closed check refuse forever — the battery then cannot run
+    // again without an operator deleting a spent mutex by hand. An UNRELEASED lock
+    // whose pid is alive is still a genuine concurrent run and still refuses; an
+    // unreleased lock whose pid is gone cannot block anything, because `alive` is
+    // false for it.
+    if (alive && !parsed.released_at) liveChildren.push(`pid ${parsed.pid} (battery ${parsed.run_id})`);
     const journal = path.join(evolutionRoot, name, "evolution-journal.ndjson");
     const read = runner.readJournalSync(journal);
     const started = new Map();
