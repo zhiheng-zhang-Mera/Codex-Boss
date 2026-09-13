@@ -1,0 +1,225 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  normalizeWorkspacePath,
+  requireWorkspacePath,
+  requireWorkspacePathSync,
+  resolveWorkspacePath,
+  resolveWorkspacePathSync,
+  validateWorkspacePath,
+  WorkspacePathError
+} from "../../electron/workspace/path-utils";
+
+/**
+ * Update-Plan/cleaning.md §3 — the single path model.
+ *
+ * These tests cover the five steps the plan names: Windows slash forms,
+ * whitespace handling, relative paths, a non-existent path and a file used as a
+ * workspace. They run against the real filesystem (real temp directories, real
+ * `fs.statSync`) rather than a mocked one, because the point of the module is to
+ * agree with Windows about what exists.
+ */
+
+const dirs: string[] = [];
+function makeTree(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "boss-path-utils-"));
+  dirs.push(dir);
+  return dir;
+}
+afterEach(() => {
+  for (const dir of dirs.splice(0)) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+});
+
+describe("normalizeWorkspacePath — Windows slash forms (§3 step 1)", () => {
+  it("gives C:\\repo, C:/repo and C:\\\\repo one canonical Windows form", () => {
+    const root = makeTree();
+    const expected = normalizeWorkspacePath(root);
+    expect(expected).toMatch(/^[A-Z]:\\/);
+    const forward = root.replace(/\\/g, "/");
+    const doubled = root.replace(/\\/g, "\\\\");
+    expect(normalizeWorkspacePath(forward)).toBe(expected);
+    expect(normalizeWorkspacePath(doubled)).toBe(expected);
+    expect(forward).not.toBe(expected); // the raw spellings really do differ
+  });
+
+  it("keeps Windows executable semantics — a canonical path is never rewritten to /", () => {
+    const normalized = normalizeWorkspacePath("c:/repo");
+    expect(normalized).toBe("C:\\repo");
+    expect(normalized).not.toContain("/");
+  });
+
+  it("upper-cases the drive letter and collapses repeated separators", () => {
+    expect(normalizeWorkspacePath("c:\\repo\\\\sub")).toBe("C:\\repo\\sub");
+    expect(normalizeWorkspacePath("C://repo//sub")).toBe("C:\\repo\\sub");
+  });
+
+  it("drops a trailing separator but keeps a drive root", () => {
+    expect(normalizeWorkspacePath("C:\\repo\\")).toBe("C:\\repo");
+    expect(normalizeWorkspacePath("C:\\")).toBe("C:\\");
+    expect(normalizeWorkspacePath("C:/")).toBe("C:\\");
+  });
+
+  it("preserves a UNC prefix instead of collapsing it into a rooted path", () => {
+    expect(normalizeWorkspacePath("\\\\server\\share\\repo")).toBe("\\\\server\\share\\repo");
+    expect(normalizeWorkspacePath("//server/share/repo")).toBe("\\\\server\\share\\repo");
+  });
+
+  it("is total: a non-string or whitespace-only input normalizes to the empty string", () => {
+    expect(normalizeWorkspacePath(undefined as unknown as string)).toBe("");
+    expect(normalizeWorkspacePath(null as unknown as string)).toBe("");
+    expect(normalizeWorkspacePath("   ")).toBe("");
+    expect(normalizeWorkspacePath("\t\r\n")).toBe("");
+  });
+});
+
+describe("normalizeWorkspacePath — whitespace handling (§3 step 2)", () => {
+  it("trims surrounding whitespace", () => {
+    expect(normalizeWorkspacePath("  C:\\repo  ")).toBe("C:\\repo");
+    expect(normalizeWorkspacePath("\tC:\\repo\n")).toBe("C:\\repo");
+  });
+
+  it("never changes a legal space inside a directory name", () => {
+    expect(normalizeWorkspacePath("  C:\\my project\\a b  ")).toBe("C:\\my project\\a b");
+    const root = makeTree();
+    const spaced = path.join(root, "my project");
+    fs.mkdirSync(spaced);
+    const validation = validateWorkspacePath(`  ${spaced}  `);
+    expect(validation.ok).toBe(true);
+    expect(validation.normalizedPath).toBe(normalizeWorkspacePath(spaced));
+    expect(validation.normalizedPath).toContain("my project");
+  });
+});
+
+describe("validateWorkspacePath — relative paths (§3 step 3)", () => {
+  it("refuses a relative path with an explicit code, not a vague message", () => {
+    const validation = validateWorkspacePath(".\\repo");
+    expect(validation.ok).toBe(false);
+    expect(validation.code).toBe("NOT_ABSOLUTE");
+    expect(validation.reason).toMatch(/absolute Windows path/);
+  });
+
+  it("refuses a bare relative name and a root-relative path", () => {
+    expect(validateWorkspacePath("repo").code).toBe("NOT_ABSOLUTE");
+    expect(validateWorkspacePath("\\repo").code).toBe("NOT_ABSOLUTE");
+    expect(validateWorkspacePath("..\\repo").code).toBe("NOT_ABSOLUTE");
+  });
+
+  it("refuses a drive-relative path (C:repo) that could silently resolve against the ambient cwd", () => {
+    const validation = validateWorkspacePath("C:repo");
+    expect(validation.ok).toBe(false);
+    expect(validation.code).toBe("NOT_ABSOLUTE");
+    expect(validation.reason).toContain("names a drive but is not rooted");
+  });
+
+  it("refuses an empty or whitespace-only path with EMPTY_PATH", () => {
+    expect(validateWorkspacePath("").code).toBe("EMPTY_PATH");
+    expect(validateWorkspacePath("   ").code).toBe("EMPTY_PATH");
+  });
+
+  it("refuses a NUL byte as INVALID_PATH", () => {
+    expect(validateWorkspacePath("C:\\repo\u0000x").code).toBe("INVALID_PATH");
+  });
+});
+
+describe("validateWorkspacePath — existence and shape (§3 steps 4/5)", () => {
+  it("reports PATH_NOT_FOUND for a directory that is not there", () => {
+    const root = makeTree();
+    const missing = path.join(root, "does-not-exist");
+    const validation = validateWorkspacePath(missing);
+    expect(validation.ok).toBe(false);
+    expect(validation.code).toBe("PATH_NOT_FOUND");
+    expect(validation.reason).toBe(`"${normalizeWorkspacePath(missing)}" does not exist`);
+    expect(validation.reason).not.toBe("invalid input");
+  });
+
+  it("reports PATH_NOT_FOUND for an entire drive that is not mounted", () => {
+    // A removable/network volume that is currently absent must be a refusal, not a crash.
+    const validation = validateWorkspacePath("Q:\\definitely-not-mounted\\project");
+    expect(validation.ok).toBe(false);
+    expect(["PATH_NOT_FOUND", "PATH_NOT_ACCESSIBLE"]).toContain(validation.code);
+  });
+
+  it("reports NOT_A_DIRECTORY when a file is used as the workspace", () => {
+    const root = makeTree();
+    const file = path.join(root, "README.md");
+    fs.writeFileSync(file, "# not a workspace\n");
+    const validation = validateWorkspacePath(file);
+    expect(validation.ok).toBe(false);
+    expect(validation.code).toBe("NOT_A_DIRECTORY");
+    expect(validation.reason).toContain("is a file, not a directory");
+  });
+
+  it("accepts a real directory and returns the canonical path", () => {
+    const root = makeTree();
+    const validation = validateWorkspacePath(` ${root.replace(/\\/g, "/")} `);
+    expect(validation.ok).toBe(true);
+    expect(validation.code).toBe("OK");
+    expect(validation.normalizedPath).toBe(normalizeWorkspacePath(root));
+  });
+});
+
+describe("resolveWorkspacePath — canonical identity", () => {
+  it("resolves a real directory to its on-disk canonical path", async () => {
+    const root = makeTree();
+    const resolved = await resolveWorkspacePath(root.replace(/\\/g, "/"));
+    expect(resolved.ok).toBe(true);
+    expect(resolved.code).toBe("OK");
+    expect(resolved.canonicalPath?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+  });
+
+  it("gives the same canonical path for every accepted spelling of one directory", async () => {
+    const root = makeTree();
+    const spellings = [root, root.replace(/\\/g, "/"), ` ${root} `, root.replace(/\\/g, "\\\\")];
+    const canonical = await Promise.all(spellings.map(async (spelling) => (await resolveWorkspacePath(spelling)).canonicalPath));
+    expect(new Set(canonical).size).toBe(1);
+  });
+
+  it("fails closed with the validation code instead of returning an unresolved path", async () => {
+    const root = makeTree();
+    const missing = await resolveWorkspacePath(path.join(root, "gone"));
+    expect(missing.ok).toBe(false);
+    expect(missing.code).toBe("PATH_NOT_FOUND");
+    expect(missing.canonicalPath).toBeUndefined();
+
+    const relative = await resolveWorkspacePath(".\\repo");
+    expect(relative.ok).toBe(false);
+    expect(relative.code).toBe("NOT_ABSOLUTE");
+
+    const asFile = path.join(root, "a.txt");
+    fs.writeFileSync(asFile, "x");
+    expect((await resolveWorkspacePath(asFile)).code).toBe("NOT_A_DIRECTORY");
+  });
+
+  it("agrees with its synchronous counterpart", () => {
+    const root = makeTree();
+    const sync = resolveWorkspacePathSync(root);
+    expect(sync.ok).toBe(true);
+    expect(sync.canonicalPath?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    expect(resolveWorkspacePathSync(path.join(root, "gone")).code).toBe("PATH_NOT_FOUND");
+  });
+});
+
+describe("requireWorkspacePath — the fail-loud boundary", () => {
+  it("throws a WorkspacePathError carrying the machine code", async () => {
+    const root = makeTree();
+    await expect(requireWorkspacePath(path.join(root, "gone"))).rejects.toBeInstanceOf(WorkspacePathError);
+    try {
+      requireWorkspacePathSync(path.join(root, "gone"));
+      throw new Error("expected requireWorkspacePathSync to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(WorkspacePathError);
+      expect((error as WorkspacePathError).code).toBe("PATH_NOT_FOUND");
+      expect((error as WorkspacePathError).message).toContain("[PATH_NOT_FOUND]");
+    }
+  });
+
+  it("returns the resolved workspace for a valid directory", async () => {
+    const root = makeTree();
+    const resolved = await requireWorkspacePath(root);
+    expect(resolved.canonicalPath?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+  });
+});
