@@ -193,7 +193,35 @@ describe("Phase C — the autonomous mutation recovery rule", () => {
   });
 });
 
+describe("Phase P — migration readiness", () => {
+  it("no tracked source file hard-codes this developer machine's paths", () => {
+    // A checkout must work at any path on any Windows machine. What breaks a clean
+    // clone is a string that names *this* machine's user profile or this
+    // repository's folder; documentation examples and OS constants (`C:\`) are
+    // not that, so comments are stripped before the check.
+    const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    // An ABSOLUTE path (drive letter or root slash) that names this machine's
+    // user profile or this repository's folder.
+    const machineSpecific = /["'`](?:[A-Za-z]:[\\/]|\/)[^"'`\n]*(?:\\Users\\|\/Users\/|\/home\/|Codex-Boss)/;
+    const offenders: string[] = [];
+    for (const source of sources(["electron", "src", "scripts", "tests"])) {
+      for (const [index, line] of stripComments(source.text).split(/\r?\n/).entries()) {
+        if (machineSpecific.test(line)) offenders.push(`${source.file}:${index + 1}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("the runtime derives every durable root from the install path at run time", () => {
+    const main = fs.readFileSync(path.join(PROJECT, "electron/main.ts"), "utf8");
+    expect(main).toContain("runtimeRoots({ installRoot: app.getAppPath()");
+    // No literal install-root path component may be joined by hand.
+    expect(main).not.toMatch(/path\.join\(app\.getAppPath\(\), "(?:runtime-data|\.cache|history|artifacts)"/);
+  });
+});
+
 describe("Phase D — one containment predicate", () => {
+
   it("is defined once and only delegated to", () => {
     const canonical = fs.readFileSync(path.join(PROJECT, "electron/workspace/path-utils.ts"), "utf8");
     expect(canonical).toContain("export function isInsideWorkspace(");

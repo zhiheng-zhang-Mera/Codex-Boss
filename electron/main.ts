@@ -393,7 +393,27 @@ function recordTaskOutcome(taskId: string): void {
       findings: final.content.slice(0, 2000),
       nextActions: task.plan && task.plan.steps.some((step) => step.kind === "edit") ? ["verify merged changes with the full test suite"] : undefined
     });
-  } catch { /* project state recording is advisory; never blocks completion */ }
+  } catch (error) {
+    // The completion record is durable task state, not advisory: if it could not
+    // be written, that is reported instead of the UI claiming a completion
+    // nothing recorded.
+    recordAdvisoryFailure(`project-state completion for ${task.id}`, error);
+  }
+}
+
+/**
+ * Records a failure that must not stop the caller but must not disappear either.
+ *
+ * Kept deliberately small: one line on stderr plus the last few kept in memory,
+ * so a damaged state file or a full disk leaves a trace instead of only a
+ * missing record.
+ */
+const advisoryFailures: Array<{ what: string; message: string; at: number }> = [];
+function recordAdvisoryFailure(what: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[boss] ${what} failed: ${message}`);
+  advisoryFailures.push({ what, message, at: Date.now() });
+  if (advisoryFailures.length > 50) advisoryFailures.splice(0, advisoryFailures.length - 50);
 }
 
 async function advanceCouncilRound(taskId: string): Promise<void> {
@@ -454,7 +474,12 @@ function attachProviderViews(): void {
         externalSessions?.upsert({ taskId: id, providerId: run.providerId, remoteConversationUrl: run.sessionUrl });
         externalSessions?.deferArchive(id, run.providerId, "task finished; external archive pending page-state verification");
       }
-    } catch { /* external-session tracking is advisory and must never block completion */ }
+    } catch (error) {
+    // The external-session ledger row is what makes a later archive pass
+    // possible; losing it silently means the conversation is never archived and
+    // nothing says so.
+    recordAdvisoryFailure(`external-session ledger for ${id}`, error);
+  }
     // Overcomplete §11.3: task finalized ⇒ ARCHIVE_PENDING ⇒ schedule a
     // bounded background archive pass (navigate/archive/verify later). The
     // pass only ever marks ARCHIVED from verified page state; failures keep
@@ -657,7 +682,11 @@ function headlessPreflightStaleRuns(): void {
 
 if (ownsInstance) app.whenReady().then(() => {
   historyRepository = new HistoryRepository(roots.history);
-  store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
+  // One TaskLedger for the whole process: the store and the commander must share
+  // it, or their read-modify-write cycles race and fail each other with a
+  // spurious "Stale task checkpoint".
+  const taskLedger = new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks"));
+  store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository, taskLedger);
   // WORK_UNIT_3 crash recovery: a revision recorded just before a crash has no
   // task association yet. Re-link every orphan against the durable task records
   // at startup so the revision→task relation is eventually consistent.
@@ -891,7 +920,7 @@ if (ownsInstance) app.whenReady().then(() => {
       }
     })
   });
-  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks")), resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), domPageSurface: providerDomSurface(() => providerViews), readBrowser: async (id) => {
+  commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), taskLedger, resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), domPageSurface: providerDomSurface(() => providerViews), readBrowser: async (id) => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");

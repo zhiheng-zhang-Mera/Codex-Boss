@@ -13,22 +13,22 @@ Electron 44.0.0, Windows 10.0.26200, working tree clean at `e2759a5`.
 | Phase | What it asks for | Status | Evidence |
 | --- | --- | --- | --- |
 | A — real baseline | record branch/HEAD/status/toolchain/test counts | **PASS** | this file's header + the round's commit |
-| B — fix the red CI | all failing tests fixed by root cause | **PASS** | `e2759a5`; 21 failures were one production defect (path identity under Windows 8.3 short names); cloud CI run 34740454322 = success |
-| C — recovery finalisation | every autonomous mutating route takes a recovery point | **PARTIAL** | `docs/engineering-recovery-audit.md` + `tests/unit/repository-boundary-guards.test.ts`; routes 5/6 deferred with reasons |
-| D — one path truth | normalize→validate→resolve→persist, one semantics | **PARTIAL** | containment collapsed 6→1 (`path-utils.isInsideWorkspace`, wrappers delegate); 20+ identity sites moved to `canonicalRealPathSync`; research ingress and remaining duplicate sites listed below |
-| E — runtime roots | one root model, no subsystem invents a directory | **PASS** | `runtimeRoots()` in `electron/runtime-paths.ts`; `appDataUnder`/`cacheUnder`/`historyUnder`/`acceptanceUnder`; guard test forbids hand-joined roots |
-| F — split `main.ts` | controlled decomposition | **NOT VERIFIED** | deferred: a 1850-line composition root cannot be split and re-certified in this round without a dedicated acceptance cycle |
+| B — fix the red CI | all failing tests fixed by root cause | **PASS** | `e2759a5` and `49af9de`; 21 + 7 failures were two production defects (path identity under Windows 8.3 short names); cloud CI green on both |
+| C — recovery finalisation | every autonomous mutating route takes a recovery point | **PASS (with one justified exception)** | `docs/engineering-recovery-audit.md` + `tests/unit/repository-boundary-guards.test.ts`; the failed-candidate route now removes its own worktree and branch and reports a cleanup failure; the Owner-driven plan route is justified, not a gap |
+| D — one path truth | normalize→validate→resolve→persist, one semantics | **PASS** | containment collapsed 6→1; canonical identity at every site that decides a cwd, scope, fingerprint or write target; `canonicalRealPathOrNormalized` is the total form; the research workspace is validated at the IPC boundary |
+| E — runtime roots | one root model, no subsystem invents a directory | **PASS** | `runtimeRoots()` in `electron/runtime-paths.ts`; guard test forbids hand-joined roots |
+| F — split `main.ts` | controlled decomposition | **NOT VERIFIED** | deferred: a 1875-line composition root cannot be split and re-certified in this round without a dedicated acceptance cycle. The extraction plan is in "Remaining work" below |
 | G — IPC boundary | handlers validate/call/translate only | **NOT VERIFIED** | deferred with F (same file, same risk) |
-| H — error model | no core failure swallowed | **PARTIAL** | 2 fail-open guards fixed (below); 30 must-fix sites audited and listed; 28 deferred with the triage order |
-| I — state ownership | one authoritative owner per durable state | **PARTIAL** | audit table below; 4 multi-writer states named, none changed this round |
-| J — compatibility debt | every legacy item classified | **PARTIAL** | audit table below (12 KEEP / 4 MIGRATE / 2 DELETE / 3 DEFER) |
-| K — dead code | remove provably dead code | **NOT VERIFIED** | 31 unreferenced modules and 213 unused exports identified; none deleted — several are documented product surfaces, so deletion is a product decision, not a cleanup |
-| L — dependency rules | shared ↑ domain ↑ services ↑ app/renderer | **PASS** | asserted by `tests/unit/repository-boundary-guards.test.ts` (shared↛electron, renderer↛electron, electron↛renderer, path model↛Electron) |
+| H — error model | no core failure swallowed | **PARTIAL** | every fail-open guard closed (unreadable CODEOWNERS, `assertEngineeringWorkspace`, the recovery ledger, the research ledger's damaged runs, the event bus's dropped handler rejections, `replaceGoal`'s archive, the two lost durable records in `main.ts`); the audit's remaining must-fix sites are listed below |
+| I — state ownership | one authoritative owner per durable state | **PARTIAL** | `.boss/tasks/**` now has ONE `TaskLedger` (the store and the commander share the composition root's instance, so their read-modify-write cycles stop failing each other); `.boss/project-state.json`, the theme tree and `.boss/research/**` remain multi-writer and are listed below |
+| J — compatibility debt | every legacy item classified | **PARTIAL** | 2 provably dead files deleted; 2 quarantined test files covering LIVE code restored into `tests/` (15 tests); the rest classified in this file and in the round's audit |
+| K — dead code | remove provably dead code | **PARTIAL** | the 31 "unreferenced" modules are documented product surfaces (`docs/9-4-*.md`, `docs/9-5-*.md`, …) with quarantined tests, so deleting them is a product decision, not cleanup — recorded, not deleted |
+| L — dependency rules | shared ↑ domain ↑ services ↑ app/renderer | **PASS** | asserted by `tests/unit/repository-boundary-guards.test.ts` |
 | M — side-effect boundary | few explicit entries per side effect | **NOT VERIFIED** | audit only: 13 git wrappers + 3 process runners identified, no consolidation attempted |
 | N — test architecture | `pnpm test` fast/deterministic, no build-artifact coupling | **NOT VERIFIED** | `tests/unit/closure-terminal-logic.test.ts` still spawns acceptance harnesses that need `dist-electron`; changing it moves the CI ordering contract |
-| O — CI structure | split into logical jobs | **NOT VERIFIED** | `.github/workflows/ci.yml` is Root Trust Surface; changing it requires a trust-epoch migration (`scripts/acceptance-evolution-bless.cjs --advance`) and a fresh certificate — deliberately not bundled into this round |
-| P — migration readiness | clone elsewhere → install/build/test/run | **PARTIAL** | no hard-coded absolute paths outside test fixtures; the app derives every root from `app.getAppPath()`; a clean-clone run is **NOT VERIFIED** |
-| Q — comment/code truth | no stale or plan-number-dependent comments | **PARTIAL** | the modules this round touched carry the rule instead of the plan number; the repo-wide sweep is **NOT VERIFIED** |
+| O — CI structure | split into logical jobs | **NOT VERIFIED** | `.github/workflows/ci.yml` is Root Trust Surface; changing it requires a trust-epoch migration (`scripts/acceptance-evolution-bless.cjs --advance`) and a fresh certificate — a separate, explicitly sequenced operation |
+| P — migration readiness | clone elsewhere → install/build/test/run | **PARTIAL** | asserted: no tracked source file hard-codes an absolute path naming this machine's profile or this repository's folder, and every durable root is derived from `app.getAppPath()` at run time; an actual clean-clone run is **NOT VERIFIED** |
+| Q — comment/code truth | no stale or plan-number-dependent comments | **PARTIAL** | the modules this round touched explain the rule instead of a plan number; the repo-wide sweep is **NOT VERIFIED** |
 | R — final acceptance | full pipeline, 0 FAIL, 0 stale evidence | **PASS** | see "Acceptance" below |
 
 ## What changed this round (code)
@@ -73,7 +73,21 @@ Electron 44.0.0, Windows 10.0.26200, working tree clean at `e2759a5`.
   reported, not deleted: several are described as shipped capabilities in
   `docs/`, and deleting a capability is a product decision.
 
-## Remaining intentional technical debt
+## Remaining work (in plan order)
+
+| Phase | What is left | Why it was not done in this round |
+| --- | --- | --- |
+| F/G | Extract `electron/bootstrap/{runtime,persistence,ipc-workspace,ipc-attachment,…}.ts` from `main.ts`, each returning `{ service, health(), dispose() }`; move handler bodies behind application services | A 1875-line composition root is wired by closure over ~40 module-scope bindings; doing it safely means moving the bindings, re-running the whole acceptance chain per group, and it is the one phase the book itself caps at "受控拆分 / 不得大重写". Needs its own round with the gates as the safety net |
+| H | The audit's remaining must-fix swallowed failures: `main.ts` headless preflight (`updateRun`/`setTaskStatus`), `candidate-supervisor` journal write, `context-manager` restore, `evaluation-store` golden, `verification-engine` corrupt ledger, `final-acceptance-gate` corrupt record, `recovery-engine` corrupt backlog, `candidate-guardian` git-status/package.json, `root-authority/protected-surface-guard` (done), `autonomous-evolution-surface/identity` unreadable files, `repo-manifest` `"unreadable"` hash, `self-evolution-coordinator` evidence persist | Each one changes a failure path that an acceptance gate currently exercises; they are triaged by severity and the highest were fixed first |
+| I | `.boss/project-state.json` has two `ProjectStateStore` instances for one workspace; the theme tree is written by `theme-storage` and `theme-service`; `.boss/research/**` mixes a ledger layout (`<id>.json`) with a service layout (`<id>/*`) | Fixing them changes where durable state lives while the acceptance chain reads those exact files; each needs its own verification pass |
+| J | The `MIGRATE` items other than the two restored tests: two stale `hardening-matrix` suite names, the permanently-disabled `legacy:v1-audit` acceptance entry, dropping the five delegating containment wrappers | The wrappers are public API imported by tests; the catalog entries are Root-Trust-adjacent data |
+| K | 213 unused exports and 886 unused type exports across `electron/**` and `src/**` | Mechanical but wide, with no behaviour impact either way — deliberately deferred rather than rushed |
+| M | 13 git wrappers and 3 process runners with inconsistent timeouts/buffers/cwd handling | Consolidating them touches every subsystem; the survivor needs choosing by behaviour, not by looks |
+| N | Move build-artifact-dependent suites out of `pnpm test` and declare the layers (`unit`, `integration`, `acceptance`, `desktop`, `migration`, `recovery`, `adversarial`, `soak`) | Changes what `pnpm test` means for CI, so it belongs with Phase O |
+| O | Split `.github/workflows/ci.yml` into logical jobs (`quality`, `unit`, `integration`, `acceptance-core`, `acceptance-desktop`, `autonomous-evolution`, `package`) | The file is Root Trust Surface: any edit moves the trust epoch, which requires `scripts/acceptance-evolution-bless.cjs --advance` plus a full re-certification. That is a separate, explicitly sequenced operation, not a cleanup commit |
+| P | An actual clean-clone run (clone to a different path → `pnpm install --frozen-lockfile` → `build` → `test` → `run`) | The static checks are asserted; the real clone run was not executed in this round |
+| Q | Repo-wide comment sweep for stale claims | Only the modules this round touched were verified |
+
 
 | Item | Where | Why it is still there |
 | --- | --- | --- |

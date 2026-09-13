@@ -52,7 +52,15 @@ export class EngineeringLoopStore {
   replaceGoal(goal: EngineeringGoalContract): EngineeringGoalContract {
     if (!validateEngineeringGoalContract(goal)) throw new Error("Invalid engineering goal contract");
     if (this.fileValue.goal && this.fileValue.goal.id !== goal.id) {
-      try { writeJson(path.join(path.dirname(this.filePath), `engineering-loop-${this.fileValue.goal.id}.json`), this.fileValue); } catch { /* archive best-effort; the live file still switches */ }
+      // The archive is the ONLY copy of the replaced goal's iteration rows (the
+      // plan forbids auto-deleting them). A failed archive must therefore refuse
+      // the replacement rather than overwrite the live file and lose them.
+      const archive = path.join(path.dirname(this.filePath), `engineering-loop-${this.fileValue.goal.id}.json`);
+      try {
+        writeJson(archive, this.fileValue);
+      } catch (error) {
+        throw new Error(`Refusing to replace the frozen goal: its ledger could not be archived to ${archive} (${error instanceof Error ? error.message : String(error)})`);
+      }
       this.fileValue = { schemaVersion: 1, iterations: [], acceptedRisks: [], cleanRounds: 0, updatedAt: new Date().toISOString() };
     }
     this.fileValue.goal = structuredClone(goal);

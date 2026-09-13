@@ -35,11 +35,21 @@ export const providerSeed: Provider[] = [
 
 export class StateStore {
   private snapshotValue: AppSnapshot;
+  /**
+   * The ONE task-ledger instance this process uses.
+   *
+   * `TaskLedger.save` is a read-modify-write over a revision number and throws
+   * `Stale task checkpoint` when the on-disk revision moved. Two instances over
+   * the same directory therefore fail each other's mutations with a spurious
+   * stale-checkpoint error, so the composition root passes its instance in
+   * (`StateStore(file, history, ledger)`); constructing a second one is what this
+   * field exists to prevent.
+   */
   private readonly ledger: TaskLedger;
   private readonly ledgerHashes = new Map<string, string>();
 
-  constructor(private readonly filePath: string, private readonly history?: HistoryRepository) {
-    this.ledger = new TaskLedger(path.join(path.dirname(filePath), ".boss", "tasks"));
+  constructor(private readonly filePath: string, private readonly history?: HistoryRepository, ledger?: TaskLedger) {
+    this.ledger = ledger ?? new TaskLedger(path.join(path.dirname(filePath), ".boss", "tasks"));
     const restored = fs.existsSync(this.filePath);
     this.snapshotValue = this.read();
     if (restored) this.beginStartupSession();

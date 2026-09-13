@@ -26,6 +26,9 @@ export interface ResearchLedgerFile {
 }
 
 export class ResearchLedger {
+  /** Ledger files the last `list()` could not read (never silently dropped). */
+  private readonly damaged: Array<{ file: string; reason: string }> = [];
+
   constructor(private readonly root: string) {}
 
   create(ir: ResearchIR, reason = "research started"): ResearchLedgerFile {
@@ -78,11 +81,21 @@ export class ResearchLedger {
         if (!value?.schemaVersion || !value.ir || !Array.isArray(value.decisions)) return undefined;
         validateResearchIR(value.ir);
         return { id: value.ir.id, goal: value.ir.goal, state: value.ir.state, revision: value.revision ?? 1, updatedAt: value.ir.updatedAt, protocolHash: value.ir.protocolHash, pendingStage: value.ir.pendingStage };
-      } catch {
-        return undefined; // corrupt/unreadable single run never breaks the list
+      } catch (error) {
+        // One damaged run must not break the list — but it must not disappear
+        // either: `load()` refuses a damaged ledger, so a run that silently drops
+        // out of `list()` is a run the Owner cannot see or repair. It is reported
+        // by name and reason instead.
+        this.damaged.push({ file: name, reason: error instanceof Error ? error.message : String(error) });
+        return undefined;
       }
     }).filter((run) => run !== undefined);
     return runs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  /** Ledger files that could not be read, as observed by the last `list()`. */
+  damagedRuns(): Array<{ file: string; reason: string }> {
+    return [...this.damaged];
   }
 
   appendDecision(id: string, entry: Omit<ResearchDecisionEntry, "at">): ResearchDecisionEntry {
