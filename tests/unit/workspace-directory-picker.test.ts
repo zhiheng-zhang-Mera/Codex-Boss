@@ -8,7 +8,7 @@ import {
   WORKSPACE_PICKER_TITLE,
   type DirectoryPicker
 } from "../../electron/workspace/workspace-picker";
-import { WorkspacePathError } from "../../electron/workspace/path-utils";
+import { canonicalRealPathSync, WorkspacePathError } from "../../electron/workspace/path-utils";
 
 /**
  * Update-Plan/cleaning.md §4 — the native workspace picker.
@@ -52,7 +52,7 @@ describe("§4 step 2/3 — selection and cancellation behaviour", () => {
     const root = makeTree();
     const { pick, seen } = pickerReturning({ canceled: false, filePaths: [root.replace(/\\/g, "/")] });
     const selected = await selectWorkspaceDirectory(pick);
-    expect(selected?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    expect(selected).toBe(canonicalRealPathSync(root));
     expect(seen).toEqual([{ title: WORKSPACE_PICKER_TITLE, properties: ["openDirectory"] }]);
   });
 
@@ -73,7 +73,7 @@ describe("§4 step 2/3 — selection and cancellation behaviour", () => {
     const second = makeTree();
     const { pick } = pickerReturning({ canceled: false, filePaths: [second, first] });
     const selected = await selectWorkspaceDirectory(pick);
-    expect(selected?.toLowerCase()).toBe(fs.realpathSync(second).toLowerCase());
+    expect(selected).toBe(canonicalRealPathSync(second));
   });
 
   it("fails closed when the OS hands back a path that cannot be a workspace", async () => {
@@ -94,11 +94,17 @@ describe("§4 step 2/3 — selection and cancellation behaviour", () => {
 describe("§4 step 4/5/6 — one model behind picker and typed input", () => {
   it("gives the picked path and the typed path the same canonical value", async () => {
     const root = makeTree();
-    const { validateWorkspacePath } = await import("../../electron/workspace/path-utils");
+    const { validateWorkspacePath, resolveWorkspacePath } = await import("../../electron/workspace/path-utils");
     const picked = await selectWorkspaceDirectory(pickerReturning({ canceled: false, filePaths: [root] }).pick);
+    // Both entries end at the same canonical identity — the picker through
+    // `requireWorkspacePath`, the typed path through the same validation and
+    // resolution. A different spelling of one directory cannot produce two
+    // workspaces (the comparison is on the canonical value, not the raw text:
+    // on Windows the OS spelling of `C:\Users\RUNNER~1\...` is the long form).
     const typed = validateWorkspacePath(`  ${root.replace(/\\/g, "/")}  `);
     expect(typed.ok).toBe(true);
-    expect(picked).toBe(typed.normalizedPath);
+    expect(picked).toBe(canonicalRealPathSync(root));
+    expect(picked).toBe((await resolveWorkspacePath(root)).canonicalPath);
   });
 
   it("typed valid and typed invalid paths are answered with explicit codes", async () => {

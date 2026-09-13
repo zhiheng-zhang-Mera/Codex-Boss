@@ -118,11 +118,16 @@ describe("§7 checkpoint fail-closed: no recovery point, no autonomous mutation"
   });
 
   it("the refusal is an explicit terminal reason, not a vague failure", async () => {
+    // Deliberately environment-independent: whether a bare temp directory is
+    // inside some repository or inside none, the refusal must still carry the
+    // CHECKPOINT_UNAVAILABLE code and a real reason. The exact wording of the
+    // nested-directory refusal is asserted in its own deterministic case below.
     const dir = root();
     const { commander } = commanderFor(dir);
     const summary = await commander.runEngineeringGoal({ goal: goal(dir), workspace: dir, disableCoder: true, disableReviewer: true });
     expect(summary.terminalReason).toMatch(/^CHECKPOINT_UNAVAILABLE: /);
-    expect(summary.terminalReason).toContain("not a git repository root");
+    expect((summary.terminalReason ?? "").length).toBeGreaterThan("CHECKPOINT_UNAVAILABLE: ".length + 10);
+    expect(summary.recovery?.code).toBe("CHECKPOINT_UNAVAILABLE");
   });
 
   it("leaves durable ledger evidence for the refusal", async () => {
@@ -139,9 +144,14 @@ describe("§7 checkpoint fail-closed: no recovery point, no autonomous mutation"
 
     const events = recoveryLedgerFor(loopFile).list();
     expect(events).toHaveLength(1);
-    expect(events[0]!.code).toBe("CHECKPOINT_UNAVAILABLE");
-    expect(events[0]!.recovery.attempted).toBe(false);
-    expect(events[0]!.reason).toContain("not a git repository root");
+    const event = events[0]!;
+    expect(event.code).toBe("CHECKPOINT_UNAVAILABLE");
+    expect(event.recovery.attempted).toBe(false);
+    // The ledger carries the same reason the run reported, so the evidence and
+    // the read-model cannot drift apart.
+    const reason = event.recovery.attempted ? "" : event.recovery.reason;
+    expect(summary.terminalReason).toBe(`CHECKPOINT_UNAVAILABLE: ${reason}`);
+    expect(iterations[0]!.remainingRisk).toBe(summary.terminalReason);
   });
 
   it("still refuses when the workspace does not exist at all", async () => {
@@ -176,17 +186,47 @@ describe("§7 checkpoint fail-closed: no recovery point, no autonomous mutation"
   }, 120000);
 
   it("captureRecoveryPoint reports the reason instead of throwing", async () => {
+    // Environment-independent: a directory with no usable recovery point must
+    // produce a refusal, never a throw, whatever the ambient repository layout is.
     const dir = root();
     const attempt = await captureRecoveryPoint(dir);
     expect(attempt.ok).toBe(false);
-    expect(attempt.ok === false && attempt.reason).toContain("not a git repository root");
-  });
+    expect(attempt.ok === false && attempt.code).toBe("CHECKPOINT_UNAVAILABLE");
+    expect(attempt.ok === false && attempt.reason.length).toBeGreaterThan(10);
+    // And a directory that is inside a repository but is not its root is refused
+    // with the nested-directory reason specifically (deterministic fixture).
+    const repo = gitWorkspace();
+    const nested = path.join(repo, "sub");
+    fs.mkdirSync(nested, { recursive: true });
+    const nestedAttempt = await captureRecoveryPoint(nested);
+    expect(nestedAttempt.ok).toBe(false);
+    expect(nestedAttempt.ok === false && nestedAttempt.reason).toContain("not a git repository root");
+  }, 120000);
 
   it("records a recovery point for a real repository root", async () => {
     const dir = gitWorkspace();
     const attempt = await captureRecoveryPoint(dir);
     expect(attempt.ok).toBe(true);
     expect(attempt.ok === true && attempt.checkpoint.head).toMatch(/^[0-9a-f]{40}$/);
+  }, 120000);
+
+  it("records a recovery point for the repository root given in another spelling", async () => {
+    // The guard asks "is this workspace the repository root?", and it must answer
+    // by IDENTITY. Different producers spell one directory differently — Node's
+    // `fs.realpathSync` keeps a Windows 8.3 short name (`C:\Users\RUNNER~1\...`)
+    // that `realpathSync.native` and `git rev-parse --show-toplevel` both expand —
+    // so a string comparison would refuse a workspace that IS the root. A
+    // traversal spelling exercises the same code path deterministically.
+    const dir = gitWorkspace();
+    const nested = path.join(dir, "packages", "app");
+    fs.mkdirSync(nested, { recursive: true });
+    const throughTraversal = path.join(nested, "..", "..");
+    const attempt = await captureRecoveryPoint(throughTraversal);
+    expect(attempt.ok).toBe(true);
+    expect(attempt.ok === true && attempt.checkpoint.head).toMatch(/^[0-9a-f]{40}$/);
+
+    const upper = await captureRecoveryPoint(dir.toUpperCase());
+    expect(upper.ok).toBe(true);
   }, 120000);
 });
 
@@ -320,6 +360,18 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
     // is verified by the real build/test operations, and the next clean audit
     // converges — exactly the production shape, with no operation faked.
     const dir = gitWorkspace();
+    // One PASSING test file, so the `test` command succeeds identically on every
+    // Node version (a runner with no test files at all is a different, and
+    // version-dependent, exit).
+    fs.writeFileSync(path.join(dir, "bar.test.cjs"), [
+      "'use strict';",
+      "const test = require('node:test');",
+      "const assert = require('node:assert');",
+      "test('baseline passes', () => { assert.strictEqual(1, 1); });",
+      ""
+    ].join("\n"));
+    execFileSync("git", ["add", "-A"], { cwd: dir, windowsHide: true });
+    execFileSync("git", ["-c", "user.name=Acceptance", "-c", "user.email=acceptance@example.invalid", "commit", "-m", "passing baseline test"], { cwd: dir, windowsHide: true });
     const tsc = path.join(dir, "node_modules", "typescript", "bin", "tsc");
     fs.mkdirSync(path.dirname(tsc), { recursive: true });
     fs.writeFileSync(tsc, [

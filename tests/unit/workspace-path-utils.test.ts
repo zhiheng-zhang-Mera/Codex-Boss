@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  canonicalRealPathSync,
+  isSameDirectory,
   normalizeWorkspacePath,
   requireWorkspacePath,
   requireWorkspacePathSync,
@@ -168,7 +170,11 @@ describe("resolveWorkspacePath — canonical identity", () => {
     const resolved = await resolveWorkspacePath(root.replace(/\\/g, "/"));
     expect(resolved.ok).toBe(true);
     expect(resolved.code).toBe("OK");
-    expect(resolved.canonicalPath?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    // The reference is the OS-canonical spelling the module itself uses, not
+    // `fs.realpathSync`: on Windows the JS implementation keeps 8.3 short names
+    // (`C:\Users\RUNNER~1\...`) that the native one expands, and comparing
+    // against it would fail on exactly the machines this code exists to handle.
+    expect(resolved.canonicalPath).toBe(canonicalRealPathSync(root));
   });
 
   it("gives the same canonical path for every accepted spelling of one directory", async () => {
@@ -198,8 +204,43 @@ describe("resolveWorkspacePath — canonical identity", () => {
     const root = makeTree();
     const sync = resolveWorkspacePathSync(root);
     expect(sync.ok).toBe(true);
-    expect(sync.canonicalPath?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    expect(sync.canonicalPath).toBe(canonicalRealPathSync(root));
     expect(resolveWorkspacePathSync(path.join(root, "gone")).code).toBe("PATH_NOT_FOUND");
+  });
+});
+
+describe("isSameDirectory — path identity is not string equality", () => {
+  it("recognises one directory through different spellings", () => {
+    const root = makeTree();
+    fs.mkdirSync(path.join(root, "sub"));
+    expect(isSameDirectory(root, root.replace(/\\/g, "/"))).toBe(true);
+    expect(isSameDirectory(root, path.join(root, "sub", ".."))).toBe(true);
+    expect(isSameDirectory(root, root.toUpperCase())).toBe(true);
+    expect(isSameDirectory(root, canonicalRealPathSync(root))).toBe(true);
+  });
+
+  it("separates a directory from the one that contains it", () => {
+    const root = makeTree();
+    const nested = path.join(root, "sub");
+    fs.mkdirSync(nested);
+    expect(isSameDirectory(root, nested)).toBe(false);
+    expect(isSameDirectory(nested, root)).toBe(false);
+  });
+
+  it("separates two unrelated directories, and refuses nonsense", () => {
+    const first = makeTree();
+    const second = makeTree();
+    expect(isSameDirectory(first, second)).toBe(false);
+    expect(isSameDirectory(first, path.join(first, "missing"))).toBe(false);
+    expect(isSameDirectory("", first)).toBe(false);
+    expect(isSameDirectory(undefined as unknown as string, first)).toBe(false);
+  });
+
+  it("is false for a file that shares a directory's name prefix", () => {
+    const root = makeTree();
+    const file = path.join(root, "note.txt");
+    fs.writeFileSync(file, "x");
+    expect(isSameDirectory(root, file)).toBe(false);
   });
 });
 
@@ -220,6 +261,6 @@ describe("requireWorkspacePath — the fail-loud boundary", () => {
   it("returns the resolved workspace for a valid directory", async () => {
     const root = makeTree();
     const resolved = await requireWorkspacePath(root);
-    expect(resolved.canonicalPath?.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    expect(resolved.canonicalPath).toBe(canonicalRealPathSync(root));
   });
 });

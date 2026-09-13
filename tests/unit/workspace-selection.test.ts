@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
+import { canonicalRealPathSync } from "../../electron/workspace/path-utils";
 import { restoreWorkspaceField } from "../../src/shared/workspace-selection";
 
 /**
@@ -48,7 +49,7 @@ describe("§6 step 1 — only a canonical validated path is persisted", () => {
 
     const state = await store.remember(`  ${workspace.replace(/\\/g, "/")}  `);
     expect(state.status).toBe("AVAILABLE");
-    expect(state.path?.toLowerCase()).toBe(fs.realpathSync(workspace).toLowerCase());
+    expect(state.path).toBe(canonicalRealPathSync(workspace));
 
     const written = JSON.parse(fs.readFileSync(file, "utf8")) as { schemaVersion: number; workspacePath: string };
     expect(written.schemaVersion).toBe(1);
@@ -83,7 +84,7 @@ describe("§6 step 1 — only a canonical validated path is persisted", () => {
     const { store } = storeFor(root);
     await store.remember(workspace);
     await store.remember(path.join(root, "gone"));
-    expect(store.persistedPath()?.toLowerCase()).toBe(fs.realpathSync(workspace).toLowerCase());
+    expect(store.persistedPath()).toBe(canonicalRealPathSync(workspace));
     expect((await store.current()).status).toBe("AVAILABLE");
   });
 

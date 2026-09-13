@@ -135,6 +135,76 @@ export function validateWorkspacePath(input: string): WorkspacePathValidation {
 }
 
 /**
+ * OS-canonical real path: the spelling the operating system itself reports.
+ *
+ * On Windows, `fs.realpathSync` (the JavaScript implementation) does **not**
+ * expand 8.3 short names, while `fs.realpathSync.native` does. That difference is
+ * not cosmetic: a machine whose temp or profile directory is reached through a
+ * short name (`C:\Users\RUNNER~1\AppData\Local\Temp`) would otherwise produce two
+ * "canonical" strings for one directory, and every identity comparison built on
+ * them — is this the repository root? is this the remembered workspace? — would
+ * answer "no" for a directory that is exactly the one asked about.
+ *
+ * Anything that compares two paths for identity, or persists one, must use this.
+ */
+export function canonicalRealPathSync(target: string): string {
+  return typeof fs.realpathSync.native === "function" ? fs.realpathSync.native(target) : fs.realpathSync(target);
+}
+
+/**
+ * Async counterpart of `canonicalRealPathSync`.
+ *
+ * It deliberately delegates to the synchronous native call rather than
+ * `fs.promises.realpath`: the promise form has no `.native` variant in the
+ * typings, and two canonicalizers would be free to disagree — which is the whole
+ * failure mode this module exists to prevent. Resolving one path is cheap.
+ */
+export async function canonicalRealPath(target: string): Promise<string> {
+  return canonicalRealPathSync(target);
+}
+
+/**
+ * True when two paths name the **same directory** on this machine.
+ *
+ * Used wherever two path strings must be proven identical rather than assumed
+ * identical — "is this workspace the repository root git just reported?". String
+ * equality is not enough on Windows: one directory can be spelled through its
+ * 8.3 short name (`C:\Users\RUNNER~1\...`), with different case, or through a
+ * junction, and different producers return different spellings (Node's own
+ * `fs.realpathSync` keeps a short name alive while `realpathSync.native` and git
+ * both expand it).
+ *
+ * The canonical spelling is compared first because it is free; when the strings
+ * differ the directory's file identity (volume + file index, which Node fills
+ * from `BY_HANDLE_FILE_INFORMATION` on Windows) decides. Two genuinely different
+ * directories never share an identity, and a spelling difference never changes
+ * one.
+ */
+export function isSameDirectory(left: string, right: string): boolean {
+  if (typeof left !== "string" || typeof right !== "string" || !left || !right) return false;
+  // Canonicalizing can fail (a path that does not exist); that is "not the same
+  // directory", never an exception — this predicate sits inside fail-closed
+  // guards whose only two answers may be "yes" and "no".
+  const canonical = (value: string): string | undefined => {
+    try { return canonicalRealPathSync(value); } catch { return undefined; }
+  };
+  const leftCanonical = canonical(left);
+  const rightCanonical = canonical(right);
+  if (leftCanonical !== undefined && rightCanonical !== undefined && leftCanonical.toLowerCase() === rightCanonical.toLowerCase()) return true;
+  try {
+    const a = fs.statSync(left);
+    const b = fs.statSync(right);
+    if (!a.isDirectory() || !b.isDirectory()) return false;
+    // Some filesystems report no usable index; then the identity check would
+    // compare 0 with 0 and call unrelated directories equal.
+    if (a.ino === 0 && b.ino === 0) return false;
+    return a.dev === b.dev && a.ino === b.ino;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Validates and then resolves the canonical identity of a workspace.
  *
  * `normalizedPath` is the canonical text form; `canonicalPath` additionally has
@@ -151,7 +221,7 @@ export async function resolveWorkspacePath(input: string): Promise<ResolvedWorks
   }
   const normalizedPath = validation.normalizedPath!;
   try {
-    const canonicalPath = await fs.promises.realpath(normalizedPath);
+    const canonicalPath = await canonicalRealPath(normalizedPath);
     return { ok: true, code: "OK", normalizedPath, canonicalPath, reason: validation.reason };
   } catch (error) {
     // The directory passed `statSync` a moment ago; a failure here means the
@@ -179,10 +249,7 @@ export function resolveWorkspacePathSync(input: string): ResolvedWorkspace {
   }
   const normalizedPath = validation.normalizedPath!;
   try {
-    // `realpathSync.native` applies the on-disk casing on Windows; the JS
-    // implementation returns the input spelling, which would keep a stale
-    // drive-letter case alive in the durable record.
-    const canonicalPath = typeof fs.realpathSync.native === "function" ? fs.realpathSync.native(normalizedPath) : fs.realpathSync(normalizedPath);
+    const canonicalPath = canonicalRealPathSync(normalizedPath);
     return { ok: true, code: "OK", normalizedPath, canonicalPath, reason: validation.reason };
   } catch (error) {
     return { ok: false, code: "UNRESOLVABLE", normalizedPath, reason: `"${normalizedPath}" could not be resolved: ${(error as Error).message}` };

@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
 import { removeTree } from "../fs-util";
+import { canonicalRealPathSync, isSameDirectory } from "../workspace/path-utils";
 
 /**
  * Git checkpoint / rollback for change sets (plan §38). Pure process helpers.
@@ -38,7 +39,7 @@ export interface CheckpointSnapshot {
 interface GitOutput { stdout: string; stderr: string; code: number | null }
 
 function git(root: string, args: string[]): Promise<GitOutput> {
-  return new Promise((resolve) => execFile("git", args, { cwd: fs.realpathSync(root), windowsHide: true, timeout: 30000, maxBuffer: 4 * 1024 * 1024, encoding: "utf8" }, (error, stdout, stderr) => resolve({ stdout, stderr, code: error ? (typeof (error as { code?: unknown }).code === "number" ? (error as { code: number }).code : null) : 0 })));
+  return new Promise((resolve) => execFile("git", args, { cwd: canonicalRealPathSync(root), windowsHide: true, timeout: 30000, maxBuffer: 4 * 1024 * 1024, encoding: "utf8" }, (error, stdout, stderr) => resolve({ stdout, stderr, code: error ? (typeof (error as { code?: unknown }).code === "number" ? (error as { code: number }).code : null) : 0 })));
 }
 
 /** Files that differ from HEAD in the worktree or index (NUL-safe names). */
@@ -59,12 +60,17 @@ async function untrackedFiles(root: string): Promise<string[]> {
 }
 
 export function isGitRepository(root: string): boolean {
-  return fs.existsSync(path.join(fs.realpathSync(root), ".git"));
+  return fs.existsSync(path.join(canonicalRealPathSync(root), ".git"));
 }
 
 /** Records the current tree state as the rollback target. */
 export async function checkpointRecord(root: string): Promise<CheckpointSnapshot> {
-  const base = fs.realpathSync(root);
+  // Both sides of the "is this the repository root?" comparison must be the
+  // OS-canonical spelling. `fs.realpathSync` does not expand Windows 8.3 short
+  // names while `git rev-parse --show-toplevel` reports the long one, so mixing
+  // them would refuse a workspace that IS the repository root whenever the path
+  // contains a short-name component (e.g. `C:\Users\RUNNER~1\...`).
+  const base = canonicalRealPathSync(root);
   const head = await git(base, ["rev-parse", "HEAD"]);
   if (head.code !== 0) throw new Error(`Checkpoint requires a git workspace: ${head.stderr || head.stdout}`);
   // The workspace must BE the repository root, not merely live inside one.
@@ -76,8 +82,8 @@ export async function checkpointRecord(root: string): Promise<CheckpointSnapshot
   // recovery point means no autonomous mutation).
   const topLevel = await git(base, ["rev-parse", "--show-toplevel"]);
   if (topLevel.code !== 0) throw new Error(`Checkpoint requires a git work tree: ${topLevel.stderr || topLevel.stdout}`);
-  const repositoryRoot = fs.realpathSync(topLevel.stdout.trim());
-  if (repositoryRoot.toLowerCase() !== base.toLowerCase()) {
+  const repositoryRoot = canonicalRealPathSync(topLevel.stdout.trim());
+  if (!isSameDirectory(base, repositoryRoot)) {
     throw new Error(`Workspace ${base} is not a git repository root; the enclosing repository is ${repositoryRoot}. Refusing to checkpoint a nested directory.`);
   }
   const dirty = await modifiedSinceHead(base);
@@ -95,7 +101,7 @@ export async function checkpointRecord(root: string): Promise<CheckpointSnapshot
  * modified are reverted to HEAD; post-checkpoint untracked files are removed.
  */
 export async function rollbackToCheckpoint(root: string, checkpoint: CheckpointSnapshot): Promise<{ restored: string[]; removed: string[] }> {
-  const base = fs.realpathSync(root);
+  const base = canonicalRealPathSync(root);
   const head = await git(base, ["rev-parse", "HEAD"]);
   if (head.code !== 0 || head.stdout.trim() !== checkpoint.head) throw new Error("Repository advanced past checkpoint; refusing rollback");
   const current = await modifiedSinceHead(base);

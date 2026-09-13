@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { RUNTIME_OWNED_PATHS } from "../../electron/runtime-paths";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "../../electron/workspace/task-workspace";
 import { researchDeliverablesPath, researchTopicSlug } from "../../electron/research/research-output";
-import { WorkspacePathError } from "../../electron/workspace/path-utils";
+import { canonicalRealPathSync, WorkspacePathError } from "../../electron/workspace/path-utils";
 
 /**
  * Update-Plan/cleaning.md §5 — workspace, output and runtime-path ownership.
@@ -74,7 +74,7 @@ describe("§5 step 2/3 — one resolution of a request workspace", () => {
   it("canonicalizes an explicitly requested workspace", () => {
     const root = makeTree();
     const resolved = workspaceForRequest({ requested: ` ${root.replace(/\\/g, "/")} `, fallback: PROJECT });
-    expect(resolved.toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    expect(resolved).toBe(canonicalRealPathSync(root));
   });
 
   it("refuses an unusable requested workspace with an explicit code and never falls back", () => {
@@ -107,7 +107,7 @@ describe("§5 step 2/3 — one resolution of a request workspace", () => {
 describe("§5 step 2 — a persisted workspace is resolved, not required", () => {
   it("returns the canonical path while the remembered directory still exists", () => {
     const root = makeTree();
-    expect(availableWorkspace({ workspacePath: root }, PROJECT).toLowerCase()).toBe(fs.realpathSync(root).toLowerCase());
+    expect(availableWorkspace({ workspacePath: root }, PROJECT)).toBe(canonicalRealPathSync(root));
     expect(persistedWorkspaceAvailable({ workspacePath: root })).toBe(true);
   });
 
