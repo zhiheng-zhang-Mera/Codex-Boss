@@ -1,40 +1,19 @@
 import { defineConfig } from "vitest/config";
 
 /**
- * The default suite: fast, deterministic, and the one that runs on every change.
+ * The complete suite: every test file, no exclusions.
  *
- * Layering (convergence book, Phase N). Two kinds of test used to share this run
- * and made it neither fast nor reliable:
+ * This stays the *default* configuration on purpose. Several acceptance harnesses
+ * (`scripts/acceptance-review.cjs`, `scripts/acceptance-*.cjs`) invoke
+ * `vitest run <file>` against a specific suite, and an explicit file that a
+ * configuration excludes makes vitest exit 1 with "No test files found" — which is
+ * how a tier split can silently disable a gate instead of speeding it up.
  *
- *  - suites that run real `tsc` / `node --test` inside a fixture and need tens of
- *    seconds each. Under full-suite parallelism one of them
- *    (`tests/acceptance/review-loop.test.ts`, ~28s alone) repeatedly hit the
- *    global per-test timeout, turning a green commit red. They now have their own
- *    configuration (`vitest.slow.config.mjs`) and their own explicit CI step, so
- *    they still run — just not in a pool that is trying to finish in four minutes.
- *  - `tests/unit/closure-terminal-logic.test.ts` spawns acceptance harnesses that
- *    `require` compiled modules under `dist-electron`, so the run depends on a
- *    build. It stays here because CI builds first, but it is why `pnpm test` is
- *    documented as build-dependent rather than pretending to be hermetic.
- *
- * Everything else — unit tests, the trust/adversarial suites, the fast acceptance
- * suites — stays in this run, because they are the signal a developer needs
- * immediately.
+ * `pnpm test` therefore names its own tier explicitly (`vitest.unit.config.mjs`),
+ * and this file remains what it always was: everything, with a generous per-test
+ * timeout, because the same suite also runs inside the live Electron app
+ * (autonomous-loop audits) where process/git-heavy tests are much slower.
  */
 export default defineConfig({
-  test: {
-    environment: "node",
-    include: ["tests/**/*.test.ts"],
-    // See SLOW_ACCEPTANCE_TESTS below: those files run through
-    // `pnpm run test:slow` with a timeout justified by what they actually do.
-    exclude: ["tests/acceptance/review-loop.test.ts", "node_modules/**", "dist/**", "dist-electron/**"],
-    testTimeout: 60000
-  }
+  test: { environment: "node", include: ["tests/**/*.test.ts"], testTimeout: 60000 }
 });
-
-/**
- * Suites that compile and execute real projects in a fixture. They are excluded
- * from the default run and executed by `pnpm run test:slow`; the list lives here so
- * the two configurations cannot drift apart.
- */
-export const SLOW_ACCEPTANCE_TESTS = ["tests/acceptance/review-loop.test.ts"];

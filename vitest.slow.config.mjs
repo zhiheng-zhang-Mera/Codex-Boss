@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { SLOW_ACCEPTANCE_TESTS } from "./vitest.config.mjs";
+import { SLOW_ACCEPTANCE_TESTS } from "./vitest.tiers.mjs";
 
 /**
  * The slow tier: acceptance suites that compile and execute real projects.
