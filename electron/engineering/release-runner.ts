@@ -16,7 +16,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import { contentHashOf } from "../../src/shared/workbook";
 import {
   buildCommitMessage,
@@ -100,8 +100,8 @@ export function createReleaseRunner(config: ReleaseRunnerConfig): ReleaseRunner 
   const now = config.now ?? (() => new Date());
   const recordPath = config.recordPath ?? path.join(root, "artifacts", "acceptance", RELEASE_RECORD_FILE);
   const git = config.git ?? ((args: string[]) => {
-    const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8", windowsHide: true, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
-    return { ok: result.status === 0, out: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+    const result = runGitSync(root, args, { timeoutMs: GIT_TIMEOUT_MS.large, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
+    return { ok: result.ok, out: `${result.stdout}${result.stderr}` };
   });
   let record: ReleaseRecord | undefined = load(recordPath);
 
@@ -145,8 +145,10 @@ export function createReleaseRunner(config: ReleaseRunnerConfig): ReleaseRunner 
       const remote = /^[A-Za-z]:[\\/]|^\//.test(config.remote) || config.remote.startsWith(".")
         ? config.remote
         : config.remote;
-      const result = spawnSync("git", ["--git-dir", remote, "log", "-1", "--pretty=%H%n%B", branch], { encoding: "utf8", windowsHide: true, timeout: 60_000 });
-      return result.status === 0 ? `${result.stdout ?? ""}`.trim() : undefined;
+      // `--git-dir` names the remote, and the child keeps this process's working
+      // directory, which is what a relative remote path resolves against.
+      const result = runGitSync(process.cwd(), ["--git-dir", remote, "log", "-1", "--pretty=%H%n%B", branch], { timeoutMs: 60_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+      return result.ok ? result.stdout.trim() : undefined;
     },
     async run(input) {
       const plan = planFor(input);

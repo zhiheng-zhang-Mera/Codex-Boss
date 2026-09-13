@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { runAllowedCommand } from "./command-runner";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { runGit, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import { canonicalRealPathSync, deepestExistingAncestor, isInsideWorkspace } from "../workspace/path-utils";
 import type { NativeOperation } from "../../src/shared/task-ir";
 export interface NativeEvidence { operation: NativeOperation; cwd: string; output: string; verified: true; modelCalls: 0; }
@@ -18,7 +18,14 @@ export function workspacePath(root: string, requested: string): string {
 }
 export async function executeNative(root: string, operation: NativeOperation): Promise<NativeEvidence> {
   const cwd = canonicalRealPathSync(root); let output: string;
-  if (["git_status", "git_diff", "git_diff_check"].includes(operation.kind)) output = await new Promise<string>((resolve, reject) => execFile("git", operation.kind === "git_status" ? ["--no-optional-locks", "status", "--short", "--branch"] : operation.kind === "git_diff_check" ? ["diff", "--check"] : ["diff", "--no-ext-diff", "--no-textconv"], { cwd, windowsHide: true, timeout: 15000, maxBuffer: 1000000 }, (error, stdout) => error ? reject(error) : resolve(stdout)));
+  if (["git_status", "git_diff", "git_diff_check"].includes(operation.kind)) {
+    const args = operation.kind === "git_status" ? ["--no-optional-locks", "status", "--short", "--branch"] : operation.kind === "git_diff_check" ? ["diff", "--check"] : ["diff", "--no-ext-diff", "--no-textconv"];
+    const result = await runGit(cwd, args, { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+    // A tool that silently returned empty output on a failed git read would let a
+    // model believe it had inspected a repository it never saw.
+    if (!result.ok) throw new Error(result.stderr.trim() || `git ${args.join(" ")} failed (code ${result.code ?? "unknown"})`);
+    output = result.stdout;
+  }
   else if (operation.kind === "read_file" || operation.kind === "inspect_log" || operation.kind === "read_ranges" || operation.kind === "search_text") { const file = workspacePath(cwd, operation.path); if (fs.statSync(file).size > 1000000) throw new Error("File exceeds read budget"); output = fs.readFileSync(file, "utf8");
     if (operation.kind === "read_ranges") output = output.split(/\r?\n/).slice(operation.start - 1, operation.end).join("\n");
     if (operation.kind === "inspect_log") output = output.slice(-20000);

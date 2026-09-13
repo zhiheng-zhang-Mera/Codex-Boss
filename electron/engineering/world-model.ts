@@ -14,7 +14,7 @@
  *     degrades one field with a reason instead of failing the whole model;
  *   - no model, no network: every field is read off the disk or from git.
  */
-import { execFileSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -349,11 +349,11 @@ function detectWorkspace(root: string, files: ReadonlyArray<string>): RepoWorldM
 /** Synchronous, bounded git state; a missing git binary degrades, never fails. */
 export function readGitState(root: string): RepoWorldModel["git"] {
   const run = (args: string[]): string | undefined => {
-    try {
-      return execFileSync("git", args, { cwd: root, windowsHide: true, encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] }).trim();
-    } catch {
-      return undefined;
-    }
+    // 5s, not the quick band: a world-model probe must not stall its caller, and a
+    // repository that cannot answer `rev-parse` in 5s is reported as unreadable
+    // rather than waited on.
+    const result = runGitSync(root, args, { timeoutMs: 5_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+    return result.ok ? result.stdout.trim() : undefined;
   };
   const head = run(["rev-parse", "HEAD"]);
   if (!head) return { is_repository: false, reason: "git rev-parse HEAD failed (not a repository, or git is unavailable)" };

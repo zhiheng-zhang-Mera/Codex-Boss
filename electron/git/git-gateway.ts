@@ -34,6 +34,13 @@ export interface GitRunResult {
   code: number | null;
   /** True when git exited 0. */
   ok: boolean;
+  /**
+   * Set when git never produced an exit status at all: the binary was missing,
+   * the working directory was gone, or the timeout killed it. Callers that report
+   * *why* a repository read failed need this, because "git said no" and "git never
+   * ran" are different answers and an empty stderr cannot tell them apart.
+   */
+  spawnError?: string;
 }
 
 /** Named timeout bands, so a call site states which kind of operation it is. */
@@ -66,11 +73,14 @@ export function runGit(cwd: string, args: readonly string[], options: GitRunOpti
     execFile("git", [...args], { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: maxBufferBytes, encoding: "utf8" },
       (error, stdout, stderr) => {
         const rawCode = error ? (error as { code?: unknown }).code : 0;
+        const numeric = typeof rawCode === "number" ? rawCode : null;
         resolve({
           stdout: String(stdout ?? ""),
           stderr: String(stderr ?? ""),
-          code: typeof rawCode === "number" ? rawCode : null,
-          ok: !error
+          code: numeric,
+          ok: !error,
+          // A non-zero exit carries a numeric code; anything else is a failure to launch.
+          spawnError: error && numeric === null ? String((error as Error).message ?? error) : undefined
         });
       });
   });
@@ -83,7 +93,8 @@ export function runGitSync(cwd: string, args: readonly string[], options: GitRun
     stdout: String(result.stdout ?? ""),
     stderr: String(result.stderr ?? ""),
     code: typeof result.status === "number" ? result.status : null,
-    ok: result.status === 0
+    ok: result.status === 0,
+    spawnError: result.error ? String(result.error.message ?? result.error) : undefined
   };
 }
 

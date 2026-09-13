@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import type { HostProbes } from "./acceptance-catalog";
 
 /**
@@ -112,19 +112,22 @@ export async function collectHostProbes(options: ProbeOptions): Promise<HostProb
   };
 }
 
+/**
+ * A revision read for the evidence, so a report names what it ran against.
+ * Bounded, because these reads previously waited on git with no timeout at all: a
+ * probe that cannot answer inside the quick band reports unknown rather than
+ * hanging the diagnostic that called it.
+ */
+function readGit(repoRoot: string, args: string[]): string | undefined {
+  const result = runGitSync(repoRoot, args, { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  return result.ok ? result.stdout.trim() : undefined;
+}
+
 /** `git rev-parse HEAD` — recorded in the evidence so a report names its revision. */
 export function currentRevision(repoRoot: string): string | undefined {
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, windowsHide: true, encoding: "utf8" }).trim();
-  } catch {
-    return undefined;
-  }
+  return readGit(repoRoot, ["rev-parse", "HEAD"]);
 }
 
 export function currentBranch(repoRoot: string): string | undefined {
-  try {
-    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, windowsHide: true, encoding: "utf8" }).trim();
-  } catch {
-    return undefined;
-  }
+  return readGit(repoRoot, ["rev-parse", "--abbrev-ref", "HEAD"]);
 }

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import net from "node:net";
-import { execFileSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import {
   buildDoctorReport,
   runProbe,
@@ -709,11 +709,10 @@ export { buildDoctorReport, runProbe, skippedCheck };
 
 /** Kept for the CLI: the git revision the doctor ran against. */
 export function doctorRevision(repoRoot: string): string {
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, windowsHide: true, encoding: "utf8" }).trim();
-  } catch {
-    return "unknown";
-  }
+  // Bounded. This used to wait on git with no timeout, so a wedged repository could
+  // hang the doctor instead of producing a report that says "unknown".
+  const result = runGitSync(repoRoot, ["rev-parse", "HEAD"], { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  return result.ok ? result.stdout.trim() : "unknown";
 }
 
 /** `DEGRADED`/`FAIL` count helper for a one-line CLI summary. */

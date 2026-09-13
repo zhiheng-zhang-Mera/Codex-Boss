@@ -14,7 +14,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import { contentHashOf } from "../../src/shared/workbook";
 import { extractExportedSymbols } from "./world-model";
 import {
@@ -82,8 +82,12 @@ export interface GitCheckpointStore {
 }
 
 function git(root: string, args: string[]): { ok: boolean; out: string } {
-  const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8", windowsHide: true, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 });
-  return { ok: result.status === 0, out: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  // 60s is this store's own bound: a checkpoint diff covers a whole working tree,
+  // so it is neither a warm read (quick) nor a network operation (large). The
+  // buffer is the large band, because a truncated diff would be hashed as if it
+  // were the whole change.
+  const result = runGitSync(root, args, { timeoutMs: 60_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
+  return { ok: result.ok, out: `${result.stdout}${result.stderr}` };
 }
 
 export function createGitCheckpointStore(config: GitCheckpointConfig): GitCheckpointStore {

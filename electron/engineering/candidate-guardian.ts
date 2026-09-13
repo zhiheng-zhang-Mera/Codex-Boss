@@ -17,6 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { runGitSync, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import { scanSecrets } from "../../src/shared/secret-scan";
 import { validateThemePackage } from "../../src/shared/theme";
 import { outstandingEvidence, type EvidenceLedgerFile } from "../../src/shared/evidence-ledger";
@@ -213,14 +214,12 @@ export function createCandidateGuardian(config: CandidateGateConfig): CandidateG
  * ------------------------------------------------------------------ */
 
 function spawnGit(root: string): { available: boolean; lines: string[] } {
-  try {
-    const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
-    const result = spawnSync("git", ["-C", root, "status", "--porcelain"], { encoding: "utf8", windowsHide: true, timeout: 20_000 });
-    if (result.status !== 0) return { available: false, lines: [] };
-    return { available: true, lines: `${result.stdout ?? ""}`.split(/\r?\n/).filter(Boolean) };
-  } catch {
-    return { available: false, lines: [] };
-  }
+  // A guard observation degrades rather than throwing: an unreadable repository is
+  // reported as unavailable, which blocks the gate instead of crashing it. The
+  // gateway never throws, so no try/catch is needed to get that behaviour.
+  const result = runGitSync(root, ["status", "--porcelain"], { timeoutMs: 20_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  if (!result.ok) return { available: false, lines: [] };
+  return { available: true, lines: result.stdout.split(/\r?\n/).filter(Boolean) };
 }
 
 /** §36: the newest row per requirement+gate decides, so a repaired failure clears. */

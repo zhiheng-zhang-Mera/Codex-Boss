@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import { contentHashOf } from "../../src/shared/workbook";
 import { createVerificationEngine } from "./verification-engine";
 import {
@@ -65,11 +65,12 @@ export interface SoakRunner {
 }
 
 function git(cwd: string, args: string[]): { ok: boolean; out: string } {
-  const result = spawnSync("git", args, { cwd, encoding: "utf8", windowsHide: true, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 });
-  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
-  // A spawn failure (missing cwd, missing git) has to be part of the reason, or a
-  // broken round would report an empty explanation.
-  return { ok: result.status === 0, out: result.error ? `${output}${String(result.error)}` : output };
+  const result = runGitSync(cwd, args, { timeoutMs: GIT_TIMEOUT_MS.large, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
+  const output = `${result.stdout}${result.stderr}`;
+  // A launch failure (missing cwd, missing git) has to be part of the reason, or a
+  // broken round would report an empty explanation. That text is separate from
+  // stderr because an empty stderr cannot tell "git said no" from "git never ran".
+  return { ok: result.ok, out: result.spawnError ? `${output}${result.spawnError}` : output };
 }
 
 export function createSoakRunner(config: SoakRunnerConfig): SoakRunner {

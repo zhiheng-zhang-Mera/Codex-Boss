@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import { appDataUnder } from "../runtime-paths";
 import {
   emptySentinelSnapshot,
@@ -263,11 +263,10 @@ export function captureTests(input: { files: number; tests: number; failed: numb
 
 export function currentGit(repoRoot: string): { revision: string; branch: string } {
   const read = (args: string[]): string => {
-    try {
-      return execFileSync("git", args, { cwd: repoRoot, windowsHide: true, encoding: "utf8" }).trim();
-    } catch {
-      return "unknown";
-    }
+    // Bounded: an unreadable or wedged repository is reported as unknown, never
+    // waited on, because this runs while a sentinel snapshot is being taken.
+    const result = runGitSync(repoRoot, args, { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+    return result.ok ? result.stdout.trim() : "unknown";
   };
   return { revision: read(["rev-parse", "HEAD"]), branch: read(["rev-parse", "--abbrev-ref", "HEAD"]) };
 }

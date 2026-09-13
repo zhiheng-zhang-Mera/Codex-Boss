@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import fs from "node:fs";
 import path from "node:path";
 import { canonicalRealPathOrNormalized } from "../workspace/path-utils";
@@ -114,11 +114,8 @@ export function normalizeRepositoryIdentity(url: string | undefined): string | u
 }
 
 function defaultGitRunner(cwd: string, args: string[]): string | undefined {
-  try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", windowsHide: true, timeout: 30_000, stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    return undefined;
-  }
+  const result = runGitSync(cwd, args, { timeoutMs: GIT_TIMEOUT_MS.standard, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  return result.ok ? result.stdout.trim() : undefined;
 }
 
 function defaultCanonicalize(value: string): string {

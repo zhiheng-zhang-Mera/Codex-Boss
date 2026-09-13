@@ -41,6 +41,58 @@ function initRepo(): string {
   return dir;
 }
 
+/**
+ * A direct git spawn: the process helpers called with a git command, either the
+ * literal binary or a field that holds one. Deliberately not a blanket
+ * `child_process` check — a module may legitimately run a compiler or `taskkill`.
+ */
+const DIRECT_GIT_SPAWN = /(?:execFile|execFileSync|spawnSync|spawn)\(\s*(?:"git"|'git'|this\.gitExec|gitExec|this\.git\b)/;
+
+/** Every file that spawns git directly today, with the reason it has not moved. */
+const DECLARED_GIT_DEBT: Record<string, string> = {
+  "electron/engineering/acceptance-session.ts": "Root Trust Surface: its move carries a trust-epoch advance",
+  "electron/engineering/autonomous-evolution-identity.ts": "Root Trust Surface: its move carries a trust-epoch advance",
+  "electron/engineering/autonomous-evolution-runner.ts": "Root Trust Surface: its move carries a trust-epoch advance",
+  "electron/input/github-resolver.ts": "takes a configurable git binary path, which the gateway does not model yet",
+  "electron/promotion-gate/github-promotion-adapter.ts": "needs a per-push credential environment, which the gateway does not pass through yet",
+  "electron/repro-snapshot.ts": "callback shape still to be mapped onto the gateway result",
+  "electron/root-recovery/rollback-controller.ts": "callback shape still to be mapped onto the gateway result",
+  "electron/self-evolution/self-evolution-coordinator.ts": "callback shape still to be mapped onto the gateway result",
+  "electron/self-evolution/self-evolution-host.ts": "callback shape still to be mapped onto the gateway result",
+  "electron/stable-candidate/workspace-manager.ts": "callback shape still to be mapped onto the gateway result"
+};
+
+/** The modules Phase M has already moved onto the gateway. */
+const MIGRATED_TO_GATEWAY = [
+  "electron/engineering/git-checkpoint.ts",
+  "electron/engineering/soak-runner.ts",
+  "electron/engineering/world-model.ts",
+  "electron/engineering/candidate-guardian.ts",
+  "electron/engineering/release-runner.ts",
+  "electron/engineering/native-tools.ts",
+  "electron/host/host-probes.ts",
+  "electron/host/doctor.ts",
+  "electron/host/sentinel-capture.ts",
+  "electron/self-evolution/self-target-resolver.ts"
+];
+
+function repoFile(relative: string): string {
+  return path.join(process.cwd(), ...relative.split("/"));
+}
+
+function sourceFilesUnder(root: string): string[] {
+  const found: string[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const full = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...sourceFilesUnder(full));
+      continue;
+    }
+    if (entry.name.endsWith(".ts")) found.push(full);
+  }
+  return found;
+}
+
 describe("Phase M — the git gateway", () => {
   it("reports a successful read as ok with its stdout", async () => {
     const repo = initRepo();
@@ -90,34 +142,37 @@ describe("Phase M — the git gateway", () => {
     expect(GIT_MAX_BUFFER_BYTES.standard).toBeLessThan(GIT_MAX_BUFFER_BYTES.large);
   });
 
-  it("is the only place the engineering modules spawn git", () => {
+  it("is the only place the application spawns git", () => {
     // The rule the phase exists to establish: a module that needs git asks the
-    // gateway. The remaining direct spawns are listed by name — a shrinking debt
-    // list, not a blanket exemption — and adding a new one fails here.
-    const engineering = path.join(process.cwd(), "electron", "engineering");
-    // The remaining direct spawns, by name. `acceptance-session.ts`,
-    // `autonomous-evolution-*.ts` and `native-tools.ts` are Root Trust Surface, so
-    // migrating them is a separate, epoch-carrying change; the rest move as the
-    // gateway gains the shapes they need. Adding an unlisted one fails here.
-    const declaredDebt = new Set([
-      "acceptance-session.ts",
-      "autonomous-evolution-identity.ts",
-      "autonomous-evolution-runner.ts",
-      "native-tools.ts",
-      "candidate-guardian.ts",
-      "git-checkpoint.ts",
-      "release-runner.ts",
-      "soak-runner.ts",
-      "world-model.ts"
-    ]);
+    // gateway. The remaining direct spawns are named with the reason each has not
+    // moved — a shrinking debt list, not a blanket exemption — so adding a new one
+    // anywhere under electron/ fails here.
+    const gateway = path.join("electron", "git", "git-gateway.ts").split(path.sep).join("/");
     const offenders: string[] = [];
-    for (const entry of fs.readdirSync(engineering, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
-      const text = fs.readFileSync(path.join(engineering, entry.name), "utf8");
-      if (!/execFile\(\s*["']git["']|execFileSync\(\s*["']git["']|spawnSync\(\s*["']git["']|spawn\(\s*["']git["']/.test(text)) continue;
-      if (declaredDebt.has(entry.name)) continue;
-      offenders.push(entry.name);
+    for (const full of sourceFilesUnder(path.join(process.cwd(), "electron"))) {
+      const relative = path.relative(process.cwd(), full).split(path.sep).join("/");
+      if (relative === gateway) continue;
+      if (!DIRECT_GIT_SPAWN.test(fs.readFileSync(full, "utf8"))) continue;
+      if (relative in DECLARED_GIT_DEBT) continue;
+      offenders.push(relative);
     }
-    expect(offenders).toEqual([]);
+    expect(offenders.sort()).toEqual([]);
+  });
+
+  it("keeps the debt list honest, so a migrated module cannot stay on it", () => {
+    // Without this, the list would accrete entries nobody removes and would slowly
+    // stop describing the repository.
+    const stale = Object.keys(DECLARED_GIT_DEBT)
+      .filter((relative) => !DIRECT_GIT_SPAWN.test(fs.readFileSync(repoFile(relative), "utf8")))
+      .sort();
+    expect(stale).toEqual([]);
+  });
+
+  it("is what the migrated modules actually reach for", () => {
+    expect(MIGRATED_TO_GATEWAY.length).toBeGreaterThan(0);
+    for (const relative of MIGRATED_TO_GATEWAY) {
+      const text = fs.readFileSync(repoFile(relative), "utf8");
+      expect(text, `${relative} should route through the gateway`).toContain("git/git-gateway");
+    }
   });
 });
