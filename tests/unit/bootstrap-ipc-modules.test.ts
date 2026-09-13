@@ -11,6 +11,7 @@ import { createEngineeringSurfaceIpcModule, ENGINEERING_SURFACE_IPC_CHANNELS } f
 import { createResearchIpcModule, RESEARCH_IPC_CHANNELS } from "../../electron/bootstrap/research-ipc";
 import { createHostStatusIpcModule, HOST_STATUS_IPC_CHANNELS, type HostStatusService } from "../../electron/bootstrap/host-status-ipc";
 import { createSettingsIpcModule, SETTINGS_IPC_CHANNELS } from "../../electron/bootstrap/settings-ipc";
+import { createThemeIpcModule, THEME_IPC_CHANNELS, toPreviewView, type ThemeSurface } from "../../electron/bootstrap/theme-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -656,6 +657,145 @@ describe("Phase G — settings and pane-control module", () => {
     expect(await ipc.invoke("boss:load-remote-command", "c1")).toEqual({ published: true });
     await ipc.invoke("boss:dismiss-remote-command", "c2");
     expect(calls).toEqual(["command:c1:loaded", "command:c2:dismissed"]);
+  });
+});
+
+describe("Phase G — theme module", () => {
+  const snapshot = { activeThemeId: "builtin-dark", themes: [] };
+  function build(overrides: Partial<ThemeSurface> = {}) {
+    const ipc = registrar();
+    const events: string[] = [];
+    const calls: string[] = [];
+    // The fake implements only what these channels read. The type is derived from
+    // the real service, so a method the module starts using but the fake lacks still
+    // shows up as a missing property rather than as a silent undefined.
+    const themes = {
+      snapshot: () => snapshot,
+      activate: (themeId: string) => { calls.push(`activate:${themeId}`); return { ok: true, reason: "activated" }; },
+      duplicate: (sourceId: string, input: { id: string; name: string }) => { calls.push(`duplicate:${sourceId}:${input.id}:${input.name}`); return { ok: true, themeId: input.id, reason: "" }; },
+      delete: (themeId: string) => { calls.push(`delete:${themeId}`); return { ok: true, reason: "" }; },
+      validate: (themeId: string) => ({ themeId, valid: true, diagnostics: [] }),
+      packageOf: () => ({ tokens: {}, overrides: {} }),
+      startPreview: () => ({ id: "custom-1", name: "n", prompt: "p", intent: "i", decisions: [], revisions: 0, valid: true, css: "", tokens: {}, validation: { diagnostics: [] }, createdAt: "now" }),
+      preview: () => undefined,
+      acceptPreview: () => { calls.push("accept"); return { ok: true, themeId: "custom-1", reason: "" }; },
+      cancelPreview: () => { calls.push("cancel"); return { ok: true, reason: "" }; },
+      ...overrides
+    } as unknown as ThemeSurface;
+    const module = createThemeIpcModule({
+      handle: ipc.handle.bind(ipc),
+      themes,
+      events: { publish: (event) => { events.push(`${event.type}:${event.message}`); } },
+      uiContracts: () => [] as never,
+      capture: async () => ({ frames: [{ surface: "HOST", file: "f.png", bytes: 10 }], skipped: [], directory: "dir", summary: "one line" }),
+      recordKnowledge: () => { calls.push("knowledge"); },
+      persistVisualReport: () => { calls.push("persist"); }
+    });
+    return { ipc, module, events, calls };
+  }
+
+  it("registers exactly the thirteen channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...THEME_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "theme-ipc", status: "READY" });
+    expect(module.health().detail).toContain("13/13");
+  });
+
+  it("publishes ACTIVATED or FALLBACK from the service's own answer", async () => {
+    const ok = build();
+    expect(await ok.ipc.invoke("boss:theme-activate", "custom-1")).toEqual(snapshot);
+    expect(ok.events[0]).toContain("THEME_ACTIVATED");
+
+    const failed = build({ activate: () => ({ ok: false, reason: "incompatible" }) as never });
+    await failed.ipc.invoke("boss:theme-activate", "broken");
+    // A refused activation is a fallback the Owner should see, not a silent no-op.
+    expect(failed.events[0]).toContain("THEME_FALLBACK");
+    expect(failed.events[0]).toContain("incompatible");
+  });
+
+  it("sanitizes a duplicated theme's id before it becomes a directory name", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:theme-duplicate", "custom-1", { id: "My Cool Theme!", name: "My Theme" });
+    await ipc.invoke("boss:theme-duplicate", "custom-1", { id: "../../etc/passwd", name: "Traversal" });
+    const ids = calls.filter((entry) => entry.startsWith("duplicate:")).map((entry) => entry.split(":")[2]);
+    expect(ids[0]).toBe("custom-mycooltheme");
+    // The property the sanitizer exists for: whatever the renderer sends, the id is
+    // ONE path component inside the custom- namespace, so it can never name a
+    // directory outside the theme root. (Dots survive the filter, and harmlessly so,
+    // because no separator does.)
+    for (const id of ids) {
+      expect(id.startsWith("custom-")).toBe(true);
+      expect(id).not.toMatch(/[/\\]/);
+    }
+    expect(calls.some((entry) => entry.endsWith(":My Theme"))).toBe(true);
+  });
+
+  it("refuses a duplicate the service rejected, instead of reporting success", async () => {
+    const { ipc } = build({ duplicate: () => ({ ok: false, reason: "id already exists" }) as never });
+    await expect(ipc.invoke("boss:theme-duplicate", "custom-1", { id: "x", name: "y" })).rejects.toThrow(/id already exists/);
+  });
+
+  it("treats cancelling with nothing pending as the state the caller asked for", async () => {
+    const none = build({ cancelPreview: () => ({ ok: false, reason: "no preview is pending" }) as never });
+    expect(await none.ipc.invoke("boss:theme-preview-cancel")).toEqual(snapshot);
+
+    const real = build({ cancelPreview: () => ({ ok: false, reason: "preview is locked" }) as never });
+    await expect(real.ipc.invoke("boss:theme-preview-cancel")).rejects.toThrow(/preview is locked/);
+  });
+
+  it("refuses a draft when the current theme package cannot be read", async () => {
+    // §15: the generator must start from the theme the user is looking at, so an
+    // unreadable base is a refusal rather than a draft from nothing.
+    const { ipc, calls } = build({ packageOf: () => undefined });
+    const outcome = await ipc.invoke("boss:theme-generate", { prompt: "把主题配色改得更冷一些", capture: false }) as { ok: boolean; escalated: boolean; reason: string };
+    expect(outcome.ok).toBe(false);
+    expect(outcome.escalated).toBe(false);
+    expect(outcome.reason).toContain("主题包不可读");
+    expect(calls).toEqual([]);
+  });
+
+  it("answers undefined for a preview that is not pending, and a view when it is", async () => {
+    expect(await build().ipc.invoke("boss:theme-preview")).toBeUndefined();
+    const pending = build({
+      preview: () => ({ id: "custom-1", name: "n", prompt: "p", intent: "i", decisions: [], revisions: 2, valid: true, css: "a{}", tokens: {}, validation: { diagnostics: [] }, createdAt: "now" }) as never
+    });
+    expect(await pending.ipc.invoke("boss:theme-preview")).toMatchObject({ id: "custom-1", revisions: 2, valid: true });
+  });
+
+  it("returns capture frames without leaking the sanitized summary into the response", async () => {
+    const { ipc } = build();
+    const captured = await ipc.invoke("boss:theme-capture") as Record<string, unknown>;
+    expect(captured).toEqual({ frames: [{ surface: "HOST", file: "f.png", bytes: 10 }], skipped: [], directory: "dir" });
+    expect("summary" in captured).toBe(false);
+  });
+
+  it("persists the visual-check evidence and still answers with the report", async () => {
+    const { ipc, calls } = build();
+    const report = await ipc.invoke("boss:theme-visual-check", {
+      themeId: "custom-1",
+      surfaces: [],
+      controls: [],
+      viewport: { width: 1280, height: 800, scrollWidth: 1280, scrollHeight: 800 }
+    }) as { checkedAt?: string; themeId?: string; ok?: boolean };
+    expect(calls).toContain("persist");
+    expect(report.themeId).toBe("custom-1");
+    expect(typeof report.checkedAt).toBe("string");
+    expect(typeof report.ok).toBe("boolean");
+  });
+
+  it("splits preview diagnostics by severity, as text", () => {
+    const view = toPreviewView({
+      id: "custom-1", name: "n", prompt: "p", intent: "i", decisions: [], revisions: 0, valid: false, css: "", tokens: {}, createdAt: "now",
+      validation: { diagnostics: [
+        { severity: "ERROR", rule: "CONTRAST", message: "too low" },
+        { severity: "WARN", rule: "RADIUS", message: "odd" },
+        { severity: "INFO", rule: "NOTE", message: "fine" }
+      ] }
+    } as never);
+    expect(view.errors).toEqual(["CONTRAST: too low"]);
+    expect(view.warnings).toEqual(["RADIUS: odd"]);
+    // INFO belongs in neither list: the renderer shows errors and warnings only.
+    expect(view.errors.length + view.warnings.length).toBe(2);
   });
 });
 
