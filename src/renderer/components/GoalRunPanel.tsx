@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { EngineeringGoalRunResult } from "../../shared/contracts";
 import type { EngineeringGoalSnapshot } from "../../shared/engineering-loop";
+import { WorkspacePathField } from "./WorkspacePathField";
 
 const SEVERITY: Record<string, string> = { CRITICAL: "critical", HIGH: "high", MEDIUM: "medium", LOW: "low", OPTIONAL: "optional" };
 
@@ -74,7 +75,7 @@ export function GoalRunPanel({ busy, onBusyChange, onError }: {
   return <div className="goal-run-panel">
     <form className="goal-launcher" onSubmit={startRun}>
       <label>工程目标（objective）<textarea aria-label="工程目标" value={objective} maxLength={20000} onChange={(event) => setObjective(event.target.value)} rows={2} placeholder="例如：持续自迭代强化当前项目至 production-grade engineering readiness；不要修改产品方向。" /></label>
-      <label>Workspace <input aria-label="工程仓库" value={workspace} onChange={(event) => setWorkspace(event.target.value)} placeholder="本地仓库目录（如 D:/Git-Projects/Codex-Boss）" /></label>
+      <WorkspacePathField label="Workspace" ariaLabel="工程仓库" value={workspace} onChange={setWorkspace} placeholder="本地仓库目录（如 D:/Git-Projects/Codex-Boss）" disabled={busy} onError={(message) => { onError(message); setLocalError(message); }} />
       <label>Agent count <select aria-label="agent 数" value={agentCount} onChange={(event) => setAgentCount(Number(event.target.value) as 1 | 3 | 5)}><option value={1}>1 AI</option><option value={3}>3 AI</option><option value={5}>5 AI</option></select></label>
       <label>收敛轮数 <input aria-label="clean rounds" type="number" min={1} max={5} value={cleanRoundsRequired} onChange={(event) => setCleanRoundsRequired(Math.max(1, Math.min(5, Number(event.target.value) || 1)))} /></label>
       <label>最大迭代 <input aria-label="max iterations" type="number" min={1} max={10} value={maxIterations} onChange={(event) => setMaxIterations(Math.max(1, Math.min(10, Number(event.target.value) || 1)))} /></label>
@@ -100,6 +101,10 @@ export function GoalRunPanel({ busy, onBusyChange, onError }: {
     {result && <div className={`goal-result goal-result-${result.state === "ENGINEERING_CONVERGED" ? "converged" : result.state === "OPTIONAL_IMPROVEMENTS" ? "optional" : "aborted"}`}>
       <b>{result.state}</b>
       <span>{result.iterations} 轮 · {result.changedFiles.length} 个改动文件</span>
+      {result.terminalReason && <small>终止原因：{result.terminalReason}</small>}
+      {result.recovery && <small>{result.recovery.attempted
+        ? (result.recovery.ok ? `已回滚工作区（恢复 ${result.recovery.restored.length} 个文件，清理 ${result.recovery.removed.length} 个）` : `回滚失败：${result.recovery.reason}`)
+        : (result.recovery.code === "CHECKPOINT_UNAVAILABLE" ? `未创建恢复点，未改动任何文件：${result.recovery.reason}` : "已收敛，改动保留")}</small>}
       {result.findings.length > 0 && <small>保留发现：{result.findings.map((finding) => `${finding.id}(${finding.severity})`).join("、")}</small>}
     </div>}
   </div>;
