@@ -2,10 +2,11 @@
  * Test tier definitions (convergence book, Phase N).
  *
  * Two tiers exist for a measured reason, not a stylistic one. The suites listed
- * here compile and execute real projects inside a fixture — real `tsc`, real
- * `node --test` — and take tens of seconds each. Under full-suite parallelism one
- * of them (`tests/acceptance/review-loop.test.ts`, ~28s alone) repeatedly hit the
- * 60s per-test ceiling and turned green commits red.
+ * here spawn and drive real operating-system processes — real `tsc`, real
+ * `node --test`, real AppContainer-sandboxed children — and take tens of seconds
+ * each. Under full-suite parallelism they do not merely run slowly: they fail. A
+ * file belongs here when it starts real processes of its own, and it must earn its
+ * way back out with a measurement.
  *
  * The list lives in one place so the three configurations below cannot drift:
  *
@@ -17,4 +18,12 @@
  * A file left in the default tier must earn it: it has to be fast enough to be
  * part of the signal a developer waits for.
  */
-export const SLOW_ACCEPTANCE_TESTS = ["tests/acceptance/review-loop.test.ts"];
+export const SLOW_ACCEPTANCE_TESTS = [
+  // Drives the real implementation loop with a real tsc and a real node --test in a
+  // fixture: ~28s alone, over the 60s per-test ceiling under full-suite load.
+  "tests/acceptance/review-loop.test.ts",
+  // Spawns real AppContainer-sandboxed children for every containment attack and
+  // for its own control case: ~45s alone, and the whole suite — control case
+  // included — failed under the load of the default parallel run.
+  "tests/unit/evolution-sandbox.test.ts"
+];
