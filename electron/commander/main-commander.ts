@@ -52,7 +52,8 @@ import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
 import {
-  captureRecoveryPoint, closeGoalWithoutRecoveryPoint, recordRecoveryOutcome, recoveryLedgerFor
+  captureRecoveryPoint, closeGoalWithoutRecoveryPoint, EngineeringRecoveryError,
+  recordRecoveryOutcome, recoveryLedgerFor, restoreRecoveryPoint
 } from "../engineering/engineering-recovery";
 import { rollbackToCheckpoint } from "../engineering/change-points";
 import { desktopMutationGate } from "../../src/shared/permission";
@@ -766,7 +767,19 @@ export class MainCommander {
 
     const operations = createRepoEngineeringOperations({ workspace: input.workspace, implement, review });
     const driver = new EngineeringLoopDriver({ store: loopStore, operations, maxIterations: input.maxIterations });
-    const summary = await driver.run();
+
+    // §8: an exception out of the driver is a terminal run like any other. The
+    // workspace is rolled back, the outcome is recorded, and the ORIGINAL error
+    // is rethrown (carrying both the driver error and the rollback outcome) —
+    // never replaced by a rollback failure, never swallowed.
+    let summary: EngineeringLoopSummary;
+    try {
+      summary = await driver.run();
+    } catch (error) {
+      const recovery = await restoreRecoveryPoint(input.workspace, checkpoint);
+      recordRecoveryOutcome(recoveryLedger, loopStore, "ENGINEERING_DRIVER_FAILED", error, recovery);
+      throw new EngineeringRecoveryError(error, recovery);
+    }
     if (summary.state === "ABORTED" || summary.state === "STAGNANT") {
       await rollbackToCheckpoint(input.workspace, checkpoint);
       return { ...summary, changedFiles: [] }; // nothing landed; history stays in the loop store

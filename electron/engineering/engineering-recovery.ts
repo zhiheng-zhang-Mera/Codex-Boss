@@ -1,6 +1,6 @@
 import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
-import { checkpointRecord, type CheckpointSnapshot } from "./change-points";
+import { checkpointRecord, rollbackToCheckpoint, type CheckpointSnapshot } from "./change-points";
 import type { EngineeringLoopStore } from "./engineering-loop-store";
 import type { EngineeringLoopSummary } from "./engineering-loop-driver";
 import type { RecoveryCode, WorkspaceRecoveryOutcome } from "../../src/shared/engineering-loop";
@@ -8,13 +8,18 @@ import type { RecoveryCode, WorkspaceRecoveryOutcome } from "../../src/shared/en
 export type { RecoveryCode, WorkspaceRecoveryOutcome };
 
 /**
- * Autonomous-engineering recovery (Update-Plan/cleaning.md §7).
+ * Autonomous-engineering recovery (Update-Plan/cleaning.md §7/§8).
  *
  * §7 — No recovery point ⇒ no autonomous mutation. A workspace Boss cannot
  * checkpoint is refused *before* the driver starts, and the refusal is recorded
  * as durable evidence with an explicit terminal reason. The old
  * `checkpointRecord(...).catch(() => undefined)` silently turned "no rollback is
  * possible" into "run anyway"; failing to checkpoint is now a terminal state.
+ *
+ * §8 — An exception anywhere in the driver is a *terminal* run, and it is
+ * recovered like any other terminal run. The original error is preserved and the
+ * rollback outcome travels with it, so a rollback failure is never mistaken for
+ * the driver's error and vice versa.
  */
 
 export type RecoveryPointAttempt =
@@ -34,9 +39,44 @@ export async function captureRecoveryPoint(workspace: string): Promise<RecoveryP
   }
 }
 
+/**
+ * §8: rolls the workspace back to its recovery point. Failures are returned, not
+ * thrown: the caller already holds the error that ended the run, and losing it to
+ * a rollback failure would hide the real cause.
+ */
+export async function restoreRecoveryPoint(workspace: string, checkpoint: CheckpointSnapshot): Promise<WorkspaceRecoveryOutcome> {
+  try {
+    const result = await rollbackToCheckpoint(workspace, checkpoint);
+    return { attempted: true, ok: true, code: "ROLLBACK_OK", restored: result.restored, removed: result.removed };
+  } catch (error) {
+    return { attempted: true, ok: false, code: "ROLLBACK_FAILED", reason: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * §8: the error a run ends with when the driver itself threw. It carries the
+ * original error unchanged (`cause`) plus the rollback outcome, so neither is
+ * lost and neither masquerades as the other.
+ */
+export class EngineeringRecoveryError extends Error {
+  readonly code = "ENGINEERING_DRIVER_FAILED" as const;
+  readonly driverError: unknown;
+  readonly recovery: WorkspaceRecoveryOutcome;
+  constructor(driverError: unknown, recovery: WorkspaceRecoveryOutcome) {
+    const driverMessage = driverError instanceof Error ? driverError.message : String(driverError);
+    super(`${driverMessage} [recovery: ${recoveryLabel(recovery)}]`, { cause: driverError });
+    this.name = "EngineeringRecoveryError";
+    this.driverError = driverError;
+    this.recovery = recovery;
+  }
+}
+
 /** Human-readable one-liner for a recovery outcome (display only). */
 export function recoveryLabel(outcome: WorkspaceRecoveryOutcome): string {
-  return `no recovery point: ${outcome.reason}`;
+  if (!outcome.attempted) return `no recovery point: ${outcome.reason}`;
+  return outcome.ok
+    ? `rolled back ${outcome.restored.length} restored / ${outcome.removed.length} removed`
+    : `rollback failed: ${outcome.reason}`;
 }
 
 /* -------------------------------------------------------------------------- */

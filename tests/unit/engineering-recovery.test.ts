@@ -13,7 +13,10 @@ import { ContextManager } from "../../electron/commander/context-manager";
 import { ExecutionGate } from "../../electron/commander/execution-gate";
 import { TaskLedger } from "../../electron/commander/task-ledger";
 import { EngineeringLoopStore } from "../../electron/engineering/engineering-loop-store";
-import { captureRecoveryPoint, EngineeringRecoveryLedger, recoveryLedgerFor } from "../../electron/engineering/engineering-recovery";
+import {
+  captureRecoveryPoint, EngineeringRecoveryError, EngineeringRecoveryLedger,
+  recoveryLedgerFor, restoreRecoveryPoint
+} from "../../electron/engineering/engineering-recovery";
 import type { EngineeringGoalContract } from "../../src/shared/engineering-loop";
 
 /**
@@ -71,6 +74,14 @@ function goal(dir: string): Omit<EngineeringGoalContract, "schemaVersion" | "id"
     agentCount: 1,
     convergencePolicy: { cleanRoundsRequired: 1 }
   };
+}
+
+function alpha(dir: string): string {
+  return fs.readFileSync(path.join(dir, "alpha.cjs"), "utf8").replace(/\r/g, "");
+}
+
+function status(dir: string): string {
+  return execFileSync("git", ["status", "--porcelain"], { cwd: dir, windowsHide: true, encoding: "utf8" }).trim();
 }
 
 /** A real git workspace (a repository root) with one tracked source file. */
@@ -176,6 +187,97 @@ describe("§7 checkpoint fail-closed: no recovery point, no autonomous mutation"
     const attempt = await captureRecoveryPoint(dir);
     expect(attempt.ok).toBe(true);
     expect(attempt.ok === true && attempt.checkpoint.head).toMatch(/^[0-9a-f]{40}$/);
+  }, 120000);
+});
+
+describe("§8 a driver exception rolls back and preserves both errors", () => {
+  it("restores the workspace and rethrows the ORIGINAL error with the rollback outcome", async () => {
+    const dir = gitWorkspace();
+    const before = alpha(dir);
+    const { commander, ledger } = commanderFor(dir);
+
+    // The implementer mutates the tree and then throws — "the driver died
+    // mid-change". `implement` is reached before build/test/review, so this is
+    // the exception path with a real mutation behind it.
+    const failure = new Error("driver exploded while implementing");
+    let thrown: unknown;
+    try {
+      await commander.runEngineeringGoal({
+        goal: goal(dir), workspace: dir, maxIterations: 2, disableCoder: true, disableReviewer: true,
+        implement: async () => { fs.writeFileSync(path.join(dir, "alpha.cjs"), "module.exports = 0;\n"); throw failure; }
+      });
+    } catch (error) { thrown = error; }
+
+    expect(thrown).toBeInstanceOf(EngineeringRecoveryError);
+    const recoveryError = thrown as EngineeringRecoveryError;
+    // The original error is preserved, not replaced.
+    expect(recoveryError.driverError).toBe(failure);
+    expect(recoveryError.cause).toBe(failure);
+    expect(recoveryError.message).toContain("driver exploded while implementing");
+    // The rollback really ran, and its outcome travels with the error.
+    expect(recoveryError.recovery.attempted).toBe(true);
+    expect(recoveryError.recovery.ok).toBe(true);
+    // The workspace is back to its pre-run content and git is clean.
+    expect(alpha(dir)).toBe(before);
+    expect(status(dir)).toBe("");
+
+    const events = recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.code).toBe("ENGINEERING_DRIVER_FAILED");
+    expect(events[0]!.driverError).toBe("driver exploded while implementing");
+    // The durable ledger may not be left claiming a run is still in progress.
+    expect(new EngineeringLoopStore(path.join(ledger.root, "..", "engineering-loop.json")).iterations().every((item) => item.status !== "RUNNING")).toBe(true);
+  }, 120000);
+
+  it("keeps a rollback failure separate from the driver error", async () => {
+    const dir = gitWorkspace();
+    const before = alpha(dir);
+    const { commander, ledger } = commanderFor(dir);
+    const failure = new Error("driver exploded after advancing the repo");
+
+    // A real rollback failure: the repository advances past the checkpoint while
+    // the driver is running, so `rollbackToCheckpoint` refuses by design.
+    let thrown: unknown;
+    try {
+      await commander.runEngineeringGoal({
+        goal: goal(dir), workspace: dir, maxIterations: 2, disableCoder: true, disableReviewer: true,
+        implement: async () => {
+          fs.writeFileSync(path.join(dir, "alpha.cjs"), "module.exports = 0;\n");
+          execFileSync("git", ["add", "-A"], { cwd: dir, windowsHide: true });
+          execFileSync("git", ["-c", "user.name=Acceptance", "-c", "user.email=acceptance@example.invalid", "commit", "--no-verify", "-m", "advanced past checkpoint"], { cwd: dir, windowsHide: true });
+          throw failure;
+        }
+      });
+    } catch (error) { thrown = error; }
+
+    const recoveryError = thrown as EngineeringRecoveryError;
+    expect(recoveryError).toBeInstanceOf(EngineeringRecoveryError);
+    expect(recoveryError.driverError).toBe(failure);              // preserved
+    expect(recoveryError.recovery.attempted).toBe(true);
+    expect(recoveryError.recovery.ok).toBe(false);                 // kept apart
+    expect(recoveryError.recovery.attempted && !recoveryError.recovery.ok && recoveryError.recovery.reason).toContain("advanced past checkpoint");
+    expect(recoveryError.message).toContain("driver exploded after advancing the repo");
+    expect(recoveryError.message).toContain("rollback failed");
+    // The rollback refusal is why the tree still holds the change — reported, not hidden.
+    expect(alpha(dir)).not.toBe(before);
+
+    const events = recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list();
+    expect(events[0]!.code).toBe("ENGINEERING_DRIVER_FAILED");
+    expect(events[0]!.recovery.ok).toBe(false);
+  }, 120000);
+
+  it("restoreRecoveryPoint returns failures instead of throwing", async () => {
+    const dir = gitWorkspace();
+    const attempt = await captureRecoveryPoint(dir);
+    expect(attempt.ok).toBe(true);
+    if (!attempt.ok) return;
+    fs.writeFileSync(path.join(dir, "alpha.cjs"), "module.exports = 0;\n");
+    execFileSync("git", ["add", "-A"], { cwd: dir, windowsHide: true });
+    execFileSync("git", ["-c", "user.name=A", "-c", "user.email=a@b.invalid", "commit", "-m", "moved on"], { cwd: dir, windowsHide: true });
+    const outcome = await restoreRecoveryPoint(dir, attempt.checkpoint);
+    expect(outcome.attempted).toBe(true);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.attempted && !outcome.ok && outcome.reason).toContain("advanced past checkpoint");
   }, 120000);
 });
 
