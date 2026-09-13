@@ -13,7 +13,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { migrateBrowserProfile, migrateLegacyPersistentData, runtimeRoots } from "./runtime-paths";
-import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, ViewBounds } from "../src/shared/contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
@@ -60,6 +60,7 @@ import { createStatusIpcModule, windowStateView } from "./bootstrap/status-ipc";
 import { createEngineeringSurfaceIpcModule } from "./bootstrap/engineering-surface-ipc";
 import { createResearchIpcModule } from "./bootstrap/research-ipc";
 import { createHostStatusIpcModule } from "./bootstrap/host-status-ipc";
+import { createSettingsIpcModule } from "./bootstrap/settings-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1286,20 +1287,38 @@ if (ownsInstance) app.whenReady().then(() => {
     await automation.continueIfReady(taskId);
     return publish();
   });
-  ipcMain.handle("boss:update-api-setting", (_event, input: UpdateApiSettingInput) => {
-    provider(input.providerId);
-    apiSettings.update(input);
-    return publish();
-  });
-  ipcMain.handle("boss:update-remote-channel", (_event, input: UpdateRemoteChannelInput) => {
-    store.updateRemoteChannel(input.channel, input.enabled, input.commandPrefix);
-    remoteRelay.sync(store.snapshot().remoteChannels);
-    return publish();
-  });
-  ipcMain.handle("boss:update-runtime-control", (_event, runtimeId: string, enabled: boolean, priority: number) => { store.setRuntimeControl(runtimeId, Boolean(enabled), Number(priority)); return publish(); });
-  ipcMain.handle("boss:update-role-route", (_event, role, runtimeIds: string[], fallback: boolean) => { store.setRoleRoute(role, runtimeIds, Boolean(fallback)); return publish(); });
-  ipcMain.handle("boss:load-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "loaded"); return publish(); });
-  ipcMain.handle("boss:dismiss-remote-command", (_event, commandId: string) => { store.setRemoteCommandStatus(commandId, "dismissed"); return publish(); });
+  // Phase F/G: the settings and pane-control channels live in
+  // electron/bootstrap/settings-ipc.ts, which owns their validation (unknown
+  // provider, unknown workspace view, reloading a pane that is not open) and
+  // re-publishes the snapshot after every mutation.
+  bootModules.push(createSettingsIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    settings: {
+      providerIds: () => store.snapshot().providers.map((item) => item.id),
+      updateApiSetting: (input) => apiSettings.update(input),
+      updateRemoteChannel: (input) => {
+        store.updateRemoteChannel(input.channel, input.enabled, input.commandPrefix);
+        remoteRelay.sync(store.snapshot().remoteChannels);
+      },
+      setRuntimeControl: (runtimeId, enabled, priority) => store.setRuntimeControl(runtimeId, enabled, priority),
+      setRoleRoute: (role, runtimeIds, fallback) => store.setRoleRoute(role, runtimeIds, fallback),
+      setRemoteCommandStatus: (commandId, status) => store.setRemoteCommandStatus(commandId, status),
+      publish: () => publish()
+    },
+    panes: {
+      setWorkspaceView: (view) => providerViews.setWorkspaceView(view),
+      workspaceView: () => providerViews.workspaceView(),
+      webWindowBounds: () => providerViews.webWindowBounds(),
+      setVisible: (visible) => providerViews.setVisible(visible),
+      setManualZoom: (providerId, factor) => providerViews.setManualZoom(providerId, factor),
+      // The module must not import Electron, so it is handed something it can ask to
+      // reload rather than a WebContents.
+      pane: (providerId) => {
+        const view = providerViews.get(providerId);
+        return view ? { reload: () => view.webContents.reload() } : undefined;
+      }
+    }
+  }));
   // Boot modules (convergence book, Phase F/G): the workspace-path, attachment and
   // conversation channels live in electron/bootstrap/*, receive a narrow service
   // surface, and report their own health. Handler bodies here are registration only.
@@ -1393,24 +1412,6 @@ if (ownsInstance) app.whenReady().then(() => {
   // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED
   // the open web-AI panes move into window B beside the Boss window; provider
   // sessions survive the transition.
-  ipcMain.handle("boss:set-workspace-view", (_event, view: string) => {
-    if (view !== "MERGED" && view !== "DETACHED") throw new Error("Invalid workspace view");
-    providerViews.setWorkspaceView(view);
-    return { view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() };
-  });
-  ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
-  // U4 §9.2: per-pane manual zoom override (zoom buttons in the pane title).
-  // The override wins over auto-fit until the view is closed or the override
-  // is cleared.
-  ipcMain.handle("boss:set-provider-zoom", (_event, providerId: string, factor: number) => {
-    provider(providerId);
-    providerViews.setManualZoom(providerId, Number(factor));
-  });
-  ipcMain.handle("boss:reload-provider", (_event, providerId: string) => {
-    const view = providerViews.get(providerId);
-    if (!view) throw new Error(`Unknown provider view: ${providerId}`);
-    view.webContents.reload();
-  });
   ipcMain.handle("boss:launch-task", (_event, taskId: string) => {
     const task = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);

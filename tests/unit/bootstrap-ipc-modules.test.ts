@@ -10,6 +10,7 @@ import { createStatusIpcModule, STATUS_IPC_CHANNELS, windowStateView } from "../
 import { createEngineeringSurfaceIpcModule, ENGINEERING_SURFACE_IPC_CHANNELS } from "../../electron/bootstrap/engineering-surface-ipc";
 import { createResearchIpcModule, RESEARCH_IPC_CHANNELS } from "../../electron/bootstrap/research-ipc";
 import { createHostStatusIpcModule, HOST_STATUS_IPC_CHANNELS, type HostStatusService } from "../../electron/bootstrap/host-status-ipc";
+import { createSettingsIpcModule, SETTINGS_IPC_CHANNELS } from "../../electron/bootstrap/settings-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -579,6 +580,82 @@ describe("Phase G — host status and learning module", () => {
     expect(scan.readyCount).toBe(1);
     // AUTH_REQUIRED is a genuine operator step, so it must be counted as one.
     expect(scan.needsOperatorCount).toBe(1);
+  });
+});
+
+describe("Phase G — settings and pane-control module", () => {
+  function build(overrides: { known?: string[]; pane?: { reload(): void } | undefined } = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const module = createSettingsIpcModule({
+      handle: ipc.handle.bind(ipc),
+      settings: {
+        providerIds: () => overrides.known ?? ["qwen", "codex"],
+        updateApiSetting: (input) => { calls.push(`api:${input.providerId}`); },
+        updateRemoteChannel: (input) => { calls.push(`remote:${input.channel}:${input.enabled}`); },
+        setRuntimeControl: (runtimeId, enabled, priority) => { calls.push(`runtime:${runtimeId}:${enabled}:${priority}`); },
+        setRoleRoute: (role, runtimeIds, fallback) => { calls.push(`role:${role}:${runtimeIds.join("|")}:${fallback}`); },
+        setRemoteCommandStatus: (commandId, status) => { calls.push(`command:${commandId}:${status}`); },
+        publish: () => ({ published: true })
+      },
+      panes: {
+        setWorkspaceView: (view) => { calls.push(`view:${view}`); },
+        workspaceView: () => "DETACHED",
+        webWindowBounds: () => ({ x: 1, y: 2, width: 3, height: 4 }),
+        setVisible: (visible) => { calls.push(`visible:${visible}`); },
+        setManualZoom: (providerId, factor) => { calls.push(`zoom:${providerId}:${factor}`); },
+        pane: () => overrides.pane
+      }
+    });
+    return { ipc, module, calls };
+  }
+
+  it("registers exactly the ten channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...SETTINGS_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "settings-ipc", status: "READY" });
+    expect(module.health().detail).toContain("10/10");
+  });
+
+  it("refuses an unknown provider by name instead of passing it down", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:update-api-setting", { providerId: "nope" })).rejects.toThrow(/Unknown provider: nope/);
+    await expect(ipc.invoke("boss:set-provider-zoom", "nope", 1.5)).rejects.toThrow(/Unknown provider: nope/);
+    // The refusal happened before anything was mutated.
+    expect(calls).toEqual([]);
+  });
+
+  it("coerces the renderer's loosely-typed numbers and booleans", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:update-runtime-control", "cli", 1, "7");
+    await ipc.invoke("boss:update-role-route", "planner", ["a"], 1);
+    await ipc.invoke("boss:set-provider-views-visible", 1);
+    await ipc.invoke("boss:set-provider-zoom", "qwen", "1.25");
+    expect(calls).toEqual(["runtime:cli:true:7", "role:planner:a:true", "visible:true", "zoom:qwen:1.25"]);
+  });
+
+  it("refuses an unknown workspace view rather than forwarding it", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:set-workspace-view", "SIDEWAYS")).rejects.toThrow(/Invalid workspace view/);
+    expect(calls).toEqual([]);
+    expect(await ipc.invoke("boss:set-workspace-view", "DETACHED")).toEqual({ view: "DETACHED", webWindow: { x: 1, y: 2, width: 3, height: 4 } });
+  });
+
+  it("refuses to reload a provider that has no open pane", async () => {
+    const missing = build({ pane: undefined });
+    await expect(missing.ipc.invoke("boss:reload-provider", "qwen")).rejects.toThrow(/Unknown provider view: qwen/);
+
+    let reloaded = 0;
+    const present = build({ pane: { reload: () => { reloaded += 1; } } });
+    await present.ipc.invoke("boss:reload-provider", "qwen");
+    expect(reloaded).toBe(1);
+  });
+
+  it("re-publishes the snapshot after a mutation and reports the tray status it was given", async () => {
+    const { ipc, calls } = build();
+    expect(await ipc.invoke("boss:load-remote-command", "c1")).toEqual({ published: true });
+    await ipc.invoke("boss:dismiss-remote-command", "c2");
+    expect(calls).toEqual(["command:c1:loaded", "command:c2:dismissed"]);
   });
 });
 
