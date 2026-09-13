@@ -58,6 +58,7 @@ import { createResearchIpcModule } from "./bootstrap/research-ipc";
 import { createHostStatusIpcModule } from "./bootstrap/host-status-ipc";
 import { createSettingsIpcModule } from "./bootstrap/settings-ipc";
 import { createThemeIpcModule } from "./bootstrap/theme-ipc";
+import { createTaskLifecycleIpcModule } from "./bootstrap/task-lifecycle-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -96,7 +97,7 @@ import type { HumanDefinedResearchInput } from "../src/shared/research-input";
 import { researchIdFor } from "../src/shared/research-input";
 import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
-import { buildEvidenceBundle, buildRehydrationPrompts } from "./evidence-engine";
+import { buildEvidenceBundle } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
 import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
@@ -1419,66 +1420,40 @@ if (ownsInstance) app.whenReady().then(() => {
     store.setTaskStatus(taskId, "running");
     return publish();
   });
-  ipcMain.handle("boss:prepare-task", async (_event, taskId: string) => {
-    await automation.prepareTask(taskId);
-    return publish();
-  });
-  ipcMain.handle("boss:send-task", async (_event, taskId: string) => {
-    await automation.sendTask(taskId);
-    return publish();
-  });
-  ipcMain.handle("boss:release-review", async (_event, taskId: string) => { store.releaseReview(taskId); domainEvents.publish({ type: "HUMAN_APPROVED", taskId, message: "operator approved the review gate" }); await automation.continueIfReady(taskId); return publish(); });
-  ipcMain.handle("boss:capture-task", async (_event, taskId: string) => {
-    await automation.captureTask(taskId);
-    return publish();
-  });
-  ipcMain.handle("boss:advance-council", async (_event, taskId: string) => { await automation.continueIfReady(taskId); return publish(); });
-
-  ipcMain.handle("boss:build-evidence", (_event, taskId: string) => {
-    const snapshot = store.snapshot();
-    const task = snapshot.tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error(`Unknown task: ${taskId}`);
-    const council = snapshot.councils.find((item) => item.taskId === taskId);
-    const previous = snapshot.evidenceBundles.find((item) => item.taskId === taskId);
-    store.saveEvidence(buildEvidenceBundle(task, snapshot.artifacts, council, previous?.codexReview));
-    return publish();
-  });
-  ipcMain.handle("boss:rehydrate-evidence", async (_event, taskId: string) => {
-    let snapshot = store.snapshot();
-    const task = snapshot.tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error(`Unknown task: ${taskId}`);
-    let bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId);
-    if (!bundle) {
-      bundle = buildEvidenceBundle(task, snapshot.artifacts, snapshot.councils.find((item) => item.taskId === taskId));
-      store.saveEvidence(bundle);
-      snapshot = store.snapshot();
-    }
-    if (!bundle.claims.some((claim) => claim.status === "DISPUTED" || claim.status === "INSUFFICIENT")) throw new Error("当前证据包没有需要选择性回填的 claim");
-    store.addRehydrationRound(taskId, buildRehydrationPrompts(task, bundle, snapshot.artifacts, task.providerIds));
-    await automation.dispatchTask(taskId);
-    return publish();
-  });
-  ipcMain.handle("boss:run-codex-review", async (_event, taskId: string) => {
-    let snapshot = store.snapshot();
-    const task = snapshot.tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error(`Unknown task: ${taskId}`);
-    let bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId);
-    if (!bundle) {
-      bundle = buildEvidenceBundle(task, snapshot.artifacts, snapshot.councils.find((item) => item.taskId === taskId));
-      store.saveEvidence(bundle);
-      snapshot = store.snapshot();
-    }
-    store.updateCodexReview(bundle.id, { status: "RUNNING" });
-    publish();
-    try {
-      const content = await codexRuntime.review(bundle, snapshot.artifacts);
-      store.updateCodexReview(bundle.id, { status: "COMPLETED", content, completedAt: new Date().toISOString() });
-    } catch (error) {
-      store.observeRuntimeFailure("codex:cli", String(error));
-      store.updateCodexReview(bundle.id, { status: "FAILED", error: String(error), completedAt: new Date().toISOString() });
-    }
-    return publish();
-  });
+  // Phase F/G: the task-lifecycle channels live in
+  // electron/bootstrap/task-lifecycle-ipc.ts with the evidence-bundle recovery and
+  // the Codex review transitions. `boss:launch-task` stays here because it opens
+  // provider panes through the pane manager's own limit guard.
+  bootModules.push(createTaskLifecycleIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    tasks: {
+      prepareTask: (taskId) => automation.prepareTask(taskId),
+      sendTask: (taskId) => automation.sendTask(taskId),
+      captureTask: (taskId) => automation.captureTask(taskId),
+      continueIfReady: (taskId) => automation.continueIfReady(taskId),
+      dispatchTask: (taskId) => automation.dispatchTask(taskId),
+      releaseReview: (taskId) => store.releaseReview(taskId),
+      task: (taskId) => store.snapshot().tasks.find((item) => item.id === taskId),
+      artifacts: () => store.snapshot().artifacts,
+      bundle: (taskId) => store.snapshot().evidenceBundles.find((item) => item.taskId === taskId),
+      buildEvidence: (task, taskId, previousReview) => {
+        const snapshot = store.snapshot();
+        const council = snapshot.councils.find((item) => item.taskId === taskId);
+        // The builder takes the previous review optionally; only `boss:build-evidence`
+        // passes one, which is why the parameter is threaded rather than assumed.
+        return previousReview === undefined
+          ? buildEvidenceBundle(task, snapshot.artifacts, council)
+          : buildEvidenceBundle(task, snapshot.artifacts, council, previousReview as Parameters<typeof buildEvidenceBundle>[3]);
+      },
+      saveEvidence: (bundle) => store.saveEvidence(bundle),
+      addRehydrationRound: (taskId, prompts) => store.addRehydrationRound(taskId, prompts),
+      updateCodexReview: (bundleId, patch) => store.updateCodexReview(bundleId, patch),
+      observeRuntimeFailure: (runtime, message) => store.observeRuntimeFailure(runtime, message),
+      runCodexReview: (bundle, artifacts) => codexRuntime.review(bundle, artifacts),
+      publish: () => publish()
+    },
+    events: { publish: (event) => domainEvents.publish(event) }
+  }));
   // Phase F/G: the theme channels live in electron/bootstrap/theme-ipc.ts with the
   // draft/preview orchestration. What stays here is what needs an Electron object or
   // app path: the capture machinery (a BrowserWindow and WebContents), the

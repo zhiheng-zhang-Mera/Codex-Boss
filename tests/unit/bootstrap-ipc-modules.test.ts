@@ -12,6 +12,7 @@ import { createResearchIpcModule, RESEARCH_IPC_CHANNELS } from "../../electron/b
 import { createHostStatusIpcModule, HOST_STATUS_IPC_CHANNELS, type HostStatusService } from "../../electron/bootstrap/host-status-ipc";
 import { createSettingsIpcModule, SETTINGS_IPC_CHANNELS } from "../../electron/bootstrap/settings-ipc";
 import { createThemeIpcModule, THEME_IPC_CHANNELS, toPreviewView, type ThemeSurface } from "../../electron/bootstrap/theme-ipc";
+import { createTaskLifecycleIpcModule, TASK_LIFECYCLE_IPC_CHANNELS } from "../../electron/bootstrap/task-lifecycle-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -796,6 +797,107 @@ describe("Phase G — theme module", () => {
     expect(view.warnings).toEqual(["RADIUS: odd"]);
     // INFO belongs in neither list: the renderer shows errors and warnings only.
     expect(view.errors.length + view.warnings.length).toBe(2);
+  });
+});
+
+describe("Phase G — task lifecycle module", () => {
+  function build(overrides: Record<string, unknown> = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const events: string[] = [];
+    const bundle = { id: "b1", taskId: "t1", claims: [] as Array<{ status: string }> };
+    const tasks = {
+      prepareTask: async (taskId: string) => { calls.push(`prepare:${taskId}`); },
+      sendTask: async (taskId: string) => { calls.push(`send:${taskId}`); },
+      captureTask: async (taskId: string) => { calls.push(`capture:${taskId}`); },
+      continueIfReady: async (taskId: string) => { calls.push(`continue:${taskId}`); },
+      dispatchTask: async (taskId: string) => { calls.push(`dispatch:${taskId}`); },
+      releaseReview: (taskId: string) => { calls.push(`release:${taskId}`); },
+      task: (taskId: string) => (taskId === "t1" ? { id: "t1", providerIds: ["qwen"] } : undefined),
+      artifacts: () => [],
+      bundle: () => undefined,
+      buildEvidence: () => { calls.push("build"); return bundle; },
+      saveEvidence: () => { calls.push("save"); },
+      addRehydrationRound: () => { calls.push("rehydrate"); },
+      updateCodexReview: (_id: string, patch: { status: string }) => { calls.push(`review:${patch.status}`); },
+      observeRuntimeFailure: (_runtime: string, message: string) => { calls.push(`observe:${message}`); },
+      runCodexReview: async () => "the review",
+      publish: () => ({ published: true }),
+      ...overrides
+    };
+    const module = createTaskLifecycleIpcModule({
+      handle: ipc.handle.bind(ipc),
+      tasks: tasks as never,
+      events: { publish: (event) => { events.push(`${event.type}:${event.taskId}`); } }
+    });
+    return { ipc, module, calls, events };
+  }
+
+  it("registers exactly the eight channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...TASK_LIFECYCLE_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "task-lifecycle-ipc", status: "READY" });
+    expect(module.health().detail).toContain("8/8");
+  });
+
+  it("announces the review gate release before advancing the task", async () => {
+    const { ipc, calls, events } = build();
+    await ipc.invoke("boss:release-review", "t1");
+    expect(events).toEqual(["HUMAN_APPROVED:t1"]);
+    // Released, then advanced: the order is what stops the loop resuming on a gate
+    // that is still closed.
+    expect(calls).toEqual(["release:t1", "continue:t1"]);
+  });
+
+  it("refuses an unknown task by name without touching the store", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:build-evidence", "nope")).rejects.toThrow(/Unknown task: nope/);
+    await expect(ipc.invoke("boss:run-codex-review", "nope")).rejects.toThrow(/Unknown task: nope/);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a rehydration round when no claim needs one", async () => {
+    // A bundle whose claims are all settled has nothing to rehydrate, and asking for
+    // it must not silently dispatch the task again.
+    const { ipc, calls } = build({ bundle: () => ({ id: "b1", taskId: "t1", claims: [{ status: "SUPPORTED" }] }) });
+    await expect(ipc.invoke("boss:rehydrate-evidence", "t1")).rejects.toThrow(/没有需要选择性回填的 claim/);
+    expect(calls).not.toContain("dispatch:t1");
+  });
+
+  it("dispatches a rehydration round when a claim is disputed", async () => {
+    const { ipc, calls } = build({ bundle: () => ({ id: "b1", taskId: "t1", claims: [{ status: "DISPUTED" }] }) });
+    await ipc.invoke("boss:rehydrate-evidence", "t1");
+    expect(calls).toContain("rehydrate");
+    expect(calls).toContain("dispatch:t1");
+  });
+
+  it("records a failed Codex review as failed and observes the runtime", async () => {
+    const { ipc, calls } = build({
+      bundle: () => ({ id: "b1", taskId: "t1", claims: [] }),
+      runCodexReview: async () => { throw new Error("cli exploded"); }
+    });
+    await ipc.invoke("boss:run-codex-review", "t1");
+    // The important part: it does not stay at RUNNING.
+    expect(calls).toEqual(["review:RUNNING", "observe:Error: cli exploded", "review:FAILED"]);
+  });
+
+  it("publishes RUNNING before awaiting the review, so the renderer is not blind", async () => {
+    const order: string[] = [];
+    const { ipc } = build({
+      bundle: () => ({ id: "b1", taskId: "t1", claims: [] }),
+      runCodexReview: async () => { order.push("awaited"); return "x"; },
+      publish: () => { order.push("published"); return {}; }
+    });
+    await ipc.invoke("boss:run-codex-review", "t1");
+    expect(order[0]).toBe("published");
+    expect(order).toContain("awaited");
+  });
+
+  it("builds a bundle when the task has none, and carries no review over on recovery", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:build-evidence", "t1");
+    // build -> save, in that order: the evidence is durable before it is published.
+    expect(calls).toEqual(["build", "save"]);
   });
 });
 
