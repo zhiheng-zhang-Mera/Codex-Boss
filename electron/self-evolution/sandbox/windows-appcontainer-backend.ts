@@ -23,9 +23,9 @@ import { SANDBOX_LAUNCHER_SOURCE } from "./windows-appcontainer/launcher-source"
 import { ensureDriveMapping, removeDriveMapping, toSandboxPath, type DriveMapping } from "./sandbox-drive";
 
 /**
- * Windows hard-execution sandbox (Update-Plan/Alien-Prestart.md 鎼?).
+ * Windows hard-execution sandbox (see Update-Plan/Alien-Prestart.md).
  *
- * Mechanism 閳?every part of it is the operating system, none of it is a
+ * Mechanism — every part of it is the operating system, none of it is a
  * convention this codebase could talk itself out of:
  *
  *   1. **AppContainer lowbox token.** The child runs under an AppContainer SID
@@ -38,16 +38,16 @@ import { ensureDriveMapping, removeDriveMapping, toSandboxPath, type DriveMappin
  *      denied by the OS, not by filtering.
  *   2. **Job Object.** The child is created `CREATE_SUSPENDED`, assigned to a
  *      job with `JOB_OBJECT_LIMIT_ACTIVE_PROCESS` and memory ceilings, and only
- *      then resumed 閳?so no process can exist outside the job, not even for an
+ *      then resumed — so no process can exist outside the job, not even for an
  *      instant. `KILL_ON_JOB_CLOSE` means the whole tree dies with the run.
  *   3. **Process-creation ceiling.** `ActiveProcessLimit = 1` makes the child
  *      the only process the job will ever hold: `CreateProcess` on behalf of a
  *      Candidate fails at the kernel. That is what defeats SB-04/SB-05
- *      (`execFile("powershell", 閳?`, arbitrary executables) without relying on
+ *      (`execFile("powershell", ...)`, arbitrary executables) without relying on
  *      an executable name list.
  *   4. **Explicit environment.** The child inherits nothing. The launcher wipes
  *      its own environment and installs exactly the host-supplied block, so an
- *      ambient Owner credential is not merely filtered 閳?it is absent.
+ *      ambient Owner credential is not merely filtered — it is absent.
  *
  * Everything the child could still do (read a granted toolchain, write its own
  * workspace) is inside the Candidate trust domain by construction.
@@ -78,7 +78,7 @@ export interface WindowsAppContainerSandboxOptions {
   /** Wall-clock ceiling applied when a request does not carry one. */
   defaultTimeoutMs?: number;
   /**
-   * Roots that must never receive a grant 閳?Stable, the Owner home, credential
+   * Roots that must never receive a grant — Stable, the Owner home, credential
    * stores. A request that tries to grant one is refused before the OS is asked.
    */
   denyRoots?: readonly string[];
@@ -119,7 +119,7 @@ function readText(file: string): string {
 
 /**
  * The Windows implementation of `EvolutionSandbox`. It compiles the launcher
- * from the embedded host-owned source, then drives it with a request file 閳?the
+ * from the embedded host-owned source, then drives it with a request file — the
  * launcher never parses a Candidate-supplied command line.
  */
 export class WindowsAppContainerSandbox implements EvolutionSandbox {

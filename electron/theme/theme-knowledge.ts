@@ -1,9 +1,9 @@
 /**
- * Update-Plan/checkpoint-1.md 搂24 鈥?Theme 鈫?Knowledge integration.
+ * Update-Plan/checkpoint-1.md §24 — Theme → Knowledge integration.
  *
- * 搂24 asks the theme system to record, long term: the style intent, the user's
+ * §24 asks the theme system to record, long term: the style intent, the user's
  * feedback, the visual decisions that worked, the surfaces that turned out to be
- * incompatible, and the validation failures 鈥?while explicitly NOT storing the
+ * incompatible, and the validation failures — while explicitly NOT storing the
  * user's raw screenshots.
  *
  * Everything here goes through the CP2 write gate as a host-derived, verified
@@ -38,13 +38,13 @@ export interface ThemeKnowledgeInput {
   observedAt: string;
   /** Surfaces the validator rejected, recorded as incompatible. */
   incompatibleSurfaces?: { surface: string; property: string; reason: string }[];
-  /** Capture summary only 鈥?never the images themselves (搂24). */
+  /** Capture summary only — never the images themselves (§24). */
   captureSummary?: string;
 }
 
 const PRODUCER = `${KNOWLEDGE_PRODUCER_ID.slice(0, KNOWLEDGE_PRODUCER_ID.lastIndexOf("@")) || KNOWLEDGE_PRODUCER_ID}`;
 
-/** The flat provenance fields a KnowledgeCandidate carries (搂5.2). */
+/** The flat provenance fields a KnowledgeCandidate carries (§5.2). */
 function provenance(input: ThemeKnowledgeInput, source: string) {
   return {
     source,
@@ -127,7 +127,7 @@ export function recordThemeKnowledge(
     });
   }
 
-  /* 4. Validation outcome 鈥?including which surfaces turned out incompatible. */
+  /* 4. Validation outcome — including which surfaces turned out incompatible. */
   if (input.validation) {
     const errors = input.validation.diagnostics.filter((entry) => entry.severity === "ERROR");
     const warnings = input.validation.diagnostics.filter((entry) => entry.severity === "WARN");
