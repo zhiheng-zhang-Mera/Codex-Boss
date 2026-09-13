@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceIpcModule, WORKSPACE_IPC_CHANNELS } from "../../electron/bootstrap/workspace-ipc";
 import { createAttachmentIpcModule, ATTACHMENT_IPC_CHANNELS, type AttachmentService } from "../../electron/bootstrap/attachment-ipc";
 import { createConversationIpcModule, CONVERSATION_IPC_CHANNELS, requireDeleteConfirmation, type ConversationService } from "../../electron/bootstrap/conversation-ipc";
+import { createProviderIpcModule, PROVIDER_IPC_CHANNELS, sanitizeViewLayout } from "../../electron/bootstrap/provider-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -235,6 +236,76 @@ describe("Phase G — conversation IPC module", () => {
       `reveal:${path.join("/data/exports", "c1.md")}`
     ]);
     expect(destination).toBe(path.join("/data/exports", "c1.md"));
+  });
+});
+
+describe("Phase G — provider IPC module", () => {
+  function build(overrides: Partial<{ known: string[] }> = {}) {
+    const calls: string[] = [];
+    const ipc = registrar();
+    const publish = vi.fn(() => "snapshot");
+    const module = createProviderIpcModule({
+      handle: ipc.handle.bind(ipc),
+      providers: {
+        known: () => (overrides.known ?? ["chatgpt", "claude"]) as never,
+        addCustom: (name, url) => { calls.push(`add:${name}:${url}`); },
+        removeCustom: (providerId) => { calls.push(`remove:${providerId}`); }
+      },
+      panes: {
+        close: (providerId) => { calls.push(`close:${providerId}`); },
+        layout: (views) => { calls.push(`layout:${Object.keys(views).sort().join(",")}`); }
+      },
+      openWithinLimit: (providerId) => { calls.push(`open:${providerId}`); },
+      requireProvider: (providerId) => { if (providerId === "nope") throw new Error("Unknown provider"); return {}; },
+      publish
+    });
+    return { ipc, module, calls, publish };
+  }
+
+  it("registers exactly the five channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...PROVIDER_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "provider-ipc", status: "READY" });
+    expect(module.health().detail).toContain("5/5");
+  });
+
+  it("normalizes a custom provider through the shared policy before the store sees it", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:add-custom-provider", { name: "  My AI  ", url: "https://example.com/chat" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.startsWith("add:")).toBe(true);
+    expect(calls[0]).not.toContain("  My AI  "); // trimmed/normalized by policy
+  });
+
+  it("closes the pane before removing the provider", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:remove-custom-provider", "custom-1");
+    expect(calls).toEqual(["close:custom-1", "remove:custom-1"]);
+  });
+
+  it("validates the provider before closing its pane", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:close-provider", "nope")).rejects.toThrow(/Unknown provider/);
+    expect(calls).toEqual([]);
+    await ipc.invoke("boss:open-provider", "chatgpt");
+    expect(calls).toEqual(["open:chatgpt"]);
+  });
+
+  it("drops panes that do not exist and bounds that are not real numbers", async () => {
+    const { ipc, calls } = build({ known: ["chatgpt"] });
+    await ipc.invoke("boss:layout-views", {
+      chatgpt: { x: 0, y: 0, width: 100, height: 200 },
+      ghost: { x: 0, y: 0, width: 10, height: 10 },
+      claude: { x: Number.NaN, y: 0, width: 10, height: 10 }
+    });
+    expect(calls).toEqual(["layout:chatgpt"]);
+  });
+
+  it("states the sanitising rule as a pure function", () => {
+    const known = ["chatgpt", "claude"] as never[];
+    expect(Object.keys(sanitizeViewLayout(known, { chatgpt: { x: 1, y: 2, width: 3, height: 4 } }))).toEqual(["chatgpt"]);
+    expect(Object.keys(sanitizeViewLayout(known, { claude: { x: Infinity, y: 0, width: 1, height: 1 } }))).toEqual([]);
+    expect(Object.keys(sanitizeViewLayout(known, {}))).toEqual([]);
   });
 });
 

@@ -230,19 +230,21 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
       "boss:pick-attachments", "boss:add-attachment-bytes", "boss:remove-attachment", "boss:attachment-path",
       "boss:create-folder", "boss:rename-folder", "boss:create-conversation", "boss:rename-conversation", "boss:move-conversation",
       "boss:select-conversation", "boss:archive-conversation", "boss:delete-conversation", "boss:delete-conversations",
-      "boss:duplicate-conversation", "boss:export-conversation"
+      "boss:duplicate-conversation", "boss:export-conversation",
+      "boss:add-custom-provider", "boss:remove-custom-provider", "boss:open-provider", "boss:close-provider", "boss:layout-views"
     ];
     for (const channel of channels) {
       expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
       expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
     }
-    expect(channels.length).toBeGreaterThanOrEqual(19);
+    expect(channels.length).toBeGreaterThanOrEqual(24);
   });
 
   it("main.ts registers the modules and reports their health", () => {
     expect(main).toContain("createWorkspaceIpcModule(");
     expect(main).toContain("createAttachmentIpcModule(");
     expect(main).toContain("createConversationIpcModule(");
+    expect(main).toContain("createProviderIpcModule(");
     expect(main).toContain("reportBootHealth(bootModules)");
   });
 
@@ -264,7 +266,7 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   });
 
   it("the boot modules each expose service + health + dispose", () => {
-    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts"]) {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts"]) {
       const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
       expect(text).toContain("BootModule<");
       expect(text).toMatch(/health:\s*\(\)\s*=>/);

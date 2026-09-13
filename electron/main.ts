@@ -55,6 +55,7 @@ import { requireWorkspacePathSync } from "./workspace/path-utils";
 import { createWorkspaceIpcModule } from "./bootstrap/workspace-ipc";
 import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
 import { createConversationIpcModule } from "./bootstrap/conversation-ipc";
+import { createProviderIpcModule } from "./bootstrap/provider-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1425,36 +1426,22 @@ if (ownsInstance) app.whenReady().then(() => {
       ? dialog.showOpenDialog(mainWindow, options as Electron.OpenDialogOptions)
       : dialog.showOpenDialog(options as Electron.OpenDialogOptions))
   }));
+  bootModules.push(createProviderIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    providers: {
+      known: () => store.snapshot().providers.map((item) => item.id),
+      addCustom: (name, url) => store.addCustomProvider(name, url),
+      removeCustom: (providerId) => store.removeCustomProvider(providerId)
+    },
+    panes: {
+      close: (providerId) => providerViews.close(providerId),
+      layout: (views) => providerViews.layout(views as Partial<Record<ProviderId, ViewBounds>>)
+    },
+    openWithinLimit: (providerId) => openProviderWithinLimit(providerId),
+    requireProvider: (providerId) => provider(providerId),
+    publish
+  }));
   reportBootHealth(bootModules);
-  ipcMain.handle("boss:add-custom-provider", (_event, input: CustomProviderInput) => {
-    const normalized = normalizeCustomProviderInput(input);
-    store.addCustomProvider(normalized.name, normalized.url);
-    return publish();
-  });
-  ipcMain.handle("boss:remove-custom-provider", (_event, providerId: ProviderId) => {
-    providerViews.close(providerId);
-    store.removeCustomProvider(providerId);
-    return publish();
-  });
-  ipcMain.handle("boss:open-provider", (_event, providerId: ProviderId) => {
-    openProviderWithinLimit(providerId);
-    return publish();
-  });
-  ipcMain.handle("boss:close-provider", (_event, providerId: ProviderId) => {
-    provider(providerId);
-    providerViews.close(providerId);
-    return publish();
-  });
-  ipcMain.handle("boss:layout-views", (_event, layout: Partial<Record<ProviderId, ViewBounds>>) => {
-    const safeLayout: Partial<Record<ProviderId, ViewBounds>> = {};
-    for (const item of store.snapshot().providers) {
-      const bounds = layout[item.id];
-      if (!bounds) continue;
-      if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) continue;
-      safeLayout[item.id] = bounds;
-    }
-    providerViews.layout(safeLayout);
-  });
   // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED
   // the open web-AI panes move into window B beside the Boss window; provider
   // sessions survive the transition.
