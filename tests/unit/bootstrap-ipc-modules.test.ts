@@ -7,6 +7,7 @@ import { createAttachmentIpcModule, ATTACHMENT_IPC_CHANNELS, type AttachmentServ
 import { createConversationIpcModule, CONVERSATION_IPC_CHANNELS, requireDeleteConfirmation, type ConversationService } from "../../electron/bootstrap/conversation-ipc";
 import { createProviderIpcModule, PROVIDER_IPC_CHANNELS, sanitizeViewLayout } from "../../electron/bootstrap/provider-ipc";
 import { createStatusIpcModule, STATUS_IPC_CHANNELS, windowStateView } from "../../electron/bootstrap/status-ipc";
+import { createEngineeringSurfaceIpcModule, ENGINEERING_SURFACE_IPC_CHANNELS } from "../../electron/bootstrap/engineering-surface-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -350,6 +351,51 @@ describe("Phase G — status IPC module", () => {
     // The renderer polls this on a timer; the pane it asks about may be gone.
     expect(windowStateView(() => { throw new Error("Object has been destroyed"); })).toBeUndefined();
     expect(windowStateView(() => ({ visible: true, minimized: false, maximized: false, focused: true, bounds: { x: 0, y: 0, width: 1, height: 1 } }))).toMatchObject({ visible: true });
+  });
+});
+
+describe("Phase G — autonomous engineering surface module", () => {
+  function build(overrides: Partial<Parameters<typeof createEngineeringSurfaceIpcModule>[0]> = {}) {
+    const runs: unknown[] = [];
+    const ipc = registrar();
+    const module = createEngineeringSurfaceIpcModule({
+      handle: ipc.handle.bind(ipc),
+      goalStatus: () => ({ settled: false, iterations: 2 }),
+      runGoal: async (input) => { runs.push(input); return { state: "ABORTED" }; },
+      externalSessions: { list: () => [{ taskId: "t1", status: "ARCHIVE_PENDING" }] },
+      runExternalArchive: async () => ({ attempted: 1, archived: 0, deferred: 1, remainingPending: 1 }),
+      ...overrides
+    });
+    return { ipc, module, runs };
+  }
+
+  it("registers exactly the four channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...ENGINEERING_SURFACE_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "engineering-surface-ipc", status: "READY" });
+  });
+
+  it("passes only the fields the caller supplied to the goal runner", async () => {
+    const { ipc, runs } = build();
+    await ipc.invoke("boss:engineering-goal-run", { goal: { objective: "o", workspace: "C:\\repo" }, workspace: "C:\\repo", maxIterations: 2 });
+    expect(runs).toHaveLength(1);
+    // An omitted optional field must stay omitted: `replace: undefined` and
+    // `replace: false` are different instructions to the loop.
+    expect(runs[0]).toEqual({ goal: { objective: "o", workspace: "C:\\repo" }, workspace: "C:\\repo", maxIterations: 2 });
+    expect(Object.keys(runs[0] as object).sort()).toEqual(["goal", "maxIterations", "workspace"]);
+  });
+
+  it("answers the durable status and the archive ledger", async () => {
+    const { ipc } = build();
+    expect(await ipc.invoke("boss:engineering-goal-status")).toEqual({ settled: false, iterations: 2 });
+    expect(await ipc.invoke("boss:external-session-list")).toEqual([{ taskId: "t1", status: "ARCHIVE_PENDING" }]);
+    expect(await ipc.invoke("boss:external-archive-run")).toMatchObject({ deferred: 1 });
+  });
+
+  it("refuses the archive pass when the ledger is not installed instead of pretending it ran", async () => {
+    const { ipc } = build({ externalSessions: undefined });
+    expect(await ipc.invoke("boss:external-session-list")).toEqual([]);
+    await expect(ipc.invoke("boss:external-archive-run")).rejects.toThrow(/not available/);
   });
 });
 

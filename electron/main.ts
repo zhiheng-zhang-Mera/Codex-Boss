@@ -57,6 +57,7 @@ import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
 import { createConversationIpcModule } from "./bootstrap/conversation-ipc";
 import { createProviderIpcModule } from "./bootstrap/provider-ipc";
 import { createStatusIpcModule, windowStateView } from "./bootstrap/status-ipc";
+import { createEngineeringSurfaceIpcModule } from "./bootstrap/engineering-surface-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1453,6 +1454,15 @@ if (ownsInstance) app.whenReady().then(() => {
       })
     }
   }));
+  // U10 §26–§41 (+ Overcomplete §6.1/§6.4): the autonomous engineering surface,
+  // including the external web-session archive ledger and its manual retry pass.
+  bootModules.push(createEngineeringSurfaceIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    goalStatus: () => commander.engineeringGoalStatus(),
+    runGoal: (input) => commander.runEngineeringGoal(input as Parameters<MainCommander["runEngineeringGoal"]>[0]),
+    ...(externalSessions ? { externalSessions } : {}),
+    runExternalArchive: () => automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 })
+  }));
   reportBootHealth(bootModules);
   // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED
   // the open web-AI panes move into window B beside the Boss window; provider
@@ -1757,23 +1767,6 @@ if (ownsInstance) app.whenReady().then(() => {
     await commander.finalizeTask(taskId, publish);
     return publish();
   });
-  // U6 §14: surface the external web-session archive ledger (read-only; never
-  // deletes, only shows archive lifecycle so a failed external archive stays
-  // visible and retryable).
-  ipcMain.handle("boss:external-session-list", () => externalSessions?.list() ?? []);
-  // Overcomplete §11.3: run one bounded external-archive pass on demand
-  // (manual retry surface; fail-closed — never fake-archives).
-  ipcMain.handle("boss:external-archive-run", async () => automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 }));
-  // U10 §26–§41 (+ Overcomplete §6.1/§6.4): autonomous engineering goal surface.
-  // Status is the durable read-model; run starts one goal loop over the real
-  // allowed commands with the PRODUCTION coder/reviewer wired in-process (the
-  // role router dispatches to configured web/API/Codex runtimes; deterministic
-  // closures can be forced off via disableCoder/disableReviewer).
-  ipcMain.handle("boss:engineering-goal-status", () => commander.engineeringGoalStatus());
-  ipcMain.handle("boss:engineering-goal-run", async (_event, input: { goal: Parameters<MainCommander["runEngineeringGoal"]>[0]["goal"]; workspace: string; maxIterations?: number; replace?: boolean; workerRuntimes?: { implement?: string[]; review?: string[] }; disableCoder?: boolean; disableReviewer?: boolean }) => {
-    return commander.runEngineeringGoal({ goal: input.goal, workspace: input.workspace, maxIterations: input.maxIterations, replace: input.replace, workerRuntimes: input.workerRuntimes, disableCoder: input.disableCoder, disableReviewer: input.disableReviewer });
-  });
-
   app.on("second-instance", () => {
     if (mainWindow?.isMinimized()) mainWindow.restore();
     mainWindow?.show();

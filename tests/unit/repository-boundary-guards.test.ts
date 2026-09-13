@@ -164,14 +164,15 @@ describe("Phase C — the autonomous mutation recovery rule", () => {
   });
 
   it("the goal IPC channel is the only autonomous mutating engineering channel", () => {
-    // Split the composition root into `ipcMain.handle(...)` blocks and find the
-    // ones whose body drives the autonomous goal loop.
-    const blocks = engineeringMain.split("ipcMain.handle(").slice(1);
-    const autonomousChannels = blocks
-      .map((block) => ({ channel: block.slice(1, block.indexOf('"', 1)), body: block.slice(0, block.indexOf("ipcMain.handle(") === -1 ? block.length : block.indexOf("ipcMain.handle(")) }))
-      .filter((block) => block.body.includes("runEngineeringGoal("))
-      .map((block) => block.channel);
-    expect(autonomousChannels).toEqual(["boss:engineering-goal-run"]);
+    // The handler lives in a boot module now, so the rule is checked across both
+    // halves: exactly one channel delegates to the goal runner, and the runner is
+    // wired to the commander in exactly one place.
+    const surface = fs.readFileSync(path.join(PROJECT, "electron/bootstrap/engineering-surface-ipc.ts"), "utf8");
+    const goalChannels = [...surface.matchAll(/on\("(boss:[a-z-]+)", async \(_event[\s\S]{0,200}?deps\.runGoal\(/g)].map((match) => match[1]);
+    expect(goalChannels).toEqual(["boss:engineering-goal-run"]);
+    const wiring = [...engineeringMain.matchAll(/runEngineeringGoal\(/g)].length;
+    expect(wiring).toBe(1);
+    expect(engineeringMain).toContain("runGoal: (input) => commander.runEngineeringGoal(");
   });
 
   it("keeps the recovery primitives in one module with a single production caller", () => {
@@ -232,17 +233,18 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
       "boss:select-conversation", "boss:archive-conversation", "boss:delete-conversation", "boss:delete-conversations",
       "boss:duplicate-conversation", "boss:export-conversation",
       "boss:add-custom-provider", "boss:remove-custom-provider", "boss:open-provider", "boss:close-provider", "boss:layout-views",
-      "boss:snapshot", "boss:progress", "boss:active-intervention", "boss:list-interventions", "boss:get-workspace-view", "boss:get-window-state"
+      "boss:snapshot", "boss:progress", "boss:active-intervention", "boss:list-interventions", "boss:get-workspace-view", "boss:get-window-state",
+      "boss:engineering-goal-status", "boss:engineering-goal-run", "boss:external-session-list", "boss:external-archive-run"
     ];
     for (const channel of channels) {
       expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
       expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
     }
-    expect(channels.length).toBeGreaterThanOrEqual(30);
+    expect(channels.length).toBeGreaterThanOrEqual(34);
   });
 
   it("main.ts registers the modules and reports their health", () => {
-    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule("]) {
+    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule("]) {
       expect(main, `${factory} is not registered by main.ts`).toContain(factory);
     }
     expect(main).toContain("reportBootHealth(bootModules)");
@@ -266,7 +268,7 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   });
 
   it("the boot modules each expose service + health + dispose", () => {
-    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts"]) {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts"]) {
       const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
       expect(text).toContain("BootModule<");
       expect(text).toMatch(/health:\s*\(\)\s*=>/);
