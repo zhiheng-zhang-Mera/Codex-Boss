@@ -248,17 +248,19 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
       "boss:theme-preview-revise", "boss:theme-preview-accept", "boss:theme-preview-cancel",
       "boss:theme-capture", "boss:theme-visual-check",
       "boss:prepare-task", "boss:send-task", "boss:release-review", "boss:capture-task",
-      "boss:advance-council", "boss:build-evidence", "boss:rehydrate-evidence", "boss:run-codex-review"
+      "boss:advance-council", "boss:build-evidence", "boss:rehydrate-evidence", "boss:run-codex-review",
+      "boss:research-contract-record", "boss:research-contract-audit", "boss:research-review-round",
+      "boss:owner-dashboard", "boss:resolve-intervention", "boss:project-state"
     ];
     for (const channel of channels) {
       expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
       expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
     }
-    expect(channels.length).toBeGreaterThanOrEqual(78);
+    expect(channels.length).toBeGreaterThanOrEqual(84);
   });
 
   it("main.ts registers the modules and reports their health", () => {
-    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule(", "createResearchIpcModule(", "createHostStatusIpcModule(", "createSettingsIpcModule(", "createThemeIpcModule(", "createTaskLifecycleIpcModule("]) {
+    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule(", "createResearchIpcModule(", "createHostStatusIpcModule(", "createSettingsIpcModule(", "createThemeIpcModule(", "createTaskLifecycleIpcModule(", "createResearchOwnerIpcModule("]) {
       expect(main, `${factory} is not registered by main.ts`).toContain(factory);
     }
     expect(main).toContain("reportBootHealth(bootModules)");
@@ -282,7 +284,7 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   });
 
   it("the boot modules each expose service + health + dispose", () => {
-    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts", "electron/bootstrap/research-ipc.ts", "electron/bootstrap/host-status-ipc.ts", "electron/bootstrap/settings-ipc.ts", "electron/bootstrap/theme-ipc.ts", "electron/bootstrap/task-lifecycle-ipc.ts"]) {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts", "electron/bootstrap/research-ipc.ts", "electron/bootstrap/host-status-ipc.ts", "electron/bootstrap/settings-ipc.ts", "electron/bootstrap/theme-ipc.ts", "electron/bootstrap/task-lifecycle-ipc.ts", "electron/bootstrap/research-owner-ipc.ts"]) {
       const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
       expect(text).toContain("BootModule<");
       expect(text).toMatch(/health:\s*\(\)\s*=>/);

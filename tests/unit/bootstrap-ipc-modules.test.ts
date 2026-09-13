@@ -13,6 +13,7 @@ import { createHostStatusIpcModule, HOST_STATUS_IPC_CHANNELS, type HostStatusSer
 import { createSettingsIpcModule, SETTINGS_IPC_CHANNELS } from "../../electron/bootstrap/settings-ipc";
 import { createThemeIpcModule, THEME_IPC_CHANNELS, toPreviewView, type ThemeSurface } from "../../electron/bootstrap/theme-ipc";
 import { createTaskLifecycleIpcModule, TASK_LIFECYCLE_IPC_CHANNELS } from "../../electron/bootstrap/task-lifecycle-ipc";
+import { createResearchOwnerIpcModule, RESEARCH_OWNER_IPC_CHANNELS } from "../../electron/bootstrap/research-owner-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -898,6 +899,86 @@ describe("Phase G — task lifecycle module", () => {
     await ipc.invoke("boss:build-evidence", "t1");
     // build -> save, in that order: the evidence is durable before it is published.
     expect(calls).toEqual(["build", "save"]);
+  });
+});
+
+describe("Phase G — research records and the Owner read-model", () => {
+  function build(overrides: Record<string, unknown> = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const events: string[] = [];
+    const root = makeTree();
+    const owner = {
+      dataFile: (...segments: string[]) => path.join(root, ...segments),
+      researchDecisions: () => [] as never,
+      resumeResearch: (taskId: string) => { calls.push(`resume:${taskId}`); return true; },
+      interventions: () => [] as never,
+      resolveIntervention: (taskId: string) => ({ taskId }) as never,
+      snapshot: () => ({}) as never,
+      decisionLedgerEntries: () => [] as never,
+      activeWorkspaceId: () => "ws-active",
+      projectState: (target: string) => ({ summary: (id: string) => ({ workspace: id, via: target }) }),
+      now: () => "2026-01-01T00:00:00.000Z",
+      ...overrides
+    };
+    const module = createResearchOwnerIpcModule({
+      handle: ipc.handle.bind(ipc),
+      owner: owner as never,
+      events: { publish: (event) => { events.push(`${event.type}:${event.taskId}`); } }
+    });
+    return { ipc, module, calls, events, root };
+  }
+
+  it("registers exactly the six channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...RESEARCH_OWNER_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "research-owner-ipc", status: "READY" });
+    expect(module.health().detail).toContain("6/6");
+  });
+
+  it("falls back to the active workspace only when no id was given", async () => {
+    const { ipc } = build();
+    expect(await ipc.invoke("boss:project-state")).toEqual({ workspace: "ws-active", via: "ws-active" });
+    expect(await ipc.invoke("boss:project-state", "ws-chosen")).toEqual({ workspace: "ws-chosen", via: "ws-chosen" });
+  });
+
+  it("announces a resumed research run, and only when it really resumed", async () => {
+    const resumed = build();
+    await resumed.ipc.invoke("boss:resolve-intervention", "t1", "QUESTION", "because");
+    expect(resumed.calls).toContain("resume:t1");
+    expect(resumed.events).toEqual(["HUMAN_APPROVED:t1"]);
+
+    // The pause lifted, but the task was not a research run: nothing to announce.
+    const notResearch = build({ resumeResearch: () => false });
+    await notResearch.ipc.invoke("boss:resolve-intervention", "t1", "QUESTION", "because");
+    expect(notResearch.events).toEqual([]);
+  });
+
+  it("answers undefined and stays silent when the guidance gate is not composed", async () => {
+    const { ipc, events } = build({ resolveIntervention: () => undefined });
+    expect(await ipc.invoke("boss:resolve-intervention", "t1", "QUESTION", "x")).toBeUndefined();
+    // No publication for an intervention that never existed.
+    expect(events).toEqual([]);
+  });
+
+  it("returns the answered request itself, not a boolean", async () => {
+    // The channel's answer is the request, which a renderer reads; the module must not
+    // flatten it to a flag on its way through.
+    const { ipc } = build({ resolveIntervention: (taskId: string) => ({ taskId, kind: "QUESTION", answer: "because" }) });
+    expect(await ipc.invoke("boss:resolve-intervention", "t9", "QUESTION", "because")).toMatchObject({ taskId: "t9", answer: "because" });
+  });
+
+  it("writes a research contract through the injected data root, not app.getPath", async () => {
+    const { ipc, root } = build();
+    const contract = { runId: "r1", goal: "g", requirements: [] } as never;
+    await ipc.invoke("boss:research-contract-record", "r1", contract);
+    // The durable effect is the contract of this channel ("persist the Research
+    // Contract for a run"), and it must land under the root the composition root
+    // injected — the module never reaches for app.getPath itself.
+    const written = fs.readdirSync(path.join(root, ".boss", "research-contracts"));
+    // The store's layout is a directory per run, not `<id>.json` — the same mix of
+    // layouts under `.boss/research/**` that Phase I records.
+    expect(written).toContain("r1");
   });
 });
 

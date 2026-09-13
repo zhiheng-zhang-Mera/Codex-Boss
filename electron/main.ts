@@ -59,6 +59,7 @@ import { createHostStatusIpcModule } from "./bootstrap/host-status-ipc";
 import { createSettingsIpcModule } from "./bootstrap/settings-ipc";
 import { createThemeIpcModule } from "./bootstrap/theme-ipc";
 import { createTaskLifecycleIpcModule } from "./bootstrap/task-lifecycle-ipc";
+import { createResearchOwnerIpcModule } from "./bootstrap/research-owner-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -95,14 +96,10 @@ import type { ResearchStageExecutor } from "./research/research-supervisor";
 import type { ResearchIR } from "../src/shared/research-ir";
 import type { HumanDefinedResearchInput } from "../src/shared/research-input";
 import { researchIdFor } from "../src/shared/research-input";
-import type { InterventionKind } from "../src/shared/intervention";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
-import { buildOwnerDashboard } from "../src/shared/owner-dashboard";
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
-import { ResearchContractStore, auditRun } from "./research/research-contract-store";
-import { ReviewRoundStore } from "./research/review-round-store";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
@@ -1020,43 +1017,29 @@ if (ownsInstance) app.whenReady().then(() => {
       proxyConfigured: () => Boolean(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.ALL_PROXY || process.env.http_proxy || process.env.https_proxy)
     }
   }));
-  ipcMain.handle("boss:research-contract-record", (_event, id: string, contract: import("../src/shared/research-contract").ResearchContract) => {
-    // R-701: persist the Research Contract for a run (durable; paper expansion
-    // and the sufficiency gate read it from here).
-    const store = new ResearchContractStore(path.join(app.getPath("userData"), ".boss", "research-contracts"));
-    store.save(id, contract);
-    return store.load(id);
-  });
-  ipcMain.handle("boss:research-contract-audit", (_event, id: string) => {
-    // R-702: sufficiency gate over the durable ledger decisions vs the contract.
-    const store = new ResearchContractStore(path.join(app.getPath("userData"), ".boss", "research-contracts"));
-    const record = research?.ledger.load(id);
-    const decisions = (record?.decisions ?? []).map((entry) => ({ stepId: entry.stepId, evidenceRefs: entry.evidenceRefs ?? [], decision: entry.decision }));
-    return auditRun(store.load(id), decisions);
-  });
-  ipcMain.handle("boss:research-review-round", (_event, id: string, round: import("../src/shared/research-review").ReviewRound) => {
-    // R-703: persist a review round for the run (responses/revisions drive re-review).
-    const store = new ReviewRoundStore(path.join(app.getPath("userData"), ".boss", "research-reviews"));
-    store.save(id, round);
-    return store.load(id).map((item) => item.roundId);
-  });
-  ipcMain.handle("boss:owner-dashboard", () => {
-    const interventions = humanGuidance?.list() ?? [];
-    const snapshot = store.snapshot();
-    return buildOwnerDashboard({
-      snapshot,
-      interventions: interventions.map(({ taskId, kind, question, resolvedAt }) => ({ taskId, kind, question, resolvedAt })),
-      ledgerEntries: decisionLedger?.list() ?? [],
-      activeInterventionTaskIds: interventions.filter((item) => !item.resolvedAt).map((item) => item.taskId),
+  // Phase F/G: the research records and the Owner read-model live in
+  // electron/bootstrap/research-owner-ipc.ts. The data root, the optional subsystems
+  // and the workspace lookup are all injected, because the module must never import
+  // Electron and because the subsystems are composed later in startup.
+  bootModules.push(createResearchOwnerIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    owner: {
+      dataFile: (...segments) => path.join(app.getPath("userData"), ...segments),
+      researchDecisions: (runId) => {
+        const record = research?.ledger.load(runId);
+        return (record?.decisions ?? []).map((entry) => ({ stepId: entry.stepId, evidenceRefs: entry.evidenceRefs ?? [], decision: entry.decision }));
+      },
+      resumeResearch: (taskId) => research?.supervisor.resume(taskId),
+      interventions: () => humanGuidance?.list() ?? [],
+      resolveIntervention: (taskId, kind, answer) => humanGuidance?.resolve(taskId, kind, answer),
+      snapshot: () => store.snapshot(),
+      decisionLedgerEntries: () => decisionLedger?.list() ?? [],
+      activeWorkspaceId: () => workspaces.activeWorkspaceId(),
+      projectState: (target) => openProjectState(target),
       now: () => new Date().toISOString()
-    });
-  });
-  ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => {
-    const resolved = humanGuidance?.resolve(taskId, kind, answer);
-    // If the paused task is a research run, resume it from its control state.
-    if (resolved && research?.supervisor.resume(taskId)) domainEvents.publish({ type: "HUMAN_APPROVED", taskId, message: "intervention answered; research resumed" });
-    return resolved;
-  });
+    },
+    events: { publish: (event) => domainEvents.publish(event) }
+  }));
 
   // Research mode: every IPC call forwards to the single ResearchService
   // composition root (milestone §6). The service owns the ledger, protocol
@@ -1121,10 +1104,6 @@ if (ownsInstance) app.whenReady().then(() => {
     const { LatexCompiler } = await import("./research/manuscript/latex-compiler.js");
     const audit = await new LatexCompiler().compile(manuscriptDir);
     return { ...audit, researchCache: path.join(app.getPath("userData"), ".boss", "research", safeId) };
-  });
-  ipcMain.handle("boss:project-state", (_event, workspaceId?: string) => {
-    const target = workspaceId ?? workspaces.activeWorkspaceId();
-    return openProjectState(target).summary(target);
   });
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
     // WORK_UNIT_2: text OR a bound attachment OR a repository is enough; an
