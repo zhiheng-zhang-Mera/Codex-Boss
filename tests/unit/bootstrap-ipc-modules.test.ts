@@ -8,6 +8,7 @@ import { createConversationIpcModule, CONVERSATION_IPC_CHANNELS, requireDeleteCo
 import { createProviderIpcModule, PROVIDER_IPC_CHANNELS, sanitizeViewLayout } from "../../electron/bootstrap/provider-ipc";
 import { createStatusIpcModule, STATUS_IPC_CHANNELS, windowStateView } from "../../electron/bootstrap/status-ipc";
 import { createEngineeringSurfaceIpcModule, ENGINEERING_SURFACE_IPC_CHANNELS } from "../../electron/bootstrap/engineering-surface-ipc";
+import { createResearchIpcModule, RESEARCH_IPC_CHANNELS } from "../../electron/bootstrap/research-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -396,6 +397,82 @@ describe("Phase G — autonomous engineering surface module", () => {
     const { ipc } = build({ externalSessions: undefined });
     expect(await ipc.invoke("boss:external-session-list")).toEqual([]);
     await expect(ipc.invoke("boss:external-archive-run")).rejects.toThrow(/not available/);
+  });
+});
+
+describe("Phase G — research run-control module", () => {
+  function build(installed = true) {
+    const calls: string[] = [];
+    const ipc = registrar();
+    const research = {
+      status: (id: string) => { calls.push(`status:${id}`); return { state: "RUNNING" }; },
+      step: async (id: string) => { calls.push(`step:${id}`); return { stage: "ANALYSIS" }; },
+      freeze: (id: string, protocol: unknown) => { calls.push(`freeze:${id}:${JSON.stringify(protocol)}`); return { protocolHash: "abc" }; },
+      ledger: { list: () => [{ id: "r1" }] },
+      supervisor: {
+        runUntilBlocked: async (id: string, options: { maxSteps?: number }) => { calls.push(`autopilot:${id}:${options.maxSteps}`); return { state: "WAITING_FOR_USER" }; },
+        resume: (id: string) => { calls.push(`resume:${id}`); return true; },
+        requestGuidance: (input: { id: string; question: string }) => { calls.push(`guidance:${input.id}`); return input.question.includes("auto") ? { intercepted: true, parked: false, decision: { chosen: "A" } } : { intercepted: false, parked: true }; }
+      }
+    };
+    const published: unknown[] = [];
+    const raised: unknown[] = [];
+    const module = createResearchIpcModule({
+      handle: ipc.handle.bind(ipc),
+      ...(installed ? { research } : {}),
+      guidance: { raise: (input) => { raised.push(input); return { taskId: input.taskId, kind: input.kind }; } },
+      events: { publish: (event) => { published.push(event); } }
+    });
+    return { ipc, module, calls, published, raised };
+  }
+
+  it("registers exactly the seven channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...RESEARCH_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "research-ipc", status: "READY" });
+  });
+
+  it("says when the subsystem is not installed, without throwing on reads", async () => {
+    const { ipc, module } = build(false);
+    expect(module.health().detail).toContain("not installed");
+    expect(await ipc.invoke("boss:research-status", "r1")).toBeNull();
+    expect(await ipc.invoke("boss:research-list")).toEqual([]);
+    expect(await ipc.invoke("boss:research-step", "r1")).toBeNull();
+    expect(await ipc.invoke("boss:research-autopilot", "r1")).toBeNull();
+    expect(await ipc.invoke("boss:research-resume", "r1")).toBe(false);
+    // A write is refused loudly instead of silently doing nothing.
+    await expect(ipc.invoke("boss:research-protocol-freeze", "r1", { protocol: {} })).rejects.toThrow(/not available/);
+  });
+
+  it("routes the run-control calls to the service and the supervisor", async () => {
+    const { ipc, calls, published } = build();
+    expect(await ipc.invoke("boss:research-status", "r1")).toEqual({ state: "RUNNING" });
+    expect(await ipc.invoke("boss:research-list")).toEqual([{ id: "r1" }]);
+    expect(await ipc.invoke("boss:research-step", "r1")).toEqual({ stage: "ANALYSIS" });
+    expect(await ipc.invoke("boss:research-autopilot", "r1", 5)).toEqual({ state: "WAITING_FOR_USER" });
+    expect(await ipc.invoke("boss:research-resume", "r1")).toBe(true);
+    expect(await ipc.invoke("boss:research-protocol-freeze", "r1", { metric: "acc" })).toEqual({ protocolHash: "abc" });
+    expect(calls).toEqual(["status:r1", "step:r1", "autopilot:r1:5", "resume:r1", 'freeze:r1:{"metric":"acc"}']);
+    // A resumed run announces it, so the renderer's park banner clears.
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({ type: "HUMAN_APPROVED", taskId: "r1" });
+  });
+
+  it("decides a decidable guidance question without parking a human", async () => {
+    const { ipc, calls, raised } = build();
+    const intercepted = await ipc.invoke("boss:research-wait", { id: "r1", kind: "CLARIFY", question: "auto decide this", blockingStepId: "s1" });
+    expect(intercepted).toEqual({ intercepted: true, decision: { chosen: "A" } });
+    expect(raised).toEqual([]);
+    expect(calls).toEqual(["guidance:r1"]);
+  });
+
+  it("parks a genuine blocker as a durable human intervention", async () => {
+    const { ipc, raised } = build();
+    const parked = await ipc.invoke("boss:research-wait", { id: "r1", kind: "CLARIFY", question: "which dataset?", blockingStepId: "s1" });
+    expect(parked).toMatchObject({ taskId: "r1", kind: "CLARIFY" });
+    expect(raised).toHaveLength(1);
+    // The context summary falls back to the question rather than being empty.
+    expect(raised[0]).toMatchObject({ contextSummary: "which dataset?" });
   });
 });
 

@@ -58,6 +58,7 @@ import { createConversationIpcModule } from "./bootstrap/conversation-ipc";
 import { createProviderIpcModule } from "./bootstrap/provider-ipc";
 import { createStatusIpcModule, windowStateView } from "./bootstrap/status-ipc";
 import { createEngineeringSurfaceIpcModule } from "./bootstrap/engineering-surface-ipc";
+import { createResearchIpcModule } from "./bootstrap/research-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1163,36 +1164,6 @@ if (ownsInstance) app.whenReady().then(() => {
     domainEvents.publish({ type: "TOOL_RESULT_READY", taskId: ir.id, message: `research ${ir.id} started` });
     return record;
   });
-  ipcMain.handle("boss:research-status", (_event, id: string) => research?.status(id) ?? null);
-  ipcMain.handle("boss:research-list", () => research?.ledger.list() ?? []);
-  ipcMain.handle("boss:research-step", async (_event, id: string) => research ? await research.step(id) : null);
-  // Autopilot advances the run until a genuine block (reviewer gate / user
-  // decision / provider wait) or a terminal READY/FAILED state.
-  ipcMain.handle("boss:research-autopilot", async (_event, id: string, maxSteps?: number) => research ? await research.supervisor.runUntilBlocked(id, { maxSteps }) : null);
-  ipcMain.handle("boss:research-resume", (_event, id: string) => {
-    const resumed = research?.supervisor.resume(id) ?? false;
-    // A run parked at WAITING_FOR_PROVIDER by a reviewer gate (round 8) or at
-    // WAITING_FOR_USER by research-wait is now back at its pending stage.
-    if (resumed) domainEvents.publish({ type: "HUMAN_APPROVED", taskId: id, message: "research run resumed to its pending stage" });
-    return resumed;
-  });
-  ipcMain.handle("boss:research-wait", (_event, input: { id: string; kind: InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }) => {
-    const { id, ...rest } = input;
-    // §18 raise-point interception (Owner-Result Rev.2): the question is
-    // classified before it is raised. An AUTOPILOT run's DECIDABLE guidance is
-    // auto-decided durably (requestGuidance records it and never parks) — no
-    // human pause and no fabricated answer. Only a genuine HARD_BLOCKER (or a
-    // GUIDED/ASSISTED run) parks and surfaces a durable human intervention.
-    const outcome = research?.supervisor.requestGuidance({ id, kind: rest.kind, question: rest.question, options: rest.options }) ?? { intercepted: false, parked: false };
-    if (outcome.intercepted) return { intercepted: true, decision: outcome.decision };
-    const raised = humanGuidance?.raise({ taskId: id, ...rest, contextSummary: rest.contextSummary ?? rest.question.slice(0, 300) });
-    return raised ?? null;
-  });
-  ipcMain.handle("boss:research-protocol-freeze", (_event, id: string, protocol: import("../src/shared/research-protocol").ResearchProtocol) => {
-    // Service freeze() freezes the protocol AND records the canonical hash on
-    // the run IR (state → PROTOCOL_FROZEN) in one call.
-    return research!.freeze(id, protocol);
-  });
   // Phase L: compile a run's manuscript/paper.tex into paper.pdf (audit written
   // to research/<id>/audit/compile.json). Fail-closed: no engine or compile
   // error → status FAIL, .tex preserved, paths still returned for repair.
@@ -1462,6 +1433,12 @@ if (ownsInstance) app.whenReady().then(() => {
     runGoal: (input) => commander.runEngineeringGoal(input as Parameters<MainCommander["runEngineeringGoal"]>[0]),
     ...(externalSessions ? { externalSessions } : {}),
     runExternalArchive: () => automatePendingExternalArchives(externalSessions!, liveArchiveAttempt(), { limit: 10 })
+  }));
+  bootModules.push(createResearchIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    ...(research ? { research } : {}),
+    ...(humanGuidance ? { guidance: humanGuidance } : {}),
+    events: domainEvents
   }));
   reportBootHealth(bootModules);
   // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED

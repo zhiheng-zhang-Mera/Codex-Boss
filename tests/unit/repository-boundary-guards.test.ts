@@ -234,17 +234,19 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
       "boss:duplicate-conversation", "boss:export-conversation",
       "boss:add-custom-provider", "boss:remove-custom-provider", "boss:open-provider", "boss:close-provider", "boss:layout-views",
       "boss:snapshot", "boss:progress", "boss:active-intervention", "boss:list-interventions", "boss:get-workspace-view", "boss:get-window-state",
-      "boss:engineering-goal-status", "boss:engineering-goal-run", "boss:external-session-list", "boss:external-archive-run"
+      "boss:engineering-goal-status", "boss:engineering-goal-run", "boss:external-session-list", "boss:external-archive-run",
+      "boss:research-status", "boss:research-list", "boss:research-step", "boss:research-autopilot", "boss:research-resume",
+      "boss:research-wait", "boss:research-protocol-freeze"
     ];
     for (const channel of channels) {
       expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
       expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
     }
-    expect(channels.length).toBeGreaterThanOrEqual(34);
+    expect(channels.length).toBeGreaterThanOrEqual(41);
   });
 
   it("main.ts registers the modules and reports their health", () => {
-    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule("]) {
+    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule(", "createResearchIpcModule("]) {
       expect(main, `${factory} is not registered by main.ts`).toContain(factory);
     }
     expect(main).toContain("reportBootHealth(bootModules)");
@@ -268,7 +270,7 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   });
 
   it("the boot modules each expose service + health + dispose", () => {
-    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts"]) {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts", "electron/bootstrap/research-ipc.ts"]) {
       const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
       expect(text).toContain("BootModule<");
       expect(text).toMatch(/health:\s*\(\)\s*=>/);
