@@ -6,12 +6,13 @@ import { SLOW_ACCEPTANCE_TESTS } from "./vitest.tiers.mjs";
  *
  * They are separated from the default run for a measured reason, not a
  * convenience one — `tests/acceptance/review-loop.test.ts` drives the real
- * implementation loop with a real `tsc` and real `node --test` inside a fixture,
- * and takes ~28s when it runs alone but exceeded the 60s default per-test ceiling
- * under the load of a full parallel run, failing green commits three times.
+ * implementation loop with a real `tsc` and real `node --test` inside a fixture:
+ * ~113s as a file, whose slowest single scenario (C-03) is ~29s alone but
+ * exceeded the 60s default per-test ceiling under the load of a full parallel
+ * run, failing green commits three times.
  *
  * The ceiling here is raised deliberately and only as far as the work justifies:
- * the slowest single scenario measured 28s in isolation, and this tier runs one
+ * the slowest single scenario measured 29s in isolation, and this tier runs one
  * file at a time (`maxWorkers: 1`) so that measurement is the real bound rather
  * than a guess. It is NOT a blanket timeout increase — the default tier keeps its
  * 60s, and this tier is a separate, explicitly-invoked step in CI.

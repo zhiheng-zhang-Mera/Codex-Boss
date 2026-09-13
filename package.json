@@ -9,7 +9,7 @@
     "dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
     "test": "vitest run --config vitest.unit.config.mjs",
-    "test:slow": "vitest run --config vitest.slow.config.mjs tests/acceptance/review-loop.test.ts && vitest run --config vitest.slow.config.mjs tests/unit/evolution-sandbox.test.ts",
+    "test:slow": "vitest run --config vitest.slow.config.mjs",
     "acceptance:workbook": "node scripts/acceptance-workbook-production.cjs",
     "acceptance:knowledge": "node scripts/acceptance-knowledge-foundation.cjs",
     "acceptance:architecture": "node scripts/acceptance-architecture.cjs",
