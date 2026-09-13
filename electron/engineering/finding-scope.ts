@@ -3,6 +3,7 @@ import path from "node:path";
 import type { EngineeringFinding } from "../../src/shared/engineering-loop";
 import { scanRepo } from "./repo-inspector";
 import { affectedTests, dependencyClosure } from "./semantic-slice";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 
 /**
  * Automatic scope inference for one engineering finding (plan §6.1.2).
@@ -31,9 +32,9 @@ function resolveCandidate(root: string, token: string): string | undefined {
   const cleaned = normalizeToken(stripLocator(token)).trim();
   if (!cleaned) return undefined;
   const absolute = path.isAbsolute(cleaned) ? cleaned : path.join(root, cleaned);
-  const real = fs.realpathSync(root);
+  const real = canonicalRealPathSync(root);
   try {
-    const target = fs.realpathSync(absolute);
+    const target = canonicalRealPathSync(absolute);
     const relative = path.relative(real, target).split(path.sep).join("/");
     if (relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
     return fs.statSync(target).isFile() ? relative : undefined;

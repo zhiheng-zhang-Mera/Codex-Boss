@@ -95,6 +95,10 @@ export function isOwnerAdministrationTarget(url: string): boolean {
   try {
     parsed = new URL(url);
   } catch {
+    // RECOGNITION, not authorization: this answers "does this target name the
+    // Owner's administrative surface?". An unparseable string names nothing, so
+    // it is `false` here — refusing a malformed navigation is the navigation
+    // layer's job. The contract is asserted by credential-boundary.test.ts.
     return false;
   }
   const host = parsed.hostname.toLowerCase();

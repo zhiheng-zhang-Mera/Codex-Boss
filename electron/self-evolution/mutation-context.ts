@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isInsideWorkspace as pathContainment } from "../workspace/path-utils";
 
 /**
  * Phase S3.3 — the mandatory self-mutation assertion
@@ -60,8 +61,7 @@ export interface MutationAssertionInput {
 }
 
 function isInside(root: string, candidate: string): boolean {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return pathContainment(root, candidate);
 }
 
 /**

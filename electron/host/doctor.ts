@@ -12,6 +12,7 @@ import {
   type DoctorReport
 } from "../../src/shared/doctor";
 import { inspectDevice } from "../node/node-inspector";
+import { cacheUnder } from "../runtime-paths";
 
 /**
  * Host-M P7 — Boss Doctor.
@@ -328,7 +329,7 @@ function browserChecks(repoRoot: string, dataRoot: string): DoctorCheck[] {
     })
   );
   checks.push(
-    runProbe(() => path.join(dataRoot, ".cache", "browser-profile"), {
+    runProbe(() => path.join(cacheUnder(dataRoot), "browser-profile"), {
       id: "browser.profile",
       area: "browser",
       label: "provider browser profile",

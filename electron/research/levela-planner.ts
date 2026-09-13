@@ -3,6 +3,7 @@ import path from "node:path";
 import { scanRepo } from "../engineering/repo-inspector";
 import { selectFalsifiableQuestion, type CandidateQuestion } from "../../src/shared/research-levelb";
 import { buildExperimentSpec, levelAGate, noveltyReview, type LevelAPlan, type ProjectSignals, type ExperimentSpec } from "../../src/shared/research-levela";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 
 /**
  * Level-A planner (plan 9-6 Phase 12). Given only a project goal, it observes
@@ -14,7 +15,7 @@ import { buildExperimentSpec, levelAGate, noveltyReview, type LevelAPlan, type P
  */
 
 export function inspectProjectSignals(workspace: string): ProjectSignals {
-  const snapshot = scanRepo(fs.realpathSync(workspace));
+  const snapshot = scanRepo(canonicalRealPathSync(workspace));
   const code = snapshot.files.filter((file) => /\.(?:[cm]?[jt]sx?|py|tsx|svelte|vue)$/.test(file));
   const languages = [...new Set(code.map((file) => {
     if (/\.py$/.test(file)) return "python";

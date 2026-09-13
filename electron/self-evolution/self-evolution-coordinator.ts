@@ -28,6 +28,7 @@ import type { EngineeringFinding, ReviewerFinding } from "../../src/shared/engin
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
+import { appDataUnder } from "../runtime-paths";
 import type { EngineeringGoalContract } from "../../src/shared/engineering-loop";
 import type { CommandSandbox, CommandSandboxOutcome } from "../engineering/command-runner";
 import type { AllowedCommand } from "../engineering/command-runner";
@@ -664,7 +665,7 @@ export class SelfEvolutionCoordinator {
     pointer.markNext(input.previousStableSha, input.promotedSha);
     const isolation = planCandidateRuntimeIsolation({
       runId: input.runId,
-      runtimeData: path.join(path.resolve(this.options.evolutionRoot), input.runId, "runtime-data"),
+      runtimeData: appDataUnder(path.join(path.resolve(this.options.evolutionRoot), input.runId)),
       processNamespace: `codex-boss-evolution-${input.runId}`
     });
     pointer.recordRestart({

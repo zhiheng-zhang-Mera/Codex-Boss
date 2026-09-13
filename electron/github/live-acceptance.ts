@@ -3,13 +3,14 @@ import path from "node:path";
 import { app, safeStorage } from "electron";
 import { redactSecrets, scanSecrets } from "../../src/shared/secret-scan";
 import { createGitHubMachineRuntime } from "./github-machine-runtime";
+import { appDataUnder } from "../runtime-paths";
 
 type Json = Record<string, unknown>;
 const repository = "zhiheng-zhang-Mera/Codex-Boss";
 const baseBranch = "feature/github-machine-identity";
 const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
 const branch = `acceptance/github-machine-identity-${stamp}`;
-const dataRoot = path.join(app.isPackaged ? app.getAppPath() : process.cwd(), "runtime-data");
+const dataRoot = appDataUnder(app.isPackaged ? app.getAppPath() : process.cwd());
 app.setPath("userData", dataRoot);
 
 function requireOk<T>(label: string, result: { ok: true; value: T } | { ok: false; code: string; message: string }): T {

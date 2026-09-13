@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { ResearchStageExecutor, StageOutcome } from "./research-supervisor";
 import type { ResearchIR, ResearchState } from "../../src/shared/research-ir";
 import { scanRepo } from "../engineering/repo-inspector";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 
 /**
  * Default Level-B stage executor (plan 9-6 Phase 8). Deterministic offline
@@ -27,7 +28,7 @@ export class DefaultLevelBExecutor implements ResearchStageExecutor {
   async run(input: { ir: ResearchIR; stage: ResearchState; workspace: string }): Promise<StageOutcome> {
     switch (input.stage) {
       case "PROJECT_INSPECTION": {
-        const root = fs.realpathSync(input.workspace);
+        const root = canonicalRealPathSync(input.workspace);
         const snapshot = scanRepo(root);
         const entries = snapshot.files.slice(0, 50);
         return {

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
 import { checkpointRecord, rollbackToCheckpoint, type CheckpointSnapshot } from "./change-points";
@@ -129,17 +130,36 @@ export class EngineeringRecoveryLedger {
   constructor(private readonly file: string) {}
 
   append(event: EngineeringRecoveryEvent): void {
-    const events = [...this.list(), event].slice(-RECOVERY_EVENT_RETENTION);
+    // A new event is appended to whatever is readable. An unreadable ledger is
+    // reported by `read()` but must not block recording the event that is
+    // happening now, which would lose the newest evidence to protect the oldest.
+    const events = [...this.read().events, event].slice(-RECOVERY_EVENT_RETENTION);
     writeJson(this.file, { schemaVersion: 1, events } satisfies EngineeringRecoveryFile);
   }
 
   list(): EngineeringRecoveryEvent[] {
+    const value = this.read();
+    return value.events;
+  }
+
+  /**
+   * Reads the ledger, distinguishing "no ledger yet" from "ledger unreadable".
+   *
+   * `readable: false` matters: the whole point of this file is that a terminal
+   * reason survives a goal replacement. Reporting an unreadable ledger as an
+   * empty one would erase exactly that evidence, so callers are told which of
+   * the two they are looking at.
+   */
+  read(): { events: EngineeringRecoveryEvent[]; readable: boolean; problem?: string } {
+    if (!fs.existsSync(this.file)) return { events: [], readable: true };
     try {
       const value = readJson<Partial<EngineeringRecoveryFile>>(this.file);
-      if (!value || value.schemaVersion !== 1 || !Array.isArray(value.events)) return [];
-      return value.events.filter((event): event is EngineeringRecoveryEvent => Boolean(event) && typeof event.code === "string");
-    } catch {
-      return [];
+      if (!value || value.schemaVersion !== 1 || !Array.isArray(value.events)) {
+        return { events: [], readable: false, problem: `unsupported recovery ledger shape in ${this.file}` };
+      }
+      return { events: value.events.filter((event): event is EngineeringRecoveryEvent => Boolean(event) && typeof event.code === "string"), readable: true };
+    } catch (error) {
+      return { events: [], readable: false, problem: `recovery ledger could not be read: ${error instanceof Error ? error.message : String(error)}` };
     }
   }
 }

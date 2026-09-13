@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isInsideWorkspace as pathContainment } from "../workspace/path-utils";
+import { appDataUnder } from "../runtime-paths";
 import type { RootDecision } from "../../src/shared/root-authority/contracts";
 
 /**
@@ -84,7 +86,7 @@ export function evolutionLayout(evolutionRoot: string, runId: string, baseSha: s
     candidateBranch: `evolution/${runId}`,
     root,
     workspace: path.join(root, "workspace"),
-    runtimeData: path.join(root, "runtime-data"),
+    runtimeData: appDataUnder(root),
     temp: path.join(root, "temp"),
     logs: path.join(root, "logs"),
     evidence: path.join(root, "evidence"),
@@ -130,8 +132,7 @@ export interface RuntimeIsolationAssessment {
 }
 
 function isInside(parent: string, candidate: string): boolean {
-  const relative = path.relative(path.resolve(parent), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return pathContainment(parent, candidate);
 }
 
 /**

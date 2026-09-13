@@ -36,6 +36,80 @@ export const HISTORY_DIRECTORY = "history";
 /** Acceptance evidence and build reports (`artifacts/acceptance`, soak, benchmarks). */
 export const ACCEPTANCE_ARTIFACTS_DIRECTORY = "artifacts";
 
+/* -------------------------------------------------------------------------- */
+/* The root model: one place turns a root into the directories Boss owns       */
+/* -------------------------------------------------------------------------- */
+
+/** `<root>/runtime-data` — the app data directory under any root. */
+export function appDataUnder(root: string): string {
+  return path.join(root, RUNTIME_DATA_DIRECTORY);
+}
+/** `<root>/.cache` — disposable caches under any root. */
+export function cacheUnder(root: string): string {
+  return path.join(root, SCRATCH_CACHE_DIRECTORY);
+}
+/** `<root>/history` — archived conversation history under any root. */
+export function historyUnder(root: string): string {
+  return path.join(root, HISTORY_DIRECTORY);
+}
+/** `<root>/artifacts/acceptance` — acceptance evidence under any root. */
+export function acceptanceUnder(root: string): string {
+  return path.join(root, ACCEPTANCE_ARTIFACTS_DIRECTORY, "acceptance");
+}
+/** `<root>/artifacts` — the build/evidence output directory under any root. */
+export function artifactsUnder(root: string): string {
+  return path.join(root, ACCEPTANCE_ARTIFACTS_DIRECTORY);
+}
+
+/**
+ * The resolved roots of one running instance.
+ *
+ * Every subsystem that needs to store something reads it from here instead of
+ * joining its own directory onto the install path. That is what makes a move to
+ * `%LOCALAPPDATA%`, a portable data directory or a container mount a change to
+ * *this module* rather than a hunt through the codebase for `path.join(appPath, …)`.
+ *
+ * - `installRoot`  the checkout/installation the process runs from. Never a user
+ *                  workspace, and never a place user work is written to.
+ * - `appData`      durable state: state.json, `.boss/**` (ledgers, knowledge,
+ *                  themes, attachments, research cache), `Session Data`.
+ * - `cache`        disposable: browser profile, `tmp`, crash dumps.
+ * - `history`      archived conversation history and exports.
+ * - `acceptance`   acceptance evidence (`artifacts/acceptance`).
+ * - `research`     the research work root under `appData`.
+ * - `temp`         the app's `TEMP` redirection target under `cache`.
+ *
+ * All of them except `installRoot` live under `dataRootOverride` when one was
+ * given (`--boss-data-dir=…`), which is what isolates one acceptance run from the
+ * developer's own state.
+ */
+export interface RuntimeRoots {
+  installRoot: string;
+  appData: string;
+  cache: string;
+  history: string;
+  acceptance: string;
+  research: string;
+  temp: string;
+}
+
+export function runtimeRoots(input: { installRoot: string; dataRootOverride?: string }): RuntimeRoots {
+  const installRoot = path.resolve(input.installRoot);
+  const override = input.dataRootOverride ? path.resolve(input.dataRootOverride) : undefined;
+  const beside = override ?? installRoot;
+  const appData = override ?? appDataUnder(installRoot);
+  const cache = cacheUnder(beside);
+  return {
+    installRoot,
+    appData,
+    cache,
+    history: historyUnder(beside),
+    acceptance: acceptanceUnder(beside),
+    research: path.join(appData, ".boss", "research"),
+    temp: path.join(cache, "tmp")
+  };
+}
+
 /**
  * Every path Boss may create inside the directory it runs from, as repository
  * relative POSIX-style paths.

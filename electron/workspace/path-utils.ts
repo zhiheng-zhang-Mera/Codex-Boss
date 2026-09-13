@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import type { ResolvedWorkspace, WorkspacePathCode, WorkspacePathValidation } from "../../src/shared/workspace-path";
 
 export type { ResolvedWorkspace, WorkspacePathCode, WorkspacePathValidation };
@@ -201,6 +202,69 @@ export function isSameDirectory(left: string, right: string): boolean {
     return a.dev === b.dev && a.ino === b.ino;
   } catch {
     return false;
+  }
+}
+
+/**
+ * True when `candidate` is `root` itself or lives underneath it.
+ *
+ * This is the ONE containment predicate. It used to exist six times
+ * (`workbook-dispatch`, `root-authority/execution-profile`, `self-evolution/mutation-context`,
+ * `stable-candidate/runtime-isolation`, `emergency-control/evolution-kill-switch`,
+ * `engineering/native-tools`) in five subtly different spellings, which is how a
+ * boundary quietly develops a hole.
+ *
+ * Two questions are answered here and the difference matters:
+ *
+ * - **lexical** (default): the candidate, resolved against the root, stays inside
+ *   it as a path. This is the check for a file that does not exist yet.
+ * - **symlink-aware** (`followSymlinks`): the deepest *existing* ancestor of the
+ *   candidate is canonicalized and must still be inside the canonical root, so a
+ *   junction or symlink that points out of the workspace cannot be used to write
+ *   outside it.
+ *
+ * Both sides are canonicalized with `canonicalRealPathSync` where they exist, so
+ * a Windows 8.3 short name or a junction cannot smuggle a path past either check.
+ * A candidate that is not a string, or an unusable root, is `false` — never a throw.
+ */
+export function isInsideWorkspace(root: string, candidate: string, options: { followSymlinks?: boolean } = {}): boolean {
+  if (typeof root !== "string" || typeof candidate !== "string" || !root || !candidate) return false;
+  const base = resolveForContainment(root);
+  if (!base) return false;
+  const target = path.resolve(base, candidate);
+  if (!lexicallyInside(base, target)) return false;
+  if (!options.followSymlinks) return true;
+  const existing = deepestExistingAncestor(target);
+  if (!existing) return false;
+  const canonicalBase = resolveForContainment(base);
+  const canonicalExisting = resolveForContainment(existing);
+  return canonicalBase !== undefined && canonicalExisting !== undefined && lexicallyInside(canonicalBase, canonicalExisting);
+}
+
+/** Canonical form when the path exists, absolute form when it does not. */
+function resolveForContainment(value: string): string | undefined {
+  try {
+    return canonicalRealPathSync(value);
+  } catch {
+    const normalized = normalizeWorkspacePath(value);
+    return normalized ? path.resolve(normalized) : undefined;
+  }
+}
+
+function lexicallyInside(base: string, target: string): boolean {
+  if (base.toLowerCase() === target.toLowerCase()) return true;
+  const relative = path.relative(base, target);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+/** The closest ancestor of `target` (or `target` itself) that exists on disk. */
+export function deepestExistingAncestor(target: string): string | undefined {
+  let current = path.resolve(target);
+  for (;;) {
+    if (fs.existsSync(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
   }
 }
 

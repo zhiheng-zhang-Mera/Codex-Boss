@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 export type AllowedCommand = "test" | "typecheck" | "build" | "lint";
 export interface CommandEvidence { command: AllowedCommand; args: string[]; passed: boolean; exitCode: number | null; output: string; }
 export interface CommandSandboxRequest {
@@ -48,7 +49,7 @@ export interface RunAllowedCommandOptions {
 export async function runAllowedCommand(root: string, command: AllowedCommand, files: string[] = [], options: RunAllowedCommandOptions = {}): Promise<CommandEvidence> {
   if (!["test", "typecheck", "build", "lint"].includes(command)) throw new Error("Command is not allowlisted");
   if (files.length > 50) throw new Error("Too many targeted files");
-  const cwd = fs.realpathSync(root);
+  const cwd = canonicalRealPathSync(root);
   const targets = files.map((file) => workspacePath(cwd, file));
   const local = (file: string) => { const target = workspacePath(cwd, file); if (!fs.existsSync(target)) throw new Error("Required local tool unavailable: " + file); return target; };
   let args: string[];
@@ -78,8 +79,8 @@ export async function runAllowedCommand(root: string, command: AllowedCommand, f
   const scratchRootFor = (cwd: string): string => {
     const tmp = os.tmpdir();
     try {
-      const cwdReal = fs.realpathSync(cwd).toLowerCase();
-      const tmpReal = fs.realpathSync(tmp).toLowerCase();
+      const cwdReal = canonicalRealPathSync(cwd).toLowerCase();
+      const tmpReal = canonicalRealPathSync(tmp).toLowerCase();
       if (tmpReal === cwdReal || tmpReal.startsWith(cwdReal + path.sep)) {
         const local = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Temp") : undefined;
         const alt = (local && fs.existsSync(local)) ? local : path.join(os.homedir(), "AppData", "Local", "Temp");

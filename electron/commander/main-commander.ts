@@ -52,6 +52,7 @@ import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
 import { engineeringSessionId, type EngineeringSessionKey } from "../engineering/engineering-session";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 import {
   captureRecoveryPoint, closeGoalWithoutRecoveryPoint, EngineeringRecoveryError,
   preserveWorkspaceAfter, recordRecoveryOutcome, recoveryLabel, recoveryLedgerFor, restoreRecoveryPoint,
@@ -211,7 +212,7 @@ export class MainCommander {
     if (!this.canResumeTask(taskId)) return true;
     if (!this.ledger) throw new Error("Plan execution requires durable ledger");
     this.store.setTaskWorkspace(taskId, workspace);
-    if (!this.ledger.load(taskId)?.projectMemoryOwner) this.ledger.update(taskId, "project memory scope selected", (record) => { record.projectMemoryOwner = TaskLedger.fingerprint(fs.realpathSync(workspace).toLowerCase()); });
+    if (!this.ledger.load(taskId)?.projectMemoryOwner) this.ledger.update(taskId, "project memory scope selected", (record) => { record.projectMemoryOwner = TaskLedger.fingerprint(canonicalRealPathSync(workspace).toLowerCase()); });
     const snapshotTask = this.store.snapshot().tasks.find((item) => item.id === taskId);
     const workerCap = snapshotTask?.workAgentCount === 5 ? 5 : snapshotTask?.workAgentCount === 3 ? 3 : undefined;
     const compiler = new PlanCompiler(async (prompt) => {
@@ -639,7 +640,7 @@ export class MainCommander {
     // AP19/§16: desktop targets are mutex-protected — shared-read for reads,
     // exclusive for mutations — so two tasks never mutate the same software.
     const profile = resourceProfile(operation.action.name);
-    const target = "computer:" + fs.realpathSync(workspace);
+    const target = "computer:" + canonicalRealPathSync(workspace);
     if (this.leases?.canAccess(target, profile.mode)) this.leases.acquire({ owner_task: taskId, target, mode: profile.mode, leaseMs: 60000 });
     try {
       // §17/§18 side-effect gate: desktop mutations (click/type/submit/launch)

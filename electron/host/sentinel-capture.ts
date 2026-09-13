@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { appDataUnder } from "../runtime-paths";
 import {
   emptySentinelSnapshot,
   type AcceptanceSlice,
@@ -311,7 +312,7 @@ export function captureSnapshot(options: CaptureOptions & { unavailable?: Sentin
     )
   );
   snapshot.providerSuccess = attempt("provider-success", () =>
-    captureProviderSuccess(options.telemetryFile ?? path.join(options.repoRoot, "runtime-data", ".boss", "telemetry.json"))
+    captureProviderSuccess(options.telemetryFile ?? path.join(appDataUnder(options.repoRoot), ".boss", "telemetry.json"))
   );
 
   const build = attempt("build-size", () => captureBuildOutput(options.repoRoot));

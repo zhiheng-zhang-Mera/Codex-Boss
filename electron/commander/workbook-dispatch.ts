@@ -30,6 +30,7 @@ import {
   type WorkBookStageEntry
 } from "../../src/shared/workbook-dispatch";
 import { scanRepo, repositoryModelFrom, type RepoSnapshot } from "../engineering/repo-inspector";
+import { isInsideWorkspace as pathContainment } from "../workspace/path-utils";
 import { assignRoles } from "../ingestion/role-assignment";
 import { WorkbookRegistry, type WorkbookRevisionInput } from "../ingestion/workbook-registry";
 import { ingestDocuments, type DocumentSource, type IngestionLimits } from "../ingestion/ingest";
@@ -247,14 +248,16 @@ export function screenWorkBookRequest(input: {
   return undefined;
 }
 
-/** Path containment that treats a sibling with a shared prefix as outside. */
+/**
+ * Path containment that treats a sibling with a shared prefix as outside.
+ *
+ * Delegates to the one predicate (`electron/workspace/path-utils.ts#isInsideWorkspace`),
+ * which also canonicalizes both sides, so a Windows 8.3 short name or a junction
+ * cannot place a write outside the workspace while looking inside it. Kept as a
+ * named export because callers already import it from here.
+ */
 export function isInsideWorkspace(workspacePath: string, candidate: string): boolean {
-  const root = path.resolve(workspacePath);
-  const target = path.resolve(candidate);
-  const relative = path.relative(root, target);
-  if (relative === "") return true;
-  if (relative.startsWith("..") || path.isAbsolute(relative)) return false;
-  return true;
+  return pathContainment(workspacePath, candidate);
 }
 
 /* ------------------------------------------------------------------ *

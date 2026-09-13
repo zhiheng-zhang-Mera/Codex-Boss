@@ -14,6 +14,7 @@ import { ProviderHttpError, ProviderApiClient, type ApiCompletion } from "./prov
 import type { DomainEventBus } from "./commander/event-bus";
 import fs from "node:fs";
 import path from "node:path";
+import { appDataUnder } from "./runtime-paths";
 
 /**
  * Live diagnostic journal (direction 1 的纯程序替代): every automation step
@@ -21,16 +22,23 @@ import path from "node:path";
  * a file so a wedged main process can be analyzed offline — the last entry
  * before the hang shows exactly where the event loop stopped. Writes are
  * best-effort and never throw into the automation path.
+ *
+ * The location is supplied by the caller (the composition root knows the app
+ * data root); this module never invents a data directory of its own.
  */
-function automationLogFile(): string {
-  return process.env.LIVE_AUTOMATION_LOG ?? path.join(process.cwd(), "runtime-data", ".boss", "live-automation.log");
-}
-function appendLog(entry: Record<string, unknown>): void {
+function appendLog(file: string, entry: Record<string, unknown>): void {
   try {
-    const file = automationLogFile();
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.appendFileSync(file, `${new Date().toISOString()} ${JSON.stringify(entry)}\n`, "utf8");
-  } catch { /* journaling must never break automation */ }
+  } catch { /* diagnostics only: a full disk must not break automation */ }
+}
+
+/**
+ * Fallback location for callers that did not supply one. It still goes through
+ * the shared root model rather than a hand-written `runtime-data` segment.
+ */
+export function defaultAutomationLogFile(): string {
+  return path.join(appDataUnder(process.cwd()), ".boss", "live-automation.log");
 }
 
 type ProbeState = { content: string; stableCount: number };
@@ -44,6 +52,9 @@ export class ProviderAutomation {
   private readonly pollingTasks = new Set<string>();
   private readonly preparingProviders = new Map<ProviderId, string>();
 
+  /** Where the diagnostic journal is written; supplied by the composition root. */
+  private readonly liveLogFile: string;
+
   constructor(
     private readonly store: StateStore,
     private readonly views: ProviderViews,
@@ -55,8 +66,11 @@ export class ProviderAutomation {
     private readonly onTaskComplete?: (taskId: string) => Promise<void>,
     private readonly onRecovery?: (run: ProviderRun, strategy: "CAPTURE_EXISTING" | "RETRY_UNSENT", retryAt?: number) => void,
     private readonly events?: DomainEventBus,
-    private readonly attachments?: AttachmentStore
-  ) {}
+    private readonly attachments?: AttachmentStore,
+    options: { liveAutomationLog?: string } = {}
+  ) {
+    this.liveLogFile = options.liveAutomationLog ?? process.env.LIVE_AUTOMATION_LOG ?? defaultAutomationLogFile();
+  }
 
   /** Publishes a TOOL_RESULT_READY domain event when a round's answers are fully collected (AP13). */
   private notifyToolResultReady(taskId: string, runId: string): void {
@@ -166,7 +180,7 @@ export class ProviderAutomation {
   }
 
   private log(step: string, detail: Record<string, unknown> = {}): void {
-    appendLog({ step, ...detail, at: Date.now() });
+    appendLog(this.liveLogFile, { step, ...detail, at: Date.now() });
   }
 
   private async dispatch(taskId: string): Promise<void> {

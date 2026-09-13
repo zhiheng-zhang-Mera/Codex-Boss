@@ -1,5 +1,6 @@
 import path from "node:path";
 import { runAllowedCommand, type AllowedCommand, type CommandEvidence } from "../engineering/command-runner";
+import { isInsideWorkspace as pathContainment } from "../workspace/path-utils";
 import { candidateEnvironment, isOwnerAdministrationTarget } from "../credential-boundary/credential-boundary";
 import { assertNoCredentialLeak } from "../credential-boundary/sanitized-environment";
 import type { RootClassification, RootDecision, RootOperation } from "../../src/shared/root-authority/contracts";
@@ -303,8 +304,13 @@ export class EvolutionExecutionProfile {
   }
 }
 
-/** True when the given path lies inside a Candidate workspace root. */
+/**
+ * True when the given path lies inside a Candidate workspace root.
+ *
+ * Delegates to the one containment predicate
+ * (`electron/workspace/path-utils.ts#isInsideWorkspace`); kept as a named export
+ * because callers and tests already import it from here.
+ */
 export function isInsideWorkspace(root: string, candidate: string): boolean {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return pathContainment(root, candidate);
 }

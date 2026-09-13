@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, dialog, safeStorage } from "electron";
 import { SecretVaultStore } from "../security/secret-vault-store";
+import { appDataUnder } from "../runtime-paths";
 import { BOSS_GITHUB_LOGICAL_IDENTITY, validateGitHubMachineIdentityConfig } from "../../src/shared/github-machine";
 
 // Keep the one-time credential ceremony on the same durable data root as the
@@ -11,7 +12,7 @@ import { BOSS_GITHUB_LOGICAL_IDENTITY, validateGitHubMachineIdentityConfig } fro
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const dataRoot = overrideDataRoot
   ? path.resolve(overrideDataRoot)
-  : path.join(app.isPackaged ? app.getAppPath() : process.cwd(), "runtime-data");
+  : appDataUnder(app.isPackaged ? app.getAppPath() : process.cwd());
 app.setPath("userData", dataRoot);
 
 function argument(name: string): string {

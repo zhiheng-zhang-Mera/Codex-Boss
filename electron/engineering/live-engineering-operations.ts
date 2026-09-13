@@ -4,6 +4,7 @@ import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } fro
 import { parseReviewerFindings } from "../../src/shared/engineering-loop";
 import type { EngineeringLoopOperations } from "./engineering-loop-driver";
 import type { EngineeringSessionKey } from "./engineering-session";
+import { resolveWorkspacePathSync, WorkspacePathError } from "../workspace/path-utils";
 import { ProposalRunner } from "./proposal-runner";
 import { engineeringChecksFor } from "./verification-policy";
 import { candidateFilesForFinding } from "./finding-scope";
@@ -171,9 +172,15 @@ export function createLiveEngineeringOperations(options: LiveEngineeringOperatio
   return { implement, review };
 }
 
-/** Validation-only helper reused by callers that must fail fast on a bad workspace. */
+/**
+ * Validation-only helper reused by callers that must fail fast on a bad workspace.
+ *
+ * It answers through the one path model, so a bad workspace refuses with a
+ * machine code (`PATH_NOT_FOUND`, `NOT_A_DIRECTORY`, …) that the caller can act
+ * on instead of a raw filesystem error.
+ */
 export function assertEngineeringWorkspace(workspace: string): string {
-  const root = fs.realpathSync(workspace);
-  if (!fs.statSync(root).isDirectory()) throw new Error("Engineering workspace is not a directory");
-  return root;
+  const resolved = resolveWorkspacePathSync(workspace);
+  if (!resolved.ok) throw new WorkspacePathError({ ok: false, code: resolved.code, ...(resolved.normalizedPath ? { normalizedPath: resolved.normalizedPath } : {}), ...(resolved.reason ? { reason: resolved.reason } : {}) });
+  return resolved.canonicalPath!;
 }

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { runAllowedCommand, type CommandSandbox } from "./command-runner";
 import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
 import type { EngineeringLoopOperations, EngineeringReviewEvidence } from "./engineering-loop-driver";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 
 /**
  * Real repo-backed operations for the autonomous engineering loop (plan §26+).
@@ -67,7 +68,7 @@ function failureTail(output: string, budget = 2500): string {
 }
 
 export function createRepoEngineeringOperations(options: RepoEngineeringOptions): EngineeringLoopOperations {
-  const root = fs.realpathSync(options.workspace);
+  const root = canonicalRealPathSync(options.workspace);
   const commandOptionsValue = commandOptions(options);
   return {
     async audit(goal) {

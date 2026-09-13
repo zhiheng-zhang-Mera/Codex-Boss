@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { HISTORY_DIRECTORY, RUNTIME_DATA_DIRECTORY, SCRATCH_CACHE_DIRECTORY, migrateBrowserProfile, migrateLegacyPersistentData } from "./runtime-paths";
+import { migrateBrowserProfile, migrateLegacyPersistentData, runtimeRoots } from "./runtime-paths";
 import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
@@ -152,8 +152,10 @@ let workspaceSelection: WorkspaceSelectionStore;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
-const projectDataRoot = path.join(app.getAppPath(), RUNTIME_DATA_DIRECTORY);
-const dataRoot = overrideDataRoot ? path.resolve(overrideDataRoot) : projectDataRoot;
+// One root model for the whole process; no subsystem joins its own directory
+// onto the install path (electron/runtime-paths.ts).
+const roots = runtimeRoots({ installRoot: app.getAppPath(), ...(overrideDataRoot ? { dataRootOverride: overrideDataRoot } : {}) });
+const dataRoot = roots.appData;
 app.setPath("userData", dataRoot);
 app.setPath("sessionData", path.join(dataRoot, "Session Data"));
 
@@ -202,18 +204,18 @@ if (!ownsInstance) {
 if (ownsInstance) {
   fs.mkdirSync(dataRoot, { recursive: true });
   if (!overrideDataRoot && legacyDataRoot) {
-    migrateLegacyPersistentData(legacyDataRoot, dataRoot, path.join(app.getAppPath(), HISTORY_DIRECTORY));
+    migrateLegacyPersistentData(legacyDataRoot, dataRoot, roots.history);
   }
-  const cacheRoot = path.join(overrideDataRoot ? path.resolve(overrideDataRoot) : app.getAppPath(), SCRATCH_CACHE_DIRECTORY);
+  const cacheRoot = roots.cache;
   const sessionRoot = path.join(cacheRoot, "browser-profile");
   const oldSessionRoot = !overrideDataRoot && legacyDataRoot ? path.join(legacyDataRoot, "Session Data") : app.getPath("sessionData");
   // Migrate only after acquiring the instance lock, before any browser starts.
   migrateBrowserProfile(oldSessionRoot, sessionRoot);
   for (const name of ["tmp", "crash-dumps"]) fs.mkdirSync(path.join(cacheRoot, name), { recursive: true });
   app.setPath("sessionData", sessionRoot);
-  app.setPath("temp", path.join(cacheRoot, "tmp"));
+  app.setPath("temp", roots.temp);
   app.setPath("crashDumps", path.join(cacheRoot, "crash-dumps"));
-  process.env.TEMP = process.env.TMP = path.join(cacheRoot, "tmp");
+  process.env.TEMP = process.env.TMP = roots.temp;
 }
 
 function publish(): AppSnapshot {
@@ -473,7 +475,7 @@ function attachProviderViews(): void {
       }
     } catch { /* auto-archive is best-effort; conversation stays visible otherwise */ }
   };
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, onTaskComplete, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore);
+  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, onTaskComplete, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore, { liveAutomationLog: path.join(dataRoot, ".boss", "live-automation.log") });
   // Overcomplete §11.3/§11.4: production archive recovery handler — each wake
   // retries pending external archives with the live fail-closed attempt; if
   // anything stays pending (provider offline / rate-limited / page changed),
@@ -653,7 +655,7 @@ function headlessPreflightStaleRuns(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  historyRepository = new HistoryRepository(path.join(overrideDataRoot ? dataRoot : app.getAppPath(), HISTORY_DIRECTORY));
+  historyRepository = new HistoryRepository(roots.history);
   store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
   // WORK_UNIT_3 crash recovery: a revision recorded just before a crash has no
   // task association yet. Re-link every orphan against the durable task records

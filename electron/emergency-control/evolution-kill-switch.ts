@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { writeJson, readJson } from "../commander/durable-json";
+import { isInsideWorkspace as pathContainment } from "../workspace/path-utils";
 
 /**
  * Evolution kill switch / external fuse
@@ -97,8 +98,7 @@ export interface EvolutionControlStatus {
 }
 
 function isInside(parent: string, candidate: string): boolean {
-  const relative = path.relative(path.resolve(parent), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return pathContainment(parent, candidate);
 }
 
 export class EvolutionKillSwitch {

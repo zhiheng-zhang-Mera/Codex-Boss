@@ -45,6 +45,7 @@ import { parseJsonObject } from "./semantic-json";
 import { runStructuredProcess } from "./runtime/process-runner";
 import { LatexCompiler, type LatexCompileAudit } from "./manuscript/latex-compiler";
 import { researchDeliverablesPath } from "./research-output";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 import type { SectionBrief } from "../../src/shared/research-manuscript";
 import { MANUSCRIPT_SECTIONS } from "../../src/shared/research-manuscript";
 import { antiPrematureClosure, sectionSufficiency } from "../../src/shared/research-manuscript";
@@ -228,7 +229,7 @@ export class ResearchConductor implements ResearchStageExecutor {
 
   /** PROJECT_INSPECTION scans the authorized workspace (real, bounded). */
   private projectInspection(ir: ResearchIR, workspace: string): StageOutcome {
-    const root = fs.realpathSync(workspace);
+    const root = canonicalRealPathSync(workspace);
     const snapshot = scanRepo(root);
     const topLevel = snapshot.files.slice(0, 50);
     this.record(ir.id, "PROJECT_INSPECTION", `inspected repo: ${snapshot.files.length} files, ${Object.keys(snapshot.testMap).length} test dirs`, "project-inspection.json", [`repo:${snapshot.fingerprint.slice(0, 16)}`], { fileCount: snapshot.files.length, testDirs: Object.keys(snapshot.testMap).length, fingerprint: snapshot.fingerprint.slice(0, 16), topLevel: topLevel.slice(0, 10) });

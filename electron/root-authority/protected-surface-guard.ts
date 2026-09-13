@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { workspacePath } from "../engineering/native-tools";
+import { canonicalRealPathSync } from "../workspace/path-utils";
 import {
   assessProtectedPaths,
   compileProtectedSurface,
@@ -75,15 +76,20 @@ export class ProtectedSurfaceGuard {
   readonly codeownersMissing: boolean;
 
   constructor(options: ProtectedSurfaceGuardOptions) {
-    this.root = fs.realpathSync(options.root);
+    this.root = canonicalRealPathSync(options.root);
     this.caseInsensitive = options.caseInsensitive ?? true;
     this.codeownersFile = options.codeownersFile ?? path.join(this.root, ".github", "CODEOWNERS");
     let content = "";
     if (fs.existsSync(this.codeownersFile)) {
+      // An unreadable CODEOWNERS must never be conflated with an absent one:
+      // "absent" means the compiled manifest alone applies, while "unreadable"
+      // would silently compile the guard WITHOUT the CODEOWNERS patterns it is
+      // supposed to enforce. That is fail-open on a Root Surface boundary, so it
+      // refuses instead.
       try {
         content = fs.readFileSync(this.codeownersFile, "utf8");
-      } catch {
-        content = "";
+      } catch (error) {
+        throw new Error(`Protected surface guard cannot read ${this.codeownersFile}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     this.codeownersMissing = content === "";
