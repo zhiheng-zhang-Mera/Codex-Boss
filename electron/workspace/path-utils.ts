@@ -229,7 +229,7 @@ export function isSameDirectory(left: string, right: string): boolean {
  */
 export function isInsideWorkspace(root: string, candidate: string, options: { followSymlinks?: boolean } = {}): boolean {
   if (typeof root !== "string" || typeof candidate !== "string" || !root || !candidate) return false;
-  const base = canonicalizeForContainment(root);
+  const base = canonicalRealPathOrNormalized(root);
   if (!base) return false;
   const absolute = path.isAbsolute(candidate) ? candidate : path.resolve(base, candidate);
   // BOTH sides must be in the same spelling. Canonicalizing only the root is the
@@ -237,14 +237,14 @@ export function isInsideWorkspace(root: string, candidate: string, options: { fo
   // short name or a junction (`C:\Users\RUNNER~1\…`) is the SAME directory as the
   // canonical root, yet `path.relative` between the two spellings walks out of it
   // and reports "outside".
-  const target = canonicalizeForContainment(absolute);
+  const target = canonicalRealPathOrNormalized(absolute);
   if (!lexicallyInside(base, target)) return false;
   if (!options.followSymlinks) return true;
   // Explicit link check: the deepest EXISTING ancestor must itself canonicalize
   // inside the root, so a link that points out cannot be used to write out.
   const existing = deepestExistingAncestor(absolute);
   if (!existing) return false;
-  return lexicallyInside(base, canonicalizeForContainment(existing));
+  return lexicallyInside(base, canonicalRealPathOrNormalized(existing));
 }
 
 /**
@@ -252,8 +252,13 @@ export function isInsideWorkspace(root: string, candidate: string, options: { fo
  * expands short names and resolves junctions) and any not-yet-existing tail is
  * appended to it, so a path that is about to be created still compares equal to
  * the same path spelled canonically.
+ *
+ * Total: a path that cannot be resolved at all falls back to its absolute form.
+ * Use this wherever a value is compared or persisted and throwing would be the
+ * wrong answer; `canonicalRealPathSync` stays the strict form for callers that
+ * must fail on an unresolvable path.
  */
-function canonicalizeForContainment(value: string): string {
+export function canonicalRealPathOrNormalized(value: string): string {
   const absolute = path.resolve(value);
   const existing = deepestExistingAncestor(absolute);
   if (!existing) return absolute;

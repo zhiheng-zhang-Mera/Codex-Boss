@@ -51,6 +51,7 @@ import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { validateWorkspacePath } from "./workspace/path-utils";
+import { requireWorkspacePathSync } from "./workspace/path-utils";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
 import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
@@ -1079,12 +1080,16 @@ if (ownsInstance) app.whenReady().then(() => {
     maxSteps?: number;
     maxProviderCalls?: number;
   }) => {
-    if (!input.workspace.trim()) throw new Error("An authorized workspace is required");
+    // The research workspace enters the runtime exactly like every other one:
+    // through the single path model. It used to be checked with `.trim()` only,
+    // so a typo became a research scope that silently wrote nowhere, and two
+    // spellings of one directory became two project scopes.
+    const researchWorkspace = requireWorkspacePathSync(input.workspace).canonicalPath!;
     if (input.researchQuestion?.trim()) {
       const record = research!.startHumanResearch({
         id: input.id,
         researchQuestion: input.researchQuestion.trim(),
-        workspace: input.workspace,
+        workspace: researchWorkspace,
         hypothesis: input.hypothesis?.trim() || undefined,
         providerPolicy: input.providerPolicy ?? (input.autonomy === "GUIDED" ? "FIXED" : "AUTO"),
         reviewers: input.reviewers,
@@ -1099,7 +1104,7 @@ if (ownsInstance) app.whenReady().then(() => {
       schemaVersion: 1,
       id: input.id ?? researchIdFor(input.goal.trim()),
       goal: input.goal.trim(),
-      scope: { workspace: input.workspace.trim(), allowedDomains: [], reviewers: input.reviewers, autonomy: input.autonomy ?? "AUTOPILOT", budget: { maxExperiments: input.maxExperiments ?? 5, maxSteps: input.maxSteps ?? 100 } },
+      scope: { workspace: researchWorkspace, allowedDomains: [], reviewers: input.reviewers, autonomy: input.autonomy ?? "AUTOPILOT", budget: { maxExperiments: input.maxExperiments ?? 5, maxSteps: input.maxSteps ?? 100 } },
       state: "SCOPING",
       researchQuestions: [],
       hypotheses: [],

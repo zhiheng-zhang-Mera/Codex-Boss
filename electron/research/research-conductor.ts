@@ -463,8 +463,14 @@ export class ResearchConductor implements ResearchStageExecutor {
         implFile = candidates[0];
       }
       const metricKeys = await probeMetricKeys(implFile!);
-      if (metricKeys.length === 0) throw new Error(`Implementation ${implFile} printed no numeric METRICS keys on a probe run`);
+      if (metricKeys.length === 0) {
+        // A generated implementation that cannot even print its metric is this
+        // stage's own artefact, so it does not stay in the Owner's workspace.
+        if (generated) fs.rmSync(implFile!, { force: true });
+        throw new Error(`Implementation ${implFile} printed no numeric METRICS keys on a probe run`);
+      }
       if (generated && (!frozenProtocol || metricKeys[0] !== frozenProtocol.protocol.primaryMetric)) {
+        fs.rmSync(implFile!, { force: true });
         throw new Error(`Generated experiment emits metric '${metricKeys[0]}' but the frozen protocol fixed '${frozenProtocol?.protocol.primaryMetric}' — generation failed the metric contract (fail-closed)`);
       }
       plan = {

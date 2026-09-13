@@ -113,6 +113,12 @@ export interface SelfEvolutionRunReport {
   sandboxActive: boolean;
   evidenceFile?: string;
   stablePointer?: StablePointerRecord;
+  /**
+   * Set when a failed run's Candidate workspace could not be removed. Its
+   * presence is the difference between "contained" and "contained, with a
+   * leftover worktree and branch an Owner has to clean up by hand".
+   */
+  candidateCleanupFailure?: string;
   startedAt: string;
   finishedAt: string;
 }
@@ -160,8 +166,24 @@ interface OwnedGovernance {
   emergency: EmergencyControl;
 }
 
-/** Adapts the OS sandbox to the engineering loop's `CommandSandbox` seam (S4). */
-export class SandboxedCommandRunner implements CommandSandbox {
+/**
+ * Removes a failed run's Candidate worktree and branch.
+ *
+ * Returns the failure text instead of throwing: the caller is already reporting
+ * the run's own failure, and losing that report to a cleanup error would hide the
+ * cause. A `undefined` return means the run left nothing behind.
+ */
+async function removeCandidateArtifacts(candidateWorkspace: string, stableRoot: string): Promise<string | undefined> {
+  if (!fs.existsSync(candidateWorkspace)) return undefined;
+  try {
+    await removeCandidateWorkspace(candidateWorkspace, stableRoot);
+    return undefined;
+  } catch (error) {
+    return `candidate workspace ${candidateWorkspace} could not be removed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/** Adapts the OS sandbox to the engineering loop's `CommandSandbox` seam (S4). */export class SandboxedCommandRunner implements CommandSandbox {
   constructor(
     private readonly sandbox: EvolutionSandbox,
     private readonly input: {
@@ -463,6 +485,12 @@ export class SelfEvolutionCoordinator {
           changedFiles,
           journal: supervised.journal
         });
+        // Containment (plan §34): a failed run leaves nothing of its own behind.
+        // The Candidate worktree and its branch are this run's artefacts, so its
+        // terminal failure removes them; a cleanup that could not complete is
+        // reported on the run rather than dropped, because "contained" is a claim
+        // the Owner has to be able to check.
+        const cleanupFailure = await removeCandidateArtifacts(layout.workspace, stableRoot);
         return {
           ...base,
           runId,
@@ -478,6 +506,7 @@ export class SelfEvolutionCoordinator {
           sandboxMechanism: sandboxProbe.mechanism,
           sandboxActive: sandboxProbe.available,
           evidenceFile,
+          ...(cleanupFailure ? { candidateCleanupFailure: cleanupFailure } : {}),
           finishedAt: new Date().toISOString()
         };
       }

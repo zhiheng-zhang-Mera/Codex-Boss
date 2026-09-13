@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import { canonicalRealPathOrNormalized } from "../workspace/path-utils";
 import path from "node:path";
 import type { ContentCache } from "../cache/content-cache";
 import { scanRepo, type RepoSnapshot } from "./repo-inspector";
@@ -24,7 +25,9 @@ export function repoScanSignature(snapshot: RepoSnapshot): string {
 export function cachedScanRepo(root: string, cache: ContentCache<RepoSnapshot>, now = Date.now): { snapshot: RepoSnapshot; fromCache: boolean } {
   const full = scanRepo(root, now);
   const signature = repoScanSignature(full);
-  const scope = `repo:${path.resolve(root)}`;
+  // The cache scope is the canonical identity, so the same repository reached
+  // through another spelling does not get a second entry (and a stale one).
+  const scope = `repo:${canonicalRealPathOrNormalized(root)}`;
   const cacheKey = cache.key(scope, { kind: "repo-index", version: 1 }, signature);
   const hit = cache.get(cacheKey);
   if (hit) return { snapshot: hit, fromCache: true };

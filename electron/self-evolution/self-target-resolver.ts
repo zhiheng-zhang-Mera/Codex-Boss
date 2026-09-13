@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { canonicalRealPathOrNormalized } from "../workspace/path-utils";
 
 /**
  * Phase S1 —Self Target Resolver (Update-Plan/Alien-Prestart.md §5).
@@ -85,9 +86,16 @@ export interface SelfTargetResolverOptions {
   headOf?: (root: string) => string | undefined;
 }
 
-/** Lower-cased, separator-normalized comparison form. */
+/**
+ * Lower-cased, separator-normalized comparison form.
+ *
+ * Built on the one canonicaliser, so a directory reached through a Windows 8.3
+ * short name or a junction compares equal to the same directory spelled
+ * canonically — this form decides the Self-Evolution trust domain, where getting
+ * it wrong means treating the Stable repository as an ordinary target.
+ */
 export function canonicalComparison(value: string): string {
-  const normalized = path.resolve(value).replace(/[\\/]+$/, "");
+  const normalized = canonicalRealPathOrNormalized(value).replace(/[\\/]+$/, "");
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
@@ -114,11 +122,7 @@ function defaultGitRunner(cwd: string, args: string[]): string | undefined {
 }
 
 function defaultCanonicalize(value: string): string {
-  try {
-    return fs.realpathSync.native ? fs.realpathSync.native(value) : fs.realpathSync(value);
-  } catch {
-    return path.resolve(value);
-  }
+  return canonicalRealPathOrNormalized(value);
 }
 
 function defaultReadFile(file: string): string | undefined {

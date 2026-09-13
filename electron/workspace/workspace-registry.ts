@@ -2,6 +2,7 @@ import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
 import type { Workspace, WorkspaceRegistryFile } from "../../src/shared/workspace";
 import { DEFAULT_WORKSPACE_ID, SCRATCH_WORKSPACE_ID, validateWorkspace } from "../../src/shared/workspace";
+import { canonicalRealPathSync, isInsideWorkspace, isSameDirectory } from "./path-utils";
 
 /**
  * Workspace Registry + Resolver (plan AP01). Workspaces are logical run
@@ -31,13 +32,23 @@ export class WorkspaceRegistry {
 
   /** Resolver: best workspace for a directory path, else the default shim workspace. */
   resolveForPath(directory: string): Workspace {
-    const normalized = path.resolve(directory).toLowerCase();
+    // Both sides go through the one identity rule, so a repository registered
+    // under one spelling of its path is still found when the task reaches it
+    // through another (Windows 8.3 short name, junction, drive-letter case).
+    const normalized = canonicalRealPathSync(directory);
     let best: Workspace | undefined;
     let bestLength = -1;
     for (const workspace of this.fileValue.workspaces) {
       for (const repo of workspace.repositories) {
-        const resolved = path.resolve(repo).toLowerCase();
-        if ((normalized === resolved || normalized.startsWith(resolved + path.sep)) && resolved.length > bestLength) { best = workspace; bestLength = resolved.length; }
+        let resolved: string;
+        try {
+          resolved = canonicalRealPathSync(repo);
+        } catch {
+          // A registered repository that no longer exists cannot match a live
+          // directory; it must not abort the lookup either.
+          continue;
+        }
+        if ((isSameDirectory(normalized, resolved) || isInsideWorkspace(resolved, normalized)) && resolved.length > bestLength) { best = workspace; bestLength = resolved.length; }
       }
     }
     return structuredClone(best ?? this.get(DEFAULT_WORKSPACE_ID) ?? this.get(SCRATCH_WORKSPACE_ID)!);

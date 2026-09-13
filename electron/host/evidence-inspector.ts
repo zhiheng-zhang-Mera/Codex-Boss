@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { canonicalRealPathSync, isInsideWorkspace, isSameDirectory } from "../workspace/path-utils";
 import {
   classifyEvidence,
   compareEvidence,
@@ -118,13 +119,14 @@ function hashFile(file: string): { sha256: string; bytes: number; hashed: boolea
  * actually named and reported them all as dangling.
  */
 function makeRepoExists(root: string, repoRoot: string | undefined): ((relativePath: string) => boolean) | undefined {
-  if (!repoRoot || path.resolve(repoRoot) === path.resolve(root)) return undefined;
-  const base = path.resolve(repoRoot);
+  if (!repoRoot || isSameDirectory(repoRoot, root)) return undefined;
+  const base = canonicalRealPathSync(repoRoot);
   return (relativePath: string) => {
     if (!relativePath || relativePath.includes("\0")) return false;
     const absolute = path.resolve(base, relativePath);
-    // Never resolve outside the repository.
-    if (absolute !== base && !absolute.startsWith(base + path.sep)) return false;
+    // Never resolve outside the repository. The rule is the shared containment
+    // predicate, so a junction or a short-name spelling cannot slip past it.
+    if (!isInsideWorkspace(base, absolute)) return false;
     try {
       return fs.existsSync(absolute);
     } catch {

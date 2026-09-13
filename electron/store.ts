@@ -11,6 +11,7 @@ import { HistoryRepository, safeSegment } from "./history-repository";
 
 import { writeJson } from "./commander/durable-json";
 import { TaskLedger } from "./commander/task-ledger";
+import { canonicalRealPathOrNormalized } from "./workspace/path-utils";
 import { applyStateStorageBudget, type LifecyclePruneReport } from "./commander/state-budget";
 import { sessionKindForResumeStrategy } from "../src/shared/session-state";
 import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/shared/execution";
@@ -1110,7 +1111,7 @@ export class StateStore {
         state.usage.browserActions = Math.max(state.usage.browserActions, runs.filter((run) => run.phase === "sending" || run.phase === "waiting" || run.artifactId).length);
         for (const run of runs) {
           const resumeStrategy = run.sessionUrl ? "RESTORE_URL" as const : "RECONSTRUCT" as const;
-          const session = { id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", url: run.sessionUrl, resumeStrategy, kind: sessionKindForResumeStrategy(resumeStrategy), ...(task.workspacePath ? { workspaceId: TaskLedger.fingerprint(task.workspacePath.toLowerCase()) } : {}) };
+          const session = { id: run.id, taskId: task.id, provider: run.transport + ":" + run.providerId, checkpoint: state.revision, health: run.outcome ?? "UNKNOWN", url: run.sessionUrl, resumeStrategy, kind: sessionKindForResumeStrategy(resumeStrategy), ...(task.workspacePath ? { workspaceId: TaskLedger.fingerprint(canonicalRealPathOrNormalized(task.workspacePath).toLowerCase()) } : {}) };
           const index = state.sessions.findIndex((item) => item.id === run.id);
           if (index < 0) state.sessions.push(session); else state.sessions[index] = { ...state.sessions[index], ...session };
         }

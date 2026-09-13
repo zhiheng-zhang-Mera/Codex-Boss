@@ -32,6 +32,7 @@ import {
 import { buildStructuralFingerprint, type TaskFingerprint } from "../../src/shared/task-fingerprint";
 import type { KnowledgeScope } from "../../src/shared/tenx/knowledge";
 import type { WorkBookDispatchRecord } from "../../src/shared/workbook-dispatch";
+import { canonicalRealPathSync, normalizeWorkspacePath } from "../workspace/path-utils";
 
 /** Capability signals read off a goal so retrieval filters types sensibly. */
 const CAPABILITY_PATTERNS: ReadonlyArray<{ capability: string; pattern: RegExp }> = [
@@ -100,7 +101,19 @@ export class KnowledgeFoundation {
     if (explicit) return `project:${explicit}`;
     const workspace = input.workspacePath?.trim();
     if (!workspace) return "global";
-    const normalized = path.resolve(workspace).replace(/\\/g, "/").replace(/\/+$/, "").toLocaleLowerCase();
+    // One directory must produce one scope, whatever spelling reaches this
+    // method. The identity therefore comes from the canonical path model (which
+    // also expands Windows 8.3 short names and resolves junctions); a path that
+    // does not exist yet has no on-disk identity, so its normalized form is the
+    // best available answer and two spellings of a missing path are equivalent.
+    const canonical = (() => {
+      try {
+        return canonicalRealPathSync(workspace);
+      } catch {
+        return normalizeWorkspacePath(workspace);
+      }
+    })();
+    const normalized = canonical.replace(/\\/g, "/").replace(/\/+$/, "").toLocaleLowerCase();
     return `project:${normalized}`;
   }
 
