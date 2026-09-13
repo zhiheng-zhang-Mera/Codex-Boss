@@ -62,6 +62,13 @@ export interface EngineeringLoopSummary {
   telemetry: StagnationSignals;
   changedFiles: string[];
   findings: EngineeringFinding[];
+  /**
+   * What happened to the pre-run recovery point (Update-Plan/cleaning.md §7–§9).
+   * Absent for a plain driver run; present for every `runEngineeringGoal` result.
+   */
+  recovery?: import("../../src/shared/engineering-loop").WorkspaceRecoveryOutcome;
+  /** Explicit machine-readable reason the run reached a terminal state. */
+  terminalReason?: string;
 }
 
 /** Maps a reviewer finding onto a re-flowable engineering finding (§6.3). */

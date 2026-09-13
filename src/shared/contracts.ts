@@ -569,6 +569,10 @@ export interface EngineeringGoalRunResult {
   iterations: number;
   changedFiles: string[];
   findings: Array<{ id: string; severity: string; description: string; evidence?: string }>;
+  /** Update-Plan/cleaning.md §7–§9: what happened to the pre-run recovery point. */
+  recovery?: import("./engineering-loop").WorkspaceRecoveryOutcome;
+  /** Explicit machine-readable reason the run reached a terminal state. */
+  terminalReason?: string;
 }
 
 /** U4 §7/§9: workspace view state + the DETACHED web-window bounds (main-process truth). */

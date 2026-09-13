@@ -287,6 +287,20 @@ export function iterationConverged(record: EngineeringIterationRecord, requiredC
   return result.state === "ENGINEERING_CONVERGED" || result.state === "OPTIONAL_IMPROVEMENTS";
 }
 
+/* ------------------------------------------------- workspace recovery (§7) */
+
+/** Machine codes for the recovery decision that ended a run. */
+export type RecoveryCode = "CHECKPOINT_UNAVAILABLE";
+
+/**
+ * What happened to the recovery point when a run reached a terminal state
+ * (Update-Plan/cleaning.md §7). Never a boolean: "no rollback was attempted" and
+ * "the rollback failed" are different facts, and a report that collapses them
+ * cannot be checked.
+ */
+export type WorkspaceRecoveryOutcome = { attempted: false; code: "CHECKPOINT_UNAVAILABLE"; reason: string };
+
+
 /* ------------------------------------------ goal status read-model (UI) */
 
 /**

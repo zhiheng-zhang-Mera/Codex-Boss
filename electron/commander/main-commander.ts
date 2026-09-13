@@ -51,7 +51,10 @@ import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineeri
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
-import { checkpointRecord, rollbackToCheckpoint } from "../engineering/change-points";
+import {
+  captureRecoveryPoint, closeGoalWithoutRecoveryPoint, recordRecoveryOutcome, recoveryLedgerFor
+} from "../engineering/engineering-recovery";
+import { rollbackToCheckpoint } from "../engineering/change-points";
 import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
@@ -721,10 +724,21 @@ export class MainCommander {
     const now = new Date().toISOString();
     const goal: EngineeringGoalContract = { schemaVersion: 1, id: input.goal.id ?? `eng-${TaskLedger.fingerprint(input.goal.objective).slice(0, 12)}`, createdAt: now, ...input.goal };
     const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
+    const recoveryLedger = recoveryLedgerFor(path.join(this.ledger.root, "..", "engineering-loop.json"));
     if (input.replace) loopStore.replaceGoal(goal); else loopStore.freezeGoal(goal);
-    // §38 checkpoint: snapshot pre-goal state so a non-converged goal can be
-    // fully reverted. Non-git workspaces proceed without rollback capability.
-    const checkpoint = await checkpointRecord(input.workspace).catch(() => undefined);
+
+    // §38 + Update-Plan/cleaning.md §7 (fail closed): the working tree is
+    // checkpointed BEFORE anything can mutate it, and a workspace that cannot be
+    // checkpointed is refused here — the driver never starts, no file is touched,
+    // and the refusal is durable evidence with an explicit terminal reason.
+    // "No recovery point" means "no autonomous mutation", never "run anyway".
+    const recoveryPoint = await captureRecoveryPoint(input.workspace);
+    if (!recoveryPoint.ok) {
+      const summary = closeGoalWithoutRecoveryPoint(loopStore, recoveryPoint);
+      recordRecoveryOutcome(recoveryLedger, loopStore, recoveryPoint.code, undefined, summary.recovery!);
+      return summary;
+    }
+    const checkpoint = recoveryPoint.checkpoint;
 
     // §6.1/§6.4 production wiring: when no deterministic closures are injected
     // and a durable supervisor exists, run the real coder/reviewer roles. The
@@ -753,7 +767,7 @@ export class MainCommander {
     const operations = createRepoEngineeringOperations({ workspace: input.workspace, implement, review });
     const driver = new EngineeringLoopDriver({ store: loopStore, operations, maxIterations: input.maxIterations });
     const summary = await driver.run();
-    if (checkpoint && (summary.state === "ABORTED" || summary.state === "STAGNANT")) {
+    if (summary.state === "ABORTED" || summary.state === "STAGNANT") {
       await rollbackToCheckpoint(input.workspace, checkpoint);
       return { ...summary, changedFiles: [] }; // nothing landed; history stays in the loop store
     }

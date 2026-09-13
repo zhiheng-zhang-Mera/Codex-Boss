@@ -67,6 +67,19 @@ export async function checkpointRecord(root: string): Promise<CheckpointSnapshot
   const base = fs.realpathSync(root);
   const head = await git(base, ["rev-parse", "HEAD"]);
   if (head.code !== 0) throw new Error(`Checkpoint requires a git workspace: ${head.stderr || head.stdout}`);
+  // The workspace must BE the repository root, not merely live inside one.
+  // `git status`/`git diff` report paths relative to the repository root, and
+  // every path below is resolved against `base`; for a nested directory those
+  // two disagree, so a "recovery point" taken there would restore the WRONG
+  // files — and would roll back the enclosing repository, which is not the
+  // workspace at all. Fail closed instead (Update-Plan/cleaning.md §7: no
+  // recovery point means no autonomous mutation).
+  const topLevel = await git(base, ["rev-parse", "--show-toplevel"]);
+  if (topLevel.code !== 0) throw new Error(`Checkpoint requires a git work tree: ${topLevel.stderr || topLevel.stdout}`);
+  const repositoryRoot = fs.realpathSync(topLevel.stdout.trim());
+  if (repositoryRoot.toLowerCase() !== base.toLowerCase()) {
+    throw new Error(`Workspace ${base} is not a git repository root; the enclosing repository is ${repositoryRoot}. Refusing to checkpoint a nested directory.`);
+  }
   const dirty = await modifiedSinceHead(base);
   const snapshots: Record<string, string | null> = {};
   for (const file of dirty) {
