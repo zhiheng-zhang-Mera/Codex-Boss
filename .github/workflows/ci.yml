@@ -1,5 +1,26 @@
 name: Desktop CI
 
+# Logical jobs instead of one long staircase (convergence book, Phase O).
+#
+# The point is to know WHICH layer failed without reading a 200-line log, and to
+# be able to re-run one layer by hand. Three of the four jobs are independent:
+#
+#   quality    typecheck + secret scan       (no build, no artifacts)
+#   unit       build + the two test tiers    (needs quality)
+#   package    portable build + smoke        (needs unit)
+#   acceptance the whole attested chain      (needs unit)
+#
+# Why the acceptance chain is ONE job rather than many: every step in it reads and
+# writes `artifacts/acceptance/**` in the same working tree — the session fixes the
+# commit, each gate writes a report, `acceptance:attest` binds that report to the
+# session, and `acceptance:prestart` reads the sixteen attested reports. Splitting
+# those across runners would make the attestation chain depend on artifact plumbing
+# rather than on the evidence itself. `needs:` keeps the layers ordered, and the
+# failure isolation the book asks for comes from the three independent jobs.
+#
+# Every job re-checks out and re-installs: a job is a fresh runner, and pretending
+# otherwise is how a "split" CI quietly stops testing what it claims to.
+
 on:
   push:
   pull_request:
@@ -8,7 +29,25 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  quality:
+    # The cheapest, most common failure layer: a type error or a tracked secret is
+    # reported here in about a minute, without waiting for the build.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.19.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run security:scan
+
+  unit:
+    needs: quality
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,8 +60,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run install:electron
-      - run: pnpm run typecheck
-      - run: pnpm run security:scan
       # The build must precede the test run. Several acceptance harnesses
       # (scripts/r901-soak.cjs, scripts/closure-soak-2h.cjs, the acceptance-*.cjs
       # family, scripts/benchmark.cjs) `require` the compiled modules under
@@ -32,7 +69,32 @@ jobs:
       # "Cannot find module '../dist-electron/...'" and exited 1 instead of its
       # documented exit code, failing two tests on every run.
       - run: pnpm run build
+      # The default tier: fast, deterministic, no external network.
       - run: pnpm test
+      # The slow tier: suites that compile and execute real projects in a fixture.
+      # They run one file at a time with a timeout justified by what they do, so a
+      # green commit cannot be turned red by parallel load. See
+      # vitest.slow.config.mjs.
+      - run: pnpm run test:slow
+
+  acceptance:
+    # The authoritative chain. Each `acceptance:attest` binds one gate's report to
+    # the session and the commit, and `acceptance:prestart` refuses to certify
+    # anything it cannot re-derive from those reports.
+    needs: unit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.19.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run install:electron
+      - run: pnpm run build
       # checkpoint-2 §5.2/§5.3/§10.1: the authoritative Prestart run starts here. It
       # fixes the exact commit, refuses a dirty working tree in certification mode and
       # archives the previous run's transient evidence, so no stale report can join
@@ -101,7 +163,7 @@ jobs:
       # checkpoint-1 §34: the capability-gap gate (CG-01..CG-10). A real §33.3
       # backlog is aggregated by capability, the improvement chain is walked with
       # real machinery (the §30 loop, a real regression climb, the §5.3 gate, a
-      # real capability probe), and a gap closes only when the probe moved.
+      # real probe), and a gap closes only when the probe moved.
       - run: pnpm run acceptance:capability-gap
       - run: pnpm run acceptance:attest -- acceptance-capability-gap
       # checkpoint-1 §35/§36: the candidate + Guardian gate (GD-01..GD-10). The
@@ -145,8 +207,6 @@ jobs:
       - run: pnpm run acceptance:attest -- acceptance-soak
       - run: pnpm run acceptance:github-machine
       - run: pnpm run benchmark
-      - run: pnpm run package:portable
-      - run: powershell -NoProfile -File scripts/smoke-portable.ps1
       # Overcomplete §17.4 Tier 2: controlled Electron restart smoke — the app
       # is killed mid-task and must resume without duplicating side effects.
       - run: node scripts/acceptance-restart.cjs
@@ -223,3 +283,24 @@ jobs:
             artifacts/acceptance/evolution-*.json
             artifacts/acceptance/attestations/
           if-no-files-found: warn
+
+  package:
+    # Independent of the acceptance chain: nothing in it reads the packaged output
+    # (`smoke-portable.ps1` reads `artifacts/latest-package.json`, which this job
+    # writes itself), and no gate reads the portable package.
+    needs: unit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.19.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run install:electron
+      - run: pnpm run build
+      - run: pnpm run package:portable
+      - run: powershell -NoProfile -File scripts/smoke-portable.ps1
