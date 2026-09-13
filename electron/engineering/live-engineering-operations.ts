@@ -5,6 +5,7 @@ import { parseReviewerFindings } from "../../src/shared/engineering-loop";
 import type { EngineeringLoopOperations } from "./engineering-loop-driver";
 import type { EngineeringSessionKey } from "./engineering-session";
 import { resolveWorkspacePathSync, WorkspacePathError } from "../workspace/path-utils";
+import { runGit, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import { ProposalRunner } from "./proposal-runner";
 import { engineeringChecksFor } from "./verification-policy";
 import { candidateFilesForFinding } from "./finding-scope";
@@ -83,13 +84,15 @@ async function diffEvidence(workspace: string, changedFiles: string[]): Promise<
     }
     return parts.join("\n").slice(0, 120000);
   }
-  const { execFile } = await import("node:child_process");
-  return new Promise((resolve) => {
-    const args = ["diff", "--no-ext-diff", "--", ...changedFiles.slice(0, 50)];
-    execFile("git", args, { cwd: root, windowsHide: true, timeout: 30000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
-      resolve(String(stdout) + String(stderr));
-    });
+  // The reviewer's diff is the largest single read in this module, so it takes the
+  // `large` buffer — a truncated diff would hide exactly the hunk a reviewer is
+  // looking for — while the timeout stays in the `standard` band because it is a
+  // read against a warm repository.
+  const result = await runGit(root, ["diff", "--no-ext-diff", "--", ...changedFiles.slice(0, 50)], {
+    timeoutMs: GIT_TIMEOUT_MS.standard,
+    maxBufferBytes: GIT_MAX_BUFFER_BYTES.large
   });
+  return result.stdout + result.stderr;
 }
 
 /** Current content of the changed files (reviewer context, bounded). */

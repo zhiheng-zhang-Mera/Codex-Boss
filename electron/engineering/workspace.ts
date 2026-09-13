@@ -1,12 +1,17 @@
 import fs from "node:fs";
 import { workspacePath } from "./native-tools";
 import path from "node:path";
-import { execFile } from "node:child_process";
 import { validId } from "../commander/durable-json";
 import { workspaceStrategy } from "./verification";
 import { assertMutationAllowed } from "../self-evolution/mutation-guard";
 import { canonicalRealPathSync } from "../workspace/path-utils";
-function git(root: string, args: string[]): Promise<string> { return new Promise((resolve, reject) => execFile("git", args, { cwd: root, windowsHide: true, timeout: 30000 }, (error, stdout, stderr) => error ? reject(new Error(String(stderr) || error.message)) : resolve(stdout.trim()))); }
+import { runGitOrThrow, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
+function git(root: string, args: string[]): Promise<string> {
+  // Worktree/branch creation is the `large` band: it is bounded by disk, not by a
+  // warm index, and it is a write — a truncated or timed-out call here must fail
+  // loudly rather than look like a created worktree.
+  return runGitOrThrow(canonicalRealPathSync(root), args, { timeoutMs: GIT_TIMEOUT_MS.large, maxBufferBytes: GIT_MAX_BUFFER_BYTES.standard });
+}
 export async function prepareWorkspace(root: string, taskId: string, risk: "low" | "medium" | "high", parallel: boolean): Promise<{ path: string; strategy: "current" | "branch" | "worktree"; branch?: string; base?: string }> {
   // §7.3: creating an isolation branch or worktree inside the Boss repository is
   // itself a mutation of Stable and must be covered by an evolution run.

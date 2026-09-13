@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
 import { workspacePath } from "./native-tools";
 import { removeTree } from "../fs-util";
 import { canonicalRealPathSync, isSameDirectory } from "../workspace/path-utils";
+import { runGit, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 
 /**
  * Git checkpoint / rollback for change sets (plan §38). Pure process helpers.
@@ -39,7 +39,11 @@ export interface CheckpointSnapshot {
 interface GitOutput { stdout: string; stderr: string; code: number | null }
 
 function git(root: string, args: string[]): Promise<GitOutput> {
-  return new Promise((resolve) => execFile("git", args, { cwd: canonicalRealPathSync(root), windowsHide: true, timeout: 30000, maxBuffer: 4 * 1024 * 1024, encoding: "utf8" }, (error, stdout, stderr) => resolve({ stdout, stderr, code: error ? (typeof (error as { code?: unknown }).code === "number" ? (error as { code: number }).code : null) : 0 })));
+  // Through the one git entry point: this is a read against a warm repository, so
+  // it takes the `quick` band — a hung `git status` must not hold the recovery
+  // path open, and the buffer is stated rather than inherited.
+  return runGit(canonicalRealPathSync(root), args, { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small })
+    .then((result) => ({ stdout: result.stdout, stderr: result.stderr, code: result.code }));
 }
 
 /** Files that differ from HEAD in the worktree or index (NUL-safe names). */
