@@ -6,6 +6,7 @@ import { createWorkspaceIpcModule, WORKSPACE_IPC_CHANNELS } from "../../electron
 import { createAttachmentIpcModule, ATTACHMENT_IPC_CHANNELS, type AttachmentService } from "../../electron/bootstrap/attachment-ipc";
 import { createConversationIpcModule, CONVERSATION_IPC_CHANNELS, requireDeleteConfirmation, type ConversationService } from "../../electron/bootstrap/conversation-ipc";
 import { createProviderIpcModule, PROVIDER_IPC_CHANNELS, sanitizeViewLayout } from "../../electron/bootstrap/provider-ipc";
+import { createStatusIpcModule, STATUS_IPC_CHANNELS, windowStateView } from "../../electron/bootstrap/status-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -306,6 +307,49 @@ describe("Phase G — provider IPC module", () => {
     expect(Object.keys(sanitizeViewLayout(known, { chatgpt: { x: 1, y: 2, width: 3, height: 4 } }))).toEqual(["chatgpt"]);
     expect(Object.keys(sanitizeViewLayout(known, { claude: { x: Infinity, y: 0, width: 1, height: 1 } }))).toEqual([]);
     expect(Object.keys(sanitizeViewLayout(known, {}))).toEqual([]);
+  });
+});
+
+describe("Phase G — status IPC module", () => {
+  function build() {
+    const ipc = registrar();
+    const module = createStatusIpcModule({
+      handle: ipc.handle.bind(ipc),
+      status: {
+        snapshot: () => ({ tasks: ["t1"] }),
+        progress: () => [{ taskId: "t1" }],
+        activeIntervention: (taskId) => (taskId === "t1" ? { kind: "CLARIFY" } : undefined),
+        listInterventions: (taskId) => (taskId ? [{ taskId }] : [{ taskId: "t1" }, { taskId: "t2" }]),
+        workspaceView: () => ({ view: "DETACHED" }),
+        windowState: () => ({ view: "DETACHED", host: { visible: true } })
+      }
+    });
+    return { ipc, module };
+  }
+
+  it("registers exactly the six read-only channels and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...STATUS_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "status-ipc", status: "READY" });
+    expect(module.health().detail).toContain("read-only");
+  });
+
+  it("answers each read with the service's value", async () => {
+    const { ipc } = build();
+    expect(await ipc.invoke("boss:snapshot")).toEqual({ tasks: ["t1"] });
+    expect(await ipc.invoke("boss:progress")).toEqual([{ taskId: "t1" }]);
+    expect(await ipc.invoke("boss:active-intervention", "t1")).toEqual({ kind: "CLARIFY" });
+    expect(await ipc.invoke("boss:active-intervention", "t9")).toBeUndefined();
+    expect(await ipc.invoke("boss:list-interventions")).toHaveLength(2);
+    expect(await ipc.invoke("boss:list-interventions", "t2")).toEqual([{ taskId: "t2" }]);
+    expect(await ipc.invoke("boss:get-workspace-view")).toEqual({ view: "DETACHED" });
+    expect(await ipc.invoke("boss:get-window-state")).toMatchObject({ view: "DETACHED" });
+  });
+
+  it("treats a destroyed window as an empty answer, not an error", () => {
+    // The renderer polls this on a timer; the pane it asks about may be gone.
+    expect(windowStateView(() => { throw new Error("Object has been destroyed"); })).toBeUndefined();
+    expect(windowStateView(() => ({ visible: true, minimized: false, maximized: false, focused: true, bounds: { x: 0, y: 0, width: 1, height: 1 } }))).toMatchObject({ visible: true });
   });
 });
 

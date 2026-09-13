@@ -56,6 +56,7 @@ import { createWorkspaceIpcModule } from "./bootstrap/workspace-ipc";
 import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
 import { createConversationIpcModule } from "./bootstrap/conversation-ipc";
 import { createProviderIpcModule } from "./bootstrap/provider-ipc";
+import { createStatusIpcModule, windowStateView } from "./bootstrap/status-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1004,7 +1005,6 @@ if (ownsInstance) app.whenReady().then(() => {
     void runHeadlessResearch(headlessWorkspace!, openIds).catch((error) => { console.error("Headless research failed:", error); app.exit(1); });
   }
 
-  ipcMain.handle("boss:snapshot", () => store.snapshot());
   ipcMain.handle("boss:login-scan", () => {
     // R-205 fast-login scan: Boss-side status scan + guidance. MFA/CAPTCHA and
     // account authorization remain genuine operator steps (externalOnly).
@@ -1101,9 +1101,6 @@ if (ownsInstance) app.whenReady().then(() => {
       now: () => new Date().toISOString()
     });
   });
-  ipcMain.handle("boss:progress", () => progressAggregator?.summaries() ?? []);
-  ipcMain.handle("boss:active-intervention", (_event, taskId: string) => humanGuidance?.activeFor(taskId) ?? undefined);
-  ipcMain.handle("boss:list-interventions", (_event, taskId?: string) => humanGuidance?.list(taskId) ?? []);
   ipcMain.handle("boss:resolve-intervention", (_event, taskId: string, kind: InterventionKind, answer: string) => {
     const resolved = humanGuidance?.resolve(taskId, kind, answer);
     // If the paused task is a research run, resume it from its control state.
@@ -1441,6 +1438,21 @@ if (ownsInstance) app.whenReady().then(() => {
     requireProvider: (providerId) => provider(providerId),
     publish
   }));
+  bootModules.push(createStatusIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    status: {
+      snapshot: () => store.snapshot(),
+      progress: () => progressAggregator?.summaries() ?? [],
+      activeIntervention: (taskId) => humanGuidance?.activeFor(taskId) ?? undefined,
+      listInterventions: (taskId) => humanGuidance?.list(taskId) ?? [],
+      workspaceView: () => ({ view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() }),
+      windowState: () => ({
+        view: providerViews.workspaceView(),
+        host: windowStateView(() => (mainWindow && !mainWindow.isDestroyed() ? { visible: mainWindow.isVisible(), minimized: mainWindow.isMinimized(), maximized: mainWindow.isMaximized(), focused: mainWindow.isFocused(), bounds: mainWindow.getBounds() } : undefined)),
+        webWindow: windowStateView(() => { const window = providerViews.webWindowInstance(); return window && !window.isDestroyed() ? { visible: window.isVisible(), minimized: window.isMinimized(), maximized: window.isMaximized(), focused: window.isFocused(), bounds: window.getBounds() } : undefined; })
+      })
+    }
+  }));
   reportBootHealth(bootModules);
   // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED
   // the open web-AI panes move into window B beside the Boss window; provider
@@ -1449,17 +1461,6 @@ if (ownsInstance) app.whenReady().then(() => {
     if (view !== "MERGED" && view !== "DETACHED") throw new Error("Invalid workspace view");
     providerViews.setWorkspaceView(view);
     return { view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() };
-  });
-  ipcMain.handle("boss:get-workspace-view", () => ({ view: providerViews.workspaceView(), webWindow: providerViews.webWindowBounds() }));
-  // U4 §7/§9 live check: the main interaction window must stay OPEN while the
-  // web-AI panes are popped into window B — report host visibility/minimized
-  // state alongside the view for objective verification.
-  ipcMain.handle("boss:get-window-state", () => {
-    const state = (window: BrowserWindow | undefined) => {
-      if (!window || window.isDestroyed()) return undefined;
-      return { visible: window.isVisible(), minimized: window.isMinimized(), maximized: window.isMaximized(), focused: window.isFocused(), bounds: window.getBounds() };
-    };
-    return { view: providerViews.workspaceView(), host: state(mainWindow ?? undefined), webWindow: state(providerViews.webWindowInstance()) };
   });
   ipcMain.handle("boss:set-provider-views-visible", (_event, visible: boolean) => providerViews.setVisible(Boolean(visible)));
   // U4 §9.2: per-pane manual zoom override (zoom buttons in the pane title).
