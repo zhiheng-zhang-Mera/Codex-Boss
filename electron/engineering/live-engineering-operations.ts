@@ -3,6 +3,7 @@ import path from "node:path";
 import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
 import { parseReviewerFindings } from "../../src/shared/engineering-loop";
 import type { EngineeringLoopOperations } from "./engineering-loop-driver";
+import type { EngineeringSessionKey } from "./engineering-session";
 import { ProposalRunner } from "./proposal-runner";
 import { engineeringChecksFor } from "./verification-policy";
 import { candidateFilesForFinding } from "./finding-scope";
@@ -23,8 +24,14 @@ import { candidateFilesForFinding } from "./finding-scope";
  */
 
 export interface EngineeringRoleWorker {
-  /** Runs one role turn; returns the assistant text or throws with a reason. */
-  ask(role: "coder" | "reviewer", prompt: string): Promise<string>;
+  /**
+   * Runs one role turn; returns the assistant text or throws with a reason.
+   *
+   * `session` carries the goal and the finding the turn is about: provider
+   * sessions are isolated per finding and per role (plan §10), so the worker —
+   * not this module — decides the concrete session key.
+   */
+  ask(role: "coder" | "reviewer", prompt: string, session: EngineeringSessionKey): Promise<string>;
 }
 
 export interface LiveEngineeringOperationsOptions {
@@ -111,7 +118,7 @@ export function createLiveEngineeringOperations(options: LiveEngineeringOperatio
     const checks = engineeringChecksFor(root, candidates);
     const outcome: ImplementOutcome = { changedFiles: [], verification: { checksTotal: checks.length, checksPassed: 0, repairs: 0, diff: "" } };
     try {
-      const proposal = await new ProposalRunner((prompt) => options.worker.ask("coder", prompt), options.checkOptions ?? {}).run(
+      const proposal = await new ProposalRunner((prompt) => options.worker.ask("coder", prompt, { goalId: options.goal.id, findingId: finding.id }), options.checkOptions ?? {}).run(
         root,
         `${options.goal.objective}\n\nFINDING ${finding.id} [${finding.area}] ${finding.description}\n${finding.evidence ? "EVIDENCE:\n" + finding.evidence.slice(0, 4000) : ""}`,
         candidates,
@@ -153,7 +160,7 @@ export function createLiveEngineeringOperations(options: LiveEngineeringOperatio
     ].join("\n\n");
     let raw = "";
     try {
-      raw = await options.worker.ask("reviewer", prompt);
+      raw = await options.worker.ask("reviewer", prompt, { goalId: options.goal.id, findingId: finding.id });
     } catch (error) {
       raw = `[review worker failed: ${String(error).slice(0, 500)}]`;
     }

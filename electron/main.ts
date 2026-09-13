@@ -54,6 +54,7 @@ import { validateWorkspacePath } from "./workspace/path-utils";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
 import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
+import { engineeringSessionId } from "./engineering/engineering-session";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
@@ -864,14 +865,18 @@ if (ownsInstance) app.whenReady().then(() => {
     userData: app.getPath("userData"),
     rootOwner: SHIPPED_ROOT_OWNER,
     worker: () => ({
-      ask: async (role, prompt) => {
+      ask: async (role, prompt, session) => {
         // §19 — Self-Evolution is a strict subset of Work capability: it must
         // not inherit arbitrary browser/desktop automation. The turn is pinned
         // to the codex runtime, so a logged-in provider web view can never serve
         // a Candidate's coder or reviewer turn; if codex is unavailable the
         // worker throws and the Candidate fails closed.
+        // Update-Plan/cleaning.md §10: the session id is per goal + finding +
+        // role, exactly like the interactive engineering loop, so one Candidate's
+        // findings never share a codex conversation (and a retry of one finding
+        // still reuses its own).
         const result = await commander.dispatchRole(
-          `self-evolution-${role}`,
+          engineeringSessionId(session.goalId, session.findingId, role),
           role === "coder" ? "coder" : "reviewer",
           prompt,
           { preferredRuntimes: ["codex"] },

@@ -51,6 +51,7 @@ import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineeri
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
+import { engineeringSessionId, type EngineeringSessionKey } from "../engineering/engineering-session";
 import {
   captureRecoveryPoint, closeGoalWithoutRecoveryPoint, EngineeringRecoveryError,
   preserveWorkspaceAfter, recordRecoveryOutcome, recoveryLabel, recoveryLedgerFor, restoreRecoveryPoint,
@@ -795,20 +796,22 @@ export class MainCommander {
 
   /**
    * Role worker over the production role router for autonomous engineering.
-   * Each goal/finding uses a stable synthetic task id so repeated identical
-   * prompts are replay-safe (job fingerprint dedupe) while distinct findings
-   * open distinct provider sessions. Reviewer turns never reuse coder turns.
+   *
+   * §10 (Update-Plan/cleaning.md): the synthetic task id is
+   * `engineeringSessionId(goalId, findingId, role)`, so a repeated attempt at the
+   * same finding reuses its provider session (retry-safe, job-fingerprint
+   * deduped) while a different finding — or the other role — gets its own. The
+   * reviewer therefore never inherits the coder's context, and a reflow of
+   * finding B never continues finding A's conversation.
    */
   private goalRoleWorker(goalId: string, role: "coder" | "reviewer", preferredRuntimes?: string[]): EngineeringRoleWorker {
-    const worker = async (prompt: string) => {
-      // Ledger-valid synthetic ids (no ':'): distinct per role so provider
-      // sessions stay isolated (§6.2 reviewer never reuses coder context).
-      const taskId = role === "coder" ? `eng-goal-${goalId}` : `eng-goal-${goalId}-review`;
+    const worker = async (prompt: string, session: EngineeringSessionKey) => {
+      const taskId = engineeringSessionId(session.goalId || goalId, session.findingId, role);
       const answer = await this.dispatchRole(taskId, role, prompt, preferredRuntimes?.length ? { preferredRuntimes } : {}, {}, "");
       if (answer.status !== "SUCCESS" || !answer.content?.trim()) throw new Error(answer.failure?.message ?? `${role} unavailable`);
       return answer.content;
     };
-    return { ask: (askedRole, prompt) => (askedRole === role ? worker(prompt) : Promise.reject(new Error("role mismatch"))) };
+    return { ask: (askedRole, prompt, session) => (askedRole === role ? worker(prompt, session) : Promise.reject(new Error("role mismatch"))) };
   }
 
   /**
