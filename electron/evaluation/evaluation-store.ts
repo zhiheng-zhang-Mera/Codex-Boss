@@ -61,14 +61,18 @@ export async function runDeterministicGolden(store: EvaluationStore, golden: Gol
     } finally {
       if (ownsFixture) removeTree(root);
     }
-  } catch {
-    return recordFor(golden, "FAIL", started);
+  } catch (error) {
+    // A harness that could not run is not a golden that failed. Both are FAIL, but
+    // the reason travels with the record so the baseline is not measured against a
+    // broken measurement.
+    return recordFor(golden, "FAIL", started, `harness error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-function recordFor(golden: GoldenTask, status: EvaluationRecord["status"], started: number): EvaluationRecord {
+function recordFor(golden: GoldenTask, status: EvaluationRecord["status"], started: number, failureReason?: string): EvaluationRecord {
   return {
     goldenId: golden.id, complexity: golden.complexity, status, modelCalls: 0, estimatedTokens: 0, workerCalls: 0, retries: 0,
-    latencyMs: Date.now() - started, humanIntervention: false, sideEffects: false, completedAt: new Date().toISOString()
+    latencyMs: Date.now() - started, humanIntervention: false, sideEffects: false, completedAt: new Date().toISOString(),
+    ...(failureReason ? { failureReason } : {})
   };
 }

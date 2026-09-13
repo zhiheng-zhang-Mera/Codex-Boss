@@ -1685,7 +1685,14 @@ if (ownsInstance) app.whenReady().then(() => {
   ipcMain.handle("boss:theme-visual-check", (_event, input: VisualCheckInput) => {
     const report = checkThemeVisuals(input, { now: new Date().toISOString() });
     // §26 evidence is durable: the numbers that decided are kept next to the theme.
-    try { writeJson(path.join(app.getPath("userData"), ".boss", "theme-visual-check.json"), report); } catch { /* evidence is advisory */ }
+    // If they cannot be written, the report still answers — but the missing evidence
+    // is recorded rather than dropped, because the report is what a validation
+    // decision is later read back from.
+    try {
+      writeJson(path.join(app.getPath("userData"), ".boss", "theme-visual-check.json"), report);
+    } catch (error) {
+      recordAdvisoryFailure("theme visual-check evidence", error);
+    }
     return report;
   });
   ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {

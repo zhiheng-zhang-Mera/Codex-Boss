@@ -26,6 +26,13 @@ export interface EvaluationRecord {
   humanIntervention: boolean;
   sideEffects: boolean;
   completedAt: string;
+  /**
+   * Why the golden did not simply pass or fail on its own terms — a harness error,
+   * a compile failure, a missing tool. Without it a broken harness and a genuine
+   * regression are the same `FAIL`, and this record is what the baseline is
+   * measured against.
+   */
+  failureReason?: string;
 }
 
 export interface BaselineTotals {
