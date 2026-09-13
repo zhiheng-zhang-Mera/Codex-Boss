@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { migrateBrowserProfile, migrateLegacyPersistentData } from "./runtime-paths";
+import { HISTORY_DIRECTORY, RUNTIME_DATA_DIRECTORY, SCRATCH_CACHE_DIRECTORY, migrateBrowserProfile, migrateLegacyPersistentData } from "./runtime-paths";
 import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
@@ -51,6 +51,7 @@ import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { validateWorkspacePath } from "./workspace/path-utils";
+import { availableWorkspace, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
@@ -147,7 +148,7 @@ let externalSessions: ExternalSessionLedger | undefined;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
-const projectDataRoot = path.join(app.getAppPath(), "runtime-data");
+const projectDataRoot = path.join(app.getAppPath(), RUNTIME_DATA_DIRECTORY);
 const dataRoot = overrideDataRoot ? path.resolve(overrideDataRoot) : projectDataRoot;
 app.setPath("userData", dataRoot);
 app.setPath("sessionData", path.join(dataRoot, "Session Data"));
@@ -197,9 +198,9 @@ if (!ownsInstance) {
 if (ownsInstance) {
   fs.mkdirSync(dataRoot, { recursive: true });
   if (!overrideDataRoot && legacyDataRoot) {
-    migrateLegacyPersistentData(legacyDataRoot, dataRoot, path.join(app.getAppPath(), "history"));
+    migrateLegacyPersistentData(legacyDataRoot, dataRoot, path.join(app.getAppPath(), HISTORY_DIRECTORY));
   }
-  const cacheRoot = path.join(overrideDataRoot ? path.resolve(overrideDataRoot) : app.getAppPath(), ".cache");
+  const cacheRoot = path.join(overrideDataRoot ? path.resolve(overrideDataRoot) : app.getAppPath(), SCRATCH_CACHE_DIRECTORY);
   const sessionRoot = path.join(cacheRoot, "browser-profile");
   const oldSessionRoot = !overrideDataRoot && legacyDataRoot ? path.join(legacyDataRoot, "Session Data") : app.getPath("sessionData");
   // Migrate only after acquiring the instance lock, before any browser starts.
@@ -648,7 +649,7 @@ function headlessPreflightStaleRuns(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  historyRepository = new HistoryRepository(path.join(overrideDataRoot ? dataRoot : app.getAppPath(), "history"));
+  historyRepository = new HistoryRepository(path.join(overrideDataRoot ? dataRoot : app.getAppPath(), HISTORY_DIRECTORY));
   store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository);
   // WORK_UNIT_3 crash recovery: a revision recorded just before a crash has no
   // task association yet. Re-link every orphan against the durable task records
@@ -1180,7 +1181,7 @@ if (ownsInstance) app.whenReady().then(() => {
     const githubInput = await materializeGithubInput(conversationId, input.prompt ?? "");
     const inputObjectIds = [...new Set([...(input.inputObjectIds ?? []), ...(githubInput ? [githubInput.id] : [])])];
     const attachments = workbookAttachments(input, conversationId, githubInput ? [githubInput.id] : []);
-    const workspace = githubInput?.localPath ?? (input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath());
+    const workspace = workspaceForRequest({ requested: input.workspacePath, repositoryLocalPath: githubInput?.localPath, fallback: app.getAppPath() });
 
     // WORK_UNIT_3 / REPAIR_BATCH_4: the WorkBook branch DELEGATES to the single
     // production entry point. The old inline chain (intake -> createTask ->
@@ -1248,7 +1249,7 @@ if (ownsInstance) app.whenReady().then(() => {
         if (store.approveModeTransition(task.id)) {
           commander.startTask(task.id);
           publish();
-          const workspace = githubInput?.localPath ?? (input.workspacePath ? fs.realpathSync(input.workspacePath) : app.getAppPath());
+          const workspace = workspaceForRequest({ requested: input.workspacePath, repositoryLocalPath: githubInput?.localPath, fallback: app.getAppPath() });
           try { if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id); }
           catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
           await automation.continueIfReady(task.id);
@@ -1273,7 +1274,7 @@ if (ownsInstance) app.whenReady().then(() => {
     // differs between Chat and Work. GitHub tasks run against the materialized repo.
     const conversation = store.snapshot().conversations.find((item) => item.id === task.conversationId);
     const repoInput = (conversation?.inputObjects ?? []).find((ref) => task.inputObjectIds?.includes(ref.id) && ref.kind === "REPOSITORY" && ref.localPath);
-    const workspace = repoInput?.localPath ?? (task.workspacePath ? fs.realpathSync(task.workspacePath) : app.getAppPath());
+    const workspace = workspaceForRequest({ requested: task.workspacePath, repositoryLocalPath: repoInput?.localPath, fallback: app.getAppPath() });
     if (approveWork) {
       if (!store.approveModeTransition(taskId)) throw new Error("该任务已处理过升级");
       commander.startTask(taskId);
@@ -1686,7 +1687,7 @@ if (ownsInstance) app.whenReady().then(() => {
       // Starting a READY/reference WorkBook or resuming a paused task must
       // enter the real execution path; changing only the visible label would
       // be a false state transition.
-      const workspace = before.workspacePath && fs.existsSync(before.workspacePath) ? fs.realpathSync(before.workspacePath) : app.getAppPath();
+      const workspace = availableWorkspace(before, app.getAppPath());
       try {
         if (!await commander.executeDeterministic(taskId, workspace) && !await commander.executePlan(taskId, workspace)) await automation.dispatchTask(taskId);
         await automation.continueIfReady(taskId);

@@ -18,6 +18,53 @@ export interface PersistentDataMigrationReport {
 
 const PERSISTENT_DATA_ENTRIES = ["state.json", "api-settings.json", "task-contexts.json", ".boss", ".codex-boss"] as const;
 
+/* -------------------------------------------------------------------------- */
+/* §5 step 4 — the runtime roots Boss may create beside the checkout           */
+/* -----------------------------------------------------------------───────── */
+
+/**
+ * `runtimeDataPath`: the app's own durable state (state.json, the task ledger,
+ * knowledge, themes, project state, session data). In development this is
+ * `<checkout>/runtime-data`; a packaged build gets its own userData directory.
+ * It is never the workspace and never the user's project.
+ */
+export const RUNTIME_DATA_DIRECTORY = "runtime-data";
+/** Scratch: redirectable caches and the in-app TEMP redirection target. */
+export const SCRATCH_CACHE_DIRECTORY = ".cache";
+/** Conversation export/history files written beside the checkout when not packaged. */
+export const HISTORY_DIRECTORY = "history";
+/** Acceptance evidence and build reports (`artifacts/acceptance`, soak, benchmarks). */
+export const ACCEPTANCE_ARTIFACTS_DIRECTORY = "artifacts";
+
+/**
+ * Every path Boss may create inside the directory it runs from, as repository
+ * relative POSIX-style paths.
+ *
+ * Update-Plan/cleaning.md §5 step 4: runtime scratch must never be scattered
+ * into the source tree. This list is the declaration the guard test checks
+ * against the real repository: each path must be ignored by git and must own no
+ * tracked file, so a new runtime root that would ship untracked files into a
+ * user's checkout fails that test instead of being discovered later.
+ *
+ * `.boss/worktrees/` and `.boss/tmp/` are the exception in shape only: Boss
+ * creates them when the workspace IS this checkout (isolated engineering
+ * worktrees), so they are listed by their exact paths rather than by `.boss/`,
+ * which is the app's own data directory under `<userData>`, not a checkout root.
+ */
+export const RUNTIME_OWNED_PATHS: readonly string[] = [
+  `${RUNTIME_DATA_DIRECTORY}/`,
+  `${SCRATCH_CACHE_DIRECTORY}/`,
+  `${HISTORY_DIRECTORY}/`,
+  `${ACCEPTANCE_ARTIFACTS_DIRECTORY}/`,
+  "evolution/",
+  "live-acceptance/",
+  ".live-acceptance/",
+  "research-output/",
+  ".boss/worktrees/",
+  ".boss/tmp/"
+];
+
+
 function fileHash(file: string): string {
   return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }

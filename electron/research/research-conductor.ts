@@ -44,6 +44,7 @@ import { summarizeCitationAudit, VERIFIED_CITATION_STATUSES } from "../../src/sh
 import { parseJsonObject } from "./semantic-json";
 import { runStructuredProcess } from "./runtime/process-runner";
 import { LatexCompiler, type LatexCompileAudit } from "./manuscript/latex-compiler";
+import { researchDeliverablesPath } from "./research-output";
 import type { SectionBrief } from "../../src/shared/research-manuscript";
 import { MANUSCRIPT_SECTIONS } from "../../src/shared/research-manuscript";
 import { antiPrematureClosure, sectionSufficiency } from "../../src/shared/research-manuscript";
@@ -751,10 +752,11 @@ export class ResearchConductor implements ResearchStageExecutor {
     // User requirement: finished research outputs live under
     // <workspace>/Research/<Topic>/ (paper + audits + artifacts). Non-fatal:
     // an export failure is reported but never un-READYs a verified run.
+    // Update-Plan/cleaning.md §5 step 3: that destination is the deterministic
+    // default output root and is computed in one place.
     let exported: string | undefined;
     try {
-      const topic = slugOf(this.researchQuestion(ir));
-      exported = svc.exportDeliverables(ir.id, path.join(ir.scope.workspace, "Research", topic));
+      exported = svc.exportDeliverables(ir.id, researchDeliverablesPath(ir.scope.workspace, this.researchQuestion(ir)));
       // Post-READY temp cleanup: drop LaTeX by-products and the empty scratch
       // logs dir (the paper/audit/evidence are already exported + durable).
       for (const name of ["paper.aux", "paper.log", "paper.out"]) {
@@ -775,11 +777,6 @@ export class ResearchConductor implements ResearchStageExecutor {
 
 function range(from: number, count: number): number[] {
   return Array.from({ length: Math.max(0, count) }, (_, index) => from + index);
-}
-
-/** ASCII title-folder from the research question (Research/<Title>/, no timestamps). */
-function slugOf(text: string): string {  const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  return (tokens.slice(0, 6).join("-") || "research").slice(0, 60);
 }
 
 /** Domain-neutral paper headline derived from the research question (§9.15). */

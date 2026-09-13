@@ -25,6 +25,7 @@ import { runWorkBookDispatch, shouldRunWorkBookIntake, type WorkBookDispatchResu
 import type { WorkbookRegistry, WorkbookRevisionInput } from "../ingestion/workbook-registry";
 import type { InputObjectRef } from "../../src/shared/input-object";
 import { logicalKeyFor } from "../../src/shared/workbook";
+import { availableWorkspace } from "../workspace/task-workspace";
 import fs from "node:fs";
 import type {
   AppMode,
@@ -442,9 +443,16 @@ export async function triggerTaskExecution(
   }
 }
 
-/** Where a resumed WorkBook task's workspace lives, from its durable record. */
+/**
+ * Where a resumed WorkBook task's workspace lives, from its durable record.
+ *
+ * The rule itself lives in `electron/workspace/task-workspace.ts#availableWorkspace`
+ * (Update-Plan/cleaning.md §5 step 2): this expression used to be written out
+ * here and again in `electron/main.ts`. Kept as a named export because callers
+ * already depend on it.
+ */
 export function resumeWorkspaceFor(task: { workspacePath?: string }, fallback: string): string {
-  return task.workspacePath && fs.existsSync(task.workspacePath) ? fs.realpathSync(task.workspacePath) : fallback;
+  return availableWorkspace(task, fallback);
 }
 
 /**
