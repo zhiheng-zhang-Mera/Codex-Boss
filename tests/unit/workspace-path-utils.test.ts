@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   canonicalRealPathSync,
+  isInsideWorkspace,
   isSameDirectory,
   normalizeWorkspacePath,
   requireWorkspacePath,
@@ -209,8 +210,54 @@ describe("resolveWorkspacePath — canonical identity", () => {
   });
 });
 
-describe("isSameDirectory — path identity is not string equality", () => {
-  it("recognises one directory through different spellings", () => {
+describe("isInsideWorkspace — containment across two spellings of one directory", () => {
+  /**
+   * The failure this reproduces is the one the cloud runner found: the root is
+   * canonicalized to one spelling while the candidate keeps another, and a purely
+   * lexical compare then walks out of a directory that IS the root. A junction
+   * produces exactly that disagreement on any Windows machine (an 8.3 short name
+   * does the same on the runner), so the rule is testable without one.
+   */
+  function junction(linkPath: string, target: string): boolean {
+    try { fs.symlinkSync(target, linkPath, "junction"); return true; } catch { return false; }
+  }
+
+  it("accepts a candidate spelled through a junction that points at the root", () => {
+    const root = makeTree();
+    const linked = path.join(root, "linked");
+    fs.mkdirSync(linked);
+    const link = path.join(makeTree(), "alias");
+    if (!junction(link, linked)) return; // environment cannot create junctions; covered on CI
+    expect(canonicalRealPathSync(link).toLowerCase()).not.toBe(link.toLowerCase()); // the two spellings really differ
+    expect(isInsideWorkspace(linked, path.join(link, "child.txt"))).toBe(true);
+    expect(isInsideWorkspace(linked, link)).toBe(true);
+    expect(isInsideWorkspace(link, path.join(linked, "child.txt"))).toBe(true);
+  });
+
+  it("still refuses a candidate that is genuinely outside", () => {
+    const root = makeTree();
+    const inside = path.join(root, "inside");
+    const outside = makeTree();
+    fs.mkdirSync(inside);
+    expect(isInsideWorkspace(root, path.join(inside, "child.txt"))).toBe(true);
+    expect(isInsideWorkspace(root, path.join(outside, "child.txt"))).toBe(false);
+    expect(isInsideWorkspace(root, root)).toBe(true);
+    // A sibling whose name shares a prefix is not inside.
+    const sibling = `${root}-sibling`;
+    fs.mkdirSync(sibling);
+    dirs.push(sibling);
+    expect(isInsideWorkspace(root, path.join(sibling, "child.txt"))).toBe(false);
+  });
+
+  it("refuses traversal out of the root and accepts a relative candidate inside it", () => {
+    const root = makeTree();
+    fs.mkdirSync(path.join(root, "src"));
+    expect(isInsideWorkspace(root, path.join("src", "file.ts"))).toBe(true);
+    expect(isInsideWorkspace(root, path.join("..", "escape.ts"))).toBe(false);
+  });
+});
+
+describe("isSameDirectory — path identity is not string equality", () => {  it("recognises one directory through different spellings", () => {
     const root = makeTree();
     fs.mkdirSync(path.join(root, "sub"));
     expect(isSameDirectory(root, root.replace(/\\/g, "/"))).toBe(true);

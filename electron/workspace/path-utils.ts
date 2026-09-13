@@ -229,26 +229,42 @@ export function isSameDirectory(left: string, right: string): boolean {
  */
 export function isInsideWorkspace(root: string, candidate: string, options: { followSymlinks?: boolean } = {}): boolean {
   if (typeof root !== "string" || typeof candidate !== "string" || !root || !candidate) return false;
-  const base = resolveForContainment(root);
+  const base = canonicalizeForContainment(root);
   if (!base) return false;
-  const target = path.resolve(base, candidate);
+  const absolute = path.isAbsolute(candidate) ? candidate : path.resolve(base, candidate);
+  // BOTH sides must be in the same spelling. Canonicalizing only the root is the
+  // bug this predicate exists to avoid: a candidate reached through a Windows 8.3
+  // short name or a junction (`C:\Users\RUNNER~1\…`) is the SAME directory as the
+  // canonical root, yet `path.relative` between the two spellings walks out of it
+  // and reports "outside".
+  const target = canonicalizeForContainment(absolute);
   if (!lexicallyInside(base, target)) return false;
   if (!options.followSymlinks) return true;
-  const existing = deepestExistingAncestor(target);
+  // Explicit link check: the deepest EXISTING ancestor must itself canonicalize
+  // inside the root, so a link that points out cannot be used to write out.
+  const existing = deepestExistingAncestor(absolute);
   if (!existing) return false;
-  const canonicalBase = resolveForContainment(base);
-  const canonicalExisting = resolveForContainment(existing);
-  return canonicalBase !== undefined && canonicalExisting !== undefined && lexicallyInside(canonicalBase, canonicalExisting);
+  return lexicallyInside(base, canonicalizeForContainment(existing));
 }
 
-/** Canonical form when the path exists, absolute form when it does not. */
-function resolveForContainment(value: string): string | undefined {
+/**
+ * Absolute, OS-spelled form of a path: the existing part is canonicalized (which
+ * expands short names and resolves junctions) and any not-yet-existing tail is
+ * appended to it, so a path that is about to be created still compares equal to
+ * the same path spelled canonically.
+ */
+function canonicalizeForContainment(value: string): string {
+  const absolute = path.resolve(value);
+  const existing = deepestExistingAncestor(absolute);
+  if (!existing) return absolute;
+  let canonicalExisting: string;
   try {
-    return canonicalRealPathSync(value);
+    canonicalExisting = canonicalRealPathSync(existing);
   } catch {
-    const normalized = normalizeWorkspacePath(value);
-    return normalized ? path.resolve(normalized) : undefined;
+    return absolute;
   }
+  const tail = path.relative(existing, absolute);
+  return tail ? path.join(canonicalExisting, tail) : canonicalExisting;
 }
 
 function lexicallyInside(base: string, target: string): boolean {
