@@ -53,9 +53,9 @@ import { createRepoEngineeringOperations } from "../engineering/repo-engineering
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
 import {
   captureRecoveryPoint, closeGoalWithoutRecoveryPoint, EngineeringRecoveryError,
-  recordRecoveryOutcome, recoveryLedgerFor, restoreRecoveryPoint
+  preserveWorkspaceAfter, recordRecoveryOutcome, recoveryLabel, recoveryLedgerFor, restoreRecoveryPoint,
+  type WorkspaceRecoveryOutcome
 } from "../engineering/engineering-recovery";
-import { rollbackToCheckpoint } from "../engineering/change-points";
 import { desktopMutationGate } from "../../src/shared/permission";
 import { workspaceStrategy } from "../engineering/verification";
 import type { EngineeringFinding, EngineeringGoalContract, EngineeringGoalSnapshot, ReviewerFinding } from "../../src/shared/engineering-loop";
@@ -780,11 +780,17 @@ export class MainCommander {
       recordRecoveryOutcome(recoveryLedger, loopStore, "ENGINEERING_DRIVER_FAILED", error, recovery);
       throw new EngineeringRecoveryError(error, recovery);
     }
-    if (summary.state === "ABORTED" || summary.state === "STAGNANT") {
-      await rollbackToCheckpoint(input.workspace, checkpoint);
-      return { ...summary, changedFiles: [] }; // nothing landed; history stays in the loop store
+    if (!preserveWorkspaceAfter(summary.state)) {
+      // §9: one rule. Only a CONVERGED run keeps its build/test-verified changes;
+      // every other terminal state (ABORTED, STAGNANT, OPTIONAL_IMPROVEMENTS) is
+      // rolled back fully, and the rollback outcome is durable evidence either way.
+      const recovery = await restoreRecoveryPoint(input.workspace, checkpoint);
+      recordRecoveryOutcome(recoveryLedger, loopStore, `ROLLBACK_${summary.state}`, undefined, recovery);
+      return { ...summary, changedFiles: [], recovery, terminalReason: `${summary.state}: ${recoveryLabel(recovery)}` };
     }
-    return summary;
+    const preserved: WorkspaceRecoveryOutcome = { attempted: false, code: "CHECKPOINT_PRESERVED", reason: "run converged; checkpoint changes preserved" };
+    recordRecoveryOutcome(recoveryLedger, loopStore, "CHECKPOINT_PRESERVED", undefined, preserved);
+    return { ...summary, recovery: preserved };
   }
 
   /**

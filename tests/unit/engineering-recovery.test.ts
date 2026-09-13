@@ -15,7 +15,7 @@ import { TaskLedger } from "../../electron/commander/task-ledger";
 import { EngineeringLoopStore } from "../../electron/engineering/engineering-loop-store";
 import {
   captureRecoveryPoint, EngineeringRecoveryError, EngineeringRecoveryLedger,
-  recoveryLedgerFor, restoreRecoveryPoint
+  preserveWorkspaceAfter, recoveryLedgerFor, restoreRecoveryPoint
 } from "../../electron/engineering/engineering-recovery";
 import type { EngineeringGoalContract } from "../../src/shared/engineering-loop";
 
@@ -279,6 +279,117 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
     expect(outcome.ok).toBe(false);
     expect(outcome.attempted && !outcome.ok && outcome.reason).toContain("advanced past checkpoint");
   }, 120000);
+});
+
+/* -------------------------------------------------------------------------- */
+/* §9 — non-converged runs roll back                                           */
+/* -------------------------------------------------------------------------- */
+
+describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => {
+  it("states the rule as a single predicate over every terminal state", () => {
+    const states = ["ENGINEERING_CONVERGED", "OPTIONAL_IMPROVEMENTS", "STAGNANT", "ABORTED"] as const;
+    expect(states.filter(preserveWorkspaceAfter)).toEqual(["ENGINEERING_CONVERGED"]);
+  });
+
+  it("ABORTED (implementer error after a real mutation) rolls the tree back", async () => {
+    const dir = gitWorkspace();
+    const before = alpha(dir);
+    const { commander, ledger } = commanderFor(dir);
+    const summary = await commander.runEngineeringGoal({
+      goal: goal(dir), workspace: dir, maxIterations: 2, disableCoder: true, disableReviewer: true,
+      implement: async () => {
+        fs.writeFileSync(path.join(dir, "alpha.cjs"), "module.exports = 0; // mutated\n");
+        return { changedFiles: ["alpha.cjs"], error: "implementer crashed mid-change" };
+      },
+      review: async () => ({ findings: [], raw: "clean" })
+    });
+    expect(summary.state).toBe("ABORTED");
+    expect(summary.changedFiles).toEqual([]);
+    expect(summary.recovery?.attempted).toBe(true);
+    expect(summary.recovery?.ok).toBe(true);
+    expect(summary.terminalReason).toContain("ABORTED");
+    expect(alpha(dir)).toBe(before);
+    expect(status(dir)).toBe("");
+    expect(recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list()[0]!.code).toBe("ROLLBACK_ABORTED");
+  }, 120000);
+
+  it("CONVERGED preserves its verified changes and records the preserved checkpoint", async () => {
+    // A workspace the real audited commands can satisfy, whose FIRST typecheck
+    // fails with a diagnostic naming a real file and whose later ones pass. The
+    // loop therefore triages a genuine HIGH finding, the injected editor's change
+    // is verified by the real build/test operations, and the next clean audit
+    // converges — exactly the production shape, with no operation faked.
+    const dir = gitWorkspace();
+    const tsc = path.join(dir, "node_modules", "typescript", "bin", "tsc");
+    fs.mkdirSync(path.dirname(tsc), { recursive: true });
+    fs.writeFileSync(tsc, [
+      "const fs = require('fs');",
+      "const path = require('path');",
+      "const marker = path.join(process.cwd(), '.tsc-calls');",
+      "const calls = fs.existsSync(marker) ? Number(fs.readFileSync(marker, 'utf8')) : 0;",
+      "fs.writeFileSync(marker, String(calls + 1));",
+      "if (calls === 0) { console.error('alpha.cjs(1,1): error TS9999: fixture diagnostic naming alpha.cjs'); process.exit(1); }",
+      "process.exit(0);",
+      ""
+    ].join("\n"));
+    const { commander, ledger } = commanderFor(dir);
+
+    const summary = await commander.runEngineeringGoal({
+      goal: goal(dir), workspace: dir, maxIterations: 3, disableCoder: true, disableReviewer: true,
+      implement: async () => { fs.writeFileSync(path.join(dir, "alpha.cjs"), "module.exports = 43;\n"); return { changedFiles: ["alpha.cjs"] }; }
+    });
+
+    expect(summary.state).toBe("ENGINEERING_CONVERGED");
+    expect(summary.changedFiles).toContain("alpha.cjs");
+    // The change is kept: CONVERGED is the one state that preserves the tree.
+    expect(alpha(dir)).toContain("43");
+    expect(summary.recovery).toEqual({ attempted: false, code: "CHECKPOINT_PRESERVED", reason: expect.any(String) });
+    expect(summary.terminalReason).toBeUndefined();
+
+    const loopFile = path.join(ledger.root, "..", "engineering-loop.json");
+    const events = recoveryLedgerFor(loopFile).list();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.code).toBe("CHECKPOINT_PRESERVED");
+    expect(new EngineeringLoopStore(loopFile).iterations().at(-1)!.status).toBe("CONVERGED");
+  }, 180000);
+
+  it("STAGNANT rolls back every change the run made", async () => {
+    // A workspace whose build AND tests keep failing: the audit re-finds the same
+    // failures, the editor changes nothing of value, and the stagnation limit
+    // trips. The run ends STAGNANT — which §9 treats exactly like ABORTED.
+    const dir = gitWorkspace();
+    fs.writeFileSync(path.join(dir, "foo.test.cjs"), [
+      "'use strict';",
+      "const test = require('node:test');",
+      "const assert = require('node:assert');",
+      "test('fixture fails', () => { assert.strictEqual(1, 2); });",
+      ""
+    ].join("\n"));
+    execFileSync("git", ["add", "-A"], { cwd: dir, windowsHide: true });
+    execFileSync("git", ["-c", "user.name=Acceptance", "-c", "user.email=acceptance@example.invalid", "commit", "-m", "add failing test"], { cwd: dir, windowsHide: true });
+    const before = alpha(dir);
+    const { commander, ledger } = commanderFor(dir);
+
+    const summary = await commander.runEngineeringGoal({
+      goal: goal(dir), workspace: dir, maxIterations: 6, disableCoder: true, disableReviewer: true,
+      implement: async () => {
+        // A real (but useless) edit each round: the tree really changes, so the
+        // rollback below has something to undo.
+        fs.writeFileSync(path.join(dir, "scratch.cjs"), `module.exports = ${Date.now()};\n`);
+        return { changedFiles: ["scratch.cjs"] };
+      }
+    });
+
+    expect(summary.state).toBe("STAGNANT");
+    expect(summary.changedFiles).toEqual([]);
+    expect(summary.recovery?.attempted).toBe(true);
+    expect(summary.recovery?.ok).toBe(true);
+    expect(summary.terminalReason).toContain("STAGNANT");
+    expect(alpha(dir)).toBe(before);
+    expect(fs.existsSync(path.join(dir, "scratch.cjs"))).toBe(false);
+    expect(status(dir)).toBe("");
+    expect(recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list()[0]!.code).toBe("ROLLBACK_STAGNANT");
+  }, 180000);
 });
 
 describe("recovery ledger", () => {

@@ -2,13 +2,13 @@ import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
 import { checkpointRecord, rollbackToCheckpoint, type CheckpointSnapshot } from "./change-points";
 import type { EngineeringLoopStore } from "./engineering-loop-store";
-import type { EngineeringLoopSummary } from "./engineering-loop-driver";
+import type { EngineeringLoopState, EngineeringLoopSummary } from "./engineering-loop-driver";
 import type { RecoveryCode, WorkspaceRecoveryOutcome } from "../../src/shared/engineering-loop";
 
 export type { RecoveryCode, WorkspaceRecoveryOutcome };
 
 /**
- * Autonomous-engineering recovery (Update-Plan/cleaning.md §7/§8).
+ * Autonomous-engineering recovery (Update-Plan/cleaning.md §7/§8/§9).
  *
  * §7 — No recovery point ⇒ no autonomous mutation. A workspace Boss cannot
  * checkpoint is refused *before* the driver starts, and the refusal is recorded
@@ -20,6 +20,10 @@ export type { RecoveryCode, WorkspaceRecoveryOutcome };
  * recovered like any other terminal run. The original error is preserved and the
  * rollback outcome travels with it, so a rollback failure is never mistaken for
  * the driver's error and vice versa.
+ *
+ * §9 — One convergence rule decides whether a terminal run keeps its changes:
+ * `preserveWorkspace = CONVERGED`. Everything else is rolled back. There is no
+ * growing `ABORTED || STAGNANT || …` list to keep in sync.
  */
 
 export type RecoveryPointAttempt =
@@ -51,6 +55,18 @@ export async function restoreRecoveryPoint(workspace: string, checkpoint: Checkp
   } catch (error) {
     return { attempted: true, ok: false, code: "ROLLBACK_FAILED", reason: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/**
+ * §9: the single rule for keeping a terminal run's changes.
+ *
+ * `CONVERGED` is the only state whose build/test-verified changes are kept.
+ * ABORTED, STAGNANT and the cosmetic-only OPTIONAL_IMPROVEMENTS are all "the run
+ * did not converge" and are rolled back — a rule that cannot drift out of sync
+ * with the state list the way `ABORTED || STAGNANT || …` does.
+ */
+export function preserveWorkspaceAfter(state: EngineeringLoopState): boolean {
+  return state === "ENGINEERING_CONVERGED";
 }
 
 /**
