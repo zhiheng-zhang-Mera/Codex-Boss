@@ -435,6 +435,10 @@ export interface BossBridge {
    * uses. The renderer displays the result; it never decides it itself.
    */
   validateWorkspacePath(input: string): Promise<import("./workspace-path").WorkspacePathValidation>;
+  /** The remembered workspace, re-validated now (UNSET / AVAILABLE / STALE). */
+  workspaceSelection(): Promise<import("./workspace-selection").WorkspaceSelectionState>;
+  /** Persists a workspace after validating it; an invalid path is refused, never stored. */
+  rememberWorkspacePath(input: string): Promise<import("./workspace-selection").WorkspaceSelectionState>;
   /** Opens a native multi-file dialog and imports each picked file into the conversation's attachment store. */
   pickAttachments(conversationId: string): Promise<AppSnapshot>;
   /** Imports raw bytes (drag/drop or clipboard paste) as one attachment. */

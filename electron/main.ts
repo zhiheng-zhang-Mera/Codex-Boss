@@ -51,8 +51,9 @@ import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { validateWorkspacePath } from "./workspace/path-utils";
-import { availableWorkspace, workspaceForRequest } from "./workspace/task-workspace";
+import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
+import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
@@ -145,6 +146,8 @@ let capabilityRegistry: ProviderCapabilityRegistry | undefined;
 let githubResolver: GithubResolver | undefined;
 let githubMachine: ReturnType<typeof createGitHubMachineRuntime> | undefined;
 let externalSessions: ExternalSessionLedger | undefined;
+/** §6: the remembered workspace (canonical validated path, re-validated on read). */
+let workspaceSelection: WorkspaceSelectionStore;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
@@ -720,6 +723,7 @@ if (ownsInstance) app.whenReady().then(() => {
   });
   attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
   workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
+  workspaceSelection = new WorkspaceSelectionStore(path.join(app.getPath("userData"), ".boss", "workspace-selection.json"));
   const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
   const projectStates = new ProjectStateStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "project-state.json")));
   const experiences = new ExperienceStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "experience.json")));
@@ -909,9 +913,18 @@ if (ownsInstance) app.whenReady().then(() => {
   }));
   const resumeLocalTasks = async () => {
     for (const task of store.snapshot().tasks.filter((item) => item.workspacePath && ["running", "waiting", "queued"].includes(item.status) && commander.canResumeTask(item.id))) {
+      // §6 startup behaviour: a remembered workspace that no longer exists must
+      // not be resumed into — Boss parks the task for the Owner instead of
+      // mutating a directory that is not there (or silently using another one).
+      if (!persistedWorkspaceAvailable(task)) {
+        store.setRecoveryState(task.id, undefined, `工作区不可用，已暂停自动恢复：${task.workspacePath}`);
+        publish();
+        continue;
+      }
       try {
-        if (await commander.executeDeterministic(task.id, task.workspacePath!)) await automation.continueIfReady(task.id);
-        else await commander.executePlan(task.id, task.workspacePath!);
+        const workspace = availableWorkspace(task, app.getAppPath());
+        if (await commander.executeDeterministic(task.id, workspace)) await automation.continueIfReady(task.id);
+        else await commander.executePlan(task.id, workspace);
         publish();
       } catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); }
     }
@@ -1342,6 +1355,12 @@ if (ownsInstance) app.whenReady().then(() => {
   // §3: the same validator the picker runs, exposed to the editable text field so
   // a typed/pasted path shows the identical reason a picked one would.
   ipcMain.handle("boss:validate-workspace-path", (_event, input: string) => validateWorkspacePath(input));
+  // Update-Plan/cleaning.md §6: the remembered workspace. Only a canonical
+  // validated path is written, and the stored path is re-validated on every read
+  // — a directory deleted between two launches reads as STALE (the value is
+  // still returned for display) and can never become the active workspace again.
+  ipcMain.handle("boss:workspace-selection", () => workspaceSelection.current());
+  ipcMain.handle("boss:remember-workspace-path", (_event, input: string) => workspaceSelection.remember(input));
   ipcMain.handle("boss:pick-attachments", async (_event, conversationId: string) => {
     const storeInstance = attachmentStore!;
     const conversationRef = store.snapshot().conversations.find((item) => item.id === conversationId);
