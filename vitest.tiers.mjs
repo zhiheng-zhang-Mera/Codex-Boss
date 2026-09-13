@@ -17,6 +17,12 @@
  *
  * A file left in the default tier must earn it: it has to be fast enough to be
  * part of the signal a developer waits for.
+ *
+ * The two files below also cannot share one vitest invocation: run together, the
+ * sandbox suite fails as a whole — its own capability probe included — because the
+ * real OS state the previous suite leaves behind is exactly what it needs to
+ * create. `pnpm run test:slow` therefore invokes each in its own process, and a
+ * file added here needs its own invocation for the same reason.
  */
 export const SLOW_ACCEPTANCE_TESTS = [
   // Drives the real implementation loop with a real tsc and a real node --test in a
