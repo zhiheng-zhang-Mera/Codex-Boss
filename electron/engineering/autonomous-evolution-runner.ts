@@ -25,7 +25,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 
 export { hashOnceStable, sha256FileSync, writeFileAtomicSync, fileMatchesHash } from "./atomic-file";
 
@@ -815,12 +815,16 @@ export interface GitResult {
 }
 
 export function runGit(root: string, args: readonly string[]): GitResult {
-  const result = spawnSync("git", args.slice(), { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  // 64MB and the large band: this serves the runner's transcript-producing reads
+  // (status, diff, log) over a real repository, so neither the default 1MB buffer nor
+  // an unbounded wait would be honest. The result shape is this module's own contract
+  // and is preserved — a launch failure is still `status: -1` with `error` set.
+  const result = runGitSync(root, args.slice(), { timeoutMs: GIT_TIMEOUT_MS.large, maxBufferBytes: 64 * 1024 * 1024 });
   return {
-    status: typeof result.status === "number" ? result.status : -1,
-    stdout: result.stdout ?? "",
-    stderr: result.stderr ?? "",
-    error: result.error ? String(result.error.message) : undefined
+    status: result.code ?? -1,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    error: result.spawnError
   };
 }
 

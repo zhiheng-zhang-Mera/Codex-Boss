@@ -13,7 +13,7 @@
  * this file inspects message text; the codes it returns are declared in the pure
  * module's `EVOLUTION_IDENTITY_CODES`.
  */
-import { spawnSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import fs from "node:fs";
 import path from "node:path";
 import type { Dirent, Stats } from "node:fs";
@@ -334,9 +334,10 @@ export function verifyDependencyIdentity(identity: DependencyIdentity): TrustPro
  * ------------------------------------------------------------------ */
 
 function gitRevParse(root: string, ref: string): string {
-  const result = spawnSync("git", ["rev-parse", ref], { cwd: root, encoding: "utf8" });
-  if (result.error || result.status !== 0) return "";
-  return String(result.stdout ?? "").trim();
+  // Identity is read through the gateway so that an unreadable repository is
+  // reported as one, inside a stated bound rather than an unbounded wait.
+  const result = runGitSync(root, ["rev-parse", ref], { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  return result.ok ? result.stdout.trim() : "";
 }
 
 /** §5/§6: the commit and the tree the working copy is at. */

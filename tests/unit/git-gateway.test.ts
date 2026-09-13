@@ -51,15 +51,12 @@ const DIRECT_GIT_SPAWN = /(?:execFile|execFileSync|spawnSync|spawn)\(\s*(?:"git"
 /**
  * Every file that spawns git directly today, with the reason it has not moved.
  *
- * Only the Root Trust Surface three are left: moving any of them changes a file the
- * trust epoch anchors, so each move is its own epoch-carrying change rather than part
- * of a refactor. Everything else in the application now asks the gateway.
+ * Empty, and the companion test below keeps it that way in both directions: a new
+ * direct spawn anywhere under `electron/**` fails, and an entry here that no longer
+ * spawns git also fails. Reaching empty took seventeen ordinary migrations plus the
+ * three Root Trust Surface modules, which moved in their own epoch-carrying change.
  */
-const DECLARED_GIT_DEBT: Record<string, string> = {
-  "electron/engineering/acceptance-session.ts": "Root Trust Surface: its move carries a trust-epoch advance",
-  "electron/engineering/autonomous-evolution-identity.ts": "Root Trust Surface: its move carries a trust-epoch advance",
-  "electron/engineering/autonomous-evolution-runner.ts": "Root Trust Surface: its move carries a trust-epoch advance"
-};
+const DECLARED_GIT_DEBT: Record<string, string> = {};
 
 /** The modules Phase M has already moved onto the gateway. */
 const MIGRATED_TO_GATEWAY = [
@@ -79,7 +76,10 @@ const MIGRATED_TO_GATEWAY = [
   "electron/self-evolution/self-evolution-coordinator.ts",
   "electron/stable-candidate/workspace-manager.ts",
   "electron/input/github-resolver.ts",
-  "electron/promotion-gate/github-promotion-adapter.ts"
+  "electron/promotion-gate/github-promotion-adapter.ts",
+  "electron/engineering/acceptance-session.ts",
+  "electron/engineering/autonomous-evolution-identity.ts",
+  "electron/engineering/autonomous-evolution-runner.ts"
 ];
 
 function repoFile(relative: string): string {

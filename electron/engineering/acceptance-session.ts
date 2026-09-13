@@ -5,7 +5,7 @@
  * namespace the root auditor reads.
  */
 import { createHash, randomUUID } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { runGitSync, GIT_MAX_BUFFER_BYTES, GIT_TIMEOUT_MS } from "../git/git-gateway";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -91,11 +91,14 @@ export function writeAttestation(artifacts: string, gate: string, attestation: G
  * ------------------------------------------------------------------ */
 
 function git(root: string, args: string[]): { ok: boolean; output: string } {
-  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
-  if (result.error || result.status !== 0) {
-    return { ok: false, output: `${result.error?.message ?? ""}${result.stderr ?? ""}`.trim() };
+  // These are warm `rev-parse` reads, so the quick band is the honest bound; before
+  // this they ran with no timeout at all, and a wedged repository would have hung the
+  // session bookkeeping rather than reporting an identity it could not read.
+  const result = runGitSync(root, args, { timeoutMs: GIT_TIMEOUT_MS.quick, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  if (!result.ok) {
+    return { ok: false, output: `${result.spawnError ?? ""}${result.stderr}`.trim() };
   }
-  return { ok: true, output: String(result.stdout ?? "").trim() };
+  return { ok: true, output: result.stdout.trim() };
 }
 
 export function gitHead(root: string): string {
