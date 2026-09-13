@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { runGitOrThrow, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import { readJson, writeJson } from "../commander/durable-json";
 
 /**
@@ -100,12 +100,9 @@ export interface GitRunner {
 
 const defaultGit: GitRunner = {
   run(cwd, args, timeout = 120000) {
-    return new Promise((resolve, reject) => {
-      execFile("git", args, { cwd, windowsHide: true, timeout, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) reject(new Error(String(stderr) || error.message));
-        else resolve(String(stdout).trim());
-      });
-    });
+    // The caller's own bound is passed through: how long a rollback's git work may
+    // take is the recovery plan's decision, not a band chosen at this call site.
+    return runGitOrThrow(cwd, args, { timeoutMs: timeout, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
   }
 };
 

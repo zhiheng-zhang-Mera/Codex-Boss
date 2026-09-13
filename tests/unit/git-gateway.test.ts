@@ -54,12 +54,7 @@ const DECLARED_GIT_DEBT: Record<string, string> = {
   "electron/engineering/autonomous-evolution-identity.ts": "Root Trust Surface: its move carries a trust-epoch advance",
   "electron/engineering/autonomous-evolution-runner.ts": "Root Trust Surface: its move carries a trust-epoch advance",
   "electron/input/github-resolver.ts": "takes a configurable git binary path, which the gateway does not model yet",
-  "electron/promotion-gate/github-promotion-adapter.ts": "needs a per-push credential environment, which the gateway does not pass through yet",
-  "electron/repro-snapshot.ts": "callback shape still to be mapped onto the gateway result",
-  "electron/root-recovery/rollback-controller.ts": "callback shape still to be mapped onto the gateway result",
-  "electron/self-evolution/self-evolution-coordinator.ts": "callback shape still to be mapped onto the gateway result",
-  "electron/self-evolution/self-evolution-host.ts": "callback shape still to be mapped onto the gateway result",
-  "electron/stable-candidate/workspace-manager.ts": "callback shape still to be mapped onto the gateway result"
+  "electron/promotion-gate/github-promotion-adapter.ts": "needs a per-push credential environment, which the gateway does not pass through yet"
 };
 
 /** The modules Phase M has already moved onto the gateway. */
@@ -73,7 +68,12 @@ const MIGRATED_TO_GATEWAY = [
   "electron/host/host-probes.ts",
   "electron/host/doctor.ts",
   "electron/host/sentinel-capture.ts",
-  "electron/self-evolution/self-target-resolver.ts"
+  "electron/self-evolution/self-target-resolver.ts",
+  "electron/repro-snapshot.ts",
+  "electron/root-recovery/rollback-controller.ts",
+  "electron/self-evolution/self-evolution-host.ts",
+  "electron/self-evolution/self-evolution-coordinator.ts",
+  "electron/stable-candidate/workspace-manager.ts"
 ];
 
 function repoFile(relative: string): string {

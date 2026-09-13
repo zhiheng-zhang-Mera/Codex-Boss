@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { runGitOrThrow, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import fs from "node:fs";
 import path from "node:path";
 import { EnvironmentBossGitHubCredentialProvider, type BossGitHubCredentialProvider } from "../credential-boundary/github-credential-provider";
@@ -161,13 +161,10 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
     transport: options.transport ?? fetchGitHubTransport
   });
 
+  // 180s, above the large band: this serves promotion-shaped git operations against
+  // a whole repository, so the bound is the host's own decision rather than a default.
   const runGit = (cwd: string, args: string[]): Promise<string> =>
-    new Promise((resolve, reject) => {
-      execFile("git", args, { cwd, windowsHide: true, timeout: 180_000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) reject(new Error(String(stderr) || String(error.message)));
-        else resolve(String(stdout).trim());
-      });
-    });
+    runGitOrThrow(cwd, args, { timeoutMs: 180_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
 
   const handlers = createGitHostHandlers({
     runGit,

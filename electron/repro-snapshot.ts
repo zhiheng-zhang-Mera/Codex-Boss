@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { runGit, GIT_MAX_BUFFER_BYTES } from "./git/git-gateway";
 
 /**
  * Reproducibility snapshot (plan §11). Captures the minimal facts needed to
@@ -52,8 +52,9 @@ export function fileSha256(file: string): string | null {
   }
 }
 
-function git(root: string, args: string[]): Promise<string | null> {
-  return new Promise((resolve) => execFile("git", args, { cwd: root, windowsHide: true, timeout: 10000 }, (error, stdout) => resolve(error ? null : stdout.trim())));
+async function git(root: string, args: string[]): Promise<string | null> {
+  const result = await runGit(root, args, { timeoutMs: 10_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.small });
+  return result.ok ? result.stdout.trim() : null;
 }
 
 export async function collectGitState(root: string): Promise<ReproGitState> {

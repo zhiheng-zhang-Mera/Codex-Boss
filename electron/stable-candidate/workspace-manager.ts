@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { runGit, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import {
   evolutionLayout,
   materializeEvolutionLayout,
@@ -69,13 +69,12 @@ export class CandidateWorkspaceError extends Error {
   }
 }
 
-function git(cwd: string, args: string[], timeout = 60000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile("git", args, { cwd, windowsHide: true, timeout, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) reject(new CandidateWorkspaceError(String(stderr) || error.message));
-      else resolve(String(stdout).trim());
-    });
-  });
+async function git(cwd: string, args: string[], timeout = 60000): Promise<string> {
+  const result = await runGit(cwd, args, { timeoutMs: timeout, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
+  // Callers catch `CandidateWorkspaceError` by type, so the refusal is re-wrapped
+  // rather than thrown as a bare Error.
+  if (!result.ok) throw new CandidateWorkspaceError(result.stderr.trim() || `git ${args.join(" ")} failed (code ${result.code ?? "unknown"})`);
+  return result.stdout.trim();
 }
 
 /** Current HEAD of a repository. */

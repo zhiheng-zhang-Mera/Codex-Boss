@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { runGit, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import { sanitizeEnvironment } from "../credential-boundary/sanitized-environment";
 import { candidateEnvironment } from "../credential-boundary/credential-boundary";
 import { EnvironmentBossGitHubCredentialProvider, type BossGitHubCredentialProvider } from "../credential-boundary/github-credential-provider";
@@ -894,13 +895,10 @@ export function createDefaultHostHandlers(base: {
 }
 
 async function runGitNameStatus(workspace: string, baseSha: string, headSha: string): Promise<string> {
-  const { execFile } = await import("node:child_process");
-  return new Promise((resolve, reject) => {
-    execFile("git", ["diff", "--name-status", "--find-renames", `${baseSha}...${headSha}`], { cwd: workspace, windowsHide: true, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) reject(new Error(String(stderr) || String(error.message)));
-      else resolve(String(stdout));
-    });
-  });
+  const result = await runGit(workspace, ["diff", "--name-status", "--find-renames", `${baseSha}...${headSha}`], { timeoutMs: 60_000, maxBufferBytes: GIT_MAX_BUFFER_BYTES.large });
+  if (!result.ok) throw new Error(result.stderr.trim() || `git diff --name-status failed (code ${result.code ?? "unknown"})`);
+  // Untrimmed on purpose: the caller reads this transcript line by line.
+  return result.stdout;
 }
 
 export { GitHubPromotionAdapter, removeCandidateWorkspace, evolutionLayout };
