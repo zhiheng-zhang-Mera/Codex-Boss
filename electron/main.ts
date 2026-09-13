@@ -679,14 +679,24 @@ async function runHeadlessResearch(workspace: string, providerIds: string[]): Pr
  */
 function headlessPreflightStaleRuns(): void {
   const stuck = new Set(["waiting", "queued", "prepared", "sending"]);
+  const failed: string[] = [];
   for (const run of store.snapshot().runs) {
     if (stuck.has(run.phase)) {
-      try { store.updateRun(run.id, "failed", null, "headless live preflight: stale run failed to release the provider page"); } catch { /* best effort */ }
+      // A stale run that cannot be released keeps its provider page looking busy,
+      // so the failure is collected and surfaced instead of being swallowed by a
+      // preflight that then reports success.
+      try { store.updateRun(run.id, "failed", null, "headless live preflight: stale run failed to release the provider page"); }
+      catch (error) { failed.push(`run ${run.id}: ${error instanceof Error ? error.message : String(error)}`); }
     }
   }
   for (const task of store.snapshot().tasks.filter((item) => item.status === "running" || item.status === "waiting" || item.status === "queued")) {
-    try { store.setTaskStatus(task.id, "cancelled"); } catch { /* best effort */ }
+    try { store.setTaskStatus(task.id, "cancelled"); }
+    catch (error) { failed.push(`task ${task.id}: ${error instanceof Error ? error.message : String(error)}`); }
   }
+  // A task left "running" after the preflight is false durable state, so the
+  // preflight refuses to look clean when it could not establish the state it
+  // exists to establish.
+  if (failed.length) throw new Error(`headless preflight could not release ${failed.length} stale record(s): ${failed.slice(0, 5).join("; ")}`);
 }
 
 if (ownsInstance) app.whenReady().then(() => {

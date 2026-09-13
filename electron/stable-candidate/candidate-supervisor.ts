@@ -43,6 +43,13 @@ export interface CandidateJournal {
   error?: string;
   /** Where corrupt candidate runtime-data was moved, when that happened. */
   quarantinedRuntimeData?: string;
+  /**
+   * Bootstrap-level problems the run has to report without failing on them — today
+   * only a journal write that could not reach disk. The journal is the promotion
+   * gate's crash-recovery record, so a write that fails must be visible on the
+   * record the caller receives, not only in a log.
+   */
+  journalWarnings?: string[];
 }
 
 export interface CandidateOutcome<T> {
@@ -122,10 +129,25 @@ export class CandidateSupervisor {
     this.journal = next;
     try {
       writeJson(this.journalFile, next);
-    } catch {
-      // A Candidate journal that cannot be written is a Candidate problem, never
-      // a Stable problem: the outcome is still returned to the caller.
+    } catch (error) {
+      // A Candidate journal that cannot be written is a Candidate problem, never a
+      // Stable problem — the outcome is still returned to the caller, and Stable is
+      // untouched either way. But it IS a problem: `candidate.json` is the crash
+      // recovery journal for the promotion gate, so the failure is retained on the
+      // journal the caller receives rather than dropped.
+      const message = error instanceof Error ? error.message : String(error);
+      this.journalWriteFailure = `candidate journal ${this.journalFile} could not be written: ${message}`;
+      next.journalWarnings = [...new Set([...(next.journalWarnings ?? []), this.journalWriteFailure])];
+      console.error(`[candidate] ${this.journalWriteFailure}`);
     }
+  }
+
+  /** Set when the last journal write failed; `undefined` when the journal is current. */
+  private journalWriteFailure?: string;
+
+  /** The journal write failure this supervisor observed, if any. */
+  journalFailure(): string | undefined {
+    return this.journalWriteFailure;
   }
 
   /**
