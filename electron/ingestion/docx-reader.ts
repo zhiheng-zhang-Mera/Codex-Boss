@@ -107,7 +107,7 @@ async function mammothHtmlConverter(bytes: Uint8Array, limits: DocxLimits): Prom
   }
 }
 
-const HEADING_PATTERN = /^(heading|鏍囬)\s*([1-9涓€浜屼笁鍥涗簲鍏竷鍏節])$/i;
+const HEADING_PATTERN = /^(heading|标题)\s*([1-9一二三四五六七八九])$/i;
 
 function headingLevelFor(style: string | undefined): number | undefined {
   if (!style) return undefined;
@@ -115,7 +115,7 @@ function headingLevelFor(style: string | undefined): number | undefined {
   if (!match) return undefined;
   const numeric = Number.parseInt(match[2], 10);
   if (Number.isFinite(numeric)) return numeric;
-  return "涓€浜屼笁鍥涗簲鍏竷鍏節".indexOf(match[2]) + 1;
+  return "一二三四五六七八九".indexOf(match[2]) + 1;
 }
 
 /**
@@ -136,7 +136,7 @@ export function paragraphsFromText(text: string, limits: DocxLimits): { paragrap
       break;
     }
     characters += line.length;
-    const bullet = /^\s*(?:[-*+鈥|\[[ xX]\]|\d+[.)])\s+/.exec(line);
+    const bullet = /^\s*(?:[-*+•]|\[[ xX]\]|\d+[.)])\s+/.exec(line);
     const content = bullet ? line.slice(bullet[0].length) : line;
     const headingLevel = headingLevelFor(guessStyle(line));
     const paragraph: DocxParagraph = { text: content.trim() };

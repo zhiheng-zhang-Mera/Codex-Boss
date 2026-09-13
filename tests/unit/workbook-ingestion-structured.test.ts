@@ -2,7 +2,7 @@ import { inflateRawSync } from "node:zlib";
 import { describe, expect, it, afterEach } from "vitest";
 import { ingestDocument, ingestDocuments, type DocumentSource } from "../../electron/ingestion/ingest";
 import { extractXlsx, readArchiveEntries } from "../../electron/ingestion/xlsx-reader";
-import { extractDocx, extractDocxHtml, paragraphsFromText, setDocxConverter, setDocxHtmlConverter } from "../../electron/ingestion/docx-reader";
+import { DEFAULT_DOCX_LIMITS, extractDocx, extractDocxHtml, paragraphsFromText, setDocxConverter, setDocxHtmlConverter } from "../../electron/ingestion/docx-reader";
 import { extractPdf, inspectPdfHeader } from "../../electron/ingestion/pdf-reader";
 import { buildDocx, buildPdf, buildXlsx, buildZip } from "../fixtures/workbook-fixtures";
 
@@ -276,5 +276,45 @@ describe("maintainable binary handling — pdf via pdfjs-dist", () => {
     ]);
     expect(result.documents.map((document) => document.status)).toEqual(["OK", "FAILED", "OK"]);
     expect(result.documents[1].diagnostics[0].code).toBe("PDF_ENCRYPTED");
+  });
+});
+
+describe("docx plain-text splitting — the list-marker vocabulary", () => {
+  // Regression. The marker regex had lost its bullet glyph and the closing bracket
+  // of its character class to a UTF-8/GBK encoding round trip, which silently
+  // reduced the whole alternation to "1." and "1)". Measured before the repair:
+  // "- item", "* item", "+ item", "• item", "[ ] item", "[x] item" and "[X] item"
+  // all failed to match, so Word's dash bullets and checkboxes were ingested as
+  // ordinary prose. These cases fail against the corrupt literal and pass after it.
+  it("recognises every list marker Word emits, and strips it from the text", () => {
+    const text = ["- dash", "* star", "+ plus", "\u2022 bullet", "[ ] todo", "[x] done", "[X] also done", "1. numbered", "2) paren"].join("\n");
+    const { paragraphs } = paragraphsFromText(text, DEFAULT_DOCX_LIMITS);
+    expect(paragraphs).toHaveLength(9);
+    expect(paragraphs.map((paragraph) => paragraph.listItem)).toEqual(new Array(9).fill(true));
+    expect(paragraphs.map((paragraph) => paragraph.text)).toEqual([
+      "dash",
+      "star",
+      "plus",
+      "bullet",
+      "todo",
+      "done",
+      "also done",
+      "numbered",
+      "paren"
+    ]);
+  });
+
+  it("does not treat a middle dot or ordinary prose as a list", () => {
+    const { paragraphs } = paragraphsFromText("\u00b7 not a bullet\njust a sentence", DEFAULT_DOCX_LIMITS);
+    expect(paragraphs[0].listItem).toBeUndefined();
+    expect(paragraphs[0].text).toBe("\u00b7 not a bullet");
+    expect(paragraphs[1].listItem).toBeUndefined();
+    expect(paragraphs[1].text).toBe("just a sentence");
+  });
+
+  it("still reads an ATX heading as a heading level rather than a list item", () => {
+    const { paragraphs } = paragraphsFromText("## Deliverables", DEFAULT_DOCX_LIMITS);
+    expect(paragraphs[0].headingLevel).toBe(2);
+    expect(paragraphs[0].listItem).toBeUndefined();
   });
 });
