@@ -428,6 +428,13 @@ export interface BossBridge {
   researchResume(id: string): Promise<boolean>;
   researchWait(input: { id: string; kind: import("./intervention").InterventionKind; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }): Promise<unknown>;
   researchProtocolFreeze(id: string, protocol: import("./research-protocol").ResearchProtocol): Promise<unknown>;
+  /** Opens a native folder chooser and returns the canonical workspace path, or null when cancelled. */
+  selectWorkspaceDirectory(): Promise<string | null>;
+  /**
+   * Validates a typed/pasted workspace path through the same model the picker
+   * uses. The renderer displays the result; it never decides it itself.
+   */
+  validateWorkspacePath(input: string): Promise<import("./workspace-path").WorkspacePathValidation>;
   /** Opens a native multi-file dialog and imports each picked file into the conversation's attachment store. */
   pickAttachments(conversationId: string): Promise<AppSnapshot>;
   /** Imports raw bytes (drag/drop or clipboard paste) as one attachment. */

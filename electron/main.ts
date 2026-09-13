@@ -50,6 +50,8 @@ import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
+import { validateWorkspacePath } from "./workspace/path-utils";
+import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
@@ -1328,6 +1330,17 @@ if (ownsInstance) app.whenReady().then(() => {
     return publish();
   });
   ipcMain.handle("boss:duplicate-conversation", (_event, conversationId: string) => { store.duplicateConversation(conversationId); return publish(); });
+  // Update-Plan/cleaning.md §4: the native workspace folder picker. The dialog is
+  // Electron's own (`openDirectory`); the decision about what the selection means
+  // lives in electron/workspace/workspace-picker.ts, shared with the typed input.
+  // Cancelling returns null — it never clears the workspace the caller already had.
+  ipcMain.handle("boss:select-workspace-directory", async () => {
+    const pick = async (options: Electron.OpenDialogOptions) => (mainWindow && !mainWindow.isDestroyed() ? dialog.showOpenDialog(mainWindow, options) : dialog.showOpenDialog(options));
+    return selectWorkspaceDirectory(pick);
+  });
+  // §3: the same validator the picker runs, exposed to the editable text field so
+  // a typed/pasted path shows the identical reason a picked one would.
+  ipcMain.handle("boss:validate-workspace-path", (_event, input: string) => validateWorkspacePath(input));
   ipcMain.handle("boss:pick-attachments", async (_event, conversationId: string) => {
     const storeInstance = attachmentStore!;
     const conversationRef = store.snapshot().conversations.find((item) => item.id === conversationId);

@@ -1,4 +1,7 @@
 import fs from "node:fs";
+import type { ResolvedWorkspace, WorkspacePathCode, WorkspacePathValidation } from "../../src/shared/workspace-path";
+
+export type { ResolvedWorkspace, WorkspacePathCode, WorkspacePathValidation };
 
 /**
  * Canonical workspace path model (Update-Plan/cleaning.md §2/§3).
@@ -13,9 +16,9 @@ import fs from "node:fs";
  * `reason` this module produces.
  *
  * Windows is the target platform, so the canonical form is a Windows path:
- * backslash separators and an upper-case drive letter. The rules are written
- * against `path.win32` explicitly (not the platform default) so that a test
- * running on any host observes exactly the behaviour Windows users get, and so
+ * backslash separators and an upper-case drive letter. The rules are written as
+ * explicit Windows rules rather than delegated to the platform default, so a
+ * test running on any host observes exactly the behaviour Windows users get, and
  * a POSIX-shaped string can never be silently reinterpreted as a rooted path on
  * whatever drive the process happens to run from.
  *
@@ -26,37 +29,6 @@ import fs from "node:fs";
  * (`C:repo`) and root-relative paths (`\repo`) are refused: Boss has no notion
  * of a workspace relative to an ambient working directory.
  */
-
-/** Machine-readable outcome of a path decision. Branch on this, never on `reason`. */
-export type WorkspacePathCode =
-  | "OK"
-  | "EMPTY_PATH"
-  | "INVALID_PATH"
-  | "NOT_ABSOLUTE"
-  | "PATH_NOT_FOUND"
-  | "NOT_A_DIRECTORY"
-  | "PATH_NOT_ACCESSIBLE"
-  | "UNRESOLVABLE";
-
-export interface WorkspacePathValidation {
-  ok: boolean;
-  /** Machine code; `OK` exactly when `ok` is true. */
-  code: WorkspacePathCode;
-  /** Canonical Windows form (present whenever the input had any content). */
-  normalizedPath?: string;
-  /** Human-readable explanation. Display only. */
-  reason?: string;
-}
-
-export interface ResolvedWorkspace {
-  ok: boolean;
-  code: WorkspacePathCode;
-  /** Canonical Windows form of the input (separators, drive case, no trailing separator). */
-  normalizedPath?: string;
-  /** Canonical identity: real path with symlinks/junctions resolved and case corrected. */
-  canonicalPath?: string;
-  reason?: string;
-}
 
 /**
  * Thrown by `requireWorkspacePath`. Carries the machine code so an IPC boundary
