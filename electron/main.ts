@@ -52,6 +52,9 @@ import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { validateWorkspacePath } from "./workspace/path-utils";
 import { requireWorkspacePathSync } from "./workspace/path-utils";
+import { createWorkspaceIpcModule } from "./bootstrap/workspace-ipc";
+import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
+import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
 import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
@@ -148,6 +151,12 @@ let capabilityRegistry: ProviderCapabilityRegistry | undefined;
 let githubResolver: GithubResolver | undefined;
 let githubMachine: ReturnType<typeof createGitHubMachineRuntime> | undefined;
 let externalSessions: ExternalSessionLedger | undefined;
+/**
+ * Boot modules registered by the composition root, in boot order. Each owns one
+ * cohesive slice, receives what it needs as an argument, reports its own health
+ * and can be disposed — see electron/bootstrap/boot-module.ts.
+ */
+const bootModules: Array<BootModule<unknown>> = [];
 /** §6: the remembered workspace (canonical validated path, re-validated on read). */
 let workspaceSelection: WorkspaceSelectionStore;
 
@@ -1385,45 +1394,33 @@ if (ownsInstance) app.whenReady().then(() => {
     return publish();
   });
   ipcMain.handle("boss:duplicate-conversation", (_event, conversationId: string) => { store.duplicateConversation(conversationId); return publish(); });
-  // Update-Plan/cleaning.md §4: the native workspace folder picker. The dialog is
-  // Electron's own (`openDirectory`); the decision about what the selection means
-  // lives in electron/workspace/workspace-picker.ts, shared with the typed input.
-  // Cancelling returns null — it never clears the workspace the caller already had.
-  ipcMain.handle("boss:select-workspace-directory", async () => {
-    const pick = async (options: Electron.OpenDialogOptions) => (mainWindow && !mainWindow.isDestroyed() ? dialog.showOpenDialog(mainWindow, options) : dialog.showOpenDialog(options));
-    return selectWorkspaceDirectory(pick);
-  });
-  // §3: the same validator the picker runs, exposed to the editable text field so
-  // a typed/pasted path shows the identical reason a picked one would.
-  ipcMain.handle("boss:validate-workspace-path", (_event, input: string) => validateWorkspacePath(input));
-  // Update-Plan/cleaning.md §6: the remembered workspace. Only a canonical
-  // validated path is written, and the stored path is re-validated on every read
-  // — a directory deleted between two launches reads as STALE (the value is
-  // still returned for display) and can never become the active workspace again.
-  ipcMain.handle("boss:workspace-selection", () => workspaceSelection.current());
-  ipcMain.handle("boss:remember-workspace-path", (_event, input: string) => workspaceSelection.remember(input));
-  ipcMain.handle("boss:pick-attachments", async (_event, conversationId: string) => {
-    const storeInstance = attachmentStore!;
-    const conversationRef = store.snapshot().conversations.find((item) => item.id === conversationId);
-    if (!conversationRef) throw new Error(`Unknown conversation: ${conversationId}`);
-    const options: Electron.OpenDialogOptions = { title: "选择要上传的文件", properties: ["openFile", "multiSelections"] };
-    const selection = mainWindow && !mainWindow.isDestroyed() ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
-    if (selection.canceled || selection.filePaths.length === 0) return publish();
-    const imported = selection.filePaths.map((filePath) => storeInstance.importAttachment({ conversationId, originalName: path.basename(filePath), sourcePath: filePath }));
-    store.registerInputObjects(conversationId, imported.map((object) => object));
-    return publish();
-  });
-  ipcMain.handle("boss:add-attachment-bytes", (_event, input: { conversationId: string; originalName: string; mime?: string; bytes: Uint8Array }) => {
-    const object = attachmentStore!.importAttachment({ conversationId: input.conversationId, originalName: input.originalName, mime: input.mime, bytes: input.bytes });
-    store.registerInputObjects(input.conversationId, [object]);
-    return publish();
-  });
-  ipcMain.handle("boss:remove-attachment", (_event, conversationId: string, inputObjectId: string) => {
-    attachmentStore?.removeAttachment(conversationId, inputObjectId);
-    store.removeInputObject(conversationId, inputObjectId);
-    return publish();
-  });
-  ipcMain.handle("boss:attachment-path", (_event, conversationId: string, inputObjectId: string) => attachmentStore?.localPathFor(conversationId, inputObjectId));
+  // Boot modules (convergence book, Phase F/G): the workspace-path and attachment
+  // channels live in electron/bootstrap/*, receive a narrow service surface, and
+  // report their own health. The handler bodies here are now registration only.
+  bootModules.push(createWorkspaceIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    showOpenDialog: (options) => (mainWindow && !mainWindow.isDestroyed()
+      ? dialog.showOpenDialog(mainWindow, options as Electron.OpenDialogOptions)
+      : dialog.showOpenDialog(options as Electron.OpenDialogOptions)),
+    selection: workspaceSelection
+  }));
+  bootModules.push(createAttachmentIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    attachments: {
+      conversationExists: (conversationId) => store.snapshot().conversations.some((item) => item.id === conversationId),
+      importFromPath: (input) => attachmentStore!.importAttachment(input),
+      importFromBytes: (input) => attachmentStore!.importAttachment(input),
+      registerInputObjects: (conversationId, objects) => store.registerInputObjects(conversationId, objects),
+      removeAttachment: (conversationId, inputObjectId) => attachmentStore?.removeAttachment(conversationId, inputObjectId),
+      removeInputObject: (conversationId, inputObjectId) => store.removeInputObject(conversationId, inputObjectId),
+      localPathFor: (conversationId, inputObjectId) => attachmentStore?.localPathFor(conversationId, inputObjectId)
+    },
+    publish,
+    showOpenDialog: (options) => (mainWindow && !mainWindow.isDestroyed()
+      ? dialog.showOpenDialog(mainWindow, options as Electron.OpenDialogOptions)
+      : dialog.showOpenDialog(options as Electron.OpenDialogOptions))
+  }));
+  reportBootHealth(bootModules);
   ipcMain.handle("boss:export-conversation", async (_event, conversationId: string) => {
     const exportRoot = path.join(app.getPath("userData"), "exports");
     const destination = historyRepository.exportConversation(store.snapshot(), conversationId, exportRoot);

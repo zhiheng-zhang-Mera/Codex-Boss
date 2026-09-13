@@ -220,6 +220,51 @@ describe("Phase P — migration readiness", () => {
   });
 });
 
+describe("Phase F/G — extraction actually moved code out of main.ts", () => {
+  const main = fs.readFileSync(path.join(PROJECT, "electron/main.ts"), "utf8");
+  const boot = sources(["electron/bootstrap"]);
+
+  it("the extracted channels are registered by boot modules, not by main.ts", () => {
+    for (const channel of ["boss:select-workspace-directory", "boss:validate-workspace-path", "boss:workspace-selection", "boss:remember-workspace-path", "boss:pick-attachments", "boss:add-attachment-bytes", "boss:remove-attachment", "boss:attachment-path"]) {
+      expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
+      expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
+    }
+  });
+
+  it("main.ts registers the modules and reports their health", () => {
+    expect(main).toContain("createWorkspaceIpcModule(");
+    expect(main).toContain("createAttachmentIpcModule(");
+    expect(main).toContain("reportBootHealth(bootModules)");
+  });
+
+  it("boot modules never import Electron", () => {
+    for (const source of boot) {
+      expect(importsOf(source.text).filter((specifier) => /^electron$/.test(specifier)), `${source.file} imports electron`).toEqual([]);
+    }
+  });
+
+  it("no boot module performs filesystem, git or process work", () => {
+    const offenders: string[] = [];
+    for (const source of boot) {
+      if (source.file.endsWith("boot-module.ts")) continue;
+      for (const line of source.text.split(/\r?\n/)) {
+        if (/\b(?:writeFileSync|rmSync|mkdirSync|execFile|spawn)\b/.test(line)) offenders.push(`${source.file}: ${line.trim().slice(0, 80)}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("the boot modules each expose service + health + dispose", () => {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts"]) {
+      const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
+      expect(text).toContain("BootModule<");
+      expect(text).toMatch(/health:\s*\(\)\s*=>/);
+      expect(text).toMatch(/dispose:\s*\(\)\s*=>/);
+      expect(text).toContain("service:");
+    }
+  });
+});
+
 describe("Phase D — one containment predicate", () => {
 
   it("is defined once and only delegated to", () => {
