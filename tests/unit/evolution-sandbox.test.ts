@@ -119,6 +119,41 @@ beforeAll(async () => {
   capability = await sandbox.probe();
 }, SANDBOX_BOOTSTRAP_TIMEOUT_MS);
 
+/**
+ * Deregisters and removes the AppContainer profile this run's sandbox created.
+ *
+ * The runId is per PROCESS, so every execution of this suite creates a new
+ * `CodexBossEvolution-rt-sandbox-<pid>` profile and nothing removed it. What
+ * accumulates is the REGISTRATION, not the folder: by the time this was found the
+ * machine held 59 profile folders and **125 registrations** under
+ * `HKCU\…\AppContainer\Storage`, and in that state every case in this file failed
+ * in milliseconds — including its own CONTROL case, which is what makes the pileup
+ * look like a containment regression. Removing only the folders is not enough:
+ * doing that left the registrations behind and the next run failed the same way.
+ *
+ * The launcher only calls `CreateAppContainerProfile`, so there is no API here to
+ * unregister it, and the suite therefore removes exactly the registration it
+ * created. Best-effort throughout: a profile that cannot be removed is logged,
+ * never allowed to fail the suite.
+ */
+function removeSandboxProfile(containerName: string): void {
+  const name = containerName.toLowerCase();
+  const packages = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Packages") : undefined;
+  if (packages && fs.existsSync(packages)) {
+    try {
+      const match = fs.readdirSync(packages, { withFileTypes: true }).find((entry) => entry.isDirectory() && entry.name.toLowerCase() === name);
+      if (match) fs.rmSync(path.join(packages, match.name), { recursive: true, force: true });
+    } catch (error) {
+      console.warn(`[sandbox] could not remove the profile folder for this run: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  try {
+    execFileSync("reg.exe", ["delete", `HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppContainer\\Storage\\${name}`, "/f"], { stdio: "ignore", windowsHide: true });
+  } catch {
+    // No registration to remove is the ordinary case for a run that never created one.
+  }
+}
+
 afterAll(() => {
   const releasable = sandbox as unknown as { release?: () => void };
   try {
@@ -126,6 +161,7 @@ afterAll(() => {
   } catch {
     // Releasing a drive mapping is best-effort.
   }
+  removeSandboxProfile(sandboxContainerName(runId));
   try {
     fs.rmSync(root, { recursive: true, force: true });
   } catch {
