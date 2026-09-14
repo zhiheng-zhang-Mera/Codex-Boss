@@ -13,7 +13,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { migrateBrowserProfile, migrateLegacyPersistentData, runtimeRoots } from "./runtime-paths";
-import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, ViewBounds } from "../src/shared/contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
@@ -60,6 +60,7 @@ import { createSettingsIpcModule } from "./bootstrap/settings-ipc";
 import { createThemeIpcModule } from "./bootstrap/theme-ipc";
 import { createTaskLifecycleIpcModule } from "./bootstrap/task-lifecycle-ipc";
 import { createResearchOwnerIpcModule } from "./bootstrap/research-owner-ipc";
+import { createTaskStateIpcModule } from "./bootstrap/task-state-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -1238,32 +1239,42 @@ if (ownsInstance) app.whenReady().then(() => {
     await automation.continueIfReady(task.id);
     return publish();
   });
-  ipcMain.handle("boss:resolve-mode-proposal", async (_event, taskId: string, approveWork: boolean) => {
-    const task = store.snapshot().tasks.find((item) => item.id === taskId);
-    if (!task?.modeTransition || task.interactionMode !== "WORK_PROPOSED") throw new Error("该任务没有待确认的 Work 升级");
-    // Inherit message, attachments and conversation; only the single decision
-    // differs between Chat and Work. GitHub tasks run against the materialized repo.
-    const conversation = store.snapshot().conversations.find((item) => item.id === task.conversationId);
-    const repoInput = (conversation?.inputObjects ?? []).find((ref) => task.inputObjectIds?.includes(ref.id) && ref.kind === "REPOSITORY" && ref.localPath);
-    const workspace = workspaceForRequest({ requested: task.workspacePath, repositoryLocalPath: repoInput?.localPath, fallback: app.getAppPath() });
-    if (approveWork) {
-      if (!store.approveModeTransition(taskId)) throw new Error("该任务已处理过升级");
-      commander.startTask(taskId);
-      publish();
-      try {
-        if (!await commander.executeDeterministic(taskId, workspace) && !await commander.executePlan(taskId, workspace)) await automation.dispatchTask(taskId);
-      } catch (error) { store.setRecoveryState(taskId, undefined, String(error)); publish(); throw error; }
-      await automation.continueIfReady(taskId);
-      return publish();
+  // Phase F/G: the task state transitions live in electron/bootstrap/task-state-ipc.ts
+  // with the state machine and the shared execution chain. The install root and the
+  // pane manager stay here, because both are Electron-facing.
+  bootModules.push(createTaskStateIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    state: {
+      task: (taskId) => store.snapshot().tasks.find((item) => item.id === taskId),
+      openProviderIds: () => store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id),
+      setTaskStatus: (taskId, status) => store.setTaskStatus(taskId, status),
+      openProvider: (providerId) => openProviderWithinLimit(providerId),
+      conversationInputObjects: (conversationId) => store.snapshot().conversations.find((item) => item.id === conversationId)?.inputObjects ?? [],
+      workspaceFor: ({ requested, repositoryLocalPath }) => workspaceForRequest({ requested, repositoryLocalPath, fallback: app.getAppPath() }),
+      availableWorkspace: (task) => availableWorkspace(task, app.getAppPath()),
+      resumeWorkspace: (task) => resumeWorkspaceFor(task, app.getAppPath()),
+      approveModeTransition: (taskId) => store.approveModeTransition(taskId),
+      declineModeTransition: (taskId) => store.declineModeTransition(taskId),
+      ensureUnstartedRuns: (taskId) => store.ensureUnstartedRuns(taskId),
+      resumeWorkbook: (task, input) => resumeWorkBookTask(task, input, { store, commander, automation }),
+      startTask: (taskId) => commander.startTask(taskId),
+      pauseTask: (taskId) => commander.pauseTask(taskId),
+      cancelTask: (taskId) => commander.cancelTask(taskId),
+      executeDeterministic: (taskId, workspace) => commander.executeDeterministic(taskId, workspace),
+      executePlan: (taskId, workspace) => commander.executePlan(taskId, workspace),
+      finalizeTask: (taskId) => commander.finalizeTask(taskId, publish),
+      dispatchTask: (taskId) => automation.dispatchTask(taskId),
+      continueIfReady: (taskId) => automation.continueIfReady(taskId),
+      cancelRuns: (taskId) => automation?.cancelRuns(taskId),
+      setRecoveryState: (taskId, retryAt, reason) => store.setRecoveryState(taskId, retryAt, reason),
+      resumeRecovery: (taskId) => recoveryScheduler.resumeTask(taskId),
+      waitingRetryTimes: (taskId) => recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt),
+      evidenceBundleAwaitingReview: (taskId) => store.snapshot().evidenceBundles.find((item) => item.taskId === taskId && ["HOLD_FOR_REVIEW", "READY_FOR_USER_REVIEW"].includes(item.decision)),
+      setEvidenceDecision: (bundleId, decision) => store.setEvidenceDecision(bundleId, decision),
+      hasFinalizationBlocker: (taskId) => Boolean(store.snapshot().tasks.find((item) => item.id === taskId)?.finalizationBlocker),
+      publish: () => publish()
     }
-    if (!store.declineModeTransition(taskId)) throw new Error("该任务已处理过升级");
-    commander.startTask(taskId);
-    publish();
-    try { await automation.dispatchTask(taskId); }
-    catch (error) { store.setRecoveryState(taskId, undefined, String(error)); publish(); throw error; }
-    await automation.continueIfReady(taskId);
-    return publish();
-  });
+  }));
   // Phase F/G: the settings and pane-control channels live in
   // electron/bootstrap/settings-ipc.ts, which owns their validation (unknown
   // provider, unknown workspace view, reloading a pane that is not open) and
@@ -1389,20 +1400,9 @@ if (ownsInstance) app.whenReady().then(() => {
   // U4 §7/§9: workspace view (MERGED ↔ DETACHED two-window mode). In DETACHED
   // the open web-AI panes move into window B beside the Boss window; provider
   // sessions survive the transition.
-  ipcMain.handle("boss:launch-task", (_event, taskId: string) => {
-    const task = store.snapshot().tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error(`Unknown task: ${taskId}`);
-    const current = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
-    task.providerIds.forEach((providerId) => current.add(providerId));
-    if (current.size > MAX_ACTIVE_PROVIDERS) throw new Error(`当前任务会使已打开页面超过 ${MAX_ACTIVE_PROVIDERS} 个，请先关闭部分页面`);
-    task.providerIds.forEach(openProviderWithinLimit);
-    store.setTaskStatus(taskId, "running");
-    return publish();
-  });
   // Phase F/G: the task-lifecycle channels live in
   // electron/bootstrap/task-lifecycle-ipc.ts with the evidence-bundle recovery and
-  // the Codex review transitions. `boss:launch-task` stays here because it opens
-  // provider panes through the pane manager's own limit guard.
+  // the Codex review transitions.
   bootModules.push(createTaskLifecycleIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
     tasks: {
@@ -1487,62 +1487,10 @@ if (ownsInstance) app.whenReady().then(() => {
       }
     }
   }));
-  ipcMain.handle("boss:update-task", async (_event, taskId: string, status: TaskStatus) => {
-    const before = store.snapshot().tasks.find((item) => item.id === taskId);
-    if (!before) throw new Error(`Unknown task: ${taskId}`);
-    // REPAIR_BATCH_5: resuming a WAITING WorkBook task must re-enter the real
-    // provider-driving chain, not merely relabel the task. It reuses the same
-    // task id, appends RUNNING after WAITING once, and never re-ingests or
-    // re-registers the WorkBook (no second task is created).
-    if (status === "running" && before.status === "waiting" && before.workbookDispatch?.auto_run === true) {
-      const resume = await resumeWorkBookTask(before, {
-        workspacePath: resumeWorkspaceFor(before, app.getAppPath())
-      }, { store, commander, automation });
-      if (resume) return publish();
-    }
-    if (status === "running") {
-      if (["queued", "paused"].includes(before.status)) store.ensureUnstartedRuns(taskId);
-      commander.startTask(taskId);
-    }
-    else if (status === "paused") commander.pauseTask(taskId);
-    else if (status === "cancelled") commander.cancelTask(taskId);
-    else store.setTaskStatus(taskId, status);
-    if (status === "cancelled") automation?.cancelRuns(taskId);
-    const resumedRecovery = status === "running" ? recoveryScheduler.resumeTask(taskId) : 0;
-    if (resumedRecovery) {
-      const deadlines = recoveryScheduler.list().filter((item) => item.taskId === taskId && item.state === "WAITING").map((item) => item.retryAt);
-      store.setRecoveryState(taskId, deadlines.length ? Math.min(...deadlines) : undefined, "任务已恢复；按记录的时间恢复原会话");
-    } else if (status === "running" && ["queued", "paused"].includes(before.status)) {
-      // Starting a READY/reference WorkBook or resuming a paused task must
-      // enter the real execution path; changing only the visible label would
-      // be a false state transition.
-      const workspace = availableWorkspace(before, app.getAppPath());
-      try {
-        if (!await commander.executeDeterministic(taskId, workspace) && !await commander.executePlan(taskId, workspace)) await automation.dispatchTask(taskId);
-        await automation.continueIfReady(taskId);
-      } catch (error) {
-        store.setRecoveryState(taskId, undefined, String(error));
-        publish();
-        throw error;
-      }
-    }
-    if (status === "running" && store.snapshot().tasks.find((item) => item.id === taskId)?.finalizationBlocker) await commander.finalizeTask(taskId, publish);
-    return publish();
-  });
   // U3 Evidence>Vote (§2.3/§4): when auto-finalization parked a task because
   // its evidence bundle holds DISPUTED/INSUFFICIENT claims or disputes, the
   // operator may explicitly accept the held evidence (records PASS) and then
   // Boss finalizes — never auto-published, never silently dropped.
-  ipcMain.handle("boss:accept-evidence", async (_event, taskId: string) => {
-    const snapshot = store.snapshot();
-    const task = snapshot.tasks.find((item) => item.id === taskId);
-    if (!task) throw new Error(`Unknown task: ${taskId}`);
-    const bundle = snapshot.evidenceBundles.find((item) => item.taskId === taskId && ["HOLD_FOR_REVIEW", "READY_FOR_USER_REVIEW"].includes(item.decision));
-    if (!bundle) throw new Error("当前任务没有待接收的未决证据包");
-    store.setEvidenceDecision(bundle.id, "PASS");
-    await commander.finalizeTask(taskId, publish);
-    return publish();
-  });
   app.on("second-instance", () => {
     if (mainWindow?.isMinimized()) mainWindow.restore();
     mainWindow?.show();

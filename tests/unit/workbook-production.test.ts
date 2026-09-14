@@ -539,11 +539,18 @@ describe("REPAIR_BATCH_5: truthfulness of failure and real Resume", () => {
     expect(await h.resume(task.id)).toBeUndefined();
   });
 
-  it("proves production main.ts calls the shared existing-task resume path", async () => {
+  it("proves production code delegates the waiting-WorkBook resume to the shared path", async () => {
     const mainSource = fs.readFileSync(path.join(process.cwd(), "electron", "main.ts"), "utf8");
-    // The IPC handler must delegate waiting-WorkBook resumes to the shared path.
+    // The composition root must still wire the shared resume path in…
     expect(mainSource).toContain("resumeWorkBookTask(");
-    expect(mainSource).toContain('before.status === "waiting"');
+    // …and the file that registers the handler must gate on the task actually being
+    // waiting and must call that wired path. Phase F/G moved the handler out of
+    // main.ts, so this follows the handler rather than assuming its file: deleting
+    // either the gate or the delegation still fails here.
+    const handlerSource = fs.readFileSync(path.join(process.cwd(), "electron", "bootstrap", "task-state-ipc.ts"), "utf8");
+    expect(handlerSource).toContain('on("boss:update-task"');
+    expect(handlerSource).toContain('before.status === "waiting"');
+    expect(handlerSource).toContain("resumeWorkbook(");
     // The WorkBook branch itself no longer drives the chain inline: the only
     // dispatchTask call in the handler region is the legacy chat/research path.
     const workBranch = mainSource.slice(mainSource.indexOf("shouldRunWorkBookIntake(appMode, attachments)"));

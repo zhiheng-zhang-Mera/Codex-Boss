@@ -14,6 +14,7 @@ import { createSettingsIpcModule, SETTINGS_IPC_CHANNELS } from "../../electron/b
 import { createThemeIpcModule, THEME_IPC_CHANNELS, toPreviewView, type ThemeSurface } from "../../electron/bootstrap/theme-ipc";
 import { createTaskLifecycleIpcModule, TASK_LIFECYCLE_IPC_CHANNELS } from "../../electron/bootstrap/task-lifecycle-ipc";
 import { createResearchOwnerIpcModule, RESEARCH_OWNER_IPC_CHANNELS } from "../../electron/bootstrap/research-owner-ipc";
+import { createTaskStateIpcModule, TASK_STATE_IPC_CHANNELS } from "../../electron/bootstrap/task-state-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -979,6 +980,145 @@ describe("Phase G — research records and the Owner read-model", () => {
     // The store's layout is a directory per run, not `<id>.json` — the same mix of
     // layouts under `.boss/research/**` that Phase I records.
     expect(written).toContain("r1");
+  });
+});
+
+describe("Phase G — task state transitions", () => {
+  function build(overrides: Record<string, unknown> = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const state = {
+      task: (taskId: string) => (taskId === "t1"
+        ? { id: "t1", status: "queued", providerIds: ["qwen", "codex"], conversationId: "c1", inputObjectIds: [] }
+        : undefined),
+      openProviderIds: () => [],
+      setTaskStatus: (taskId: string, status: string) => { calls.push(`status:${taskId}:${status}`); },
+      openProvider: (providerId: string) => { calls.push(`open:${providerId}`); },
+      conversationInputObjects: () => [],
+      workspaceFor: () => "/ws",
+      availableWorkspace: () => "/ws",
+      resumeWorkspace: () => "/ws",
+      approveModeTransition: () => { calls.push("approve"); return true; },
+      declineModeTransition: () => { calls.push("decline"); return true; },
+      ensureUnstartedRuns: (taskId: string) => { calls.push(`ensure:${taskId}`); },
+      resumeWorkbook: async () => { calls.push("resume-workbook"); return undefined; },
+      startTask: () => { calls.push("start"); },
+      pauseTask: () => { calls.push("pause"); },
+      cancelTask: () => { calls.push("cancel"); },
+      executeDeterministic: async () => { calls.push("deterministic"); return { executed: true }; },
+      executePlan: async () => { calls.push("plan"); return { executed: true }; },
+      finalizeTask: async () => { calls.push("finalize"); return { ok: true }; },
+      dispatchTask: async () => { calls.push("dispatch"); },
+      continueIfReady: async () => { calls.push("continue"); },
+      cancelRuns: () => { calls.push("cancel-runs"); },
+      setRecoveryState: (_taskId: string, retryAt: unknown, reason: string) => { calls.push(`recovery:${retryAt ?? "none"}:${reason}`); },
+      resumeRecovery: () => 0,
+      waitingRetryTimes: () => [],
+      evidenceBundleAwaitingReview: () => undefined,
+      setEvidenceDecision: (id: string, decision: string) => { calls.push(`evidence:${id}:${decision}`); },
+      hasFinalizationBlocker: () => false,
+      publish: () => ({ published: true }),
+      ...overrides
+    };
+    const module = createTaskStateIpcModule({ handle: ipc.handle.bind(ipc), state: state as never });
+    return { ipc, module, calls };
+  }
+
+  it("registers exactly the four channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...TASK_STATE_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "task-state-ipc", status: "READY" });
+    expect(module.health().detail).toContain("4/4");
+  });
+
+  it("refuses to launch when the task would exceed the open-pane limit", async () => {
+    // The limit is judged on what *would* be open: four providers already open plus
+    // this task's two is six, over the ceiling of five.
+    const { ipc, calls } = build({ openProviderIds: () => ["a", "b", "c", "d"] });
+    await expect(ipc.invoke("boss:launch-task", "t1")).rejects.toThrow(/超过/);
+    // Refused before anything was opened or relabelled.
+    expect(calls).toEqual([]);
+  });
+
+  it("opens each of the task's providers and marks it running", async () => {
+    const { ipc, calls } = build();
+    expect(await ipc.invoke("boss:launch-task", "t1")).toEqual({ published: true });
+    expect(calls).toEqual(["open:qwen", "open:codex", "status:t1:running"]);
+  });
+
+  it("refuses an unknown task by name", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:update-task", "nope", "running")).rejects.toThrow(/Unknown task: nope/);
+    await expect(ipc.invoke("boss:accept-evidence", "nope")).rejects.toThrow(/Unknown task: nope/);
+    expect(calls).toEqual([]);
+  });
+
+  it("runs the chain in one shape: deterministic, then plan, then dispatch, then continue", async () => {
+    const { ipc, calls } = build({
+      executeDeterministic: async () => { calls.push("deterministic"); return undefined; },
+      executePlan: async () => { calls.push("plan"); return undefined; }
+    });
+    await ipc.invoke("boss:update-task", "t1", "running");
+    // Neither orchestration claimed the task, so the provider-driving automation does.
+    expect(calls).toEqual(["ensure:t1", "start", "deterministic", "plan", "dispatch", "continue"]);
+  });
+
+  it("records the failure and re-throws when execution fails", async () => {
+    const { ipc, calls } = build({
+      executeDeterministic: async () => { throw new Error("deterministic exploded"); }
+    });
+    await expect(ipc.invoke("boss:update-task", "t1", "running")).rejects.toThrow(/deterministic exploded/);
+    // A task that failed to start must not simply look started.
+    expect(calls.some((entry) => entry.startsWith("recovery:none:Error: deterministic exploded"))).toBe(true);
+  });
+
+  it("pauses and cancels through the commander rather than relabelling", async () => {
+    const paused = build();
+    await paused.ipc.invoke("boss:update-task", "t1", "paused");
+    expect(paused.calls).toContain("pause");
+
+    const cancelled = build();
+    await cancelled.ipc.invoke("boss:update-task", "t1", "cancelled");
+    expect(cancelled.calls).toContain("cancel");
+    // Cancelling also stops the runs it had in flight.
+    expect(cancelled.calls).toContain("cancel-runs");
+  });
+
+  it("refuses a mode proposal the task does not have pending", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:resolve-mode-proposal", "t1", true)).rejects.toThrow(/没有待确认的 Work 升级/);
+    expect(calls).toEqual([]);
+  });
+
+  it("approves a pending upgrade, then runs it through the same chain", async () => {
+    const { ipc, calls } = build({
+      task: () => ({ id: "t1", status: "queued", providerIds: ["qwen"], conversationId: "c1", interactionMode: "WORK_PROPOSED", modeTransition: { to: "WORK" }, inputObjectIds: [] }),
+      executeDeterministic: async () => { calls.push("deterministic"); return { executed: true }; }
+    });
+    await ipc.invoke("boss:resolve-mode-proposal", "t1", true);
+    expect(calls).toEqual(["approve", "start", "deterministic", "continue"]);
+  });
+
+  it("declining still runs the task, as Chat", async () => {
+    const { ipc, calls } = build({
+      task: () => ({ id: "t1", status: "queued", providerIds: ["qwen"], conversationId: "c1", interactionMode: "WORK_PROPOSED", modeTransition: { to: "WORK" }, inputObjectIds: [] })
+    });
+    await ipc.invoke("boss:resolve-mode-proposal", "t1", false);
+    // Declined: no deterministic/plan path, straight to the provider automation.
+    expect(calls).toEqual(["decline", "start", "dispatch", "continue"]);
+  });
+
+  it("refuses to accept evidence when no bundle is awaiting review", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:accept-evidence", "t1")).rejects.toThrow(/没有待接收的未决证据包/);
+    expect(calls).toEqual([]);
+  });
+
+  it("records PASS for the held bundle and then finalizes", async () => {
+    const { ipc, calls } = build({ evidenceBundleAwaitingReview: () => ({ id: "b1" }) });
+    await ipc.invoke("boss:accept-evidence", "t1");
+    // Order matters: the decision is durable before the finalization reads it.
+    expect(calls).toEqual(["evidence:b1:PASS", "finalize"]);
   });
 });
 
