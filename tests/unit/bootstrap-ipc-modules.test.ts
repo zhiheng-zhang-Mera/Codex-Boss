@@ -581,7 +581,7 @@ describe("Phase G — host status and learning module", () => {
   });
 
   it("passes the session lifecycle states into the login scan", async () => {
-    const { ipc } = build({ sessionLifecycles: () => [{ providerId: "qwen", state: "AUTHENTICATED" }] });
+    const { ipc } = build({ sessionLifecycles: () => [{ providerId: "qwen", state: "LOGGED_IN" }] });
     const scan = await ipc.invoke("boss:login-scan") as { providers: Array<{ providerId: string }>; readyCount: number; needsOperatorCount: number };
     // Both accounts reach the scan. Order is the scan's own (it sorts), so this
     // asserts the module's contract — pass the accounts through — not an ordering.
@@ -1142,7 +1142,7 @@ describe("Phase G — research run control", () => {
         return { ir: { id: ir.id } };
       },
       researchCache: (id: string) => { calls.push(`cache:${id}`); return path.join(makeTree(), id); },
-      publish: (event: { taskId: string; message: string }) => { events.push(`${event.type}:${event.taskId}`); },
+      publish: (event: { type: string; taskId: string; message: string }) => { events.push(`${event.type}:${event.taskId}`); },
       ...overrides
     };
     const module = createResearchRunIpcModule({ handle: ipc.handle.bind(ipc), run: run as never });
@@ -1453,7 +1453,7 @@ describe("Phase G — dispatching a task", () => {
   });
 
   it("delegates a WorkBook dispatch to the single production entry point, creating no task itself", async () => {
-    const workbookRef = { id: "w1", kind: "WORKBOOK", originalName: "plan.docx", localPath: "/tmp/plan.docx" };
+    const workbookRef = { id: "w1", kind: "DOCUMENT", originalName: "plan.docx", localPath: "/tmp/plan.docx" };
     const { ipc, calls } = build({
       inputs: { inputObjectsFor: () => [workbookRef] } as unknown as InputRefSources
     });
@@ -1466,13 +1466,14 @@ describe("Phase G — dispatching a task", () => {
 
 describe("Phase F — the escalation decision", () => {
   it("reads the bound input kinds off the conversation, not off the task alone", () => {
-    // A spreadsheet bound to the task is what makes it a Work job, even though the
-    // message itself reads like an ordinary question.
-    const decision = escalateDecisionFor(
-      { conversationId: "c1", prompt: "看看这个", inputObjectIds: ["i1"] },
-      [{ id: "i1", kind: "WORKBOOK" }]
-    );
-    expect(decision).toHaveProperty("escalate");
+    // The message alone ("refactor it") names no repository, so nothing escalates…
+    const withoutBinding = escalateDecisionFor({ conversationId: "c1", prompt: "重构一下", inputObjectIds: ["i1"] }, []);
+    expect(withoutBinding.escalate).toBe(false);
+    // …but the same message with a bound code artifact does: the input kind is what
+    // makes it a Work job. The decision is therefore not a function of the task alone,
+    // which is the property this test exists to hold.
+    const withBinding = escalateDecisionFor({ conversationId: "c1", prompt: "重构一下", inputObjectIds: ["i1"] }, [{ id: "i1", kind: "CODE" }]);
+    expect(withBinding.escalate).toBe(true);
   });
 
   it("does not escalate a plain chat message with no bound work", () => {

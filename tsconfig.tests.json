@@ -1,0 +1,27 @@
+{
+  // The tests' own compiler project (Phase N).
+  //
+  // `pnpm run typecheck` covers `src/renderer`, `src/shared` and `electron/**`, but not
+  // `tests/**` — so a stale identifier or an invalid literal in a test only fails at
+  // runtime, which is how a `ReferenceError: main is not defined` survived in
+  // `tests/unit/repository-boundary-guards.test.ts` until the suite ran, and how an
+  // invalid `ProviderAccountMode` value reached a fixture.
+  //
+  // This project is NOT yet wired into `pnpm run typecheck` or CI, because it does not
+  // pass yet: the remaining count is recorded in docs/phase-status.md, and the rule for
+  // closing it is that every fix must leave the suite passing — a cast that silences an
+  // error without fixing the fixture is not a fix.
+  //
+  // `allowJs` is deliberate: several tests import the `.mjs` harnesses under
+  // `scripts/`, which have no declaration files. Inferring their real types is what
+  // makes those imports checked rather than `any`; `checkJs` stays off so the harnesses
+  // themselves are not swept into this project.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node", "vitest/globals"],
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": ["tests/**/*.ts", "tests/**/*.tsx", "scripts/**/*.mjs"]
+}
