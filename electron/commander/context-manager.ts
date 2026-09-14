@@ -52,9 +52,20 @@ export class ContextManager {
    * one the running app wires to the Knowledge Foundation.
    */
   private knowledgeSectionProvider?: (taskId: string, role: RoleId, maxChars: number) => string | undefined;
+  /** Set when the durable file exists but could not be restored; undefined otherwise. */
+  private restoreFailure?: { file: string; reason: string };
   constructor(private readonly filePath?: string, knowledgeProvider?: (taskId: string, role: RoleId, maxChars: number) => KnowledgeEntry[]) {
     this.knowledgeProvider = knowledgeProvider;
     this.restore();
+  }
+
+  /**
+   * Why the durable contexts were not restored, or `undefined` when they were (or
+   * when there was no file). The distinction is the point: a caller that sees a
+   * reason knows the run is working from partial memory rather than from none.
+   */
+  restoreDiagnostic(): { file: string; reason: string } | undefined {
+    return this.restoreFailure ? { ...this.restoreFailure } : undefined;
   }
 
   /** Attach (or replace) the knowledge provider after construction (AP10 domain routing). */
@@ -141,7 +152,17 @@ export class ContextManager {
       const parsed = readEnvelope<TaskContext[]>(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
       if (parsed.schema_id !== CONTEXT_SCHEMA) throw new Error("Unrecognized task-context file");
       for (const context of parsed.data) if (context?.taskId) this.contexts.set(context.taskId, context);
-    } catch { /* corrupt optional context never replaces canonical task state */ }
+    } catch (error) {
+      // A corrupt optional context must never replace canonical task state — the
+      // fail-safe direction is right, and it stays. What was wrong is that it was
+      // SILENT: "there is no context file" and "the context file could not be
+      // read" are different answers, and the second one means the capsules this
+      // process compiles for the rest of the run are missing facts that are
+      // sitting on disk. The reason is kept and reported rather than dropped.
+      const reason = error instanceof Error ? error.message : String(error);
+      this.restoreFailure = { file: this.filePath, reason };
+      console.warn(`[context] durable task contexts could not be restored, continuing without them: ${reason}`);
+    }
   }
 
   private persist(): void {

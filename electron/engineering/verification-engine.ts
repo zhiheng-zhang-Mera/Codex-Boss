@@ -116,6 +116,13 @@ export interface VerificationEngine {
   readonly root: string;
   readonly environment: EvidenceEnvironment;
   ledger(): EvidenceLedgerFile;
+  /**
+   * Why this run started from an empty ledger it could not read, or `undefined`
+   * when the ledger was read (or did not exist). A caller that sees a reason knows
+   * the evidence on disk was not lost, it was unreadable — and that a requirement
+   * reported unverified may be verified in the file.
+   */
+  ledgerDiagnostic(): string | undefined;
   /** §30.1: the write/command scope a §29 plan node grants its worker. */
   scopeFor(node: { allowed_files: readonly string[]; requirements: readonly string[]; verification?: { commands?: readonly string[] } }): WorkerScope;
   applyChangeUnit(scope: Pick<WorkerScope, "allowed_files">, unit: ChangeUnit): ApplyResult;
@@ -152,7 +159,14 @@ export function createVerificationEngine(config: EngineConfig): VerificationEngi
     workspace: root,
     runtimes: config.runtimes ?? { node: process.version, ...(process.versions.electron ? { electron: process.versions.electron } : {}) }
   };
-  let ledger: EvidenceLedgerFile = loadLedger(ledgerPath);
+  const restored = loadLedger(ledgerPath);
+  let ledger: EvidenceLedgerFile = restored.ledger;
+  /**
+   * Captured at load: whether THIS run began from a ledger it could not read. The
+   * file may be overwritten later by a save, so the fact is remembered rather than
+   * re-derived from disk.
+   */
+  const ledgerUnreadable = restored.unreadable;
 
   const sha256 = (content: string): string => createHash("sha256").update(content, "utf8").digest("hex");
   const absolute = (relative: string): string => path.resolve(root, relative);
@@ -178,6 +192,7 @@ export function createVerificationEngine(config: EngineConfig): VerificationEngi
     root,
     environment,
     ledger: () => ledger,
+    ledgerDiagnostic: () => ledgerUnreadable,
     scopeFor(node) {
       const scope = scopeFromNode(node);
       return { ...scope, workspace: root };
@@ -417,16 +432,24 @@ function scopeFromNode(node: { allowed_files: readonly string[]; requirements: r
   return boundedScopeFor(node);
 }
 
-function loadLedger(ledgerPath: string): EvidenceLedgerFile {
-  if (!fs.existsSync(ledgerPath)) return emptyLedger();
+function loadLedger(ledgerPath: string): { ledger: EvidenceLedgerFile; unreadable?: string } {
+  const expected = emptyLedger();
+  if (!fs.existsSync(ledgerPath)) return { ledger: expected };
   try {
     const parsed = JSON.parse(fs.readFileSync(ledgerPath, "utf8")) as EvidenceLedgerFile;
-    if (parsed?.version !== emptyLedger().version || !Array.isArray(parsed.entries)) return emptyLedger();
-    return parsed;
-  } catch {
-    // A corrupt ledger is not silently treated as empty evidence: the caller sees
-    // an empty ledger and the file is left untouched for inspection on save().
-    return emptyLedger();
+    if (parsed?.version !== expected.version || !Array.isArray(parsed.entries)) {
+      return { ledger: expected, unreadable: `the file is not a ${String(expected.version)} ledger document` };
+    }
+    return { ledger: parsed };
+  } catch (error) {
+    // This run starts from NO evidence, which is the fail-safe direction: an
+    // unverifiable requirement stays unverified, and the file is left untouched on
+    // disk for inspection. What was wrong is that the two facts were the same
+    // answer — the comment here used to claim a distinction ("not silently treated
+    // as empty evidence") that the code did not make. The reason is now kept and
+    // reported through `ledgerDiagnostic()`, because "the ledger is empty" and
+    // "the ledger exists and could not be read" call for different responses.
+    return { ledger: expected, unreadable: error instanceof Error ? error.message : String(error) };
   }
 }
 

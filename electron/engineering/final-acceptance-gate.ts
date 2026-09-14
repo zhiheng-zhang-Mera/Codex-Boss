@@ -10,6 +10,13 @@
  * An artifact that is missing stays missing: the item is `NOT_VERIFIED` and the
  * acceptance is rejected, because a final gate that passes on absent evidence is
  * the one thing §42 exists to prevent.
+ *
+ * An artifact that is PRESENT but unreadable is a third state, and it is recorded
+ * as itself. Collapsing it into "missing" was the swallowed failure here: the gate
+ * answered NOT_VERIFIED either way — so the decision was never wrong — but the
+ * record sent an operator looking for a file that was sitting right there, and
+ * "the earlier checkpoint wrote a report this build cannot parse" is exactly the
+ * fact a failed final acceptance has to carry.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -43,15 +50,34 @@ export interface FinalAcceptanceInput {
 export interface FinalAcceptanceOutcome {
   acceptance: FinalAcceptance;
   evidence: FinalEvidence;
-  /** Which artifacts were read, and which were missing. */
-  artifacts: { read: string[]; missing: string[] };
+  /**
+   * Which artifacts were read, which were missing, and which EXIST but could not
+   * be read. The last group is not a subset of the first two: an unreadable
+   * artifact is present, so calling it missing hides the real problem.
+   */
+  artifacts: { read: string[]; missing: string[]; unreadable: string[] };
   recordPath: string;
 }
+
+/**
+ * What reading one report produced. `ABSENT` and `UNREADABLE` are deliberately
+ * separate states rather than both being `undefined`.
+ */
+export type ReportRead<T> =
+  | { state: "READ"; value: T }
+  | { state: "ABSENT" }
+  | { state: "UNREADABLE"; reason: string };
 
 export interface FinalAcceptanceGate {
   evaluate(input: FinalAcceptanceInput): FinalAcceptanceOutcome;
   /** §42: the acceptance record the release can cite. */
   record(): FinalAcceptance | undefined;
+  /**
+   * Why the persisted record could not be used, when it exists but is not a
+   * readable record. `undefined` means there was no record to read, which is what
+   * a gate that has never run looks like.
+   */
+  recordDiagnostic(): string | undefined;
 }
 
 export function createFinalAcceptanceGate(config: FinalAcceptanceConfig): FinalAcceptanceGate {
@@ -59,21 +85,30 @@ export function createFinalAcceptanceGate(config: FinalAcceptanceConfig): FinalA
   const artifactsDir = config.artifacts ?? path.join(root, "artifacts", "acceptance");
   const now = config.now ?? (() => new Date());
   const recordPath = path.join(artifactsDir, FINAL_ACCEPTANCE_RECORD);
-  let record: FinalAcceptance | undefined = load(recordPath);
+  const restored = load(recordPath);
+  let record: FinalAcceptance | undefined = restored.record;
 
-  const readJson = (name: string): unknown | undefined => {
+  const readReport = <T>(name: string): ReportRead<T> => {
     const target = path.join(artifactsDir, name);
-    if (!fs.existsSync(target)) return undefined;
-    try { return JSON.parse(fs.readFileSync(target, "utf8")); } catch { return undefined; }
+    if (!fs.existsSync(target)) return { state: "ABSENT" };
+    try {
+      return { state: "READ", value: JSON.parse(fs.readFileSync(target, "utf8")) as T };
+    } catch (error) {
+      return { state: "UNREADABLE", reason: error instanceof Error ? error.message : String(error) };
+    }
   };
 
   return {
     record: () => record,
+    /** Why a record that exists could not be used, so the caller can tell it from never having run. */
+    recordDiagnostic: () => restored.unreadable,
     evaluate(input) {
       const read: string[] = [];
       const missing: string[] = [];
-      const seen = (name: string, value: unknown): boolean => {
-        if (value === undefined) { missing.push(name); return false; }
+      const unreadable: string[] = [];
+      const seen = (name: string, report: ReportRead<unknown>): boolean => {
+        if (report.state === "ABSENT") { missing.push(name); return false; }
+        if (report.state === "UNREADABLE") { unreadable.push(`${name}: ${report.reason}`); return false; }
         read.push(name);
         return true;
       };
@@ -102,8 +137,9 @@ export function createFinalAcceptanceGate(config: FinalAcceptanceConfig): FinalA
       // §42 NO_BLOCKING_FINDINGS: the §32 report's own routing. When the report is
       // absent the item must be NOT_VERIFIED, so the evidence key is only set when
       // the artifact was actually read — a fabricated zero would pass the item.
-      const reviewStatus = readJson("review-loop.json") as { loops?: { c02?: { iterations?: { blocking: number; subjects?: string[] }[] } } } | undefined;
-      seen("review-loop.json", reviewStatus);
+      const review = readReport<{ loops?: { c02?: { iterations?: { blocking: number; subjects?: string[] }[] } } }>("review-loop.json");
+      seen("review-loop.json", review);
+      const reviewStatus = review.state === "READ" ? review.value : undefined;
       const lastBlocking = reviewStatus?.loops?.c02?.iterations?.at(-1)?.blocking;
 
       // §42 SECRETS: scan what the candidate wrote, now.
@@ -119,21 +155,25 @@ export function createFinalAcceptanceGate(config: FinalAcceptanceConfig): FinalA
       }
 
       // §42 DESTRUCTIVE: the candidate gate's Guardian result.
-      const candidate = readJson("candidate-guardian.json") as { candidate?: { blocking?: string[]; released?: boolean } } | undefined;
-      seen("candidate-guardian.json", candidate);
+      const candidateRead = readReport<{ candidate?: { blocking?: string[]; released?: boolean } }>("candidate-guardian.json");
+      seen("candidate-guardian.json", candidateRead);
+      const candidate = candidateRead.state === "READ" ? candidateRead.value : undefined;
       const destructiveBlocking = candidate ? (candidate.candidate?.blocking ?? []).filter((check) => check === "DESTRUCTIVE_CHANGE_CHECK") : undefined;
 
       // §42 KNOWLEDGE: the §5.3 gate log of the knowledge base the work wrote to.
-      const knowledge = readJson("knowledge-foundation.json") as { knowledge?: { written?: number; quarantined?: number; reused?: number } } | undefined;
-      seen("knowledge-foundation.json", knowledge);
+      const knowledgeRead = readReport<{ knowledge?: { written?: number; quarantined?: number; reused?: number } }>("knowledge-foundation.json");
+      seen("knowledge-foundation.json", knowledgeRead);
+      const knowledge = knowledgeRead.state === "READ" ? knowledgeRead.value : undefined;
 
       // §42 VERSION: the §37 assessment in the checkpoint record.
-      const checkpoint = readJson("version-checkpoint.json") as { impact?: { implementation?: string; breaking?: string; docs?: string } } | undefined;
-      seen("version-checkpoint.json", checkpoint);
+      const checkpointRead = readReport<{ impact?: { implementation?: string; breaking?: string; docs?: string } }>("version-checkpoint.json");
+      seen("version-checkpoint.json", checkpointRead);
+      const checkpoint = checkpointRead.state === "READ" ? checkpointRead.value : undefined;
 
       // §42 CI: the §41 record's outcome.
-      const ciRepair = readJson("ci-repair.json") as { loop?: { outcome?: string } } | undefined;
-      seen("ci-repair.json", ciRepair);
+      const ciRepairRead = readReport<{ loop?: { outcome?: string } }>("ci-repair.json");
+      seen("ci-repair.json", ciRepairRead);
+      const ciRepair = ciRepairRead.state === "READ" ? ciRepairRead.value : undefined;
 
       const evidence: FinalEvidence = {
         requirements: { required, verified, outstanding: [...outstanding], failed: failedRequirements },
@@ -168,19 +208,27 @@ export function createFinalAcceptanceGate(config: FinalAcceptanceConfig): FinalA
         ...acceptance,
         evaluated_at: now().toISOString(),
         artifacts_read: read,
-        artifacts_missing: missing
+        artifacts_missing: missing,
+        // Present but unusable: named so the next reader does not chase a file that exists.
+        artifacts_unreadable: unreadable,
+        ...(restored.unreadable ? { previous_record_unreadable: restored.unreadable } : {})
       }, null, 2), "utf8");
-      return { acceptance, evidence, artifacts: { read, missing }, recordPath };
+      return { acceptance, evidence, artifacts: { read, missing, unreadable }, recordPath };
     }
   };
 }
 
-function load(recordPath: string): FinalAcceptance | undefined {
-  if (!fs.existsSync(recordPath)) return undefined;
+/**
+ * The persisted record, distinguishing "never run" from "cannot be read". A
+ * corrupt record used to read as `undefined`, which is the same answer as a gate
+ * that has never evaluated anything.
+ */
+function load(recordPath: string): { record?: FinalAcceptance; unreadable?: string } {
+  if (!fs.existsSync(recordPath)) return {};
   try {
     const parsed = JSON.parse(fs.readFileSync(recordPath, "utf8")) as FinalAcceptance;
-    return parsed?.version === "final-acceptance-1" ? parsed : undefined;
-  } catch {
-    return undefined;
+    return parsed?.version === "final-acceptance-1" ? { record: parsed } : { unreadable: "the record is not a final-acceptance-1 document" };
+  } catch (error) {
+    return { unreadable: error instanceof Error ? error.message : String(error) };
   }
 }
