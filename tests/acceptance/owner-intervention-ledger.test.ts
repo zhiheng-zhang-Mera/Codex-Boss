@@ -87,7 +87,11 @@ describe("checkpoint-2 §7.6 CP21 owner intervention truth ledger", () => {
       item.check("its count agrees", 0, ledger.count);
       item.check("and so does the derived count", 0, deriveOwnerInterventions(ledger));
       item.check("the digest is a sha256", true, /^[0-9a-f]{64}$/.test(ledger.ledger_hash));
-      item.check("the digest covers the body", ledger.ledger_hash, ownerLedgerHashOf({ ...ledger, ledger_hash: undefined as unknown as string }));
+      // Destructured rather than spread with an explicit undefined: the parameter is
+      // Omit<…, "ledger_hash">, so passing the field at all is the error — and the
+      // point is that the digest covers the body WITHOUT itself.
+      const { ledger_hash: _hash, ...body } = ledger;
+      item.check("the digest covers the body", ledger.ledger_hash, ownerLedgerHashOf(body));
       item.cite("emptyOwnerLedger");
     });
   });

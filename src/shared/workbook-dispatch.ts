@@ -56,7 +56,10 @@ export interface WorkBookConflictSummary {
   kind: string;
   severity: "INFO" | "WARN" | "ERROR";
   message: string;
-  sections: { document_id: string; file_name: string; section_id: string; hash: string }[];
+  // The heading is part of what the conflict is about — the caller reports which
+  // sections collided by name — and the written record has always carried it; the type
+  // simply omitted it, so a reader (and the acceptance test) could not name it.
+  sections: { document_id: string; file_name: string; section_id: string; heading?: string; hash: string }[];
   similarity?: number;
 }
 

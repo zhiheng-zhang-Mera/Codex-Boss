@@ -416,7 +416,9 @@ describe("checkpoint-8 §30/§31 verification engine acceptance", () => {
       };
       const evidence = evidenceForRequirements(ledger, graph);
       item.check("evidence exists for the requirements the ledger covers", true, evidence.length > 0);
-      item.check("the evidence is sourced from a host gate", true, evidence.every((entry) => entry.source.includes(":") && entry.hash.length > 0));
+      // Defaulted rather than asserted-not-undefined: an absent hash gives an empty
+      // string, and the length check then fails exactly as it should.
+      item.check("the evidence is sourced from a host gate", true, evidence.every((entry) => entry.source.includes(":") && (entry.hash ?? "").length > 0));
       const implementation = evidence.find((entry) => entry.requirement_id === "R-typed" && entry.kind === "IMPLEMENTATION");
       item.check("the passing typecheck becomes IMPLEMENTATION evidence", "PASS", implementation?.status);
       const outstanding = outstandingEvidence(ledger, graph);

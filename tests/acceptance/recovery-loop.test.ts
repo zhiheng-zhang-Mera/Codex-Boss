@@ -227,17 +227,17 @@ describe("checkpoint-10 §33 recovery acceptance", () => {
         tokens: {},
         overrides: [],
         css: "body { background: url(javascript:alert(1)); }"
-      } as never);
+      } as never, []);
       const errors = validation.diagnostics.filter((diagnostic) => diagnostic.severity === "ERROR");
       item.check("the real validator produced errors", true, errors.length > 0);
       const recovery = recoveryFor(makeEngine());
-      const classification = recovery.classify({ detail: `theme validation failed: ${errors.map((error) => error.code).join(", ")}`, theme_error_diagnostics: errors.length });
+      const classification = recovery.classify({ detail: `theme validation failed: ${errors.map((error) => error.rule).join(", ")}`, theme_error_diagnostics: errors.length });
       item.check("the class is THEME", "THEME", classification.failure_class);
       const plan = planRecovery(classification);
       item.check("the theme ladder is present", JSON.stringify(["DISABLE_THEME", "FALLBACK_BUILT_IN_THEME", "RECORD_DIAGNOSTIC"]), JSON.stringify(plan.theme_steps));
       item.check("a theme is not a provider's work", false, plan.steps.find((step) => step.step === "ALTERNATE_PROVIDER")?.applicable);
       item.check("the diagnostic says to record the failure", true, plan.diagnostics.some((line) => line.includes("theme ladder")));
-      shared.rc05 = { errors: errors.map((error) => error.code), class: classification.failure_class, theme_steps: plan.theme_steps };
+      shared.rc05 = { errors: errors.map((error) => error.rule), class: classification.failure_class, theme_steps: plan.theme_steps };
       item.cite("validateThemePackage errors → THEME class");
     });
   });

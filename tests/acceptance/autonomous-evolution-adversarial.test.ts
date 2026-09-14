@@ -485,7 +485,12 @@ describe("Phase E §20–§23 adversarial expansion", () => {
     await run.scenario("AD-38", "Unicode look-alike evidence filenames", (item) => {
       const lab = createLab();
       const foreign = trustedFixture({ sessionId: "session-adversary-unicode" });
-      const decoy = "\uff53ession.json";
+      // Typed `string`, not narrowed to a literal: the decoy IS a different string at
+      // runtime, and a literal type let the compiler conclude the comparison below was
+      // impossible. That is true of the TYPE, and the difference is exactly what the
+      // test asserts of the VALUE — so widening keeps the assertion runtime-checked
+      // rather than type-known, instead of suppressing it.
+      const decoy: string = "\uff53ession.json";
       const zeroWidth = "session.json\u200b";
       const bytes = fs.readFileSync(sessionPath(foreign.artifacts), "utf8");
       item.check("the decoy is a Unicode confusable, not the real name", true, decoy.normalize("NFKC") === "session.json" && decoy !== "session.json");

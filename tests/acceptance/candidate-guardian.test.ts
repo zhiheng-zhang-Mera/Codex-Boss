@@ -102,7 +102,20 @@ const committed = git("commit", "--quiet", "-m", "fixture: initial state");
 
 const COMMANDS = { syntax: "node --check", typecheck: "pnpm run typecheck", unit: "pnpm test", tests: ["tests/gateway.test.mjs"], build_tools: ["tsc"] };
 const TARGETS = { syntax: ["src/loader.mjs"], unit: ["tests/gateway.test.mjs"], module: [], integration: [] };
-const requirement = (overrides: Partial<VerifiableRequirement & { state: string }> = {}) => ({
+/**
+ * The one requirement shape both consumers accept.
+ *
+ * `candidate-guardian`'s `CandidateRequirement` declares `state: string`, while
+ * `VerifiableRequirement` (what `selectFor` takes) declares it as the
+ * `RequirementState` union and makes it optional. Written bare, the literal widened to
+ * `string` and satisfied neither; annotated as this intersection it satisfies both, and
+ * the literal is checked against the real state set.
+ */
+type TestRequirement =
+  & import("../../electron/engineering/candidate-guardian").CandidateRequirement
+  & import("../../src/shared/verification").VerifiableRequirement
+  & { state: import("../../src/shared/requirements-graph").RequirementState };
+const requirement = (overrides: Partial<TestRequirement> = {}): TestRequirement => ({
   id: "R-gateway", type: "FUNCTIONAL", text: "the gateway adapter returns a receipt", visual: false, state: "IMPLEMENTED", ...overrides
 });
 
@@ -138,7 +151,10 @@ describe("checkpoint-12 §35/§36 candidate acceptance", () => {
       item.check("the jump is refused", false, refused.accepted);
       item.check("and the state does not move", "RUNNING", refused.state);
       item.check("the refusal names the legal transitions", true, refused.reason.includes("IMPLEMENTED"));
-      let state = "RUNNING" as const;
+      // Typed as the lifecycle union rather than pinned with `as const`: the loop
+      // advances through every state, so narrowing it to the literal "RUNNING" made
+      // each advance a type error.
+      let state: (typeof TASK_LIFECYCLE)[number] = "RUNNING";
       const trail: string[] = [state];
       for (const event of ["IMPLEMENTED", "VERIFIED", "REVIEWED", "CANDIDATED", "ACCEPTED"] as const) {
         const step = advanceLifecycle(state, event);

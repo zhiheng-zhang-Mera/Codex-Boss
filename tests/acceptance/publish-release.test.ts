@@ -363,7 +363,7 @@ describe("checkpoint-14 §39/§40 publishing acceptance", () => {
 
   it("PB-10 the release record is durable and readable by a fresh runner", async () => {
     await scenario("PB-10", "§39/§40 traceability", async (item) => {
-      const raw = JSON.parse(fs.readFileSync(RELEASE_RECORD, "utf8")) as { version: string; branch: string; steps: { step: string; done: boolean }[]; decision: string };
+      const raw = JSON.parse(fs.readFileSync(RELEASE_RECORD, "utf8")) as { version: string; branch: string; steps: { step: string; done: boolean; detail: string }[]; decision: string };
       item.check("the record is versioned", "release-record-1", raw.version);
       item.check("it names the branch", true, raw.branch.startsWith("boss/"));
       item.check("it records the steps", true, raw.steps.length > 0);

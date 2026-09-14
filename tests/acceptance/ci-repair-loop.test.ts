@@ -206,7 +206,7 @@ describe("checkpoint-15 §41 CI repair acceptance", () => {
         task_id: "T-unread", branch: "boss/t-unread/fix", slug: "fix", base_branch: baseBranch, candidate_id: "cand-u",
         goal: "g", requirements: [{ id: "R-1", text: "t", state: "VERIFIED" }], evidence: ["ev-u"], tests: ["tests/gateway.test.mjs"],
         known_limitations: ["l"], risk: "r", rollback: "rb", summary: "fix",
-        repair: () => undefined,
+        repair: async () => undefined,
         releaseInput: () => ({ task_id: "T-unread", candidate_id: "cand-u", slug: "fix", goal: "g", base_branch: baseBranch, requirements: [{ id: "R-1", text: "t", state: "VERIFIED" }], evidence: ["ev-u"], tests: ["t"], known_limitations: ["l"], risk: "r", rollback: "rb", checkpoints: [checkpoint], current: { head: checkpoint.head, branch: checkpoint.branch, diff_hash: checkpoint.diff_hash } })
       });
       item.check("the loop hard-blocks", "HARD_BLOCKER", record.outcome);
