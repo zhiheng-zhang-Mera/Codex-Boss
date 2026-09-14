@@ -47,7 +47,6 @@ import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
 import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { validateWorkspacePath } from "./workspace/path-utils";
-import { requireWorkspacePathSync } from "./workspace/path-utils";
 import { createWorkspaceIpcModule } from "./bootstrap/workspace-ipc";
 import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
 import { createConversationIpcModule } from "./bootstrap/conversation-ipc";
@@ -61,6 +60,7 @@ import { createThemeIpcModule } from "./bootstrap/theme-ipc";
 import { createTaskLifecycleIpcModule } from "./bootstrap/task-lifecycle-ipc";
 import { createResearchOwnerIpcModule } from "./bootstrap/research-owner-ipc";
 import { createTaskStateIpcModule } from "./bootstrap/task-state-ipc";
+import { createResearchRunIpcModule } from "./bootstrap/research-run-ipc";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -94,9 +94,7 @@ import { ResearchConductor } from "./research/research-conductor";
 import { createLiveResearchProvider } from "./research/live-research-provider";
 import { runHostLiteraturePass, createOpenAlexLiteratureDeps } from "./research/literature/host-retrieval";
 import type { ResearchStageExecutor } from "./research/research-supervisor";
-import type { ResearchIR } from "../src/shared/research-ir";
 import type { HumanDefinedResearchInput } from "../src/shared/research-input";
-import { researchIdFor } from "../src/shared/research-input";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
@@ -1042,70 +1040,18 @@ if (ownsInstance) app.whenReady().then(() => {
     events: { publish: (event) => domainEvents.publish(event) }
   }));
 
-  // Research mode: every IPC call forwards to the single ResearchService
-  // composition root (milestone §6). The service owns the ledger, protocol
-  // manager, evidence graph, citation store, autopilot supervisor and runtime —
-  // no GUI-side duplicate composition.
-  ipcMain.handle("boss:research-start", (_event, input: {
-    id?: string;
-    // Milestone §1 human input: a falsifiable research question + workspace +
-    // budget; `researchQuestion` is the immutable anchor.
-    researchQuestion?: string;
-    goal: string;
-    workspace: string;
-    reviewers: string[];
-    autonomy?: "AUTOPILOT" | "GUIDED";
-    hypothesis?: string;
-    providerPolicy?: "AUTO" | "FIXED";
-    maxExperiments?: number;
-    maxSteps?: number;
-    maxProviderCalls?: number;
-  }) => {
-    // The research workspace enters the runtime exactly like every other one:
-    // through the single path model. It used to be checked with `.trim()` only,
-    // so a typo became a research scope that silently wrote nowhere, and two
-    // spellings of one directory became two project scopes.
-    const researchWorkspace = requireWorkspacePathSync(input.workspace).canonicalPath!;
-    if (input.researchQuestion?.trim()) {
-      const record = research!.startHumanResearch({
-        id: input.id,
-        researchQuestion: input.researchQuestion.trim(),
-        workspace: researchWorkspace,
-        hypothesis: input.hypothesis?.trim() || undefined,
-        providerPolicy: input.providerPolicy ?? (input.autonomy === "GUIDED" ? "FIXED" : "AUTO"),
-        reviewers: input.reviewers,
-        budget: { maxSteps: input.maxSteps ?? 200, maxExperiments: input.maxExperiments ?? 3, maxProviderCalls: input.maxProviderCalls ?? 200 }
-      });
-      domainEvents.publish({ type: "TOOL_RESULT_READY", taskId: record.ir.id, message: `research ${record.ir.id} started from human-defined RQ` });
-      return record;
+  // Phase F/G: starting a research run and compiling its manuscript live in
+  // electron/bootstrap/research-run-ipc.ts. The data root and the research service
+  // are injected, because the module must never import Electron.
+  bootModules.push(createResearchRunIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    run: {
+      startHumanResearch: (input) => research!.startHumanResearch(input),
+      start: (ir) => research!.start(ir),
+      researchCache: (id) => path.join(app.getPath("userData"), ".boss", "research", id),
+      publish: (event) => domainEvents.publish(event)
     }
-    if (!input.goal.trim()) throw new Error("Research goal is required when no researchQuestion is supplied");
-    if (!input.reviewers.length) throw new Error("Research requires at least one reviewer");
-    const ir: ResearchIR = {
-      schemaVersion: 1,
-      id: input.id ?? researchIdFor(input.goal.trim()),
-      goal: input.goal.trim(),
-      scope: { workspace: researchWorkspace, allowedDomains: [], reviewers: input.reviewers, autonomy: input.autonomy ?? "AUTOPILOT", budget: { maxExperiments: input.maxExperiments ?? 5, maxSteps: input.maxSteps ?? 100 } },
-      state: "SCOPING",
-      researchQuestions: [],
-      hypotheses: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const record = research!.start(ir);
-    domainEvents.publish({ type: "TOOL_RESULT_READY", taskId: ir.id, message: `research ${ir.id} started` });
-    return record;
-  });
-  // Phase L: compile a run's manuscript/paper.tex into paper.pdf (audit written
-  // to research/<id>/audit/compile.json). Fail-closed: no engine or compile
-  // error → status FAIL, .tex preserved, paths still returned for repair.
-  ipcMain.handle("boss:research-compile-pdf", async (_event, id: string) => {
-    const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "");
-    const manuscriptDir = path.join(app.getPath("userData"), ".boss", "research", safeId, "manuscript");
-    const { LatexCompiler } = await import("./research/manuscript/latex-compiler.js");
-    const audit = await new LatexCompiler().compile(manuscriptDir);
-    return { ...audit, researchCache: path.join(app.getPath("userData"), ".boss", "research", safeId) };
-  });
+  }));
   ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
     // WORK_UNIT_2: text OR a bound attachment OR a repository is enough; an
     // empty text with no inputs is still a clear error.

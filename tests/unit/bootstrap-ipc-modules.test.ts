@@ -15,6 +15,7 @@ import { createThemeIpcModule, THEME_IPC_CHANNELS, toPreviewView, type ThemeSurf
 import { createTaskLifecycleIpcModule, TASK_LIFECYCLE_IPC_CHANNELS } from "../../electron/bootstrap/task-lifecycle-ipc";
 import { createResearchOwnerIpcModule, RESEARCH_OWNER_IPC_CHANNELS } from "../../electron/bootstrap/research-owner-ipc";
 import { createTaskStateIpcModule, TASK_STATE_IPC_CHANNELS } from "../../electron/bootstrap/task-state-ipc";
+import { createResearchRunIpcModule, RESEARCH_RUN_IPC_CHANNELS } from "../../electron/bootstrap/research-run-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -1119,6 +1120,104 @@ describe("Phase G — task state transitions", () => {
     await ipc.invoke("boss:accept-evidence", "t1");
     // Order matters: the decision is durable before the finalization reads it.
     expect(calls).toEqual(["evidence:b1:PASS", "finalize"]);
+  });
+});
+
+describe("Phase G — research run control", () => {
+  function build(overrides: Record<string, unknown> = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const events: string[] = [];
+    const run = {
+      startHumanResearch: (input: { researchQuestion: string; workspace: string; providerPolicy: string; budget: { maxSteps: number } }) => {
+        calls.push(`human:${input.researchQuestion}:${input.workspace}:${input.providerPolicy}:${input.budget.maxSteps}`);
+        return { ir: { id: "rq-1" } };
+      },
+      start: (ir: { id: string; goal: string; scope: { workspace: string; autonomy: string } }) => {
+        calls.push(`auto:${ir.id}:${ir.goal}:${ir.scope.workspace}:${ir.scope.autonomy}`);
+        return { ir: { id: ir.id } };
+      },
+      researchCache: (id: string) => { calls.push(`cache:${id}`); return path.join(makeTree(), id); },
+      publish: (event: { taskId: string; message: string }) => { events.push(`${event.type}:${event.taskId}`); },
+      ...overrides
+    };
+    const module = createResearchRunIpcModule({ handle: ipc.handle.bind(ipc), run: run as never });
+    return { ipc, module, calls, events };
+  }
+
+  it("registers exactly the two channels it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels.sort()).toEqual([...RESEARCH_RUN_IPC_CHANNELS].sort());
+    expect(module.health()).toMatchObject({ module: "research-run-ipc", status: "READY" });
+    expect(module.health().detail).toContain("2/2");
+  });
+
+  it("refuses a workspace the single path model cannot canonicalise", async () => {
+    // The whole point of routing through the path model: a typo must not become a
+    // research scope that silently writes nowhere.
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:research-start", { goal: "g", workspace: "definitely/not/here", reviewers: ["r"] }))
+      .rejects.toThrow();
+    expect(calls).toEqual([]);
+  });
+
+  it("anchors a human research question on the canonical workspace", async () => {
+    const root = makeTree();
+    const { ipc, calls, events } = build();
+    const record = await ipc.invoke("boss:research-start", {
+      researchQuestion: "  does X cause Y?  ",
+      goal: "ignored when a question is present",
+      workspace: root,
+      reviewers: ["alice"],
+      maxSteps: 7
+    }) as { ir: { id: string } };
+    expect(record.ir.id).toBe("rq-1");
+    // Trimmed question, canonical workspace, and the human path's own budget default.
+    expect(calls[0]).toContain("human:does X cause Y?");
+    expect(calls[0]).toContain(root);
+    expect(calls[0]).toContain("AUTO");
+    expect(calls[0]).toContain("7");
+    expect(events).toEqual(["TOOL_RESULT_READY:rq-1"]);
+  });
+
+  it("a GUIDED run with no stated provider policy is FIXED", async () => {
+    const root = makeTree();
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:research-start", { researchQuestion: "q", goal: "g", workspace: root, reviewers: ["r"], autonomy: "GUIDED" });
+    expect(calls[0]).toContain("FIXED");
+  });
+
+  it("refuses a goal-less, question-less start, and one with no reviewer", async () => {
+    const root = makeTree();
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:research-start", { goal: "   ", workspace: root, reviewers: ["r"] }))
+      .rejects.toThrow(/Research goal is required/);
+    await expect(ipc.invoke("boss:research-start", { goal: "g", workspace: root, reviewers: [] }))
+      .rejects.toThrow(/at least one reviewer/);
+    expect(calls).toEqual([]);
+  });
+
+  it("builds the autopilot IR when no research question is supplied", async () => {
+    const root = makeTree();
+    const { ipc, calls, events } = build();
+    await ipc.invoke("boss:research-start", { goal: "  map the field  ", workspace: root, reviewers: ["bob"] });
+    // The IR carries the trimmed goal, the canonical workspace and the autopilot default.
+    expect(calls[0]).toContain("auto:");
+    expect(calls[0]).toContain("map the field");
+    expect(calls[0]).toContain(root);
+    expect(calls[0]).toContain("AUTOPILOT");
+    expect(events[0]).toContain("TOOL_RESULT_READY:");
+  });
+
+  it("compiles through the sanitized run id, so a traversal cannot leave the run's cache", async () => {
+    const { ipc, calls } = build();
+    const failure = await ipc.invoke("boss:research-compile-pdf", "../../etc/passwd").catch((error: Error) => error);
+    // Exactly one cache lookup, with the separators stripped from the renderer's id.
+    expect(calls).toEqual(["cache:etcpasswd"]);
+    // A missing manuscript is a refusal that names the path inside the run's own
+    // directory — the traversal never reached the filesystem.
+    expect(String((failure as Error).message)).toContain("etcpasswd");
+    expect(String((failure as Error).message)).not.toContain("..");
   });
 });
 
