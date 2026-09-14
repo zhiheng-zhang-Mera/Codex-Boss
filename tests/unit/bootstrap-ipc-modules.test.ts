@@ -19,6 +19,7 @@ import { createResearchRunIpcModule, RESEARCH_RUN_IPC_CHANNELS } from "../../ele
 import { canonicalRealPathSync } from "../../electron/workspace/path-utils";
 import { createTaskCreationIpcModule, TASK_CREATION_IPC_CHANNELS } from "../../electron/bootstrap/task-creation-ipc";
 import { taskTransports, titleForTask, workbookAttachments, type InputRefSources } from "../../electron/tasks/task-inputs";
+import { createDispatchIpcModule, DISPATCH_IPC_CHANNELS, escalateDecisionFor } from "../../electron/bootstrap/dispatch-ipc";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -1333,6 +1334,150 @@ describe("Phase F — task input normalisation", () => {
     const sources: InputRefSources = { inputObjectsFor: () => [{ id: "a1" }] as never };
     const refs = workbookAttachments(sources, { prompt: "p", inputObjectIds: ["a1"] } as never, "c1");
     expect(refs.map((ref) => ref.id)).toEqual(["a1"]);
+  });
+});
+
+describe("Phase G — dispatching a task", () => {
+  function build(overrides: Record<string, unknown> = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const dispatch = {
+      activeConversationId: () => "c1",
+      providerIds: () => ["qwen", "codex"],
+      openProviderIds: () => ["qwen", "codex"],
+      inputs: { inputObjectsFor: () => [] } as unknown as InputRefSources,
+      workspaceView: () => "MERGED",
+      setWorkspaceView: (view: string) => { calls.push(`layout:${view}`); },
+      materializeGithubInput: async () => undefined,
+      workspacePath: () => "/ws",
+      conversationInputObjects: () => [],
+      runWorkbookDispatch: async (request: { title: string }) => { calls.push(`workbook:${request.title}`); return { ok: true }; },
+      workbookRegistry: () => ({}),
+      createTask: (input: { title: string }) => { calls.push(`create:${input.title}`); return { id: "t1", runMode: "ASSISTED", appMode: "chat", mode: "direct", conversationId: "c1", prompt: "p" }; },
+      startTask: () => { calls.push("start"); },
+      executeDeterministic: async () => { calls.push("deterministic"); return { executed: true }; },
+      executePlan: async () => { calls.push("plan"); return { executed: true }; },
+      dispatchTask: async () => { calls.push("dispatch"); },
+      continueIfReady: async () => { calls.push("continue"); },
+      setRecoveryState: (_taskId: string, _retryAt: unknown, reason: string) => { calls.push(`recovery:${reason}`); },
+      approveModeTransition: () => { calls.push("approve"); return true; },
+      stageModeTransition: (_taskId: string, transition: { to: string }) => { calls.push(`stage:${transition.to}`); },
+      publish: () => ({ published: true }),
+      ...overrides
+    };
+    const module = createDispatchIpcModule({ handle: ipc.handle.bind(ipc), dispatch: dispatch as never });
+    return { ipc, module, calls };
+  }
+
+  it("registers exactly the one channel it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels).toEqual([...DISPATCH_IPC_CHANNELS]);
+    expect(module.health()).toMatchObject({ module: "dispatch-ipc", status: "READY" });
+  });
+
+  it("refuses a dispatch whose chosen providers are not all open", async () => {
+    // Dispatch drives real pages; opening them here would spend the concurrency
+    // budget as a side effect.
+    const { ipc, calls } = build({ openProviderIds: () => ["qwen"] });
+    await expect(ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["qwen", "codex"] }))
+      .rejects.toThrow(/必须全部处于已打开状态/);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses an unknown provider and an over-large group before creating anything", async () => {
+    const unknown = build({ providerIds: () => ["qwen"] });
+    await expect(unknown.ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["qwen", "ghost"] }))
+      .rejects.toThrow(/Unknown provider: ghost/);
+    expect(unknown.calls).toEqual([]);
+
+    const tooMany = build({ providerIds: () => ["a", "b", "c", "d", "e", "f"], openProviderIds: () => ["a", "b", "c", "d", "e", "f"] });
+    await expect(tooMany.ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["a", "b", "c", "d", "e", "f"] }))
+      .rejects.toThrow();
+    expect(tooMany.calls).toEqual([]);
+  });
+
+  it("treats the pane layout as advisory: a failure there never blocks dispatch", async () => {
+    const { ipc, calls } = build({ setWorkspaceView: () => { throw new Error("no second window"); } });
+    await ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["qwen"] });
+    // The layout was attempted and failed, and the task ran anyway.
+    expect(calls).toContain("create:do it");
+    expect(calls).toContain("continue");
+  });
+
+  it("asks for the merged layout when the panes are currently detached", async () => {
+    // One web provider is three-or-fewer, so the advisory decision is MERGED — and it
+    // is only asked for because the current layout differs.
+    const { ipc, calls } = build({ workspaceView: () => "DETACHED" });
+    expect(await ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["qwen"] })).toEqual({ published: true });
+    expect(calls).toEqual(["layout:MERGED", "create:do it", "start", "deterministic", "continue"]);
+  });
+
+  it("leaves the layout alone when it is already what the dispatch wants", async () => {
+    const { ipc, calls } = build();
+    await ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["qwen"] });
+    expect(calls).toEqual(["create:do it", "start", "deterministic", "continue"]);
+  });
+
+  it("records the failure against the task and re-throws when execution fails", async () => {
+    const { ipc, calls } = build({ executeDeterministic: async () => { throw new Error("cannot start"); } });
+    await expect(ipc.invoke("boss:dispatch-task", { prompt: "do it", providerIds: ["qwen"] })).rejects.toThrow(/cannot start/);
+    expect(calls).toContain("recovery:Error: cannot start");
+  });
+
+  it("stages a Chat→Work proposal instead of firing, when no ledger can record it", async () => {
+    // Without a decision ledger the interception keeps the human gate: it must not
+    // auto-approve a capability change it cannot record. The message names a repo and
+    // a mutation verb, which is exactly what makes CHAT insufficient.
+    const escalation = "refactor the repo parser";
+    const { ipc, calls } = build({
+      createTask: () => { calls.push("create"); return { id: "t1", runMode: "ASSISTED", appMode: "chat", mode: "direct", conversationId: "c1", prompt: escalation }; }
+    });
+    await ipc.invoke("boss:dispatch-task", { prompt: escalation, providerIds: ["qwen"] });
+    expect(calls).toContain("stage:WORK");
+    expect(calls).not.toContain("start");
+  });
+
+  it("records the interception before it auto-approves, when a ledger exists", async () => {
+    const escalation = "refactor the repo parser";
+    const order: string[] = [];
+    const { ipc } = build({
+      createTask: () => { order.push("create"); return { id: "t1", runMode: "OWNER_RESULT", appMode: "chat", mode: "direct", conversationId: "c1", prompt: escalation }; },
+      appendDecision: () => { order.push("ledger"); },
+      approveModeTransition: () => { order.push("approve"); return true; },
+      startTask: () => { order.push("start"); }
+    });
+    await ipc.invoke("boss:dispatch-task", { prompt: escalation, providerIds: ["qwen"] });
+    // The decision is durable BEFORE the task is allowed to run: an interception that
+    // acted first could not be audited if the run then failed.
+    expect(order).toEqual(["create", "ledger", "approve", "start"]);
+  });
+
+  it("delegates a WorkBook dispatch to the single production entry point, creating no task itself", async () => {
+    const workbookRef = { id: "w1", kind: "WORKBOOK", originalName: "plan.docx", localPath: "/tmp/plan.docx" };
+    const { ipc, calls } = build({
+      inputs: { inputObjectsFor: () => [workbookRef] } as unknown as InputRefSources
+    });
+    await ipc.invoke("boss:dispatch-task", { prompt: "analyze it", providerIds: ["qwen"], appMode: "work", inputObjectIds: ["w1"] });
+    expect(calls.some((entry) => entry.startsWith("workbook:"))).toBe(true);
+    // The orchestration owns creation; the channel must not also create a task.
+    expect(calls).not.toContain("create:analyze it");
+  });
+});
+
+describe("Phase F — the escalation decision", () => {
+  it("reads the bound input kinds off the conversation, not off the task alone", () => {
+    // A spreadsheet bound to the task is what makes it a Work job, even though the
+    // message itself reads like an ordinary question.
+    const decision = escalateDecisionFor(
+      { conversationId: "c1", prompt: "看看这个", inputObjectIds: ["i1"] },
+      [{ id: "i1", kind: "WORKBOOK" }]
+    );
+    expect(decision).toHaveProperty("escalate");
+  });
+
+  it("does not escalate a plain chat message with no bound work", () => {
+    const decision = escalateDecisionFor({ conversationId: "c1", prompt: "你好，今天怎么样？" }, []);
+    expect(decision.escalate).toBe(false);
   });
 });
 

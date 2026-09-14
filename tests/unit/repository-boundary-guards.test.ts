@@ -253,17 +253,26 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
       "boss:owner-dashboard", "boss:resolve-intervention", "boss:project-state",
       "boss:launch-task", "boss:resolve-mode-proposal", "boss:update-task", "boss:accept-evidence",
       "boss:research-start", "boss:research-compile-pdf",
-      "boss:create-task"
+      "boss:create-task", "boss:dispatch-task"
     ];
     for (const channel of channels) {
       expect(main.includes(`ipcMain.handle("${channel}"`), `${channel} is still registered inline in main.ts`).toBe(false);
       expect(boot.some((source) => source.text.includes(`"${channel}"`)), `${channel} is not registered by a boot module`).toBe(true);
     }
-    expect(channels.length).toBeGreaterThanOrEqual(91);
+    expect(channels.length).toBeGreaterThanOrEqual(92);
+  });
+
+  it("main.ts registers no channel by name — every channel belongs to a boot module", () => {
+    // The milestone this phase existed for. The root still CALLS ipcMain.handle: it is
+    // the registrar it passes to each module. What it must never do again is name a
+    // channel itself, because that is how 51 handlers accumulated here in the first
+    // place. The list above catches a regression for a known channel; this catches a
+    // brand-new one.
+    expect([...main.matchAll(/ipcMain\.handle\(\s*"/g)].map((match) => match[0])).toEqual([]);
   });
 
   it("main.ts registers the modules and reports their health", () => {
-    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule(", "createResearchIpcModule(", "createHostStatusIpcModule(", "createSettingsIpcModule(", "createThemeIpcModule(", "createTaskLifecycleIpcModule(", "createResearchOwnerIpcModule(", "createTaskStateIpcModule(", "createResearchRunIpcModule(", "createTaskCreationIpcModule("]) {
+    for (const factory of ["createWorkspaceIpcModule(", "createAttachmentIpcModule(", "createConversationIpcModule(", "createProviderIpcModule(", "createStatusIpcModule(", "createEngineeringSurfaceIpcModule(", "createResearchIpcModule(", "createHostStatusIpcModule(", "createSettingsIpcModule(", "createThemeIpcModule(", "createTaskLifecycleIpcModule(", "createResearchOwnerIpcModule(", "createTaskStateIpcModule(", "createResearchRunIpcModule(", "createTaskCreationIpcModule(", "createDispatchIpcModule("]) {
       expect(main, `${factory} is not registered by main.ts`).toContain(factory);
     }
     expect(main).toContain("reportBootHealth(bootModules)");
@@ -287,7 +296,7 @@ describe("Phase F/G — extraction actually moved code out of main.ts", () => {
   });
 
   it("the boot modules each expose service + health + dispose", () => {
-    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts", "electron/bootstrap/research-ipc.ts", "electron/bootstrap/host-status-ipc.ts", "electron/bootstrap/settings-ipc.ts", "electron/bootstrap/theme-ipc.ts", "electron/bootstrap/task-lifecycle-ipc.ts", "electron/bootstrap/research-owner-ipc.ts", "electron/bootstrap/task-state-ipc.ts", "electron/bootstrap/research-run-ipc.ts", "electron/bootstrap/task-creation-ipc.ts"]) {
+    for (const file of ["electron/bootstrap/workspace-ipc.ts", "electron/bootstrap/attachment-ipc.ts", "electron/bootstrap/conversation-ipc.ts", "electron/bootstrap/provider-ipc.ts", "electron/bootstrap/status-ipc.ts", "electron/bootstrap/engineering-surface-ipc.ts", "electron/bootstrap/research-ipc.ts", "electron/bootstrap/host-status-ipc.ts", "electron/bootstrap/settings-ipc.ts", "electron/bootstrap/theme-ipc.ts", "electron/bootstrap/task-lifecycle-ipc.ts", "electron/bootstrap/research-owner-ipc.ts", "electron/bootstrap/task-state-ipc.ts", "electron/bootstrap/research-run-ipc.ts", "electron/bootstrap/task-creation-ipc.ts", "electron/bootstrap/dispatch-ipc.ts"]) {
       const text = fs.readFileSync(path.join(PROJECT, file), "utf8");
       expect(text).toContain("BootModule<");
       expect(text).toMatch(/health:\s*\(\)\s*=>/);

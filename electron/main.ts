@@ -38,8 +38,6 @@ import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture 
 import { recordThemeKnowledge } from "./theme/theme-knowledge";
 import { writeJson } from "./commander/durable-json";
 import { ExecutionGate } from "./commander/execution-gate";
-import { decideEscalation, detectCapabilityNeeds } from "../src/shared/capability-needs";
-import type { InputObjectKind } from "../src/shared/input-object";
 import { ResourceController } from "./commander/resource-controller";
 import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
@@ -62,7 +60,8 @@ import { createResearchOwnerIpcModule } from "./bootstrap/research-owner-ipc";
 import { createTaskStateIpcModule } from "./bootstrap/task-state-ipc";
 import { createResearchRunIpcModule } from "./bootstrap/research-run-ipc";
 import { createTaskCreationIpcModule } from "./bootstrap/task-creation-ipc";
-import { taskTransports, titleForTask, workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
+import { createDispatchIpcModule } from "./bootstrap/dispatch-ipc";
+import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -73,7 +72,6 @@ import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
-import { assertDispatchGroupSize } from "./commander/provider-dispatch-guard";
 import {
   reconcileWorkbookLinks,
   resumeWorkBookTask,
@@ -81,7 +79,6 @@ import {
   runWorkDispatch
 } from "./commander/workbook-production";
 import { WorkbookRegistry } from "./ingestion/workbook-registry";
-import { assertPrimaryInput, shouldRunWorkBookIntake } from "./commander/workbook-dispatch";
 import { ExperienceStore } from "./experience/experience-store";
 import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
@@ -100,7 +97,6 @@ import type { HumanDefinedResearchInput } from "../src/shared/research-input";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle } from "./evidence-engine";
 import { autoArchiveDecision } from "../src/shared/archive-policy";
-import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../src/shared/owner-result";
 import { DecisionLedgerStore } from "./commander/decision-ledger-store";
 import { SessionLifecycleLedger } from "./identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "./node/node-capability-registry";
@@ -296,15 +292,6 @@ const INPUT_REFS: InputRefSources = {
   inputObjectsFor: (conversationId) => store.inputObjectsFor(conversationId),
   get attachments() { return attachmentStore; }
 };
-
-/** Phase E: deterministic Chat→Work detection for a task (message + bound inputs). */
-function escalateDecisionFor(task: import("../src/shared/contracts").BossTask) {
-  const conversation = store.snapshot().conversations.find((item) => item.id === task.conversationId);
-  const inputKinds = (task.inputObjectIds ?? [])
-    .map((id) => conversation?.inputObjects?.find((ref) => ref.id === id)?.kind)
-    .filter((kind): kind is InputObjectKind => kind !== undefined);
-  return decideEscalation(detectCapabilityNeeds({ message: task.prompt, inputKinds }));
-}
 
 /** Durable duplicate/resume registry for ingested WorkBooks. */
 function workbookRegistry(): WorkbookRegistry {
@@ -1035,120 +1022,53 @@ if (ownsInstance) app.whenReady().then(() => {
       publish: () => publish()
     }
   }));
-  ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
-    const providerIds = [...new Set(input.providerIds)];
-    const requestedConversationId = input.conversationId ?? store.snapshot().activeConversationId;
-    const preAttachments = workbookAttachments(INPUT_REFS, input, requestedConversationId);
-    assertPrimaryInput(input.prompt ?? "", preAttachments);
-    assertDispatchGroupSize(input.prompt ?? "", "", providerIds.length);
-    providerIds.forEach(provider);
-    const openIds = new Set(store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id));
-    if (providerIds.some((id) => !openIds.has(id))) throw new Error("所选 AI 必须全部处于已打开状态");
-    const { appMode, transports } = taskTransports(input, providerIds);
-    if (appMode === "chat" && !(input.prompt ?? "").trim()) {
-      throw new Error("Chat 模式需要任务文字；仅附件任务请使用 Work 模式");
-    }
-    // Auto workspace layout (Overcomplete live): a dispatch to MORE than three
-    // web AI pages pops the processors into the second (DETACHED) window so
-    // five pages don't crowd the controller; three or fewer stay merged in the
-    // single-window workspace.
-    try {
-      const webCount = providerIds.filter((id) => (transports[id] ?? "web") === "web").length;
-      const wanted = webCount > 3 ? "DETACHED" : "MERGED";
-      if (providerViews.workspaceView() !== wanted) providerViews.setWorkspaceView(wanted);
-    } catch (error) { /* layout is advisory; never block dispatch */ console.error("Auto workspace layout failed", error); }
-    const conversationId = input.conversationId ?? store.snapshot().activeConversationId;
-    // Phase F: a GitHub URL in the message is an input object, not prose —
-    // materialize once and bind it so WORK can scan real code.
-    const githubInput = await materializeGithubInput(conversationId, input.prompt ?? "");
-    const inputObjectIds = [...new Set([...(input.inputObjectIds ?? []), ...(githubInput ? [githubInput.id] : [])])];
-    const attachments = workbookAttachments(INPUT_REFS, input, conversationId, githubInput ? [githubInput.id] : []);
-    const workspace = workspaceForRequest({ requested: input.workspacePath, repositoryLocalPath: githubInput?.localPath, fallback: app.getAppPath() });
-
-    // WORK_UNIT_3 / REPAIR_BATCH_4: the WorkBook branch DELEGATES to the single
-    // production entry point. The old inline chain (intake -> createTask ->
-    // link revisions -> start/dispatch) lived here and is deleted; tests exercise
-    // the same runWorkDispatch the IPC handler calls.
-    if (shouldRunWorkBookIntake(appMode, attachments)) {
-      const outcome = await runWorkDispatch({
-        prompt: input.prompt ?? "",
-        title: input.title ?? "",
-        conversationId,
-        providerIds,
-        attachments,
-        inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined,
-        workspacePath: workspace,
-        mode: input.mode ?? "direct",
-        appMode,
-        transports,
-        registry: workbookRegistry(),
-        reviewPolicy: input.reviewPolicy,
-        finalizationPolicy: input.finalizationPolicy,
-        workAgentCount: input.workAgentCount,
-        runMode: input.runMode,
-        conversationPolicy: input.conversationPolicy
-      }, {
+  // Phase F/G: dispatching a task lives in electron/bootstrap/dispatch-ipc.ts. The
+  // module owns the decision order and the branching; this root owns the service
+  // bundles it drives, including the WorkBook dispatch's own dependencies.
+  // Captured in a local so the arrow below sees the narrowed type: the ledger's
+  // PRESENCE is what gates an automatic Chat→Work approval.
+  const dispatchLedger = decisionLedger;
+  bootModules.push(createDispatchIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    dispatch: {
+      activeConversationId: () => store.snapshot().activeConversationId,
+      providerIds: () => store.snapshot().providers.map((item) => item.id),
+      openProviderIds: () => store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id),
+      inputs: INPUT_REFS,
+      workspaceView: () => providerViews.workspaceView(),
+      setWorkspaceView: (view) => providerViews.setWorkspaceView(view),
+      materializeGithubInput: (conversationId, prompt) => materializeGithubInput(conversationId, prompt),
+      workspacePath: (requested, repositoryLocalPath) => workspaceForRequest({ requested, repositoryLocalPath, fallback: app.getAppPath() }),
+      conversationInputObjects: (conversationId) => store.snapshot().conversations.find((item) => item.id === conversationId)?.inputObjects ?? [],
+      runWorkbookDispatch: (request) => runWorkDispatch(request, {
         store,
         commander,
         automation,
         publish,
-        // checkpoint-1 §5: the finished dispatch records its reusable facts
-        // through the knowledge write gate. A knowledge failure is reported,
-        // never allowed to fail the task (§2.5).
+        // checkpoint-1 §5: the finished dispatch records its reusable facts through
+        // the knowledge write gate. A knowledge failure is reported, never allowed to
+        // fail the task (§2.5).
         knowledge,
         onKnowledgeDiagnostic: (detail) => console.warn("[knowledge] WorkBook knowledge write degraded", detail),
         worldModel: establishWorldModel,
         planContext: () => lastPlanContext
-      });
-      // Every outcome maps to the snapshot the caller receives; the durable
-      // state was already written by the orchestration.
-      void outcome;
-      return publish();
+      }),
+      workbookRegistry: () => workbookRegistry(),
+      createTask: (taskInput) => commander.createTask(taskInput),
+      startTask: (taskId) => commander.startTask(taskId),
+      executeDeterministic: (taskId, workspace) => commander.executeDeterministic(taskId, workspace),
+      executePlan: (taskId, workspace) => commander.executePlan(taskId, workspace),
+      dispatchTask: (taskId) => automation.dispatchTask(taskId),
+      continueIfReady: (taskId) => automation.continueIfReady(taskId),
+      setRecoveryState: (taskId, retryAt, reason) => store.setRecoveryState(taskId, retryAt, reason),
+      approveModeTransition: (taskId) => store.approveModeTransition(taskId),
+      stageModeTransition: (taskId, transition) => store.stageModeTransition(taskId, transition),
+      // Supplied only when a ledger exists: its PRESENCE is what gates an automatic
+      // Chat→Work approval, because that path must record the decision before it acts.
+      ...(dispatchLedger ? { appendDecision: (entry: Parameters<typeof dispatchLedger.append>[0]) => dispatchLedger.append(entry) } : {}),
+      publish: () => publish()
     }
-
-    const task = commander.createTask({ title: titleForTask(input, attachments), objective: (input.prompt ?? "").trim(), providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: inputObjectIds.length ? inputObjectIds : undefined, workAgentCount: input.workAgentCount, runMode: input.runMode, conversationPolicy: input.conversationPolicy });
-
-    // Phase E: Chat is the default entry. When a chat request actually needs
-    // WORK capability, propose once instead of firing web providers blindly.
-    if (appMode === "chat" && escalateDecisionFor(task).escalate) {
-      const decision = escalateDecisionFor(task);
-      // §18 task-level interception (Owner-Result Rev.2): a Chat→WORK capability
-      // proposal is a DECIDABLE capability-routing question. Under OWNER_RESULT
-      // it is auto-approved — recorded durably in the decision ledger first —
-      // and the task runs immediately (checkpointBudget=0: no routine pause).
-      // ASSISTED/AUTONOMOUS (and any HARD_BLOCKER text) keep the human gate.
-      const mode = effectiveRunMode({ runMode: task.runMode, kind: runTaskKindFor(task.appMode, task.mode) });
-      const verdict = workEscalationVerdict(mode, decision.reason ?? "任务需要进入 Work", decision.requiredCapabilities?.join("、"));
-      if (verdict.action === "AUTO_APPROVE" && verdict.decision && decisionLedger) {
-        decisionLedger.append({
-          id: `dec-${task.id}-escalate-work`, taskId: task.id, createdAt: new Date().toISOString(),
-          question: `Chat 任务需要 WORK 能力，是否升级？（${decision.reason ?? ""}）`,
-          candidates: ["保持 Chat（能力不足）", "升级到 WORK（自动批准）"],
-          chosen: verdict.decision.chosen,
-          evidence: [`requiredCapabilities: ${(decision.requiredCapabilities ?? []).join(", ")}`],
-          outcome: "APPLIED", policy: verdict.decision.policy, source: "question-interceptor"
-        });
-        if (store.approveModeTransition(task.id)) {
-          commander.startTask(task.id);
-          publish();
-          const workspace = workspaceForRequest({ requested: input.workspacePath, repositoryLocalPath: githubInput?.localPath, fallback: app.getAppPath() });
-          try { if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id); }
-          catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
-          await automation.continueIfReady(task.id);
-          return publish();
-        }
-        return publish(); // raced: another path already drives this task
-      }
-      store.stageModeTransition(task.id, { from: "CHAT", to: "WORK", reason: decision.reason ?? "任务需要进入 Work", requiredCapabilities: decision.requiredCapabilities });
-      return publish();
-    }
-    commander.startTask(task.id);
-    publish();
-    try { if (!await commander.executeDeterministic(task.id, workspace) && !await commander.executePlan(task.id, workspace)) await automation.dispatchTask(task.id); }
-    catch (error) { store.setRecoveryState(task.id, undefined, String(error)); publish(); throw error; }
-    await automation.continueIfReady(task.id);
-    return publish();
-  });
+  }));
   // Phase F/G: the task state transitions live in electron/bootstrap/task-state-ipc.ts
   // with the state machine and the shared execution chain. The install root and the
   // pane manager stay here, because both are Electron-facing.

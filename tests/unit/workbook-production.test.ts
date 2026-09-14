@@ -552,11 +552,15 @@ describe("REPAIR_BATCH_5: truthfulness of failure and real Resume", () => {
     expect(handlerSource).toContain('before.status === "waiting"');
     expect(handlerSource).toContain("resumeWorkbook(");
     // The WorkBook branch itself no longer drives the chain inline: the only
-    // dispatchTask call in the handler region is the legacy chat/research path.
-    const workBranch = mainSource.slice(mainSource.indexOf("shouldRunWorkBookIntake(appMode, attachments)"));
-    const workBranchBody = workBranch.slice(0, workBranch.indexOf("const task = commander.createTask("));
-    expect(workBranchBody).toContain("runWorkDispatch(");
+    // dispatchTask call in the branch is the legacy chat/research path. Phase F/G has
+    // now moved this branch out of main.ts too, so it is read from the module that
+    // registers boss:dispatch-task — the assertions are unchanged in substance.
+    const dispatchSource = fs.readFileSync(path.join(process.cwd(), "electron", "bootstrap", "dispatch-ipc.ts"), "utf8");
+    expect(dispatchSource).toContain('on("boss:dispatch-task"');
+    const workBranch = dispatchSource.slice(dispatchSource.indexOf("shouldRunWorkBookIntake(appMode, attachments)"));
+    const workBranchBody = workBranch.slice(0, workBranch.indexOf("const task = dispatch.createTask("));
+    expect(workBranchBody).toContain("dispatch.runWorkbookDispatch(");
     expect(workBranchBody).not.toContain("executeDeterministic");
-    expect(workBranchBody).not.toContain("automation.dispatchTask");
+    expect(workBranchBody).not.toContain("dispatch.dispatchTask(");
   });
 });

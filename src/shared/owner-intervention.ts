@@ -194,10 +194,10 @@ export const OWNER_INTERVENTION_ROUTES: readonly OwnerInterventionRoute[] = [
   },
   {
     id: "app-operator-work-handoff",
-    file: "electron/main.ts",
+    file: "electron/bootstrap/dispatch-ipc.ts",
     marker: "workEscalationVerdict",
     disposition: "PRODUCT_HITL",
-    note: "the shipped app asking its own operator whether a request should become Work — designed product behaviour, not the Prestart engineering run"
+    note: "the shipped app asking its own operator whether a request should become Work — designed product behaviour, not the Prestart engineering run. Phase F/G moved this route out of the composition root into the dispatch module, which is where the question is now asked"
   },
   {
     id: "capability-needs-escalation",
