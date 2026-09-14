@@ -7,7 +7,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { execFile, execFileSync } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, runProcess, runProcessSync } from "../../process/process-gateway";
 
 export interface LatexCompileAudit {
   status: "PASS" | "FAIL";
@@ -33,22 +33,20 @@ const ENGINE_CANDIDATES = ["pdflatex", "xelatex", "lualatex", "tectonic"];
 
 function defaultResolveEngine(): string | null {
   for (const candidate of ENGINE_CANDIDATES) {
-    try {
-      execFileSync(candidate, ["--version"], { timeout: 10000, windowsHide: true, stdio: "ignore" });
-      return candidate;
-    } catch {
-      // try next engine
-    }
+    // A probe: the engine answers `--version` or it is not installed. The gateway
+    // reports that instead of throwing it, so the detection loop is a condition
+    // rather than a caught exception.
+    if (runProcessSync(candidate, ["--version"], { timeoutMs: 10_000, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.small }).ok) return candidate;
   }
   return null;
 }
 
-function defaultRun(engine: string, args: string[], cwd: string): Promise<{ code: number; output: string }> {
-  return new Promise((resolve) => {
-    execFile(engine, args, { cwd, timeout: 120000, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (error, _stdout, stderr) => {
-      resolve({ code: error ? (error as { code?: number }).code ?? 1 : 0, output: String(stderr || error || "") });
-    });
-  });
+async function defaultRun(engine: string, args: string[], cwd: string): Promise<{ code: number; output: string }> {
+  const result = await runProcess(engine, args, { cwd, timeoutMs: PROCESS_TIMEOUT_MS.build, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.xlarge });
+  // The engine's own stderr is the compile log; when the engine never started, or
+  // the transcript was cut, the reason takes its place so the audit says why
+  // instead of recording an empty log tail.
+  return { code: result.ok ? 0 : result.code ?? 1, output: result.stderr || result.spawnError || "" };
 }
 
 export class LatexCompiler {

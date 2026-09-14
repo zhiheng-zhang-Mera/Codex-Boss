@@ -1,7 +1,7 @@
 import { resolveVSCodeCli } from "./vscode-cli";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, runProcess } from "../../process/process-gateway";
 import { workspacePath, executeNative } from "../../engineering/native-tools";
 import type { SemanticAction, SemanticBackend, SemanticResult } from "../semantic-runtime";
 export interface StructuredOptions { vscodeExecutable?: string; vscodeUserDataDir?: string; readBrowser?: (providerId: string) => Promise<unknown>; }
@@ -24,7 +24,18 @@ export class StructuredApplicationsBackend implements SemanticBackend {
       if (target !== "status" || !executable || !fs.existsSync(executable)) return { status: "UNSUPPORTED", message: "VS Code CLI unavailable" };
       const cli = resolveVSCodeCli(executable);
       if (!cli) return { status: "UNSUPPORTED", message: "VS Code CLI entry unavailable" };
-      const output = await new Promise<string>((resolve, reject) => execFile(executable, [cli, "--status", ...(this.options.vscodeUserDataDir ? ["--user-data-dir", this.options.vscodeUserDataDir] : [])], { cwd: this.workspace, windowsHide: true, signal, timeout: 15000, maxBuffer: 1000000, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } }, (error, stdout, stderr) => error ? reject(new Error(String(stderr) || error.message)) : resolve(stdout)));
+      const status = await runProcess(executable, [cli, "--status", ...(this.options.vscodeUserDataDir ? ["--user-data-dir", this.options.vscodeUserDataDir] : [])], {
+        cwd: this.workspace,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        signal,
+        timeoutMs: PROCESS_TIMEOUT_MS.short,
+        maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.small
+      });
+      // Same contract as before — a CLI that did not answer cleanly throws — but a
+      // cancellation and a missing entry point now say so instead of surfacing an
+      // empty message.
+      if (!status.ok) throw new Error(status.stderr.trim() || status.spawnError || "VS Code CLI status failed");
+      const output = status.stdout;
       if (/--status argument can only be used if Code is already running/i.test(output)) return { status: "UNSUPPORTED", message: "VS Code is installed but not running", evidence: { source: "vscode_cli_status", output } };
       evidence = { source: "vscode_cli_status", output };
     }

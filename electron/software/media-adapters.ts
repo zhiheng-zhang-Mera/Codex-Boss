@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, runProcess } from "../process/process-gateway";
 import { blenderCommand, unrealCommand, resolveExecutable, type AdapterCommandSpec } from "../../src/shared/software-commands";
 import type { SoftwareAdapterDeclaration, SoftwareHealth } from "../../src/shared/software-adapter";
 
@@ -10,16 +10,21 @@ import type { SoftwareAdapterDeclaration, SoftwareHealth } from "../../src/share
  * Both adapters follow the AP21 declaration surface and the control hierarchy:
  *  - Blender: native CLI/bpy background → addon bridge → semantic GUI fallback;
  *  - Unreal: Python Editor Scripting / Remote Control → CLI/build → GUI fallback.
- * Commands are ALWAYS structured (`execFile(executable, args)` from
- * software-commands) — never a shell string produced by a model. Detection is
+ * Commands are ALWAYS structured (`runProcess(executable, args)` from
+ * software-commands, through the process gateway) — never a shell string
+ * produced by a model. Detection is
  * graceful: when the executable is absent the adapter reports DOWN with a
  * clear message instead of throwing into the caller (mirrors CodexCliRuntime).
  */
 
 export type SoftwareRunner = (spec: AdapterCommandSpec) => Promise<{ code: number; output: string }>;
 
-export function defaultRunner(spec: AdapterCommandSpec): Promise<{ code: number; output: string }> {
-  return new Promise((resolve) => execFile(spec.executable, spec.args, { cwd: spec.cwd, windowsHide: true, timeout: spec.timeoutMs, maxBuffer: 2000000 }, (error, stdout, stderr) => resolve({ code: error ? 1 : 0, output: `${String(stdout)}\n${String(stderr)}`.trim() })));
+export async function defaultRunner(spec: AdapterCommandSpec): Promise<{ code: number; output: string }> {
+  const result = await runProcess(spec.executable, spec.args, { cwd: spec.cwd, timeoutMs: spec.timeoutMs, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.standard });
+  // A missing executable used to arrive as `code: 1, output: ""`, which reads
+  // exactly like an adapter that ran and failed; the reason takes its place.
+  const output = `${result.stdout}\n${result.stderr}`.trim();
+  return { code: result.ok ? 0 : 1, output: output || result.spawnError || "" };
 }
 
 function blenderCandidates(): string[] {

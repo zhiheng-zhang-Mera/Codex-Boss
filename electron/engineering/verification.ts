@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { runAllowedCommand, type AllowedCommand, type RunAllowedCommandOptions } from "./command-runner";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, processTranscript, runProcess } from "../process/process-gateway";
 import { workspacePath } from "./native-tools";
 import { assertMutationAllowed } from "../self-evolution/mutation-guard";
 export interface FileChange { path: string; expectedSha256: string | null; content: string; }
@@ -40,7 +40,16 @@ export async function runCheck(root: string, check: CheckSpec, options: RunAllow
   if (check.kind !== "syntax" && check.kind !== "diff") { const result = await runAllowedCommand(root, check.kind, check.files); return { check, passed: result.passed, output: result.output, exitCode: result.exitCode }; }
   const executable = check.kind === "syntax" ? process.execPath : "git";
   const args = check.kind === "syntax" ? ["--check", workspacePath(root, check.file)] : ["diff", "--check"];
-  return new Promise((resolve) => execFile(executable, args, { cwd: fs.realpathSync(root), windowsHide: true, timeout: 30000, maxBuffer: 1000000, env: { ...(options.env ?? process.env), ELECTRON_RUN_AS_NODE: "1" } }, (error, stdout, stderr) => resolve({ check, passed: !error, output: `${stdout}${stderr}`, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null })));
+  const result = await runProcess(executable, args, {
+    cwd: fs.realpathSync(root),
+    env: { ...(options.env ?? process.env), ELECTRON_RUN_AS_NODE: "1" },
+    timeoutMs: PROCESS_TIMEOUT_MS.check,
+    maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.small
+  });
+  // `processTranscript` records why a check never produced an exit status. The
+  // bare `${stdout}${stderr}` this replaced wrote an empty transcript for a
+  // missing executable, which reads like a check that ran and found nothing.
+  return { check, passed: result.ok, output: processTranscript(result), exitCode: result.code };
 }
 export async function verifyAndRepair(root: string, checks: CheckSpec[], repair: (failures: CheckEvidence[], attempt: number) => Promise<void>, maxRepairs = 2, observe?: (evidence: CheckEvidence[]) => void, options: RunAllowedCommandOptions = {}): Promise<CheckEvidence[]> {
   if (!checks.length || !Number.isInteger(maxRepairs) || maxRepairs < 0 || maxRepairs > 2) throw new Error("Invalid verification bounds");

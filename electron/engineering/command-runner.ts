@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, processTranscript, runProcess } from "../process/process-gateway";
 import { workspacePath } from "./native-tools";
 import { canonicalRealPathSync } from "../workspace/path-utils";
 export type AllowedCommand = "test" | "typecheck" | "build" | "lint";
@@ -100,5 +100,14 @@ export async function runAllowedCommand(root: string, command: AllowedCommand, f
     const outcome = await options.sandbox.run({ command, args, cwd, env: environment });
     return { command, args, passed: outcome.passed, exitCode: outcome.exitCode, output: outcome.output };
   }
-  return new Promise((resolve) => execFile(process.execPath, args, { cwd, windowsHide: true, timeout: 900000, maxBuffer: 32 * 1024 * 1024, env: environment }, (error, stdout, stderr) => resolve({ command, args, passed: !error, exitCode: !error ? 0 : typeof error.code === "number" ? error.code : null, output: String(stdout) + String(stderr) })));
+  const result = await runProcess(process.execPath, args, {
+    cwd,
+    env: environment,
+    timeoutMs: PROCESS_TIMEOUT_MS.suite,
+    maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.huge
+  });
+  // A tool that could not be started must not be recorded as a gate that failed;
+  // `processTranscript` puts the reason in the transcript instead of leaving it
+  // empty, and `result.code` distinguishes a timeout from an exit status.
+  return { command, args, passed: result.ok, exitCode: result.code, output: processTranscript(result) };
 }

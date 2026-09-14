@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, runProcess } from "../../process/process-gateway";
 import type { ControllerState, EvidenceBundle, RawArtifact } from "../../../src/shared/contracts";
 import type { RuntimeAdapter, RuntimeHealth, RuntimeRequest, RuntimeResult } from "../runtime";
 
@@ -89,8 +90,10 @@ export class CodexCliRuntime implements RuntimeAdapter {
     return result.content;
   }
 
-  private exec(command: string, args: string[], timeout: number): Promise<{ code: number; output: string }> {
-    return new Promise((resolve) => execFile(command, args, { windowsHide: true, timeout }, (error, stdout, stderr) => resolve({ code: error ? 1 : 0, output: `${String(stdout)}\n${String(stderr)}`.trim() })));
+  private async exec(command: string, args: string[], timeout: number): Promise<{ code: number; output: string }> {
+    const result = await runProcess(command, args, { timeoutMs: timeout, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.standard });
+    const output = `${result.stdout}\n${result.stderr}`.trim();
+    return { code: result.ok ? 0 : 1, output: output || result.spawnError || "" };
   }
 }
 

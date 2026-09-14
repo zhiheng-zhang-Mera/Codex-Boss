@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, runProcess } from "../process/process-gateway";
 import { SecretVaultStore } from "../security/secret-vault-store";
 import { loadGitHubMachineIdentityConfig } from "./github-config";
 import { GitHubAppAuthProvider, fetchGitHubHttpTransport } from "./github-app-auth";
@@ -14,8 +14,10 @@ export interface PlatformSecretCrypto {
   unprotect(cipherText: string): string;
 }
 
-function commandAvailable(command: string, args: string[]): Promise<boolean> {
-  return new Promise((resolve) => execFile(command, args, { windowsHide: true, timeout: 5_000 }, (error) => resolve(!error)));
+/** A probe: the CLI answers its version or it is not installed. */
+async function commandAvailable(command: string, args: string[]): Promise<boolean> {
+  const result = await runProcess(command, args, { timeoutMs: PROCESS_TIMEOUT_MS.probe, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.small });
+  return result.ok;
 }
 
 function persistentNodeId(filePath: string): string {

@@ -19,7 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, processTranscript, runProcessSync } from "../process/process-gateway";
 import { runAllowedCommand, type AllowedCommand, type CommandEvidence } from "./command-runner";
 import { assertMutationAllowed } from "../self-evolution/mutation-guard";
 import type { VerificationGate } from "../../src/shared/execution-planner";
@@ -400,9 +400,11 @@ export function createVerificationEngine(config: EngineConfig): VerificationEngi
 
 /** Default raw runner for the syntax rung and the §30.2 git check. */
 function rawRun(executable: string, args: string[], cwd: string): RawRun {
-  const result = spawnSync(executable, args, { cwd, windowsHide: true, encoding: "utf8", timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
-  if (result.error) return { passed: false, exitCode: null, output: String(result.error) };
-  return { passed: result.status === 0, exitCode: result.status, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  const result = runProcessSync(executable, args, { cwd, timeoutMs: PROCESS_TIMEOUT_MS.check, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.large });
+  // The gateway keeps the partial transcript when the buffer bound cut it and
+  // names the launch failure otherwise; `String(result.error)` alone discarded
+  // whatever the process had already printed.
+  return { passed: result.ok, exitCode: result.code, output: processTranscript(result) };
 }
 
 /* ------------------------------------------------------------------ *
