@@ -198,7 +198,7 @@ rows marked PASS were re-verified at the round's final commit.
 
 | Phase | What is left | Why it was not done in this round |
 | --- | --- | --- |
-| F/G | Continue the extraction group by group: `bootstrap/runtime.ts` (roots + window lifecycle — 31 `mainWindow` references and the smoke/restart entry point make it the widest slice, so it wants its own round; a boot module may not import Electron, so it needs the same injected-surface treatment Phase G used for `ipcMain`), `providers.ts` (provider pool, views, automation and the GitHub machine identity), `engineering.ts`, `research.ts`, and the session/runtime services | Extracted in the order of "cohesive, no window, testable without Electron": the durable stores, then the self-model, then the event machinery. Each further group needs the acceptance chain re-run, and the book caps this phase at "受控拆分 / 不得大重写" |
+| F/G | Continue the extraction group by group: `bootstrap/providers.ts` (provider pool, views, automation and the GitHub machine identity — 32 `providerViews` and ~30 `automation` references, and the desktop acceptance drives provider panes through it), `engineering.ts`, `research.ts`, and the session/runtime services | Extracted in the order of "cohesive, no window, testable without Electron": the durable stores, the self-model, the event machinery, then the window lifecycle (`runtime.ts`, done — see the F row). `providers` is the largest remaining group and the one the widest acceptance surface depends on, so it needs a full round with a buffer, not the last one; the book caps this phase at "受控拆分 / 不得大重写" |
 | H | The audit's remaining must-fix swallowed failures: `main.ts` headless preflight (`updateRun`/`setTaskStatus`), `evaluation-store` golden (a corrupt baseline reads as no baseline — `readJson` returns `undefined` for both, and the next `record()` overwrites the file), `autonomous-evolution-surface/identity` unreadable files, `self-evolution-coordinator` evidence persist (a failed `evidence.persist` is caught and dropped on the grounds that the run must not fail for it — the policy is right, the silence is not) | Each changes a failure path that acceptance currently exercises; triaged by severity, highest fixed first. Done, all of the same class: `context-manager` restore, `final-acceptance-gate` (unreadable vs missing reports, and the persisted record), `verification-engine` corrupt ledger, `repo-manifest` (a corrupt index read as "never scanned", and an entry the walk could not stat vanishing from the index), `recovery-engine` corrupt backlog, `candidate-guardian` (removal checks that could not run reported a clean verdict, and a corrupt record read as "never recorded"), `root-authority/protected-surface-guard`. Two audit items were **already fixed** and are struck here rather than re-fixed: `candidate-supervisor` (the journal write failure is retained on the record and exposed through `journalFailure()`) and `repo-manifest`'s `sha256: "unreadable"` marker, which was never the defect |
 | I | `.boss/project-state.json` has two `ProjectStateStore` instances for one workspace; the theme tree is written by `theme-storage` and `theme-service`; `.boss/research/**` mixes a ledger layout (`<id>.json`) with a service layout (`<id>/*`) | Fixing them changes where durable state lives while the acceptance chain reads those exact files; each needs its own verification pass |
 | J | The `MIGRATE` items other than the two restored tests: two stale `hardening-matrix` suite names, the permanently-disabled `legacy:v1-audit` acceptance entry, dropping the five delegating containment wrappers | The wrappers are public API imported by tests; the catalog entries are Root-Trust-adjacent data |
@@ -206,16 +206,14 @@ rows marked PASS were re-verified at the round's final commit.
 | M | The **supervising** half of the phase: `host/process-runner`, `research/runtime/process-runner`, `remote-relay`, `host/soak-harness`, `self-evolution-coordinator`, the Codex agent process, the UIA/OCR bridges and the two sandbox modules stream stdout over the life of the operation or must signal the child later | The capture-shaped runners are done and enforced; these need a supervision surface (streaming transcript, host-controlled lifetime, signals) rather than the capture-and-return shape the gateway has, so they are a different change. `electron/git/git-gateway.ts` also still imports `child_process` directly: it is the other half's gateway, not a bypass |
 | Q | The repo-wide sweep for stale claims outside the modules this round touched | The encoding corruption that surfaced during that sweep is now repaired in both files; the remaining question is whether other comments still describe behaviour that has since changed, which needs reading rather than scanning |
 | N | — | Done: the layers are declared in `vitest.tiers.mjs` and enforced by `tests/unit/test-layers.test.ts`; the build-dependent suites are in their own tier and `tests/**` is under `pnpm run typecheck` | — |
-| O | Split `.github/workflows/ci.yml` into logical jobs (`quality`, `unit`, `integration`, `acceptance-core`, `acceptance-desktop`, `autonomous-evolution`, `package`) | The file is Root Trust Surface: any edit moves the trust epoch, which requires `scripts/acceptance-evolution-bless.cjs --advance` plus a full re-certification. That is a separate, explicitly sequenced operation, not a cleanup commit |
-| P | An actual clean-clone run (clone to a different path → `pnpm install --frozen-lockfile` → `build` → `test` → `run`) | The static checks are asserted; the real clone run was not executed in this round |
-| Q | Repo-wide comment sweep for stale claims | Only the modules this round touched were verified |
+| O | — | Done: `.github/workflows/ci.yml` is four jobs (`quality`, `unit`, `acceptance`, `package`); the change carried the epoch advance and re-certification it required (epoch 11 over the new surface) and all four jobs are verified green in the cloud | — |
+| P | An actual clean-clone run (clone to a different path → `pnpm install --frozen-lockfile` → `build` → `test` → `run`) | The static checks are asserted; the real clone run was not executed |
 
 
 | Item | Where | Why it is still there |
 | --- | --- | --- |
-| `main.ts` as composition root | `electron/main.ts` | Phase F; needs its own acceptance cycle |
-| IPC handlers with orchestration inline | `electron/main.ts` | Phase G, same reason |
-| Repo-wide comment sweep | `electron/**`, `src/**` | Phase Q; the encoding corruption found during it is repaired, but "does this comment still describe the code" needs reading, not scanning |
+| `main.ts` as composition root | `electron/main.ts` | Phase F; the remaining groups are named in the table above, and each needs its own acceptance cycle |
+| Repo-wide comment sweep | `electron/**`, `src/**` | Phase Q; three stale comments were corrected in the modules Phase H touched (`verification-engine`'s ledger loader, `recovery-engine`'s backlog loader, `repo-manifest`'s skip), but "does this comment still describe the code" needs reading, not scanning |
 | 28 must-fix swallowed failures, 7 closed | see the audit list above for what each fix changed, and for the two items that were already fixed when reached | each changes a failure path that acceptance currently exercises; triaged by severity, highest fixed first |
 | 0 files spawning git directly / 8 capture-shaped process runners migrated / 10 supervising runners declared | `electron/**` | Phase M's git half is complete: twenty modules use the gateway, the declared debt list is empty and the rule is enforced repo-wide at epoch 13. The process half now has `electron/process/process-gateway.ts` and eight call sites on it; the ten still importing `child_process` are the streaming/sandbox ones, named with reasons in `tests/unit/process-gateway.test.ts` |
 | Research-autopilot workspace writes | `research-conductor.ts` | Phase C route 5; a product decision about resumability |
@@ -244,3 +242,17 @@ invalid path, deleted remembered path, restart) are covered by
 `pnpm run acceptance:workspace-paths`, which drives the real Electron renderer
 over CDP; the native dialog itself and its Cancel button are modal OS UI and are
 reported as NOT_AUTOMATABLE, never as a pass.
+
+## How to read this file
+
+Every phase above landed as its own commit on `Prestart-checkpoint-4`, and at each
+of those commits the full local gate sequence (`node .cache/run-gates.cjs`, 70
+steps mirroring `ci.yml`) and the four cloud CI jobs were run and green — so a row
+that says PASS is a claim with a commit behind it, not an intention. Where a phase
+is **PARTIAL**, the row says which part is done and the "Remaining work" table
+above names what is left and why it was not attempted in the time available; no
+PARTIAL is written up as a pass, and nothing in this file is marked done on the
+strength of "it should work". The two items that were found to be **already fixed**
+when they were reached (`candidate-supervisor`'s journal write and `repo-manifest`'s
+`sha256: "unreadable"` marker) are recorded as such rather than claimed as work.
+
