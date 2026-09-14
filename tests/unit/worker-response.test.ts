@@ -3,6 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { classifyWorkerVerdict, workerClaimsGlobalCompletion } from "../../src/shared/worker-response";
+// A type, imported as a type: destructuring it out of a dynamic `import()` gave the
+// value `undefined` and then used it in a type position, which never worked.
+import type { EngineeringGoalContract } from "../../src/shared/engineering-loop";
 
 /**
  * Phase H (R-801): workers may never declare GLOBAL_COMPLETE — words are
@@ -30,7 +33,6 @@ it("a worker that only CLAIMS completion cannot make a goal CONVERGE — the dri
   const dir = root();
   const { EngineeringLoopDriver } = await import("../../electron/engineering/engineering-loop-driver");
   const { EngineeringLoopStore } = await import("../../electron/engineering/engineering-loop-store");
-  const { EngineeringGoalContract } = await import("../../src/shared/engineering-loop");
   const loopStore = new EngineeringLoopStore(path.join(dir, "loop.json"));
   const goal: EngineeringGoalContract = {
     schemaVersion: 1,

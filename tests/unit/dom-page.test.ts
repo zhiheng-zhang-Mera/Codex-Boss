@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 import { DomPageBackend } from "../../electron/computer/backends/dom-page";
 import { SemanticRuntime } from "../../electron/computer/semantic-runtime";
 
+/**
+ * The page surface's `evaluate` is generic — the backend asks it for several shapes
+ * (`DomOutcome`, a readiness probe) over what is really an IPC round-trip to the
+ * renderer — so a test double has to answer *any* query, and its return is declared
+ * `any` for that reason rather than cast per call. Consumers still see the interface's
+ * own generic signature, so nothing downstream loses its type.
+ */
 describe("DOM semantic tier (§8.2 dom-page)", () => {
   it("supports dom:-targeted mutations and reads, nothing else", () => {
-    const backend = new DomPageBackend({ evaluate: async () => ({ ok: true }) });
+    const backend = new DomPageBackend({ evaluate: async (): Promise<any> => ({ ok: true }) });
     expect(backend.kind).toBe("dom");
     expect(backend.supports({ name: "click_control", target: 'dom:{"selector":"#send"}' })).toBe(true);
     expect(backend.supports({ name: "enter_text", target: 'dom:{"selector":"#input"}' })).toBe(true);
@@ -15,9 +22,9 @@ describe("DOM semantic tier (§8.2 dom-page)", () => {
   });
 
   it("clicks a control and reports not-found as FAILED", async () => {
-    const found = new DomPageBackend({ evaluate: async () => ({ ok: true }) });
+    const found = new DomPageBackend({ evaluate: async (): Promise<any> => ({ ok: true }) });
     expect((await found.execute({ name: "click_control", target: 'dom:{"selector":"#send"}' }, new AbortController().signal)).status).toBe("SUCCESS");
-    const missing = new DomPageBackend({ evaluate: async () => ({ ok: false, reason: "not-found" }) });
+    const missing = new DomPageBackend({ evaluate: async (): Promise<any> => ({ ok: false, reason: "not-found" }) });
     expect((await missing.execute({ name: "click_control", target: 'dom:{"selector":"#send"}' }, new AbortController().signal)).status).toBe("FAILED");
   });
 
@@ -35,7 +42,7 @@ describe("DOM semantic tier (§8.2 dom-page)", () => {
 
   it("executes click/enter/submit scripts with embedded selectors and values", async () => {
     const calls: Array<{ script: string; page?: unknown }> = [];
-    const backend = new DomPageBackend({ evaluate: async (script, page) => { calls.push({ script, page }); return { ok: true }; } });
+    const backend = new DomPageBackend({ evaluate: async (script, page): Promise<any> => { calls.push({ script, page }); return { ok: true }; } });
     await backend.execute({ name: "enter_text", target: 'dom:{"selector":"#prompt"}', value: 'a"b' }, new AbortController().signal);
     await backend.execute({ name: "submit", target: 'dom:{"selector":"#prompt"}' }, new AbortController().signal);
     expect(calls[0].script).toContain('"#prompt"');
@@ -47,7 +54,7 @@ describe("DOM semantic tier (§8.2 dom-page)", () => {
 
   it("forwards a dom: providerId to the page surface", async () => {
     const pages: Array<{ providerId?: string } | undefined> = [];
-    const backend = new DomPageBackend({ evaluate: async (_script, page) => { pages.push(page); return { ok: true }; } });
+    const backend = new DomPageBackend({ evaluate: async (_script, page): Promise<any> => { pages.push(page); return { ok: true }; } });
     await backend.execute({ name: "click_control", target: 'dom:{"selector":"#send","providerId":"chatgpt"}' }, new AbortController().signal);
     await backend.execute({ name: "read_page", target: 'dom:{"selector":"body","providerId":"gemini"}' }, new AbortController().signal);
     expect(pages[0]).toEqual({ providerId: "chatgpt" });
@@ -55,7 +62,7 @@ describe("DOM semantic tier (§8.2 dom-page)", () => {
   });
 
   it("rejects malformed dom: provider ids and keeps provider-less targets valid", async () => {
-    const backend = new DomPageBackend({ evaluate: async () => ({ ok: true }) });
+    const backend = new DomPageBackend({ evaluate: async (): Promise<any> => ({ ok: true }) });
     const parse = async (target: string) => (await backend.execute({ name: "click_control", target }, new AbortController().signal)).status;
     await expect(parse('dom:{"selector":"#send","providerId":"../escape"}')).rejects.toThrow(/providerId/);
     await expect(parse('dom:{"selector":"#send","providerId":"ok_1"}')).resolves.toBe("SUCCESS");

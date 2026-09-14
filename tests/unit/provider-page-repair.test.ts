@@ -113,7 +113,9 @@ describe("provider page repair executor (P0-6 DOM tier)", () => {
   });
 
   it("reports FAILED when an element exists but the action fails (ok:false)", async () => {
-    const surface: DomPageSurface = { evaluate: async () => ({ ok: false, reason: "click intercepted" }) };
+    // `evaluate` is generic on the surface (one IPC round-trip, several shapes asked
+    // for), so the double declares `any` rather than casting per call.
+    const surface: DomPageSurface = { evaluate: async (): Promise<any> => ({ ok: false, reason: "click intercepted" }) };
     const plan = buildRepairPlan("SEND_AFFORDANCE_MISSING", 1000, new Set(["read_page", "click_control", "verify_state"]));
     const executor = createPageRepairExecutor({ surface, resolveTarget: resolver([]) });
     const outcome = await executor.execute(plan, {});

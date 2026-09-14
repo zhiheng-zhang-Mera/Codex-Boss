@@ -109,7 +109,9 @@ describe("owner-dashboard: read-model (§37/§44)", () => {
       ledgerEntries: [
         ledger({}),
         ledger({ id: "d2", source: "direction-stall" }),
-        ledger({ id: "d3", source: "operator", outcome: "DEFERRED" }) // not an internal auto decision
+        // A reviewer's decision is a judgement, not one of the auto-routing sources in
+        // OWNER_RESULT_DECISION_SOURCES, so it must not be counted as internal.
+        ledger({ id: "d3", source: "reviewer", outcome: "DEFERRED" })
       ],
       now: () => "2026-09-09T03:00:00.000Z"
     });

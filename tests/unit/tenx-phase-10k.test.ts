@@ -35,7 +35,10 @@ describe("10K artifact ledger", () => {
     expect(records.length).toBe(2);
     expect(records.some((record) => record.type === "engineering")).toBe(true);
     expect(records.some((record) => record.type === "failure-record")).toBe(true);
-    expect(records[0].content === undefined || true).toBe(true); // ledger metadata only
+    // Was `records[0].content === undefined || true`, which can never fail — and
+    // `content` is not even a field of the record. This asserts the property the
+    // comment describes: the ledger entry carries metadata, not artifact content.
+    expect("content" in records[0]).toBe(false);
   });
 
   it("failure-record artifacts are preserved (never pruned by later success)", () => {

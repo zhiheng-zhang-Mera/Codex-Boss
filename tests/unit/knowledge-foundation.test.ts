@@ -241,7 +241,10 @@ describe("§5 knowledge extraction", () => {
       expect(entry.source_hash).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.task_ref).toBe("task-1");
       expect(entry.verification).toBe("VERIFIED");
-      expect(entry.verification_evidence.length).toBeGreaterThan(0);
+      // Defaulted rather than asserted-not-undefined: absent evidence gives an empty
+      // list, and the length check below then fails exactly as it should.
+      const evidence = entry.verification_evidence ?? [];
+      expect(evidence.length).toBeGreaterThan(0);
       expect(entry.content.trim().length).toBeGreaterThan(0);
       expect(entry.summary.trim().length).toBeGreaterThan(0);
     }

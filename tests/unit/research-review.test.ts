@@ -43,7 +43,9 @@ it("R-703: every role reviewer present; objection→response→revision→re-rev
 });
 
 it("R-703: a major objection cannot be merely retained; unknown objections rejected", () => {
-  const updated = respondToObjections(round(), [{ objectionId: "o1", reply: "keeping as is", retainedReason: "preferred design" }]);
+  // `revisedSections: []` is the point rather than a formality: a major objection that
+  // revises nothing is exactly the "merely retained" case this test is about.
+  const updated = respondToObjections(round(), [{ objectionId: "o1", reply: "keeping as is", retainedReason: "preferred design", revisedSections: [] }]);
   const { violations } = reviewRoundSettled(updated);
   expect(violations.join(" ")).toContain("major objection o1 cannot be merely retained");
   expect(() => respondToObjections(round(), [{ objectionId: "ghost", reply: "x", revisedSections: [] }])).toThrow(/Unknown objection/);
