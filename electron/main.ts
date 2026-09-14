@@ -26,7 +26,6 @@ import { RuntimeRegistry } from "./commander/runtime-registry";
 import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
-import { ContextManager } from "./commander/context-manager";
 import { KnowledgeBase } from "./knowledge/knowledge-base";
 import { KnowledgeFoundation } from "./knowledge/knowledge-foundation";
 import { WorldModelStore, buildWorldModelWithGraph } from "./engineering/world-model";
@@ -38,12 +37,9 @@ import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture 
 import { recordThemeKnowledge } from "./theme/theme-knowledge";
 import { writeJson } from "./commander/durable-json";
 import { ExecutionGate } from "./commander/execution-gate";
-import { ResourceController } from "./commander/resource-controller";
-import { TaskLedger } from "./commander/task-ledger";
 import { CircuitBreaker } from "./commander/circuit-breaker";
 import { DomainEventBus } from "./commander/event-bus";
 import { attachContinuationWaker } from "./commander/continuation-waker";
-import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { validateWorkspacePath } from "./workspace/path-utils";
 import { createWorkspaceIpcModule } from "./bootstrap/workspace-ipc";
 import { createAttachmentIpcModule } from "./bootstrap/attachment-ipc";
@@ -61,6 +57,7 @@ import { createTaskStateIpcModule } from "./bootstrap/task-state-ipc";
 import { createResearchRunIpcModule } from "./bootstrap/research-run-ipc";
 import { createTaskCreationIpcModule } from "./bootstrap/task-creation-ipc";
 import { createDispatchIpcModule } from "./bootstrap/dispatch-ipc";
+import { createPersistenceModule } from "./bootstrap/persistence";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -70,7 +67,6 @@ import { engineeringSessionId } from "./engineering/engineering-session";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { SoftwareLeaseRegistry } from "./computer/software-lease";
-import { PermissionManifestStore } from "./security/permission-manifest";
 import { ProjectStateStore } from "./project/project-state";
 import {
   reconcileWorkbookLinks,
@@ -79,7 +75,6 @@ import {
   runWorkDispatch
 } from "./commander/workbook-production";
 import { WorkbookRegistry } from "./ingestion/workbook-registry";
-import { ExperienceStore } from "./experience/experience-store";
 import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
@@ -654,12 +649,30 @@ function headlessPreflightStaleRuns(): void {
 }
 
 if (ownsInstance) app.whenReady().then(() => {
-  historyRepository = new HistoryRepository(roots.history);
-  // One TaskLedger for the whole process: the store and the commander must share
-  // it, or their read-modify-write cycles race and fail each other with a
-  // spurious "Stale task checkpoint".
-  const taskLedger = new TaskLedger(path.join(app.getPath("userData"), ".boss", "tasks"));
-  store = new StateStore(path.join(app.getPath("userData"), "state.json"), historyRepository, taskLedger);
+  // Phase F: every durable store is one boot module built from the data root, so
+  // "what does Boss keep, and where" has one answer that can be built and
+  // inspected without booting Electron. The Electron-only piece it needs — the
+  // platform secure storage — is injected rather than imported.
+  const persistence = createPersistenceModule({
+    dataRoot: app.getPath("userData"),
+    historyRoot: roots.history,
+    cacheRoot: roots.cache,
+    appPath: fs.realpathSync(app.getAppPath()),
+    crypto: {
+      encrypt: (plainText) => {
+        if (!safeStorage.isEncryptionAvailable()) throw new Error("当前系统安全存储不可用，无法保存 API Key");
+        return safeStorage.encryptString(plainText).toString("base64");
+      },
+      decrypt: (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
+    }
+  });
+  bootModules.push(persistence);
+  historyRepository = persistence.service.history;
+  store = persistence.service.store;
+  // The same ledger instance the store was built with: the commander must not
+  // build a second one, or their read-modify-write cycles race and fail each
+  // other with a spurious "Stale task checkpoint".
+  const taskLedger = persistence.service.tasks;
   // WORK_UNIT_3 crash recovery: a revision recorded just before a crash has no
   // task association yet. Re-link every orphan against the durable task records
   // at startup so the revision→task relation is eventually consistent.
@@ -667,18 +680,20 @@ if (ownsInstance) app.whenReady().then(() => {
     const recovery = reconcileWorkbookLinks(store, workbookRegistry());
     if (recovery.recovered > 0) console.info(`Recovered ${recovery.recovered} WorkBook revision→task link(s) at startup`);
   } catch (error) { console.error("WorkBook revision recovery failed", error); }
-  // Attachment blobs live beside the durable ledger under <dataRoot>/.boss.
-  attachmentStore = new AttachmentStore(path.join(app.getPath("userData"), ".boss", "attachments"));
-  capabilityRegistry = new ProviderCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "provider-capabilities.json"));
-  githubResolver = new GithubResolver(path.join(app.getPath("userData"), ".cache", "repos"));
-  apiSettings = new ApiSettingsStore(
-    path.join(app.getPath("userData"), "api-settings.json"),
-    (plainText) => {
-      if (!safeStorage.isEncryptionAvailable()) throw new Error("当前系统安全存储不可用，无法保存 API Key");
-      return safeStorage.encryptString(plainText).toString("base64");
-    },
-    (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
-  );
+  attachmentStore = persistence.service.attachments;
+  capabilityRegistry = persistence.service.capabilities;
+  githubResolver = persistence.service.github;
+  apiSettings = persistence.service.apiSettings;
+  sessionLifecycleLedger = persistence.service.sessionLifecycle;
+  nodeRegistry = persistence.service.nodeRegistry;
+  externalSessions = persistence.service.externalSessions;
+  budgetManager = persistence.service.budget;
+  humanGuidance = persistence.service.guidance;
+  decisionLedger = persistence.service.decisions;
+  workspaceSelection = persistence.service.workspaceSelection;
+  // Workspace-rooted and resource state, handed on to the services below exactly
+  // as the inline versions were.
+  const { workspaces, permissionManifests, experiences, resources: resourceController, contexts: contextManager } = persistence.service;
   try {
     githubMachine = createGitHubMachineRuntime({
       userData: app.getPath("userData"),
@@ -695,11 +710,7 @@ if (ownsInstance) app.whenReady().then(() => {
     githubMachine = { configured: false };
   }
   providerApi = new ProviderApiClient(apiSettings);
-  store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
-  sessionLifecycleLedger = new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json"));
   accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
-  nodeRegistry = new NodeCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "node-registry.json"));
-  externalSessions = new ExternalSessionLedger(path.join(app.getPath("userData"), ".boss", "external-sessions.json"));
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
     (channel, status, message) => { store.setRemoteChannelRuntime(channel, status, message); publish(); },
@@ -707,12 +718,9 @@ if (ownsInstance) app.whenReady().then(() => {
   );
   remoteRelay.sync(store.snapshot().remoteChannels);
   const runtimeRegistry = new RuntimeRegistry();
-  budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
   const domainEvents = new DomainEventBus();
   domainEventBus = domainEvents;
   progressAggregator = attachProgressRecorder(domainEvents).aggregator;
-  humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
-  decisionLedger = new DecisionLedgerStore(path.join(app.getPath("userData"), ".boss", "decision-ledger.json"));
   // Milestone §3/§6: ONE research composition root. ResearchService owns the
   // durable ledger, protocol manager, evidence graph, citation store, autopilot
   // supervisor and structured runtime; every boss:research-* IPC handler below
@@ -727,12 +735,7 @@ if (ownsInstance) app.whenReady().then(() => {
     executor: liveResearchExecutor(),
     runtime: new ResearchRuntime()
   });
-  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
-  workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
-  workspaceSelection = new WorkspaceSelectionStore(path.join(app.getPath("userData"), ".boss", "workspace-selection.json"));
-  const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
-  const projectStates = new ProjectStateStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "project-state.json")));
-  const experiences = new ExperienceStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "experience.json")));
+  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));
   attachExperienceRecorder(domainEvents, experiences, { sourceFor: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.workspaceId ?? taskId });
   const softwareLeases = new SoftwareLeaseRegistry();
   recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
@@ -742,13 +745,10 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     publish();
   }, domainEvents);
-  const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
   runtimeRegistry.register(new NativeRuntime(app.getAppPath()));
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
-  const contextManager = new ContextManager(path.join(app.getPath("userData"), "task-contexts.json"));
-  contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
   // checkpoint-1 §5 Knowledge Foundation: ONE composition-root instance, exactly
   // like the decision ledger below. Writes happen in the WorkBook dispatch path
   // (see runWorkDispatch), reads happen here — the provider prompt gets a
