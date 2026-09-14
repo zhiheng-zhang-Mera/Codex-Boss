@@ -21,7 +21,7 @@ import { roleBriefsForWorkerOrder } from "../src/shared/work-mode";
 import { ProviderAutomation } from "./provider-automation";
 import { CodexCliRuntime } from "./runtimes/codex/codex-cli-runtime";
 import { ProviderRuntimeAdapter } from "./runtimes/web/provider-runtime-adapter";
-import { NativeRuntime, ApiRuntime } from "./runtimes/native-api-runtime";
+import { NativeRuntime } from "./runtimes/native-api-runtime";
 import { RuntimeRegistry } from "./commander/runtime-registry";
 import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
@@ -54,6 +54,7 @@ import { createPersistenceModule } from "./bootstrap/persistence";
 import { createKnowledgeModule } from "./bootstrap/knowledge";
 import { createAutomationModule } from "./bootstrap/automation";
 import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
+import { createProvidersModule } from "./bootstrap/providers";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -669,22 +670,26 @@ if (ownsInstance) app.whenReady().then(() => {
   // Workspace-rooted and resource state, handed on to the services below exactly
   // as the inline versions were.
   const { workspaces, permissionManifests, experiences, resources: resourceController, contexts: contextManager } = persistence.service;
-  try {
-    githubMachine = createGitHubMachineRuntime({
-      userData: app.getPath("userData"),
-      crypto: {
-        protect: (plainText) => {
-          if (!safeStorage.isEncryptionAvailable()) throw new Error("platform secure storage unavailable");
-          return safeStorage.encryptString(plainText).toString("base64");
-        },
-        unprotect: (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
-      }
-    });
-  } catch {
-    // Invalid/missing node-local GitHub configuration degrades only GitHub.
-    githubMachine = { configured: false };
-  }
-  providerApi = new ProviderApiClient(apiSettings);
+  // Phase F: the provider-side integration is its own boot module — the API client
+  // every API runtime dispatches through, the GitHub machine identity with its
+  // degrade-only-GitHub fallback, and the registration of one API runtime per
+  // configured provider. The pool, the views and the automation are still the
+  // root's and move in their own slice.
+  const providers = createProvidersModule({
+    userData: app.getPath("userData"),
+    store,
+    apiSettings,
+    crypto: {
+      protect: (plainText) => {
+        if (!safeStorage.isEncryptionAvailable()) throw new Error("platform secure storage unavailable");
+        return safeStorage.encryptString(plainText).toString("base64");
+      },
+      unprotect: (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
+    }
+  });
+  bootModules.push(providers);
+  githubMachine = providers.service.githubMachine;
+  providerApi = providers.service.apiClient;
   accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
@@ -732,7 +737,7 @@ if (ownsInstance) app.whenReady().then(() => {
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
   runtimeRegistry.register(new NativeRuntime(app.getAppPath()));
-  for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
+  providers.service.registerRuntimes(runtimeRegistry);
   // checkpoint-1 §6/§9: the Repository World Model and the UI surface registry
   // are established before any engineering execution — see the knowledge module
   // below, which owns both.

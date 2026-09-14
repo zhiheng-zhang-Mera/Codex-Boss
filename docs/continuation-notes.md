@@ -74,11 +74,13 @@
 
 ## What is left, in plan order
 
-1. **F — `providers`** (the largest remaining slice): `ProviderViews`,
-   `ProviderAutomation`, the provider lookup, `openProviderWithinLimit`, the
-   per-provider runtime registrations and the GitHub machine identity — 32
-   `providerViews` and ~30 `automation` references, and the CDP desktop acceptance
-   drives provider panes through it. Needs a full round with a buffer.
+1. **F — `providers`, the pool slice** (the largest remaining piece): the
+   `ProviderViews` instance, `attachProviderViews`, `ProviderAutomation`, the
+   `provider(id)` lookup and `openProviderWithinLimit` — 32 `providerViews` and
+   ~30 `automation` references, and the CDP desktop acceptance drives provider
+   panes through all of it. Needs a full round with a buffer. The API-side half
+   (the client, the GitHub machine identity and the API-runtime registration) is
+   already extracted into `electron/bootstrap/providers.ts`.
 2. **F — `engineering`** and **F — `research`**: the remaining plan-named groups.
 3. **M — the supervising process runners**: `host/process-runner`,
    `research/runtime/process-runner`, `remote-relay`, `host/soak-harness`,
