@@ -23,6 +23,7 @@ import { ConceptMiner } from "../../electron/learning/concepts/concept-miner";
 import { applyMerge, findMergeCandidates } from "../../electron/learning/concepts/concept-merge";
 import { applySplit, proposeSplit } from "../../electron/learning/concepts/concept-split";
 import { EpisodeStore, type EpisodeAppendInput } from "../../electron/learning/episode-store";
+import { EPISODE_SCHEMA_VERSION, type LearningEpisode } from "../../src/shared/learning-episode";
 import { deriveSemanticEvaluation } from "../../src/shared/provider-outcome";
 import { structuralHashOf } from "../../src/shared/task-fingerprint";
 
@@ -32,12 +33,17 @@ function fingerprint(role: string, capabilities: string[], specificity = 0.5, mo
   return { schemaVersion: 1 as const, fingerprintVersion: "fingerprint-1.0.0", structuralHash: structuralHashOf([role, ...capabilities, specificity]), role, capabilities, specificity, modality };
 }
 
-function episode(input: { episodeId: string; role: string; capabilities: string[]; specificity?: number; completion?: number; conceptId?: string }): EpisodeAppendInput {
+// Returns a STORED episode, not an append input: the merge/split candidates are read
+// from what the store holds, and `EpisodeAppendInput` is exactly `LearningEpisode`
+// minus `schemaVersion`, so building the input left every fixture one field short of
+// the record the readers expect.
+function episode(input: { episodeId: string; role: string; capabilities: string[]; specificity?: number; completion?: number; conceptId?: string }): LearningEpisode {
   const base = fingerprint(input.role, input.capabilities, input.specificity ?? 0.5);
   // completion is expressed through the SEMANTIC outcome so the axis is honest:
   // 1 ⇒ FULL_COMPLETION (completion 1.0), anything lower ⇒ a refusal-class outcome.
   const signals = (input.completion ?? 1) >= 1 ? { deliverablesCovered: 1 } : { refusal: true };
   return {
+    schemaVersion: EPISODE_SCHEMA_VERSION,
     episodeId: input.episodeId,
     taskId: `task-${input.episodeId}`,
     jobId: `job-${input.episodeId}`,

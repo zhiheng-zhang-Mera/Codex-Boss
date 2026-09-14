@@ -118,7 +118,7 @@ function makeLoop(): ImprovementLoop {
     registryPath: REGISTRY_PATH,
     knowledgePath: KNOWLEDGE_PATH,
     ledger: () => createVerificationEngine({ root: WORK, ledgerPath: LEDGER_PATH, commands: COMMANDS, targets: TARGETS }).ledger(),
-    scope: "capability-fixture",
+    scope: "project:capability-fixture",
     commands: COMMANDS,
     targets: TARGETS
   });

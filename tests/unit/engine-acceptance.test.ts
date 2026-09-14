@@ -14,6 +14,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { EpisodeStore, type EpisodeAppendInput } from "../../electron/learning/episode-store";
+import { EPISODE_SCHEMA_VERSION, type LearningEpisode } from "../../src/shared/learning-episode";
 import { LearningService } from "../../electron/learning/learning-service";
 import { ProviderProfileBuilder } from "../../electron/learning/providers/provider-profile";
 import { BehaviourModel, ProviderProfileStore } from "../../electron/learning/providers/behaviour-model";
@@ -46,9 +47,13 @@ function fakeRuntime(id: string): RuntimeAdapter {
   };
 }
 
-function episode(overrides: Partial<EpisodeAppendInput> & { index?: number } = {}): EpisodeAppendInput {
+// A STORED episode: the concept miner reads what the store holds, and
+// `EpisodeAppendInput` is `LearningEpisode` minus `schemaVersion`, so building the
+// input left the fixture one field short of the record the reader expects.
+function episode(overrides: Partial<EpisodeAppendInput> & { index?: number } = {}): LearningEpisode {
   const index = overrides.index ?? 0;
   return {
+    schemaVersion: EPISODE_SCHEMA_VERSION,
     episodeId: overrides.episodeId ?? `ep-${index}-${Math.random().toString(36).slice(2, 8)}`,
     taskId: overrides.taskId ?? `task-${index}`,
     jobId: overrides.jobId ?? `job-${index}`,

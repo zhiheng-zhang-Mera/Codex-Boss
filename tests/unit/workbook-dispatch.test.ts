@@ -72,7 +72,7 @@ describe("REPAIR_BATCH_2: intake is a decision, not a dispatcher", () => {
 
     const outcome = await runWorkBookDispatch(
       { prompt: "", conversationId, attachments: [ref], workspacePath },
-      { registry, taskId: "task-1" }
+      { registry }
     );
 
     // The decision is what the caller acts on; the module itself never starts
@@ -93,7 +93,7 @@ describe("REPAIR_BATCH_2: intake is a decision, not a dispatcher", () => {
     // A fresh record per call: history is snapshotted, not shared state.
     const second = await runWorkBookDispatch(
       { prompt: "", conversationId, attachments: [ref], workspacePath },
-      { registry, taskId: "task-1" }
+      { registry }
     );
     expect(second.record.stageHistory).not.toBe(outcome.record.stageHistory);
     expect(second.record.stageHistory).toHaveLength(outcome.record.stageHistory.length);
@@ -188,7 +188,7 @@ describe("REPAIR_BATCH_2: intake is a decision, not a dispatcher", () => {
     // First run: brand new content, recorded against task-1.
     const first = await runWorkBookDispatch(
       { prompt: "", conversationId, attachments: [onDisk(attachment("spec.md", text), text)], workspacePath },
-      { registry, taskId: "task-1" }
+      { registry }
     );
     expect(first.reused).toBe(false);
     expect(first.record.workbook_hash).toBe(hash);
@@ -202,7 +202,7 @@ describe("REPAIR_BATCH_2: intake is a decision, not a dispatcher", () => {
         workspacePath,
         existingWorkbookTasks: { [hash]: "task-1" }
       },
-      { registry, taskId: "task-2" }
+      { registry }
     );
     expect(duplicate.reused).toBe(true);
     expect(duplicate.reuse_task_id).toBe("task-1");
@@ -227,7 +227,7 @@ describe("REPAIR_BATCH_2: intake is a decision, not a dispatcher", () => {
 
     const outcome = await runWorkBookDispatch(
       { prompt: "", conversationId, attachments: [good, bad], workspacePath },
-      { registry, taskId: "task-42" }
+      { registry }
     );
 
     // REPAIR_BATCH_4: intake plans the revisions and never writes the registry

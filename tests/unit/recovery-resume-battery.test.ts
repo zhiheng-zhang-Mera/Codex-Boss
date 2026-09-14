@@ -31,14 +31,14 @@ function scriptedRuntime(runtimeId: string, script: Array<() => RuntimeResult>):
   return {
     id: runtimeId,
     kind: "web",
-    capabilities: { consumesModel: true, roles: ["planner"], supportsCancellation: true, supportsStreaming: true },
+    capabilities: { consumesModel: true, roles: ["planning"], supportsCancellation: true, supportsStreaming: true },
     healthCheck: async () => ({ runtimeId, availability: "AVAILABLE", message: "ok", checkedAt: new Date().toISOString() }),
     execute: async (_request: RuntimeRequest) => { callsMade++; return script[Math.min(callsMade - 1, script.length - 1)](); }
   };
 }
 
 function request(taskId: string, jobId: string): RuntimeRequest {
-  return { taskId, jobId, role: "planner", prompt: "solve it", replaySafe: true, timeoutMs: 30_000 };
+  return { taskId, jobId, role: "planning", prompt: "solve it", replaySafe: true, timeoutMs: 30_000 };
 }
 
 beforeEach(() => {

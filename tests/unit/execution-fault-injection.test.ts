@@ -36,7 +36,7 @@ function scriptedRuntime(runtimeId: string, script: Array<() => RuntimeResult>):
   const instance: RuntimeAdapter = {
     id: runtimeId,
     kind: "web",
-    capabilities: { consumesModel: true, roles: ["planner"], supportsCancellation: true, supportsStreaming: true },
+    capabilities: { consumesModel: true, roles: ["planning"], supportsCancellation: true, supportsStreaming: true },
     healthCheck: async () => ({ runtimeId, availability: "AVAILABLE", message: "ok", checkedAt: new Date().toISOString() }),
     execute: async (_request: RuntimeRequest) => script[Math.min(calls++, script.length - 1)]()
   };
@@ -46,7 +46,7 @@ function scriptedRuntime(runtimeId: string, script: Array<() => RuntimeResult>):
 /** Stub scheduler is not used: the real Scheduler races the scripted runtime, which returns instantly. */
 
 function request(): RuntimeRequest {
-  return { taskId: "task-fault", jobId: "job-1", role: "planner", prompt: "solve it", replaySafe: true, timeoutMs: 30_000 };
+  return { taskId: "task-fault", jobId: "job-1", role: "planning", prompt: "solve it", replaySafe: true, timeoutMs: 30_000 };
 }
 
 async function runScenario(script: Array<() => RuntimeResult>): Promise<{ result: RuntimeResult; record: ReturnType<TaskLedger["load"]> }> {

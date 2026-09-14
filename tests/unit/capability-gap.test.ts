@@ -183,7 +183,7 @@ describe("checkpoint-11 §34 knowledge update and registry", () => {
     const candidate = knowledgeCandidateFor({
       task, closure, regression, current_verdict: "EXISTS",
       probe_evidence: ["src/shared/x.ts#buildThing exports buildThing", "src/app.ts imports src/shared/x.ts"],
-      scope: "codex-boss", captured_at: "2026-01-06T00:00:00.000Z", task_ref: task.requirement.id
+      scope: "project:codex-boss", captured_at: "2026-01-06T00:00:00.000Z", task_ref: task.requirement.id
     });
     expect(candidate.type).toBe("CAPABILITY_GAP");
     expect(candidate.producer).toBe("VERIFICATION");
@@ -199,7 +199,7 @@ describe("checkpoint-11 §34 knowledge update and registry", () => {
     const unclosed = closureFor({ task, steps, regression, knowledge: { outcome: "ACCEPT" }, current_verdict: "MISSING" });
     const candidate = knowledgeCandidateFor({
       task, closure: unclosed, regression, current_verdict: "MISSING",
-      probe_evidence: ["nothing matched"], scope: "codex-boss", captured_at: "2026-01-06T00:00:00.000Z", task_ref: task.requirement.id
+      probe_evidence: ["nothing matched"], scope: "project:codex-boss", captured_at: "2026-01-06T00:00:00.000Z", task_ref: task.requirement.id
     });
     expect(candidate.verification).toBe("UNVERIFIED");
     expect(candidate.confidence).toBeLessThan(0.9);

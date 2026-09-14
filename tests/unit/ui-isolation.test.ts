@@ -25,13 +25,13 @@ it("R-902: a background task completes with NO UI/subscriber at all; ledger stay
   const dir = root();
   const ledger = new TaskLedger(path.join(dir, "ledger"));
   const runtime: RuntimeAdapter = {
-    id: "local:worker", kind: "local", capabilities: { consumesModel: false, roles: ["planner"], supportsCancellation: true, supportsStreaming: false },
+    id: "local:worker", kind: "local", capabilities: { consumesModel: false, roles: ["planning"], supportsCancellation: true, supportsStreaming: false },
     healthCheck: async () => ({ runtimeId: "local:worker", availability: "AVAILABLE", message: "ok", checkedAt: "now" }),
     execute: async (_request: RuntimeRequest) => ({ runtimeId: "local:worker", jobId: "j1", status: "SUCCESS", content: "background result" } as RuntimeResult)
   };
   const supervisor = new ExecutionSupervisor(ledger, new Scheduler());
   // No publish callback, no UI, no renderer: the work still runs to completion.
-  const result = await supervisor.execute({ taskId: "t1", jobId: "j1", role: "planner", prompt: "work", replaySafe: true, timeoutMs: 30_000 }, [runtime]);
+  const result = await supervisor.execute({ taskId: "t1", jobId: "j1", role: "planning", prompt: "work", replaySafe: true, timeoutMs: 30_000 }, [runtime]);
   expect(result.status).toBe("SUCCESS");
   expect(ledger.load("t1")!.jobs["j1"].state).toBe("COMPLETED");
 });

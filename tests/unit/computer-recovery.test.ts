@@ -74,7 +74,9 @@ describe("computer-recovery: §29 permission token mapping", () => {
 
 describe("computer-recovery: §25 post-condition discipline", () => {
   it("VERIFIED only when the post-condition is observed; otherwise UNCERTAIN (no blind repeat)", () => {
-    const step = { action: "click_control", target: { kind: "ICON" }, postCondition: { description: "x" }, rationale: "r" };
+    // Annotated rather than inferred: written as a bare literal the values widened to
+    // `string` and were accepted without ever being checked against the step contract.
+    const step: import("../../src/shared/computer-recovery").RepairStep = { action: "click_control", target: { kind: "ICON" }, postCondition: { description: "x" }, rationale: "r" };
     expect(verdictForOutcome(step, { postConditionSeen: true })).toBe("VERIFIED");
     expect(verdictForOutcome(step, { acted: true, postConditionSeen: false })).toBe("UNCERTAIN");
     expect(verdictForOutcome(step, { acted: false })).toBe("UNCERTAIN");
