@@ -76,6 +76,12 @@ export interface RecoveryEngine {
   /** §33.3: the fallback decision plus the durable gap. */
   hns(request: Omit<HnsFallbackRequest, "plan"> & { plan?: Pick<RecoveryPlan, "hns_allowed">; role?: HnsRole }): { record: CapabilityGapRecord; decision: ReturnType<typeof planHnsFallback> };
   gaps(): CapabilityGapRecord[];
+  /**
+   * Why this engine started from an empty backlog it could not read, or `undefined`
+   * when the backlog was read (or did not exist). A caller that sees a reason knows
+   * the gap history on disk was not lost, it was unreadable.
+   */
+  backlogDiagnostic(): string | undefined;
   save(): string;
 }
 
@@ -92,7 +98,10 @@ export function createRecoveryEngine(config: RecoveryEngineConfig): RecoveryEngi
   const root = fs.realpathSync(config.root);
   const now = config.now ?? (() => new Date());
   const backlogPath = config.backlogPath ?? path.join(root, "artifacts", "acceptance", CAPABILITY_GAP_FILE);
-  let records: CapabilityGapRecord[] = load(backlogPath);
+  const restoredBacklog = load(backlogPath);
+  let records: CapabilityGapRecord[] = restoredBacklog.records;
+  /** Captured at construction: a backlog that existed but could not be read. */
+  const backlogUnreadable = restoredBacklog.unreadable;
 
   const observe = (detail: string): WorkspaceFacts => {
     const facts: WorkspaceFacts = {};
@@ -127,6 +136,7 @@ export function createRecoveryEngine(config: RecoveryEngineConfig): RecoveryEngi
   return {
     observe,
     policyRefusalFor,
+    backlogDiagnostic: () => backlogUnreadable,
     classify(observation) {
       return classifyFailure(observation);
     },
@@ -174,13 +184,21 @@ export function createRecoveryEngine(config: RecoveryEngineConfig): RecoveryEngi
   }
 }
 
-function load(backlogPath: string): CapabilityGapRecord[] {
-  if (!fs.existsSync(backlogPath)) return [];
+/**
+ * The durable backlog, distinguishing "no backlog yet" from "a backlog that cannot
+ * be read". The loader used to return `[]` for both while its comment claimed the
+ * damaged case was "not silently treated as empty history" — it was, and the
+ * consequence is real: a capability-gap decision reads the history it is supposed
+ * to avoid repeating, so an unreadable backlog makes the engine re-record gaps and
+ * answer as though nothing had ever been tried.
+ */
+function load(backlogPath: string): { records: CapabilityGapRecord[]; unreadable?: string } {
+  if (!fs.existsSync(backlogPath)) return { records: [] };
   try {
     const parsed = JSON.parse(fs.readFileSync(backlogPath, "utf8")) as { records?: CapabilityGapRecord[] };
-    return Array.isArray(parsed.records) ? parsed.records : [];
-  } catch {
-    // A damaged backlog must not be silently treated as empty history.
-    return [];
+    if (!Array.isArray(parsed.records)) return { records: [], unreadable: "the backlog file has no records array" };
+    return { records: parsed.records };
+  } catch (error) {
+    return { records: [], unreadable: error instanceof Error ? error.message : String(error) };
   }
 }
