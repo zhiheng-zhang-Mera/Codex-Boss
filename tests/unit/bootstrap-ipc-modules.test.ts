@@ -17,6 +17,8 @@ import { createResearchOwnerIpcModule, RESEARCH_OWNER_IPC_CHANNELS } from "../..
 import { createTaskStateIpcModule, TASK_STATE_IPC_CHANNELS } from "../../electron/bootstrap/task-state-ipc";
 import { createResearchRunIpcModule, RESEARCH_RUN_IPC_CHANNELS } from "../../electron/bootstrap/research-run-ipc";
 import { canonicalRealPathSync } from "../../electron/workspace/path-utils";
+import { createTaskCreationIpcModule, TASK_CREATION_IPC_CHANNELS } from "../../electron/bootstrap/task-creation-ipc";
+import { taskTransports, titleForTask, workbookAttachments, type InputRefSources } from "../../electron/tasks/task-inputs";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -1222,6 +1224,115 @@ describe("Phase G — research run control", () => {
     // directory — the traversal never reached the filesystem.
     expect(String((failure as Error).message)).toContain("etcpasswd");
     expect(String((failure as Error).message)).not.toContain("..");
+  });
+});
+
+describe("Phase G — creating a task", () => {
+  const attachments = [{ id: "a1", originalName: "spec.docx" }];
+  function build(overrides: Record<string, unknown> = {}) {
+    const ipc = registrar();
+    const calls: string[] = [];
+    const creation = {
+      activeConversationId: () => "c-active",
+      providerIds: () => ["qwen", "codex"],
+      inputs: { inputObjectsFor: () => attachments } as unknown as InputRefSources,
+      createTask: (input: Record<string, unknown>) => { calls.push(`create:${input.title}:${(input.providerIds as string[]).join("+")}:${input.appMode}`); return { id: "t-new" }; },
+      publish: () => ({ published: true }),
+      ...overrides
+    };
+    const module = createTaskCreationIpcModule({ handle: ipc.handle.bind(ipc), creation: creation as never });
+    return { ipc, module, calls };
+  }
+
+  it("registers exactly the one channel it owns and reports READY", () => {
+    const { ipc, module } = build();
+    expect(ipc.channels).toEqual([...TASK_CREATION_IPC_CHANNELS]);
+    expect(module.health()).toMatchObject({ module: "task-creation-ipc", status: "READY" });
+    expect(module.health().detail).toContain("1/1");
+  });
+
+  it("refuses a task with no provider at all", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:create-task", { prompt: "do it", providerIds: [] })).rejects.toThrow(/At least one provider/);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a task over the concurrency ceiling, before anything is created", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:create-task", { prompt: "do it", providerIds: ["a", "b", "c", "d", "e", "f"] }))
+      .rejects.toThrow(/最多同时选择/);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses an unknown provider by name", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:create-task", { prompt: "do it", providerIds: ["nope"] })).rejects.toThrow(/Unknown provider: nope/);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses an invalid transport rather than quietly using web", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:create-task", { prompt: "do it", providerIds: ["qwen"], transportByProvider: { qwen: "carrier-pigeon" } }))
+      .rejects.toThrow(/无效执行通道/);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a chat task with no text, because a chat cannot run on an attachment alone", async () => {
+    const { ipc, calls } = build();
+    await expect(ipc.invoke("boss:create-task", { prompt: "   ", providerIds: ["qwen"], inputObjectIds: ["a1"], appMode: "chat" }))
+      .rejects.toThrow(/Chat 模式需要任务文字/);
+    expect(calls).toEqual([]);
+  });
+
+  it("creates a work task from an attachment alone, naming it after the attachment", async () => {
+    const { ipc, calls } = build();
+    expect(await ipc.invoke("boss:create-task", { prompt: "", providerIds: ["qwen"], inputObjectIds: ["a1"], appMode: "work" }))
+      .toEqual({ published: true });
+    // Title from the attachment (extension stripped), and the objective says where the
+    // work came from rather than being empty.
+    expect(calls).toEqual(["create:spec:qwen:work"]);
+  });
+
+  it("falls back to the active conversation when the renderer names none", async () => {
+    const { ipc, calls } = build({ activeConversationId: () => "c-fallback" });
+    await ipc.invoke("boss:create-task", { prompt: "do it", providerIds: ["qwen"] });
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("Phase F — task input normalisation", () => {
+  it("forces web transports in chat mode and keeps the chosen one in work mode", () => {
+    const chat = taskTransports({ prompt: "p", providerIds: [], appMode: "chat", transportByProvider: { qwen: "api" } } as never, ["qwen"]);
+    expect(chat).toEqual({ appMode: "chat", transports: { qwen: "web" } });
+    const work = taskTransports({ prompt: "p", providerIds: [], appMode: "work", transportByProvider: { qwen: "api" } } as never, ["qwen"]);
+    expect(work).toEqual({ appMode: "work", transports: { qwen: "api" } });
+  });
+
+  it("defaults to chat and web when the renderer says nothing", () => {
+    expect(taskTransports({ prompt: "p", providerIds: [] } as never, ["qwen"])).toEqual({ appMode: "chat", transports: { qwen: "web" } });
+  });
+
+  it("prefers an explicit title, then an attachment name, then the first line of the prompt", () => {
+    const refs = [{ id: "a1", originalName: "report.final.pdf" }] as never;
+    expect(titleForTask({ title: "  Named  ", prompt: "p" } as never, [])).toBe("Named");
+    expect(titleForTask({ prompt: "p" } as never, refs)).toBe("report.final");
+    expect(titleForTask({ prompt: "first line\nsecond" } as never, [])).toBe("first line");
+    expect(titleForTask({ prompt: "   " } as never, [])).toBe("Untitled task");
+  });
+
+  it("resolves only the refs the task actually binds", () => {
+    const sources: InputRefSources = { inputObjectsFor: () => [{ id: "a1" }, { id: "a2" }] as never };
+    expect(workbookAttachments(sources, { prompt: "p", inputObjectIds: ["a2"] } as never, "c1").map((ref) => ref.id)).toEqual(["a2"]);
+    // No bound ids at all means no attachments, not all of them.
+    expect(workbookAttachments(sources, { prompt: "p" } as never, "c1")).toEqual([]);
+  });
+
+  it("returns refs unhydrated when no attachment store is attached", () => {
+    // The distinction the composition root used to make with `if (!attachmentStore)`:
+    // a missing store leaves the refs alone rather than emptying their paths.
+    const sources: InputRefSources = { inputObjectsFor: () => [{ id: "a1" }] as never };
+    const refs = workbookAttachments(sources, { prompt: "p", inputObjectIds: ["a1"] } as never, "c1");
+    expect(refs.map((ref) => ref.id)).toEqual(["a1"]);
   });
 });
 

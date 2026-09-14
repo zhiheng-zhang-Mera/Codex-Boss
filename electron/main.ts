@@ -61,6 +61,8 @@ import { createTaskLifecycleIpcModule } from "./bootstrap/task-lifecycle-ipc";
 import { createResearchOwnerIpcModule } from "./bootstrap/research-owner-ipc";
 import { createTaskStateIpcModule } from "./bootstrap/task-state-ipc";
 import { createResearchRunIpcModule } from "./bootstrap/research-run-ipc";
+import { createTaskCreationIpcModule } from "./bootstrap/task-creation-ipc";
+import { taskTransports, titleForTask, workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
@@ -79,7 +81,7 @@ import {
   runWorkDispatch
 } from "./commander/workbook-production";
 import { WorkbookRegistry } from "./ingestion/workbook-registry";
-import { assertPrimaryInput, hydrateWorkBookAttachmentPaths, shouldRunWorkBookIntake } from "./commander/workbook-dispatch";
+import { assertPrimaryInput, shouldRunWorkBookIntake } from "./commander/workbook-dispatch";
 import { ExperienceStore } from "./experience/experience-store";
 import { attachExperienceRecorder } from "./experience/experience-recorder";
 import { TelemetryStore } from "./telemetry/telemetry-store";
@@ -284,15 +286,16 @@ function liveArchiveAttempt() {
   });
 }
 
-function taskTransports(input: CreateTaskInput, providerIds: ProviderId[]) {
-  const appMode = input.appMode ?? "chat";
-  const transports = Object.fromEntries(providerIds.map((providerId) => {
-    const requested = input.transportByProvider?.[providerId] ?? "web";
-    if (requested !== "web" && requested !== "api") throw new Error(`无效执行通道：${providerId}`);
-    return [providerId, appMode === "chat" ? "web" : requested];
-  }));
-  return { appMode, transports };
-}
+/**
+ * The lookups the task-input helpers (`electron/tasks/task-inputs.ts`) resolve bound
+ * refs through. The attachment store is a getter rather than a captured value: it is
+ * attached later in startup, and its absence is meaningful — refs stay unhydrated
+ * rather than being dropped.
+ */
+const INPUT_REFS: InputRefSources = {
+  inputObjectsFor: (conversationId) => store.inputObjectsFor(conversationId),
+  get attachments() { return attachmentStore; }
+};
 
 /** Phase E: deterministic Chat→Work detection for a task (message + bound inputs). */
 function escalateDecisionFor(task: import("../src/shared/contracts").BossTask) {
@@ -303,43 +306,9 @@ function escalateDecisionFor(task: import("../src/shared/contracts").BossTask) {
   return decideEscalation(detectCapabilityNeeds({ message: task.prompt, inputKinds }));
 }
 
-/*
- * WORK_UNIT_2: WorkBook dispatch bridge. The orchestration lives in
- * commander/workbook-dispatch; this file only resolves conversation-scoped refs,
- * records the outcome and decides whether provider work may start.
- */
-function conversationScopedInputRefs(conversationId: string, inputObjectIds?: string[]): InputObjectRef[] {
-  const bound = new Set(inputObjectIds ?? []);
-  return (store.inputObjectsFor(conversationId) ?? []).filter((ref) => bound.has(ref.id));
-}
-
 /** Durable duplicate/resume registry for ingested WorkBooks. */
 function workbookRegistry(): WorkbookRegistry {
   return new WorkbookRegistry(path.join(app.getPath("userData"), ".boss", "workbook-registry.json"));
-}
-
-function workbookAttachments(input: CreateTaskInput, conversationId: string, extraIds: string[] = []): InputObjectRef[] {
-  const ids = [...new Set([...(input.inputObjectIds ?? []), ...extraIds])];
-  const refs = conversationScopedInputRefs(conversationId, ids);
-  if (!attachmentStore) return refs;
-  return hydrateWorkBookAttachmentPaths(refs, (scopedConversationId, inputObjectId) =>
-    attachmentStore?.localPathFor(scopedConversationId, inputObjectId)
-  );
-}
-
-/**
- * WORK_UNIT_2 (REPAIR_BATCH_3): dispatch group-size validation lives in
- * commander/provider-dispatch-guard so it is testable against the real helper
- * boundary; re-exported here for callers that already import from the bridge.
- */
-export { assertDispatchGroupSize } from "./commander/provider-dispatch-guard";
-
-/** Deterministic task title: explicit, else WorkBook title/file name, else prompt. */
-function titleForTask(input: CreateTaskInput, attachments: InputObjectRef[]): string {  const explicit = input.title?.trim();
-  if (explicit) return explicit;
-  const named = attachments.find((ref) => ref.originalName?.trim());
-  if (named?.originalName) return named.originalName.replace(/\.[A-Za-z0-9]{1,8}$/, "") || named.originalName;
-  return (input.prompt ?? "").trim().split(/\r?\n/)[0].slice(0, 80) || "Untitled task";
 }
 
 /**
@@ -1052,29 +1021,24 @@ if (ownsInstance) app.whenReady().then(() => {
       publish: (event) => domainEvents.publish(event)
     }
   }));
-  ipcMain.handle("boss:create-task", (_event, input: CreateTaskInput) => {
-    // WORK_UNIT_2: text OR a bound attachment OR a repository is enough; an
-    // empty text with no inputs is still a clear error.
-    const conversationId = input.conversationId ?? store.snapshot().activeConversationId;
-    const attachments = workbookAttachments(input, conversationId);
-    assertPrimaryInput(input.prompt ?? "", attachments);
-    const providerIds = [...new Set(input.providerIds)];
-    if (providerIds.length === 0) throw new Error("At least one provider is required");
-    if (providerIds.length > MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时选择 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
-    providerIds.forEach(provider);
-    const { appMode, transports } = taskTransports(input, providerIds);
-    if (appMode === "chat" && !(input.prompt ?? "").trim()) {
-      throw new Error("Chat 模式需要任务文字；仅附件任务请使用 Work 模式");
+  // Phase F/G: creating a task lives in electron/bootstrap/task-creation-ipc.ts.
+  // `boss:dispatch-task` stays here for now: it needs the pane manager, the GitHub
+  // materializer and the WorkBook dispatch services at once, so it moves last. The
+  // input helpers it shares with this module already live in electron/tasks/.
+  bootModules.push(createTaskCreationIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    creation: {
+      activeConversationId: () => store.snapshot().activeConversationId,
+      providerIds: () => store.snapshot().providers.map((item) => item.id),
+      inputs: INPUT_REFS,
+      createTask: (taskInput) => commander.createTask(taskInput),
+      publish: () => publish()
     }
-    const title = titleForTask(input, attachments);
-    const objective = (input.prompt ?? "").trim() || `Prepare task from attached input: ${attachments.map((ref) => ref.originalName ?? ref.id).join(", ")}`;
-    commander.createTask({ title, objective, providerIds, mode: input.mode ?? "direct", appMode, transports, conversationId, reviewPolicy: input.reviewPolicy, finalizationPolicy: input.finalizationPolicy, inputObjectIds: input.inputObjectIds, workAgentCount: input.workAgentCount, runMode: input.runMode, conversationPolicy: input.conversationPolicy });
-    return publish();
-  });
+  }));
   ipcMain.handle("boss:dispatch-task", async (_event, input: CreateTaskInput) => {
     const providerIds = [...new Set(input.providerIds)];
     const requestedConversationId = input.conversationId ?? store.snapshot().activeConversationId;
-    const preAttachments = workbookAttachments(input, requestedConversationId);
+    const preAttachments = workbookAttachments(INPUT_REFS, input, requestedConversationId);
     assertPrimaryInput(input.prompt ?? "", preAttachments);
     assertDispatchGroupSize(input.prompt ?? "", "", providerIds.length);
     providerIds.forEach(provider);
@@ -1098,7 +1062,7 @@ if (ownsInstance) app.whenReady().then(() => {
     // materialize once and bind it so WORK can scan real code.
     const githubInput = await materializeGithubInput(conversationId, input.prompt ?? "");
     const inputObjectIds = [...new Set([...(input.inputObjectIds ?? []), ...(githubInput ? [githubInput.id] : [])])];
-    const attachments = workbookAttachments(input, conversationId, githubInput ? [githubInput.id] : []);
+    const attachments = workbookAttachments(INPUT_REFS, input, conversationId, githubInput ? [githubInput.id] : []);
     const workspace = workspaceForRequest({ requested: input.workspacePath, repositoryLocalPath: githubInput?.localPath, fallback: app.getAppPath() });
 
     // WORK_UNIT_3 / REPAIR_BATCH_4: the WorkBook branch DELEGATES to the single
