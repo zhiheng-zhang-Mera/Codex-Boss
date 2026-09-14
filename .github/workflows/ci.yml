@@ -69,8 +69,14 @@ jobs:
       # "Cannot find module '../dist-electron/...'" and exited 1 instead of its
       # documented exit code, failing two tests on every run.
       - run: pnpm run build
-      # The default tier: fast, deterministic, no external network.
+      # The default tier: fast, deterministic, and — since Phase N — needs nothing but
+      # the sources, so it passes on a clean checkout. See vitest.tiers.mjs.
       - run: pnpm test
+      # The build-dependent tier: the suites that read the real dist/ + dist-electron/
+      # output. They must follow the build, which is the ordering this job has always
+      # had; moving them into their own declared step is what lets `pnpm test` stop
+      # depending on a build without making these suites skip when one is missing.
+      - run: pnpm run test:postbuild
       # The slow tier: suites that compile and execute real projects in a fixture.
       # They run one file at a time with a timeout justified by what they do, so a
       # green commit cannot be turned red by parallel load. See
