@@ -31,22 +31,25 @@ function technicalFailure(runtimeId: string, jobId: string): RuntimeResult {
   return { runtimeId, jobId, status: "RETRYABLE_FAILURE", failure: { code: "TIMEOUT", message: "provider timed out (technical)", retryable: true } };
 }
 function sessionFailure(runtimeId: string, jobId: string): RuntimeResult {
-  return { runtimeId, jobId, status: "RETRYABLE_FAILURE", failure: { code: "SESSION_EXPIRED", message: "provider session expired", retryable: true } };
+  return { runtimeId, jobId, status: "RETRYABLE_FAILURE", failure: { code: "AUTH_REQUIRED", message: "provider session expired", retryable: true } };
 }
 
-function scriptedRuntime(runtimeId: string, script: Array<() => RuntimeResult>): RuntimeAdapter {
+function scriptedRuntime(runtimeId: string, script: Array<(runtimeId: string, jobId: string) => RuntimeResult>): RuntimeAdapter {
   let calls = 0;
   return {
     id: runtimeId,
     kind: "web",
-    capabilities: { consumesModel: true, roles: ["planner"], supportsCancellation: true, supportsStreaming: true },
+    capabilities: { consumesModel: true, roles: ["planning"], supportsCancellation: true, supportsStreaming: true },
     healthCheck: async () => ({ runtimeId, availability: "AVAILABLE", message: "ok", checkedAt: new Date().toISOString() }),
-    execute: async (_request: RuntimeRequest) => script[Math.min(calls++, script.length - 1)]()
+    // The ids are passed in: `technicalFailure`/`sessionFailure` build their result from
+    // the runtime and job they were asked about, and calling them with no arguments —
+    // as this used to — produced results whose runtimeId and jobId were `undefined`.
+    execute: async (request: RuntimeRequest) => script[Math.min(calls++, script.length - 1)](runtimeId, request.jobId)
   };
 }
 
 function request(taskId: string, jobId: string): RuntimeRequest {
-  return { taskId, jobId, role: "planner", prompt: "solve it", replaySafe: true, timeoutMs: 30_000 };
+  return { taskId, jobId, role: "planning", prompt: "solve it", replaySafe: true, timeoutMs: 30_000 };
 }
 
 beforeEach(() => {

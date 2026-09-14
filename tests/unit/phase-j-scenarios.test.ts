@@ -67,19 +67,19 @@ it("R-1002 Scenario G composite: provider FAILED + node OFFLINE + KB offline + r
   const breaker = new CircuitBreaker(path.join(dir, "breaker.json"), { failureThreshold: 1, cooldownMs: 600000 });
   const supervisor = new ExecutionSupervisor(ledger, new Scheduler(), undefined, undefined, undefined, breaker);
   const broken: RuntimeAdapter = {
-    id: "web:broken", kind: "web", capabilities: { consumesModel: true, roles: ["planner"], supportsCancellation: true, supportsStreaming: true },
+    id: "web:broken", kind: "web", capabilities: { consumesModel: true, roles: ["planning"], supportsCancellation: true, supportsStreaming: true },
     healthCheck: async () => ({ runtimeId: "web:broken", availability: "AVAILABLE", message: "ok", checkedAt: "now" }),
     execute: async (_r: RuntimeRequest) => ({ runtimeId: "web:broken", jobId: "a1", status: "RETRYABLE_FAILURE", failure: { code: "TIMEOUT", message: "down", retryable: true } } as RuntimeResult)
   };
   const healthy: RuntimeAdapter = {
-    id: "local:ok", kind: "local", capabilities: { consumesModel: false, roles: ["planner"], supportsCancellation: true, supportsStreaming: false },
+    id: "local:ok", kind: "local", capabilities: { consumesModel: false, roles: ["planning"], supportsCancellation: true, supportsStreaming: false },
     healthCheck: async () => ({ runtimeId: "local:ok", availability: "AVAILABLE", message: "ok", checkedAt: "now" }),
     execute: async (req: RuntimeRequest) => ({ runtimeId: "local:ok", jobId: req.jobId, status: "SUCCESS", content: "OK" } as RuntimeResult)
   };
-  const failed = await supervisor.execute({ taskId: "ta", jobId: "a1", role: "planner", prompt: "p", replaySafe: true, timeoutMs: 30_000 }, [broken]);
+  const failed = await supervisor.execute({ taskId: "ta", jobId: "a1", role: "planning", prompt: "p", replaySafe: true, timeoutMs: 30_000 }, [broken]);
   expect(failed.status).not.toBe("SUCCESS");
   expect(breaker.state("web:broken")).toBe("OPEN");
-  const ok = await supervisor.execute({ taskId: "tb", jobId: "b1", role: "planner", prompt: "p", replaySafe: true, timeoutMs: 30_000 }, [healthy]);
+  const ok = await supervisor.execute({ taskId: "tb", jobId: "b1", role: "planning", prompt: "p", replaySafe: true, timeoutMs: 30_000 }, [healthy]);
   expect(ok.status).toBe("SUCCESS");
 
   // (2) Node OFFLINE in the fleet while the other node keeps running.

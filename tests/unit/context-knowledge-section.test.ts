@@ -39,7 +39,7 @@ describe("§5.5 knowledge reaches the provider prompt without changing legacy ou
     const manager = new ContextManager(path.join(ROOT, "none.json"));
     manager.save(context("task-none"));
     const expected = [
-      "ROLE: executor\nfollow the instructions",
+      "ROLE: coder\nfollow the instructions",
       "OBJECTIVE:\nimplement the latency guard",
       "CONSTRAINTS:\ndo not modify the UI",
       "PROTOCOL: direct / 1",
@@ -47,17 +47,17 @@ describe("§5.5 knowledge reaches the provider prompt without changing legacy ou
       "OPEN_DISPUTES:\n",
       "SUMMARIES:\nsummary one"
     ].join("\n\n");
-    expect(manager.assemble("task-none", "executor", "follow the instructions")).toBe(expected);
+    expect(manager.assemble("task-none", "coder", "follow the instructions")).toBe(expected);
   });
 
   it("stays byte-identical when the knowledge provider has nothing to reuse", () => {
     const manager = new ContextManager(path.join(ROOT, "empty.json"));
     manager.save(context("task-empty"));
-    const withoutSeam = manager.assemble("task-empty", "executor", "follow the instructions");
+    const withoutSeam = manager.assemble("task-empty", "coder", "follow the instructions");
     manager.setKnowledgeSectionProvider(() => undefined);
-    expect(manager.assemble("task-empty", "executor", "follow the instructions")).toBe(withoutSeam);
+    expect(manager.assemble("task-empty", "coder", "follow the instructions")).toBe(withoutSeam);
     manager.setKnowledgeSectionProvider(() => "");
-    expect(manager.assemble("task-empty", "executor", "follow the instructions")).toBe(withoutSeam);
+    expect(manager.assemble("task-empty", "coder", "follow the instructions")).toBe(withoutSeam);
   });
 
   it("inserts a bounded PROJECT_KNOWLEDGE section after the task's own instructions", () => {
@@ -68,7 +68,7 @@ describe("§5.5 knowledge reaches the provider prompt without changing legacy ou
       reportedBudget = maxChars;
       return "REUSED_PROJECT_KNOWLEDGE (1 object(s)):\n- [ARCHITECTURE] repository layout";
     });
-    const assembled = manager.assemble("task-with", "executor", "follow the instructions", { maxChars: 600 });
+    const assembled = manager.assemble("task-with", "coder", "follow the instructions", { maxChars: 600 });
     expect(reportedBudget).toBeGreaterThan(0);
     expect(reportedBudget).toBeLessThanOrEqual(200);
     expect(assembled).toContain("PROJECT_KNOWLEDGE:");
@@ -82,8 +82,8 @@ describe("§5.5 knowledge reaches the provider prompt without changing legacy ou
     const manager = new ContextManager(path.join(ROOT, "tight.json"));
     manager.save(context("task-tight"));
     manager.setKnowledgeSectionProvider(() => `KE-${"x".repeat(5000)}`);
-    const assembled = manager.assemble("task-tight", "executor", "follow the instructions", { maxChars: 200 });
-    expect(assembled.startsWith("ROLE: executor")).toBe(true);
+    const assembled = manager.assemble("task-tight", "coder", "follow the instructions", { maxChars: 200 });
+    expect(assembled.startsWith("ROLE: coder")).toBe(true);
     expect(assembled).toContain("OBJECTIVE:");
     expect(assembled).toContain("CONSTRAINTS:");
     expect(assembled.length).toBeLessThanOrEqual(200);

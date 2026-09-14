@@ -17,7 +17,22 @@ import {
   captureRecoveryPoint, EngineeringRecoveryError, EngineeringRecoveryLedger,
   preserveWorkspaceAfter, recoveryLedgerFor, restoreRecoveryPoint
 } from "../../electron/engineering/engineering-recovery";
-import type { EngineeringGoalContract } from "../../src/shared/engineering-loop";
+import type { EngineeringGoalContract, WorkspaceRecoveryOutcome } from "../../src/shared/engineering-loop";
+
+/**
+ * The rollback outcome, with its discriminant asserted first.
+ *
+ * `ok` exists only on the `attempted: true` variants of `WorkspaceRecoveryOutcome`, so
+ * reading it straight off the union is a type error. The fix is not a cast: this
+ * narrows, and when no rollback was attempted it fails with the code and the reason —
+ * which is strictly more than the assertion it replaces used to say.
+ */
+function attemptedRollback(recovery: WorkspaceRecoveryOutcome | undefined): Extract<WorkspaceRecoveryOutcome, { attempted: true }> {
+  if (!recovery?.attempted) {
+    throw new Error(`expected a rollback attempt; got ${recovery ? `${recovery.code}: ${recovery.reason}` : "no recovery at all"}`);
+  }
+  return recovery;
+}
 
 /**
  * Update-Plan/cleaning.md §7 — checkpoint fail-closed.
@@ -256,7 +271,7 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
     expect(recoveryError.message).toContain("driver exploded while implementing");
     // The rollback really ran, and its outcome travels with the error.
     expect(recoveryError.recovery.attempted).toBe(true);
-    expect(recoveryError.recovery.ok).toBe(true);
+    expect(attemptedRollback(recoveryError.recovery).ok).toBe(true);
     // The workspace is back to its pre-run content and git is clean.
     expect(alpha(dir)).toBe(before);
     expect(status(dir)).toBe("");
@@ -294,7 +309,7 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
     expect(recoveryError).toBeInstanceOf(EngineeringRecoveryError);
     expect(recoveryError.driverError).toBe(failure);              // preserved
     expect(recoveryError.recovery.attempted).toBe(true);
-    expect(recoveryError.recovery.ok).toBe(false);                 // kept apart
+    expect(attemptedRollback(recoveryError.recovery).ok).toBe(false);                 // kept apart
     expect(recoveryError.recovery.attempted && !recoveryError.recovery.ok && recoveryError.recovery.reason).toContain("advanced past checkpoint");
     expect(recoveryError.message).toContain("driver exploded after advancing the repo");
     expect(recoveryError.message).toContain("rollback failed");
@@ -303,7 +318,7 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
 
     const events = recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list();
     expect(events[0]!.code).toBe("ENGINEERING_DRIVER_FAILED");
-    expect(events[0]!.recovery.ok).toBe(false);
+    expect(attemptedRollback(events[0]!.recovery).ok).toBe(false);
   }, 120000);
 
   it("restoreRecoveryPoint returns failures instead of throwing", async () => {
@@ -316,7 +331,7 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
     execFileSync("git", ["-c", "user.name=A", "-c", "user.email=a@b.invalid", "commit", "-m", "moved on"], { cwd: dir, windowsHide: true });
     const outcome = await restoreRecoveryPoint(dir, attempt.checkpoint);
     expect(outcome.attempted).toBe(true);
-    expect(outcome.ok).toBe(false);
+    expect(attemptedRollback(outcome).ok).toBe(false);
     expect(outcome.attempted && !outcome.ok && outcome.reason).toContain("advanced past checkpoint");
   }, 120000);
 });
@@ -346,7 +361,7 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
     expect(summary.state).toBe("ABORTED");
     expect(summary.changedFiles).toEqual([]);
     expect(summary.recovery?.attempted).toBe(true);
-    expect(summary.recovery?.ok).toBe(true);
+    expect(attemptedRollback(summary.recovery).ok).toBe(true);
     expect(summary.terminalReason).toContain("ABORTED");
     expect(alpha(dir)).toBe(before);
     expect(status(dir)).toBe("");
@@ -435,7 +450,7 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
     expect(summary.state).toBe("STAGNANT");
     expect(summary.changedFiles).toEqual([]);
     expect(summary.recovery?.attempted).toBe(true);
-    expect(summary.recovery?.ok).toBe(true);
+    expect(attemptedRollback(summary.recovery).ok).toBe(true);
     expect(summary.terminalReason).toContain("STAGNANT");
     expect(alpha(dir)).toBe(before);
     expect(fs.existsSync(path.join(dir, "scratch.cjs"))).toBe(false);
