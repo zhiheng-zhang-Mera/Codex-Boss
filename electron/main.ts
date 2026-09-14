@@ -52,6 +52,7 @@ import { createTaskCreationIpcModule } from "./bootstrap/task-creation-ipc";
 import { createDispatchIpcModule } from "./bootstrap/dispatch-ipc";
 import { createPersistenceModule } from "./bootstrap/persistence";
 import { createKnowledgeModule } from "./bootstrap/knowledge";
+import { createAutomationModule } from "./bootstrap/automation";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -60,7 +61,6 @@ import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
 import { engineeringSessionId } from "./engineering/engineering-session";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
-import { SoftwareLeaseRegistry } from "./computer/software-lease";
 import { ProjectStateStore } from "./project/project-state";
 import {
   reconcileWorkbookLinks,
@@ -69,9 +69,6 @@ import {
   runWorkDispatch
 } from "./commander/workbook-production";
 import { WorkbookRegistry } from "./ingestion/workbook-registry";
-import { attachExperienceRecorder } from "./experience/experience-recorder";
-import { TelemetryStore } from "./telemetry/telemetry-store";
-import { attachTelemetryRecorder } from "./telemetry/telemetry-recorder";
 import { attachProgressRecorder } from "./commander/progress-recorder";
 import { HumanGuidanceGate } from "./commander/human-guidance-gate";
 import { ResearchService } from "./research/research-service";
@@ -712,9 +709,28 @@ if (ownsInstance) app.whenReady().then(() => {
   );
   remoteRelay.sync(store.snapshot().remoteChannels);
   const runtimeRegistry = new RuntimeRegistry();
-  const domainEvents = new DomainEventBus();
+  // Phase F: the event bus, its recorders and the runtime-resilience services are
+  // one boot module — everything that reacts to something which already happened.
+  // The composition root keeps the fan-out (`publish`) and the state document it
+  // owns and hands them in. The local is `automationModule` because `automation`
+  // is the provider-side ProviderAutomation this root also holds.
+  const automationModule = createAutomationModule({
+    dataRoot: app.getPath("userData"),
+    store,
+    experiences,
+    publish
+  });
+  bootModules.push(automationModule);
+  // Assigned into the composition root's own bindings rather than destructured:
+  // `progressAggregator` and `recoveryScheduler` are module-scope, and a
+  // destructuring declaration here would SHADOW them inside this function, so the
+  // ones the rest of the file uses would never be assigned.
+  const domainEvents = automationModule.service.events;
   domainEventBus = domainEvents;
-  progressAggregator = attachProgressRecorder(domainEvents).aggregator;
+  progressAggregator = automationModule.service.progress;
+  recoveryScheduler = automationModule.service.recovery;
+  const circuitBreaker = automationModule.service.circuitBreaker;
+  const softwareLeases = automationModule.service.softwareLeases;
   // Milestone §3/§6: ONE research composition root. ResearchService owns the
   // durable ledger, protocol manager, evidence graph, citation store, autopilot
   // supervisor and structured runtime; every boss:research-* IPC handler below
@@ -729,16 +745,6 @@ if (ownsInstance) app.whenReady().then(() => {
     executor: liveResearchExecutor(),
     runtime: new ResearchRuntime()
   });
-  attachTelemetryRecorder(domainEvents, new TelemetryStore(path.join(app.getPath("userData"), ".boss", "telemetry.json")));
-  attachExperienceRecorder(domainEvents, experiences, { sourceFor: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.workspaceId ?? taskId });
-  const softwareLeases = new SoftwareLeaseRegistry();
-  recoveryScheduler = new RecoveryScheduler(path.join(app.getPath("userData"), ".boss", "recovery.json"), () => {
-    for (const item of recoveryScheduler.list().filter((record) => record.state === "PAUSED")) {
-      const task = store.snapshot().tasks.find((task) => task.id === item.taskId);
-      if (task && (task.recoveryAt || task.recoveryMessage !== item.error)) store.setRecoveryState(item.taskId, undefined, item.error ?? "Recovery paused");
-    }
-    publish();
-  }, domainEvents);
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
   runtimeRegistry.register(new NativeRuntime(app.getAppPath()));
@@ -773,7 +779,6 @@ if (ownsInstance) app.whenReady().then(() => {
     });
     return result.text || undefined;
   });
-  const circuitBreaker = new CircuitBreaker(path.join(app.getPath("userData"), ".boss", "circuit-breaker.json"));
   // §7.2 — the mandatory Self-Evolution route. It is installed here, in the
   // composition root, so a self-target edit task can never reach the ordinary
   // engineering path: `MainCommander` hands such a task to the coordinator, and
