@@ -101,6 +101,12 @@ export interface CandidateGuardian {
   /** §35: walks the lifecycle, refusing an illegal event. */
   advance(state: TaskLifecycleState, event: LifecycleEvent): LifecycleResult;
   record(): CandidateRecord | undefined;
+  /**
+   * Why a candidate record that exists could not be read, or `undefined` when it
+   * was read (or when there is none). Without it, an unusable record is
+   * indistinguishable from a gate that has never recorded anything.
+   */
+  recordDiagnostic(): string | undefined;
   save(): string;
 }
 
@@ -113,17 +119,28 @@ export function createCandidateGuardian(config: CandidateGateConfig): CandidateG
   const root = fs.realpathSync(config.root);
   const now = config.now ?? (() => new Date());
   const recordPath = config.recordPath ?? path.join(root, "artifacts", "acceptance", CANDIDATE_RECORD_FILE);
-  let record: CandidateRecord | undefined = loadRecord(recordPath);
+  const restoredRecord = loadRecord(recordPath);
+  let record: CandidateRecord | undefined = restoredRecord.record;
+  /** Captured at construction: a candidate record that exists but could not be read. */
+  const recordUnreadable = restoredRecord.unreadable;
+  if (recordUnreadable) console.warn(`[candidate] the candidate record could not be read: ${recordUnreadable}`);
 
-  const deletedPaths = (): string[] => {
-    const result = spawnGit(root);
-    if (!result.available) return [];
-    return result.lines.filter((line) => /^ ?D/.test(line)).map((line) => line.replace(/^ ?D\s+/, "").trim()).filter(Boolean);
-  };
+/** The removal checks, each either a real answer or a reason it could not be given. */
+function deletedPaths(root: string): { files: string[]; unchecked?: string } {
+  const result = spawnGit(root);
+  if (!result.available) {
+    // "git could not tell us" is not "nothing was deleted". Reporting the empty
+    // list as the answer is how a deleted test could pass the destructive check.
+    return { files: [], unchecked: "git could not report what the candidate deleted: git status was unavailable" };
+  }
+  return { files: result.lines.filter((line) => /^ ?D/.test(line)).map((line) => line.replace(/^ ?D\s+/, "").trim()).filter(Boolean) };
+}
 
   return {
     advance: (state, event) => advanceLifecycle(state, event),
     record: () => record,
+    /** Why a record that exists could not be used, or `undefined` when there was none to read. */
+    recordDiagnostic: () => recordUnreadable,
     evaluate(input) {
       const ledger = config.ledger();
       const requirements = input.requirements.filter((requirement) => requirement.type !== "GOAL" && requirement.type !== "DEPENDENCY");
@@ -152,9 +169,13 @@ export function createCandidateGuardian(config: CandidateGateConfig): CandidateG
         .map((entry) => entry.requirement_id);
       const failed = latestFailures(ledger, input.requirements.map((requirement) => requirement.id));
 
-      const deleted = deletedPaths().filter((file) => input.written_files.includes(file) || !file.includes("artifacts/"));
+      const deletedReport = deletedPaths(root);
+      const deleted = deletedReport.files.filter((file) => input.written_files.includes(file) || !file.includes("artifacts/"));
       const deletedTests = deleted.filter((file) => /(^|\/)(tests?|__tests__)\//i.test(file) || /\.(test|spec)\.[cm]?[jt]sx?$/i.test(file));
-      const removedScripts = removedPackageScripts(root, input.baseline_scripts ?? []);
+      const removedReport = removedPackageScripts(root, input.baseline_scripts ?? []);
+      // Reasons a removal check could not run. Empty means both checks really ran.
+      const unchecked = [deletedReport.unchecked, removedReport.unchecked].filter((reason): reason is string => Boolean(reason));
+      if (unchecked.length) console.warn(`[candidate] destructive-change checks incomplete: ${unchecked.join("; ")}`);
 
       const themes: ThemeGuardianInput[] = (input.themes ?? []).flatMap((location) => {
         const read = readThemePackage(location);
@@ -172,7 +193,13 @@ export function createCandidateGuardian(config: CandidateGateConfig): CandidateG
           ledger_rows: ledger.entries.length,
           review_covered: config.reviewCovered?.() ?? false
         },
-        destructive: { deleted_files: deleted, deleted_tests: deletedTests, removed_scripts: removedScripts, approved_by_owner: [...(input.approved_removals ?? [])] },
+        destructive: {
+          deleted_files: deleted,
+          deleted_tests: deletedTests,
+          removed_scripts: removedReport.removed,
+          approved_by_owner: [...(input.approved_removals ?? [])],
+          ...(unchecked.length ? { unchecked } : {})
+        },
         overrides: (input.overrides ?? []).map((override) => ({
           text: override.text,
           supersedes: [...override.supersedes],
@@ -236,16 +263,18 @@ function latestFailures(ledger: EvidenceLedgerFile, requirementIds: readonly str
   return failed;
 }
 
-function removedPackageScripts(root: string, baseline: readonly string[]): string[] {
-  if (!baseline.length) return [];
+function removedPackageScripts(root: string, baseline: readonly string[]): { removed: string[]; unchecked?: string } {
+  if (!baseline.length) return { removed: [] };
   const manifest = path.join(root, "package.json");
-  if (!fs.existsSync(manifest)) return [...baseline];
+  if (!fs.existsSync(manifest)) return { removed: [...baseline] };
   try {
     const parsed = JSON.parse(fs.readFileSync(manifest, "utf8")) as { scripts?: Record<string, string> };
     const present = new Set(Object.keys(parsed.scripts ?? {}));
-    return baseline.filter((script) => !present.has(script));
-  } catch {
-    return [];
+    return { removed: baseline.filter((script) => !present.has(script)) };
+  } catch (error) {
+    // An unreadable manifest reported "no scripts were removed", which is the
+    // opposite of what is known: nothing about the scripts could be established.
+    return { removed: [], unchecked: `package.json could not be read, so the baseline scripts were not checked: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
 
@@ -294,12 +323,13 @@ export function overrideItems(text: string): string[] {
   return items.length ? items : [text.trim()];
 }
 
-function loadRecord(recordPath: string): CandidateRecord | undefined {
-  if (!fs.existsSync(recordPath)) return undefined;
+function loadRecord(recordPath: string): { record?: CandidateRecord; unreadable?: string } {
+  if (!fs.existsSync(recordPath)) return {};
   try {
-    return JSON.parse(fs.readFileSync(recordPath, "utf8")) as CandidateRecord;
-  } catch {
-    return undefined;
+    return { record: JSON.parse(fs.readFileSync(recordPath, "utf8")) as CandidateRecord };
+  } catch (error) {
+    // Present but unusable is not the same as "no candidate has been recorded".
+    return { unreadable: error instanceof Error ? error.message : String(error) };
   }
 }
 

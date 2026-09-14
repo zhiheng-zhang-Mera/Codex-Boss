@@ -197,7 +197,21 @@ export interface GuardianContext {
   /** §36 EVIDENCE_COMPLETENESS: requirements still owed evidence, and failures. */
   evidence?: { outstanding_requirements: string[]; failed_requirements: string[]; ledger_rows: number; review_covered: boolean };
   /** §36 DESTRUCTIVE_CHANGE_CHECK: what the candidate removed. */
-  destructive?: { deleted_files: string[]; deleted_tests: string[]; removed_scripts: string[]; approved_by_owner: string[] };
+  destructive?: {
+    deleted_files: string[];
+    deleted_tests: string[];
+    removed_scripts: string[];
+    approved_by_owner: string[];
+    /**
+     * Why a removal check could not run, one reason per check. An empty list means
+     * the host really looked and found nothing; a non-empty one means it could NOT
+     * look, and the check is reported NOT_RUN rather than PASS. Without this, "git
+     * could not tell us what was deleted" and "nothing was deleted" produced the
+     * same clean verdict — the one direction a destructive-change gate must not
+     * fail in.
+     */
+    unchecked?: string[];
+  };
   /** §36 OWNER_OVERRIDE_COMPLIANCE: what the Owner's own words required. */
   overrides?: { text: string; supersedes: string[]; expected_in_requirements: string[] }[];
   /** Requirements/declarations the candidate ended up serving, for override matching. */
@@ -321,6 +335,12 @@ export function evaluateGuardian(context: GuardianContext): GuardianEvaluation {
 
   // DESTRUCTIVE_CHANGE_CHECK
   if (!context.destructive) { checks.push(result("DESTRUCTIVE_CHANGE_CHECK", "NOT_RUN", [], ["the change set was not inspected for removals"])); notInspected.push("DESTRUCTIVE_CHANGE_CHECK"); }
+  else if ((context.destructive.unchecked ?? []).length) {
+    // The host had lists to offer but could not fill them: the check did not run,
+    // and saying PASS here would be the gate claiming a removal check it never did.
+    checks.push(result("DESTRUCTIVE_CHANGE_CHECK", "NOT_RUN", [], context.destructive.unchecked!));
+    notInspected.push("DESTRUCTIVE_CHANGE_CHECK");
+  }
   else {
     const approved = new Set(context.destructive.approved_by_owner);
     const removals = [
