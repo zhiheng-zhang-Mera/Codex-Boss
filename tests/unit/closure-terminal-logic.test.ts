@@ -17,8 +17,15 @@ import {
   validateR901Evidence,
 } from "../../scripts/closure-terminal-logic.mjs";
 
-const req = (id, status, { required = true, evidence = [] } = {}) => ({ id, required, status, evidence });
-const allOk = (list, map, ok = true) => list.forEach((r) => { map[r.id] = ok; });
+/**
+ * Requirement fixtures. Annotated rather than inferred: written bare, `evidence = []`
+ * was inferred as `never[]`, so every call passing a real evidence list failed with
+ * "Type 'string' is not assignable to type 'never'" — the single cause of most of this
+ * file's errors.
+ */
+type Requirement = { id: string; status: string; required: boolean; evidence: string[] };
+const req = (id: string, status: string, { required = true, evidence = [] }: { required?: boolean; evidence?: string[] } = {}): Requirement => ({ id, required, status, evidence });
+const allOk = (list: Requirement[], map: Record<string, boolean>, ok = true): void => list.forEach((r) => { map[r.id] = ok; });
 
 describe("closure-terminal-logic: legal terminal evaluation (Host-A §4)", () => {
   it("COMPLETE only when every required requirement is PASS/LOCKED_PASS with evidence", () => {
@@ -93,7 +100,10 @@ describe("closure-terminal-logic: blocker evidence shape (Host-A §5 schema)", (
 
   it("rejects missing fields", () => {
     for (const field of ["attemptedAt", "externalDependency", "observedState", "operatorActionRequired", "retryCondition"]) {
-      const { [field]: _drop, ...rest } = legal;
+      // Copy-and-delete rather than a computed-key rest pattern: `legal` is a concrete
+      // shape, so it has no index signature to destructure a variable key out of.
+      const rest: Record<string, unknown> = { ...legal };
+      delete rest[field];
       const r = validateBlockerEvidenceShape(rest);
       expect(r.ok).toBe(false);
       expect(r.reasons.some((x) => x.includes(field))).toBe(true);
@@ -107,10 +117,10 @@ describe("closure-terminal-logic: blocker evidence shape (Host-A §5 schema)", (
 });
 
 describe("closure-terminal-logic: PASS evidence integrity (Phase C)", () => {
-  const mkIo = (existing) => ({
+  const mkIo = (existing: string[]) => ({
     roots: ["/repo/evidence"],
-    existsSync: (p) => existing.includes(p),
-    resolve: (root, p) => `${root}/${p}`,
+    existsSync: (p: string) => existing.includes(p),
+    resolve: (root: string, p: string) => `${root}/${p}`,
   });
 
   it("fails an empty evidence array", () => {

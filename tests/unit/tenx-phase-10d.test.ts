@@ -23,10 +23,12 @@ describe("10D pure controller-state derivation", () => {
   });
 
   it("detectDropouts only reports members that newly cross to OFFLINE", () => {
-    const members = [
-      { nodeId: "a", state: "READY" as const, lastHeartbeatAt: 0 },
-      { nodeId: "b", state: "OFFLINE" as const, lastHeartbeatAt: 0 },
-      { nodeId: "c", state: "READY" as const, lastHeartbeatAt: 1_000_000 }
+    // Annotated: a fleet member is a full record, and written bare these objects were
+    // three fields short of one (capabilityInventory, advertisementSeq, joinedAt).
+    const members: import("../../src/shared/tenx/fleet").FleetMemberRecord[] = [
+      { nodeId: "a", state: "READY", capabilityInventory: [], advertisementSeq: 1, lastHeartbeatAt: 0, joinedAt: "2026-09-10T00:00:00.000Z" },
+      { nodeId: "b", state: "OFFLINE", capabilityInventory: [], advertisementSeq: 1, lastHeartbeatAt: 0, joinedAt: "2026-09-10T00:00:00.000Z" },
+      { nodeId: "c", state: "READY", capabilityInventory: [], advertisementSeq: 1, lastHeartbeatAt: 1_000_000, joinedAt: "2026-09-10T00:00:00.000Z" }
     ];
     expect(detectDropouts(31_000, members)).toEqual(["a"]);
   });

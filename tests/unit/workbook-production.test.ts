@@ -251,7 +251,8 @@ describe("REPAIR_BATCH_4: production entry point", () => {
     expect(shouldDelegateToWorkBookIntake("chat", [h.file("spec.md", h.executable)])).toBe(false);
 
     const bridge = {
-      reviewPolicy: { mode: "auto" as const, maxRetries: 2 },
+      // `ReviewMode` is STRICT | BALANCED | AUTONOMOUS — there is no "auto".
+      reviewPolicy: { mode: "AUTONOMOUS" as const, maxRetries: 2 },
       finalizationPolicy: "CODEX_IF_AVAILABLE" as const,
       workAgentCount: 3 as const,
       runMode: "OWNER_RESULT" as const,

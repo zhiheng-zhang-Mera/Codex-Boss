@@ -137,7 +137,9 @@ export function evidenceIntegrityForPass(req, io) {
 
 /**
  * Validate structured BLOCKED_EXTERNAL evidence per Host-A §5 schema.
- * @param {object} ev evidence object (not the manifest row)
+ * @param {unknown} ev evidence object (not the manifest row). Typed `unknown` because
+ *   this is a shape VALIDATOR: its first statement handles a non-object, so a caller
+ *   checking "what happens if a field is missing" has to be able to hand it one.
  * @returns {{ok:boolean, reasons:Array<string>}}
  */
 export function validateBlockerEvidenceShape(ev) {
