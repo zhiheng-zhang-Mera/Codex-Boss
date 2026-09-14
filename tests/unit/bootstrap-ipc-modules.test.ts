@@ -16,6 +16,7 @@ import { createTaskLifecycleIpcModule, TASK_LIFECYCLE_IPC_CHANNELS } from "../..
 import { createResearchOwnerIpcModule, RESEARCH_OWNER_IPC_CHANNELS } from "../../electron/bootstrap/research-owner-ipc";
 import { createTaskStateIpcModule, TASK_STATE_IPC_CHANNELS } from "../../electron/bootstrap/task-state-ipc";
 import { createResearchRunIpcModule, RESEARCH_RUN_IPC_CHANNELS } from "../../electron/bootstrap/research-run-ipc";
+import { canonicalRealPathSync } from "../../electron/workspace/path-utils";
 import { reportBootHealth, disposeBootModules, type BootModule } from "../../electron/bootstrap/boot-module";
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
@@ -1174,7 +1175,10 @@ describe("Phase G — research run control", () => {
     expect(record.ir.id).toBe("rq-1");
     // Trimmed question, canonical workspace, and the human path's own budget default.
     expect(calls[0]).toContain("human:does X cause Y?");
-    expect(calls[0]).toContain(root);
+    // The CANONICAL form, not the spelling submitted. On a runner whose temp path is
+    // an 8.3 short name these differ, and asserting the submitted spelling is exactly
+    // the mistake this repository has had to fix in production code before.
+    expect(calls[0]).toContain(canonicalRealPathSync(root));
     expect(calls[0]).toContain("AUTO");
     expect(calls[0]).toContain("7");
     expect(events).toEqual(["TOOL_RESULT_READY:rq-1"]);
@@ -1204,7 +1208,7 @@ describe("Phase G — research run control", () => {
     // The IR carries the trimmed goal, the canonical workspace and the autopilot default.
     expect(calls[0]).toContain("auto:");
     expect(calls[0]).toContain("map the field");
-    expect(calls[0]).toContain(root);
+    expect(calls[0]).toContain(canonicalRealPathSync(root));
     expect(calls[0]).toContain("AUTOPILOT");
     expect(events[0]).toContain("TOOL_RESULT_READY:");
   });
