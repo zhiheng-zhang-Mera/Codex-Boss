@@ -47,6 +47,114 @@ export const SLOW_ACCEPTANCE_TESTS = [
 ];
 
 /**
+ * The test layers (convergence book, Phase N).
+ *
+ * The vocabulary is the book's eight names. They answer two different questions,
+ * so they are declared as two kinds rather than one flat list:
+ *
+ *  - a **primary** layer says what environment a suite needs, and every test file
+ *    under `tests/` has exactly one. Three exist: `unit` (in-process, runs from
+ *    the sources alone), `acceptance` (an attested scenario driven end to end
+ *    against the real host code) and `desktop` (the black-box contract produced by
+ *    launching the real application). `desktop` claims one suite away from
+ *    `acceptance`, because that suite asserts what the Electron driver observed.
+ *  - a **nature** layer says what a suite is about, and a suite may have several:
+ *    an acceptance scenario that drives a real compiler is also `integration`.
+ *
+ * The nature layers are DEFINED BY EVIDENCE rather than by a hand list, so they
+ * cannot rot or be padded:
+ *
+ *  - `integration` — the file starts a real child process (it imports
+ *    `node:child_process`, the process gateway, the git gateway or the engineering
+ *    command runner). The evidence is the import, not the name, so this layer
+ *    cannot be claimed by a suite that does not spawn anything and cannot miss one
+ *    that does;
+ *  - `migration`, `recovery`, `adversarial`, `soak` — the file's own name says so,
+ *    which is checked in both directions.
+ *
+ * A layer that names a driver declares it: `desktop` and `soak` are partly driven
+ * by scripts rather than by vitest, and a driver is only real if a package script
+ * or a CI step runs it.
+ *
+ * `tests/unit/test-layers.test.ts` computes all of this and asserts it, including
+ * that the three tier configurations below still agree with these declarations.
+ */
+/**
+ * The shape of one layer declaration, so the guard test can read it without a
+ * cast and a reader can see which fields a layer of each kind carries.
+ *
+ * @typedef {object} LayerRule
+ * @property {"primary" | "nature"} kind  What question the layer answers.
+ * @property {string} describe            One sentence: what the layer means.
+ * @property {string[]} [include]         Primary only: the globs it claims.
+ * @property {string[]} [exclude]         Primary only: files claimed by a narrower primary layer.
+ * @property {string} [match]             Nature only: the file-name pattern that defines it.
+ * @property {string[]} [drivers]         Scripts that drive this layer outside vitest.
+ */
+
+/** @type {Record<string, LayerRule>} */
+export const LAYER_RULES = {
+  unit: {
+    kind: "primary",
+    include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx"],
+    describe: "In-process: constructs modules and asserts on them without starting anything."
+  },
+  acceptance: {
+    kind: "primary",
+    include: ["tests/acceptance/**/*.test.ts"],
+    // One suite is claimed by `desktop` instead: it asserts the black-box contract
+    // the Electron driver produced, so it belongs to the layer that runs the driver.
+    // A primary layer may exclude a file ONLY into another primary layer, which
+    // `tests/unit/test-layers.test.ts` checks, so nothing can fall out of the taxonomy.
+    exclude: ["tests/acceptance/desktop-black-box-contract.test.ts"],
+    describe: "An attested scenario driven end to end against the real host code."
+  },
+  desktop: {
+    kind: "primary",
+    include: ["tests/acceptance/desktop-black-box-contract.test.ts"],
+    drivers: ["scripts/acceptance-desktop-workbook.cjs", "scripts/acceptance-restart.cjs"],
+    describe: "Launches the real application (offscreen when headless) and asserts what the renderer did."
+  },
+  integration: {
+    kind: "nature",
+    describe: "Starts a real child process: a compiler, a test runner, git, or a sandboxed candidate."
+  },
+  migration: {
+    kind: "nature",
+    match: "migration",
+    describe: "Reads a previous durable layout and proves it moves forward without loss."
+  },
+  recovery: {
+    kind: "nature",
+    match: "recovery|rollback",
+    describe: "Proves a failed or interrupted action leaves recoverable, truthful state."
+  },
+  adversarial: {
+    kind: "nature",
+    match: "adversarial|red-team",
+    describe: "Attacks a boundary and requires the boundary to hold."
+  },
+  soak: {
+    kind: "nature",
+    match: "soak",
+    drivers: ["scripts/acceptance-soak.cjs"],
+    describe: "Runs for a long time or over many rounds, where the failure mode is accumulation."
+  }
+};
+
+/** The eight layer names, so a rename cannot quietly drop one. */
+export const LAYER_VOCABULARY = [
+  "unit", "integration", "acceptance", "desktop", "migration", "recovery", "adversarial", "soak"
+];
+
+/** Why each tier exists, and which layers it carries. */
+export const TEST_TIERS = {
+  unit: { layers: ["unit", "acceptance", "desktop", "integration", "migration", "recovery", "adversarial"], describe: "pnpm test — the signal a developer waits for." },
+  slow: { layers: ["integration", "acceptance"], describe: "pnpm run test:slow — suites that compile and execute real projects." },
+  postbuild: { layers: ["acceptance", "integration"], describe: "pnpm run test:postbuild — suites that read the real build output." }
+};
+
+/**
  * The build-dependent tier (Phase N): files that read the REAL `dist/` and
  * `dist-electron/` output, so they cannot run until something has built the app.
  *
