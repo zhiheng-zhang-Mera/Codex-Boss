@@ -26,13 +26,6 @@ import { RuntimeRegistry } from "./commander/runtime-registry";
 import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
-import { KnowledgeBase } from "./knowledge/knowledge-base";
-import { KnowledgeFoundation } from "./knowledge/knowledge-foundation";
-import { WorldModelStore, buildWorldModelWithGraph } from "./engineering/world-model";
-import { UISurfaceRegistryStore, discoverUISurfaces } from "./engineering/ui-surface-discovery";
-import { summarizeUISurfaceRegistry, defaultSurfaceContracts } from "../src/shared/ui-surface";
-import { ThemeService } from "./theme/theme-service";
-import os from "node:os";
 import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture } from "./theme/visual-capture";
 import { recordThemeKnowledge } from "./theme/theme-knowledge";
 import { writeJson } from "./commander/durable-json";
@@ -58,6 +51,7 @@ import { createResearchRunIpcModule } from "./bootstrap/research-run-ipc";
 import { createTaskCreationIpcModule } from "./bootstrap/task-creation-ipc";
 import { createDispatchIpcModule } from "./bootstrap/dispatch-ipc";
 import { createPersistenceModule } from "./bootstrap/persistence";
+import { createKnowledgeModule } from "./bootstrap/knowledge";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -749,112 +743,31 @@ if (ownsInstance) app.whenReady().then(() => {
   runtimeRegistry.register(codexRuntime);
   runtimeRegistry.register(new NativeRuntime(app.getAppPath()));
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ApiRuntime(item.id, providerApi));
-  // checkpoint-1 §5 Knowledge Foundation: ONE composition-root instance, exactly
-  // like the decision ledger below. Writes happen in the WorkBook dispatch path
-  // (see runWorkDispatch), reads happen here — the provider prompt gets a
-  // bounded, provenance-carrying section drawn from the durable base, so a
-  // second task in the same project reuses the first task's facts instead of
-  // re-deriving them.
-  const knowledge = new KnowledgeFoundation(new KnowledgeBase(path.join(app.getPath("userData"), ".boss", "knowledge-base.json")));
   // checkpoint-1 §6/§9: the Repository World Model and the UI surface registry
-  // are established here, before any engineering execution, and persisted so a
-  // restart (or a later task) reads the model instead of rebuilding it blind.
-  const worldModelStore = new WorldModelStore(path.join(app.getPath("userData"), ".boss", "world-model"));
-  const uiSurfaceStore = new UISurfaceRegistryStore(path.join(app.getPath("userData"), ".boss", "ui-surfaces.json"));
-  /**
-   * The UI surface registry describes BOSS's own interface (§7.1/§9/§15), not the
-   * user's workspace, so it is discovered from the application path and memoized
-   * per application fingerprint. It is also the contract table the theme engine
-   * validates and renders against — a theme may only touch a registered surface.
-   */
-  let uiSurfaceCache: { fingerprint: string; contracts: ReturnType<typeof defaultSurfaceContracts> } | undefined;
-  const ensureUiSurfaces = () => {
-    try {
-      const built = buildWorldModelWithGraph(app.getAppPath());
-      if (uiSurfaceCache?.fingerprint !== built.model.fingerprint) {
-        const discovery = discoverUISurfaces(built.model);
-        if (discovery.validation.ok) uiSurfaceStore.put(discovery.registry);
-        else console.warn("[ui-surfaces] registry rejected", discovery.validation.problems);
-        uiSurfaceCache = { fingerprint: built.model.fingerprint, contracts: discovery.registry.contracts };
-      }
-      return uiSurfaceCache.contracts;
-    } catch (error) {
-      console.warn("[ui-surfaces] discovery failed; using the locked contract table", error);
-      return defaultSurfaceContracts();
-    }
-  };
-  const themeService = new ThemeService({
-    root: path.join(app.getPath("userData"), ".boss", "themes"),
-    registryFile: path.join(app.getPath("userData"), ".boss", "theme-registry.json"),
-    contracts: ensureUiSurfaces
+  // are established before any engineering execution — see the knowledge module
+  // below, which owns both.
+  // Phase F: the knowledge base, the world model, the UI surface registry and the
+  // theme engine answer one question between them — what Boss knows about itself
+  // and about the repository it is about to work on — so they are one boot
+  // module. It receives the state document because the planner's resource
+  // observation reads it, and a canonicaliser because it does no filesystem work
+  // of its own.
+  const knowledge = createKnowledgeModule({
+    dataRoot: app.getPath("userData"),
+    appPath: app.getAppPath(),
+    canonicalize: (root) => fs.realpathSync(root),
+    store
   });
-  // §12/§21/§48: materialize the locked built-ins, prove the persisted active
-  // theme is still valid, and fall back to a built-in when it is not.
-  const themeBootstrap = themeService.bootstrap();
-  if (themeBootstrap.fallback) console.warn("[theme] active theme fell back", themeBootstrap.diagnostics.slice(-3));
-  let lastPlanContext: import("../src/shared/execution-planner").PlanContext | undefined;
-  const establishWorldModel = (root: string) => {
-    const built = buildWorldModelWithGraph(fs.realpathSync(root));
-    worldModelStore.put(built.model);
-    // checkpoint-1 §29: the planner scopes nodes against what was actually
-    // observed here — real files, real test files, real host commands.
-    lastPlanContext = {
-      files: built.model.modules.map((module) => module.path).concat(built.model.tests),
-      tests: built.model.tests.slice(0, 20),
-      entry_points: built.model.entry_points,
-      build_tools: built.model.build_system.map((entry) => entry.tool),
-      commands: {
-        ...(built.model.build_system.some((entry) => entry.tool === "tsc") ? { typecheck: "pnpm run typecheck" } : {}),
-        ...(built.model.tests.length ? { unit: "pnpm test" } : {}),
-        ...(built.model.build_system.some((entry) => entry.tool === "vite") ? { build: "pnpm run build" } : {})
-      },
-      // §29.3: the concurrency level is derived from what THIS host observes —
-      // cores, free memory, provider health and the load already in flight.
-      resources: (() => {
-        const providers = store.snapshot().providers.filter((item) => item.windowOpen);
-        const accounts = store.snapshot().accounts;
-        const rateLimited = store.snapshot().runs.filter((run) => run.outcome === "RATE_LIMITED").length;
-        const available = providers.filter((provider) => accounts.find((account) => account.providerId === provider.id)?.mode !== "AUTH_REQUIRED").length;
-        const activeTasks = store.snapshot().tasks.filter((task) => ["running", "queued", "waiting"].includes(task.status)).length;
-        const cores = os.cpus()?.length ?? 2;
-        const load = typeof os.loadavg === "function" ? (os.loadavg()[0] ?? 0) / Math.max(1, cores) : 0;
-        return {
-          cpu_cores: cores,
-          free_memory_mb: Math.round(os.freemem() / (1024 * 1024)),
-          gpu_available: false,
-          available_providers: available,
-          rate_limited_providers: rateLimited,
-          active_tasks: activeTasks,
-          load_average: Number(load.toFixed(3))
-        };
-      })()
-    };
-    // The UI surface registry describes the APPLICATION (see ensureUiSurfaces),
-    // so it is read from the persisted registry here rather than rebuilt inside
-    // the dispatch path: a task must never pay for a second full-model scan.
-    const registry = uiSurfaceStore.get();
-    const surfaces = registry ? summarizeUISurfaceRegistry(registry) : summarizeUISurfaceRegistry({
-      schemaVersion: 1,
-      version: "ui-surface-registry-1",
-      generated_at: new Date().toISOString(),
-      root: app.getAppPath(),
-      contracts: defaultSurfaceContracts(),
-      unbound: defaultSurfaceContracts().map((contract) => contract.id),
-      tokens: [],
-      tokens_applied: false,
-      style_files: [],
-      component_files: []
-    });
-    return { summary: built.summary, surfaces };
-  };
+  bootModules.push(knowledge);
+  const { foundation, themes, uiContracts, establishWorldModel, planContext } = knowledge.service;
   contextManager.setKnowledgeSectionProvider((taskId, role, maxChars) => {
     const task = store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) return undefined;
-    const result = knowledge.sectionForTask({
+    const result = foundation.sectionForTask({
       taskId,
       goal: task.prompt || task.title,
       role,
-      scope: knowledge.projectScopeFor({ workspacePath: task.workspacePath ?? app.getAppPath() }),
+      scope: foundation.projectScopeFor({ workspacePath: task.workspacePath ?? app.getAppPath() }),
       characterBudget: maxChars,
       maxObjects: 12
     });
@@ -1048,10 +961,10 @@ if (ownsInstance) app.whenReady().then(() => {
         // checkpoint-1 §5: the finished dispatch records its reusable facts through
         // the knowledge write gate. A knowledge failure is reported, never allowed to
         // fail the task (§2.5).
-        knowledge,
+        knowledge: foundation,
         onKnowledgeDiagnostic: (detail) => console.warn("[knowledge] WorkBook knowledge write degraded", detail),
         worldModel: establishWorldModel,
-        planContext: () => lastPlanContext
+        planContext
       }),
       workbookRegistry: () => workbookRegistry(),
       createTask: (taskInput) => commander.createTask(taskInput),
@@ -1266,13 +1179,13 @@ if (ownsInstance) app.whenReady().then(() => {
   // Phase F/G: the theme channels live in electron/bootstrap/theme-ipc.ts with the
   // draft/preview orchestration. What stays here is what needs an Electron object or
   // app path: the capture machinery (a BrowserWindow and WebContents), the
-  // UI-surface registry the ThemeService is also built with, and the capture
+  // UI-surface contract table the theme service is also built with, and the capture
   // directory. The module must never import Electron.
   bootModules.push(createThemeIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
-    themes: themeService,
+    themes,
     events: { publish: (event) => domainEvents.publish(event) },
-    uiContracts: () => ensureUiSurfaces(),
+    uiContracts,
     capture: async () => {
       const openProviders = store.snapshot().providers.filter((item) => item.windowOpen)
         .map((item) => ({ surface: `AI_PANE_${item.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`, webContents: providerViews.get(item.id)?.webContents }))
@@ -1293,7 +1206,7 @@ if (ownsInstance) app.whenReady().then(() => {
     // root that holds that service.
     recordKnowledge: (input) => {
       recordThemeKnowledge({
-        scope: knowledge.projectScopeFor({ projectId: "codex-boss-ui" }),
+        scope: foundation.projectScopeFor({ projectId: "codex-boss-ui" }),
         taskRef: `theme:${input.packageId}`,
         intent: input.intent,
         pkg: input.pkg,
@@ -1303,7 +1216,7 @@ if (ownsInstance) app.whenReady().then(() => {
         ...(input.feedback ? { feedback: input.feedback } : {}),
         ...(input.captureSummary ? { captureSummary: input.captureSummary } : {}),
         incompatibleSurfaces: []
-      } as Parameters<typeof recordThemeKnowledge>[0], knowledge);
+      } as Parameters<typeof recordThemeKnowledge>[0], foundation);
     },
     persistVisualReport: (report) => {
       // §26 evidence is durable: the numbers that decided are kept next to the theme.
