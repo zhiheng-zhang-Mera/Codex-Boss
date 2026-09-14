@@ -53,6 +53,7 @@ import { createDispatchIpcModule } from "./bootstrap/dispatch-ipc";
 import { createPersistenceModule } from "./bootstrap/persistence";
 import { createKnowledgeModule } from "./bootstrap/knowledge";
 import { createAutomationModule } from "./bootstrap/automation";
+import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -102,6 +103,8 @@ import { SHIPPED_ROOT_OWNER } from "./root-authority/root-policy-loader";
 import { createGitHubMachineRuntime } from "./github/github-machine-runtime";
 
 let mainWindow: BrowserWindow | null = null;
+/** The runtime boot module, assigned in the boot block; `createMainWindow` needs it. */
+let runtime: BootModule<RuntimeService<BrowserWindow>>;
 let store: StateStore;
 let providerViews: ProviderViews;
 let automation: ProviderAutomation;
@@ -472,38 +475,19 @@ function attachProviderViews(): void {
   startAutoLayoutMonitor();
 }
 
+/**
+ * Phase F: the window's lifecycle is `electron/bootstrap/runtime.ts`. What stays
+ * here is what the root owns — the Electron constructor it injects, the objects
+ * that hang off the window (automation, provider views), and the mirror below.
+ *
+ * `mainWindow` is that mirror: the module is the only thing that creates a window,
+ * and it reports every creation and close back through `onCreated`/`onClosed`, so
+ * this binding is a cache of the module's state rather than a second source of
+ * truth. `tests/unit/bootstrap-runtime.test.ts` asserts the constructor appears
+ * exactly once in this file, which is what keeps that true.
+ */
 function createMainWindow(): void {
-  mainWindow = new BrowserWindow({
-    show: !headlessWindow && !headlessResearch,
-    width: 1440,
-    height: 920,
-    minWidth: 1080,
-    minHeight: 700,
-    title: "Codex Boss — Controller",
-    backgroundColor: "#0b0d10",
-    titleBarStyle: "hiddenInset",
-    autoHideMenuBar: true,
-    webPreferences: {
-      offscreen: headlessWindow,
-      backgroundThrottling: !headlessWindow,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      preload: path.join(__dirname, "preload.js")
-    }
-  });
-
-  const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) void mainWindow.loadURL(devUrl);
-  else void mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
-  mainWindow.webContents.on("did-fail-load", (_event, code, description, url) => {
-    console.error(`Renderer failed to load: ${code} ${description} ${url}`);
-  });
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-    automation?.dispose();
-    providerViews?.destroyAll();
-  });
+  runtime.service.create();
 }
 
 /**
@@ -820,6 +804,30 @@ if (ownsInstance) app.whenReady().then(() => {
     runTask: async (input) => selfEvolution.runTask(input)
   });
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
+  // Phase F: one window, one owner. The module decides the options (offscreen,
+  // geometry, preload, load target), when a window may be created, and what the
+  // platform's `activate`/`second-instance` mean; the root injects the Electron
+  // constructor and tears down what hangs off the window when it closes.
+  runtime = createRuntimeModule<BrowserWindow>({
+    createWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, "preload.js"),
+    rendererFile: path.join(__dirname, "../../dist/index.html"),
+    ...(process.env.VITE_DEV_SERVER_URL ? { devServerUrl: process.env.VITE_DEV_SERVER_URL } : {}),
+    offscreen: headlessWindow,
+    show: !headlessWindow && !headlessResearch,
+    // Electron's `app.on` is a set of per-event overloads, so the union this
+    // module declares is narrowed here rather than passed through: a union argument
+    // resolves to the last overload and does not compile.
+    onAppEvent: (event, listener) => {
+      if (event === "activate") app.on("activate", listener);
+      else app.on("second-instance", listener);
+    },
+    openWindowCount: () => BrowserWindow.getAllWindows().length,
+    onCreated: (window) => { mainWindow = window; },
+    onClosed: () => { mainWindow = null; automation?.dispose(); providerViews?.destroyAll(); },
+    onActivated: () => attachProviderViews()
+  });
+  bootModules.push(runtime);
   // Headless mode still creates the (hidden) main window: provider views are
   // attached to it and ProviderAutomation dispatches through those views.
   createMainWindow();
@@ -1239,17 +1247,10 @@ if (ownsInstance) app.whenReady().then(() => {
   // its evidence bundle holds DISPUTED/INSUFFICIENT claims or disputes, the
   // operator may explicitly accept the held evidence (records PASS) and then
   // Boss finalizes — never auto-published, never silently dropped.
-  app.on("second-instance", () => {
-    if (mainWindow?.isMinimized()) mainWindow.restore();
-    mainWindow?.show();
-    mainWindow?.focus();
-  });
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-      attachProviderViews();
-    }
-  });
+  // Phase F: `second-instance` and `activate` are registered by the runtime module
+  // as it is constructed, because they are the window's lifecycle rather than the
+  // application's. `window-all-closed` stays here: it disposes services and decides
+  // whether to quit.
 
   if (isSmokeTest) {
     const smoke = async () => {
