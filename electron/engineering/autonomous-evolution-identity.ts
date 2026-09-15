@@ -693,12 +693,43 @@ function toRetirement(value: Record<string, unknown>): RequirementRetirement {
 }
 
 /**
+ * Why a path could not be read, or `undefined` when it could.
+ *
+ * `readTextFile` answers "" and `readJsonFile` answers `undefined` for a file that
+ * is not there AND for one that cannot be read, and those call for different
+ * responses: a missing record file is a repository state, an unreadable one is a
+ * permissions, locking or corruption problem whose next step is not "write a new
+ * one". This is the distinction the readers could not make on their own.
+ */
+export function fileReadProblem(file: string): string | undefined {
+  try {
+    fs.readFileSync(file);
+    return undefined;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    const message = error instanceof Error ? error.message : String(error);
+    return code === "ENOENT" ? `${file} does not exist` : `${file} exists but could not be read: ${message}`;
+  }
+}
+
+/**
  * §13: the Requirement Retirement Records on disk. Both a bare array and a
  * `{retirements: [...]}` document are accepted; an incomplete record is kept so
  * the comparison can refuse it rather than silently ignoring it.
+ *
+ * A file that is PRESENT but unreadable refuses here rather than reading as "no
+ * retirements": the comparison turns an empty set into `retirement_records_required`,
+ * so a damaged record file silently converted a legitimate retirement into a
+ * reported regression — the right verdict for the wrong reason, and impossible for
+ * an operator to tell from a real one.
  */
 export function readRequirementRetirements(root: string): RequirementRetirement[] {
-  const parsed = readJsonFile(requirementRetirementsPath(root));
+  const file = requirementRetirementsPath(root);
+  const problem = fileReadProblem(file);
+  if (problem && !problem.endsWith("does not exist")) throw new Error(`Requirement retirement records are unreadable: ${problem}`);
+  if (problem) return [];
+  const parsed = readJsonFile(file);
+  if (parsed === undefined) throw new Error(`Requirement retirement records are unreadable: ${file} exists but is not JSON`);
   const list = Array.isArray(parsed) ? parsed : isRecord(parsed) && Array.isArray(parsed.retirements) ? parsed.retirements : [];
   return list.filter(isRecord).map(toRetirement);
 }
