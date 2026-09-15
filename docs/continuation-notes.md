@@ -63,22 +63,25 @@
   that asserted the `mkdtemp` spelling. Assert the canonical form.
 - **Never change a timeout or buffer bound without a measurement**, and never
   widen a per-test ceiling to make a suite pass.
-- **AppContainer profiles accumulate and then break the sandbox suite.** Every run
-  of `tests/unit/evolution-sandbox.test.ts` creates a
-  `CodexBossEvolution-rt-sandbox-<pid>` profile. What accumulates is the
-  **registration**, not the folder: this machine reached 59 folders and **125
-  registrations** under `HKCU\Software\Classes\Local Settings\Software\Microsoft\
-  Windows\CurrentVersion\AppContainer\Storage`, and in that state **every case in
-  that file failed in milliseconds, including its own CONTROL case** — which reads
-  like a containment regression and is not one. Symptom to recognise: wholesale,
-  instant failures in that one file. Deleting the profile *folders* under
-  `%LOCALAPPDATA%\Packages` is NOT enough — that leaves the registrations and the
-  next run fails the same way (measured). Remove the registration keys too, or run
-  the suite, whose `afterAll` now deregisters and removes its own profile: a full
-  `pnpm run test:slow` went from leaving +1 registration per run to netting zero.
-  Still outstanding, and the durable fix: the launcher only calls
-  `CreateAppContainerProfile`, so nothing in the product can unregister a profile —
-  a `DeleteAppContainerProfile` path belongs in the sandbox backend.
+- **The sandbox suite fails WHOLESALE when `%TEMP%` fills with fixtures.** Symptom to
+  recognise: every case in `tests/unit/evolution-sandbox.test.ts` fails in
+  milliseconds, **including its own CONTROL case**, which reads like a containment
+  regression and is not one. Two causes have been measured, and the second is the one
+  that actually bites:
+  1. `CodexBossEvolution-rt-sandbox-<pid>` **registrations** accumulate under
+     `HKCU\Software\Classes\Local Settings\Software\Microsoft\Windows\
+     CurrentVersion\AppContainer\Storage`. This machine reached 59 folders and 125
+     registrations. Deleting the folders is NOT enough — that leaves the
+     registrations and the next run fails the same way. The suite now deregisters and
+     removes its own profile in `afterAll`, which took a full `test:slow` from +1
+     registration per run to netting zero.
+  2. **`%TEMP%` holding tens of thousands of directories.** Measured at 36,565
+     directories (31,489 of them `codex-boss-*` fixtures from earlier runs): the slow
+     tier failed 12/14 including CONTROL, and after deleting the aged ones
+     (`codex-boss-*`, `wb-*`, `boss-*`, `engine-p11*` older than 30 minutes) the same
+     tier passed **25/25** with no other change. Space was never the issue — 390 MB —
+     the entry count is. Prune it before blaming the sandbox, and note that one gate
+     run adds thousands.
 - **Do not write `electron/main.ts` or other UTF-8-with-Chinese files with
   PowerShell** (`Set-Content -Encoding utf8` corrupted them before); use the edit
   tool. This was learned twice: a `[System.IO.File]::WriteAllLines` splice mangled
