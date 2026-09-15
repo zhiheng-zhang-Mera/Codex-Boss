@@ -90,18 +90,12 @@
 
 ## What is left, in plan order
 
-1. **F — `providers`, the pool objects** (the largest remaining piece):
-   `ProviderViews`, `attachProviderViews` and `ProviderAutomation` — 32
-   `providerViews` and ~30 `automation` references, and the CDP desktop acceptance
-   drives provider panes through all of it. These are not a slice like the others:
-   `attachProviderViews` builds the views, the automation, a `WebRecovery`, the
-   recovery-scheduler handler and the task-completion callback in one function, so
-   moving them means deciding what the boot block's orchestration looks like, not
-   just where a constructor lives. Everything with a narrow surface is already
-   extracted: the API client, the GitHub machine identity, the API-runtime
-   registration, the provider lookup, the open limit, the navigate-or-not rule and
-   the layout policy (with its monitor) all live in
-   `electron/bootstrap/providers.ts` now.
+1. **F — `engineering`** and **F — `research`**: the last two plan-named groups.
+   `providers` is complete (`providers.ts` for the API side and the pool's policies,
+   `provider-pool.ts` for the objects), but note what that slice cost: building a
+   module that captures collaborators assigned later in the boot block passes
+   `undefined` and **TypeScript cannot see it**, because those bindings are typed
+   without `undefined`. The desktop black box caught it; nothing else would have.
 2. **F — `engineering`** and **F — `research`**: the remaining plan-named groups.
 3. **M — the supervising process runners**: `host/process-runner`,
    `research/runtime/process-runner`, `remote-relay`, `host/soak-harness`,

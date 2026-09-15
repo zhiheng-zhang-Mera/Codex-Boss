@@ -55,6 +55,7 @@ import { createKnowledgeModule } from "./bootstrap/knowledge";
 import { createAutomationModule } from "./bootstrap/automation";
 import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
 import { createProvidersModule, type ProvidersService } from "./bootstrap/providers";
+import { createProviderPoolModule, type ProviderPoolService } from "./bootstrap/provider-pool";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -108,6 +109,10 @@ let mainWindow: BrowserWindow | null = null;
 let runtime: BootModule<RuntimeService<BrowserWindow>>;
 /** The provider pool's policies, assigned in the boot block; the wrappers above need it. */
 let providersRef: ProvidersService;
+/** The pool's objects, assigned in the boot block; `attachProviderViews` drives it. */
+let poolRef: ProviderPoolService;
+/** Set by each attach; the automation's recovery thunk reads it lazily. */
+let recoveryRef: WebRecovery | undefined;
 let store: StateStore;
 let providerViews: ProviderViews;
 let automation: ProviderAutomation;
@@ -389,59 +394,63 @@ async function advanceCouncilRound(taskId: string): Promise<void> {
     publish();
 }
 
-function attachProviderViews(): void {
-  if (!mainWindow) throw new Error("Main window was not created");
-  providerViews = new ProviderViews(mainWindow, (id, open) => {
-    store.setWindow(id, open);
-    publish();
-    // Continuous monitoring: opening a 4th (or 5th) AI page immediately pops
-    // the processors into the second window; closing back to ≤3 returns MERGED.
-    autoLayoutForOpenWebProviders("window-toggle");
-  }, accountSessions, (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName));
-  automation?.dispose();
-  const finalizer = { finalize: (id: string) => commander.finalizeTask(id, publish) };
-  const recovery = new WebRecovery(store, providerViews, () => automation, provider, recoveryScheduler, budgetManager);
-  const onTaskComplete = async (id: string) => {
-    if (!store.finalResponseForTask(id)) await finalizer.finalize(id);
-    recordTaskOutcome(id);
-    for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId);
-    // U6 §14: record the external web conversations this task drove and mark
-    // their archive as ARCHIVE_PENDING (retryable). ARCHIVED is only ever
-    // written by a verified page-state archive path — never assumed here.
-    try {
-      const runs = store.runsForTask(id);
-      for (const run of runs.filter((item) => item.transport === "web" && item.sessionUrl && item.review?.status === "PASS")) {
-        externalSessions?.upsert({ taskId: id, providerId: run.providerId, remoteConversationUrl: run.sessionUrl });
-        externalSessions?.deferArchive(id, run.providerId, "task finished; external archive pending page-state verification");
-      }
-    } catch (error) {
+/** What a finished task owes its own record and the archive policy. Kept here, not in
+ * the pool module: it is the task lifecycle, not a provider concern. */
+async function onTaskComplete(id: string): Promise<void> {
+  if (!store.finalResponseForTask(id)) await commander.finalizeTask(id, publish);
+  recordTaskOutcome(id);
+  for (const run of store.runsForTask(id).filter((item) => item.review?.status === "PASS")) budgetManager.observeSuccess(run.transport + ":" + run.providerId);
+  // U6 §14: record the external web conversations this task drove and mark
+  // their archive as ARCHIVE_PENDING (retryable). ARCHIVED is only ever
+  // written by a verified page-state archive path — never assumed here.
+  try {
+    const runs = store.runsForTask(id);
+    for (const run of runs.filter((item) => item.transport === "web" && item.sessionUrl && item.review?.status === "PASS")) {
+      externalSessions?.upsert({ taskId: id, providerId: run.providerId, remoteConversationUrl: run.sessionUrl });
+      externalSessions?.deferArchive(id, run.providerId, "task finished; external archive pending page-state verification");
+    }
+  } catch (error) {
     // The external-session ledger row is what makes a later archive pass
     // possible; losing it silently means the conversation is never archived and
     // nothing says so.
     recordAdvisoryFailure(`external-session ledger for ${id}`, error);
   }
-    // Overcomplete §11.3: task finalized ⇒ ARCHIVE_PENDING ⇒ schedule a
-    // bounded background archive pass (navigate/archive/verify later). The
-    // pass only ever marks ARCHIVED from verified page state; failures keep
-    // the ledger row pending and visible.
-    try {
-      const hasPending = externalSessions?.forTask(id).some((record) => record.status === "ARCHIVE_PENDING");
-      if (hasPending && recoveryScheduler) recoveryScheduler.schedule({ id: `external-archive:${id}`, taskId: id, kind: "external-archive", retryAt: Date.now() + 15000, payload: {} });
-    } catch { /* scheduling is advisory */ }
-    // U6 §13/§51: a conversation with no remaining active task auto-archives
-    // (flag only, never delete) once its last task has a final response. The
-    // currently-selected conversation is left in place so the user can read
-    // the result they just produced; finished background conversations tidy
-    // themselves automatically.
-    try {
-      const decision = autoArchiveDecision(store.snapshot(), id);
-      if (decision.archive) {
-        const task = store.snapshot().tasks.find((item) => item.id === id)!;
-        if (store.snapshot().activeConversationId !== task.conversationId) store.setConversationArchived(task.conversationId, true);
-      }
-    } catch { /* auto-archive is best-effort; conversation stays visible otherwise */ }
-  };
-  automation = new ProviderAutomation(store, providerViews, provider, publish, accountSessions, providerApi, advanceCouncilRound, onTaskComplete, (run, strategy, retryAt) => recovery.defer(run, strategy, retryAt), domainEventBus, attachmentStore, { liveAutomationLog: path.join(dataRoot, ".boss", "live-automation.log") });
+  // Overcomplete §11.3: task finalized ⇒ ARCHIVE_PENDING ⇒ schedule a
+  // bounded background archive pass (navigate/archive/verify later). The
+  // pass only ever marks ARCHIVED from verified page state; failures keep
+  // the ledger row pending and visible.
+  try {
+    const hasPending = externalSessions?.forTask(id).some((record) => record.status === "ARCHIVE_PENDING");
+    if (hasPending && recoveryScheduler) recoveryScheduler.schedule({ id: `external-archive:${id}`, taskId: id, kind: "external-archive", retryAt: Date.now() + 15000, payload: {} });
+  } catch { /* scheduling is advisory */ }
+  // U6 §13/§51: a conversation with no remaining active task auto-archives
+  // (flag only, never delete) once its last task has a final response. The
+  // currently-selected conversation is left in place so the user can read
+  // the result they just produced; finished background conversations tidy
+  // themselves automatically.
+  try {
+    const decision = autoArchiveDecision(store.snapshot(), id);
+    if (decision.archive) {
+      const task = store.snapshot().tasks.find((item) => item.id === id)!;
+      if (store.snapshot().activeConversationId !== task.conversationId) store.setConversationArchived(task.conversationId, true);
+    }
+  } catch { /* auto-archive is best-effort; conversation stays visible otherwise */ }
+}
+
+/**
+ * Phase F: the pool's objects are `electron/bootstrap/provider-pool.ts`; what stays
+ * here is what hangs off them — recovery, the archive pass, the continuation waker
+ * and the layout monitor. Attaching is also re-attaching, because the runtime module
+ * creates a new window when the platform asks for one.
+ */
+function attachProviderViews(): void {
+  poolRef.attach();
+  const attached = poolRef.views();
+  if (!attached) throw new Error("Provider pool attached without views");
+  // WebRecovery needs the views this attach just built, and — through a thunk — the
+  // automation built over them, which is the same cycle the inline version broke the
+  // same way: the thunk is only called after both exist.
+  recoveryRef = new WebRecovery(store, attached, () => poolRef.automation()!, provider, recoveryScheduler, budgetManager);
   // Overcomplete §11.3/§11.4: production archive recovery handler — each wake
   // retries pending external archives with the live fail-closed attempt; if
   // anything stays pending (provider offline / rate-limited / page changed),
@@ -828,6 +837,38 @@ if (ownsInstance) app.whenReady().then(() => {
   bootModules.push(runtime);
   // Headless mode still creates the (hidden) main window: provider views are
   // attached to it and ProviderAutomation dispatches through those views.
+  // Phase F: the pool's objects are their own module, built HERE rather than with the
+  // other modules because it captures collaborators that are assigned later in this
+  // block (the account sessions, the event bus, the attachment store) — reading them
+  // earlier would pass `undefined` and TypeScript cannot flag it, since those bindings
+  // are typed without `undefined`. It takes the callbacks that reach outward — the
+  // window toggle, the task lifecycle, recovery — and reports each attach back so the
+  // root's own bindings stay current.
+  const pool = createProviderPoolModule({
+    window: () => mainWindow ?? undefined,
+    store,
+    provider,
+    publish,
+    accounts: accountSessions,
+    api: providerApi,
+    onWindowToggle: (id, open) => {
+      store.setWindow(id, open);
+      publish();
+      // Continuous monitoring: opening a 4th (or 5th) AI page immediately pops
+      // the processors into the second window; closing back to ≤3 returns MERGED.
+      autoLayoutForOpenWebProviders("window-toggle");
+    },
+    downloadPathFor: (providerId, suggestedName) => historyRepository.generatedFilePath(store.snapshot(), store.snapshot().activeConversationId, providerId, suggestedName),
+    onRoundComplete: advanceCouncilRound,
+    onTaskComplete,
+    onRecovery: (run, strategy, retryAt) => recoveryRef?.defer(run, strategy, retryAt),
+    events: domainEventBus,
+    attachments: attachmentStore,
+    automationOptions: { liveAutomationLog: path.join(app.getPath("userData"), ".boss", "live-automation.log") },
+    onAttached: (views, created) => { providerViews = views; automation = created; }
+  });
+  bootModules.push(pool);
+  poolRef = pool.service;
   createMainWindow();
   attachProviderViews();
   for (const item of store.snapshot().providers) runtimeRegistry.register(new ProviderRuntimeAdapter("web:" + item.id, {
