@@ -57,6 +57,7 @@ import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
 import { createProvidersModule, type ProvidersService } from "./bootstrap/providers";
 import { createProviderPoolModule, type ProviderPoolService } from "./bootstrap/provider-pool";
 import { createResearchModule } from "./bootstrap/research";
+import { createEngineeringModule, type EngineeringService } from "./bootstrap/engineering";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -95,7 +96,6 @@ import { ApiSettingsStore } from "./api-settings";
 import { ProviderApiClient } from "./provider-api";
 import { HistoryRepository } from "./history-repository";
 import { RemoteCommandRelay } from "./remote-relay";
-import { createSelfEvolutionHost } from "./self-evolution/self-evolution-host";
 import { SHIPPED_ROOT_OWNER } from "./root-authority/root-policy-loader";
 import { createGitHubMachineRuntime } from "./github/github-machine-runtime";
 
@@ -127,11 +127,15 @@ let humanGuidance: HumanGuidanceGate | undefined;
 let decisionLedger: DecisionLedgerStore | undefined;
 let sessionLifecycleLedger: SessionLifecycleLedger | undefined;
 let nodeRegistry: NodeCapabilityRegistry | undefined;
-let learning: LearningService | undefined;
-/** Engine: lazily-created Adaptive Provider Intelligence facade (learning layer). */
+/** The engineering module's service, assigned in the boot block; `learningService` needs it. */
+let engineeringRef: EngineeringService;
+/** Phase F: the learning layer is the engineering module's, created on first use. */
 function learningService(): LearningService {
-  if (!learning) learning = new LearningService({ rootDir: path.join(app.getPath("userData"), ".boss", "learning") });
-  return learning;
+  // A clear error rather than a silent `undefined`: this wrapper can only be reached
+  // after the module is built, and if that ever stops being true the reason should be
+  // legible instead of a property access on nothing.
+  if (!engineeringRef) throw new Error("The engineering module is not built yet");
+  return engineeringRef.learning();
 }
 let research: ResearchService | undefined;
 let attachmentStore: AttachmentStore | undefined;
@@ -726,41 +730,44 @@ if (ownsInstance) app.whenReady().then(() => {
   // composition root, so a self-target edit task can never reach the ordinary
   // engineering path: `MainCommander` hands such a task to the coordinator, and
   // the mutation guard refuses any seam that bypasses it.
-  const selfEvolution = createSelfEvolutionHost({
+  // Phase F: the Self-Evolution host and the learning layer are the engineering
+  // module's; what stays here is the turn itself, because it dispatches through the
+  // commander — built below — and obeys a policy about what a Candidate may be given.
+  const engineering = createEngineeringModule({
     appPath: app.getAppPath(),
     userData: app.getPath("userData"),
     rootOwner: SHIPPED_ROOT_OWNER,
-    worker: () => ({
-      ask: async (role, prompt, session) => {
-        // §19 — Self-Evolution is a strict subset of Work capability: it must
-        // not inherit arbitrary browser/desktop automation. The turn is pinned
-        // to the codex runtime, so a logged-in provider web view can never serve
-        // a Candidate's coder or reviewer turn; if codex is unavailable the
-        // worker throws and the Candidate fails closed.
-        // Update-Plan/cleaning.md §10: the session id is per goal + finding +
-        // role, exactly like the interactive engineering loop, so one Candidate's
-        // findings never share a codex conversation (and a retry of one finding
-        // still reuses its own).
-        const result = await commander.dispatchRole(
-          engineeringSessionId(session.goalId, session.findingId, role),
-          role === "coder" ? "coder" : "reviewer",
-          prompt,
-          { preferredRuntimes: ["codex"] },
-          {},
-          ""
-        );
-        if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? `Self-evolution ${role} unavailable`);
-        return result.content;
-      }
-    })
+    ask: async (role, prompt, session) => {
+      // §19 — Self-Evolution is a strict subset of Work capability: it must
+      // not inherit arbitrary browser/desktop automation. The turn is pinned
+      // to the codex runtime, so a logged-in provider web view can never serve
+      // a Candidate's coder or reviewer turn; if codex is unavailable the
+      // worker throws and the Candidate fails closed.
+      // Update-Plan/cleaning.md §10: the session id is per goal + finding +
+      // role, exactly like the interactive engineering loop, so one Candidate's
+      // findings never share a codex conversation (and a retry of one finding
+      // still reuses its own).
+      const result = await commander.dispatchRole(
+        engineeringSessionId(session.goalId, session.findingId, role),
+        role === "coder" ? "coder" : "reviewer",
+        prompt,
+        { preferredRuntimes: ["codex"] },
+        {},
+        ""
+      );
+      if (result.status !== "SUCCESS" || !result.content) throw new Error(result.failure?.message ?? `Self-evolution ${role} unavailable`);
+      return result.content;
+    }
   });
+  bootModules.push(engineering);
+  engineeringRef = engineering.service;
   commander = new MainCommander(store, runtimeRegistry, new Scheduler(), new RoleRouter(runtimeRegistry, budgetManager, resourceController), budgetManager, contextManager, new ExecutionGate(), taskLedger, resourceController, recoveryScheduler, { visionSurface: providerVisionSurface(() => providerViews, path.join(dataRoot, ".boss", "vision")), domPageSurface: providerDomSurface(() => providerViews), readBrowser: async (id) => {
     const view = providerViews.get(provider(id).id);
     if (!view) throw new Error("Provider page is not open");
     return view.webContents.executeJavaScript("JSON.stringify({url:location.href,title:document.title,text:(document.body?.innerText??'').slice(0,30000)})");
   }, permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId()) }, circuitBreaker, domainEvents, workspaces, softwareLeases, {
-    isSelfTarget: (workspace) => selfEvolution.isSelfTarget(workspace),
-    runTask: async (input) => selfEvolution.runTask(input)
+    isSelfTarget: (workspace) => engineering.service.selfEvolution.isSelfTarget(workspace),
+    runTask: async (input) => engineering.service.selfEvolution.runTask(input)
   });
   void codexRuntime.detect().then((controller) => { store.setController(controller); publish(); });
   // Phase F: one window, one owner. The module decides the options (offscreen,

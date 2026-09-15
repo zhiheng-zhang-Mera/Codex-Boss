@@ -96,12 +96,13 @@
 
 ## What is left, in plan order
 
-1. **F — `engineering`** and **F — `research`**: the last two plan-named groups.
-   `providers` is complete (`providers.ts` for the API side and the pool's policies,
-   `provider-pool.ts` for the objects), but note what that slice cost: building a
-   module that captures collaborators assigned later in the boot block passes
-   `undefined` and **TypeScript cannot see it**, because those bindings are typed
-   without `undefined`. The desktop black box caught it; nothing else would have.
+1. **F is complete for every plan-named group.** `providers` (API side, pool policies
+   and pool objects), `research` and `engineering` are all extracted; what is left in
+   `electron/main.ts` is the composition of them plus the acceptance entry points
+   (the smoke block and the headless research run), which are entry points rather than
+   groups. The next F-shaped work, if it is wanted, is deciding whether those entry
+   points should become their own module — and that is a decision about how the
+   acceptance harness names things, not about `main.ts`.
 2. **F — `engineering`** and **F — `research`**: the remaining plan-named groups.
 3. **M — the supervising process runners**: `host/process-runner`,
    `research/runtime/process-runner`, `remote-relay`, `host/soak-harness`,
