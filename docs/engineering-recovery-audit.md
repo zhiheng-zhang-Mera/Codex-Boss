@@ -68,15 +68,19 @@ document explains why.
    the research run. Removing it on non-convergence changes what a paused
    research run leaves behind, which is a product decision about resumability,
    not a mechanical fix. **Deferred**, not verified.
-2. **Route 6 — candidate cleanup.** `removeCandidateWorkspace`
-   (`electron/stable-candidate/workspace-manager.ts`) has no caller, so a failed
-   candidate leaves its worktree and branch behind. Calling it changes
-   Self-Evolution lifecycle behaviour and belongs with the Self-Evolution
-   acceptance round. **Deferred**; the dead-code finding is recorded in
-   `docs/phase-status.md`.
+2. **Route 6 — candidate cleanup. CLOSED after this audit was written** (corrected
+   here rather than left standing): `removeCandidateWorkspace`
+   (`electron/stable-candidate/workspace-manager.ts`) does have a caller —
+   `removeCandidateArtifacts` in `electron/self-evolution/self-evolution-coordinator.ts`
+   (line 182) removes a failed run's Candidate worktree and branch, and *returns* the
+   failure text instead of throwing, so a cleanup error cannot hide the run's own
+   failure. The claim above ("has no caller, so a failed candidate leaves its worktree
+   and branch behind") was true when the audit was written and stopped being true when
+   the failed-candidate route was finalised; `docs/phase-status.md`'s Phase C row records
+   that closure, and this entry is the one that had not been updated.
 3. **Routes 3/4** inherit route 2's reasoning, but a *terminal* failure that
    leaves a worktree behind has no cleanup. Recorded as deferred for the same
-   reason.
+   reason — this one still stands.
 
 ## Verification
 
