@@ -81,7 +81,13 @@
   a `DeleteAppContainerProfile` path belongs in the sandbox backend.
 - **Do not write `electron/main.ts` or other UTF-8-with-Chinese files with
   PowerShell** (`Set-Content -Encoding utf8` corrupted them before); use the edit
-  tool.
+  tool. This was learned twice: a `[System.IO.File]::WriteAllLines` splice mangled
+  all 16 Chinese/em-dash runs in `main.ts` during the research extraction. The repair
+  is `git checkout HEAD -- electron/main.ts` (git restores the bytes), verify with
+  `git hash-object <file>` against `git rev-parse HEAD:<file>`, and redo the edits.
+  If a splice is genuinely needed, do it in **Node** (`fs.readFileSync(file, "utf8")`
+  → `fs.writeFileSync(file, next, "utf8")`) and assert the non-ASCII character set is
+  unchanged before and after.
 - **`.cache/` and `artifacts/` are gitignored.** `artifacts/acceptance/**` and
   `artifacts/evolution/**` are the attested chain's live state — do not prune them
   by hand; the gate sequence's `acceptance:session:start --clean` owns that.

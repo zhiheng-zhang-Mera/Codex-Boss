@@ -56,6 +56,7 @@ import { createAutomationModule } from "./bootstrap/automation";
 import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
 import { createProvidersModule, type ProvidersService } from "./bootstrap/providers";
 import { createProviderPoolModule, type ProviderPoolService } from "./bootstrap/provider-pool";
+import { createResearchModule } from "./bootstrap/research";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -75,13 +76,7 @@ import { WorkbookRegistry } from "./ingestion/workbook-registry";
 import { attachProgressRecorder } from "./commander/progress-recorder";
 import { HumanGuidanceGate } from "./commander/human-guidance-gate";
 import { ResearchService } from "./research/research-service";
-import { ResearchRuntime } from "./research/runtime/research-runtime";
 import { DefaultLevelBExecutor } from "./research/default-levelb-executor";
-import { LiveResearchExecutor } from "./research/live-research-executor";
-import { ResearchConductor } from "./research/research-conductor";
-import { createLiveResearchProvider } from "./research/live-research-provider";
-import { runHostLiteraturePass, createOpenAlexLiteratureDeps } from "./research/literature/host-retrieval";
-import type { ResearchStageExecutor } from "./research/research-supervisor";
 import type { HumanDefinedResearchInput } from "../src/shared/research-input";
 import { MainCommander } from "./commander/main-commander";
 import { buildEvidenceBundle } from "./evidence-engine";
@@ -488,56 +483,12 @@ function createMainWindow(): void {
 }
 
 /**
- * Live research stage executor (milestone §7/§15): the research conductor
- * driven by a semantic provider backed by the Boss web-AI provider pool (the
- * logged-in providers, 1 primary + backup per stage). Every semantic stage is
- * real — no placeholder can advance a live run. When no provider window is
- * open the run fails closed with an explicit reason.
+ * Live research stage executor (milestone §7/§15) and the ONE research composition
+ * root are `electron/bootstrap/research.ts` (Phase F): the conductor, the live
+ * provider with its bounded retries and fail-closed stages, the durable roots and the
+ * service cycle that used to be a module-scope binding here. What stays in this file
+ * is the headless acceptance entry point below.
  */
-function liveResearchExecutor(): ResearchStageExecutor {
-  const provider = createLiveResearchProvider({
-    openProviderIds: () => store.snapshot().providers.filter((item) => item.windowOpen).map((item) => item.id),
-    // Transient web-automation failures (page busy/not-ready / send rollback)
-    // are common: bounded retries with backoff, each attempt in a fresh
-    // conversation; chronically failing providers get deprioritized.
-    maxAttempts: 8,
-    retryBackoffMs: 20000,
-    execute: async (providerId, input) => {
-      try {
-        if (!automation) return { status: "FAIL", message: "provider automation not ready" };
-        const result = await automation.executeWorker(providerId, {
-          taskId: input.jobId,
-          jobId: input.jobId,
-          role: "research",
-          prompt: input.prompt,
-          context: "Autonomous research semantic stage. Return ONLY the requested JSON. Never change the research question; never invent experiment results, statistics, sources or citation support.",
-          replaySafe: true,
-          timeoutMs: 180000
-        });
-        return result.status === "SUCCESS" ? { status: "SUCCESS", content: result.content } : { status: "FAIL", message: result.failure?.message ?? `web provider ${providerId} did not answer` };
-      } catch (error) {
-        // executeWorker may reject (e.g. the "AI is busy on another task"
-        // guard); surface it as a FAIL so the provider retry/backoff layer can
-        // ride through transient busy pages instead of failing the run.
-        return { status: "FAIL", message: String(error instanceof Error ? error.message : error).slice(0, 300) };
-      }
-    }
-  });
-  return new LiveResearchExecutor({
-    inner: new ResearchConductor({
-      service: () => {
-        if (!research) throw new Error("research service not ready");
-        return research;
-      },
-      provider,
-      // Overcomplete §9.3: REAL host literature retrieval (OpenAlex) before any
-      // AI advisory intake. Offline/empty results degrade honestly to the
-      // provider fallback inside the conductor.
-      hostLiterature: async (ir) => runHostLiteraturePass({ rq: ir.researchQuestions[0] ?? ir.goal }, createOpenAlexLiteratureDeps())
-    })
-  });
-}
-
 const HEADLESS_RQ = "Does evidence-weighted adjudication reduce review errors relative to majority-vote adjudication on a fixed software-engineering benchmark?";
 
 function sleepMs(ms: number): Promise<void> {
@@ -728,14 +679,15 @@ if (ownsInstance) app.whenReady().then(() => {
   // forwards to it. Per-store roots keep the pre-migration durable locations
   // (research/<id>.json ledger files, research-protocols/) so existing runs
   // stay recoverable after the composition-root migration.
-  const researchRoot = path.join(app.getPath("userData"), ".boss", "research");
-  research = new ResearchService({
-    root: researchRoot,
-    ledgerRoot: researchRoot,
-    protocolsRoot: path.join(app.getPath("userData"), ".boss", "research-protocols"),
-    executor: liveResearchExecutor(),
-    runtime: new ResearchRuntime()
+  const researchModule = createResearchModule({
+    dataRoot: app.getPath("userData"),
+    store,
+    // Lazy: the provider pool is attached later in this block, and a semantic stage
+    // that runs without it fails closed with its reason.
+    automation: () => poolRef?.automation()
   });
+  bootModules.push(researchModule);
+  research = researchModule.service.research;
   codexRuntime = new CodexCliRuntime(path.join(app.getPath("userData"), ".codex-boss"));
   runtimeRegistry.register(codexRuntime);
   runtimeRegistry.register(new NativeRuntime(app.getAppPath()));
