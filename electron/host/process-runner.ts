@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { killProcessTree, superviseProcess } from "../process/process-gateway";
 import fs from "node:fs";
 import path from "node:path";
 import type { ProcessOutcome, ProcessRunner } from "./acceptance-hub-runner";
@@ -6,12 +6,15 @@ import type { ProcessOutcome, ProcessRunner } from "./acceptance-hub-runner";
 /**
  * Host-M P1 — the real process seam.
  *
- * Kept in its own file so the orchestration stays pure and testable: nothing in
- * `acceptance-hub-runner.ts` imports `node:child_process`.
+ * Kept in its own file so the orchestration stays pure and testable: the process
+ * itself is started by `electron/process/process-gateway.ts` (Phase M), which is the
+ * only place this path spawns anything. What this module states is its own policy —
+ * the bound, the capture size, how the tree is stopped — and how an outcome becomes
+ * a host verdict.
  *
  * Behaviour that matters for honest evidence:
  * - argv is passed without a shell, so the exact declared command is executed;
- * - the timeout is enforced here and always reported as `timedOut` (never as a
+ * - the timeout is enforced there and always reported as `timedOut` (never as a
  *   silent success), and the child tree is killed so a hung check cannot keep
  *   the hub alive;
  * - output is streamed into bounded buffers with a hard cap, so a runaway check
@@ -112,118 +115,49 @@ export interface NodeProcessRunnerOptions {
 export function createNodeProcessRunner(options: NodeProcessRunnerOptions = {}): ProcessRunner {
   const platform = options.platform ?? process.platform;
   return {
-    run(name, args, runOptions): Promise<ProcessOutcome> {
-      return new Promise<ProcessOutcome>((resolve) => {
-        const startedAt = Date.now();
-        const stdout: string[] = [];
-        const stderr: string[] = [];
-        let stdoutChars = 0;
-        let stderrChars = 0;
-        const capture = (sink: string[], text: string, current: number): number => {
-          if (current >= MAX_BUFFER_CHARS) return current;
-          sink.push(text);
-          return current + text.length;
+    async run(name, args, runOptions): Promise<ProcessOutcome> {
+      const startedAt = Date.now();
+      // A working directory that is not there is reported before anything is
+      // started: the reason is the host's own wording, and it is what a failed
+      // acceptance step quotes.
+      if (!fs.existsSync(runOptions.cwd)) {
+        return {
+          exitCode: null,
+          timedOut: false,
+          stdout: "",
+          stderr: "",
+          durationMs: Date.now() - startedAt,
+          spawnError: `working directory does not exist: ${runOptions.cwd}`
         };
-
-        if (!fs.existsSync(runOptions.cwd)) {
-          resolve({
-            exitCode: null,
-            timedOut: false,
-            stdout: "",
-            stderr: "",
-            durationMs: Date.now() - startedAt,
-            spawnError: `working directory does not exist: ${runOptions.cwd}`
-          });
-          return;
-        }
-
-        const resolved = resolveCommand(name, args, platform);
-        let child;
-        try {
-          child = spawn(resolved.command, resolved.args, {
-            cwd: runOptions.cwd,
-            env: { ...process.env, ...options.env },
-            windowsHide: true,
-            stdio: ["ignore", "pipe", "pipe"],
-            shell: false
-          });
-        } catch (error) {
-          resolve({
-            exitCode: null,
-            timedOut: false,
-            stdout: "",
-            stderr: "",
-            durationMs: Date.now() - startedAt,
-            spawnError: String(error)
-          });
-          return;
-        }
-
-        let timedOut = false;
-        let settled = false;
-        const timer = setTimeout(() => {
-          timedOut = true;
-          killTree(child.pid);
-        }, runOptions.timeoutMs);
-
-        const settle = (outcome: ProcessOutcome): void => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve(outcome);
-        };
-
-        child.stdout?.on("data", (chunk: Buffer) => {
-          stdoutChars = capture(stdout, chunk.toString("utf8"), stdoutChars);
-        });
-        child.stderr?.on("data", (chunk: Buffer) => {
-          stderrChars = capture(stderr, chunk.toString("utf8"), stderrChars);
-        });
-        child.on("error", (error) => {
-          settle({
-            exitCode: null,
-            timedOut: false,
-            stdout: stdout.join(""),
-            stderr: stderr.join(""),
-            durationMs: Date.now() - startedAt,
-            spawnError: String(error)
-          });
-        });
-        child.on("close", (code, signal) => {
-          settle({
-            exitCode: code,
-            signal,
-            timedOut,
-            stdout: stdout.join(""),
-            stderr: stderr.join(""),
-            durationMs: Date.now() - startedAt
-          });
-        });
+      }
+      const resolved = resolveCommand(name, args, platform);
+      // Phase M: the process itself is started by the gateway. What this module
+      // states is its own policy — the bound, the capture size and how the tree is
+      // stopped — and how an outcome becomes a host verdict.
+      const outcome = await superviseProcess(resolved.command, resolved.args, {
+        timeoutMs: runOptions.timeoutMs,
+        // Character bounds, exactly as this runner always counted them.
+        maxStdoutChars: MAX_BUFFER_CHARS,
+        maxStderrChars: MAX_BUFFER_CHARS,
+        cwd: runOptions.cwd,
+        env: { ...process.env, ...options.env },
+        // `npm run` and `vitest` spawn grandchildren that would otherwise survive
+        // the bound and keep locks on the repository, so the whole tree is stopped.
+        stop: (child) => killProcessTree(child.pid)
       });
+      if (outcome.spawnError) {
+        return { exitCode: outcome.code, timedOut: outcome.timedOut, stdout: outcome.stdout, stderr: outcome.stderr, durationMs: outcome.durationMs, spawnError: outcome.spawnError };
+      }
+      return {
+        exitCode: outcome.code,
+        signal: outcome.signal ?? undefined,
+        timedOut: outcome.timedOut,
+        stdout: outcome.stdout,
+        stderr: outcome.stderr,
+        durationMs: outcome.durationMs
+      };
     }
   };
-}
-
-/**
- * Kills the whole child tree. `taskkill /T` is used on Windows because `npm run`
- * and `vitest` spawn grandchildren that would otherwise survive the timeout and
- * keep locks on the repo.
- */
-function killTree(pid: number | undefined): void {
-  if (!pid) return;
-  if (process.platform === "win32") {
-    try {
-      spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
-      return;
-    } catch {
-      // fall through to the direct kill
-    }
-  }
-  try {
-    process.kill(pid, "SIGKILL");
-  } catch {
-    // already gone
-  }
 }
 
 /** Evidence location convention used by every Host-M phase. */

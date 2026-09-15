@@ -1,4 +1,4 @@
-import { execFile, spawnSync } from "node:child_process";
+import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process";
 
 /**
  * The one place that runs a child process for its output (convergence book,
@@ -168,4 +168,158 @@ export function processTranscript(result: ProcessRunResult): string {
   const text = `${result.stdout}${result.stderr}`;
   if (!result.spawnError) return text;
   return text ? `${text}\n${result.spawnError}` : result.spawnError;
+}
+
+/* ------------------------------------------------------------------ *
+ * Supervision: a process the caller watches while it runs
+ * ------------------------------------------------------------------ */
+
+/**
+ * A process started with `spawn` rather than captured by `execFile`, for a caller
+ * that needs the child itself — to record its pid, to stop a whole process tree, or
+ * to cancel it from an `AbortSignal`.
+ *
+ * This is Phase M's supervision half. The capture-shaped runners share one entry
+ * point (`runProcess`); the supervising ones each held their own copy of the same
+ * ninety lines — spawn with piped stdio and no shell, bounded per-stream capture, a
+ * timeout that stops the child, an abort listener, a spawn-error path and a
+ * settle-once guard — with small differences that were not decisions: one used
+ * `close` and one `exit`, one capped stderr at a megabyte and the other did not cap
+ * it at all, and only one honoured `AbortSignal`. The bounds and the stop policy are
+ * **stated by the caller** here, so what differs between callers is visible at the
+ * call site instead of buried in a copy.
+ */
+export interface SupervisedProcessOptions {
+  /** How long the child may run. Required: the gateway states no default bound. */
+  timeoutMs: number;
+  /** Max captured stdout, counted in characters. Required, and per stream, because the callers differ. */
+  maxStdoutChars: number;
+  /** Max captured stderr, counted in characters. Required for the same reason. */
+  maxStderrChars: number;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  /** Cancellation. Aborting stops the child and settles as `cancelled`. */
+  signal?: AbortSignal;
+  /** The child, once it exists: a caller records the pid or attaches its own probe. */
+  onSpawn?(child: ChildProcess): void;
+  /**
+   * How to stop the child when the bound expires or the caller cancels. Defaults to
+   * `child.kill()`; a caller that must reach grandchildren supplies its own policy,
+   * because "stop this" means different things to a compiler and to an app under soak.
+   */
+  stop?(child: ChildProcess): void;
+}
+
+export interface SupervisionOutcome {
+  /** The exit status, or null when the child never produced one. */
+  code: number | null;
+  /** The signal that ended the child, when one did. */
+  signal?: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+  /** The bound stopped the child. */
+  timedOut: boolean;
+  /** The caller's AbortSignal stopped it (or was already aborted). */
+  cancelled: boolean;
+  /** The child never ran: the binary was missing or the spawn itself failed. */
+  spawnError?: string;
+  durationMs: number;
+}
+
+/**
+ * Stops a process and everything it started.
+ *
+ * `taskkill /T` is used on Windows because `npm run` and `vitest` spawn
+ * grandchildren that would otherwise survive the timeout and keep locks on the
+ * repository. This lives here rather than in the caller because it is the same
+ * question the timeout asks — "stop this process" — and a caller that reaches for
+ * the tree itself is a caller that has taken the boundary back.
+ */
+export function killProcessTree(pid: number | undefined): void {
+  if (!pid) return;
+  if (process.platform === "win32") {
+    try {
+      spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+      return;
+    } catch {
+      // fall through to the direct kill
+    }
+  }
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+}
+
+/**
+ * Runs a process to completion while handing the caller the child. Never throws: the
+ * outcome says what happened, including `spawnError` when nothing ever ran.
+ */
+export function superviseProcess(file: string, args: readonly string[], options: SupervisedProcessOptions): Promise<SupervisionOutcome> {
+  const { timeoutMs, maxStdoutChars, maxStderrChars, cwd, env, signal } = options;
+  const started = Date.now();
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let child: ChildProcess | undefined;
+    let stdout = "";
+    let stderr = "";
+    const finish = (outcome: Omit<SupervisionOutcome, "durationMs">): void => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      resolve({ ...outcome, durationMs: Date.now() - started });
+    };
+    const stopChild = (): void => {
+      if (!child) return;
+      try {
+        if (options.stop) options.stop(child);
+        else child.kill();
+      } catch {
+        // Already gone: the outcome is what matters, not the signal that stopped it.
+      }
+    };
+    const onAbort = (): void => {
+      stopChild();
+      finish({ code: null, stdout, stderr, timedOut: false, cancelled: true });
+    };
+
+    if (signal?.aborted) {
+      // Nothing is started: a cancelled call must not spawn a child at all.
+      settled = true;
+      resolve({ code: null, stdout: "", stderr: "", timedOut: false, cancelled: true, durationMs: 0 });
+      return;
+    }
+
+    try {
+      child = spawn(file, [...args], { cwd, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], shell: false });
+    } catch (error) {
+      finish({ code: null, stdout: "", stderr: "", timedOut: false, cancelled: false, spawnError: String(error) });
+      return;
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+    timer = setTimeout(() => {
+      stopChild();
+      finish({ code: null, stdout, stderr, timedOut: true, cancelled: false });
+    }, timeoutMs);
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stdout += text.slice(0, Math.max(0, maxStdoutChars - stdout.length));
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderr += text.slice(0, Math.max(0, maxStderrChars - stderr.length));
+    });
+    child.on("error", (error) => {
+      finish({ code: null, stdout, stderr, timedOut: false, cancelled: false, spawnError: String(error) });
+    });
+    child.on("close", (code, signal) => {
+      finish({ code: typeof code === "number" ? code : null, signal, stdout, stderr, timedOut: false, cancelled: false });
+    });
+    options.onSpawn?.(child);
+  });
 }

@@ -1,12 +1,12 @@
-import { spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
+import { superviseProcess } from "../../process/process-gateway";
 import type { ResearchCommandSpec } from "../../../src/shared/research-command";
 
 /**
- * Structured research process runner (plan 9-6 Phase 6). Always
- * `spawn(executable, args)` with explicit cwd/timeout — never `shell:true`
- * with a model-generated string. Captures bounded stdout/stderr, honours
- * AbortSignal cancellation, and verifies expected markers.
+ * Structured research process runner (plan 9-6 Phase 6). Always structured argv with
+ * explicit cwd/timeout — never `shell:true` with a model-generated string. The
+ * process itself is started by `electron/process/process-gateway.ts` (Phase M): this
+ * module states the bounds, maps the outcome to the research contract, and verifies
+ * the expected markers, which is research policy rather than process policy.
  */
 
 export interface ProcessResult {
@@ -18,56 +18,29 @@ export interface ProcessResult {
   durationMs: number;
 }
 
-const MAX_OUTPUT = 2000000;
+const MAX_STDOUT = 2000000;
+const MAX_STDERR = 1000000;
 
-export function runStructuredProcess(spec: ResearchCommandSpec, signal?: AbortSignal): Promise<ProcessResult> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve({ code: -1, output: "cancelled before start", timedOut: false, cancelled: true, passed: false, durationMs: 0 });
-      return;
-    }
-    const started = Date.now();
-    let settled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let child: ChildProcess;
-    const finish = (result: ProcessResult) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
-      resolve(result);
-    };
-    const onAbort = () => {
-      try { child.kill(); } catch { /* already gone */ }
-      finish({ code: -1, output: "cancelled", timedOut: false, cancelled: true, passed: false, durationMs: Date.now() - started });
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
+/** The two streams as one transcript, which is what the research contract reports. */
+const transcript = (stdout: string, stderr: string): string => `${stdout}\n${stderr}`.trim();
 
-    try {
-      child = spawn(spec.executable, spec.args, {
-        cwd: spec.cwd,
-        windowsHide: true,
-        env: { ...process.env, ...(spec.environment ?? {}) },
-        stdio: ["ignore", "pipe", "pipe"]
-      });
-    } catch (error) {
-      finish({ code: -1, output: String(error), timedOut: false, cancelled: false, passed: false, durationMs: Date.now() - started });
-      return;
-    }
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk: Buffer) => { if (stdout.length < MAX_OUTPUT) stdout += String(chunk).slice(0, MAX_OUTPUT - stdout.length); });
-    child.stderr?.on("data", (chunk: Buffer) => { if (stderr.length < 1000000) stderr += String(chunk).slice(0, 1000000 - stderr.length); });
-    child.on("error", (error) => finish({ code: -1, output: String(error), timedOut: false, cancelled: false, passed: false, durationMs: Date.now() - started }));
-    child.on("close", (code) => {
-      const output = `${stdout}\n${stderr}`.trim();
-      const passed = code === 0 && (spec.expectedOutputs?.every((marker) => output.includes(marker)) ?? true);
-      finish({ code: code ?? -1, output, timedOut: false, cancelled: false, passed, durationMs: Date.now() - started });
-    });
-    timer = setTimeout(() => {
-      try { child.kill(); } catch { /* already gone */ }
-      finish({ code: -1, output: `${stdout}\n${stderr}`.trim() + "\n[timed out]", timedOut: true, cancelled: false, passed: false, durationMs: Date.now() - started });
-    }, spec.timeoutMs);
+export async function runStructuredProcess(spec: ResearchCommandSpec, signal?: AbortSignal): Promise<ProcessResult> {
+  if (signal?.aborted) return { code: -1, output: "cancelled before start", timedOut: false, cancelled: true, passed: false, durationMs: 0 };
+  const outcome = await superviseProcess(spec.executable, spec.args, {
+    timeoutMs: spec.timeoutMs,
+    maxStdoutChars: MAX_STDOUT,
+    maxStderrChars: MAX_STDERR,
+    cwd: spec.cwd,
+    env: { ...process.env, ...(spec.environment ?? {}) },
+    ...(signal ? { signal } : {})
   });
+  // A child that never ran is reported the way this module always reported it: the
+  // reason in the output, code -1, nothing passed.
+  if (outcome.spawnError) return { code: -1, output: outcome.spawnError, timedOut: false, cancelled: false, passed: false, durationMs: outcome.durationMs };
+  if (outcome.cancelled) return { code: -1, output: "cancelled", timedOut: false, cancelled: true, passed: false, durationMs: outcome.durationMs };
+  const output = transcript(outcome.stdout, outcome.stderr);
+  if (outcome.timedOut) return { code: -1, output: `${output}\n[timed out]`, timedOut: true, cancelled: false, passed: false, durationMs: outcome.durationMs };
+  const code = outcome.code ?? -1;
+  const passed = code === 0 && (spec.expectedOutputs?.every((marker) => output.includes(marker)) ?? true);
+  return { code, output, timedOut: false, cancelled: false, passed, durationMs: outcome.durationMs };
 }

@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   PROCESS_MAX_BUFFER_BYTES,
   PROCESS_TIMEOUT_MS,
+  killProcessTree,
   processTranscript,
   runProcess,
-  runProcessSync
+  runProcessSync,
+  superviseProcess
 } from "../../electron/process/process-gateway";
 
 /**
@@ -176,8 +178,6 @@ const GATEWAYS: Record<string, string> = {
  * imports `child_process` also fails.
  */
 const DECLARED_PROCESS_DEBT: Record<string, string> = {
-  "electron/host/process-runner.ts": "the acceptance-hub runner streams a live transcript and owns the child's lifetime across events",
-  "electron/research/runtime/process-runner.ts": "streams stdout incrementally into a bounded buffer while the runtime works",
   "electron/remote-relay.ts": "a long-lived relay whose stdio streams carry a channel protocol",
   "electron/host/soak-harness.ts": "spawns the application under soak, then samples and signals it (including taskkill on the tree)",
   "electron/self-evolution/self-evolution-coordinator.ts": "spawns the evolution battery and streams its progress",
@@ -197,7 +197,10 @@ const MIGRATED_TO_GATEWAY = [
   "electron/github/github-machine-runtime.ts",
   "electron/computer/backends/structured-apps.ts",
   "electron/research/manuscript/latex-compiler.ts",
-  "electron/runtimes/codex/codex-cli-runtime.ts"
+  "electron/runtimes/codex/codex-cli-runtime.ts",
+  // Phase M's supervision half: the two runners that watch a child while it runs.
+  "electron/research/runtime/process-runner.ts",
+  "electron/host/process-runner.ts"
 ];
 
 function repoFile(relative: string): string {
@@ -216,6 +219,79 @@ function sourceFilesUnder(root: string): string[] {
   }
   return found;
 }
+
+describe("Phase M — the supervision surface", () => {
+  const BOUNDS = { timeoutMs: PROCESS_TIMEOUT_MS.check, maxStdoutChars: PROCESS_MAX_BUFFER_BYTES.small, maxStderrChars: PROCESS_MAX_BUFFER_BYTES.small };
+
+  it("hands the caller the child and captures both streams", async () => {
+    const pids: number[] = [];
+    const outcome = await superviseProcess(NODE, ["-e", "process.stdout.write('out'); process.stderr.write('err'); process.exit(4)"], {
+      ...BOUNDS,
+      onSpawn: (child) => { if (child.pid) pids.push(child.pid); }
+    });
+    expect(outcome.stdout).toBe("out");
+    expect(outcome.stderr).toBe("err");
+    expect(outcome.code).toBe(4);
+    expect(outcome.timedOut).toBe(false);
+    expect(pids.length).toBe(1);
+  });
+
+  it("stops the child when the bound expires, and says which bound it was", async () => {
+    const stopped: number[] = [];
+    const outcome = await superviseProcess(NODE, hang(60_000), {
+      ...BOUNDS,
+      timeoutMs: 800,
+      // The caller's own stop policy, which is the point of the option: the host
+      // runner reaches for the whole tree, a compiler does not need to.
+      stop: (child) => { if (child.pid) stopped.push(child.pid); killProcessTree(child.pid); }
+    });
+    expect(outcome.timedOut).toBe(true);
+    expect(outcome.code).toBeNull();
+    expect(stopped.length).toBe(1);
+  });
+
+  it("spawns nothing at all when the signal was already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let spawned = 0;
+    const outcome = await superviseProcess(NODE, hang(60_000), { ...BOUNDS, signal: controller.signal, onSpawn: () => { spawned += 1; } });
+    expect(outcome.cancelled).toBe(true);
+    expect(outcome.durationMs).toBe(0);
+    expect(spawned).toBe(0);
+  });
+
+  it("stops a running child when the caller cancels", async () => {
+    const controller = new AbortController();
+    const pending = superviseProcess(NODE, hang(60_000), { ...BOUNDS, timeoutMs: PROCESS_TIMEOUT_MS.suite, signal: controller.signal });
+    setTimeout(() => controller.abort(), 250);
+    const outcome = await pending;
+    expect(outcome.cancelled).toBe(true);
+    expect(outcome.timedOut).toBe(false);
+  });
+
+  it("calls a missing binary a launch failure with empty streams", async () => {
+    const outcome = await superviseProcess("codex-boss-no-such-binary", [], BOUNDS);
+    expect(outcome.spawnError).toBeTruthy();
+    expect(outcome.code).toBeNull();
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toBe("");
+  });
+
+  it("kills a process tree, which is what the host runner's bound needs", async () => {
+    // A real child, stopped through the gateway's own policy: the acceptance hub
+    // relies on this to stop `npm run`'s grandchildren, so it is exercised here
+    // rather than assumed.
+    let pid: number | undefined;
+    const pending = superviseProcess(NODE, hang(60_000), { ...BOUNDS, timeoutMs: PROCESS_TIMEOUT_MS.suite, onSpawn: (child) => { pid = child.pid; } });
+    while (!pid) await new Promise((resolve) => setTimeout(resolve, 20));
+    killProcessTree(pid);
+    const outcome = await pending;
+    // Stopped from outside: no timeout of ours fired, and the child did not exit 0.
+    expect(outcome.timedOut).toBe(false);
+    expect(outcome.cancelled).toBe(false);
+    expect(outcome.code === null || outcome.code !== 0).toBe(true);
+  });
+});
 
 describe("Phase M — one entry point for a process started for its output", () => {
   it("is the only place the application starts a process, apart from the git gateway", () => {
