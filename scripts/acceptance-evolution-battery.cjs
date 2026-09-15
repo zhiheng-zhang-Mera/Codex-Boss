@@ -78,6 +78,9 @@ const options = parseArgs(process.argv.slice(2));
 const ROOT = options.root;
 const CHILD_SCRIPT = path.join(__dirname, "acceptance-evolution-round.cjs");
 const REQUIRED_ROUNDS = 20;
+// The quiescence rule (sec. 34/59) lives in its own module so it is unit-tested directly rather
+// than only through a 20-round battery run; see its docblock for the pid-recycling defect it fixes.
+const quiescenceRule = require("./acceptance-evolution-quiescence.cjs");
 
 /* ------------------------------------------------------------------ *
  * small helpers
@@ -619,7 +622,12 @@ async function main() {
   if (!quiescence.system_quiescent) {
     process.stdout.write("EVOLUTION_BATTERY_REFUSED:NOT_QUIESCENT\n");
     process.stdout.write(`${JSON.stringify(quiescence, null, 2)}\n`);
-    writeRefusalReport("NOT_QUIESCENT", quiescence.foreign_locks.concat(quiescence.live_children));
+    for (const refusal of quiescence.refusals) {
+      process.stdout.write(
+        `[evolution-battery] refusal ${refusal.code}: ${refusal.reason}${refusal.remedy ? ` - remedy: ${refusal.remedy}` : ""}\n`
+      );
+    }
+    writeRefusalReport("NOT_QUIESCENT", quiescence.refusals);
     return 2;
   }
 
@@ -1240,53 +1248,23 @@ function budgetRuleSource() {
   return "electron/engineering/autonomous-evolution-runner.ts#assessRoundBudget (local rule: src/shared/autonomous-evolution-trust.ts does not exist in this checkout)";
 }
 
+/**
+ * Supply the quiescence rule with this checkout's facts: pids, the shared tree's HEAD, the
+ * journals and the git-operation probes. The rule itself (including why pid liveness alone cannot
+ * prove a concurrent run) is in `scripts/acceptance-evolution-quiescence.cjs`.
+ */
 function assessQuiescence(runner) {
-  const foreignLocks = [];
-  const liveChildren = [];
-  const evolutionRoot = path.join(ROOT, "artifacts", "evolution");
-  let dirs = [];
-  try {
-    dirs = fs.readdirSync(evolutionRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  } catch {
-    dirs = [];
-  }
-  for (const name of dirs) {
-    const lock = path.join(evolutionRoot, name, "battery.lock");
-    if (!fs.existsSync(lock)) continue;
-    const parsed = readJson(lock);
-    if (!parsed || parsed.run_id === options.runId) continue;
-    const alive = isAlive(parsed.pid);
-    foreignLocks.push({ run_id: parsed.run_id, pid: parsed.pid, alive, started_at: parsed.started_at, released: Boolean(parsed.released_at) });
-    // A RELEASED lock is a finished run: whatever holds that pid now is an
-    // unrelated process (Windows reuses pids), and counting it as a live child
-    // makes this fail-closed check refuse forever — the battery then cannot run
-    // again without an operator deleting a spent mutex by hand. An UNRELEASED lock
-    // whose pid is alive is still a genuine concurrent run and still refuses; an
-    // unreleased lock whose pid is gone cannot block anything, because `alive` is
-    // false for it.
-    if (alive && !parsed.released_at) liveChildren.push(`pid ${parsed.pid} (battery ${parsed.run_id})`);
-    const journal = path.join(evolutionRoot, name, "evolution-journal.ndjson");
-    const read = runner.readJournalSync(journal);
-    const started = new Map();
-    const finished = new Set();
-    for (const record of read.records) {
-      if (record.event === "RUN_STARTED") started.set(`${record.round}`, record);
-      if (record.event === "RUN_FINISHED") finished.add(`${record.round}`);
-    }
-    for (const [round, record] of started) {
-      if (!finished.has(round) && isAlive(record.pid) && name !== options.runId) {
-        liveChildren.push(`round ${round} of ${name} (pid ${record.pid})`);
-      }
-    }
-  }
-  return {
-    lock_file: relativeToRoot(state.lockFile),
-    foreign_locks: foreignLocks,
-    live_children: liveChildren,
-    pending_git_operations: runner.pendingGitOperations(ROOT),
-    system_quiescent: liveChildren.length === 0 && runner.pendingGitOperations(ROOT).length === 0,
-    checked_at: nowIso()
-  };
+  return quiescenceRule.assessQuiescence({
+    root: ROOT,
+    runId: options.runId,
+    lockFile: state.lockFile,
+    now: Date.now(),
+    isAlive,
+    currentHeadRef: () => git(["rev-parse", "--abbrev-ref", "HEAD"], ROOT).stdout.trim(),
+    readJournal: (file) => runner.readJournalSync(file),
+    pendingGitOperations: (root) => runner.pendingGitOperations(root),
+    relativeToRoot
+  });
 }
 
 function assessFileStability(runner) {

@@ -45,6 +45,15 @@
   evolution branch and `git push origin <branch>` then printed "Everything
   up-to-date" while pushing a stale ref. Always verify `git ls-remote` against HEAD
   after pushing, and check `git branch --list "boss/evolution/*"` is empty.
+- **A spent evolution mutex can name a live pid, and the rule that decides it is now
+  witness-based.** `scripts/acceptance-evolution-quiescence.cjs` refuses a foreign run only
+  when the pid is alive *and* the run directory was written inside `HEARTBEAT_FRESH_MS`
+  (30 min) *or* HEAD is stranded on that run's `boss/evolution/<id>` branch. Reading
+  `alive: true` in a refusal as "a run is really executing" is wrong: pid `2064` of the
+  retained lock `evolution-1789347366120` belonged to `svchost` 34 h after that run was
+  killed. If the battery ever refuses, read the printed `refusal <CODE>` lines — each
+  carries its remedy — and never "fix" it by deleting a mutex whose HEAD witness is still
+  present.
 - **Boot modules may not import Electron and may not do fs/git/process work**
   (`tests/unit/repository-boundary-guards.test.ts` scans every line of every
   `electron/bootstrap/*.ts`, comments included). Inject the surface instead:
