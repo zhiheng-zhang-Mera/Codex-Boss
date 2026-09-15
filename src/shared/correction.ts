@@ -20,7 +20,7 @@ export type CorrectableRfcField =
   | "rollback"
   | "compatibilityImpact";
 
-export const CORRECTABLE_RFC_FIELDS: CorrectableRfcField[] = [
+const CORRECTABLE_RFC_FIELDS: CorrectableRfcField[] = [
   "problem", "hypothesis", "candidateFix", "expectedBenefit",
   "risk", "benchmark", "rollback", "compatibilityImpact"
 ];

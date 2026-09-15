@@ -24,7 +24,7 @@ import type { RootAuthority } from "./root-authority";
  */
 
 /** Capabilities an autonomous worker may exercise inside its Candidate. */
-export type EvolutionWorkerAction =
+type EvolutionWorkerAction =
   // allowed (§10 允许)
   | "workspace.read"
   | "workspace.write"
@@ -90,7 +90,7 @@ export const EVOLUTION_WORKER_DENIED: readonly EvolutionWorkerAction[] = [
   "remote.side.effect"
 ];
 
-export function isEvolutionWorkerAction(value: unknown): value is EvolutionWorkerAction {
+function isEvolutionWorkerAction(value: unknown): value is EvolutionWorkerAction {
   return typeof value === "string" && (EVOLUTION_WORKER_ALLOWED as readonly string[]).concat(EVOLUTION_WORKER_DENIED as readonly string[]).includes(value);
 }
 
@@ -123,7 +123,7 @@ export function classifyEvolutionWorkerAction(action: EvolutionWorkerAction): Ro
   return EVOLUTION_WORKER_ALLOWED.includes(action) ? "ALLOW" : "DENY";
 }
 
-export interface EvolutionCommandRequest {
+interface EvolutionCommandRequest {
   /** Executable plus arguments the worker asked to run. */
   argv: readonly string[];
   /**
@@ -133,7 +133,7 @@ export interface EvolutionCommandRequest {
   shell?: string;
 }
 
-export interface EvolutionCommandVerdict {
+interface EvolutionCommandVerdict {
   decision: RootDecision;
   reason: string;
   /** The Root operation attributed to the denial, when denied. */
@@ -205,7 +205,7 @@ export function classifyEvolutionCommand(request: EvolutionCommandRequest): Evol
 }
 
 /** A structural description of the profile, emitted into acceptance evidence. */
-export interface EvolutionProfileDescription {
+interface EvolutionProfileDescription {
   profile: "EVOLUTION";
   allowed: readonly EvolutionWorkerAction[];
   denied: readonly EvolutionWorkerAction[];
@@ -223,7 +223,7 @@ export const EVOLUTION_PROFILE_DESCRIPTION: EvolutionProfileDescription = {
   remoteSideEffects: "host-promotion-adapter-only"
 };
 
-export interface EvolutionExecutionProfileOptions {
+interface EvolutionExecutionProfileOptions {
   /** Candidate workspace root. */
   root: string;
   authority: RootAuthority;

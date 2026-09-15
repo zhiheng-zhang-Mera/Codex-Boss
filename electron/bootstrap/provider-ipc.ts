@@ -17,12 +17,12 @@ import type { CustomProviderInput, ProviderId } from "../../src/shared/contracts
  */
 
 /** The pane surface this module is allowed to use (only what its channels need). */
-export interface ProviderPaneService {
+interface ProviderPaneService {
   close(providerId: ProviderId): void;
   layout(views: Partial<Record<ProviderId, { x: number; y: number; width: number; height: number }>>): void;
 }
 
-export interface ProviderIpcDeps {
+interface ProviderIpcDeps {
   handle: IpcRegistrar["handle"];
   providers: {
     known(): ProviderId[];

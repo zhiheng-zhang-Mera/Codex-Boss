@@ -14,7 +14,7 @@
  * probe scripts and applies the verdicts (see backends/dom-page.ts).
  */
 
-export type ReadinessGate =
+type ReadinessGate =
   | "NAVIGATION_ACCEPTED"
   | "DOM_READY"
   | "TARGET_EXISTS"
@@ -48,7 +48,7 @@ export interface ReadinessProbeFacts {
   stableSamples?: number;
 }
 
-export interface ReadinessVerdict {
+interface ReadinessVerdict {
   ready: boolean;
   /** Ordered list of gates that failed (empty when ready). */
   blockers: ReadinessGate[];
@@ -92,7 +92,7 @@ export function postActionVerified(observed: { changed?: boolean; expected?: str
   return false; // no evidence of change ⇒ NOT verified (never assume)
 }
 
-export type RetryVerdict = "BOUNDED_RETRY" | "SELECTOR_REFRESH" | "ALTERNATE_STRATEGY" | "FAILED";
+type RetryVerdict = "BOUNDED_RETRY" | "SELECTOR_REFRESH" | "ALTERNATE_STRATEGY" | "FAILED";
 
 /** Bounded escalation after a failed/unverified action. */
 export function escalationAfterFailure(attempts: number, maxBoundedRetries: number): RetryVerdict {

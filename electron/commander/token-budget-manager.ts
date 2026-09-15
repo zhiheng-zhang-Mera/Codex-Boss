@@ -8,9 +8,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { readJson, writeJson } from "./durable-json";
 
-export type TokenStage = "router" | "planner" | "worker" | "synthesis" | "research" | "reviewer";
+type TokenStage = "router" | "planner" | "worker" | "synthesis" | "research" | "reviewer";
 
-export interface TokenSpend {
+interface TokenSpend {
   taskId: string;
   stage: TokenStage;
   model: string;
@@ -22,16 +22,16 @@ export interface TokenSpend {
   recordedAt: string;
 }
 
-export interface BudgetLedgerEntry extends TokenSpend {
+interface BudgetLedgerEntry extends TokenSpend {
   id: string;
 }
 
-export interface TokenBudgetLedgerFile {
+interface TokenBudgetLedgerFile {
   schemaVersion: 1;
   entries: BudgetLedgerEntry[];
 }
 
-export interface BudgetStatus {
+interface BudgetStatus {
   taskTokens: number;
   softLimit: number;
   overSoftLimit: boolean;
@@ -48,7 +48,7 @@ const STAGE_SOFT_LIMITS: Record<TokenStage, number> = {
   reviewer: 12_000
 };
 
-export const TOKEN_STAGES: readonly TokenStage[] = Object.keys(STAGE_SOFT_LIMITS) as TokenStage[];
+const TOKEN_STAGES: readonly TokenStage[] = Object.keys(STAGE_SOFT_LIMITS) as TokenStage[];
 
 export class TokenBudgetManager {
   private readonly filePath: string;

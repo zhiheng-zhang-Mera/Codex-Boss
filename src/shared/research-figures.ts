@@ -9,12 +9,12 @@
  * user-controlled text to stay valid SVG.
  */
 
-export interface FigureBar {
+interface FigureBar {
   label: string;
   value: number;
 }
 
-export interface FigureOptions {
+interface FigureOptions {
   title?: string;
   width?: number;
   height?: number;

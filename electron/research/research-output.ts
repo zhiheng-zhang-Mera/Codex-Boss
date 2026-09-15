@@ -17,7 +17,7 @@ import path from "node:path";
  */
 
 /** The workspace-relative folder every research deliverable lands in. */
-export const RESEARCH_OUTPUT_DIRNAME = "Research";
+const RESEARCH_OUTPUT_DIRNAME = "Research";
 
 /**
  * ASCII topic folder from a research question: lower-cased tokens joined by

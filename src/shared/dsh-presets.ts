@@ -14,9 +14,9 @@
 import type { TaskLevel } from "./task-ir";
 
 export type DshPresetId = "boss-dev-standard" | "boss-dev-ptc" | "boss-dev-minimal" | "boss-plugin-creator";
-export type DshRuntimeMode = "standard" | "ptc" | "minimal" | "creator";
+type DshRuntimeMode = "standard" | "ptc" | "minimal" | "creator";
 
-export type BossWorkType = "repo-feature" | "bounded-multi-tool" | "small-patch" | "plugin-work" | "unclassified";
+type BossWorkType = "repo-feature" | "bounded-multi-tool" | "small-patch" | "plugin-work" | "unclassified";
 
 export interface DshPresetDefinition {
   id: DshPresetId;
@@ -30,7 +30,7 @@ export interface DshPresetDefinition {
   expectedTier: "flash" | "pro";
 }
 
-export const DSH_PRESETS: Record<DshPresetId, DshPresetDefinition> = {
+const DSH_PRESETS: Record<DshPresetId, DshPresetDefinition> = {
   "boss-dev-standard": {
     id: "boss-dev-standard",
     mode: "standard",
@@ -77,7 +77,7 @@ export const WORK_TYPE_TO_PRESET: Record<BossWorkType, DshPresetId> = {
   unclassified: "boss-dev-standard"
 };
 
-export interface PresetChoice {
+interface PresetChoice {
   preset: DshPresetDefinition;
   reason: string;
 }

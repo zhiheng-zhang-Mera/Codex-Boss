@@ -40,10 +40,10 @@ export const FAULT_CLASSES = [
   "stale-heartbeat",
   "knowledge-sync-failure"
 ] as const;
-export type FaultClass = (typeof FAULT_CLASSES)[number];
+type FaultClass = (typeof FAULT_CLASSES)[number];
 
 /** How the lab must treat the injected fault. */
-export type FaultExpectation =
+type FaultExpectation =
   /** The system must keep working (possibly in a reduced mode). */
   | "CONTINUE"
   /** The system must refuse to proceed and say why, without corrupting anything. */
@@ -51,7 +51,7 @@ export type FaultExpectation =
   /** Either is acceptable; the classification is recorded. */
   | "EITHER";
 
-export type FaultVerdict =
+type FaultVerdict =
   /** The fault took hold, was detected, and the system stayed usable. */
   | "CONTAINED"
   /** The fault took hold and the system correctly reported it could not proceed. */

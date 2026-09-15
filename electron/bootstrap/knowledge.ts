@@ -36,7 +36,7 @@ import type { PlanContext } from "../../src/shared/execution-planner";
 type WorldModelBuild = ReturnType<typeof buildWorldModelWithGraph>;
 type SurfaceContracts = ReturnType<typeof defaultSurfaceContracts>;
 
-export interface KnowledgeOptions {
+interface KnowledgeOptions {
   /** The resolved data root — `app.getPath("userData")` in production. */
   dataRoot: string;
   /**
@@ -53,7 +53,7 @@ export interface KnowledgeOptions {
   store: StateStore;
 }
 
-export interface KnowledgeService {
+interface KnowledgeService {
   /** The durable, provenance-carrying fact base. */
   foundation: KnowledgeFoundation;
   /** One world model per repository root, by fingerprint. */

@@ -24,16 +24,16 @@ import { roleForStage, type ResearchRole } from "../../src/shared/research-roles
 import { extractJsonEntity } from "./semantic-json";
 import type { ResearchSemanticProvider } from "./research-conductor";
 
-export interface LiveAskResult {
+interface LiveAskResult {
   status: "SUCCESS" | "FAIL";
   content?: string;
   message?: string;
 }
 
 /** Executor seam: sends one semantic prompt to one web provider. */
-export type LiveSemanticExecutor = (providerId: string, input: { jobId: string; prompt: string }) => Promise<LiveAskResult>;
+type LiveSemanticExecutor = (providerId: string, input: { jobId: string; prompt: string }) => Promise<LiveAskResult>;
 
-export interface LiveResearchProviderOptions {
+interface LiveResearchProviderOptions {
   /** Returns the currently open (logged-in) provider ids, in preference order. */
   openProviderIds: () => string[];
   /** Sends one prompt to a provider (ProviderAutomation in the GUI session). */
@@ -113,7 +113,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** Stable prompt prefix (milestone §27): static instruction first, dynamic task last. */
-export function buildPrompt(input: { researchId: string; stage: ResearchState; question: string }, role: ResearchRole, instruct?: string): string {
+function buildPrompt(input: { researchId: string; stage: ResearchState; question: string }, role: ResearchRole, instruct?: string): string {
   const instruction = instruct ?? `[research-semantic-v1] You are the ${role} role worker for a bounded autonomous research run. Respond with ONLY valid JSON matching the requested shape. Never change the research question, never invent experiment results or sources, and never output prose outside the JSON.`;
   return [instruction, `researchId: ${input.researchId}`, `stage: ${input.stage}`, `task: ${input.question}`].join("\n\n");
 }

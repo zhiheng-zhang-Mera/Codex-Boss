@@ -33,15 +33,15 @@ export interface PrimaryRunRecord {
   passed?: boolean;
 }
 
-export type EvidenceNodeKind = "research-question" | "hypothesis" | "protocol" | "experiment" | "run" | "metric" | "statistic" | "claim" | "figure-table" | "paper-sentence";
+type EvidenceNodeKind = "research-question" | "hypothesis" | "protocol" | "experiment" | "run" | "metric" | "statistic" | "claim" | "figure-table" | "paper-sentence";
 
-export interface EvidenceNode {
+interface EvidenceNode {
   id: string;
   kind: EvidenceNodeKind;
   label: string;
 }
 
-export interface EvidenceEdge {
+interface EvidenceEdge {
   from: string;
   to: string;
 }

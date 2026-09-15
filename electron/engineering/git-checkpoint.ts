@@ -35,17 +35,17 @@ import {
   type RollbackPlan
 } from "../../src/shared/git-checkpoint";
 
-export const CHECKPOINT_DIRECTORY = path.join("artifacts", "acceptance", "checkpoints");
+const CHECKPOINT_DIRECTORY = path.join("artifacts", "acceptance", "checkpoints");
 /** Diffs are captured, but a giant diff must not become a giant record. */
-export const MAX_CAPTURED_DIFF_BYTES = 512 * 1024;
+const MAX_CAPTURED_DIFF_BYTES = 512 * 1024;
 
-export interface GitCheckpointConfig {
+interface GitCheckpointConfig {
   root: string;
   directory?: string;
   now?: () => Date;
 }
 
-export interface CreateCheckpointInput {
+interface CreateCheckpointInput {
   task_id: string;
   candidate_id?: string;
   evidence?: readonly string[];
@@ -58,7 +58,7 @@ export interface CreateCheckpointInput {
   current_version?: string;
 }
 
-export interface RollbackOutcome {
+interface RollbackOutcome {
   ok: boolean;
   plan: RollbackPlan;
   restored: string[];
@@ -67,7 +67,7 @@ export interface RollbackOutcome {
   reason: string;
 }
 
-export interface GitCheckpointStore {
+interface GitCheckpointStore {
   /** §38: capture HEAD, branch, the diff, the task, the candidate and the evidence. */
   create(input: CreateCheckpointInput): CheckpointRecord;
   /** §37: assess the impact of the captured change. */

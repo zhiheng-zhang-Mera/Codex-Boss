@@ -24,9 +24,9 @@ import { candidateHeadSha } from "./workspace-manager";
  * than being allowed to wedge Stable (§8.4: "不被 candidate lock 住").
  */
 
-export type CandidateLifecycleState = "CREATED" | "WORKING" | "VERIFYING" | "REVIEWING" | "COMPLETED" | "CRASHED" | "TIMED_OUT" | "ABORTED";
+type CandidateLifecycleState = "CREATED" | "WORKING" | "VERIFYING" | "REVIEWING" | "COMPLETED" | "CRASHED" | "TIMED_OUT" | "ABORTED";
 
-export const CANDIDATE_LIFECYCLE_STATES: readonly CandidateLifecycleState[] = [
+const CANDIDATE_LIFECYCLE_STATES: readonly CandidateLifecycleState[] = [
   "CREATED", "WORKING", "VERIFYING", "REVIEWING", "COMPLETED", "CRASHED", "TIMED_OUT", "ABORTED"
 ];
 
@@ -52,7 +52,7 @@ export interface CandidateJournal {
   journalWarnings?: string[];
 }
 
-export interface CandidateOutcome<T> {
+interface CandidateOutcome<T> {
   state: CandidateLifecycleState;
   /** True only when the Candidate's own work completed; NOT a promotion. */
   ok: boolean;
@@ -66,7 +66,7 @@ export interface CandidateOutcome<T> {
   stableSurvived: true;
 }
 
-export interface CandidateSupervisorOptions {
+interface CandidateSupervisorOptions {
   layout: EvolutionLayout;
   /** Hard wall-clock bound per Candidate attempt. Defaults to 30 minutes. */
   timeoutMs?: number;
@@ -245,7 +245,7 @@ export class CandidateSupervisor {
   }
 }
 
-export class CandidateTimeoutError extends Error {
+class CandidateTimeoutError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "CandidateTimeoutError";

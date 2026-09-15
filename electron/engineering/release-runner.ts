@@ -31,9 +31,9 @@ import { guardGitHubWrite, type CheckpointRecord } from "../../src/shared/git-ch
 import type { GitHubGateway } from "../github/github-gateway";
 import type { GitHubResult } from "../../src/shared/github-machine";
 
-export const RELEASE_RECORD_FILE = "release-record.json";
+const RELEASE_RECORD_FILE = "release-record.json";
 
-export interface ReleaseRunnerConfig {
+interface ReleaseRunnerConfig {
   root: string;
   /** The git remote the branch is pushed to (a path or a URL). */
   remote?: string;
@@ -68,7 +68,7 @@ export interface ReleaseInput {
   current: { head: string; branch: string; diff_hash: string };
 }
 
-export interface ReleaseRecord {
+interface ReleaseRecord {
   schemaVersion: 1;
   version: "release-record-1";
   task_id: string;

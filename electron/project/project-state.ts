@@ -45,7 +45,7 @@ export interface ProjectState {
   updatedAt: string;
 }
 
-export interface ProjectStateFile {
+interface ProjectStateFile {
   schemaVersion: 1;
   state: ProjectState;
 }
@@ -160,6 +160,6 @@ export class ProjectStateStore {
   }
 }
 
-export function emptyState(workspaceId: string): ProjectState {
+function emptyState(workspaceId: string): ProjectState {
   return { workspaceId, goals: [], decisions: [], constraints: [], openQuestions: [], nextActions: [], research: [], updatedAt: new Date(0).toISOString() };
 }

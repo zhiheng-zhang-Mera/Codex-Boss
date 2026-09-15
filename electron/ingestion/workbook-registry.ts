@@ -14,9 +14,9 @@
 import { readJson, writeJson } from "../commander/durable-json";
 import type { CanonicalTaskDocument } from "../../src/shared/workbook";
 
-export type RelationKind = "NEW" | "DUPLICATE" | "AMENDED";
+type RelationKind = "NEW" | "DUPLICATE" | "AMENDED";
 
-export interface WorkbookRevision {
+interface WorkbookRevision {
   document_id: string;
   hash: string;
   file_name: string;
@@ -33,7 +33,7 @@ export interface WorkbookRevision {
   task_id?: string;
 }
 
-export interface WorkbookLedgerEntry {
+interface WorkbookLedgerEntry {
   logical_key: string;
   file_name: string;
   revisions: WorkbookRevision[];
@@ -42,7 +42,7 @@ export interface WorkbookLedgerEntry {
   updated_at: string;
 }
 
-export interface WorkbookLedgerFile {
+interface WorkbookLedgerFile {
   schemaVersion: 1;
   entries: WorkbookLedgerEntry[];
   /** hash -> document_id, so content identity survives name changes. */
@@ -64,7 +64,7 @@ export interface WorkbookRevisionInput {
   logical_key: string;
 }
 
-export interface RelationDecision {
+interface RelationDecision {
   document_id: string;
   file_name: string;
   hash: string;
@@ -80,7 +80,7 @@ export interface RelationDecision {
   reasons: string[];
 }
 
-export interface RelationPlan {
+interface RelationPlan {
   decisions: RelationDecision[];
   /** document_ids that still need work (NEW and AMENDED). */
   to_process: string[];

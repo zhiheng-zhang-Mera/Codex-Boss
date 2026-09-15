@@ -11,7 +11,7 @@ import { evaluateExactShaBinding, type ExactShaBinding, type ExactShaVerdict } f
  * moved away from — a self-consistent lie.
  */
 
-export interface ExactShaGateResult extends ExactShaVerdict {
+interface ExactShaGateResult extends ExactShaVerdict {
   /** HEAD observed in the Candidate workspace at gate time. */
   observedCandidateHeadSha: string | null;
 }

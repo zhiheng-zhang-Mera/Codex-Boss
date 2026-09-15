@@ -34,7 +34,7 @@ export const EVIDENCE_KINDS = [
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 export const EVIDENCE_ISSUES = ["orphan", "invalid", "unexpected", "dangling"] as const;
-export type EvidenceIssueKind = (typeof EVIDENCE_ISSUES)[number];
+type EvidenceIssueKind = (typeof EVIDENCE_ISSUES)[number];
 
 export interface EvidenceIssue {
   kind: EvidenceIssueKind;
@@ -67,7 +67,7 @@ export interface EvidenceRecord {
   references?: string[];
 }
 
-export interface EvidenceQuery {
+interface EvidenceQuery {
   kind?: EvidenceKind;
   /** Substring match against the relative path, case-insensitive. */
   contains?: string;
@@ -257,7 +257,7 @@ export function summarizeEvidence(records: readonly EvidenceRecord[], issues: re
  * repository legitimately use all of them, so all are tried before a reference is
  * called dangling.
  */
-export interface ReferenceAnchors {
+interface ReferenceAnchors {
   /** Paths that exist inside the inspected tree. */
   knownPaths: ReadonlySet<string>;
   /**
@@ -273,7 +273,7 @@ export interface ReferenceAnchors {
   exemptPrefixes?: readonly string[];
 }
 
-export interface ResolvedReferences {
+interface ResolvedReferences {
   /** Inspected-tree paths that something cites. */
   cited: ReadonlySet<string>;
   issues: EvidenceIssue[];
@@ -352,7 +352,7 @@ export function findOrphans(
 }
 
 /** Two records have the same identity only when the bytes match. */
-export function sameArtifact(left: EvidenceRecord, right: EvidenceRecord): boolean {
+function sameArtifact(left: EvidenceRecord, right: EvidenceRecord): boolean {
   return left.sha256 === right.sha256 && left.bytes === right.bytes;
 }
 

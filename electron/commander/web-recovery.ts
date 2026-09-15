@@ -7,7 +7,7 @@ import { probeScript, type PageProbe } from "../adapters/page-scripts";
 import { classifyRepairNeed } from "../../src/shared/computer-recovery";
 import { BudgetManager } from "./budget-manager";
 import { RecoveryScheduler, type RecoveryResult, type RecoveryWakeup } from "./recovery-scheduler";
-export type WebRecoveryStrategy = "CAPTURE_EXISTING" | "RETRY_UNSENT";
+type WebRecoveryStrategy = "CAPTURE_EXISTING" | "RETRY_UNSENT";
 
 /**
  * §26/§28 guarded Computer-Use repair hook (P0-6 R6 slot). Injected by the

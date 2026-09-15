@@ -24,14 +24,14 @@ import {
  *    on runtime profiles (A29).
  */
 
-export interface ConceptRegistryFile {
+interface ConceptRegistryFile {
   schemaVersion: 1;
   concepts: LearnedConcept[];
   /** signature → conceptId so ids survive restarts even for embedding clusters. */
   prototypeIndex: Record<string, string>;
 }
 
-export interface ConceptUpsertInput {
+interface ConceptUpsertInput {
   signature: string;
   vectorRef?: string;
   episodeId?: string;

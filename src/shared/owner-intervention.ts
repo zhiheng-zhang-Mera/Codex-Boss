@@ -13,7 +13,7 @@
 import { canonicalSha256, type AcceptanceSession } from "./acceptance-evidence";
 import { trustProblem, type TrustProblem } from "./trust-problems";
 
-export const OWNER_LEDGER_SCHEMA_VERSION = 1 as const;
+const OWNER_LEDGER_SCHEMA_VERSION = 1 as const;
 
 /** §44: the ledger's machine codes. */
 export const OWNER_LEDGER_CODES = {
@@ -70,7 +70,7 @@ export function emptyOwnerLedger(session: Pick<AcceptanceSession, "session_id" |
   return { ...body, ledger_hash: ownerLedgerHashOf(body) };
 }
 
-export interface OwnerInterventionRequest {
+interface OwnerInterventionRequest {
   source: string;
   reason: string;
   /** The instant the intervention happened; the caller owns the clock. */
@@ -152,7 +152,7 @@ export function verifyOwnerLedger(input: { ledger: unknown; session: AcceptanceS
  * §7.4 the escalation route registry
  * ------------------------------------------------------------------ */
 
-export type OwnerInterventionDisposition =
+type OwnerInterventionDisposition =
   /** The route asks the Owner and records the event through the central ledger. */
   | "LEDGERED"
   /** The shipped app's designed hand-off to its own operator (a product feature). */
@@ -162,7 +162,7 @@ export type OwnerInterventionDisposition =
   /** Explicitly Post-Prestart (§21), so outside this certification's scope. */
   | "POST_PRESTART";
 
-export interface OwnerInterventionRoute {
+interface OwnerInterventionRoute {
   id: string;
   /** Repository-relative path, forward slashes. */
   file: string;

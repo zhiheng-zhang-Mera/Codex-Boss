@@ -42,20 +42,20 @@ const CAPABILITY_PATTERNS: ReadonlyArray<{ capability: string; pattern: RegExp }
   { capability: "verification", pattern: /\b(verify|verification|acceptance|regression|review)\b|验证|验收|审查/i }
 ];
 
-export function capabilitiesForGoal(goal: string): string[] {
+function capabilitiesForGoal(goal: string): string[] {
   const found = new Set<string>();
   for (const { capability, pattern } of CAPABILITY_PATTERNS) if (pattern.test(goal)) found.add(capability);
   if (!found.size) found.add("coding");
   return [...found].sort();
 }
 
-export interface KnowledgeFoundationOptions {
+interface KnowledgeFoundationOptions {
   /** Durable base file; omit for an in-memory base (tests). */
   filePath?: string;
   now?: () => string;
 }
 
-export interface KnowledgeRecordSummary {
+interface KnowledgeRecordSummary {
   ok: boolean;
   taskId: string;
   scope: KnowledgeScope;
@@ -69,7 +69,7 @@ export interface KnowledgeRecordSummary {
   error?: string;
 }
 
-export interface KnowledgeSectionResult {
+interface KnowledgeSectionResult {
   /** Bounded prompt text; empty when the project has nothing to reuse. */
   text: string;
   retrieval: KnowledgeRetrievalResult;

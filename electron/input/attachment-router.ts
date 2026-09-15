@@ -21,7 +21,7 @@ export interface ProviderRouteState {
   preferenceRank: number;
 }
 
-export interface InputAssignment {
+interface InputAssignment {
   inputObjectId: string;
   originalName?: string;
   kind: string;
@@ -40,7 +40,7 @@ export interface ResolutionPlan {
   escalationReason?: string;
 }
 
-export interface RouteRequest {
+interface RouteRequest {
   objects: InputObjectRef[];
   providers: ProviderRouteState[];
   /** Text-only tasks still route to the cheapest available provider. */

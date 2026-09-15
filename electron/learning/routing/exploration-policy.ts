@@ -21,9 +21,9 @@ import { clamp01 } from "../../../src/shared/adaptive-routing";
  *    irreversible-action boundaries are untouched (Engine §16, A38/A39).
  */
 
-export type ExplorationClass = "PRIMARY" | "EXPLORER" | "AVOID";
+type ExplorationClass = "PRIMARY" | "EXPLORER" | "AVOID";
 
-export interface ExplorationCandidate {
+interface ExplorationCandidate {
   runtimeId: string;
   expectedUtility: number;
   confidence: number;
@@ -45,7 +45,7 @@ export interface ExplorationOptions {
   seed?: number;
 }
 
-export interface ExplorationAssignment {
+interface ExplorationAssignment {
   runtimeId: string;
   class: ExplorationClass;
   baseUtility: number;
@@ -53,7 +53,7 @@ export interface ExplorationAssignment {
   reason: string;
 }
 
-export interface ExplorationPlan {
+interface ExplorationPlan {
   assignments: ExplorationAssignment[];
   /** Ordered runtime ids after exploration adjustment. */
   order: string[];

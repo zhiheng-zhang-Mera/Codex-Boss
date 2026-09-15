@@ -16,7 +16,7 @@
 import { contentHashOf } from "./workbook";
 import type { VersionAssessment } from "./version-impact";
 
-export const GIT_CHECKPOINT_VERSION = "git-checkpoint-1" as const;
+const GIT_CHECKPOINT_VERSION = "git-checkpoint-1" as const;
 
 export interface CheckpointRecord {
   schemaVersion: 1;
@@ -45,7 +45,7 @@ export function checkpointIdFor(input: { task_id: string; head: string; branch: 
   return `cp-${contentHashOf([input.task_id, input.head, input.branch, input.created_at].join("\u0000")).slice(0, 16)}`;
 }
 
-export interface RollbackRequest {
+interface RollbackRequest {
   checkpoint: CheckpointRecord;
   /** The repository as it is now. */
   current: { head: string; branch: string; diff_hash: string; dirty: boolean };
@@ -111,7 +111,7 @@ export function planRollback(request: RollbackRequest): RollbackPlan {
   };
 }
 
-export interface PushGuardInput {
+interface PushGuardInput {
   /** The checkpoints known for this task, newest first. */
   checkpoints: readonly CheckpointRecord[];
   task_id: string;

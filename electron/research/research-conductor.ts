@@ -64,7 +64,7 @@ export interface ResearchSemanticProvider {
  * that obeys the output contract. A generated implementation is dry-run by the
  * host and fails closed unless it really emits the required numeric metric.
  */
-export interface ExperimentImplementationSpec {
+interface ExperimentImplementationSpec {
   researchQuestion: string;
   hypothesis: string;
   metric: string;
@@ -74,9 +74,9 @@ export interface ExperimentImplementationSpec {
   seedArgument: string;
 }
 
-export type ExperimentCoder = (spec: ExperimentImplementationSpec) => Promise<string>;
+type ExperimentCoder = (spec: ExperimentImplementationSpec) => Promise<string>;
 
-export interface ResearchConductorOptions {
+interface ResearchConductorOptions {
   /** Accessor for the composed ResearchService (avoids constructor cycles). */
   service: () => ResearchService;
   /** Semantic content provider (fixture mock in CI, role worker in live GUI). */
@@ -101,7 +101,7 @@ export interface ResearchConductorOptions {
 }
 
 /** Durable experiment plan (written by EXPERIMENT_GENERATION, read by execution). */
-export interface ExperimentPlan {
+interface ExperimentPlan {
   experimentId: string;
   metric: string;
   /** Absolute path of the implementation file that must exist (fail-closed). */
@@ -787,7 +787,7 @@ function range(from: number, count: number): number[] {
 }
 
 /** Domain-neutral paper headline derived from the research question (§9.15). */
-export function headlineFor(question: string): string {
+function headlineFor(question: string): string {
   const cleaned = question.replace(/\s+/g, " ").replace(/[?:.!]+$/, "").trim();
   if (cleaned.length <= 100) return cleaned;
   const words = cleaned.slice(0, 100).split(" ");
@@ -927,7 +927,7 @@ function listImplCandidates(workspace: string): string[] {
  * writer only structures, expands and explains them. No statistic, run,
  * source or external claim is invented.
  */
-export function makeSectionWriter(digest: {
+function makeSectionWriter(digest: {
   question: string; hypothesis: string; protocol: ResearchProtocol; metric: string;
   mean?: number; ciLower?: number; ciUpper?: number; n: number; claimId: string; experimentId: string;
   baseline?: string; sample?: string; criterion?: string;

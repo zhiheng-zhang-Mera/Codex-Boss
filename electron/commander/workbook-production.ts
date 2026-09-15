@@ -58,7 +58,7 @@ export interface WorkDispatchTaskInput {
 }
 
 /** The narrow slice of MainCommander this orchestration needs. */
-export interface WorkDispatchCommander {
+interface WorkDispatchCommander {
   createTask(input: WorkDispatchTaskInput): { id: string };
   startTask(taskId: string): void;
   executeDeterministic(taskId: string, workspace: string): Promise<boolean>;
@@ -66,7 +66,7 @@ export interface WorkDispatchCommander {
 }
 
 /** The narrow slice of ProviderAutomation this orchestration needs. */
-export interface WorkDispatchAutomation {
+interface WorkDispatchAutomation {
   dispatchTask(taskId: string): Promise<void>;
   continueIfReady(taskId: string): Promise<void> | void;
 }
@@ -94,7 +94,7 @@ export interface WorkDispatchStore {
   };
 }
 
-export interface WorkDispatchRequest {
+interface WorkDispatchRequest {
   prompt?: string;
   title?: string;
   conversationId: string;
@@ -114,7 +114,7 @@ export interface WorkDispatchRequest {
   limits?: import("../ingestion/ingest").IngestionLimits;
 }
 
-export interface WorkDispatchDeps {
+interface WorkDispatchDeps {
   store: WorkDispatchStore;
   commander: WorkDispatchCommander;
   automation: WorkDispatchAutomation;
@@ -190,7 +190,7 @@ function recordDispatchKnowledge(
   }
 }
 
-export type WorkDispatchOutcome =
+type WorkDispatchOutcome =
   | { kind: "NOT_WORKBOOK" }
   | { kind: "REUSED"; taskId: string }
   | { kind: "BLOCKED"; taskId: string; reason: string }
@@ -399,7 +399,7 @@ export async function runWorkDispatch(
 }
 
 /** Result of driving provider work for one existing task. */
-export type TaskExecutionResult =
+type TaskExecutionResult =
   | { ok: true }
   | { ok: false; terminal: false; message: string; code: string }
   | { ok: false; terminal: true; message: string; code: string };
@@ -414,7 +414,7 @@ export type TaskExecutionResult =
  * WorkBook stage ladder (append-once, so a resume shows RUNNING after WAITING
  * exactly once).
  */
-export async function triggerTaskExecution(
+async function triggerTaskExecution(
   taskId: string,
   options: { workspacePath: string },
   deps: Pick<WorkDispatchDeps, "store" | "commander" | "automation">

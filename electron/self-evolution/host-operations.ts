@@ -19,7 +19,7 @@ import type { EvolutionRunContext } from "./mutation-context";
  *     durable ledger records the grant as well as the refusals.
  */
 
-export type HostOperation =
+type HostOperation =
   /** Commit the Candidate worktree; only the host may write Candidate history. */
   | { kind: "git.commitCandidate"; message: string }
   /** The authoritative change set for promotion: `git diff --name-status base...head`. */
@@ -67,14 +67,14 @@ const OPERATION_FOR_KIND: Readonly<Record<HostOperation["kind"], RootOperation>>
   "stable.rollback": "candidate.rollback"
 };
 
-export function operationForHostAction(kind: HostOperation["kind"]): RootOperation {
+function operationForHostAction(kind: HostOperation["kind"]): RootOperation {
   return OPERATION_FOR_KIND[kind];
 }
 
 /** Every kind, so an audit can prove the vocabulary is finite. */
-export const HOST_OPERATION_KINDS: readonly HostOperation["kind"][] = Object.keys(OPERATION_FOR_KIND) as HostOperation["kind"][];
+const HOST_OPERATION_KINDS: readonly HostOperation["kind"][] = Object.keys(OPERATION_FOR_KIND) as HostOperation["kind"][];
 
-export interface HostOperationRecord {
+interface HostOperationRecord {
   at: string;
   runId: string;
   kind: HostOperation["kind"];
@@ -101,7 +101,7 @@ export interface HostOperationHandlers {
   rollbackStable(input: { reason: string; previousStableSha: string }): Promise<{ ok: boolean; detail: string }>;
 }
 
-export type HostOperationOutcome<T> =
+type HostOperationOutcome<T> =
   | { status: "OK"; value: T }
   | { status: "BLOCKED_EXTERNAL"; reason: string; requiredExternalAction: string }
   | { status: "FAILED"; reason: string };

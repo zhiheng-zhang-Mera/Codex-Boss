@@ -18,7 +18,7 @@ const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bfs\./, label: "fs usage" }
 ];
 
-export interface AuditViolation {
+interface AuditViolation {
   file: string;
   label: string;
   line: number;
@@ -49,7 +49,7 @@ export function auditSharedContracts(root: string): { files: string[]; violation
   return { files: files.map((file) => path.relative(process.cwd(), file)), violations };
 }
 
-export function auditReport(): { ok: boolean; files: string[]; violations: AuditViolation[] } {
+function auditReport(): { ok: boolean; files: string[]; violations: AuditViolation[] } {
   const root = path.resolve(__dirname, "../../src/shared/tenx");
   const result = auditSharedContracts(root);
   return { ok: result.violations.length === 0, ...result };

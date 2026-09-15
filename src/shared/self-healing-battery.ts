@@ -15,7 +15,7 @@
 import type { RepairPlan } from "./computer-recovery";
 import { buildRepairPlan } from "./computer-recovery";
 
-export type HealingScenarioId =
+type HealingScenarioId =
   | "SELECTOR_BROKEN"
   | "SEND_MECHANISM_CHANGED"
   | "RESPONSE_PARSER_BROKEN"
@@ -27,7 +27,7 @@ export type HealingScenarioId =
   | "REVIEWER_REJECTION"
   | "ELECTRON_RESTART";
 
-export type RepairLane =
+type RepairLane =
   | "ADAPTER_PATCH" // patch provider adapter/page-script
   | "CODE_PATCH" // patch Boss code + unit tests
   | "COMPUTER_USE_PLAN" // runtime page repair via planner/executor
@@ -36,7 +36,7 @@ export type RepairLane =
   | "REVIEWER_RERUN" // reviewer rejection → fresh reviewer / rework
   | "NOT_AUTO_HEALED"; // honest: needs operator or live verification
 
-export interface HealingScenarioDef {
+interface HealingScenarioDef {
   id: HealingScenarioId;
   detection: string[];
   diagnosis: string;
@@ -62,7 +62,7 @@ export const HEALING_SCENARIOS: readonly HealingScenarioDef[] = [
   { id: "ELECTRON_RESTART", detection: ["render-process-gone", "app restart", "重启", "crash"], diagnosis: "process/restart fault; restore from the durable task ledger/checkpoints so no side effect repeats (restart smoke gate).", lane: "RESTART_RECOVERY", verificationGates: ["restart-smoke", "no-duplicate-send"], autoClosable: true }
 ];
 
-export function scenarioFor(id: HealingScenarioId): HealingScenarioDef | undefined {
+function scenarioFor(id: HealingScenarioId): HealingScenarioDef | undefined {
   return HEALING_SCENARIOS.find((scenario) => scenario.id === id);
 }
 
@@ -72,7 +72,7 @@ export function detectScenario(signal: string): HealingScenarioDef | undefined {
   return HEALING_SCENARIOS.find((scenario) => scenario.detection.some((pattern) => normalized.includes(pattern.toLocaleLowerCase())));
 }
 
-export interface HealingPlan {
+interface HealingPlan {
   scenario: HealingScenarioDef;
   /** Concrete first repair action text (routed onto the right lane). */
   repairAction: string;

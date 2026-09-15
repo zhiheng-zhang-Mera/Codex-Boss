@@ -10,13 +10,13 @@ import { runGit, GIT_MAX_BUFFER_BYTES } from "./git/git-gateway";
  * hashes — never a whole machine image.
  */
 
-export interface ReproGitState {
+interface ReproGitState {
   commit: string | null;
   branch: string | null;
   dirty: boolean;
 }
 
-export interface ReproSnapshotInput {
+interface ReproSnapshotInput {
   workspace?: string;
   provider?: string;
   model?: string;

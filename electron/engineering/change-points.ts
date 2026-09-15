@@ -63,7 +63,7 @@ async function untrackedFiles(root: string): Promise<string[]> {
   return files;
 }
 
-export function isGitRepository(root: string): boolean {
+function isGitRepository(root: string): boolean {
   return fs.existsSync(path.join(canonicalRealPathSync(root), ".git"));
 }
 

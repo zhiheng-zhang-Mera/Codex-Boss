@@ -46,7 +46,7 @@ import type { EpisodeAppendInput } from "../learning/episode-store";
  * code is modified to make a fault pass.
  */
 
-export interface FaultContext {
+interface FaultContext {
   /** A fresh, isolated working directory for this single injection. */
   dir: string;
   now: () => string;
@@ -54,7 +54,7 @@ export interface FaultContext {
   step: (step: FaultStep["step"], ok: boolean, detail: string) => FaultStep;
 }
 
-export interface FaultOutcome {
+interface FaultOutcome {
   steps: FaultStep[];
   injected: boolean;
   detected: boolean;
@@ -64,7 +64,7 @@ export interface FaultOutcome {
   detail?: string;
 }
 
-export interface FaultInjector {
+interface FaultInjector {
   id: string;
   run: (context: FaultContext) => Promise<FaultOutcome> | FaultOutcome;
 }
@@ -544,7 +544,7 @@ export function injectorCoverage(injectors: readonly FaultInjector[] = FAULT_INJ
   };
 }
 
-export interface FaultLabOptions {
+interface FaultLabOptions {
   only?: readonly string[];
   now?: () => string;
 }

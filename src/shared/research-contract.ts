@@ -22,7 +22,7 @@ export interface ResearchContract {
   frozenAt: string;
 }
 
-export interface SectionSpec {
+interface SectionSpec {
   section: string;
   /** Writer prompt derived strictly from the contract (never a free rewrite). */
   prompt: string;
@@ -57,7 +57,7 @@ export interface SufficiencyEvidence {
   openCriticism: string[];
 }
 
-export interface SufficiencyAudit {
+interface SufficiencyAudit {
   sufficient: boolean;
   missing: string[];
   notes: string[];

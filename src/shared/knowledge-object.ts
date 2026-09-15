@@ -59,7 +59,7 @@ export type KnowledgeType = (typeof KNOWLEDGE_TYPES)[number];
 export const KNOWLEDGE_AUTHORITIES = ["OWNER", "WORKBOOK", "VERIFIED_HOST", "HOST", "REVIEWER", "MODEL", "INFERRED"] as const;
 export type KnowledgeAuthority = (typeof KNOWLEDGE_AUTHORITIES)[number];
 
-export const KNOWLEDGE_AUTHORITY_RANK: Record<KnowledgeAuthority, number> = {
+const KNOWLEDGE_AUTHORITY_RANK: Record<KnowledgeAuthority, number> = {
   OWNER: 6,
   WORKBOOK: 5,
   VERIFIED_HOST: 4,
@@ -74,8 +74,8 @@ export const KNOWLEDGE_AUTHORITY_RANK: Record<KnowledgeAuthority, number> = {
  * itself (§5.2: a model claim is never its own proof); it must arrive with an
  * independent `VERIFIED` state and evidence, or it is quarantined.
  */
-export type KnowledgeProducerKind = "HUMAN" | "VERIFICATION" | "DETERMINISTIC_HOST" | "MODEL";
-export const KNOWLEDGE_PRODUCER_KINDS: readonly KnowledgeProducerKind[] = ["HUMAN", "VERIFICATION", "DETERMINISTIC_HOST", "MODEL"];
+type KnowledgeProducerKind = "HUMAN" | "VERIFICATION" | "DETERMINISTIC_HOST" | "MODEL";
+const KNOWLEDGE_PRODUCER_KINDS: readonly KnowledgeProducerKind[] = ["HUMAN", "VERIFICATION", "DETERMINISTIC_HOST", "MODEL"];
 
 export type KnowledgeVerificationState = "VERIFIED" | "UNVERIFIED" | "CONTRADICTED";
 
@@ -84,7 +84,7 @@ export type KnowledgeStatus = "ACTIVE" | "SUPERSEDED" | "UNRESOLVED";
 
 /** §5.3 write-gate outcome. */
 export type KnowledgeWriteOutcome = "ACCEPT" | "REJECT" | "QUARANTINE" | "SUPERSEDE";
-export const KNOWLEDGE_WRITE_OUTCOMES: readonly KnowledgeWriteOutcome[] = ["ACCEPT", "REJECT", "QUARANTINE", "SUPERSEDE"];
+const KNOWLEDGE_WRITE_OUTCOMES: readonly KnowledgeWriteOutcome[] = ["ACCEPT", "REJECT", "QUARANTINE", "SUPERSEDE"];
 
 /* ------------------------------------------------------------------ *
  * §5.1 / §5.2 Record
@@ -157,7 +157,7 @@ export interface KnowledgeCandidate {
   supersedes?: string;
 }
 
-export const KNOWLEDGE_CONTENT_LIMIT = 8000;
+const KNOWLEDGE_CONTENT_LIMIT = 8000;
 
 /* ------------------------------------------------------------------ *
  * Identity
@@ -186,7 +186,7 @@ function timeOf(value: string | undefined): number {
  * §5.3 Knowledge Write Gate
  * ------------------------------------------------------------------ */
 
-export type KnowledgeGatePhaseName = "PROVENANCE" | "CONSISTENCY" | "AUTHORITY" | "VERIFICATION" | "GATE";
+type KnowledgeGatePhaseName = "PROVENANCE" | "CONSISTENCY" | "AUTHORITY" | "VERIFICATION" | "GATE";
 
 export interface KnowledgeGatePhase {
   phase: KnowledgeGatePhaseName;
@@ -194,7 +194,7 @@ export interface KnowledgeGatePhase {
   detail: string;
 }
 
-export interface KnowledgeWriteGateResult {
+interface KnowledgeWriteGateResult {
   outcome: KnowledgeWriteOutcome;
   phases: KnowledgeGatePhase[];
   reasons: string[];
@@ -208,7 +208,7 @@ export interface KnowledgeWriteGateResult {
   deduplicated: boolean;
 }
 
-export interface KnowledgeWriteGateOptions {
+interface KnowledgeWriteGateOptions {
   now?: string;
   /** Producer id recorded when the caller did not supply one. */
   producerId?: string;
@@ -416,7 +416,7 @@ function strongestActive(active: readonly KnowledgeObject[]): KnowledgeObject {
  * §5.4 Conflict handling
  * ------------------------------------------------------------------ */
 
-export interface KnowledgeConflictMember {
+interface KnowledgeConflictMember {
   object_id: string;
   scope: KnowledgeScope;
   type: KnowledgeType;
@@ -445,7 +445,7 @@ export interface KnowledgeConflictSet {
   updatedAt: string;
 }
 
-export interface KnowledgeConflictResolution {
+interface KnowledgeConflictResolution {
   resolution: KnowledgeStatus;
   winner_id?: string;
   superseded_ids: string[];
@@ -578,7 +578,7 @@ export function knowledgeTypeWeights(fingerprint: TaskFingerprint): Record<Knowl
   return weights;
 }
 
-export interface KnowledgeRankingStep {
+interface KnowledgeRankingStep {
   object_id: string;
   type: KnowledgeType;
   authority: KnowledgeAuthority;
@@ -590,7 +590,7 @@ export interface KnowledgeRankingStep {
   reason: string;
 }
 
-export interface KnowledgeRetrievalRequest {
+interface KnowledgeRetrievalRequest {
   fingerprint: TaskFingerprint;
   /** The task's own goal text; used for the semantic half of the ranking. */
   goal: string;

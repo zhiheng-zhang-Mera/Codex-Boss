@@ -9,7 +9,7 @@
  * on the existing (unchanged) fast path.
  */
 
-export type ReviewRole = "METHOD" | "EVIDENCE" | "CLAIM" | "WRITING" | "REPRODUCIBILITY" | "META";
+type ReviewRole = "METHOD" | "EVIDENCE" | "CLAIM" | "WRITING" | "REPRODUCIBILITY" | "META";
 
 export const REVIEW_ROLES: readonly ReviewRole[] = ["METHOD", "EVIDENCE", "CLAIM", "WRITING", "REPRODUCIBILITY", "META"];
 
@@ -37,7 +37,7 @@ export interface ReviewRound {
   responses: ReviewResponse[];
 }
 
-export type ReviewVerdict = "APPROVED" | "REVISE";
+type ReviewVerdict = "APPROVED" | "REVISE";
 
 /** Appends responses; validation: every response targets an existing objection. */
 export function respondToObjections(round: ReviewRound, responses: ReviewResponse[]): ReviewRound {
@@ -74,7 +74,7 @@ export function metaReview(round: ReviewRound): { verdict: ReviewVerdict; reason
   return { verdict: revised ? "APPROVED" : "REVISE", reasons: revised ? [] : ["no sections revised"] };
 }
 
-export interface PublicationState {
+interface PublicationState {
   contractPresent: boolean;
   sufficiencyPassed: boolean;
   reviewSettled: boolean;

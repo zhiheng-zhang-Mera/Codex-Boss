@@ -21,7 +21,7 @@ export type SelfModStatus =
   | "ROLLED_BACK"    // promotion detected bad and reverted
   | "FAILED";        // test/replay hard failure
 
-export const SELF_MOD_ORDER: readonly SelfModStatus[] = ["CANDIDATE", "TESTING", "REPLAYING", "AB_EVALUATING", "PROMOTED", "DISCARDED", "ROLLED_BACK", "FAILED"];
+const SELF_MOD_ORDER: readonly SelfModStatus[] = ["CANDIDATE", "TESTING", "REPLAYING", "AB_EVALUATING", "PROMOTED", "DISCARDED", "ROLLED_BACK", "FAILED"];
 
 export interface SelfModTestSummary {
   passed: number;
@@ -69,7 +69,7 @@ export interface SelfModCandidate {
   error?: string;
 }
 
-export interface ABDecisionInput {
+interface ABDecisionInput {
   baselineRate: number | null;
   candidateRate: number | null;
   tests?: SelfModTestSummary;

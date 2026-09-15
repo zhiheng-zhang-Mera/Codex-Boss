@@ -9,7 +9,7 @@ import { changeAllowed, type GuardianVerdict } from "../../src/shared/guardian";
  * Workspace object lands (AP01) this store holds the single default manifest
  * scoped to the current app data root.
  */
-export interface PermissionManifestFile {
+interface PermissionManifestFile {
   schemaVersion: 1;
   workspaceId: string;
   manifest: PermissionManifest;

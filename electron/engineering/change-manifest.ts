@@ -1,5 +1,5 @@
 import { applyScopedChanges, type FileChange, type CheckSpec } from "./verification";
-export interface ChangeManifest { changes: FileChange[]; checks: CheckSpec[]; }
+interface ChangeManifest { changes: FileChange[]; checks: CheckSpec[]; }
 export function parseManifest(content: string): ChangeManifest {
   const raw = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const value = JSON.parse(raw) as ChangeManifest;

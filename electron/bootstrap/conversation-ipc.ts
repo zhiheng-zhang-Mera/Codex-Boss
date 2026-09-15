@@ -34,7 +34,7 @@ export interface ConversationService {
   revealInFileManager(target: string): Promise<void> | void;
 }
 
-export interface ConversationIpcDeps {
+interface ConversationIpcDeps {
   handle: IpcRegistrar["handle"];
   conversations: ConversationService;
   publish(): unknown;

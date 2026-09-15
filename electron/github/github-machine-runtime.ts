@@ -9,7 +9,7 @@ import { GitHubGateway } from "./github-gateway";
 import { SecretVaultProvider } from "./secret-provider";
 import { checkNodeGitHubCapabilities } from "./node-github-self-check";
 
-export interface PlatformSecretCrypto {
+interface PlatformSecretCrypto {
   protect(plainText: string): string;
   unprotect(cipherText: string): string;
 }

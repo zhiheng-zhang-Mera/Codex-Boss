@@ -8,7 +8,7 @@
  * while remaining readable.
  */
 
-export type SecretShape =
+type SecretShape =
   | "api-key-sk"
   | "bearer-token"
   | "aws-access-key"

@@ -22,7 +22,7 @@
  */
 import { contentHashOf } from "./workbook";
 
-export const CANDIDATE_GATE_VERSION = "candidate-gate-1" as const;
+const CANDIDATE_GATE_VERSION = "candidate-gate-1" as const;
 
 /* ------------------------------------------------------------------ *
  * §35 the task lifecycle
@@ -41,7 +41,7 @@ export const TASK_TRANSITIONS: Readonly<Record<TaskLifecycleState, readonly Task
   ACCEPTED: []
 };
 
-export const LIFECYCLE_EVENTS = ["IMPLEMENTED", "VERIFIED", "REVIEWED", "CANDIDATED", "ACCEPTED", "REPAIR"] as const;
+const LIFECYCLE_EVENTS = ["IMPLEMENTED", "VERIFIED", "REVIEWED", "CANDIDATED", "ACCEPTED", "REPAIR"] as const;
 export type LifecycleEvent = (typeof LIFECYCLE_EVENTS)[number];
 
 /** The event that moves a state forward, and the event that sends it back. */
@@ -164,9 +164,9 @@ export const THEME_GUARDIAN_CHECKS = [
 
 export type GuardianCheckId = (typeof GUARDIAN_CHECKS)[number] | (typeof THEME_GUARDIAN_CHECKS)[number];
 
-export type CheckVerdict = "PASS" | "FAIL" | "NOT_RUN";
+type CheckVerdict = "PASS" | "FAIL" | "NOT_RUN";
 
-export interface GuardianCheckResult {
+interface GuardianCheckResult {
   check: GuardianCheckId;
   verdict: CheckVerdict;
   /** What the check looked at, so a PASS is not a claim. */
@@ -241,7 +241,7 @@ export interface ThemeGuardianInput {
   built_in_intact: boolean;
 }
 
-export interface GuardianEvaluation {
+interface GuardianEvaluation {
   verdict: GuardianVerdict;
   /** The check ids the context could not answer, so the caller can supply them. */
   not_inspected: GuardianCheckId[];

@@ -10,9 +10,9 @@ import { redactSecrets } from "../../src/shared/secret-scan";
 import { decideGitHubOperation } from "./github-guardian-policy";
 import { GitHubAppAuthProvider, classifyGitHubResponse, type GitHubHttpRequest, type GitHubHttpTransport } from "./github-app-auth";
 
-export interface GitHubAuditSink { record(record: GitHubAuditRecord): void; }
+interface GitHubAuditSink { record(record: GitHubAuditRecord): void; }
 
-export interface GitHubGatewayOptions {
+interface GitHubGatewayOptions {
   config: GitHubMachineIdentityConfig;
   auth: GitHubAppAuthProvider;
   transport: GitHubHttpTransport;

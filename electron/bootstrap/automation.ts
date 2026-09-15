@@ -45,7 +45,7 @@ export interface AutomationOptions {
   publish(): void;
 }
 
-export interface AutomationService {
+interface AutomationService {
   /** The one domain event bus every service publishes onto. */
   events: DomainEventBus;
   /** The aggregate the renderer's progress surface reads. */

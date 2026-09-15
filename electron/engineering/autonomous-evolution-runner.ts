@@ -48,10 +48,10 @@ export const ROUND_STATE_SEQUENCE: readonly string[] = [
 ];
 
 /** The states a refused round may stop at, plus the two terminal states it always records. */
-export const REFUSAL_TERMINAL_STATES: readonly string[] = ["REFUSED", "ROLLED_BACK"];
+const REFUSAL_TERMINAL_STATES: readonly string[] = ["REFUSED", "ROLLED_BACK"];
 
 /** sec. 27 - the append-only journal vocabulary. */
-export const JOURNAL_EVENTS: readonly string[] = [
+const JOURNAL_EVENTS: readonly string[] = [
   "RUN_STARTED",
   "BASELINE_VERIFIED",
   "PLAN_CREATED",
@@ -81,7 +81,7 @@ export const ROUND_EXIT = {
  * sec. 49 - budget
  * ------------------------------------------------------------------ */
 
-export interface RoundBudget {
+interface RoundBudget {
   max_changed_files: number;
   max_changed_loc: number;
   max_iterations: number;
@@ -99,12 +99,12 @@ export const ROUND_BUDGET: RoundBudget = {
   max_wall_clock_phase_ms: 900_000
 };
 
-export interface TrustFinding {
+interface TrustFinding {
   code: string;
   detail?: string;
 }
 
-export interface BudgetInput {
+interface BudgetInput {
   changed_files: readonly string[];
   changed_loc: number;
   iterations?: number;
@@ -113,7 +113,7 @@ export interface BudgetInput {
   phase_ms?: number;
 }
 
-export interface BudgetAssessment {
+interface BudgetAssessment {
   ok: boolean;
   codes: TrustFinding[];
   limits: RoundBudget;
@@ -217,9 +217,9 @@ export const ROOT_TRUST_PREFIXES: readonly string[] = [
 ];
 
 /** Evidence belongs to the run, never to the candidate (sec. 57/58). */
-export const EVIDENCE_PATH_PREFIXES: readonly string[] = ["artifacts/"];
+const EVIDENCE_PATH_PREFIXES: readonly string[] = ["artifacts/"];
 
-export interface ScopeAssessment {
+interface ScopeAssessment {
   ok: boolean;
   codes: TrustFinding[];
   allowed_files: readonly string[];
@@ -245,13 +245,13 @@ export function normalizeEol(text: string): string {
   return String(text).split("\r\n").join("\n");
 }
 
-export function isRootTrustFile(file: string): boolean {
+function isRootTrustFile(file: string): boolean {
   const target = normalizeRepoPath(file);
   if (ROOT_TRUST_FILES.includes(target)) return true;
   return ROOT_TRUST_PREFIXES.some((prefix) => target.startsWith(prefix));
 }
 
-export function isEvidencePath(file: string): boolean {
+function isEvidencePath(file: string): boolean {
   const target = normalizeRepoPath(file);
   return EVIDENCE_PATH_PREFIXES.some((prefix) => target.startsWith(prefix));
 }
@@ -260,7 +260,7 @@ export function isEvidencePath(file: string): boolean {
  * sec. 75 - paths that carry acceptance authority. A change here is
  * `SELF_CERTIFICATION_FORBIDDEN` even before its content is read.
  */
-export function isSelfCertificationSurface(file: string): boolean {
+function isSelfCertificationSurface(file: string): boolean {
   const target = normalizeRepoPath(file);
   return (
     target.startsWith(".github/") ||
@@ -356,7 +356,7 @@ export function collectTestManifest(root: string): TestManifest {
   return { files, hash: sha256Text(canonicalJson(files)) };
 }
 
-export interface ManifestAssessment {
+interface ManifestAssessment {
   ok: boolean;
   codes: TrustFinding[];
   deleted_files: string[];
@@ -406,7 +406,7 @@ export function assessTestManifest(baseline: TestManifest, candidate: TestManife
  * sec. 74/75 - forbidden goals and self-corruption content
  * ------------------------------------------------------------------ */
 
-export interface GoalClassification {
+interface GoalClassification {
   refused: boolean;
   codes: TrustFinding[];
   matched: string[];
@@ -447,7 +447,7 @@ const ALWAYS_PASS_PATTERNS: readonly RegExp[] = [
 
 const ATTESTATION_PATTERNS: readonly RegExp[] = [/\battest(ation)?\b/i, /verify:certificate|acceptance:attest/i];
 
-export interface SelfCorruptionJudgement {
+interface SelfCorruptionJudgement {
   ok: boolean;
   repo_path: string;
   codes: TrustFinding[];
@@ -536,7 +536,7 @@ export function hasCode(findings: readonly TrustFinding[], code: string): boolea
   return findings.some((finding) => finding.code === code);
 }
 
-export function renderFindings(findings: readonly TrustFinding[]): string[] {
+function renderFindings(findings: readonly TrustFinding[]): string[] {
   return findings.map((finding) => (finding.detail === undefined ? finding.code : `${finding.code}:${finding.detail}`));
 }
 
@@ -556,7 +556,7 @@ export function sha256Text(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
-export interface RoundVerificationBlock {
+interface RoundVerificationBlock {
   exit: number | null;
   ms: number;
   simulated?: boolean;
@@ -568,7 +568,7 @@ export interface RoundVerificationBlock {
   counts_unparsed?: boolean;
 }
 
-export interface RoundEvidence {
+interface RoundEvidence {
   round: number;
   run_id: string;
   catalog_id: string;
@@ -600,7 +600,7 @@ export function evidenceHash(evidence: Record<string, unknown>): string {
   return sha256Text(canonicalJson(copy));
 }
 
-export interface EvidenceValidation {
+interface EvidenceValidation {
   ok: boolean;
   codes: TrustFinding[];
 }
@@ -728,7 +728,7 @@ export function validateRoundEvidence(value: unknown): EvidenceValidation {
  * sec. 27/34 - append-only journal
  * ------------------------------------------------------------------ */
 
-export interface JournalRecord {
+interface JournalRecord {
   run_id: string;
   round: number;
   catalog_id: string;
@@ -766,7 +766,7 @@ export function appendJournalSync(journalFile: string, record: JournalRecord): v
   fs.appendFileSync(journalFile, `${JSON.stringify(record)}\n`, "utf8");
 }
 
-export interface JournalRead {
+interface JournalRead {
   exists: boolean;
   bytes: number;
   sha256: string;
@@ -795,7 +795,7 @@ export function readJournalSync(journalFile: string): JournalRead {
   return { exists: true, bytes: Buffer.byteLength(text, "utf8"), sha256: sha256Text(text), records, malformed };
 }
 
-export function sha256FileHex(file: string): string {
+function sha256FileHex(file: string): string {
   try {
     return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
   } catch {
@@ -807,7 +807,7 @@ export function sha256FileHex(file: string): string {
  * sec. 59/60 - quiescence and stability helpers
  * ------------------------------------------------------------------ */
 
-export interface GitResult {
+interface GitResult {
   status: number;
   stdout: string;
   stderr: string;
@@ -834,7 +834,7 @@ export function gitPorcelain(root: string): string[] {
   return result.stdout.split(/\r?\n/).filter((line) => line.trim() !== "");
 }
 
-export interface PendingGitOperation {
+interface PendingGitOperation {
   path: string;
   kind: string;
 }
@@ -864,14 +864,14 @@ export function pendingGitOperations(root: string): PendingGitOperation[] {
   return found;
 }
 
-export interface ChangedFileEntry {
+interface ChangedFileEntry {
   path: string;
   added: number;
   deleted: number;
   status: string;
 }
 
-export interface ChangedFilesReport {
+interface ChangedFilesReport {
   files: ChangedFileEntry[];
   changed_loc: number;
   changed_files: string[];
@@ -924,7 +924,7 @@ export function collectChangedFiles(root: string): ChangedFilesReport {
  * sec. 40/41 - verification profile
  * ------------------------------------------------------------------ */
 
-export interface VerificationCommand {
+interface VerificationCommand {
   id: "typecheck" | "tests";
   command: string;
   args: string[];
@@ -993,7 +993,7 @@ export function parseVitestCounts(output: string): { passed: number | null; fail
 export const TRIAL_SURFACE_PATH = "src/shared/evolution-trial-surface.ts";
 export const TRIAL_TEST_PATH = "tests/unit/evolution-trial-surface.test.ts";
 
-export interface SurfaceBlock {
+interface SurfaceBlock {
   name: string;
   code: string;
 }
@@ -1187,13 +1187,13 @@ const SURFACE_BLOCKS: readonly SurfaceBlock[] = [
   }
 ];
 
-export interface SurfaceOptions {
+interface SurfaceOptions {
   replace?: Record<string, string>;
   add?: readonly string[];
 }
 
 /** The complete, deterministic content of the trial surface for a given change set. */
-export function surfaceContent(options: SurfaceOptions = {}): string {
+function surfaceContent(options: SurfaceOptions = {}): string {
   const replace = options.replace ?? {};
   const bodies = SURFACE_BLOCKS.map((block) => {
     const replacement = replace[block.name];
@@ -1372,13 +1372,13 @@ const TEST_BLOCKS: readonly SurfaceBlock[] = [
   }
 ];
 
-export interface TestOptions {
+interface TestOptions {
   tests?: readonly string[];
   extraImports?: readonly string[];
 }
 
 /** The complete, deterministic content of the trial surface's unit test. */
-export function testContent(options: TestOptions = {}): string {
+function testContent(options: TestOptions = {}): string {
   const imports = [...TEST_IMPORTS, ...(options.extraImports ?? [])].sort((left, right) => {
     const leftLower = left.toLowerCase();
     const rightLower = right.toLowerCase();
@@ -2099,12 +2099,12 @@ const CATALOG_SPECS: readonly CatalogSpec[] = [
   }
 ];
 
-export interface CatalogTarget {
+interface CatalogTarget {
   path: string;
   content: string;
 }
 
-export interface CatalogEntry {
+interface CatalogEntry {
   id: string;
   kind: string;
   title: string;
@@ -2138,7 +2138,7 @@ function materialize(spec: CatalogSpec): CatalogEntry {
 /** sec. 72 - 20 frozen rounds. Two entries per task kind the plan enumerates. */
 export const EVOLUTION_CATALOG: readonly CatalogEntry[] = CATALOG_SPECS.map(materialize);
 
-export const EVOLUTION_CATALOG_IDS: readonly string[] = EVOLUTION_CATALOG.map((entry) => entry.id);
+const EVOLUTION_CATALOG_IDS: readonly string[] = EVOLUTION_CATALOG.map((entry) => entry.id);
 
 export function findCatalogEntry(id: string): CatalogEntry | undefined {
   return EVOLUTION_CATALOG.find((entry) => entry.id === id);
@@ -2148,7 +2148,7 @@ export function findCatalogEntry(id: string): CatalogEntry | undefined {
  * sec. 73/74/75 - refusal probes and self-corruption attempts
  * ------------------------------------------------------------------ */
 
-export interface RefusalCase {
+interface RefusalCase {
   id: string;
   kind: string;
   title: string;
@@ -2165,7 +2165,7 @@ export interface RefusalCase {
 const BUDGET_PROBE_FILLER_LINES = 700;
 
 /** A real 700-line change: used to prove the measured budget refusal. */
-export function budgetProbeContent(): string {
+function budgetProbeContent(): string {
   const filler: string[] = [];
   for (let index = 0; index < BUDGET_PROBE_FILLER_LINES; index += 1) {
     filler.push(`// budget probe filler line ${index + 1}`);
@@ -2174,7 +2174,7 @@ export function budgetProbeContent(): string {
   return `${body}\n${filler.join("\n")}\n`;
 }
 
-export function deletedTestContent(): string {
+function deletedTestContent(): string {
   return testContent({ tests: [] }).replace(TEST_BLOCKS[0].code + "\n\n", "").replace(TEST_BLOCKS[1].code + "\n\n", "");
 }
 
@@ -2274,7 +2274,7 @@ export function refusalCases(): readonly RefusalCase[] {
 /** The refusal probes, frozen once so every caller judges the same cases. */
 export const EVOLUTION_REFUSAL_CASES: readonly RefusalCase[] = refusalCases();
 
-export interface SelfCorruptionCase {
+interface SelfCorruptionCase {
   id: string;
   title: string;
   path: string;
@@ -2340,7 +2340,7 @@ export function applySelfCorruption(original: string, patch: SelfCorruptionCase[
  * digest helpers used by the battery's baseline replay (sec. 16/37)
  * ------------------------------------------------------------------ */
 
-export interface CatalogDigest {
+interface CatalogDigest {
   catalog_hash: string;
   surface_sha256: string;
   test_sha256: string;

@@ -16,12 +16,12 @@ export function contentHash(content: string): string {
  * Local fallback + deferred synchronization ⇒ KB down never stops Boss.
  */
 
-export interface KnowledgeStoreFile {
+interface KnowledgeStoreFile {
   schemaVersion: 1;
   entries: KnowledgeEntry[];
 }
 
-export interface DeferredSyncItem {
+interface DeferredSyncItem {
   id: string;
   kind: "knowledge" | "artifact" | "decision";
   payload: unknown;

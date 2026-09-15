@@ -8,7 +8,7 @@
  */
 import { parse as parseYamlDocument, YAMLParseError } from "yaml";
 
-export type RawSectionKind = "TITLE" | "HEADING" | "PARAGRAPH" | "BULLET" | "NUMBERED" | "TABLE" | "KEYVALUE" | "CODE";
+type RawSectionKind = "TITLE" | "HEADING" | "PARAGRAPH" | "BULLET" | "NUMBERED" | "TABLE" | "KEYVALUE" | "CODE";
 
 export interface RawSection {
   kind: RawSectionKind;
@@ -53,7 +53,7 @@ export class TextParseError extends Error {
  * ------------------------------------------------------------------ */
 
 const ENCODINGS = ["utf-8", "utf-16le", "utf-16be", "gbk"] as const;
-export type TextEncoding = (typeof ENCODINGS)[number] | "utf-8-lossy";
+type TextEncoding = (typeof ENCODINGS)[number] | "utf-8-lossy";
 
 /** Decodes bytes using BOM/UTF-8 validation, falling back to GBK then lossy UTF-8. */
 export function decodeText(bytes: Uint8Array): { text: string; encoding: TextEncoding; warnings: string[] } {
@@ -254,7 +254,7 @@ function renderScalar(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export interface StructuredParseResult {
+interface StructuredParseResult {
   value: unknown;
   format: "json" | "jsonl" | "yaml";
   warnings: string[];
@@ -352,7 +352,7 @@ export function sectionsFromStructured(value: unknown, limits: Partial<TextParse
  * CSV / TSV
  * ------------------------------------------------------------------ */
 
-export interface CsvTable {
+interface CsvTable {
   rows: string[][];
   delimiter: string;
   warnings: string[];

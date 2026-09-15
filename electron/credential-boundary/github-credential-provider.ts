@@ -34,7 +34,7 @@ export interface AutomationCredential {
   readonly source: string;
 }
 
-export type BossCredentialResult =
+type BossCredentialResult =
   | { status: "AVAILABLE"; credential: AutomationCredential }
   | { status: "BLOCKED_EXTERNAL"; reason: string; requiredExternalAction: string };
 
@@ -49,12 +49,12 @@ export interface BossGitHubCredentialProvider {
 export const BOSS_CREDENTIAL_VARIABLES: readonly string[] = ["CODEX_BOSS_GITHUB_TOKEN", "BOSS_GITHUB_TOKEN"];
 
 /** Optional companion variable naming the Boss login (non-secret). */
-export const BOSS_IDENTITY_VARIABLES: readonly string[] = ["CODEX_BOSS_GITHUB_IDENTITY", "BOSS_GITHUB_IDENTITY"];
+const BOSS_IDENTITY_VARIABLES: readonly string[] = ["CODEX_BOSS_GITHUB_IDENTITY", "BOSS_GITHUB_IDENTITY"];
 
 export const BOSS_CREDENTIAL_REQUIRED_ACTION =
   "Create a dedicated Boss GitHub identity (GitHub App or bot account) with contents:write, pull_requests:write and checks:read only, no repository administration and no ruleset bypass, then expose its token to Boss as CODEX_BOSS_GITHUB_TOKEN (and its login as CODEX_BOSS_GITHUB_IDENTITY).";
 
-export interface EnvironmentBossGitHubCredentialProviderOptions {
+interface EnvironmentBossGitHubCredentialProviderOptions {
   environment?: NodeJS.ProcessEnv;
   /**
    * The Root Owner login from the Root Policy. A Boss credential acting as the

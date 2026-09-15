@@ -17,7 +17,7 @@ import { TenxKnowledgeSpace } from "./knowledge-space";
  * with a higher version).
  */
 
-export interface TenxKnowledgeSyncStateFile {
+interface TenxKnowledgeSyncStateFile {
   schemaVersion: 1;
   pending: Array<{ localId: string; at: string }>;
 }

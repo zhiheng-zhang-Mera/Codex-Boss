@@ -10,7 +10,7 @@ import { canTransition, type SessionLifecycle, type SessionLifecycleRecord, type
  * validated against the shared edge table; fail-closed restore: a corrupt file
  * throws instead of silently dropping the lifecycle state.
  */
-export interface SessionLifecycleLedgerFile {
+interface SessionLifecycleLedgerFile {
   schemaVersion: 1;
   records: SessionLifecycleRecord[];
 }

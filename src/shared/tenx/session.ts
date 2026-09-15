@@ -7,9 +7,9 @@
 
 export type SessionKind = "TEMPORARY" | "REUSABLE" | "PERSISTENT" | "AUTO_DELETE";
 
-export const DEFAULT_AUTONOMOUS_SESSION_KIND: SessionKind = "TEMPORARY";
+const DEFAULT_AUTONOMOUS_SESSION_KIND: SessionKind = "TEMPORARY";
 
-export interface SessionPolicyDecision {
+interface SessionPolicyDecision {
   kind: SessionKind;
   reason: string;
 }
@@ -51,7 +51,7 @@ export interface SessionPoolRecord {
 }
 
 /** Default session-pool bound: bounded history growth for multi-device concurrency. */
-export const DEFAULT_SESSION_POOL_LIMIT = 8;
+const DEFAULT_SESSION_POOL_LIMIT = 8;
 
 /** Session kinds are AUTOMATICALLY reaped when stale (TEMPORARY/AUTO_DELETE) or kept (REUSABLE/PERSISTENT). */
 export function reapableWhenStale(kind: SessionKind): boolean {

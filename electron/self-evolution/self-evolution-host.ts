@@ -26,7 +26,7 @@ import type { ChangeEntry, HostOperationHandlers } from "./host-operations";
  * `isSelfTarget` and `runTask`.
  */
 
-export interface CreateSelfEvolutionHostOptions {
+interface CreateSelfEvolutionHostOptions {
   /** Repository identity the running Boss was installed from. */
   productRepository?: string;
   /** Explicit Stable root; defaults to the running app's repository root. */
@@ -51,7 +51,7 @@ export interface CreateSelfEvolutionHostOptions {
   candidateTimeoutMs?: number;
 }
 
-export interface SelfEvolutionHostHandle {
+interface SelfEvolutionHostHandle {
   isSelfTarget(workspace: string): boolean;
   runTask(input: { taskId: string; objective: string; workspace: string; plan: TaskIR }): Promise<{
     outcome: string;
@@ -77,7 +77,7 @@ export function defaultEvolutionGovernanceRoot(userData: string): string {
 }
 
 /** The git-backed default host handlers (host-selected argv only). */
-export function createGitHostHandlers(base: {
+function createGitHostHandlers(base: {
   persistEvidence(file: string, payload: unknown): void;
   runGit(cwd: string, args: string[]): Promise<string>;
   promotion: Pick<HostOperationHandlers, "pushBranch" | "openPullRequest" | "readPullRequest" | "readCheck" | "mergePullRequest" | "readBranchSha">;
@@ -236,7 +236,7 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
 }
 
 /** Walks up from a path looking for a git working tree. */
-export function detectRepositoryRoot(start: string): string | undefined {
+function detectRepositoryRoot(start: string): string | undefined {
   let current = path.resolve(start);
   while (true) {
     if (fs.existsSync(path.join(current, ".git"))) return current;

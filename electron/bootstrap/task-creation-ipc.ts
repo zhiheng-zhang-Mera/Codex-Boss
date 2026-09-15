@@ -28,7 +28,7 @@ import type { CreateTaskInput, ProviderId } from "../../src/shared/contracts";
  */
 
 /** What creating a task needs from the composition root. */
-export interface TaskCreationSurface {
+interface TaskCreationSurface {
   /** The conversation a task belongs to when the renderer did not name one. */
   activeConversationId(): string;
   /** Every known provider id, so an unknown one is refused here. */
@@ -41,7 +41,7 @@ export interface TaskCreationSurface {
   publish(): unknown;
 }
 
-export interface TaskCreationIpcDeps {
+interface TaskCreationIpcDeps {
   handle: IpcRegistrar["handle"];
   creation: TaskCreationSurface;
 }

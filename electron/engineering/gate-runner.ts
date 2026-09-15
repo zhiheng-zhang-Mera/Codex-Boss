@@ -54,7 +54,7 @@ function filesMatching(root: string, token: RegExp): string[] {
   return discoveredTestFiles(root).filter((file) => token.test(file));
 }
 
-export function toolAvailable(root: string): boolean {
+function toolAvailable(root: string): boolean {
   return fs.existsSync(path.join(root, "tsconfig.json")) && fs.existsSync(path.join(root, "node_modules", "typescript", "bin", "tsc"));
 }
 

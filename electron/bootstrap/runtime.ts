@@ -64,7 +64,7 @@ export interface RuntimeWindow {
   };
 }
 
-export interface RuntimeOptions<W extends RuntimeWindow> {
+interface RuntimeOptions<W extends RuntimeWindow> {
   /** Creates the window. The composition root owns the Electron constructor. */
   createWindow(options: BossWindowOptions): W;
   /** Absolute path of the preload script. */

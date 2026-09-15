@@ -15,7 +15,7 @@ import type { BootModule, IpcRegistrar } from "./boot-module";
  * changes no observable behaviour.
  */
 
-export interface WorkspaceIpcDeps {
+interface WorkspaceIpcDeps {
   handle: IpcRegistrar["handle"];
   /** The native folder dialog, already bound to the window that owns it. */
   showOpenDialog(options: { title: string; properties: string[] }): Promise<{ canceled: boolean; filePaths: string[] }>;

@@ -1,7 +1,7 @@
 /** Evaluation suite contracts (plan §8 / §12). Pure and renderer-shareable. */
 
-export type GoldenComplexity = "simple" | "medium" | "complex";
-export const GOLDEN_COMPLEXITIES: readonly GoldenComplexity[] = ["simple", "medium", "complex"];
+type GoldenComplexity = "simple" | "medium" | "complex";
+const GOLDEN_COMPLEXITIES: readonly GoldenComplexity[] = ["simple", "medium", "complex"];
 
 export interface GoldenTask {
   id: string;
@@ -35,12 +35,12 @@ export interface EvaluationRecord {
   failureReason?: string;
 }
 
-export interface BaselineTotals {
+interface BaselineTotals {
   pass: number;
   run: number;
 }
 
-export interface BaselineSummary {
+interface BaselineSummary {
   complexity: GoldenComplexity;
   pass: number;
   run: number;
@@ -61,10 +61,10 @@ export function summarizeBaseline(records: Pick<EvaluationRecord, "complexity" |
 
 /* ---------------------------------- human-ready blind evaluation (Overcomplete §10.4) */
 
-export type EvaluationProducer = "boss" | "single-ai";
+type EvaluationProducer = "boss" | "single-ai";
 
 /** One produced answer that participates in the blind pack. */
-export interface BlindEvaluationItemInput {
+interface BlindEvaluationItemInput {
   recordId: string;
   producer: EvaluationProducer;
   goldenId: string;
@@ -73,7 +73,7 @@ export interface BlindEvaluationItemInput {
   output: string;
 }
 
-export interface BlindItem {
+interface BlindItem {
   /** Anonymized item id shown to judges (never the record id). */
   itemId: string;
   complexity: GoldenComplexity;
@@ -81,7 +81,7 @@ export interface BlindItem {
   output: string;
 }
 
-export interface BlindEvaluationPack {
+interface BlindEvaluationPack {
   packId: string;
   createdAt: string;
   /** Judge-facing payload (anonymized, randomized order). */
@@ -120,7 +120,7 @@ const PACK_METRICS = ["task_completion", "evidence_quality", "consistency", "hal
  * key, so a later human-blind session can score Boss vs single-AI without
  * seeing the producer. Deterministic for a given seed.
  */
-export function buildBlindEvaluationPack(input: { items: BlindEvaluationItemInput[]; seed?: number; createdAt?: string }): BlindEvaluationPack {
+function buildBlindEvaluationPack(input: { items: BlindEvaluationItemInput[]; seed?: number; createdAt?: string }): BlindEvaluationPack {
   const seed = input.seed ?? 20260908;
   const shuffled = seededShuffle([...input.items], seed);
   const packId = `pack-${seed.toString(36)}-${shuffled.length}`;
@@ -152,7 +152,7 @@ export function buildBlindEvaluationPack(input: { items: BlindEvaluationItemInpu
 }
 
 /** Aggregates judge scores by producer after decoding (deterministic average). */
-export function summarizeBlindScores(
+function summarizeBlindScores(
   scores: Array<{ itemId: string; metric: string; score: number }>,
   decodingKey: BlindEvaluationPack["decodingKey"]
 ): Record<EvaluationProducer, { average: number; count: number }> {

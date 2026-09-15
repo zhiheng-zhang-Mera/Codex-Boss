@@ -43,7 +43,7 @@ export interface HostProbes {
 
 const MIN = 60_000;
 
-export function electronBinaryRelative(platform: NodeJS.Platform = process.platform): string {
+function electronBinaryRelative(platform: NodeJS.Platform = process.platform): string {
   return platform === "win32" ? "node_modules/electron/dist/electron.exe" : "node_modules/electron/dist/electron";
 }
 
@@ -399,7 +399,7 @@ export function defaultChecks(checks: readonly AcceptanceCheck[], extended: bool
 }
 
 /** Checks whose declared input does not exist on this host. */
-export function missingEntryPoints(checks: readonly AcceptanceCheck[], probes: HostProbes): Map<string, string> {
+function missingEntryPoints(checks: readonly AcceptanceCheck[], probes: HostProbes): Map<string, string> {
   const missing = new Map<string, string>();
   for (const check of checks) {
     if (!check.entryPoint) continue;

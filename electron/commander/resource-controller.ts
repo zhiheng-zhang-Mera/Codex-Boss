@@ -1,7 +1,7 @@
 import path from "node:path";
 import { readJson, writeJson, validId } from "./durable-json";
-export type MemoryScope = "user" | "project" | "task" | "runtime";
-export interface MemoryEntry { key: string; value: string; updatedAt: string; }
+type MemoryScope = "user" | "project" | "task" | "runtime";
+interface MemoryEntry { key: string; value: string; updatedAt: string; }
 export class ScopedMemory {
   constructor(private readonly root: string) {}
   get(scope: MemoryScope, owner: string, key: string): MemoryEntry | undefined { return readJson<MemoryEntry>(this.file(scope, owner, key)); }
@@ -15,13 +15,13 @@ export class ScopedMemory {
   }
 }
 export type DegradedMode = "FULL" | "REDUCED" | "LIGHTWEIGHT" | "DETERMINISTIC" | "PAUSED";
-export function degradedMode(capabilities: { workers: number; strong: boolean; cheap: boolean; native: boolean }): DegradedMode {
+function degradedMode(capabilities: { workers: number; strong: boolean; cheap: boolean; native: boolean }): DegradedMode {
   if (capabilities.workers >= 2 && capabilities.strong) return "FULL";
   if (capabilities.strong) return "REDUCED";
   if (capabilities.cheap) return "LIGHTWEIGHT";
   return capabilities.native ? "DETERMINISTIC" : "PAUSED";
 }
-export interface BackendObservation { samples: number; passed: number; modelCalls: number; runtimeMs: number; }
+interface BackendObservation { samples: number; passed: number; modelCalls: number; runtimeMs: number; }
 export class ResourceController {
   private observations: Record<string, BackendObservation>;
   constructor(private readonly filePath?: string) { this.observations = filePath ? readJson<Record<string, BackendObservation>>(filePath) ?? {} : {}; }

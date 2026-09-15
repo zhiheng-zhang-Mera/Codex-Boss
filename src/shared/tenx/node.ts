@@ -13,9 +13,9 @@ import type { RouteId } from "./network";
 import type { GitHubCapability } from "../github-machine";
 
 
-export type DeviceType = "desktop" | "laptop" | "server" | "embedded" | "mobile" | "unknown";
-export type OsLabel = "windows" | "linux" | "macos" | "android" | "ios" | "harmonyos" | "unknown";
-export type ArchLabel = "x64" | "arm64" | "ia32" | "unknown";
+type DeviceType = "desktop" | "laptop" | "server" | "embedded" | "mobile" | "unknown";
+type OsLabel = "windows" | "linux" | "macos" | "android" | "ios" | "harmonyos" | "unknown";
+type ArchLabel = "x64" | "arm64" | "ia32" | "unknown";
 
 /** Stable per-installation identity. sessionId/runId are separate concepts. */
 export interface NodeIdentity {
@@ -35,7 +35,7 @@ export interface NodeHardware {
   storage: { freeMb?: number };
 }
 
-export interface NodeCapabilityFlags {
+interface NodeCapabilityFlags {
   networkRoutes: RouteId[];
   proxyCapable: boolean;
   providers: string[]; // configured provider ids

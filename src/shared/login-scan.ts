@@ -11,9 +11,9 @@
 import type { ProviderAccountMode } from "./contracts";
 import type { SessionLifecycle } from "./session-lifecycle";
 
-export type LoginScanStatus = "READY" | "GUEST_READY" | "LOGIN_REQUIRED" | "REAUTH_REQUIRED" | "CHECKING" | "FAILED" | "UNKNOWN";
+type LoginScanStatus = "READY" | "GUEST_READY" | "LOGIN_REQUIRED" | "REAUTH_REQUIRED" | "CHECKING" | "FAILED" | "UNKNOWN";
 
-export interface ProviderLoginScan {
+interface ProviderLoginScan {
   providerId: string;
   status: LoginScanStatus;
   mode: ProviderAccountMode | "UNKNOWN";
@@ -26,7 +26,7 @@ export interface ProviderLoginScan {
   externalOnly: boolean;
 }
 
-export interface LoginScanSummary {
+interface LoginScanSummary {
   providers: ProviderLoginScan[];
   readyCount: number;
   needsOperatorCount: number;

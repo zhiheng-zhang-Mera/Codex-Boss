@@ -26,7 +26,7 @@ import type { BossTask, TaskStatus } from "../../src/shared/contracts";
  *     instead of twice, which is what the inline handlers had.
  */
 
-export interface TaskStateEventlessSurface {
+interface TaskStateEventlessSurface {
   /** One task by id, or undefined. */
   task(taskId: string): BossTask | undefined;
   /** Ids of the providers whose panes are currently open. */
@@ -79,7 +79,7 @@ export interface TaskStateEventlessSurface {
   publish(): unknown;
 }
 
-export interface TaskStateIpcDeps {
+interface TaskStateIpcDeps {
   handle: IpcRegistrar["handle"];
   state: TaskStateEventlessSurface;
 }

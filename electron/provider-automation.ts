@@ -37,7 +37,7 @@ function appendLog(file: string, entry: Record<string, unknown>): void {
  * Fallback location for callers that did not supply one. It still goes through
  * the shared root model rather than a hand-written `runtime-data` segment.
  */
-export function defaultAutomationLogFile(): string {
+function defaultAutomationLogFile(): string {
   return path.join(appDataUnder(process.cwd()), ".boss", "live-automation.log");
 }
 

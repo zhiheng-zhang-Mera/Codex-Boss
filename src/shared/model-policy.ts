@@ -7,8 +7,8 @@
 
 import { assembleStablePrompt, type DynamicPromptSections, type StaticPromptSections } from "./prompt-layout";
 
-export type V4Model = "deepseek-v4-flash" | "deepseek-v4-pro";
-export type V4Effort = "low" | "high" | "max";
+type V4Model = "deepseek-v4-flash" | "deepseek-v4-pro";
+type V4Effort = "low" | "high" | "max";
 
 export interface ModelPolicy {
   model: V4Model;
@@ -25,13 +25,13 @@ export interface ModelPolicy {
 export type PolicyStage = "classify" | "route" | "plan" | "code" | "review" | "research" | "synthesis" | "adjudicate";
 
 /** §17.1 flash/non-thinking — classification, schema normalization, metadata. */
-export const CLASSIFY_POLICY: ModelPolicy = { model: "deepseek-v4-flash", thinking: "disabled", maxOutputTokens: 1000, jsonOutput: true, promptVersion: "flash-classify-v1" };
+const CLASSIFY_POLICY: ModelPolicy = { model: "deepseek-v4-flash", thinking: "disabled", maxOutputTokens: 1000, jsonOutput: true, promptVersion: "flash-classify-v1" };
 /** §17.2 flash/low — routing, small code retrieval, simple review, diff summary. */
-export const ROUTE_POLICY: ModelPolicy = { model: "deepseek-v4-flash", thinking: "enabled", effort: "low", maxOutputTokens: 2000, promptVersion: "flash-low-v1" };
+const ROUTE_POLICY: ModelPolicy = { model: "deepseek-v4-flash", thinking: "enabled", effort: "low", maxOutputTokens: 2000, promptVersion: "flash-low-v1" };
 /** §17.3 pro/high — multi-module planning, complex debugging, research, synthesis. */
-export const PRO_HIGH_POLICY: ModelPolicy = { model: "deepseek-v4-pro", thinking: "enabled", effort: "high", maxOutputTokens: 8000, promptVersion: "pro-high-v1" };
+const PRO_HIGH_POLICY: ModelPolicy = { model: "deepseek-v4-pro", thinking: "enabled", effort: "high", maxOutputTokens: 8000, promptVersion: "pro-high-v1" };
 /** §17.4 pro/max — high-risk decisions, hard-to-reproduce bugs, research adjudication. */
-export const PRO_MAX_POLICY: ModelPolicy = { model: "deepseek-v4-pro", thinking: "enabled", effort: "max", maxOutputTokens: 8000, promptVersion: "pro-max-v1" };
+const PRO_MAX_POLICY: ModelPolicy = { model: "deepseek-v4-pro", thinking: "enabled", effort: "max", maxOutputTokens: 8000, promptVersion: "pro-max-v1" };
 
 export const DEFAULT_POLICIES: Record<PolicyStage, ModelPolicy> = {
   classify: CLASSIFY_POLICY,
@@ -54,7 +54,7 @@ export function policyFor(stage: PolicyStage, override?: Partial<ModelPolicy>): 
 }
 
 /** Builds a model-call record carrying the resolved policy (traceability). */
-export interface V4ModelCall {
+interface V4ModelCall {
   policy: ModelPolicy;
   reason: string;
 }

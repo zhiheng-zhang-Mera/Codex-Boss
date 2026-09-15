@@ -15,7 +15,7 @@ import { decideSessionKind, reapableWhenStale, suggestPoolGc, staleSessions, typ
  * grow unboundedly.
  */
 
-export interface TenxSessionFile {
+interface TenxSessionFile {
   schemaVersion: 1;
   sessions: SessionPoolRecord[];
 }

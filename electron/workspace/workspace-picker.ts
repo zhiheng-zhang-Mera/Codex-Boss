@@ -15,12 +15,12 @@ import { requireWorkspacePath } from "./path-utils";
  *     silently degrading into "the user cancelled".
  */
 
-export interface DirectoryPickerOptions {
+interface DirectoryPickerOptions {
   title: string;
   properties: ["openDirectory"];
 }
 
-export interface DirectoryPickerResult {
+interface DirectoryPickerResult {
   canceled: boolean;
   filePaths: string[];
 }

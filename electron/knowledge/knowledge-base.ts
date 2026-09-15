@@ -57,7 +57,7 @@ export interface KnowledgeGateLogEntry {
   deduplicated: boolean;
 }
 
-export interface KnowledgeBaseFile {
+interface KnowledgeBaseFile {
   schemaVersion: 1;
   /** Every revision ever accepted, ACTIVE or SUPERSEDED. Never pruned. */
   objects: KnowledgeObject[];

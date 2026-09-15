@@ -77,7 +77,7 @@ const SURFACE_SELECTOR_CANDIDATES: Partial<Record<UISurfaceId, readonly string[]
   DIVIDER: ["hr"]
 };
 
-export type SourceKind = "STYLE" | "CODE" | "MARKUP";
+type SourceKind = "STYLE" | "CODE" | "MARKUP";
 
 /**
  * Class names genuinely observed in a file.
@@ -104,15 +104,15 @@ export function observedClassNames(content: string, kind: SourceKind): Set<strin
   return names;
 }
 
-export interface UISurfaceDiscoveryLimits {
+interface UISurfaceDiscoveryLimits {
   styleFiles: number;
   componentFiles: number;
   bytesPerFile: number;
 }
 
-export const DEFAULT_UI_DISCOVERY_LIMITS: UISurfaceDiscoveryLimits = { styleFiles: 40, componentFiles: 120, bytesPerFile: 512 * 1024 };
+const DEFAULT_UI_DISCOVERY_LIMITS: UISurfaceDiscoveryLimits = { styleFiles: 40, componentFiles: 120, bytesPerFile: 512 * 1024 };
 
-export interface UISurfaceDiscoveryResult {
+interface UISurfaceDiscoveryResult {
   registry: UISurfaceRegistry;
   validation: UISurfaceRegistryValidation;
   /** Files actually read (evidence pointers). */
@@ -264,6 +264,6 @@ export class UISurfaceRegistryStore {
 }
 
 /** True when this token name belongs to the §10 vocabulary (declared or not). */
-export function isContractToken(token: string): boolean {
+function isContractToken(token: string): boolean {
   return knownToken(token);
 }

@@ -12,9 +12,9 @@ import type { InputObjectKind } from "../../src/shared/input-object";
 import type { UploadFilePayload } from "../adapters/page-scripts";
 
 /** Per-file budget for page-side injection (base64 lives in the executed script). */
-export const MAX_PAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_PAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
 
-export interface ResolvedUpload {
+interface ResolvedUpload {
   inputObjectId: string;
   originalName: string;
   mime?: string;
@@ -45,7 +45,7 @@ export function resolveUploadsForTask(store: StateStore, attachmentStore: Attach
   return result;
 }
 
-export interface UploadPlan {
+interface UploadPlan {
   /** Payloads the adapter's versioned surface can receive. */
   uploads: UploadFilePayload[];
   /** Inputs the adapter is not versioned to accept (fail-closed, never sent as if uploaded). */

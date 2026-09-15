@@ -14,7 +14,7 @@ import type { BootModule, IpcRegistrar } from "./boot-module";
  * subsystem is not an error — it is an empty answer.
  */
 
-export interface WindowStateView {
+interface WindowStateView {
   visible: boolean;
   minimized: boolean;
   maximized: boolean;
@@ -22,7 +22,7 @@ export interface WindowStateView {
   bounds: { x: number; y: number; width: number; height: number };
 }
 
-export interface StatusService {
+interface StatusService {
   /** The durable application snapshot. */
   snapshot(): unknown;
   /** Progress summaries; empty when the recorder is not attached. */
@@ -37,7 +37,7 @@ export interface StatusService {
   windowState(): unknown;
 }
 
-export interface StatusIpcDeps {
+interface StatusIpcDeps {
   handle: IpcRegistrar["handle"];
   status: StatusService;
 }

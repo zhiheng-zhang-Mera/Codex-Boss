@@ -19,7 +19,7 @@ export interface ShadowObservation {
   candidateObservedCompletion?: number;
 }
 
-export interface ShadowOptions {
+interface ShadowOptions {
   minObservations?: number;
   maxDivergenceRate?: number;
   regressionTolerance?: number;

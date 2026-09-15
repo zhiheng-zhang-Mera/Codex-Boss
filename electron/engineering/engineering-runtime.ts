@@ -7,7 +7,7 @@ import { TaskLedger } from "../commander/task-ledger";
 import { MicrotaskRuntime } from "./microtask-runtime";
 import { GraphDeferred } from "./deferred";
 export { GraphDeferred } from "./deferred";
-export interface StepEvidence { deferred?: boolean; stepId: string; passed: boolean; output: string; sha256: string; }
+interface StepEvidence { deferred?: boolean; stepId: string; passed: boolean; output: string; sha256: string; }
 export interface GraphResult { status: "COMPLETED" | "FAILED" | "WAITING"; evidence: StepEvidence[]; }
 export interface GraphExecutor {
   readOnly?: boolean;

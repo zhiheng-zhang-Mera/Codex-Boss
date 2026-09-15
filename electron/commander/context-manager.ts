@@ -12,8 +12,8 @@ function cacheKeyFor(scope: string, fingerprint: string, level: ContextCapsuleLe
   return createHash("sha256").update([scope, "context-capsule", "2", level, fingerprint].join("|"), "utf8").digest("hex");
 }
 
-export interface ContextSummary { id: string; text: string; createdAt: string; }
-export interface ExecutionRef { id: string; status: string; }
+interface ContextSummary { id: string; text: string; createdAt: string; }
+interface ExecutionRef { id: string; status: string; }
 export interface TaskContext {
   taskId: string;
   objective: string;
@@ -26,7 +26,7 @@ export interface TaskContext {
   summaries: ContextSummary[];
   executionHistory: ExecutionRef[];
 }
-export interface ContextBudget { maxChars?: number; maxTokens?: number; maxArtifacts?: number; }
+interface ContextBudget { maxChars?: number; maxTokens?: number; maxArtifacts?: number; }
 
 const CONTEXT_SCHEMA = "task-contexts";
 // Legacy task-contexts.json was an unversioned array of TaskContext; v1 wraps

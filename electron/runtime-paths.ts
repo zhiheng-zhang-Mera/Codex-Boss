@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
-export interface PersistentDataMigrationReport {
+interface PersistentDataMigrationReport {
   version: 1;
   sourceRoot: string;
   destinationRoot: string;
@@ -28,13 +28,13 @@ const PERSISTENT_DATA_ENTRIES = ["state.json", "api-settings.json", "task-contex
  * `<checkout>/runtime-data`; a packaged build gets its own userData directory.
  * It is never the workspace and never the user's project.
  */
-export const RUNTIME_DATA_DIRECTORY = "runtime-data";
+const RUNTIME_DATA_DIRECTORY = "runtime-data";
 /** Scratch: redirectable caches and the in-app TEMP redirection target. */
-export const SCRATCH_CACHE_DIRECTORY = ".cache";
+const SCRATCH_CACHE_DIRECTORY = ".cache";
 /** Conversation export/history files written beside the checkout when not packaged. */
 export const HISTORY_DIRECTORY = "history";
 /** Acceptance evidence and build reports (`artifacts/acceptance`, soak, benchmarks). */
-export const ACCEPTANCE_ARTIFACTS_DIRECTORY = "artifacts";
+const ACCEPTANCE_ARTIFACTS_DIRECTORY = "artifacts";
 
 /* -------------------------------------------------------------------------- */
 /* The root model: one place turns a root into the directories Boss owns       */
@@ -49,15 +49,15 @@ export function cacheUnder(root: string): string {
   return path.join(root, SCRATCH_CACHE_DIRECTORY);
 }
 /** `<root>/history` — archived conversation history under any root. */
-export function historyUnder(root: string): string {
+function historyUnder(root: string): string {
   return path.join(root, HISTORY_DIRECTORY);
 }
 /** `<root>/artifacts/acceptance` — acceptance evidence under any root. */
-export function acceptanceUnder(root: string): string {
+function acceptanceUnder(root: string): string {
   return path.join(root, ACCEPTANCE_ARTIFACTS_DIRECTORY, "acceptance");
 }
 /** `<root>/artifacts` — the build/evidence output directory under any root. */
-export function artifactsUnder(root: string): string {
+function artifactsUnder(root: string): string {
   return path.join(root, ACCEPTANCE_ARTIFACTS_DIRECTORY);
 }
 
@@ -260,7 +260,7 @@ export function migrateLegacyPersistentData(sourceRoot: string, destinationRoot:
 
 // Only rebuildable Chromium caches. Cookies, Local State, IndexedDB and storage
 // are deliberately NOT in this list.
-export const REBUILDABLE_CACHE_NAMES = new Set([
+const REBUILDABLE_CACHE_NAMES = new Set([
   "Cache", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache",
   "DawnWebGPUCache", "GrShaderCache", "GraphiteDawnCache", "ShaderCache",
   "CacheStorage", "ScriptCache"

@@ -38,12 +38,12 @@ import type { LearningEpisode } from "../../src/shared/learning-episode";
  * into task execution.
  */
 
-export interface LearningServiceOptions {
+interface LearningServiceOptions {
   rootDir?: string;
   now?: () => string;
 }
 
-export interface LearningControlState {
+interface LearningControlState {
   flags: Record<AdaptiveFlagId, boolean>;
   profileStale: boolean;
   episodes: number;

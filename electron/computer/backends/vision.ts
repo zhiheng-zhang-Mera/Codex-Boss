@@ -2,11 +2,11 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import type { SemanticAction, SemanticBackend, SemanticResult } from "../semantic-runtime";
 import { readWindowsOcr, locateOcrText, type OcrWord, type OcrImage } from "./windows-ocr";
-export interface VisionFrame { imagePath: string; surfaceRevision: string; }
+interface VisionFrame { imagePath: string; surfaceRevision: string; }
 export interface VisionProposal { action: SemanticAction; surfaceId: string; frame: VisionFrame; imageHash: string; imageWidth: number; imageHeight: number; target: OcrWord; }
 export interface VisionSurface { capture(surfaceId: string, signal: AbortSignal): Promise<VisionFrame>; click(proposal: VisionProposal, signal: AbortSignal): Promise<void>; }
-export interface VisionTarget { surfaceId: string; text: string; }
-export function parseVisionTarget(target: string): VisionTarget {
+interface VisionTarget { surfaceId: string; text: string; }
+function parseVisionTarget(target: string): VisionTarget {
  const provider = /^browser:([a-zA-Z0-9_-]+)$/.exec(target)?.[1];
  if (provider) return { surfaceId: "provider:" + provider, text: "page" };
  if (!target.startsWith("vision:")) throw new Error("Invalid vision target");

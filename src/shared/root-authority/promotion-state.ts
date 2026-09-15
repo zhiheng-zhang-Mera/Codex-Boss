@@ -30,7 +30,7 @@ export type PromotionState =
   | "ROLLED_BACK"
   | "BLOCKED_EXTERNAL";
 
-export const PROMOTION_STATES: readonly PromotionState[] = [
+const PROMOTION_STATES: readonly PromotionState[] = [
   "CREATED",
   "WORKING",
   "VERIFYING",
@@ -71,9 +71,9 @@ const TRANSITIONS: Readonly<Record<PromotionState, readonly PromotionState[]>> =
   BLOCKED_EXTERNAL: ["WAITING_FOR_CI", "WAITING_FOR_ROOT_OWNER", "PROMOTABLE", "PROMOTING", "REJECTED"]
 };
 
-export const TERMINAL_PROMOTION_STATES: readonly PromotionState[] = ["REJECTED", "ROLLED_BACK"];
+const TERMINAL_PROMOTION_STATES: readonly PromotionState[] = ["REJECTED", "ROLLED_BACK"];
 
-export function isPromotionState(value: unknown): value is PromotionState {
+function isPromotionState(value: unknown): value is PromotionState {
   return typeof value === "string" && (PROMOTION_STATES as readonly string[]).includes(value);
 }
 
@@ -91,7 +91,7 @@ export function canTransition(from: PromotionState, to: PromotionState): boolean
   return TRANSITIONS[from].includes(to);
 }
 
-export class PromotionTransitionError extends Error {
+class PromotionTransitionError extends Error {
   constructor(readonly from: PromotionState, readonly to: PromotionState) {
     super(`Illegal promotion transition ${from} -> ${to}`);
     this.name = "PromotionTransitionError";
@@ -210,7 +210,7 @@ export interface PromotionEvidence {
   externalBlocker?: string | null;
 }
 
-export type PromotionOutcomeState = "PROMOTABLE" | "WAITING_FOR_ROOT_OWNER" | "WAITING_FOR_CI" | "BLOCKED_EXTERNAL" | "REJECTED";
+type PromotionOutcomeState = "PROMOTABLE" | "WAITING_FOR_ROOT_OWNER" | "WAITING_FOR_CI" | "BLOCKED_EXTERNAL" | "REJECTED";
 
 export interface PromotionOutcome {
   state: PromotionOutcomeState;

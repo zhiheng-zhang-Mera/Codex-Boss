@@ -14,12 +14,12 @@ import type { ProviderMatrix, ProviderMatrixRow } from "../../src/shared/tenx/ne
  * updates lastFailure without ever fabricating success.
  */
 
-export interface TenxProviderMatrixFile {
+interface TenxProviderMatrixFile {
   schemaVersion: 1;
   matrices: ProviderMatrix[];
 }
 
-export interface ProviderObservation {
+interface ProviderObservation {
   provider: string;
   reachable?: boolean;
   authenticated?: boolean;

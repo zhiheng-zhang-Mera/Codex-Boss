@@ -30,10 +30,10 @@ export const HOST_OBSERVER_DIMENSIONS = [
   "learning",
   "failures"
 ] as const;
-export type HostObserverDimension = (typeof HOST_OBSERVER_DIMENSIONS)[number];
+type HostObserverDimension = (typeof HOST_OBSERVER_DIMENSIONS)[number];
 
 /** Per-dimension collection outcome, so a partial snapshot is never silent. */
-export type HostDimensionStatus = "OK" | "DEGRADED" | "UNAVAILABLE";
+type HostDimensionStatus = "OK" | "DEGRADED" | "UNAVAILABLE";
 
 export interface HostDimensionReport {
   dimension: HostObserverDimension;
@@ -153,7 +153,7 @@ export interface ObservedFailure {
  * Raw reads, exactly as the stores returned them. `collect` fills this in; the
  * projection below never re-reads storage.
  */
-export interface HostObserverInput {
+interface HostObserverInput {
   now?: () => string;
   nodes?: ObservedNode[];
   tenxFleetAggregate?: Record<string, unknown>;
@@ -170,7 +170,7 @@ export interface HostObserverInput {
   historySize?: number;
 }
 
-export interface HostObserverCounts {
+interface HostObserverCounts {
   nodes: { total: number; ready: number; degraded: number; offline: number; failed: number };
   fleet: { total: number; ready: number; degraded: number; offline: number; failed: number };
   tasks: {
@@ -236,7 +236,7 @@ export function mostRecent<T>(values: readonly T[] | undefined, timestampOf: (va
     .map((entry) => entry.value);
 }
 
-export interface HostObserverProjectionOptions {
+interface HostObserverProjectionOptions {
   /** How many recent routing decisions / failures to carry. */
   recentLimit?: number;
 }

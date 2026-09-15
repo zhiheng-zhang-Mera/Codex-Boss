@@ -15,16 +15,16 @@
  */
 import { contentHashOf } from "./workbook";
 
-export const VERSION_IMPACT_VERSION = "version-impact-1" as const;
+const VERSION_IMPACT_VERSION = "version-impact-1" as const;
 
-export const VERSION_IMPACTS = ["NONE", "PATCH", "MINOR", "MAJOR"] as const;
+const VERSION_IMPACTS = ["NONE", "PATCH", "MINOR", "MAJOR"] as const;
 export type VersionImpact = (typeof VERSION_IMPACTS)[number];
 
-export const IMPACT_RANK: Readonly<Record<VersionImpact, number>> = { NONE: 0, PATCH: 1, MINOR: 2, MAJOR: 3 };
+const IMPACT_RANK: Readonly<Record<VersionImpact, number>> = { NONE: 0, PATCH: 1, MINOR: 2, MAJOR: 3 };
 
 /** §37's six bases, each of which must be looked at. */
 export const IMPACT_FACTORS = ["API", "SCHEMA", "BEHAVIOR", "COMPATIBILITY", "MIGRATION", "USER_FACING"] as const;
-export type ImpactFactor = (typeof IMPACT_FACTORS)[number];
+type ImpactFactor = (typeof IMPACT_FACTORS)[number];
 
 /** What the host observed, per file. Undefined means "not observed". */
 export interface ChangeObservation {
@@ -47,7 +47,7 @@ export interface ChangeObservation {
   theme_engine_contract?: boolean;
 }
 
-export interface ImpactFinding {
+interface ImpactFinding {
   factor: ImpactFactor;
   impact: VersionImpact;
   reason: string;

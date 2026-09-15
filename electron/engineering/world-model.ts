@@ -37,7 +37,7 @@ import {
 } from "../../src/shared/repo-world-model";
 import { writeJson, readJson } from "../commander/durable-json";
 
-export interface WorldModelLimits {
+interface WorldModelLimits {
   /** Source files whose imports/exports are read (the model still lists all). */
   moduleFiles: number;
   bytesPerFile: number;
@@ -112,7 +112,7 @@ const NODE_BUILTINS = new Set([
   "v8", "vm", "wasi", "worker_threads", "zlib"
 ]);
 
-export interface BuildWorldModelOptions {
+interface BuildWorldModelOptions {
   limits?: Partial<WorldModelLimits>;
   now?: () => string;
   /** Injected for tests; defaults to the real bounded scan. */

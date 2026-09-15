@@ -20,7 +20,7 @@
  */
 import { contentHashOf } from "./workbook";
 
-export const FINAL_ACCEPTANCE_VERSION = "final-acceptance-1" as const;
+const FINAL_ACCEPTANCE_VERSION = "final-acceptance-1" as const;
 
 /* ------------------------------------------------------------------ *
  * §42 the checklist
@@ -44,8 +44,8 @@ export const THEME_FINAL_ITEMS = [
   "BUILT_INS_INTACT"
 ] as const;
 
-export type FinalItemId = (typeof FINAL_ITEMS)[number] | (typeof THEME_FINAL_ITEMS)[number];
-export type ItemVerdict = "VERIFIED" | "NOT_VERIFIED" | "FAILED";
+type FinalItemId = (typeof FINAL_ITEMS)[number] | (typeof THEME_FINAL_ITEMS)[number];
+type ItemVerdict = "VERIFIED" | "NOT_VERIFIED" | "FAILED";
 
 /** What the host observed for one item. `undefined` means "not looked at". */
 export interface FinalEvidence {
@@ -76,7 +76,7 @@ export interface FinalEvidence {
   touches_ui?: boolean;
 }
 
-export interface FinalItemResult {
+interface FinalItemResult {
   item: FinalItemId;
   verdict: ItemVerdict;
   /** What the verdict rests on. */
@@ -101,7 +101,7 @@ function item(id: FinalItemId, verdict: ItemVerdict, inspected: string[], reason
 }
 
 /** §42: the items this change must satisfy (the four theme ones only for UI work). */
-export function requiredFinalItems(evidence: FinalEvidence): FinalItemId[] {
+function requiredFinalItems(evidence: FinalEvidence): FinalItemId[] {
   return evidence.touches_ui ? [...FINAL_ITEMS, ...THEME_FINAL_ITEMS] : [...FINAL_ITEMS];
 }
 
@@ -246,7 +246,7 @@ export const HARD_BLOCKER_CLASSES = [
   "HB3_MISSING_EXTERNAL_RESOURCE",
   "HB4_ROOT_POLICY"
 ] as const;
-export type HardBlockerClass = (typeof HARD_BLOCKER_CLASSES)[number];
+type HardBlockerClass = (typeof HARD_BLOCKER_CLASSES)[number];
 
 /** §45: these must never be escalated to the Owner. */
 export const AUTONOMOUS_SITUATIONS = [
@@ -256,7 +256,7 @@ export const AUTONOMOUS_SITUATIONS = [
   "theme registration", "theme preview implementation"
 ] as const;
 
-export interface BlockerRequest {
+interface BlockerRequest {
   situation: string;
   /** Which §44 class the caller believes applies. */
   claimed?: HardBlockerClass;
@@ -267,7 +267,7 @@ export interface BlockerRequest {
   policy_denied?: boolean;
 }
 
-export interface BlockerVerdict {
+interface BlockerVerdict {
   allowed: boolean;
   blocker_class?: HardBlockerClass;
   reason: string;

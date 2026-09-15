@@ -1,0 +1,4 @@
+{
+  "$comment": "Phase K: exports under electron/** and src/** that nothing in the repository refers to, kept on purpose. Each entry needs a reason, and tests/unit/export-surface.test.ts fails when an entry is no longer unreachable, so the list cannot rot.",
+  "exceptions": []
+}

@@ -72,7 +72,7 @@ export class RootSurfaceError extends Error {
   }
 }
 
-export interface RootClassifyInput {
+interface RootClassifyInput {
   operation: RootOperation;
   /** Attribution only; never affects the decision. */
   mode?: RootRequestMode;
@@ -86,7 +86,7 @@ export interface RootClassifyInput {
   detail?: string;
 }
 
-export interface RootAuthorityOptions {
+interface RootAuthorityOptions {
   /** Candidate / engineering workspace root. */
   root: string;
   /**
@@ -312,12 +312,12 @@ function targetLabel(targets: readonly string[] | undefined, sources: readonly s
  * REQUIRE_OWNER, i.e. whether the autonomous path is genuinely constrained.
  * Used by the acceptance evidence rather than by production control flow.
  */
-export function autonomousCeiling(policy: RootPolicy, operations: readonly RootOperation[]): RootDecision {
+function autonomousCeiling(policy: RootPolicy, operations: readonly RootOperation[]): RootDecision {
   return foldRootDecisions(operations.map((operation) => decideRootOperation(policy, operation)));
 }
 
 /** True when a path would be treated as a Root Surface by the compiled manifest. */
-export function protectedPathFor(path: string): boolean {
+function protectedPathFor(path: string): boolean {
   return isProtectedPath(path);
 }
 

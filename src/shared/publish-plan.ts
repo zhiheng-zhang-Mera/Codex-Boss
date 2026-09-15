@@ -17,13 +17,13 @@ import { contentHashOf } from "./workbook";
 import type { VersionImpact } from "./version-impact";
 import type { CheckpointRecord } from "./git-checkpoint";
 
-export const PUBLISH_VERSION = "publish-plan-1" as const;
+const PUBLISH_VERSION = "publish-plan-1" as const;
 
 /* ------------------------------------------------------------------ *
  * §39.1 branch policy
  * ------------------------------------------------------------------ */
 
-export const BRANCH_PREFIX = "boss";
+const BRANCH_PREFIX = "boss";
 
 /** A slug keeps letters, digits and single hyphens, and stays short. */
 export function slugify(text: string, limit = 48): string {
@@ -45,7 +45,7 @@ export function branchNameFor(input: { task_id: string; slug: string }): string 
   return `${BRANCH_PREFIX}/${taskId}/${slugify(input.slug)}`;
 }
 
-export interface BranchPolicyCheck {
+interface BranchPolicyCheck {
   ok: boolean;
   task_id?: string;
   slug?: string;
@@ -69,8 +69,8 @@ export function checkBranchPolicy(branch: string): BranchPolicyCheck {
  * §39.2 commit policy
  * ------------------------------------------------------------------ */
 
-export const COMMIT_TRAILERS = ["Task", "Requirements", "Candidate", "Evidence"] as const;
-export type CommitTrailer = (typeof COMMIT_TRAILERS)[number];
+const COMMIT_TRAILERS = ["Task", "Requirements", "Candidate", "Evidence"] as const;
+type CommitTrailer = (typeof COMMIT_TRAILERS)[number];
 
 export interface CommitInput {
   summary: string;
@@ -101,7 +101,7 @@ export function buildCommitMessage(input: CommitInput): string {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-export interface CommitPolicyCheck {
+interface CommitPolicyCheck {
   ok: boolean;
   missing: CommitTrailer[];
   requirements: string[];
@@ -190,7 +190,7 @@ export function buildPullRequestBody(input: PullRequestInput): string {
   return parts.join("\n");
 }
 
-export interface PullRequestCheck {
+interface PullRequestCheck {
   ok: boolean;
   missing: string[];
   empty: string[];
@@ -227,10 +227,10 @@ export function validatePullRequestBody(body: string, options: { theme?: boolean
  * the release sequence
  * ------------------------------------------------------------------ */
 
-export const RELEASE_STEPS = ["CHECKPOINT", "BRANCH", "COMMIT", "PUSH", "PULL_REQUEST", "READ_CI"] as const;
-export type ReleaseStep = (typeof RELEASE_STEPS)[number];
+const RELEASE_STEPS = ["CHECKPOINT", "BRANCH", "COMMIT", "PUSH", "PULL_REQUEST", "READ_CI"] as const;
+type ReleaseStep = (typeof RELEASE_STEPS)[number];
 
-export interface ReleasePlanInput {
+interface ReleasePlanInput {
   task_id: string;
   slug: string;
   goal: string;
@@ -246,7 +246,7 @@ export interface ReleasePlanInput {
   theme?: boolean;
 }
 
-export interface ReleasePlanStep {
+interface ReleasePlanStep {
   step: ReleaseStep;
   ready: boolean;
   detail: string;

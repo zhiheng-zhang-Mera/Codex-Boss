@@ -1,6 +1,6 @@
 import type { RuntimeAdapter, RuntimeCapabilities, RuntimeHealth, RuntimeRequest, RuntimeResult } from "../runtime";
 
-export interface ProviderRuntimeHooks {
+interface ProviderRuntimeHooks {
   healthCheck(): Promise<RuntimeHealth>;
   execute(request: RuntimeRequest, signal?: AbortSignal): Promise<RuntimeResult>;
   cancel?(jobId: string): Promise<void>;

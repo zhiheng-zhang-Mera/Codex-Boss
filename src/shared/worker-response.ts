@@ -10,7 +10,7 @@
  * self-claim of completion as completion.
  */
 
-export type WorkerVerdict = "MODEL_DONE" | "PARTIAL" | "FAILED" | "BLOCKED" | "QUESTION";
+type WorkerVerdict = "MODEL_DONE" | "PARTIAL" | "FAILED" | "BLOCKED" | "QUESTION";
 
 const GLOBAL_COMPLETE_CLAIMS = [
   "global_complete", "global complete", "everything is done", "the goal is fully complete",

@@ -12,7 +12,7 @@
 
 import type { ResearchIR } from "./research-ir";
 
-export interface HumanResearchBudget {
+interface HumanResearchBudget {
   maxSteps: number;
   maxExperiments: number;
   maxProviderCalls: number;
@@ -30,7 +30,7 @@ export interface HumanDefinedResearchInput {
   budget: HumanResearchBudget;
 }
 
-export function validateHumanResearchInput(input: HumanDefinedResearchInput): void {
+function validateHumanResearchInput(input: HumanDefinedResearchInput): void {
   if (!input || typeof input.researchQuestion !== "string" || !input.researchQuestion.trim() || input.researchQuestion.length > 20000) throw new Error("researchQuestion is required (1–20000 chars) and immutable");
   if (typeof input.workspace !== "string" || !input.workspace.trim()) throw new Error("An authorized workspace is required");
   if (input.hypothesis !== undefined && (typeof input.hypothesis !== "string" || !input.hypothesis.trim() || input.hypothesis.length > 20000)) throw new Error("hypothesis invalid");
@@ -43,7 +43,7 @@ export function validateHumanResearchInput(input: HumanDefinedResearchInput): vo
 }
 
 /** ASCII folder/id slug from the research question (no timestamps). */
-export function slugOf(question: string, maxTokens = 6): string {
+function slugOf(question: string, maxTokens = 6): string {
   const tokens = question.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   return (tokens.slice(0, maxTokens).join("-") || "research").slice(0, 60);
 }

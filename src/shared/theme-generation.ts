@@ -21,7 +21,7 @@ import { knownToken, surfaceById, type UISurfaceContract } from "./ui-surface";
 import { describeIntent, type ThemeIntent } from "./theme-intent";
 import { contentHashOf } from "./workbook";
 
-export const THEME_GENERATOR_VERSION = "theme-generator-1" as const;
+const THEME_GENERATOR_VERSION = "theme-generator-1" as const;
 
 /** A single derivation decision, kept so a draft can explain itself (§24). */
 export interface ThemeGenerationDecision {
@@ -42,7 +42,7 @@ export interface ThemeGenerationResult {
   generator: typeof THEME_GENERATOR_VERSION;
 }
 
-export interface ThemeGenerationInput {
+interface ThemeGenerationInput {
   intent: ThemeIntent;
   /** The theme the user is currently looking at (tokens + optional overrides). */
   base: Pick<ThemePackage, "tokens" | "overrides">;

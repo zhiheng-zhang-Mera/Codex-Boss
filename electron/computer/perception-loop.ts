@@ -12,7 +12,7 @@ import { critiqueRequirement, retainKeyFrames, validatePerceptionFrame, validate
  * SemanticRuntime (computer-service) whose backends perform the real actions.
  */
 
-export interface PerceptionSurfaceResult {
+interface PerceptionSurfaceResult {
   status: SemanticResult["status"];
   /** Deterministic observation text captured after the action (OCR/page text). */
   observed?: string;
@@ -27,7 +27,7 @@ export interface PerceptionSurface {
   capture?(): Promise<{ imagePath?: string; surfaceId?: string } | undefined>;
 }
 
-export interface PerceptionLoopOptions {
+interface PerceptionLoopOptions {
   id?: string;
   /** Revision planner: propose the next action after a failed critique, or undefined to stop. */
   revise?: (attempt: PerceptionAttemptContext) => SemanticAction | undefined | Promise<SemanticAction | undefined>;
@@ -38,7 +38,7 @@ export interface PerceptionLoopOptions {
   stateFile?: string;
 }
 
-export interface PerceptionAttemptContext {
+interface PerceptionAttemptContext {
   attempt: number;
   requirement: PerceptionRequirement;
   observed: string;
@@ -47,7 +47,7 @@ export interface PerceptionAttemptContext {
   lastMessage?: string;
 }
 
-export interface PerceptionRunResult {
+interface PerceptionRunResult {
   episode: PerceptionEpisode;
 }
 

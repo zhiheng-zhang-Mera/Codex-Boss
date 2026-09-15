@@ -130,8 +130,14 @@
    that claimed a distinction the code did not make.
 5. **I** multi-writer durable state (`.boss/project-state.json` has two
    `ProjectStateStore`s; theme tree; `.boss/research/**` layout split).
-6. **J** the remaining `MIGRATE` items, **K** 213 unused exports / 886 unused
-   types, **P** a real clean-clone run, **Q** the repo-wide comment sweep.
+6. **J** the remaining `MIGRATE` items, **P** a real clean-clone run, **Q** the
+   repo-wide comment sweep. **K is closed**: the "213 unused exports / 886 unused
+   types" item was a name-import count, and re-measuring it through the import graph
+   and the whole tracked tree showed **zero** unreferenced exports — 1080 of them
+   simply did not need the keyword (3828 → 2748 exports, 337 files, each verified as
+   an `export`-only diff plus a clean `typecheck`). `tests/unit/export-surface.test.ts`
+   now fails when a new export is neither reachable nor mentioned anywhere, so the
+   surface cannot silently rot again.
 
 ## Snapshots (as of the checkpoint)
 

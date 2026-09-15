@@ -24,7 +24,7 @@ import type { ResearchIR } from "../../src/shared/research-ir";
  */
 
 /** The human-defined research input, exactly as the renderer sends it. */
-export interface ResearchStartInput {
+interface ResearchStartInput {
   id?: string;
   /**
    * Milestone §1 human input: a falsifiable research question + workspace + budget;
@@ -42,7 +42,7 @@ export interface ResearchStartInput {
   maxProviderCalls?: number;
 }
 
-export interface ResearchRunSurface {
+interface ResearchRunSurface {
   /** Creates a run anchored on an Owner-supplied research question. */
   startHumanResearch(input: {
     id?: string;
@@ -61,7 +61,7 @@ export interface ResearchRunSurface {
   publish(event: { type: "TOOL_RESULT_READY"; taskId: string; message: string }): void;
 }
 
-export interface ResearchRunIpcDeps {
+interface ResearchRunIpcDeps {
   handle: IpcRegistrar["handle"];
   run: ResearchRunSurface;
 }

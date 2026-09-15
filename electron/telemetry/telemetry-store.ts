@@ -32,7 +32,7 @@ export interface RuntimeAggregate {
   totalLatencyMs: number;
 }
 
-export interface TelemetryFile {
+interface TelemetryFile {
   schemaVersion: 1;
   records: TelemetryRecord[];
 }

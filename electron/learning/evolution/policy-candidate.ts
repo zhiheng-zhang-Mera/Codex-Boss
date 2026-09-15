@@ -13,7 +13,7 @@ import { ADAPTIVE_POLICY_VERSION } from "../../../src/shared/adaptive-routing";
  * rollback pointer so a broken policy can always be undone.
  */
 
-export type PolicyCandidateStatus =
+type PolicyCandidateStatus =
   | "DRAFT"
   | "REPLAY_FAILED"
   | "REPLAY_PASSED"
@@ -25,7 +25,7 @@ export type PolicyCandidateStatus =
   | "REJECTED"
   | "ROLLED_BACK";
 
-export interface AdaptivePolicyParams {
+interface AdaptivePolicyParams {
   /** Exploration probability (Phase 9). */
   epsilon: number;
   uncertaintyBonus: number;
@@ -90,7 +90,7 @@ export function newPolicyCandidate(policy: AdaptivePolicy, parentVersion: string
 }
 
 /** Policy version naming helper (candidate policies are numbered, not free-form). */
-export function candidateVersion(sequence: number): string {
+function candidateVersion(sequence: number): string {
   return `candidate-${String(sequence).padStart(3, "0")}`;
 }
 

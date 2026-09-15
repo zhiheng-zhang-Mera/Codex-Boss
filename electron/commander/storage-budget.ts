@@ -14,7 +14,7 @@ export interface RetentionPolicy {
   keepGenerations: number;
 }
 
-export const DEFAULT_RETENTION: RetentionPolicy = { keepGenerations: 50 };
+const DEFAULT_RETENTION: RetentionPolicy = { keepGenerations: 50 };
 
 export interface PruneReport {
   taskId: string;

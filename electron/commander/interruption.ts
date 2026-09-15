@@ -1,7 +1,7 @@
 export const interruptions = ["RATE_LIMIT", "QUOTA_EXHAUSTED", "CREDIT_EXHAUSTED", "SESSION_EXPIRED", "AUTH_EXPIRED", "NETWORK_FAILURE", "PROVIDER_5XX", "TOOL_TIMEOUT", "BROWSER_CRASH", "PROCESS_CRASH", "RESOURCE_EXHAUSTED", "DEPENDENCY_FAILURE", "HUMAN_APPROVAL_REQUIRED", "UNKNOWN_INTERRUPTION"] as const;
 export type InterruptionKind = typeof interruptions[number];
 export interface Interruption { kind: InterruptionKind; message: string; retryAt?: number; }
-export type RecoveryAction = "RETRY" | "WAIT" | "RECONSTRUCT" | "VERIFY_SIDE_EFFECT" | "HUMAN_REQUIRED" | "DEFER";
+type RecoveryAction = "RETRY" | "WAIT" | "RECONSTRUCT" | "VERIFY_SIDE_EFFECT" | "HUMAN_REQUIRED" | "DEFER";
 export function classifyInterruption(code: string, message: string, retryAt?: number): Interruption {
   const aliases: Record<string, InterruptionKind> = { RATE_LIMITED: "RATE_LIMIT", BUDGET_EXHAUSTED: "QUOTA_EXHAUSTED", AUTH_REQUIRED: "AUTH_EXPIRED", USER_ACTION_REQUIRED: "HUMAN_APPROVAL_REQUIRED", TIMEOUT: "TOOL_TIMEOUT", DOWN: "PROCESS_CRASH", UNSUPPORTED: "DEPENDENCY_FAILURE" };
   let kind = interruptions.includes(code as InterruptionKind) ? code as InterruptionKind : aliases[code];

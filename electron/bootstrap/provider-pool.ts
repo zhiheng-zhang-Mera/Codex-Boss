@@ -48,7 +48,7 @@ type Events = ConstructorParameters<typeof ProviderAutomation>[9];
 type Attachments = ConstructorParameters<typeof ProviderAutomation>[10];
 type AutomationOptions = ConstructorParameters<typeof ProviderAutomation>[11];
 
-export interface ProviderPoolOptions {
+interface ProviderPoolOptions {
   /**
    * The controller window, asked for at attach time rather than held: the platform
    * can ask for a new window, and the pool is rebuilt on it.

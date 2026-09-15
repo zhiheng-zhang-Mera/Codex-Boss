@@ -13,7 +13,7 @@
  */
 
 /** Error codes that can never succeed on retry. */
-export const TERMINAL_ERROR_CODES: readonly string[] = [
+const TERMINAL_ERROR_CODES: readonly string[] = [
   "AUTH_REQUIRED",
   "PERMISSION_DENIED",
   "FORBIDDEN",
@@ -60,16 +60,16 @@ const TERMINAL_MESSAGE = new RegExp(TERMINAL_MESSAGE_PATTERN, "i");
 /** Explicit transient signals: a message that says "retry" is never terminal. */
 const TRANSIENT_MESSAGE = /\b(?:timed? ?out|timeout|temporar\w*|transient|try again|retry|rate limit|throttl\w*|busy|not ready|still loading|未找到|页面可能已变化|重试|超时|暂时)\b/i;
 
-export interface ErrorLike {
+interface ErrorLike {
   name?: string;
   message?: string;
   code?: string;
   retryable?: boolean;
 }
 
-export type ExecutionErrorKind = "TERMINAL" | "TRANSIENT";
+type ExecutionErrorKind = "TERMINAL" | "TRANSIENT";
 
-export interface ExecutionErrorVerdict {
+interface ExecutionErrorVerdict {
   kind: ExecutionErrorKind;
   /** Stable machine-readable reason, preserved on the durable record. */
   code: string;
@@ -78,7 +78,7 @@ export interface ExecutionErrorVerdict {
 }
 
 /** Normalizes anything thrown into the fields this boundary reasons about. */
-export function errorLike(error: unknown): ErrorLike {
+function errorLike(error: unknown): ErrorLike {
   if (error instanceof Error) {
     const candidate = error as Error & { code?: unknown; retryable?: unknown };
     return {
@@ -127,7 +127,7 @@ export function classifyExecutionError(error: unknown): ExecutionErrorVerdict {
 }
 
 /** Convenience predicate for callers that only need the boolean. */
-export function isTerminalExecutionError(error: unknown): boolean {
+function isTerminalExecutionError(error: unknown): boolean {
   return classifyExecutionError(error).kind === "TERMINAL";
 }
 

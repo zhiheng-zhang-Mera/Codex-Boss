@@ -14,8 +14,8 @@ export interface AdapterCommandSpec {
   expectedOutputs: string[];
 }
 
-export const BLENDER_SCRIPT_PREFIX = "# BOSS blender adapter";
-export const UNREAL_SCRIPT_PREFIX = "# BOSS unreal adapter";
+const BLENDER_SCRIPT_PREFIX = "# BOSS blender adapter";
+const UNREAL_SCRIPT_PREFIX = "# BOSS unreal adapter";
 
 export function blenderScript(action: string, params: Record<string, unknown>): string {
   return `${BLENDER_SCRIPT_PREFIX}\nimport json, sys\n# capability=${action}\nparams = json.loads(${JSON.stringify(JSON.stringify(params))})\nprint("BOSS_BLENDER_OK", action, params.get("target", ""))`;

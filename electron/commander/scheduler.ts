@@ -9,8 +9,8 @@ export interface DispatchPolicy {
   minSuccess?: number;
 }
 
-export interface ScheduledJob { request: RuntimeRequest; candidates: RuntimeAdapter[]; }
-export interface ScheduleBatchResult {
+interface ScheduledJob { request: RuntimeRequest; candidates: RuntimeAdapter[]; }
+interface ScheduleBatchResult {
   results: PromiseSettledResult<RuntimeResult>[];
   state: "READY_TO_COMMIT" | "RECONCILIATION_REQUIRED";
   successCount: number;

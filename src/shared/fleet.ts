@@ -9,7 +9,7 @@
  * unrelated work untouched and checkpointed work transferable.
  */
 
-export type FleetNodeState = "READY" | "DEGRADED" | "OFFLINE" | "FAILED" | "DISABLED";
+type FleetNodeState = "READY" | "DEGRADED" | "OFFLINE" | "FAILED" | "DISABLED";
 
 export interface FleetNode {
   nodeId: string;
@@ -37,7 +37,7 @@ export interface FleetAssignment extends FleetTask {
   history: string[];
 }
 
-export const FLEET_HEARTBEAT_INTERVAL_MS = 5000;
+const FLEET_HEARTBEAT_INTERVAL_MS = 5000;
 export const DEGRADED_AFTER_MS = 2 * FLEET_HEARTBEAT_INTERVAL_MS;
 export const OFFLINE_AFTER_MS = 6 * FLEET_HEARTBEAT_INTERVAL_MS;
 

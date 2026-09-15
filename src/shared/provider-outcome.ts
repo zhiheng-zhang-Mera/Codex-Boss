@@ -16,10 +16,10 @@
  */
 
 /** Runtime-layer status vocabulary (unchanged from RuntimeResult). */
-export type RuntimeStatus = "SUCCESS" | "RETRYABLE_FAILURE" | "PERMANENT_FAILURE" | "CANCELLED";
+type RuntimeStatus = "SUCCESS" | "RETRYABLE_FAILURE" | "PERMANENT_FAILURE" | "CANCELLED";
 
 /** Runtime-layer failure codes that are NOT evidence about the model. */
-export const NON_SEMANTIC_RUNTIME_CODES = [
+const NON_SEMANTIC_RUNTIME_CODES = [
   "TIMEOUT",
   "AUTH_REQUIRED",
   "PAGE_CHANGED",
@@ -32,7 +32,7 @@ export const NON_SEMANTIC_RUNTIME_CODES = [
   "UNKNOWN"
 ] as const;
 
-export type NonSemanticRuntimeCode = (typeof NON_SEMANTIC_RUNTIME_CODES)[number];
+type NonSemanticRuntimeCode = (typeof NON_SEMANTIC_RUNTIME_CODES)[number];
 
 export type SemanticOutcome =
   | "FULL_COMPLETION"
@@ -62,7 +62,7 @@ export const SEMANTIC_OUTCOMES: readonly SemanticOutcome[] = [
 ] as const;
 
 /** Continuous behaviour axes (Engine book §6) — never a single boolean. */
-export interface BehaviourAxes {
+interface BehaviourAxes {
   completion: number; // 0..1
   goalFidelity: number; // 0..1
   restrictionImpact: number; // 0..1
@@ -249,7 +249,7 @@ function build(outcome: SemanticOutcome, evaluatorVersion: string, reasons: stri
   constraints?: string[];
 }
 
-export interface GoalDriftResult {
+interface GoalDriftResult {
   drifted: boolean;
   evidence: string[];
 }

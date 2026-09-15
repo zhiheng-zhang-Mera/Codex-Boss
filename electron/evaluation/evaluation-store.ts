@@ -14,7 +14,7 @@ import { summarizeBaseline, EXIT_TARGETS } from "../../src/shared/evaluation";
  * targets (simple ≥95%) are measurable, not asserted.
  */
 
-export interface EvaluationFile {
+interface EvaluationFile {
   schemaVersion: 1;
   goldens: GoldenTask[];
   records: EvaluationRecord[];

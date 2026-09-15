@@ -107,7 +107,7 @@ function packageFor(id: string, name: string, description: string, tokens: Recor
   };
 }
 
-export const BUILT_IN_THEME_PACKAGES: readonly ThemePackage[] = [
+const BUILT_IN_THEME_PACKAGES: readonly ThemePackage[] = [
   packageFor("builtin-dark", "Dark", "The application's original dark appearance, expressed as semantic tokens.", DARK_TOKENS),
   packageFor("builtin-light", "Light", "A high-contrast light appearance built from the same semantic tokens.", LIGHT_TOKENS)
 ];

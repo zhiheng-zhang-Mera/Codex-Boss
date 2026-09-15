@@ -1,9 +1,9 @@
 /** Permission scope + security classification contracts (plan §17/§18). Pure and shareable. */
 
 export type PermissionKind = "filesystem" | "repo" | "network" | "secret" | "side-effect";
-export const PERMISSION_KINDS: readonly PermissionKind[] = ["filesystem", "repo", "network", "secret", "side-effect"];
+const PERMISSION_KINDS: readonly PermissionKind[] = ["filesystem", "repo", "network", "secret", "side-effect"];
 
-export interface PermissionScope {
+interface PermissionScope {
   allow: string[];
   deny: string[];
 }
@@ -42,7 +42,7 @@ export function manifestNarrow(workspace: PermissionManifest, task: PermissionMa
   return violations;
 }
 
-export function manifestToString(manifest: PermissionManifest): string {
+function manifestToString(manifest: PermissionManifest): string {
   return PERMISSION_KINDS.flatMap((kind) => manifest[kind].allow.map((entry) => `${kind}:${entry}`)).join(",");
 }
 
@@ -53,9 +53,9 @@ export function manifestToString(manifest: PermissionManifest): string {
  * lease's shared-read set). Everything else is a mutation and must be
  * allow-listed as a `computer:<action>` side-effect by the workspace manifest.
  */
-export const DESKTOP_READ_ACTIONS: readonly string[] = ["read_page", "find_control", "verify_state", "wait_for_state"];
+const DESKTOP_READ_ACTIONS: readonly string[] = ["read_page", "find_control", "verify_state", "wait_for_state"];
 
-export interface SideEffectVerdict {
+interface SideEffectVerdict {
   allowed: boolean;
   reason?: string;
 }

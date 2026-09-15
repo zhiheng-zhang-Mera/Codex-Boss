@@ -20,7 +20,7 @@ import { TRUST_CODES, trustProblem, type TrustProblem } from "../../src/shared/t
 /** Where every transient acceptance artifact lives, relative to the repository root. */
 export const ACCEPTANCE_RELATIVE = path.join("artifacts", "acceptance");
 export const SESSION_FILE = "session.json";
-export const ATTESTATION_DIRECTORY = "attestations";
+const ATTESTATION_DIRECTORY = "attestations";
 export const HISTORY_DIRECTORY = "history";
 
 /** The acceptance artifacts directory for a repository root. */
@@ -110,24 +110,24 @@ export function gitHead(root: string): string {
  * §6: the commit's tree. Two different trees can share a commit message and even a
  * parent, so the tree — not just the SHA — is what the certificate binds.
  */
-export function gitTree(root: string): string {
+function gitTree(root: string): string {
   const result = git(root, ["rev-parse", "HEAD^{tree}"]);
   return result.ok ? result.output : "";
 }
 
 /** `git status --porcelain` output: empty means the working tree is clean. */
-export function gitWorkingTreeStatus(root: string): string {
+function gitWorkingTreeStatus(root: string): string {
   const result = git(root, ["status", "--porcelain"]);
   return result.ok ? result.output : "UNKNOWN";
 }
 
 /** §5: `git diff --quiet` over the index (staged changes) — exit 0 means clean. */
-export function gitIndexClean(root: string): boolean {
+function gitIndexClean(root: string): boolean {
   return git(root, ["diff", "--cached", "--quiet"]).ok;
 }
 
 /** §5: `git diff --quiet` over the working tree — exit 0 means clean. */
-export function gitWorktreeClean(root: string): boolean {
+function gitWorktreeClean(root: string): boolean {
   return git(root, ["diff", "--quiet"]).ok;
 }
 
@@ -159,7 +159,7 @@ export function readGitIdentity(root: string): GitIdentity {
  * §5.2/§5.3 starting a session
  * ------------------------------------------------------------------ */
 
-export interface StartSessionOptions {
+interface StartSessionOptions {
   root: string;
   artifacts?: string;
   /** §5.3: certification mode refuses a dirty tree. */
@@ -175,7 +175,7 @@ export interface StartSessionOptions {
   workingTreeStatus?: string;
 }
 
-export interface SessionStartOutcome {
+interface SessionStartOutcome {
   ok: boolean;
   reason?: string;
   session?: AcceptanceSession;
@@ -236,7 +236,7 @@ export function startAcceptanceSession(options: StartSessionOptions): SessionSta
  * archive itself is moved into `history/<label>/`, so the root auditor can never
  * mix this session's evidence with a previous one.
  */
-export function quarantineTransientEvidence(artifacts: string, now: () => Date = () => new Date()): { label: string; moved: string[] } {
+function quarantineTransientEvidence(artifacts: string, now: () => Date = () => new Date()): { label: string; moved: string[] } {
   const historyRoot = path.join(artifacts, HISTORY_DIRECTORY);
   if (!fs.existsSync(artifacts)) return { label: "", moved: [] };
   const previous = readJsonFile(sessionPath(artifacts)) as { session_id?: unknown } | undefined;

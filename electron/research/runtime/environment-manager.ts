@@ -16,7 +16,7 @@ export function prepareResearchCommand(spec: ResearchCommandSpec): ResearchComma
   return spec;
 }
 
-export interface CapturedArtifact {
+interface CapturedArtifact {
   file: string;
   sha256: string;
   bytes: number;

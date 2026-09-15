@@ -53,7 +53,7 @@ type CreatedTask = ReturnType<MainCommander["createTask"]>;
 type DispatchRequest = Parameters<typeof runWorkDispatch>[0];
 type DecisionEntry = Parameters<DecisionLedgerStore["append"]>[0];
 
-export interface DispatchSurface {
+interface DispatchSurface {
   /** The conversation a task belongs to when the renderer did not name one. */
   activeConversationId(): string;
   /** Every known provider id, so an unknown one is refused here. */
@@ -95,7 +95,7 @@ export interface DispatchSurface {
   publish(): unknown;
 }
 
-export interface DispatchIpcDeps {
+interface DispatchIpcDeps {
   handle: IpcRegistrar["handle"];
   dispatch: DispatchSurface;
 }

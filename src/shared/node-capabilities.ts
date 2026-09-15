@@ -8,7 +8,7 @@
  * DEGRADED / UNKNOWN / FAILED). Single node must stay usable without any Fleet.
  */
 
-export type CapabilityStatus = "READY" | "DEGRADED" | "FAILED" | "DISABLED" | "UNKNOWN";
+type CapabilityStatus = "READY" | "DEGRADED" | "FAILED" | "DISABLED" | "UNKNOWN";
 export type NodeState = "UNINITIALIZED" | "CHECKING" | "READY" | "DEGRADED" | "FAILED" | "DISABLED" | "RECOVERING";
 
 export interface NodeProbeData {
@@ -25,7 +25,7 @@ export interface NodeProbeData {
   sampledAt: string;
 }
 
-export type CapabilityId = "compute" | "memory" | "runtime" | "browser" | "web-ai" | "native-tools" | "network" | "gpu";
+type CapabilityId = "compute" | "memory" | "runtime" | "browser" | "web-ai" | "native-tools" | "network" | "gpu";
 
 export interface CapabilityVerdict {
   id: CapabilityId;

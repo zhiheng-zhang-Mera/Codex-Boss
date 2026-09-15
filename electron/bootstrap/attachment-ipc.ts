@@ -16,8 +16,8 @@ import type { BootModule, IpcRegistrar } from "./boot-module";
  * re-declared here: the attachment store is the owner of what an imported
  * attachment is, and a second shape in the IPC layer would be a second truth.
  */
-export type AttachmentObject = import("../../src/shared/input-object").InputObject;
-export type AttachmentRef = import("../../src/shared/input-object").InputObjectRef;
+type AttachmentObject = import("../../src/shared/input-object").InputObject;
+type AttachmentRef = import("../../src/shared/input-object").InputObjectRef;
 
 export interface AttachmentService {
   /** True when the conversation exists (the handler's only validation). */
@@ -31,7 +31,7 @@ export interface AttachmentService {
   localPathFor(conversationId: string, inputObjectId: string): string | undefined;
 }
 
-export interface AttachmentIpcDeps {
+interface AttachmentIpcDeps {
   handle: IpcRegistrar["handle"];
   attachments: AttachmentService;
   publish(): unknown;

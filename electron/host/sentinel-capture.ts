@@ -23,7 +23,7 @@ import {
  * — a missing measurement is not evidence that nothing changed.
  */
 
-export interface CaptureOptions {
+interface CaptureOptions {
   repoRoot: string;
   /** Where to look for the acceptance record P1 wrote. */
   acceptanceFile?: string;
@@ -257,11 +257,11 @@ export function captureDependencies(repoRoot: string): SentinelSnapshot["depende
  * supplies the numbers it observed (the CLI parses them from a real run) so the
  * sentinel never asserts a count it did not see.
  */
-export function captureTests(input: { files: number; tests: number; failed: number; suites?: Record<string, number> }): TestSlice {
+function captureTests(input: { files: number; tests: number; failed: number; suites?: Record<string, number> }): TestSlice {
   return { files: input.files, tests: input.tests, failed: input.failed, suites: input.suites };
 }
 
-export function currentGit(repoRoot: string): { revision: string; branch: string } {
+function currentGit(repoRoot: string): { revision: string; branch: string } {
   const read = (args: string[]): string => {
     // Bounded: an unreadable or wedged repository is reported as unknown, never
     // waited on, because this runs while a sentinel snapshot is being taken.

@@ -25,7 +25,7 @@ export type ResearchArtifactKind =
   | "repro-audit"
   | "build-artifact";
 
-export const RESEARCH_ROLES: readonly ResearchRole[] = ["literature", "planner", "experiment", "coder", "analyst", "reviewer", "reporter"];
+const RESEARCH_ROLES: readonly ResearchRole[] = ["literature", "planner", "experiment", "coder", "analyst", "reviewer", "reporter"];
 
 /** Stage → owning role (deterministic; mirrors the supervisor's autopilot flow). */
 const STAGE_ROLE: Record<ResearchState, ResearchRole> = {
@@ -95,7 +95,7 @@ export interface ResearchStageArtifact {
   createdAt: string;
 }
 
-export interface TypedStageArtifactBuilder {
+interface TypedStageArtifactBuilder {
   stage: ResearchState;
   summary: string;
   evidenceRefs?: string[];

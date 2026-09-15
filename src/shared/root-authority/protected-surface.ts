@@ -129,7 +129,7 @@ export interface ProtectedPathHit {
   source: "immutable-manifest" | "codeowners";
 }
 
-export interface ProtectedSurfaceAssessment {
+interface ProtectedSurfaceAssessment {
   protected: boolean;
   hits: ProtectedPathHit[];
   /**

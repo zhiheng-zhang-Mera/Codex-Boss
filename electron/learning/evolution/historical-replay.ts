@@ -22,7 +22,7 @@ import type { AdaptivePolicy, EvaluationSummary } from "./policy-candidate";
  *    than `regressionTolerance`.
  */
 
-export interface ReplayOptions {
+interface ReplayOptions {
   regressionTolerance?: number;
   minGroups?: number;
 }

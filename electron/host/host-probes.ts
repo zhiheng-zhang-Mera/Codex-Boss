@@ -16,7 +16,7 @@ import type { HostProbes } from "./acceptance-catalog";
  * only means the network-dependent rows are reported blocked.
  */
 
-export interface ProbeOptions {
+interface ProbeOptions {
   repoRoot: string;
   /** Overrides for tests/tools that already know the answers. */
   overrides?: Partial<Pick<HostProbes, "electronBinary" | "codexCli" | "network" | "buildOutput">>;
@@ -24,20 +24,20 @@ export interface ProbeOptions {
   networkTimeoutMs?: number;
 }
 
-export function electronBinaryPath(repoRoot: string): string {
+function electronBinaryPath(repoRoot: string): string {
   return path.join(repoRoot, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
 }
 
 /** The acceptance scripts load `dist-electron`; this is the file they need first. */
-export function buildOutputPath(repoRoot: string): string {
+function buildOutputPath(repoRoot: string): string {
   return path.join(repoRoot, "dist-electron", "electron", "store.js");
 }
 
-export function hasBuildOutput(repoRoot: string): boolean {
+function hasBuildOutput(repoRoot: string): boolean {
   return fs.existsSync(buildOutputPath(repoRoot));
 }
 
-export function hasElectronBinary(repoRoot: string): boolean {
+function hasElectronBinary(repoRoot: string): boolean {
   return fs.existsSync(electronBinaryPath(repoRoot));
 }
 
@@ -46,7 +46,7 @@ export function hasElectronBinary(repoRoot: string): boolean {
  * override, then PATH. Failure to find one is not an error — it is the reason
  * the CLI-lane rows are reported blocked.
  */
-export function hasCodexCli(env: NodeJS.ProcessEnv = process.env): boolean {
+function hasCodexCli(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.BOSS_CODEX_CLI && fs.existsSync(env.BOSS_CODEX_CLI)) return true;
   const names = process.platform === "win32" ? ["codex.exe", "codex.cmd", "codex.bat", "codex"] : ["codex"];
   const dirs = (env.PATH ?? env.Path ?? "").split(path.delimiter).filter(Boolean);

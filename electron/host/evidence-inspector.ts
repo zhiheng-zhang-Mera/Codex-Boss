@@ -35,7 +35,7 @@ import {
  * instead of silently reporting a smaller tree as if it were the whole one.
  */
 
-export interface InspectEvidenceOptions {
+interface InspectEvidenceOptions {
   root: string;
   /**
    * Repository root, used so a citation to a file that exists outside the
@@ -267,7 +267,7 @@ export function inspectEvidence(options: InspectEvidenceOptions): EvidenceInspec
   return inspection;
 }
 
-export interface EvidenceComparison {
+interface EvidenceComparison {
   schemaVersion: 1;
   kind: "HOST_EVIDENCE_COMPARISON";
   generatedAt: string;
@@ -306,7 +306,7 @@ export function compareEvidenceRoots(input: {
 }
 
 /** Issue counts per kind, for a compact CLI report. */
-export function issueCounts(issues: readonly EvidenceIssue[]): Record<string, number> {
+function issueCounts(issues: readonly EvidenceIssue[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const issue of issues) counts[issue.kind] = (counts[issue.kind] ?? 0) + 1;
   return counts;

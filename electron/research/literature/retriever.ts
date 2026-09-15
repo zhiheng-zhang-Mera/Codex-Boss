@@ -17,7 +17,7 @@ import type { CitationRecord } from "../../../src/shared/research-citation";
 import type { CitationSourceStore } from "./source-store";
 import { createHash } from "node:crypto";
 
-export interface LiteratureCandidate {
+interface LiteratureCandidate {
   id: string;
   title: string;
   authors?: string[];
@@ -27,7 +27,7 @@ export interface LiteratureCandidate {
   doi?: string;
 }
 
-export interface LiteratureAcquisition {
+interface LiteratureAcquisition {
   /** Full acquired source text (content-addressed cache fodder). */
   text: string;
   /** Structural metadata was verified against the source. */
@@ -37,7 +37,7 @@ export interface LiteratureAcquisition {
 }
 
 /** Literature search budget: Pass 1 is the default; 2/3 only on explicit gaps. */
-export type LiteraturePass = 1 | 2 | 3;
+type LiteraturePass = 1 | 2 | 3;
 export const MAX_PASS_SOURCES = 10; // §9: Pass 1 is 5–10 highly relevant sources
 
 /** Builds bounded search queries from the RQ (+hypothesis when present). */
@@ -70,7 +70,7 @@ export function dedupeLiteratureCandidates(candidates: LiteratureCandidate[]): L
   return out;
 }
 
-export interface LiteratureRetrieveResult {
+interface LiteratureRetrieveResult {
   pass: LiteraturePass;
   candidates: number;
   acquired: string[];      // candidate ids whose sources were acquired + stored
@@ -79,7 +79,7 @@ export interface LiteratureRetrieveResult {
   reasons: string[];
 }
 
-export interface LiteratureRetrieverDeps {
+interface LiteratureRetrieverDeps {
   store: CitationSourceStore;
   /** Semantic/metadata search over a query → candidate list (bounded by max). */
   search: (query: string, max: number) => Promise<LiteratureCandidate[]>;

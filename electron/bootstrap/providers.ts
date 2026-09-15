@@ -57,7 +57,7 @@ export interface ProviderPoolViews {
   open(provider: Provider, loadInitialPage?: boolean): unknown;
 }
 
-export interface ProvidersOptions {
+interface ProvidersOptions {
   /** The resolved data root — `app.getPath("userData")` in production. */
   userData: string;
   /** The live state document: the providers it holds are what gets a runtime. */

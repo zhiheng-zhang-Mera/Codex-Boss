@@ -15,11 +15,11 @@ import type { BootModule, IpcRegistrar } from "./boot-module";
  * fails if this channel stops being the only one that reaches the goal runner.
  */
 
-export interface ExternalArchiveLedger {
+interface ExternalArchiveLedger {
   list(): unknown[];
 }
 
-export interface EngineeringSurfaceDeps {
+interface EngineeringSurfaceDeps {
   handle: IpcRegistrar["handle"];
   /** The durable engineering goal read-model. */
   goalStatus(): unknown;

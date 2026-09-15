@@ -14,12 +14,12 @@ import { isHumanGated, type LoginHealthReport } from "../../src/shared/tenx/sess
  * tests, live adapters later).
  */
 
-export interface TenxLoginHealthFile {
+interface TenxLoginHealthFile {
   schemaVersion: 1;
   reports: LoginHealthReport[];
 }
 
-export interface LoginProbe {
+interface LoginProbe {
   provider: string;
   account?: string;
   /** Observable result from the probe adapter. */
@@ -34,7 +34,7 @@ export interface LoginProbe {
   };
 }
 
-export type LoginProbeFn = (provider: string, account?: string) => Promise<LoginProbe["result"]>;
+type LoginProbeFn = (provider: string, account?: string) => Promise<LoginProbe["result"]>;
 
 export class TenxLoginHealthScanner {
   private readonly reports = new Map<string, LoginHealthReport>();

@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import type { SemanticAction, SemanticBackend, SemanticResult } from "../semantic-runtime";
-export interface UiaTarget { processId: number; windowTitle?: string; automationId?: string; name?: string; }
+interface UiaTarget { processId: number; windowTitle?: string; automationId?: string; name?: string; }
 export interface ApplicationSpec { executable: string; args?: string[]; }
-export function parseUiaTarget(target: string): UiaTarget {
+function parseUiaTarget(target: string): UiaTarget {
   if (!target.startsWith("uia:")) throw new Error("UIA target must be structured");
   const value = JSON.parse(target.slice(4)) as UiaTarget;
   if (!Number.isInteger(value.processId) || value.processId <= 0 || Object.keys(value).some((key) => !["processId", "windowTitle", "automationId", "name"].includes(key))) throw new Error("Invalid UIA target");

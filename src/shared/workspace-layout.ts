@@ -18,30 +18,30 @@
 
 export type WorkspaceViewState = "MERGED" | "DETACHED";
 
-export const WORKSPACE_VIEW_STATES: readonly WorkspaceViewState[] = ["MERGED", "DETACHED"];
+const WORKSPACE_VIEW_STATES: readonly WorkspaceViewState[] = ["MERGED", "DETACHED"];
 
-export function isWorkspaceViewState(value: unknown): value is WorkspaceViewState {
+function isWorkspaceViewState(value: unknown): value is WorkspaceViewState {
   return value === "MERGED" || value === "DETACHED";
 }
 
 /** Integer pixel region on a window/screen (origin top-left). */
-export interface RegionBounds {
+interface RegionBounds {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-export interface LayoutArea {
+interface LayoutArea {
   width: number;
   height: number;
 }
 
 /** Boss share of total width is clamped so neither side becomes unusable. */
-export const MIN_BOSS_SHARE = 0.15;
-export const MAX_BOSS_SHARE = 0.75;
+const MIN_BOSS_SHARE = 0.15;
+const MAX_BOSS_SHARE = 0.75;
 
-export interface PaneBounds {
+interface PaneBounds {
   providerId: string;
   x: number;
   y: number;
@@ -50,7 +50,7 @@ export interface PaneBounds {
 }
 
 /** Layout geometries are integers ≥ 0 with a minimum usable width per pane. */
-export const MIN_PANE_WIDTH = 120;
+const MIN_PANE_WIDTH = 120;
 
 /**
  * Lays out `orderedProviders` as full-height horizontal panes inside a
@@ -87,20 +87,20 @@ export function layoutProviderPanes(orderedProviders: readonly string[], areaWid
   }));
 }
 
-export interface PaneLayoutResult {
+interface PaneLayoutResult {
   bounds: PaneBounds[];
   /** True when every pane kept ≥ MIN_PANE_WIDTH (no horizontal crowding). */
   fits: boolean;
 }
 
 /** Layout + fit verdict, used by tests and by the renderer resize path. */
-export function paneLayout(orderedProviders: readonly string[], areaWidth: number, areaHeight: number): PaneLayoutResult {
+function paneLayout(orderedProviders: readonly string[], areaWidth: number, areaHeight: number): PaneLayoutResult {
   const bounds = layoutProviderPanes(orderedProviders, areaWidth, areaHeight);
   const minWidth = orderedProviders.length ? Math.floor(areaWidth / orderedProviders.length) : areaWidth;
   return { bounds, fits: orderedProviders.length === 0 || minWidth >= MIN_PANE_WIDTH };
 }
 
-export interface WorkspaceLayoutState {
+interface WorkspaceLayoutState {
   view: WorkspaceViewState;
   /** Provider order left → right (persisted across relaunch). */
   displayOrder: string[];
@@ -108,12 +108,12 @@ export interface WorkspaceLayoutState {
   manualZoom: Record<string, number>;
 }
 
-export function initialWorkspaceLayout(displayOrder: string[]): WorkspaceLayoutState {
+function initialWorkspaceLayout(displayOrder: string[]): WorkspaceLayoutState {
   return { view: "MERGED", displayOrder: [...displayOrder], manualZoom: {} };
 }
 
 /** Deterministic normalization of a provider order against currently-open ids. */
-export function mergeOpenOrder(order: string[], openProviderIds: readonly string[]): string[] {
+function mergeOpenOrder(order: string[], openProviderIds: readonly string[]): string[] {
   const open = new Set(openProviderIds);
   const kept = order.filter((id) => open.has(id));
   const appended = openProviderIds.filter((id) => !kept.includes(id));
@@ -121,12 +121,12 @@ export function mergeOpenOrder(order: string[], openProviderIds: readonly string
 }
 
 /** Provider pane count is validated as 1|3|5 for full layout; 2/4 keep a row of 2/4 columns (legal subset). */
-export function expectedPanesForWork(agentCount: number): number {
+function expectedPanesForWork(agentCount: number): number {
   return agentCount;
 }
 
 /** Resolves the effective zoom for a pane: manual override wins, else auto-fit. */
-export function effectiveZoom(manualZoom: Record<string, number>, providerId: string, autoZoom: number): number {
+function effectiveZoom(manualZoom: Record<string, number>, providerId: string, autoZoom: number): number {
   const override = manualZoom[providerId];
   return override !== undefined && Number.isFinite(override) && override > 0 ? override : autoZoom;
 }
@@ -144,7 +144,7 @@ function clampBossShare(share: number): number {
  * region always keeps ≥ 1px (degenerate totals yield empty-but-consistent
  * regions rather than negative widths).
  */
-export function splitRegions(total: LayoutArea, bossShare: number, gap = 0): { boss: RegionBounds; web: RegionBounds } {
+function splitRegions(total: LayoutArea, bossShare: number, gap = 0): { boss: RegionBounds; web: RegionBounds } {
   const width = Number.isFinite(total.width) ? Math.max(0, Math.floor(total.width)) : 0;
   const height = Number.isFinite(total.height) ? Math.max(0, Math.floor(total.height)) : 0;
   const gutter = Number.isFinite(gap) ? Math.max(0, Math.floor(gap)) : 0;
@@ -160,7 +160,7 @@ export function splitRegions(total: LayoutArea, bossShare: number, gap = 0): { b
  * MERGED-view mapping: within one window the web-AI area sits to the right of
  * the Boss gutter (history/controller column), like the current desktop shell.
  */
-export function mergedPanesRegion(total: LayoutArea, bossGutter: number): RegionBounds {
+function mergedPanesRegion(total: LayoutArea, bossGutter: number): RegionBounds {
   const width = Number.isFinite(total.width) ? Math.max(0, Math.floor(total.width)) : 0;
   const height = Number.isFinite(total.height) ? Math.max(0, Math.floor(total.height)) : 0;
   const gutter = Number.isFinite(bossGutter) ? Math.max(0, Math.floor(bossGutter)) : 0;
@@ -172,7 +172,7 @@ export function mergedPanesRegion(total: LayoutArea, bossGutter: number): Region
  * to the region origin, so `x` starts at `region.x`). Reuses the deterministic
  * full-height horizontal column geometry of §9.1.
  */
-export function layoutPanesInRegion(orderedProviders: readonly string[], region: RegionBounds): PaneBounds[] {
+function layoutPanesInRegion(orderedProviders: readonly string[], region: RegionBounds): PaneBounds[] {
   const bounds = layoutProviderPanes(orderedProviders, region.width, region.height);
   return bounds.map((pane) => ({ ...pane, x: region.x + pane.x, y: region.y + pane.y }));
 }

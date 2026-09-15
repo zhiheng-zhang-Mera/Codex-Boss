@@ -20,7 +20,7 @@ export interface EmbeddingBackend {
   embed(text: string): Promise<number[]> | number[];
 }
 
-export interface SemanticVectorStore {
+interface SemanticVectorStore {
   put(id: string, vector: number[]): string;
   get(id: string): number[] | undefined;
 }
@@ -44,13 +44,13 @@ export class MemoryVectorStore implements SemanticVectorStore {
   }
 }
 
-export interface TaskFingerprinterOptions {
+interface TaskFingerprinterOptions {
   backend?: EmbeddingBackend;
   store?: SemanticVectorStore;
   timeoutMs?: number;
 }
 
-export interface FingerprintBuildResult {
+interface FingerprintBuildResult {
   fingerprint: TaskFingerprint;
   /** Explainability: how the fingerprint was produced. */
   semantic: boolean;

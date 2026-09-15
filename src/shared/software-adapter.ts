@@ -7,7 +7,7 @@
  * never arbitrary shell text.
  */
 
-export type SoftwareActionKind = "open" | "command" | "observe" | "verify" | "close";
+type SoftwareActionKind = "open" | "command" | "observe" | "verify" | "close";
 
 export interface SoftwareAction {
   kind: SoftwareActionKind;
@@ -71,7 +71,7 @@ export function adapterSupports(adapter: SoftwareAdapterDeclaration, id: string)
   return capabilityFor(adapter, id) !== undefined;
 }
 
-export interface SoftwareActionPlan {
+interface SoftwareActionPlan {
   actions: SoftwareAction[];
   reason: string;
 }

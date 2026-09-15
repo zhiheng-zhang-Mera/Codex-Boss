@@ -9,7 +9,7 @@ import { appendToLedger, summarizeLedger, validateLedgerEntry, type DecisionLedg
  * later without ever pre-approving routine decisions. Atomic write, id-dedupe,
  * fail-closed restore (a corrupt ledger must never be silently dropped).
  */
-export interface DecisionLedgerFile {
+interface DecisionLedgerFile {
   schemaVersion: 1;
   entries: DecisionLedgerEntry[];
 }

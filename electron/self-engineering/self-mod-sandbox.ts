@@ -32,7 +32,7 @@ export interface SelfModOps {
   discard(input: { branch: string }): Promise<void>;
 }
 
-export interface SandboxFile {
+interface SandboxFile {
   schemaVersion: 1;
   candidates: SelfModCandidate[];
 }

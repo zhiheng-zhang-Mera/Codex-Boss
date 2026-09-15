@@ -20,7 +20,7 @@ import { GATE_RANK, type VerificationGate } from "./execution-planner";
 import { signalsOf } from "./verification";
 import { findingIdOf, type ReviewFinding, type ReviewPlan, type ReviewRecord } from "./review";
 
-export const REVIEW_CHECKS_VERSION = "review-checks-1" as const;
+const REVIEW_CHECKS_VERSION = "review-checks-1" as const;
 
 /** True for a path a test belongs in (used to judge what a worker could repair). */
 export function isTestPath(file: string): boolean {

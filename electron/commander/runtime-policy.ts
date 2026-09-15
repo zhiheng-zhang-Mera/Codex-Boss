@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import type { RoleId } from "./role-router";
 
-export interface RuntimePolicyRoute { preferred: string[]; fallback: boolean; }
-export interface RuntimePolicy { maxParallel: number; roles: Record<RoleId, RuntimePolicyRoute>; }
+interface RuntimePolicyRoute { preferred: string[]; fallback: boolean; }
+interface RuntimePolicy { maxParallel: number; roles: Record<RoleId, RuntimePolicyRoute>; }
 const roleIds: RoleId[] = ["planner", "researcher", "reviewer", "synthesizer", "coder", "validator", "critic"];
 
-export function loadRuntimePolicy(filePath: string): RuntimePolicy {
+function loadRuntimePolicy(filePath: string): RuntimePolicy {
   const value = JSON.parse(fs.readFileSync(filePath, "utf8")) as Partial<RuntimePolicy>;
   if (!Number.isInteger(value.maxParallel) || value.maxParallel! < 1 || value.maxParallel! > 20) throw new Error("runtime-policy maxParallel must be 1-20");
   if (!value.roles || typeof value.roles !== "object") throw new Error("runtime-policy roles are required");

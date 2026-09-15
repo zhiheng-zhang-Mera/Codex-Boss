@@ -30,7 +30,7 @@ export interface GitHubTransportRequest {
   body?: unknown;
 }
 
-export interface GitHubTransportResponse {
+interface GitHubTransportResponse {
   status: number;
   body: string;
 }
@@ -60,7 +60,7 @@ export const fetchGitHubTransport: GitHubTransport = {
   }
 };
 
-export type AdapterResult<T> =
+type AdapterResult<T> =
   | { status: "OK"; value: T }
   | { status: "BLOCKED_EXTERNAL"; reason: string; requiredExternalAction: string }
   | { status: "FAILED"; reason: string; httpStatus?: number };
@@ -87,7 +87,7 @@ export function isForbiddenApiUrl(url: string): boolean {
   return FORBIDDEN_API_PATTERNS.some((pattern) => pattern.test(pathOnly));
 }
 
-export interface GitHubPromotionAdapterOptions {
+interface GitHubPromotionAdapterOptions {
   /** `owner/name`. */
   repository: string;
   /** Protected base branch. Never a push target. */

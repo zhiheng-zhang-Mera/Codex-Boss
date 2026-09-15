@@ -5,7 +5,7 @@
  * Harness session can resume without re-reading the repo or master plan.
  */
 
-export interface HandoffEvidenceEntry {
+interface HandoffEvidenceEntry {
   stepId: string;
   passed: boolean;
   output?: string;
@@ -23,7 +23,7 @@ export interface AutoHandoffInput {
   author?: string;
 }
 
-export interface AutoHandoffDocument {
+interface AutoHandoffDocument {
   packId: string;
   title: string;
   markdown: string;

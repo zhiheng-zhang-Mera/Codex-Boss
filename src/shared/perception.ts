@@ -29,7 +29,7 @@ export interface PerceptionRequirement {
   mustContain: string[];
 }
 
-export interface RequirementCritique {
+interface RequirementCritique {
   passed: boolean;
   missing: string[];
 }

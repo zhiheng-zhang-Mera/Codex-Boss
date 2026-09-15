@@ -22,7 +22,7 @@ import { adaptiveCapabilityEnabled, type AdaptiveFlags } from "../../src/shared/
  * confidence, which downstream profile builders exclude.
  */
 
-export interface OutcomeEvaluatorOptions {
+interface OutcomeEvaluatorOptions {
   evaluatorVersion?: string;
   /** Flag snapshot provider; when the capability is off, evaluate() returns undefined. */
   flags?: () => AdaptiveFlags;

@@ -77,7 +77,7 @@ export interface SoakOptions {
   failureEvery?: number;
 }
 
-export interface SoakRunResult {
+interface SoakRunResult {
   report: SoakReport;
   /** Set when the host could not sustain the run at all. */
   blockedExternal?: { reason: string };

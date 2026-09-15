@@ -23,14 +23,14 @@
  */
 
 export const ACCEPTANCE_STATUSES = ["PASS", "FAIL", "BLOCKED_EXTERNAL", "DEGRADED", "SKIPPED_WITH_REASON"] as const;
-export type AcceptanceStatus = (typeof ACCEPTANCE_STATUSES)[number];
+type AcceptanceStatus = (typeof ACCEPTANCE_STATUSES)[number];
 
 /**
  * How a check is executed. `suite` checks are discovered (vitest project),
  * `script` checks spawn a repo script, `command` checks spawn an arbitrary
  * declared command (typecheck/build).
  */
-export type AcceptanceDevice = "suite" | "script" | "command";
+type AcceptanceDevice = "suite" | "script" | "command";
 
 /**
  * Whether the check needs something this host may not have. `offline` checks
@@ -94,7 +94,7 @@ export interface AcceptanceCheckResult {
   finishedAt: string;
 }
 
-export interface AcceptanceSummary {
+interface AcceptanceSummary {
   pass: number;
   fail: number;
   blockedExternal: number;
@@ -136,7 +136,7 @@ export function blockedReason(requirement: AcceptanceRequirement, detail: string
   return requirement === "offline" ? detail : `${label[requirement]}; ${detail}`;
 }
 
-export function emptyAcceptanceSummary(): AcceptanceSummary {
+function emptyAcceptanceSummary(): AcceptanceSummary {
   return { pass: 0, fail: 0, blockedExternal: 0, degraded: 0, skipped: 0, total: 0 };
 }
 

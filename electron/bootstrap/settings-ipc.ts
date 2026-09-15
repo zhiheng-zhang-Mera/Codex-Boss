@@ -22,11 +22,11 @@ import type { RoleRouteView, UpdateApiSettingInput, UpdateRemoteChannelInput } f
  */
 
 /** The workspace-view modes the renderer may ask for. */
-export const WORKSPACE_VIEWS = ["MERGED", "DETACHED"] as const;
-export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
+const WORKSPACE_VIEWS = ["MERGED", "DETACHED"] as const;
+type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
 
 /** The durable settings mutations, as these channels use them. */
-export interface SettingsSurface {
+interface SettingsSurface {
   /** Every known provider id, so an unknown one can be refused here. */
   providerIds(): readonly string[];
   updateApiSetting(input: UpdateApiSettingInput): void;
@@ -43,7 +43,7 @@ export interface SettingsSurface {
 }
 
 /** The provider-pane manager, reduced to what these channels ask of it. */
-export interface ProviderPaneSurface {
+interface ProviderPaneSurface {
   setWorkspaceView(view: WorkspaceView): void;
   workspaceView(): unknown;
   webWindowBounds(): unknown;
@@ -53,7 +53,7 @@ export interface ProviderPaneSurface {
   pane(providerId: string): { reload(): void } | undefined;
 }
 
-export interface SettingsIpcDeps {
+interface SettingsIpcDeps {
   handle: IpcRegistrar["handle"];
   settings: SettingsSurface;
   panes: ProviderPaneSurface;
@@ -72,7 +72,7 @@ export const SETTINGS_IPC_CHANNELS = [
   "boss:reload-provider"
 ] as const;
 
-export function isWorkspaceView(value: unknown): value is WorkspaceView {
+function isWorkspaceView(value: unknown): value is WorkspaceView {
   return (WORKSPACE_VIEWS as readonly unknown[]).includes(value);
 }
 

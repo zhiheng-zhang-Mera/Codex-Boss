@@ -20,21 +20,21 @@ import { GraphDeferred } from "./deferred";
  * sequential behavior is preserved.
  */
 
-export interface MicrotaskExecutor {
+interface MicrotaskExecutor {
   /** Runs one microtask and returns its textual output/evidence. */
   execute(microtask: Microtask): Promise<string>;
   /** Revalidates persisted output against the current reality before reuse. */
   verify(microtask: Microtask, output: string): Promise<boolean>;
 }
 
-export interface MicrotaskRunOptions {
+interface MicrotaskRunOptions {
   /** Max ready nodes executed concurrently in one batch (default 1). */
   concurrency?: number;
   /** Allow read-like microtasks to run in parallel (default false). */
   parallelReads?: boolean;
 }
 
-export interface MicrotaskResult {
+interface MicrotaskResult {
   status: "COMPLETED" | "FAILED" | "WAITING";
   outputs: Record<string, string>;
   failedMicrotask?: string;

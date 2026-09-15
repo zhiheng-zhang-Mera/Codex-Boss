@@ -23,14 +23,14 @@ import { writeJson, readJson } from "../commander/durable-json";
  * restart evidence and the rollback reason are all persisted.
  */
 
-export type StablePointerState =
+type StablePointerState =
   | "STABLE_CURRENT"
   | "NEXT_STABLE_MARKED"
   | "RESTARTING"
   | "BOOT_ACCEPTED"
   | "ROLLED_BACK";
 
-export interface StableRestartEvidence {
+interface StableRestartEvidence {
   at: string;
   /** How the restart boundary was crossed. */
   mechanism: "candidate-acceptance-entrypoint" | "operator-restart" | "headless-boot-check";
@@ -68,7 +68,7 @@ export interface StablePointerRecord {
   updatedAt: string;
 }
 
-export interface StableRuntimePointerOptions {
+interface StableRuntimePointerOptions {
   /** Durable pointer file. Must live outside the Stable working tree. */
   pointerFile: string;
   /** Stable installation root, used to reject an in-tree pointer file. */
@@ -76,7 +76,7 @@ export interface StableRuntimePointerOptions {
   now?: () => Date;
 }
 
-export class StablePointerError extends Error {
+class StablePointerError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "StablePointerError";
@@ -260,7 +260,7 @@ export class StableRuntimePointer {
  * acceptance must never collide with the running Stable's Electron
  * single-instance lock, so every namespace is checked explicitly.
  */
-export interface CandidateRuntimeIsolationPlan {
+interface CandidateRuntimeIsolationPlan {
   runId: string;
   dataDirArgument: string;
   userDataDirectory: string;

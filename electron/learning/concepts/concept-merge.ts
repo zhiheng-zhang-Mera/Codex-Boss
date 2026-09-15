@@ -11,7 +11,7 @@ import { ConceptRegistry } from "./concept-registry";
  * pointer to the survivor and its history is preserved.
  */
 
-export interface MergeCandidate {
+interface MergeCandidate {
   primaryId: string;
   secondaryId: string;
   similarity: number;
@@ -19,7 +19,7 @@ export interface MergeCandidate {
   reason: string;
 }
 
-export interface MergeOptions {
+interface MergeOptions {
   similarityThreshold?: number;
   maxOutcomeDelta?: number;
   minSamples?: number;

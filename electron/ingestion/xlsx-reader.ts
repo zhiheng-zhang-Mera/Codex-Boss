@@ -21,21 +21,21 @@ export class XlsxError extends Error {
   }
 }
 
-export interface XlsxSheet {
+interface XlsxSheet {
   name: string;
   part: string;
   rows: string[][];
   usedRange: { rows: number; columns: number };
 }
 
-export interface XlsxExtraction {
+interface XlsxExtraction {
   sheets: XlsxSheet[];
   /** Markdown rendering, one table per sheet: the canonical section body. */
   markdown: string;
   warnings: string[];
 }
 
-export interface XlsxLimits {
+interface XlsxLimits {
   maxBytes: number;
   maxEntries: number;
   maxEntryBytes: number;
@@ -45,7 +45,7 @@ export interface XlsxLimits {
   maxColumns: number;
 }
 
-export const DEFAULT_XLSX_LIMITS: XlsxLimits = {
+const DEFAULT_XLSX_LIMITS: XlsxLimits = {
   maxBytes: 64 * 1024 * 1024,
   maxEntries: 4096,
   maxEntryBytes: 32 * 1024 * 1024,

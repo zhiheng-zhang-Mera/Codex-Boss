@@ -24,7 +24,7 @@ import { EvolutionKillSwitch } from "./evolution-kill-switch";
  * approval is not an emergency stop. Clearing it is the authenticated direction.
  */
 
-export interface EmergencyStopInput {
+interface EmergencyStopInput {
   /** Who raised the stop. */
   actor: string;
   reason: string;
@@ -33,7 +33,7 @@ export interface EmergencyStopInput {
   runId?: string;
 }
 
-export interface EmergencyStopResult {
+interface EmergencyStopResult {
   state: EvolutionControlState;
   stoppedCandidate: boolean;
   /** Where the stop was recorded. Evidence is retained, never cleared. */
@@ -42,7 +42,7 @@ export interface EmergencyStopResult {
   signals: string[];
 }
 
-export interface EmergencyControlOptions {
+interface EmergencyControlOptions {
   killSwitch: EvolutionKillSwitch;
   /** Root Owner named by the Root Policy. */
   rootOwner: string;

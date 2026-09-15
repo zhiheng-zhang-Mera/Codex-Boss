@@ -18,26 +18,26 @@ export class PdfError extends Error {
   }
 }
 
-export interface PdfPage {
+interface PdfPage {
   /** 1-based page number in document order. */
   number: number;
   text: string;
 }
 
-export interface PdfExtraction {
+interface PdfExtraction {
   pages: PdfPage[];
   warnings: string[];
   documentInfo: Record<string, string>;
 }
 
-export interface PdfLimits {
+interface PdfLimits {
   maxPages: number;
   maxBytes: number;
   maxCharactersPerPage: number;
   maxTotalCharacters: number;
 }
 
-export const DEFAULT_PDF_LIMITS: PdfLimits = {
+const DEFAULT_PDF_LIMITS: PdfLimits = {
   maxPages: 300,
   maxBytes: 64 * 1024 * 1024,
   maxCharactersPerPage: 200000,
@@ -203,7 +203,7 @@ export async function extractPdf(bytes: Uint8Array, limits: Partial<PdfLimits> =
  * Joins pdfjs text items, honouring explicit end-of-line markers and the
  * item order the engine reports (no positional re-flow heuristics).
  */
-export function joinTextItems(items: PdfTextItem[]): string {
+function joinTextItems(items: PdfTextItem[]): string {
   const parts: string[] = [];
   for (const item of items) {
     if (typeof item.str !== "string") continue;

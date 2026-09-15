@@ -1,7 +1,7 @@
 import { readJson, writeJson } from "./durable-json";
 
 /** One applied step of a schema migration, persisted for provenance (plan §5). */
-export interface MigrationHistoryEntry { from: number; to: number; at: string; }
+interface MigrationHistoryEntry { from: number; to: number; at: string; }
 
 /** A deterministic vN → vN+1 migration for one long-lived schema. */
 export interface Migration {
@@ -11,7 +11,7 @@ export interface Migration {
   validate?: (payload: unknown) => void;
 }
 
-export interface MigrationOutcome {
+interface MigrationOutcome {
   payload: unknown;
   to: number;
   history: MigrationHistoryEntry[];

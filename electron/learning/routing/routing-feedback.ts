@@ -12,7 +12,7 @@ import type { AdaptiveRoutingDecision } from "../../../src/shared/adaptive-routi
  * learning) stay connected. Recording failures degrade learning only.
  */
 
-export interface RoutingFeedbackRecord {
+interface RoutingFeedbackRecord {
   schemaVersion: 1;
   decisionId: string;
   taskId: string;
@@ -25,7 +25,7 @@ export interface RoutingFeedbackRecord {
   recordedAt: string;
 }
 
-export interface RoutingFeedbackFile {
+interface RoutingFeedbackFile {
   schemaVersion: 1;
   records: RoutingFeedbackRecord[];
 }

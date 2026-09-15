@@ -19,7 +19,7 @@ import {
  * atomic via the shared durable-json writer.
  */
 
-export interface AdaptiveFlagFile {
+interface AdaptiveFlagFile {
   schemaVersion: 1;
   flags: Partial<Record<AdaptiveFlagId, boolean>>;
   updatedAt: string;

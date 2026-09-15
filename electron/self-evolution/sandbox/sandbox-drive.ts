@@ -109,6 +109,6 @@ export function toHostPath(mapping: DriveMapping, value: string): string {
 }
 
 /** A stable synthetic identity for evidence: never the mapped path itself. */
-export function mappingFingerprint(mapping: DriveMapping): string {
+function mappingFingerprint(mapping: DriveMapping): string {
   return crypto.createHash("sha256").update(`${mapping.letter}:${mapping.hostRoot}`).digest("hex").slice(0, 16);
 }

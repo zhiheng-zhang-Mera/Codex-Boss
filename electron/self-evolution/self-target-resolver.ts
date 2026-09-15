@@ -43,7 +43,7 @@ export interface GitIdentity {
   worktree: boolean;
 }
 
-export interface SelfTargetEvidence {
+interface SelfTargetEvidence {
   requestedPath: string;
   canonicalPath: string;
   targetGit?: GitIdentity;
@@ -67,7 +67,7 @@ export interface SelfTargetResolution {
   evidence: SelfTargetEvidence;
 }
 
-export interface SelfTargetResolverOptions {
+interface SelfTargetResolverOptions {
   /** Root the running Boss was installed from (Stable). */
   stableRoot: string;
   /** Product repository identity, e.g. `zhiheng-zhang-Mera/Codex-Boss`. */
@@ -94,7 +94,7 @@ export interface SelfTargetResolverOptions {
  * canonically — this form decides the Self-Evolution trust domain, where getting
  * it wrong means treating the Stable repository as an ordinary target.
  */
-export function canonicalComparison(value: string): string {
+function canonicalComparison(value: string): string {
   const normalized = canonicalRealPathOrNormalized(value).replace(/[\\/]+$/, "");
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
@@ -146,7 +146,7 @@ function nearestExisting(value: string, canonicalize: (value: string) => string)
 }
 
 /** Resolves the git identity of a directory, walking up to its repository root. */
-export function resolveGitIdentity(
+function resolveGitIdentity(
   directory: string,
   gitRunner: (cwd: string, args: string[]) => string | undefined,
   canonicalize: (value: string) => string

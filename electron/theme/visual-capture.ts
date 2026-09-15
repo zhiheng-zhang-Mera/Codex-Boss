@@ -17,13 +17,13 @@ import path from "node:path";
 import type { BrowserWindow, WebContents } from "electron";
 import { writeJson } from "../commander/durable-json";
 
-export interface CaptureTarget {
+interface CaptureTarget {
   /** Surface name from the §9 vocabulary this frame represents. */
   surface: string;
   webContents: WebContents;
 }
 
-export interface CaptureResult {
+interface CaptureResult {
   schemaVersion: 1;
   generatedAt: string;
   sanitized: true;
@@ -42,7 +42,7 @@ export interface CaptureResult {
 }
 
 /** The CSS the renderer applies while capturing (sanitized visual mode). */
-export const CAPTURE_SANITIZE_CSS = `
+const CAPTURE_SANITIZE_CSS = `
 html.boss-theme-capture .user-message p,
 html.boss-theme-capture .final-response pre,
 html.boss-theme-capture .attachment-name,

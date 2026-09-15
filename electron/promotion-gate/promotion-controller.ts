@@ -57,7 +57,7 @@ export interface PromotionRecord {
   rollback: { from: string; to: string; reason: string; at: string; previousStableSha: string } | null;
 }
 
-export interface PromotionEvaluateInput {
+interface PromotionEvaluateInput {
   binding: ExactShaBinding;
   requiredChecksPassed: boolean;
   branchUpToDate: boolean;
@@ -69,7 +69,7 @@ export interface PromotionEvaluateInput {
   rootOwnerApprovedBy?: string | null;
 }
 
-export interface PromotionControllerOptions {
+interface PromotionControllerOptions {
   /** Durable record file. Must live outside the Candidate workspace. */
   storeFile: string;
   runId: string;

@@ -7,13 +7,13 @@ import { readJson, writeJson } from "../commander/durable-json";
  * lets one observed change (e.g. a repo edit) drop every dependent entry.
  */
 
-export interface CachePolicy {
+interface CachePolicy {
   kind: string;         // e.g. "repo-index", "context-capsule"
   version: number;      // schema/algorithm version
   maxAgeMs?: number;    // optional TTL
 }
 
-export interface CacheEntry<T = unknown> {
+interface CacheEntry<T = unknown> {
   key: string;
   value: T;
   createdAt: number;

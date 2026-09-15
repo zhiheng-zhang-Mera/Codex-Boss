@@ -22,7 +22,7 @@ export interface DynamicPromptSections {
 }
 
 /** Versions a static contract so cache keys/audits can name it (plan §21). */
-export interface PromptVersion {
+interface PromptVersion {
   /** e.g. "planner-contract-v1" */
   id: string;
   version: number;

@@ -14,7 +14,7 @@ export interface ResourceDemand {
   browser?: boolean;
 }
 
-export interface CapacityDecision {
+interface CapacityDecision {
   allowedWorkers: number;
   reason: "unlimited" | "logical_cap" | "physical_cap" | "no_workers";
 }
@@ -29,7 +29,7 @@ export function capacityFor(demand: ResourceDemand, budget?: PhysicalBudget, log
   return { allowedWorkers: allowed, reason: allowed === logicalCap && logicalCap < physical ? "logical_cap" : "physical_cap" };
 }
 
-export interface WorkerProfile {
+interface WorkerProfile {
   runtimeId: string;
   consumesModel: boolean;
   usesBrowser: boolean;

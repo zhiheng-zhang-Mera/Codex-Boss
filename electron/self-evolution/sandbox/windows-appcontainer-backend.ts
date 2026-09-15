@@ -66,11 +66,11 @@ function cscCandidates(): string[] {
   ];
 }
 
-export function findCSharpCompiler(): string | undefined {
+function findCSharpCompiler(): string | undefined {
   return cscCandidates().find((candidate) => fs.existsSync(candidate));
 }
 
-export interface WindowsAppContainerSandboxOptions {
+interface WindowsAppContainerSandboxOptions {
   /** Host-owned directory for the compiled launcher. Never inside a Candidate. */
   launcherRoot?: string;
   /** Deterministic container name; defaults to the per-run name. */
@@ -469,9 +469,9 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
 }
 
 /** True when this host's OS is one the sandbox can confine. */
-export function supportsHardSandbox(): boolean {
+function supportsHardSandbox(): boolean {
   return process.platform === "win32";
 }
 
-export { os, ancestorDirectories, CANDIDATE_CLASSIFICATION };
+export { os, ancestorDirectories };
 export { toSandboxPath, toHostPath, ensureDriveMapping, removeDriveMapping } from "./sandbox-drive";

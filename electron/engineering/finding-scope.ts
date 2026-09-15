@@ -98,7 +98,7 @@ export function candidateFilesForFinding(
 }
 
 /** Test files covered by the candidate set (regression surface). */
-export function regressionTestsFor(root: string, candidateFiles: string[]): string[] {
+function regressionTestsFor(root: string, candidateFiles: string[]): string[] {
   const snapshot = scanRepo(root);
   const isTest = (file: string) => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file);
   const sources = candidateFiles.filter((file) => !isTest(file));

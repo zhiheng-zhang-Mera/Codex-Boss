@@ -20,7 +20,7 @@ export interface ProjectSignals {
   topModules: string[];
 }
 
-export interface NoveltyReview {
+interface NoveltyReview {
   claimId: string;
   /** Heuristic novelty: how distinct the question is from what the repo already tests/documents. */
   noveltyScore: number;

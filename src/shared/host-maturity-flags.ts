@@ -11,7 +11,7 @@
  * be removable without touching the Engine's flag contract.
  */
 
-export type HostFlagId =
+type HostFlagId =
   | "hostAcceptanceHub"
   | "hostFaultLab"
   | "hostSoakHarness"
@@ -30,7 +30,7 @@ export const HOST_FLAG_IDS: readonly HostFlagId[] = [
   "hostDoctor"
 ] as const;
 
-export type HostFlags = Record<HostFlagId, boolean>;
+type HostFlags = Record<HostFlagId, boolean>;
 
 export const DEFAULT_HOST_FLAGS: HostFlags = {
   hostAcceptanceHub: false,
@@ -43,7 +43,7 @@ export const DEFAULT_HOST_FLAGS: HostFlags = {
 };
 
 /** Human labels used by the doctor/observability surfaces. */
-export const HOST_FLAG_LABELS: Record<HostFlagId, string> = {
+const HOST_FLAG_LABELS: Record<HostFlagId, string> = {
   hostAcceptanceHub: "System Acceptance Hub (P1)",
   hostFaultLab: "Failure Injection Lab (P2)",
   hostSoakHarness: "Long-run / Soak Harness (P3)",
@@ -83,6 +83,6 @@ export function hostCapabilityEnabled(id: HostFlagId, flags: HostFlags): boolean
   return flags[id] === true;
 }
 
-export function disabledHostCapability(id: HostFlagId): { enabled: false; capability: HostFlagId; reason: string } {
+function disabledHostCapability(id: HostFlagId): { enabled: false; capability: HostFlagId; reason: string } {
   return { enabled: false, capability: id, reason: `${HOST_FLAG_LABELS[id]} is disabled (fail-closed default)` };
 }

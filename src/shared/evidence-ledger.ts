@@ -25,7 +25,7 @@ import {
   type RequirementNode
 } from "./requirements-graph";
 
-export const EVIDENCE_LEDGER_VERSION = "evidence-ledger-1" as const;
+const EVIDENCE_LEDGER_VERSION = "evidence-ledger-1" as const;
 
 export type GateOutcome = "PASS" | "FAIL" | "SKIPPED" | "NOT_RUN";
 
@@ -131,7 +131,7 @@ export function highestPassingGate(ledger: EvidenceLedgerFile, requirementId: st
   return { gate: best.gate, rank: GATE_RANK[best.gate] };
 }
 
-export interface LedgerSummary {
+interface LedgerSummary {
   total: number;
   appendedFromDuplicates: number;
   by_gate: Partial<Record<VerificationGate, number>>;
@@ -188,7 +188,7 @@ export function evidenceKindForGate(gate: VerificationGate): EvidenceKind[] {
 }
 
 /** The §28.4 vocabulary has no SKIPPED, so a skipped gate is NOT_RUN there. */
-export function evidenceStatusFor(result: GateOutcome): "PASS" | "FAIL" | "MISSING" | "NOT_RUN" {
+function evidenceStatusFor(result: GateOutcome): "PASS" | "FAIL" | "MISSING" | "NOT_RUN" {
   return result === "SKIPPED" ? "NOT_RUN" : result;
 }
 

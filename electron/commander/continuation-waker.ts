@@ -14,7 +14,7 @@ import type { DomainEvent, DomainEventBus, DomainEventType } from "./event-bus";
 /** Event kinds that can make an automation round ready to continue. */
 export const CONTINUATION_EVENT_TYPES: readonly DomainEventType[] = ["WORKER_COMPLETED", "TOOL_RESULT_READY", "HUMAN_APPROVED"];
 
-export interface ContinuationWakerOptions {
+interface ContinuationWakerOptions {
   /** Cooldown between wakeups of the same task (ms). Default 500. */
   cooldownMs?: number;
   /** Additional event types to wake on (e.g. DEPENDENCY_READY). */

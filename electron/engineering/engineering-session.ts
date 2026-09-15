@@ -27,7 +27,7 @@ import { sha256Hex } from "../../src/shared/hash";
  * which is the exact failure this module exists to prevent.
  */
 
-export type EngineeringRoleName = "coder" | "reviewer";
+type EngineeringRoleName = "coder" | "reviewer";
 
 export interface EngineeringSessionKey {
   /** The frozen goal the turn belongs to. */
@@ -37,7 +37,7 @@ export interface EngineeringSessionKey {
 }
 
 /** Longest id `durable-json.validId` accepts. */
-export const ENGINEERING_SESSION_ID_LIMIT = 128;
+const ENGINEERING_SESSION_ID_LIMIT = 128;
 
 /** `[A-Za-z0-9_-]` only, collapsed and trimmed; never empty. */
 function sanitizePart(value: unknown): string {

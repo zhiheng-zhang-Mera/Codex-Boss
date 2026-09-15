@@ -12,7 +12,7 @@ import { canonicalStableProtocol, validateAmendment, type ProtocolAmendment, typ
  * an amendment — only frozen-field changes do.
  */
 
-export interface ProtocolStoreFile {
+interface ProtocolStoreFile {
   schemaVersion: 1;
   protocolHash: string;
   protocol: ResearchProtocol;

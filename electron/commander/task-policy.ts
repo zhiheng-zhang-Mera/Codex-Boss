@@ -1,7 +1,7 @@
 import { decide, HeuristicPolicy, type PolicyOptimizer } from "../../src/shared/policy";
 import type { TaskLedger, TaskLedgerRecord } from "./task-ledger";
 
-export type PlanComplexity = "L0" | "L1" | "L2" | "L3";
+type PlanComplexity = "L0" | "L1" | "L2" | "L3";
 
 /**
  * Policy decision recording (plan §29 wiring half). Records the chosen

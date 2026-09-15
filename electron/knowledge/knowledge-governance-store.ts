@@ -12,7 +12,7 @@ import { decideIngestion, placementFor, resolveConflictGroup, type ConflictResol
  * archive-only). All writes atomic; corrupt tier files fail closed.
  */
 
-export interface GovernanceFile {
+interface GovernanceFile {
   schemaVersion: 1;
   entries: KnowledgeEntry[];
 }

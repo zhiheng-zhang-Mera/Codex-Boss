@@ -138,7 +138,7 @@ export class ResearchLedger {
 }
 
 /** File existence helper for graceful-absence checks (kept separate from ledger). */
-export function researchLedgerDir(root: string): string {
+function researchLedgerDir(root: string): string {
   fs.mkdirSync(root, { recursive: true });
   return root;
 }

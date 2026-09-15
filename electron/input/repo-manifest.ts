@@ -12,14 +12,14 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-export interface ManifestRow {
+interface ManifestRow {
   path: string;      // posix relative path
   sha256: string;    // content hash (or unchanged-carried hash)
   size: number;
   mtimeMs: number;
 }
 
-export interface RepoManifest {
+interface RepoManifest {
   schemaVersion: 1;
   root: string;
   scannedAt: string;
@@ -33,7 +33,7 @@ export interface RepoManifest {
   skipped?: SkippedEntry[];
 }
 
-export interface SkippedEntry {
+interface SkippedEntry {
   path: string;
   reason: string;
 }
@@ -56,7 +56,7 @@ function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-export interface StatWorkspaceOptions {
+interface StatWorkspaceOptions {
   maxFiles?: number;
   /** Called for every entry the walk could not list or stat, with the reason. */
   onSkip?(entry: SkippedEntry): void;

@@ -16,7 +16,7 @@ export class DocxError extends Error {
   }
 }
 
-export interface DocxParagraph {
+interface DocxParagraph {
   text: string;
   style?: string;
   headingLevel?: number;
@@ -25,12 +25,12 @@ export interface DocxParagraph {
   fromHeaderOrFooter?: boolean;
 }
 
-export interface DocxExtraction {
+interface DocxExtraction {
   paragraphs: DocxParagraph[];
   warnings: string[];
 }
 
-export interface DocxLimits {
+interface DocxLimits {
   maxBytes: number;
   maxParagraphs: number;
   maxCharacters: number;
@@ -43,13 +43,13 @@ export const DEFAULT_DOCX_LIMITS: DocxLimits = {
 };
 
 /** The raw text mammoth produced, plus its messages. */
-export interface DocxRawConversion {
+interface DocxRawConversion {
   text: string;
   messages: { type?: string; message?: string }[];
 }
 
 /** The HTML mammoth produced, plus its messages. */
-export interface DocxHtmlConversion {
+interface DocxHtmlConversion {
   html: string;
   messages: { type?: string; message?: string }[];
 }
@@ -59,10 +59,10 @@ export interface DocxHtmlConversion {
  * future offline pipelines can inject a different converter without changing
  * any caller.
  */
-export type DocxConverter = (bytes: Uint8Array, limits: DocxLimits) => Promise<DocxRawConversion>;
+type DocxConverter = (bytes: Uint8Array, limits: DocxLimits) => Promise<DocxRawConversion>;
 
 /** Same seam for the structure-preserving (HTML) conversion. */
-export type DocxHtmlConverter = (bytes: Uint8Array, limits: DocxLimits) => Promise<DocxHtmlConversion>;
+type DocxHtmlConverter = (bytes: Uint8Array, limits: DocxLimits) => Promise<DocxHtmlConversion>;
 
 let injectedConverter: DocxConverter | undefined;
 let injectedHtmlConverter: DocxHtmlConverter | undefined;
@@ -162,7 +162,7 @@ function guessStyle(line: string): string | undefined {
  * mammoth's HTML output does not carry style ids, so the heading level is read
  * from the standard `<h1>`..`<h6>` elements mammoth emits for styled headings.
  */
-export function paragraphsFromHtml(html: string, limits: DocxLimits): { paragraphs: DocxParagraph[]; truncated: boolean } {
+function paragraphsFromHtml(html: string, limits: DocxLimits): { paragraphs: DocxParagraph[]; truncated: boolean } {
   const paragraphs: DocxParagraph[] = [];
   const blocks = html.match(/<(h[1-6]|p|li)\b[^>]*>[\s\S]*?<\/\1>/gi) ?? [];
   let characters = 0;
@@ -185,7 +185,7 @@ export function paragraphsFromHtml(html: string, limits: DocxLimits): { paragrap
 }
 
 /** Converts one mammoth HTML fragment to text, dropping tags but not content. */
-export function htmlToText(html: string): string {
+function htmlToText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(?:p|li|h[1-6]|tr|div)>/gi, "\n")

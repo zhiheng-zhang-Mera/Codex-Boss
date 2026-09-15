@@ -1,7 +1,7 @@
 import { readJson, writeJson } from "../commander/durable-json";
 import { validateSemanticAction, type SemanticAction, type SemanticActionName } from "../../src/shared/semantic";
 export type { SemanticAction, SemanticActionName } from "../../src/shared/semantic";
-export type SemanticBackendKind = "native" | "dom" | "uia" | "structured" | "vision";
+type SemanticBackendKind = "native" | "dom" | "uia" | "structured" | "vision";
 export interface SemanticResult { status: "SUCCESS" | "UNSUPPORTED" | "FAILED" | "UNCERTAIN"; evidence?: unknown; message?: string; backend?: SemanticBackendKind; }
 export interface SemanticBackend { kind: SemanticBackendKind; supports(action: SemanticAction): boolean; execute(action: SemanticAction, signal: AbortSignal): Promise<SemanticResult>; }
 const priority: SemanticBackendKind[] = ["native", "dom", "uia", "structured", "vision"];

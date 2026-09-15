@@ -97,6 +97,6 @@ export function githubCacheKey(target: GithubTarget): string {
 }
 
 /** GitHub URLs are treated as repository inputs (kind REPOSITORY, source GITHUB). */
-export function isGithubInput(text: string): boolean {
+function isGithubInput(text: string): boolean {
   return extractGithubUrlFromMessage(text) !== undefined;
 }

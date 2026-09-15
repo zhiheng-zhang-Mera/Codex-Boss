@@ -8,7 +8,7 @@ import { decidePromotion } from "../../src/shared/experience";
  * when the promotion rules are met. Task-local insights never leak to global
  * on a single observation.
  */
-export interface ExperienceFile {
+interface ExperienceFile {
   schemaVersion: 1;
   entries: ExperienceEntry[];
 }

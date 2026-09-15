@@ -36,7 +36,7 @@ export interface EngineeringRoleWorker {
   ask(role: "coder" | "reviewer", prompt: string, session: EngineeringSessionKey): Promise<string>;
 }
 
-export interface LiveEngineeringOperationsOptions {
+interface LiveEngineeringOperationsOptions {
   /** Real workspace root (git repo or plain folder). */
   workspace: string;
   /** Frozen goal contract (unchanged across iterations). */
@@ -53,7 +53,7 @@ export interface LiveEngineeringOperationsOptions {
   checkOptions?: import("./command-runner").RunAllowedCommandOptions;
 }
 
-export interface ImplementOutcome {
+interface ImplementOutcome {
   changedFiles: string[];
   error?: string;
   verification?: {

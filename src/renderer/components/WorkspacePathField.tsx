@@ -21,7 +21,7 @@ import { restoreWorkspaceField } from "../../shared/workspace-selection";
  * remembered workspace that has since disappeared is shown but marked unusable —
  * restoring it never starts anything (plan §6).
  */
-export interface WorkspacePathFieldProps {
+interface WorkspacePathFieldProps {
   /** Label text rendered beside the field. */
   label: string;
   /** aria-label of the text input — the stable handle automation binds to. */

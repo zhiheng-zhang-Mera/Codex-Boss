@@ -29,7 +29,7 @@ export interface ResearchRoleWorker {
   ask(input: { researchId: string; stage: ResearchState; question: string }): Promise<string>;
 }
 
-export interface DispatchAttempt {
+interface DispatchAttempt {
   workerId: string;
   stage: ResearchState;
   role: ResearchRole;

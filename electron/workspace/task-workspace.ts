@@ -16,7 +16,7 @@ import { requireWorkspacePathSync, resolveWorkspacePathSync } from "./path-utils
  * resume all read the same decision instead of re-deriving it.
  */
 
-export interface WorkspaceRequest {
+interface WorkspaceRequest {
   /** The workspace the request carried (typed, picked, or injected by a script/test). */
   requested?: string;
   /**

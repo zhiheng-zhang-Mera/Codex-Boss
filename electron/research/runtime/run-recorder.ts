@@ -20,7 +20,7 @@ import { EvidenceGraph, type PrimaryRunRecord } from "../evidence/evidence-graph
  * no fabricated runs).
  */
 
-export interface GitProbe {
+interface GitProbe {
   commit: string;
   dirty: boolean;
 }

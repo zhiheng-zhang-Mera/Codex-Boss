@@ -10,7 +10,7 @@ import { writeJson } from "../commander/durable-json";
  * re-reading the repo. Fail-closed: invalid input never writes.
  */
 
-export interface HandoffPersistResult {
+interface HandoffPersistResult {
   markdownFile: string;
   metaFile: string;
 }

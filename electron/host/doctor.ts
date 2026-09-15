@@ -27,7 +27,7 @@ import { cacheUnder } from "../runtime-paths";
  * "we could not check" from being reported as "this machine cannot run Boss".
  */
 
-export interface DoctorOptions {
+interface DoctorOptions {
   repoRoot: string;
   dataRoot: string;
   now?: () => string;

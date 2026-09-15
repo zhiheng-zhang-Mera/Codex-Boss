@@ -12,7 +12,7 @@ import path from "node:path";
  */
 
 /** How the operating system actually confines a Candidate subprocess. */
-export type SandboxMechanism =
+type SandboxMechanism =
   /** Windows AppContainer (lowbox) token + Job Object. */
   | "windows-appcontainer"
   /** No usable hard sandbox is present on this host. */

@@ -22,7 +22,7 @@ import type { RootDecisionRecord } from "../../src/shared/root-authority/contrac
  * that. A Candidate that can rewrite its own audit trail has no audit trail.
  */
 
-export interface RootLedgerEntry extends RootDecisionRecord {
+interface RootLedgerEntry extends RootDecisionRecord {
   /** Monotonic 1-based position in the ledger. */
   seq: number;
   /** Hash of the previous entry, or the empty-string sentinel for seq 1. */
@@ -31,7 +31,7 @@ export interface RootLedgerEntry extends RootDecisionRecord {
   hash: string;
 }
 
-export const LEDGER_GENESIS_HASH = "";
+const LEDGER_GENESIS_HASH = "";
 
 export class RootAuditError extends Error {
   constructor(message: string) {

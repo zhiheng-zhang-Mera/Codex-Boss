@@ -1,6 +1,6 @@
 export type ReviewMode = "STRICT" | "BALANCED" | "AUTONOMOUS";
 export type ExecutionPhase = "IDLE" | "DISPATCHING" | "WAITING_FOR_RESPONSE" | "RESPONSE_RECEIVED" | "REVIEW_GATE" | "NEXT_STEP" | "WAITING_FOR_USER" | "RETRY" | "FAILED" | "COMPLETED";
-export interface OutputContract {
+interface OutputContract {
   format: "text" | "json";
   marker?: string;
   requiredFields?: string[];

@@ -49,7 +49,7 @@ export function capabilityNeedsForKind(kind: InputObjectKind): Array<keyof Provi
   }
 }
 
-export const PROVIDER_CAPABILITY_KEYS: Array<keyof ProviderCapabilities> = [
+const PROVIDER_CAPABILITY_KEYS: Array<keyof ProviderCapabilities> = [
   "text", "imageUpload", "pdfUpload", "documentUpload", "spreadsheetUpload", "archiveUpload",
   "multipleFiles", "vision", "code", "longContext"
 ];
@@ -86,7 +86,7 @@ const BASELINE: Record<string, ProviderCapabilities> = {
 };
 
 /** Baseline profile for a provider id (empty capability set when unknown). */
-export function baselineCapabilitiesFor(providerId: ProviderId): ProviderCapabilities {
+function baselineCapabilitiesFor(providerId: ProviderId): ProviderCapabilities {
   return { ...noProviderCapabilities(), ...(BASELINE[providerId] ?? {}) };
 }
 

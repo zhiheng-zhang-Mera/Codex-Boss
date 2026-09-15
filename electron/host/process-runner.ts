@@ -106,7 +106,7 @@ function findPackageManagerEntry(entry: string[]): string | undefined {
   return undefined;
 }
 
-export interface NodeProcessRunnerOptions {
+interface NodeProcessRunnerOptions {
   platform?: NodeJS.Platform;
   /** Extra environment for child processes. */
   env?: NodeJS.ProcessEnv;
@@ -161,6 +161,6 @@ export function createNodeProcessRunner(options: NodeProcessRunnerOptions = {}):
 }
 
 /** Evidence location convention used by every Host-M phase. */
-export function acceptanceEvidenceDir(repoRoot: string): string {
+function acceptanceEvidenceDir(repoRoot: string): string {
   return path.join(repoRoot, "artifacts", "host-acceptance");
 }

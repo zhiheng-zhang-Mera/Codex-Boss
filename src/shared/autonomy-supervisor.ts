@@ -12,7 +12,7 @@
  * and §14 provider replacement are here too.
  */
 
-export type JobLifecycleState =
+type JobLifecycleState =
   | "QUEUED"
   | "DISPATCHING"
   | "ACTIVE"
@@ -22,7 +22,7 @@ export type JobLifecycleState =
   | "COMPLETED"
   | "FAILED";
 
-export const JOB_LIFECYCLE_STATES: readonly JobLifecycleState[] = [
+const JOB_LIFECYCLE_STATES: readonly JobLifecycleState[] = [
   "QUEUED", "DISPATCHING", "ACTIVE", "QUIET", "PROBING", "RECOVERING", "COMPLETED", "FAILED"
 ];
 
@@ -41,7 +41,7 @@ export interface JobHeartbeat {
   busy?: boolean;
 }
 
-export interface StallBounds {
+interface StallBounds {
   /** No output progress + no busy evidence past this window ⇒ QUIET → probe. */
   quietAfterMs: number;
   /** No semantic progress + no busy + no delta + probe cannot prove activity ⇒ STALLED. */
@@ -56,7 +56,7 @@ export const DEFAULT_STALL_BOUNDS: StallBounds = {
   failAfterMs: 15 * 60_000
 };
 
-export type StallVerdict = "WORKING" | "SLOW" | "STALLED" | "FAILED";
+type StallVerdict = "WORKING" | "SLOW" | "STALLED" | "FAILED";
 
 export interface Observation {
   verdict: StallVerdict;
@@ -146,7 +146,7 @@ export function observeJob(now: number, heartbeat: JobHeartbeat, bounds: StallBo
  * §12 Provider Recovery Ladder R0–R8. Ranks are fixed; each step is entered only
  * after the previous one failed. Returns the next step after the current one.
  */
-export type RecoveryLadderStep =
+type RecoveryLadderStep =
   | "R0_INSPECT_CURRENT_STATE"
   | "R1_RECAPTURE_EXISTING_RESPONSE"
   | "R2_REMONITOR"
@@ -187,7 +187,7 @@ export function isTerminalRecovery(step: RecoveryLadderStep): boolean {
  * acceptance keeps requireAll=true and waits under bounded recovery instead of
  * waiting forever.
  */
-export interface StragglerInput {
+interface StragglerInput {
   total: number;
   received: number;
   coreRolesReturned: boolean;
@@ -196,7 +196,7 @@ export interface StragglerInput {
   quorum?: number;
 }
 
-export type StragglerDecision = "PROCEED_PROVISIONAL" | "WAIT_FOR_QUORUM" | "WAIT_FOR_ALL" | "WAIT_FOR_CORE";
+type StragglerDecision = "PROCEED_PROVISIONAL" | "WAIT_FOR_QUORUM" | "WAIT_FOR_ALL" | "WAIT_FOR_CORE";
 
 export function stragglerDecision(input: StragglerInput): StragglerDecision {
   const { total, received, coreRolesReturned, requireAll } = input;
@@ -216,7 +216,7 @@ export function stragglerDecision(input: StragglerInput): StragglerDecision {
  * verification test), in which case replacement is refused so nobody fakes a
  * pass by substituting a different brand.
  */
-export interface ReplacementInput {
+interface ReplacementInput {
   failedProviderId: string;
   candidateProviderIds: readonly string[];
   targetWorkerCount: number;
@@ -224,7 +224,7 @@ export interface ReplacementInput {
   brandLocked: boolean;
 }
 
-export interface ReplacementDecision {
+interface ReplacementDecision {
   replacement?: string;
   workerCount: number;
   canReplace: boolean;

@@ -18,7 +18,7 @@ import { TenxKnowledgeSpace } from "./knowledge-space";
  * failure never erases earlier provenance.
  */
 
-export interface PipelineEventRecord {
+interface PipelineEventRecord {
   stage: PipelineStage;
   status: "ok" | "parked" | "duplicate";
   eventId?: string;
@@ -29,7 +29,7 @@ export interface PipelineEventRecord {
   at: string;
 }
 
-export interface PipelineStateFile {
+interface PipelineStateFile {
   schemaVersion: 1;
   events: PipelineEventRecord[];
 }

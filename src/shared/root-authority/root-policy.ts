@@ -31,7 +31,7 @@ import {
 } from "./contracts";
 import { scanSecrets } from "../secret-scan";
 
-export const ROOT_POLICY_SCHEMA_VERSION = 1;
+const ROOT_POLICY_SCHEMA_VERSION = 1;
 
 /** The seven policy knobs named by §7.1, plus an Owner-only additive list. */
 export interface RootPolicy {
@@ -75,7 +75,7 @@ export const DEFAULT_ROOT_POLICY: RootPolicy = {
 };
 
 /** Policy keys that are Root decisions; used for exhaustive mapping. */
-export type RootPolicyDecisionKey =
+type RootPolicyDecisionKey =
   | "selfElevation"
   | "ownerCredentialAccess"
   | "directMainMutation"
@@ -84,7 +84,7 @@ export type RootPolicyDecisionKey =
   | "promotionGateMutation"
   | "emergencyControlMutation";
 
-export const ROOT_POLICY_DECISION_KEYS: readonly RootPolicyDecisionKey[] = [
+const ROOT_POLICY_DECISION_KEYS: readonly RootPolicyDecisionKey[] = [
   "selfElevation",
   "ownerCredentialAccess",
   "directMainMutation",

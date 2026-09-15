@@ -53,20 +53,20 @@ import {
   type WorkerScope
 } from "../../src/shared/verification";
 
-export const VERIFICATION_LEDGER_FILE = "verification-ledger.json";
+const VERIFICATION_LEDGER_FILE = "verification-ledger.json";
 
-export interface RawRun {
+interface RawRun {
   passed: boolean;
   exitCode: number | null;
   output: string;
 }
 
-export interface ChangeUnit {
+interface ChangeUnit {
   /** Repository-relative path plus the exact content the worker wants written. */
   changes: { path: string; content: string }[];
 }
 
-export interface AppliedChange {
+interface AppliedChange {
   path: string;
   before_sha256: string | null;
   after_sha256: string;
@@ -81,20 +81,20 @@ export interface ApplyResult {
   rollback: () => { restored: string[]; removed: string[] };
 }
 
-export interface ClaimVerification {
+interface ClaimVerification {
   verdicts: ClaimVerdict[];
   observations: ChangeObservation[];
   /** §30.2's first check, reported honestly when git cannot answer. */
   git: { available: boolean; detail: string; changed: string[] };
 }
 
-export interface RequirementVerification {
+interface RequirementVerification {
   selection: GateSelection;
   outcome: LadderOutcome;
   entries: EvidenceEntry[];
 }
 
-export interface EngineConfig {
+interface EngineConfig {
   root: string;
   /** Where the §31.3 ledger lives. Defaults to `<root>/artifacts/acceptance/`. */
   ledgerPath?: string;

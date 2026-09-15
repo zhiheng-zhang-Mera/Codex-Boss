@@ -8,7 +8,7 @@
  * electron/commander/decision-ledger-store.ts.
  */
 
-export type DecisionOutcome = "APPLIED" | "ROLLED_BACK" | "DEFERRED";
+type DecisionOutcome = "APPLIED" | "ROLLED_BACK" | "DEFERRED";
 
 export type DecisionSource =
   | "question-interceptor"

@@ -18,12 +18,12 @@ import type { ArtifactRecordVNext, ArtifactType } from "../../src/shared/tenx/ar
  * ledger holds the integrity hash so tampering is detectable on read.
  */
 
-export interface TenxArtifactFile {
+interface TenxArtifactFile {
   schemaVersion: 1;
   records: ArtifactRecordVNext[];
 }
 
-export interface ArtifactWriteInput {
+interface ArtifactWriteInput {
   type: ArtifactType;
   runId: string;
   taskId?: string;

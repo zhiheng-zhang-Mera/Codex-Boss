@@ -21,7 +21,7 @@ import { execFile, spawnSync } from "node:child_process";
  * `runGitOrThrow`, which throws with git's own stderr attached.
  */
 
-export interface GitRunOptions {
+interface GitRunOptions {
   /** How long the command may take. Defaults to `GIT_TIMEOUT_MS.standard`. */
   timeoutMs?: number;
   /** Max captured output. Defaults to `GIT_MAX_BUFFER.standard`. */
@@ -40,7 +40,7 @@ export interface GitRunOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export interface GitRunResult {
+interface GitRunResult {
   stdout: string;
   stderr: string;
   code: number | null;

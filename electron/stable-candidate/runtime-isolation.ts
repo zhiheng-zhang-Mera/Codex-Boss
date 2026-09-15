@@ -122,7 +122,7 @@ export function evolutionDataDirArg(layout: EvolutionLayout): string {
   return `--boss-data-dir=${layout.runtimeData}`;
 }
 
-export interface RuntimeIsolationAssessment {
+interface RuntimeIsolationAssessment {
   decision: RootDecision;
   /** Stable writable surface(s) the path would touch. */
   sharedSurfaces: string[];

@@ -42,7 +42,7 @@ export interface SurfaceChange {
   from?: string;
 }
 
-export interface ResolvedSurfacePath {
+interface ResolvedSurfacePath {
   /** POSIX-normalized path relative to the workspace root. */
   relative: string;
   /** Absolute on-disk path after symlink/junction resolution of its ancestors. */
@@ -57,7 +57,7 @@ export interface SurfaceAssessment {
   reasons: RootDecisionReason[];
 }
 
-export interface ProtectedSurfaceGuardOptions {
+interface ProtectedSurfaceGuardOptions {
   /** Workspace root. For evolution runs this is the Candidate root, never Stable. */
   root: string;
   /** Override the CODEOWNERS location (tests use a fixture file). */
@@ -205,6 +205,6 @@ export class ProtectedSurfaceGuard {
 }
 
 /** Convenience for one-shot checks without holding a guard instance. */
-export function assessWorkspaceChanges(root: string, changes: readonly SurfaceChange[], options: { codeownersFile?: string; caseInsensitive?: boolean } = {}): SurfaceAssessment {
+function assessWorkspaceChanges(root: string, changes: readonly SurfaceChange[], options: { codeownersFile?: string; caseInsensitive?: boolean } = {}): SurfaceAssessment {
   return new ProtectedSurfaceGuard({ root, ...options }).assessChanges(changes);
 }

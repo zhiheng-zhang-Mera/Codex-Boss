@@ -46,7 +46,7 @@ import {
   type TrustProblem
 } from "./trust-problems";
 
-export const BOOTSTRAP_AUDIT_VERSION = "bootstrap-audit-2" as const;
+const BOOTSTRAP_AUDIT_VERSION = "bootstrap-audit-2" as const;
 
 /** §57: the name of the desktop black-box gate. */
 export const DESKTOP_BLACK_BOX = DESKTOP_BLACK_BOX_GATE;
@@ -66,7 +66,7 @@ export interface GateEvidence {
   attestation_sha256: string;
 }
 
-export interface TrustedBootstrapInput {
+interface TrustedBootstrapInput {
   session?: AcceptanceSession;
   /** SHA-256 of the session manifest. */
   session_sha256: string;
@@ -78,7 +78,7 @@ export interface TrustedBootstrapInput {
   ownerLedgerFile?: string;
 }
 
-export interface TrustedEvidenceSource {
+interface TrustedEvidenceSource {
   kind: "gate" | "desktop" | "owner_ledger" | "session";
   gate: string;
   report_file: string;

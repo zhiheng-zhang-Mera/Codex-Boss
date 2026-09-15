@@ -17,7 +17,7 @@ export interface FileSymbols {
   types: string[];
 }
 
-export interface SymbolIndex {
+interface SymbolIndex {
   schemaVersion: 1;
   builtForSignature: string;
   files: FileSymbols[];

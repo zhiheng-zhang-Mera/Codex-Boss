@@ -56,7 +56,7 @@ export const PROCESS_MAX_BUFFER_BYTES = {
   huge: 32 * 1024 * 1024
 } as const;
 
-export interface ProcessRunOptions {
+interface ProcessRunOptions {
   /** How long the command may take. Required: the gateway states no default bound. */
   timeoutMs: number;
   /** Max captured output. Required for the same reason: a silent truncation is a wrong answer. */
@@ -72,7 +72,7 @@ export interface ProcessRunOptions {
   signal?: AbortSignal;
 }
 
-export interface ProcessRunResult {
+interface ProcessRunResult {
   file: string;
   args: string[];
   stdout: string;
@@ -189,7 +189,7 @@ export function processTranscript(result: ProcessRunResult): string {
  * **stated by the caller** here, so what differs between callers is visible at the
  * call site instead of buried in a copy.
  */
-export interface SupervisedProcessOptions {
+interface SupervisedProcessOptions {
   /** How long the child may run. Required: the gateway states no default bound. */
   timeoutMs: number;
   /** Max captured stdout, counted in characters. Required, and per stream, because the callers differ. */
@@ -210,7 +210,7 @@ export interface SupervisedProcessOptions {
   stop?(child: ChildProcess): void;
 }
 
-export interface SupervisionOutcome {
+interface SupervisionOutcome {
   /** The exit status, or null when the child never produced one. */
   code: number | null;
   /** The signal that ended the child, when one did. */

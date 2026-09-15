@@ -1,10 +1,10 @@
 import { readJson, writeJson } from "./durable-json";
 import type { RuntimeId } from "../runtimes/runtime";
 
-export type RuntimeBudgetLevel = "UNKNOWN" | "OK" | "LOW" | "EXHAUSTED";
-export type RuntimeBudgetSource = "OBSERVED" | "API" | "USER_CONFIG" | "RATE_LIMIT_SIGNAL";
+type RuntimeBudgetLevel = "UNKNOWN" | "OK" | "LOW" | "EXHAUSTED";
+type RuntimeBudgetSource = "OBSERVED" | "API" | "USER_CONFIG" | "RATE_LIMIT_SIGNAL";
 
-export interface RuntimeBudgetState {
+interface RuntimeBudgetState {
   runtimeId: RuntimeId;
   state: RuntimeBudgetLevel;
   source: RuntimeBudgetSource;

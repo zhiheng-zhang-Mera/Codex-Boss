@@ -11,7 +11,7 @@ export type GitHubCapability =
   | "test"
   | "network";
 
-export type GitHubErrorCode =
+type GitHubErrorCode =
   | "AUTH_MISSING"
   | "AUTH_INVALID"
   | "AUTH_EXPIRED"

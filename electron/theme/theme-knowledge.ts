@@ -21,11 +21,11 @@ import { contentHashOf } from "../../src/shared/workbook";
 import type { KnowledgeScope } from "../../src/shared/tenx/knowledge";
 
 /** The narrow slice of the Knowledge Foundation this integration needs. */
-export interface ThemeKnowledgePort {
+interface ThemeKnowledgePort {
   base: { commit(candidate: KnowledgeCandidate): { outcome: string; object?: { id: string } } };
 }
 
-export interface ThemeKnowledgeInput {
+interface ThemeKnowledgeInput {
   scope: KnowledgeScope;
   taskRef: string;
   intent: ThemeIntent;
@@ -166,7 +166,7 @@ export function recordThemeKnowledge(
 }
 
 /** Deterministic hash used as the knowledge provenance hash for a theme package. */
-export function themeKnowledgeHash(pkg: ThemePackage, packageHash: string): string {
+function themeKnowledgeHash(pkg: ThemePackage, packageHash: string): string {
   return contentHashOf([PRODUCER, pkg.manifest.id, packageHash].join("\u0000"));
 }
 

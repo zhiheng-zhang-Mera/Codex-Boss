@@ -37,7 +37,7 @@ import {
 } from "./trust-problems";
 
 export const ACCEPTANCE_SESSION_SCHEMA_VERSION = 1 as const;
-export const GATE_ATTESTATION_SCHEMA_VERSION = 1 as const;
+const GATE_ATTESTATION_SCHEMA_VERSION = 1 as const;
 
 /** §5.2 the manifest every authoritative Prestart run starts from. */
 export interface AcceptanceSession {
@@ -52,14 +52,14 @@ export interface AcceptanceSession {
   working_tree_status: string;
 }
 
-export type RequirementVerdict = "PASS" | "FAIL" | "NOT_RUN";
+type RequirementVerdict = "PASS" | "FAIL" | "NOT_RUN";
 
-export interface ReportRequirementResult {
+interface ReportRequirementResult {
   id: string;
   verdict: string;
 }
 
-export interface GateReportLike {
+interface GateReportLike {
   schemaVersion?: unknown;
   unit?: unknown;
   requirementResults?: unknown;
@@ -123,7 +123,7 @@ export interface StrictReportValidation {
   hash: string;
 }
 
-export interface StrictValidationInput {
+interface StrictValidationInput {
   gate: string;
   contract: AcceptanceGateContract;
   report: unknown;
@@ -294,7 +294,7 @@ export interface GateAttestation {
   attestation_hash: string;
 }
 
-export interface BuildAttestationInput {
+interface BuildAttestationInput {
   gate: string;
   contract: AcceptanceGateContract;
   session: AcceptanceSession;
@@ -305,7 +305,7 @@ export interface BuildAttestationInput {
 }
 
 /** The attestation's own digest, computed over everything except the digest field. */
-export function attestationHashOf(attestation: Omit<GateAttestation, "attestation_hash"> | GateAttestation): string {
+function attestationHashOf(attestation: Omit<GateAttestation, "attestation_hash"> | GateAttestation): string {
   const { attestation_hash: _ignored, ...rest } = attestation as GateAttestation;
   return canonicalSha256(rest);
 }
@@ -331,7 +331,7 @@ export function buildGateAttestation(input: BuildAttestationInput): GateAttestat
   return { ...body, attestation_hash: attestationHashOf(body) };
 }
 
-export interface VerifyAttestationInput {
+interface VerifyAttestationInput {
   gate: string;
   contract: AcceptanceGateContract;
   session: AcceptanceSession;
@@ -385,7 +385,7 @@ export function verifyGateAttestation(input: VerifyAttestationInput): TrustProbl
  * §2.6/§6.3 the desktop black-box contract
  * ------------------------------------------------------------------ */
 
-export interface DesktopValidationInput {
+interface DesktopValidationInput {
   contract: AcceptanceGateContract;
   report: unknown;
 }

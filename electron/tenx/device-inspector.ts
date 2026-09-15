@@ -15,7 +15,7 @@ import { type NodeHardware, type NodeIdentity } from "../../src/shared/tenx/node
  * DEGRADED/UNKNOWN/FAILED, never fabricated READY.
  */
 
-export interface DeviceRuntimeFacts {
+interface DeviceRuntimeFacts {
   node?: string;
   python?: string;
   browser?: string;
@@ -23,19 +23,19 @@ export interface DeviceRuntimeFacts {
   nativeToolsAvailable: boolean;
 }
 
-export interface DeviceNetworkFacts {
+interface DeviceNetworkFacts {
   directReachableProviders: string[];
   latencyMs?: number;
   dnsOk?: boolean;
 }
 
-export interface DeviceProviderFacts {
+interface DeviceProviderFacts {
   configured: string[];
   authenticated: string[];
   reachable: string[];
 }
 
-export interface DeviceProxyFacts {
+interface DeviceProxyFacts {
   systemProxyConfigured: boolean;
   userProxyConfigured: boolean;
   regionalProxyConfigured: boolean;

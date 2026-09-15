@@ -29,11 +29,11 @@ import { planExploration, type ExplorationOptions } from "./exploration-policy";
  *    (A31) while unseen candidates keep a neutral prior and are not punished.
  */
 
-export interface ProfileResolver {
+interface ProfileResolver {
   resolve(input: { runtimeId: string; modelSnapshotKey?: string; behaviourEpochId?: string }): ProviderBehaviourProfile | undefined;
 }
 
-export interface AdaptiveScorerOptions {
+interface AdaptiveScorerOptions {
   profiles: ProfileResolver;
   flags: () => AdaptiveFlags;
   policyVersion?: string;

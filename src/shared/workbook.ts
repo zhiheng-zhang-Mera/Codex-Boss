@@ -80,14 +80,14 @@ export interface CanonicalTaskDocument {
 
 export type WorkBookClassification = "EXECUTABLE_WORKBOOK" | "REFERENCE" | "AMBIGUOUS";
 
-export interface WorkBookReason {
+interface WorkBookReason {
   code: string;
   detail: string;
   /** Signed contribution to the executable score. */
   weight: number;
 }
 
-export interface WorkBookFeatures {
+interface WorkBookFeatures {
   characters: number;
   lines: number;
   sectionCount: number;
@@ -120,7 +120,7 @@ export interface WorkBookVerdict {
 }
 
 export const EXECUTABLE_SCORE_THRESHOLD = 2;
-export const REFERENCE_SCORE_THRESHOLD = -2;
+const REFERENCE_SCORE_THRESHOLD = -2;
 /** Below this many characters no verdict is trustworthy (short notes). */
 export const MIN_CLASSIFIABLE_CHARACTERS = 160;
 
@@ -129,7 +129,7 @@ export function sha256OfBytes(bytes: Uint8Array): string {
   return sha256Bytes(bytes);
 }
 
-export function sha256OfText(text: string): string {
+function sha256OfText(text: string): string {
   return sha256Bytes(utf8Bytes(text));
 }
 
@@ -161,7 +161,7 @@ export function logicalKeyFor(fileName: string, fallbackHash: string): string {
   return stem ? `wb:${stem}` : `wb:${fallbackHash.slice(0, 16)}`;
 }
 
-export function cjkRatioOf(text: string): number {
+function cjkRatioOf(text: string): number {
   const cjk = text.match(/[\u3400-\u4dbf\u4e00-\u9fff]/g)?.length ?? 0;
   const letters = text.match(/[A-Za-z]/g)?.length ?? 0;
   const total = cjk + letters;
@@ -200,7 +200,7 @@ export function mimeForFileName(name: string): string {
 }
 
 /** File types this unit can extract text from without a model. */
-export const SUPPORTED_EXTENSIONS: readonly string[] = [
+const SUPPORTED_EXTENSIONS: readonly string[] = [
   ".md", ".markdown", ".txt", ".text",
   ".json", ".yaml", ".yml", ".csv", ".tsv",
   ".pdf", ".docx", ".xlsx"
@@ -220,9 +220,9 @@ export function isSupportedFileName(fileName: string): boolean {
  * Analysis-only requests
  * ------------------------------------------------------------------ */
 
-export type AnalysisOnlyKind = "ANALYSIS_ONLY" | "EXECUTION_REQUESTED" | "UNSPECIFIED";
+type AnalysisOnlyKind = "ANALYSIS_ONLY" | "EXECUTION_REQUESTED" | "UNSPECIFIED";
 
-export interface AnalysisOnlyVerdict {
+interface AnalysisOnlyVerdict {
   kind: AnalysisOnlyKind;
   confidence: number;
   reasons: string[];
@@ -306,7 +306,7 @@ export function detectAnalysisOnly(text: string): AnalysisOnlyVerdict {
  * Content-feature classification
  * ------------------------------------------------------------------ */
 
-export interface WorkBookFeatureInput {
+interface WorkBookFeatureInput {
   content: string;
   /**
    * Optional extractor sections. When absent, headings are derived from the
@@ -324,7 +324,7 @@ const CJK_HEADING = /^\s*(?:第[一二三四五六七八九十百\d]+[章节条]
  * markdown headings plus the Chinese numbered headings plain-text WorkBooks use.
  * Arabic list items (`1.`) are body content and are never treated as headings.
  */
-export function deriveHeadings(content: string): { heading: string; level: number }[] {
+function deriveHeadings(content: string): { heading: string; level: number }[] {
   const headings: { heading: string; level: number }[] = [];
   for (const raw of content.split(/\r\n|\r|\n/)) {
     const atx = ATX_HEADING.exec(raw);
@@ -525,7 +525,7 @@ export function normalizeHeading(heading: string | undefined): string {
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
-export function tokenizeForSimilarity(text: string): string[] {
+function tokenizeForSimilarity(text: string): string[] {
   const tokens: string[] = [];
   for (const word of text.toLowerCase().match(/[a-z0-9]{2,}/g) ?? []) tokens.push(word);
   for (const cjk of text.match(/[\u3400-\u4dbf\u4e00-\u9fff]+/g) ?? []) {

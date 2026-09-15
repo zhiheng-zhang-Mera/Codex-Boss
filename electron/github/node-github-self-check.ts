@@ -1,7 +1,7 @@
 import type { GitHubCapability, GitHubResult } from "../../src/shared/github-machine";
 import type { GitHubAppAuthProvider } from "./github-app-auth";
 
-export interface GitHubNodeSelfCheck {
+interface GitHubNodeSelfCheck {
   configured: boolean;
   credentialProviderAvailable: boolean;
   authenticationHealthy: boolean;

@@ -26,7 +26,7 @@ export interface ExternalArchiveAttempt {
 /** Injected page-state verifier/archiver (production wires the live app). */
 export type ArchiveAttempt = (record: ExternalSessionRecord) => Promise<ExternalArchiveAttempt>;
 
-export interface ExternalArchiveAutomationResult {
+interface ExternalArchiveAutomationResult {
   attempted: number;
   archived: number;
   deferred: number;
@@ -35,7 +35,7 @@ export interface ExternalArchiveAutomationResult {
   stillPending: ExternalSessionRecord[];
 }
 
-export const DEFAULT_ARCHIVE_AUTOMATION_LIMIT = 10;
+const DEFAULT_ARCHIVE_AUTOMATION_LIMIT = 10;
 
 export async function automatePendingExternalArchives(
   ledger: ExternalSessionLedger,

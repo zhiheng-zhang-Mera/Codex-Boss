@@ -56,7 +56,7 @@ export function titleForTask(input: CreateTaskInput, attachments: InputObjectRef
 }
 
 /** The conversation's input objects that this task actually binds. */
-export function conversationScopedInputRefs(sources: InputRefSources, conversationId: string, inputObjectIds?: string[]): InputObjectRef[] {
+function conversationScopedInputRefs(sources: InputRefSources, conversationId: string, inputObjectIds?: string[]): InputObjectRef[] {
   const bound = new Set(inputObjectIds ?? []);
   return (sources.inputObjectsFor(conversationId) ?? []).filter((ref) => bound.has(ref.id));
 }

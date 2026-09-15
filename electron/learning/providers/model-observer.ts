@@ -14,7 +14,7 @@ import { resolveModelIdentity, type ModelObservationCandidate, type ResolvedMode
  * reported, so a broken provider surface can never break a task.
  */
 
-export interface RawModelObservation {
+interface RawModelObservation {
   provider: string;
   surface: string;
   observedAt?: string;
@@ -34,7 +34,7 @@ export interface RawModelObservation {
   inferredModel?: unknown;
 }
 
-export interface ModelObservationResult extends ResolvedModelIdentity {
+interface ModelObservationResult extends ResolvedModelIdentity {
   /** Metadata that had to be ignored (malformed/unusable), for observability. */
   ignored: string[];
 }

@@ -9,7 +9,7 @@
  */
 
 export type DataTier = "L0" | "L1" | "L2" | "L3" | "L4";
-export const DATA_TIERS: readonly DataTier[] = ["L0", "L1", "L2", "L3", "L4"];
+const DATA_TIERS: readonly DataTier[] = ["L0", "L1", "L2", "L3", "L4"];
 
 /** Tier purpose per plan §17 (L0 temporary … L4 cold archive). */
 export interface TierRule {
@@ -72,7 +72,7 @@ export interface StorageBudgetPolicy {
   userAuthorizedDelete?: boolean;
 }
 
-export const DEFAULT_STORAGE_BUDGET: StorageBudgetPolicy = { maxCompletedTasksPerConversation: 0, maxRunsPerTask: 0, enforceTtl: false };
+const DEFAULT_STORAGE_BUDGET: StorageBudgetPolicy = { maxCompletedTasksPerConversation: 0, maxRunsPerTask: 0, enforceTtl: false };
 
 export interface LifecyclePruneReport {
   removed: { family: string; count: number }[];

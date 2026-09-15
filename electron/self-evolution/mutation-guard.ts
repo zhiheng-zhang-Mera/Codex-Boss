@@ -17,7 +17,7 @@ import { SelfMutationDeniedError } from "./mutation-context";
  * answers every later call with a string comparison.
  */
 
-export interface MutationGuardConfig {
+interface MutationGuardConfig {
   /** Stable installation root. */
   stableRoot: string;
   /** Reviewed repository identity. */
@@ -55,7 +55,7 @@ export function resetMutationGuard(): void {
   cachedResolution = undefined;
 }
 
-export function mutationGuardConfigured(): boolean {
+function mutationGuardConfigured(): boolean {
   return Boolean(config);
 }
 
@@ -83,14 +83,14 @@ function effectiveResolution(): SelfTargetResolution {
 }
 
 /** True when `target` lies inside the Boss repository (or is its worktree). */
-export function targetsBossRepository(target: string): boolean {
+function targetsBossRepository(target: string): boolean {
   const resolution = effectiveResolution();
   if (!resolution.isSelf) return false;
   const identity = effectiveResolver().resolve(target);
   return identity.isSelf;
 }
 
-export interface MutationGuardVerdict {
+interface MutationGuardVerdict {
   allowed: boolean;
   selfTarget: boolean;
   context?: EvolutionRunContext;

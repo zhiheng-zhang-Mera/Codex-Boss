@@ -24,9 +24,9 @@ import {
  *     can *find*.
  */
 
-export type CredentialDomain = "OWNER" | "BOSS" | "UNKNOWN";
+type CredentialDomain = "OWNER" | "BOSS" | "UNKNOWN";
 
-export interface AmbientCredentialObservation {
+interface AmbientCredentialObservation {
   /** Variable names present in the host environment. Names only, never values. */
   ownerAuthorityVariables: string[];
   /** Non-reversible fingerprints, for equality checks against a Boss credential. */
@@ -121,7 +121,7 @@ export function isAmbientOwnerCredential(candidate: string, environment: NodeJS.
   return false;
 }
 
-export interface CredentialBoundaryAssessment {
+interface CredentialBoundaryAssessment {
   /** Ambient Owner authority observed on the host. Names only. */
   ownerAuthorityPresent: string[];
   /** The environment a Candidate must be given (credentials removed). */

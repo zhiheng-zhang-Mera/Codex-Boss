@@ -15,7 +15,7 @@ import { ConceptRegistry, type ConceptMutationResult } from "./concept-registry"
  * place and basic routing keeps working (A29).
  */
 
-export interface ConceptMinerOptions {
+interface ConceptMinerOptions {
   /** Minimum cluster support to create/reinforce a concept. */
   minSupport?: number;
   /** Resolve an episode's semantic vector (when an embedding backend is wired). */
@@ -23,7 +23,7 @@ export interface ConceptMinerOptions {
   vectorRefOf?: (episode: LearningEpisode) => string | undefined;
 }
 
-export interface ConceptMiningResult {
+interface ConceptMiningResult {
   created: string[];
   promoted: string[];
   reinforced: string[];

@@ -17,9 +17,9 @@ import type { SoftwareAdapterDeclaration, SoftwareHealth } from "../../src/share
  * clear message instead of throwing into the caller (mirrors CodexCliRuntime).
  */
 
-export type SoftwareRunner = (spec: AdapterCommandSpec) => Promise<{ code: number; output: string }>;
+type SoftwareRunner = (spec: AdapterCommandSpec) => Promise<{ code: number; output: string }>;
 
-export async function defaultRunner(spec: AdapterCommandSpec): Promise<{ code: number; output: string }> {
+async function defaultRunner(spec: AdapterCommandSpec): Promise<{ code: number; output: string }> {
   const result = await runProcess(spec.executable, spec.args, { cwd: spec.cwd, timeoutMs: spec.timeoutMs, maxBufferBytes: PROCESS_MAX_BUFFER_BYTES.standard });
   // A missing executable used to arrive as `code: 1, output: ""`, which reads
   // exactly like an adapter that ran and failed; the reason takes its place.

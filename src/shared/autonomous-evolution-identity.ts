@@ -67,7 +67,7 @@ export const EVOLUTION_IDENTITY_CODES = {
   REPRODUCIBILITY_COMPONENT_MISMATCH: "REPRODUCIBILITY_COMPONENT_MISMATCH"
 } as const;
 
-export type EvolutionIdentityCode = (typeof EVOLUTION_IDENTITY_CODES)[keyof typeof EVOLUTION_IDENTITY_CODES];
+type EvolutionIdentityCode = (typeof EVOLUTION_IDENTITY_CODES)[keyof typeof EVOLUTION_IDENTITY_CODES];
 
 /**
  * §12: the codes that are recorded but do not, on their own, refuse a run.
@@ -76,10 +76,10 @@ export type EvolutionIdentityCode = (typeof EVOLUTION_IDENTITY_CODES)[keyof type
  * changes the manifest hash (the inventory moved), so a caller that wants the
  * strict reading can use the raw problem list.
  */
-export const INFORMATIONAL_IDENTITY_CODES: readonly string[] = [EVOLUTION_IDENTITY_CODES.TEST_FILE_ADDED];
+const INFORMATIONAL_IDENTITY_CODES: readonly string[] = [EVOLUTION_IDENTITY_CODES.TEST_FILE_ADDED];
 
 /** The problems that are failures (§12: TEST_FILE_ADDED on its own is not one). */
-export function failuresOf(problems: readonly TrustProblem[]): TrustProblem[] {
+function failuresOf(problems: readonly TrustProblem[]): TrustProblem[] {
   return problems.filter((problem) => INFORMATIONAL_IDENTITY_CODES.indexOf(problem.code) < 0);
 }
 
@@ -163,7 +163,7 @@ export interface ContractSnapshot {
   trust_policy: HashedPath[];
 }
 
-export interface ContractSnapshotInput {
+interface ContractSnapshotInput {
   acceptance_contract_version: string;
   contracts: readonly IdentityContract[];
   desktop_contract: IdentityContract;
@@ -174,13 +174,13 @@ export interface ContractSnapshotInput {
 }
 
 /** §12: one statically extracted case — `it` has only a title, `scenario` an id. */
-export interface TestCase {
+interface TestCase {
   id?: string;
   title: string;
 }
 
 /** The inventory of a single test source file. */
-export interface TestFileInventory {
+interface TestFileInventory {
   describe: string[];
   cases: TestCase[];
 }
@@ -193,7 +193,7 @@ export interface TestInventoryEntry {
   cases: readonly TestCase[];
 }
 
-export interface TestManifestFile {
+interface TestManifestFile {
   path: string;
   sha256: string;
   describe: string[];
@@ -201,7 +201,7 @@ export interface TestManifestFile {
   case_count: number;
 }
 
-export type TestCategory = "acceptance" | "unit" | "other";
+type TestCategory = "acceptance" | "unit" | "other";
 
 /** §12: the locked test inventory. */
 export interface TestManifest {
@@ -223,26 +223,26 @@ export interface RequirementRetirement {
   recorded_at?: string;
 }
 
-export interface RemovedRequirement {
+interface RemovedRequirement {
   gate: string;
   id: string;
   retirement?: RequirementRetirement;
 }
 
-export interface AddedRequirement {
+interface AddedRequirement {
   gate: string;
   id: string;
 }
 
 /** §13 outcome labels for the required acceptance surface. */
-export const SURFACE_VERDICTS = {
+const SURFACE_VERDICTS = {
   UNCHANGED: "UNCHANGED",
   ACCEPTANCE_SURFACE_REGRESSION: "ACCEPTANCE_SURFACE_REGRESSION",
   ACCEPTANCE_SURFACE_GROWN: "ACCEPTANCE_SURFACE_GROWN",
   RETIRED_WITH_RECORD: "RETIRED_WITH_RECORD"
 } as const;
 
-export type SurfaceVerdict = (typeof SURFACE_VERDICTS)[keyof typeof SURFACE_VERDICTS];
+type SurfaceVerdict = (typeof SURFACE_VERDICTS)[keyof typeof SURFACE_VERDICTS];
 
 export interface RequiredIdSurfaceComparison {
   verdict: SurfaceVerdict;
@@ -293,7 +293,7 @@ export const REPRODUCIBILITY_FIELDS: readonly (keyof ReproducibilityInput)[] = [
  * the identity layer hashes. (It mirrors the canonical form the evidence layer
  * already uses; kept local so this module depends on nothing but `hash.ts`.)
  */
-export function canonicalIdentityText(value: unknown): string {
+function canonicalIdentityText(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
 
@@ -321,7 +321,7 @@ export function flatHashMap(entries: readonly HashedPath[]): Record<string, stri
 }
 
 /** The `[path, sha256]` pairs, path-sorted, that every aggregate is built from. */
-export function sortedHashPairs(entries: readonly HashedPath[]): [string, string][] {
+function sortedHashPairs(entries: readonly HashedPath[]): [string, string][] {
   return entries
     .map((entry): [string, string] => [entry.path, entry.sha256])
     .sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0));
@@ -354,7 +354,7 @@ export function buildManifestAggregate(parts: BuildIdentityParts): string {
  * §44: expected-vs-actual comparison
  * ------------------------------------------------------------------ */
 
-export interface FlatHashDiff {
+interface FlatHashDiff {
   changed: string[];
   missing: string[];
   added: string[];
@@ -362,7 +362,7 @@ export interface FlatHashDiff {
 }
 
 /** Compares two `path → sha256` maps; every list is path-sorted. */
-export function compareFlatHashes(
+function compareFlatHashes(
   expected: Readonly<Record<string, string>>,
   actual: Readonly<Record<string, string>>
 ): FlatHashDiff {
@@ -381,14 +381,14 @@ export function compareFlatHashes(
 }
 
 /** The codes a set comparison reports; `added` and `aggregate` are optional. */
-export interface IdentityComparisonCodes {
+interface IdentityComparisonCodes {
   changed: string;
   missing: string;
   added?: string;
   aggregate?: string;
 }
 
-export interface IdentityComparison {
+interface IdentityComparison {
   expected: readonly HashedPath[];
   actual: readonly HashedPath[];
   expected_aggregate: string;
@@ -507,13 +507,13 @@ const TEST_INVENTORY_PATTERN =
   /\bdescribe\s*\(\s*(["'`])([^"'`$]*)\1|\bit\s*\(\s*(["'`])([^"'`$]*)\3|\bscenario\s*\(\s*(["'`])([^"'`$]*)\5\s*,\s*(["'`])([^"'`$]*)\7/g;
 
 /** The categories §12 records for a test path. */
-export const TEST_CATEGORY_SEGMENTS: Readonly<Record<string, TestCategory>> = {
+const TEST_CATEGORY_SEGMENTS: Readonly<Record<string, TestCategory>> = {
   acceptance: "acceptance",
   unit: "unit"
 };
 
 /** The category of a repository-relative test path (last known directory wins). */
-export function testCategoryOf(relativePath: string): TestCategory {
+function testCategoryOf(relativePath: string): TestCategory {
   const segments = relativePath.split("/").slice(0, -1);
   let category: TestCategory = "other";
   for (const segment of segments) {
@@ -571,7 +571,7 @@ export function testManifestFrom(files: readonly TestInventoryEntry[]): TestMani
  * ------------------------------------------------------------------ */
 
 /** A retirement record only counts when it explains all five required fields. */
-export function requirementRetirementComplete(record: RequirementRetirement | undefined): boolean {
+function requirementRetirementComplete(record: RequirementRetirement | undefined): boolean {
   if (record === undefined) return false;
   return [record.old_id, record.reason, record.replacement, record.migration, record.risk].every(
     (value) => typeof value === "string" && value.trim() !== ""
@@ -645,7 +645,7 @@ export function reproducibilityDigest(input: ReproducibilityInput): Reproducibil
 }
 
 /** The §37 components that differ between two digests (empty when they agree). */
-export function reproducibilityDiff(left: ReproducibilityDigest, right: ReproducibilityDigest): string[] {
+function reproducibilityDiff(left: ReproducibilityDigest, right: ReproducibilityDigest): string[] {
   const differing: string[] = REPRODUCIBILITY_FIELDS.filter((field) => left[field] !== right[field]);
   if (left.reproducibility_hash !== right.reproducibility_hash) differing.push("reproducibility_hash");
   return differing;
@@ -657,7 +657,7 @@ export function reproducibilityEqual(left: ReproducibilityDigest, right: Reprodu
 }
 
 /** §37 as structured problems, so an A/B comparison needs no prose either. */
-export function reproducibilityProblems(left: ReproducibilityDigest, right: ReproducibilityDigest): TrustProblem[] {
+function reproducibilityProblems(left: ReproducibilityDigest, right: ReproducibilityDigest): TrustProblem[] {
   return reproducibilityDiff(left, right).map((field) =>
     trustProblem(EVOLUTION_IDENTITY_CODES.REPRODUCIBILITY_COMPONENT_MISMATCH, field)
   );

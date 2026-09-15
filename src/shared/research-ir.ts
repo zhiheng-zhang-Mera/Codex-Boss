@@ -65,7 +65,7 @@ export function canAdvance(state: ResearchState): boolean {
   return state !== "FAILED" && state !== "READY" && state !== "WAITING_FOR_PROVIDER" && state !== "WAITING_FOR_USER";
 }
 
-export type ResearchStageLabel = string;
+type ResearchStageLabel = string;
 
 export interface ResearchScope {
   workspace: string;

@@ -17,8 +17,8 @@ export type ArtifactType =
   | "knowledge-source"
   | "provider-interaction";
 
-export type ArtifactStage = "RAW" | "NORMALIZED" | "VALIDATED" | "COMMITTED" | "REJECTED";
-export type ArtifactStatus = "ACTIVE" | "FAILED" | "SUPERSEDED";
+type ArtifactStage = "RAW" | "NORMALIZED" | "VALIDATED" | "COMMITTED" | "REJECTED";
+type ArtifactStatus = "ACTIVE" | "FAILED" | "SUPERSEDED";
 
 export interface ArtifactRecordVNext {
   artifactId: string;

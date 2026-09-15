@@ -22,7 +22,7 @@ export interface ClaimEvidence {
   verifiedCitations: number;
 }
 
-export interface AdjudicationVerdict {
+interface AdjudicationVerdict {
   claimId: string;
   adopted: boolean;
   reason: string;

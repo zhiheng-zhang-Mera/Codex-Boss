@@ -52,9 +52,9 @@ import {
   type RegressionEvidence
 } from "../../src/shared/capability-gap";
 
-export const CAPABILITY_REGISTRY_FILE = "capability-registry.json";
+const CAPABILITY_REGISTRY_FILE = "capability-registry.json";
 
-export interface GapBacklogRecord {
+interface GapBacklogRecord {
   gap: {
     missing_capability: string;
     task: string;
@@ -68,7 +68,7 @@ export interface GapBacklogRecord {
   usage?: { recorded_at?: string };
 }
 
-export interface ImprovementLoopConfig {
+interface ImprovementLoopConfig {
   root: string;
   /** The §33.3 backlog written by the recovery engine. */
   gapBacklogPath?: string;
@@ -84,7 +84,7 @@ export interface ImprovementLoopConfig {
   now?: () => Date;
 }
 
-export interface RunTaskInput {
+interface RunTaskInput {
   aggregate: GapAggregate;
   /** The bounded worker that implements the missing capability. */
   worker: ImplementationWorker;

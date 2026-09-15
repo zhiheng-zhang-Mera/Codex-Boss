@@ -34,7 +34,7 @@ export const DOCTOR_AREAS = [
 export type DoctorArea = (typeof DOCTOR_AREAS)[number];
 
 export const DOCTOR_STATUSES = ["READY", "DEGRADED", "FAIL", "SKIPPED"] as const;
-export type DoctorStatus = (typeof DOCTOR_STATUSES)[number];
+type DoctorStatus = (typeof DOCTOR_STATUSES)[number];
 
 export interface DoctorCheck {
   id: string;
@@ -214,4 +214,4 @@ export function renderDoctorReport(report: DoctorReport): string {
   return lines.join("\n");
 }
 
-export type { DoctorArea as DoctorCheckArea };
+

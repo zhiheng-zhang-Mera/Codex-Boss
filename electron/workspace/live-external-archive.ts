@@ -16,7 +16,7 @@ import type { ArchiveAttempt, ExternalArchiveAttempt } from "./external-archive-
 
 export type AccountMode = "READY" | "GUEST_READY" | "AUTH_REQUIRED" | "RATE_LIMITED" | "UNKNOWN" | "DOWN";
 
-export interface LiveArchiveEnvironment {
+interface LiveArchiveEnvironment {
   windowOpen: (providerId: string) => boolean;
   accountMode: (providerId: string) => AccountMode;
   /**

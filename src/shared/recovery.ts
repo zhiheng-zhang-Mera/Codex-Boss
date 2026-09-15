@@ -21,7 +21,7 @@
  */
 import type { VerificationGate } from "./execution-planner";
 
-export const RECOVERY_VERSION = "recovery-1" as const;
+const RECOVERY_VERSION = "recovery-1" as const;
 
 /* ------------------------------------------------------------------ *
  * §33.1 failure classification
@@ -226,13 +226,13 @@ export const RECOVERY_ORDER = [
   "NATIVE_RETRY", "LOCAL_RECOVERY", "ALTERNATE_INTERNAL_PATH", "ALTERNATE_PROVIDER",
   "DEGRADED_MODE", "HNS_FALLBACK", "HARD_BLOCKER"
 ] as const;
-export type RecoveryStep = (typeof RECOVERY_ORDER)[number];
+type RecoveryStep = (typeof RECOVERY_ORDER)[number];
 
 /** §33.2's theme ladder, in order. */
 export const THEME_RECOVERY_STEPS = ["DISABLE_THEME", "FALLBACK_BUILT_IN_THEME", "RECORD_DIAGNOSTIC"] as const;
-export type ThemeRecoveryStep = (typeof THEME_RECOVERY_STEPS)[number];
+type ThemeRecoveryStep = (typeof THEME_RECOVERY_STEPS)[number];
 
-export interface RecoveryStepPlan {
+interface RecoveryStepPlan {
   step: RecoveryStep;
   applicable: boolean;
   reason: string;
@@ -474,7 +474,7 @@ export interface HnsFallbackRequest {
   now?: string;
 }
 
-export interface HnsFallbackDecision {
+interface HnsFallbackDecision {
   allowed: boolean;
   reason: string;
   /** §33.3: never optional — an HNS call without a gap is refused. */

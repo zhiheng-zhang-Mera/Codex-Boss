@@ -123,7 +123,7 @@ export const ROOT_TRUST_SURFACE_PATHS: readonly string[] = [
 ];
 
 /** §2: verification surface — changeable, but only with a higher-grade re-certification. */
-export const VERIFICATION_SURFACE_PATHS: readonly string[] = [
+const VERIFICATION_SURFACE_PATHS: readonly string[] = [
   "src/shared/acceptance-*.ts",
   "src/shared/bootstrap-audit.ts",
   "src/shared/owner-intervention.ts",
@@ -133,7 +133,7 @@ export const VERIFICATION_SURFACE_PATHS: readonly string[] = [
 ];
 
 /** §2: evolution engine — changeable under controlled conditions. */
-export const EVOLUTION_ENGINE_PATHS: readonly string[] = [
+const EVOLUTION_ENGINE_PATHS: readonly string[] = [
   "electron/self-evolution/**",
   "electron/stable-candidate/**",
   "electron/promotion-gate/**",
@@ -186,7 +186,7 @@ export interface RootSurfaceFile {
   sha256: string;
 }
 
-export interface RootSurfaceManifest {
+interface RootSurfaceManifest {
   /** Entry paths, sorted. */
   paths: string[];
   /** Sorted entries; `{ path, sha256 }` records are the manifest itself. */
@@ -311,7 +311,7 @@ export function declaredRootTrustSurface(): {
 /* §3/§51 — root trust change detection                                        */
 /* -------------------------------------------------------------------------- */
 
-export type RootTrustVerdict = "ROOT_TRUST_UNCHANGED" | "ROOT_TRUST_CHANGE";
+type RootTrustVerdict = "ROOT_TRUST_UNCHANGED" | "ROOT_TRUST_CHANGE";
 export type SurfaceChangeKind = "ADDED" | "MODIFIED" | "REMOVED";
 
 export interface SurfaceChange {
@@ -321,7 +321,7 @@ export interface SurfaceChange {
   surface: SurfaceClass;
 }
 
-export interface RootTrustChangeAssessment {
+interface RootTrustChangeAssessment {
   verdict: RootTrustVerdict;
   /** Every added/modified/removed path of the diff, each with its tier. */
   changed: SurfaceChange[];
@@ -381,10 +381,10 @@ export function assessRootTrustChange(input: {
 /* §4 — trust epoch                                                            */
 /* -------------------------------------------------------------------------- */
 
-export const TRUST_EPOCH_SCHEMA_VERSION = 1;
+const TRUST_EPOCH_SCHEMA_VERSION = 1;
 export const ROOT_CONTRACT_VERSION_PREFIX = "boss-root-trust-";
 
-export interface TrustEpochRecord {
+interface TrustEpochRecord {
   /** 1-based, monotonically increasing. */
   trust_epoch: number;
   /** `boss-root-trust-<trust_epoch>`; versioned with the epoch (§4). */
@@ -397,7 +397,7 @@ export interface TrustEpochRecord {
 }
 
 /** The on-disk shape of `trust-policy/trust-epoch.json`: the record plus its own digest. */
-export interface TrustEpochFile {
+interface TrustEpochFile {
   schema_version: number;
   record: TrustEpochRecord;
   epoch_hash: string;
@@ -609,11 +609,11 @@ export function advanceTrustEpoch(input: {
 /* §4/§51/§75 — self-certification refusal                                     */
 /* -------------------------------------------------------------------------- */
 
-export type SelfCertificationCode = "SELF_CERTIFICATION_FORBIDDEN" | "OK";
-export type RequiredAction = "TRUST_EPOCH_MIGRATION" | "NONE";
-export type CertificationRunState = "ROOT_TRUST_CHANGED" | "ROOT_TRUST_STABLE";
+type SelfCertificationCode = "SELF_CERTIFICATION_FORBIDDEN" | "OK";
+type RequiredAction = "TRUST_EPOCH_MIGRATION" | "NONE";
+type CertificationRunState = "ROOT_TRUST_CHANGED" | "ROOT_TRUST_STABLE";
 
-export interface SelfCertificationVerdict {
+interface SelfCertificationVerdict {
   run_state: CertificationRunState;
   allowed: boolean;
   code: SelfCertificationCode;
@@ -681,7 +681,7 @@ export type CapabilityRegistry = Readonly<Record<string, CapabilityState>>;
 
 export type CapabilityVerdict = "CAPABILITY_UNCHANGED" | "CAPABILITY_REGRESSION" | "BREAKING_CAPABILITY_CHANGE" | "CAPABILITY_GROWN";
 
-export interface CapabilityTransition {
+interface CapabilityTransition {
   capability: string;
   from: CapabilityState;
   to: CapabilityState;
@@ -689,7 +689,7 @@ export interface CapabilityTransition {
   breaking: boolean;
 }
 
-export interface CapabilityAssessment {
+interface CapabilityAssessment {
   verdict: CapabilityVerdict;
   transitions: CapabilityTransition[];
   /** Capabilities that left the registry (or became REMOVED) in the candidate. */
@@ -804,12 +804,12 @@ export const EVOLUTION_RUN_STATES = [
 /** §28: the explicit exits. They are terminal: a failed run is contained, never resumed. */
 export const EVOLUTION_FAILURE_STATES = ["FAILED", "ROLLED_BACK", "BLOCKED_EXTERNAL"] as const;
 
-export type EvolutionRunState = (typeof EVOLUTION_RUN_STATES)[number];
-export type EvolutionFailureState = (typeof EVOLUTION_FAILURE_STATES)[number];
-export type EvolutionRunStatus = EvolutionRunState | EvolutionFailureState;
+type EvolutionRunState = (typeof EVOLUTION_RUN_STATES)[number];
+type EvolutionFailureState = (typeof EVOLUTION_FAILURE_STATES)[number];
+type EvolutionRunStatus = EvolutionRunState | EvolutionFailureState;
 
 export const EVOLUTION_ALL_STATES: readonly EvolutionRunStatus[] = [...EVOLUTION_RUN_STATES, ...EVOLUTION_FAILURE_STATES];
-export const EVOLUTION_TERMINAL_STATES: readonly EvolutionRunStatus[] = ["PROMOTED", "FAILED", "ROLLED_BACK", "BLOCKED_EXTERNAL"];
+const EVOLUTION_TERMINAL_STATES: readonly EvolutionRunStatus[] = ["PROMOTED", "FAILED", "ROLLED_BACK", "BLOCKED_EXTERNAL"];
 
 /**
  * §28/§29/§31: the forward path plus the explicit exits. There is no edge that skips a
@@ -835,7 +835,7 @@ export const EVOLUTION_TRANSITIONS: Readonly<Record<EvolutionRunStatus, readonly
 /** §29: certification is not promotion. This is the only edge into PROMOTED. */
 export const PROMOTION_EDGE = { from: "CERTIFIED", to: "PROMOTED" } as const;
 
-export function isEvolutionRunStatus(value: unknown): value is EvolutionRunStatus {
+function isEvolutionRunStatus(value: unknown): value is EvolutionRunStatus {
   return typeof value === "string" && (EVOLUTION_ALL_STATES as readonly string[]).includes(value);
 }
 
@@ -845,7 +845,7 @@ export function canAdvance(from: EvolutionRunStatus | string, to: EvolutionRunSt
   return EVOLUTION_TRANSITIONS[from].includes(to);
 }
 
-export interface RunStateAdvance {
+interface RunStateAdvance {
   ok: boolean;
   /** The state the run was in. On refusal the run stays here. */
   from: EvolutionRunStatus | string;
@@ -922,9 +922,9 @@ export function assertCandidateImmutable(input: {
 /* §31/§32/§33/§34 — force push, branch, rollback, containment                 */
 /* -------------------------------------------------------------------------- */
 
-export type ForcePushCode = "FORCE_PUSH_DENIED" | "MAIN_FORCE_PUSH_DENIED" | "OK";
+type ForcePushCode = "FORCE_PUSH_DENIED" | "MAIN_FORCE_PUSH_DENIED" | "OK";
 
-export interface ForcePushDecision {
+interface ForcePushDecision {
   denied: boolean;
   code: ForcePushCode;
 }
@@ -1102,7 +1102,7 @@ export function rollbackPlan(input: {
 /* §49/§50 — budget and scope enforcement                                      */
 /* -------------------------------------------------------------------------- */
 
-export interface EvolutionBudget {
+interface EvolutionBudget {
   max_changed_files: number;
   max_changed_loc: number;
   max_iterations: number;
@@ -1122,7 +1122,7 @@ export const DEFAULT_EVOLUTION_BUDGET: EvolutionBudget = {
 };
 
 /** Usage keys mirror the budget keys without the `max_` prefix. */
-export interface EvolutionUsage {
+interface EvolutionUsage {
   changed_files?: number;
   changed_loc?: number;
   iterations?: number;
@@ -1131,9 +1131,9 @@ export interface EvolutionUsage {
   wall_clock_ms?: number;
 }
 
-export type BudgetCode = "RUN_BUDGET_EXCEEDED" | "OK";
+type BudgetCode = "RUN_BUDGET_EXCEEDED" | "OK";
 
-export interface BudgetBreach {
+interface BudgetBreach {
   limit: keyof EvolutionBudget;
   allowed: number;
   used: number;
@@ -1178,10 +1178,10 @@ export interface EvolutionScope {
   forbidden_files: readonly string[];
 }
 
-export type ScopeViolationKind = "NOT_ALLOWED" | "FORBIDDEN" | "UNEXPECTED";
-export type ScopeVerdict = "SCOPE_OK" | "SCOPE_VIOLATION";
+type ScopeViolationKind = "NOT_ALLOWED" | "FORBIDDEN" | "UNEXPECTED";
+type ScopeVerdict = "SCOPE_OK" | "SCOPE_VIOLATION";
 
-export interface ScopeViolation {
+interface ScopeViolation {
   path: string;
   kind: ScopeViolationKind;
 }
@@ -1244,7 +1244,7 @@ export function assessScope(input: { declared: EvolutionScope; changed: readonly
 /* §16/§77/§79 — baseline currency and replay                                  */
 /* -------------------------------------------------------------------------- */
 
-export type BaselineVerdict = "BASELINE_CURRENT" | "STALE_BASELINE";
+type BaselineVerdict = "BASELINE_CURRENT" | "STALE_BASELINE";
 
 /**
  * §79/§16: a certificate carries the baseline commit it was produced against. If main has
@@ -1266,7 +1266,7 @@ export function assessBaseline(input: { certificateBaselineCommit: string; curre
 
 /** The five bindings §77 requires a certificate to carry. */
 export const REPLAY_BINDING_FIELDS = ["session_id", "commit", "tree", "build_hash", "run_id"] as const;
-export type ReplayBindingField = (typeof REPLAY_BINDING_FIELDS)[number];
+type ReplayBindingField = (typeof REPLAY_BINDING_FIELDS)[number];
 export type ReplayBinding = Readonly<Record<ReplayBindingField, string>>;
 
 /**

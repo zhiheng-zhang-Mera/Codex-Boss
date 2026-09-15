@@ -17,7 +17,7 @@ import type { ProviderMatrix } from "../../src/shared/tenx/network";
 import type { LoginHealthReport } from "../../src/shared/tenx/session";
 
 /** Every host-specific capability adapter implements this seam. */
-export interface TenxHostAdapter {
+interface TenxHostAdapter {
   readonly platform: "windows" | "linux" | "macos" | "android" | "ios" | "harmonyos";
   /** Produce a stable identity for this device (host-specific persistence). */
   identity(): Promise<NodeIdentity>;

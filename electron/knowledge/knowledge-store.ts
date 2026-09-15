@@ -8,7 +8,7 @@ import { retrieveWithinBudget, retrieveReranked, routeKnowledgeQuery, taxonomyOf
  * under a character budget. Trust/freshness/conflict fields are reserved now so
  * v3 governance never needs a knowledge schema migration.
  */
-export interface KnowledgeFile {
+interface KnowledgeFile {
   schemaVersion: 1;
   entries: KnowledgeEntry[];
 }

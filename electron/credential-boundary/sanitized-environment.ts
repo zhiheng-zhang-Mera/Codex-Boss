@@ -71,7 +71,7 @@ export const OWNER_CREDENTIAL_VARIABLES: readonly string[] = [
 export const CREDENTIAL_NAME_PATTERN = /(^|_)(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|CREDENTIALS|PAT|APIKEY|API_KEY|PRIVATE_KEY|SIGNING_KEY|SESSION_KEY|ACCESS_KEY|AUTHKEY|AUTH_KEY)(_|$)/i;
 
 /** Variables required for a normal build/test child to function. */
-export const TOOLCHAIN_ENVIRONMENT_VARIABLES: readonly string[] = [
+const TOOLCHAIN_ENVIRONMENT_VARIABLES: readonly string[] = [
   "PATH", "PATHEXT", "SystemRoot", "SYSTEMROOT", "windir", "ComSpec", "COMSPEC",
   "TEMP", "TMP", "TMPDIR",
   "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "ProgramData",
@@ -85,7 +85,7 @@ export const TOOLCHAIN_ENVIRONMENT_VARIABLES: readonly string[] = [
   "GITHUB_EVENT_NAME", "GITHUB_RUN_ID", "GITHUB_ACTOR", "RUNNER_OS", "RUNNER_TEMP"
 ];
 
-export interface SanitizedEnvironmentOptions {
+interface SanitizedEnvironmentOptions {
   /**
    * Exact variable names to keep even though they match a credential pattern.
    * Empty by default: an exception list is how boundaries erode, so it must be
@@ -98,7 +98,7 @@ export interface SanitizedEnvironmentOptions {
   deny?: readonly string[];
 }
 
-export interface SanitizationReport {
+interface SanitizationReport {
   kept: string[];
   removed: string[];
   /** Names removed because an explicit deny list named them. */
@@ -168,7 +168,7 @@ export function findCredentialLeaks(environment: NodeJS.ProcessEnv): string[] {
   return leaks;
 }
 
-export class CredentialBoundaryError extends Error {
+class CredentialBoundaryError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "CredentialBoundaryError";

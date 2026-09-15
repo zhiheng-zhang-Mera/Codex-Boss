@@ -27,7 +27,7 @@ export type { RecoveryCode, WorkspaceRecoveryOutcome };
  * growing `ABORTED || STAGNANT || …` list to keep in sync.
  */
 
-export type RecoveryPointAttempt =
+type RecoveryPointAttempt =
   | { ok: true; checkpoint: CheckpointSnapshot }
   | { ok: false; code: "CHECKPOINT_UNAVAILABLE"; reason: string };
 
@@ -100,7 +100,7 @@ export function recoveryLabel(outcome: WorkspaceRecoveryOutcome): string {
 /* Durable recovery ledger                                                     */
 /* -------------------------------------------------------------------------- */
 
-export interface EngineeringRecoveryEvent {
+interface EngineeringRecoveryEvent {
   at: string;
   goalId: string;
   /** Terminal reason code, e.g. `CHECKPOINT_UNAVAILABLE`. */
@@ -117,7 +117,7 @@ interface EngineeringRecoveryFile {
 }
 
 /** How many recovery events are retained (bounded; oldest are dropped). */
-export const RECOVERY_EVENT_RETENTION = 200;
+const RECOVERY_EVENT_RETENTION = 200;
 
 /**
  * Sidecar ledger for recovery decisions, beside `engineering-loop.json`.

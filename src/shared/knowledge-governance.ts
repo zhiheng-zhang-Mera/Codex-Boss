@@ -16,9 +16,9 @@
 import type { KnowledgeEntry, KnowledgeTrust } from "./knowledge";
 
 export type StorageTier = "LocalHot" | "LocalWarm" | "EncryptedCold";
-export const STORAGE_TIERS: readonly StorageTier[] = ["LocalHot", "LocalWarm", "EncryptedCold"];
+const STORAGE_TIERS: readonly StorageTier[] = ["LocalHot", "LocalWarm", "EncryptedCold"];
 
-export type IngestionDecision = "ADD" | "SUPERSEDE" | "DUPLICATE" | "REJECT";
+type IngestionDecision = "ADD" | "SUPERSEDE" | "DUPLICATE" | "REJECT";
 
 export interface IngestionVerdict {
   decision: IngestionDecision;
@@ -91,7 +91,7 @@ export function agingState(entry: KnowledgeEntry, now = Date.now()): "VALID" | "
   return "VALID";
 }
 
-export interface AssociationEdge {
+interface AssociationEdge {
   fromEntryId: string;
   toEntryId: string;
   kind: "shared-tag" | "cross-domain" | "references";

@@ -26,7 +26,7 @@ import { ProviderProfileBuilder, type ProfileBuildOptions, type ProfileScope } f
  * which routes deterministically (A28).
  */
 
-export interface ProfileStoreFile {
+interface ProfileStoreFile {
   schemaVersion: 1;
   builderVersion: string;
   profiles: ProviderBehaviourProfile[];

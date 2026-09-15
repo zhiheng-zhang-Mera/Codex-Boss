@@ -1,6 +1,6 @@
 import type { CouncilFinding, ProviderId, RawArtifact } from "./contracts";
 
-export interface CouncilAnalysis {
+interface CouncilAnalysis {
   conflicts: CouncilFinding[];
   minorityOpinions: string[];
 }
@@ -20,7 +20,7 @@ function anonymousBundle(artifacts: RawArtifact[]): string {
  * `roleByProvider` map is providerId → role; providers without a role keep the
  * neutral briefing.
  */
-export type RoleBriefMap = ReadonlyMap<string, string>;
+type RoleBriefMap = ReadonlyMap<string, string>;
 
 function briefed(maps: RoleBriefMap | undefined, providerId: string, neutral: string): string {
   if (!maps) return neutral;

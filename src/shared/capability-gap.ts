@@ -21,7 +21,7 @@ import type { KnowledgeCandidate, KnowledgeWriteOutcome } from "./knowledge-obje
 import type { KnowledgeScope } from "./tenx/knowledge";
 import type { CapabilityGap, FailureSeverity } from "./recovery";
 
-export const CAPABILITY_CHAIN_VERSION = "capability-chain-1" as const;
+const CAPABILITY_CHAIN_VERSION = "capability-chain-1" as const;
 
 /** §34's chain, in order. */
 export const CAPABILITY_CHAIN = [
@@ -242,7 +242,7 @@ export interface KnowledgeEvidence {
   reasons?: string[];
 }
 
-export interface ClosureInput {
+interface ClosureInput {
   task: ImprovementTask;
   steps: readonly ChainStep[];
   regression: RegressionEvidence;

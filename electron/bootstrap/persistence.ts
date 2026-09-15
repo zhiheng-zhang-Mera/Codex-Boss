@@ -58,7 +58,7 @@ export interface PersistenceCrypto {
   decrypt(cipherText: string): string;
 }
 
-export interface PersistenceOptions {
+interface PersistenceOptions {
   /** The resolved data root — `app.getPath("userData")` in production. */
   dataRoot: string;
   /** Where the durable history repository lives (`runtimeRoots(...).history`). */
@@ -74,7 +74,7 @@ export interface PersistenceOptions {
   crypto: PersistenceCrypto;
 }
 
-export interface PersistenceService {
+interface PersistenceService {
   /** Every completed task, append-only. */
   history: HistoryRepository;
   /** The one task ledger the store and the commander share. */

@@ -10,7 +10,7 @@ import { handleNodeDropout, nodeStateFor, routeTask, type AssignmentState, type 
  * unrelated work untouched. No single non-essential coordinator failure kills
  * unrelated work (records are isolated per assignment/node and fail closed).
  */
-export interface CoordinatorFile {
+interface CoordinatorFile {
   schemaVersion: 1;
   nodes: FleetNode[];
   assignments: FleetAssignment[];

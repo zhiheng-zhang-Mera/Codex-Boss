@@ -3,7 +3,7 @@ import path from "node:path";
 import type { RfcCorrection } from "../../src/shared/correction";
 import { isCorrectableField } from "../../src/shared/correction";
 
-export interface CorrectionFile {
+interface CorrectionFile {
   schemaVersion: 1;
   corrections: RfcCorrection[];
 }

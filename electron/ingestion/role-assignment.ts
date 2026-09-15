@@ -22,11 +22,11 @@ import {
   type WorkBookVerdict
 } from "../../src/shared/workbook";
 
-export type SourceRole = "PRIMARY_SPEC" | "SUB_PLAN" | "REFERENCE" | "ACCEPTANCE_CRITERIA";
+type SourceRole = "PRIMARY_SPEC" | "SUB_PLAN" | "REFERENCE" | "ACCEPTANCE_CRITERIA";
 
 export const SOURCE_ROLES: readonly SourceRole[] = ["PRIMARY_SPEC", "SUB_PLAN", "REFERENCE", "ACCEPTANCE_CRITERIA"];
 
-export interface DocumentAnalysis {
+interface DocumentAnalysis {
   document_id: string;
   file_name: string;
   verdict: WorkBookVerdict;
@@ -37,7 +37,7 @@ export interface DocumentAnalysis {
   role_scores: Record<SourceRole, number>;
 }
 
-export interface RoleAssignment {
+interface RoleAssignment {
   assignments: DocumentAnalysis[];
   /** At most one document per role. */
   winners: Partial<Record<SourceRole, string>>;
@@ -47,9 +47,9 @@ export interface RoleAssignment {
   diagnostics: ConflictDiagnostic[];
 }
 
-export type ConflictKind = "DUPLICATE_SECTION" | "CONFLICTING_SECTION" | "ROLE_CONFLICT" | "NEAR_DUPLICATE_SECTION" | "REVIEW_SECTION";
+type ConflictKind = "DUPLICATE_SECTION" | "CONFLICTING_SECTION" | "ROLE_CONFLICT" | "NEAR_DUPLICATE_SECTION" | "REVIEW_SECTION";
 
-export interface ConflictDiagnostic {
+interface ConflictDiagnostic {
   kind: ConflictKind;
   severity: "INFO" | "WARN" | "ERROR";
   message: string;

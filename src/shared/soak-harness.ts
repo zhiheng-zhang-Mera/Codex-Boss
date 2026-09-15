@@ -24,7 +24,7 @@
 export const SOAK_TIERS = ["smoke", "30m", "2h", "8h", "overnight"] as const;
 export type SoakTier = (typeof SOAK_TIERS)[number];
 
-export interface SoakTierSpec {
+interface SoakTierSpec {
   tier: SoakTier;
   label: string;
   /** Nominal wall-clock duration of the tier. */
@@ -102,7 +102,7 @@ export interface SoakSample {
   pid: number;
 }
 
-export type InvariantId =
+type InvariantId =
   | "duration-reached"
   | "no-unexpected-restart"
   | "rss-bounded"
@@ -115,7 +115,7 @@ export type InvariantId =
   | "no-orphan-processes"
   | "provider-crash-loop-bounded";
 
-export type InvariantStatus = "PASS" | "FAIL" | "UNAVAILABLE";
+type InvariantStatus = "PASS" | "FAIL" | "UNAVAILABLE";
 
 export interface InvariantOutcome {
   id: InvariantId;
@@ -204,7 +204,7 @@ export const SOAK_BOUNDS = {
   providerCrashLoopLimit: 25
 } as const;
 
-export interface InvariantInput {
+interface InvariantInput {
   tier: SoakTier;
   elapsedSeconds: number;
   samples: readonly SoakSample[];
@@ -462,4 +462,4 @@ export function renderSoakReport(report: SoakReport): string {
   return [...header, "", ...invariants, ...(unavailable.length ? ["", ...unavailable] : [])].join("\n");
 }
 
-export type { SoakTier as SoakTierId };
+

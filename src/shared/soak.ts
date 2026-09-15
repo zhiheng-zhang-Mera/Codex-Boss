@@ -17,11 +17,11 @@
 import { contentHashOf } from "./workbook";
 import { BENCHMARK_SCENARIOS, type BenchmarkScenario } from "./final-acceptance";
 
-export const SOAK_VERSION = "soak-1" as const;
+const SOAK_VERSION = "soak-1" as const;
 
 /** §53's round, in the plan's order. */
 export const SOAK_STAGES = ["FRESH_CLONE", "BOOTSTRAP", "TASK", "REPAIR", "PR", "CI", "COMPLETION"] as const;
-export type SoakStage = (typeof SOAK_STAGES)[number];
+type SoakStage = (typeof SOAK_STAGES)[number];
 
 /** §53's six metrics; every one of them must remain zero. */
 export const SOAK_METRICS = [
@@ -139,7 +139,7 @@ export function failureSignatureOf(failed: readonly SoakStageResult[]): string |
   return contentHashOf(failed.map((stage) => `${stage.stage}:${stage.detail}`).join("\u0000"));
 }
 
-export interface BenchmarkPlanEntry extends BenchmarkScenario {
+interface BenchmarkPlanEntry extends BenchmarkScenario {
   order: number;
   /** The theme rounds §51's B16–B18 correspond to. */
   theme: boolean;

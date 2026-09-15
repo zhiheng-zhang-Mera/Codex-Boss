@@ -33,11 +33,11 @@ export const SENTINEL_DIMENSIONS = [
   "dependencies",
   "build-size"
 ] as const;
-export type SentinelDimension = (typeof SENTINEL_DIMENSIONS)[number];
+type SentinelDimension = (typeof SENTINEL_DIMENSIONS)[number];
 
-export type FindingSeverity = "INFO" | "DRIFT" | "REGRESSION" | "IMPROVEMENT" | "UNAVAILABLE";
+type FindingSeverity = "INFO" | "DRIFT" | "REGRESSION" | "IMPROVEMENT" | "UNAVAILABLE";
 
-export interface SentinelFinding {
+interface SentinelFinding {
   dimension: SentinelDimension;
   severity: FindingSeverity;
   key: string;
@@ -108,7 +108,7 @@ export function emptySentinelSnapshot(input: { revision: string; branch: string;
   };
 }
 
-export interface SentinelReport {
+interface SentinelReport {
   schemaVersion: 1;
   kind: "HOST_SENTINEL_REPORT";
   generatedAt: string;

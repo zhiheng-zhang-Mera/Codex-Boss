@@ -18,14 +18,14 @@ import type { ShadowOutcome } from "./shadow-evaluator";
  * stage, and it degrades safely when its own store is unreadable.
  */
 
-export interface PromotionGateFile {
+interface PromotionGateFile {
   schemaVersion: 1;
   stablePolicyVersion: string;
   stablePolicies: AdaptivePolicy[];
   candidates: PolicyCandidate[];
 }
 
-export interface PromotionResult {
+interface PromotionResult {
   ok: boolean;
   reason: string;
   policy?: AdaptivePolicy;

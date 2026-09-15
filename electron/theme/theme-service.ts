@@ -38,7 +38,7 @@ import {
   type ThemeValidationReport
 } from "../../src/shared/theme";
 
-export interface ThemeRegistryFile {
+interface ThemeRegistryFile {
   schemaVersion: 1;
   records: ThemeRecord[];
   activeThemeId: string;
@@ -48,7 +48,7 @@ export interface ThemeRegistryFile {
   updatedAt: string;
 }
 
-export interface ThemeServiceOptions {
+interface ThemeServiceOptions {
   root: string;
   registryFile: string;
   now?: () => string;
@@ -57,7 +57,7 @@ export interface ThemeServiceOptions {
   limits?: ThemeStorageLimits;
 }
 
-export interface ThemeOperationResult {
+interface ThemeOperationResult {
   ok: boolean;
   themeId: string;
   activeThemeId: string;
@@ -509,7 +509,7 @@ export class ThemeService {
  * §56 lifecycle events. The service is not allowed to import the domain event
  * bus (it would create a cycle), so the composition root subscribes here.
  */
-export const domainPreviewEvents = {
+const domainPreviewEvents = {
   handlers: [] as Array<{ kind: "draft" | "install"; run: (themeId: string) => void }>,
   draft(_service: ThemeService, themeId: string): void {
     for (const handler of this.handlers.filter((entry) => entry.kind === "draft")) handler.run(themeId);

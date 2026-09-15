@@ -9,7 +9,7 @@ import type { ResearchPurpose } from "../../../src/shared/research-command";
  * exhausting the machine (max concurrent runs).
  */
 
-export interface ResearchRuntimeOptions {
+interface ResearchRuntimeOptions {
   maxConcurrent?: number;
   onProcess?: (spec: ResearchCommandSpec, result: ProcessResult) => void;
 }

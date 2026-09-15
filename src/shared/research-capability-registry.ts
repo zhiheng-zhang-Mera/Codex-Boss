@@ -8,11 +8,11 @@
  * modules are called (§20), and the audit records which modules actually ran.
  */
 
-export type ResearchCapabilityStatus = "AVAILABLE" | "NEEDED" | "NOT_NEEDED" | "FAILED";
+type ResearchCapabilityStatus = "AVAILABLE" | "NEEDED" | "NOT_NEEDED" | "FAILED";
 
-export const RESEARCH_CAPABILITY_STATUSES: readonly ResearchCapabilityStatus[] = ["AVAILABLE", "NEEDED", "NOT_NEEDED", "FAILED"];
+const RESEARCH_CAPABILITY_STATUSES: readonly ResearchCapabilityStatus[] = ["AVAILABLE", "NEEDED", "NOT_NEEDED", "FAILED"];
 
-export type ResearchCapabilityId =
+type ResearchCapabilityId =
   | "literature-scout"
   | "citation-verifier"
   | "methodology-critic"
@@ -30,21 +30,21 @@ export type ResearchCapabilityId =
   | "reproducibility-auditor"
   | "latex-compiler";
 
-export const RESEARCH_CAPABILITY_IDS: readonly ResearchCapabilityId[] = [
+const RESEARCH_CAPABILITY_IDS: readonly ResearchCapabilityId[] = [
   "literature-scout", "citation-verifier", "methodology-critic", "experiment-designer",
   "statistics-engine", "replication-runner", "figure-planner", "chart-renderer",
   "table-builder", "architecture-diagram-builder", "evidence-adjudicator",
   "section-planner", "section-writer", "skeptical-reviewer", "reproducibility-auditor", "latex-compiler"
 ];
 
-export interface ResearchCapabilityDefinition {
+interface ResearchCapabilityDefinition {
   id: ResearchCapabilityId;
   label: string;
   /** Study property that triggers this module; empty = always applicable when available. */
   neededWhen: string;
 }
 
-export const RESEARCH_CAPABILITIES: readonly ResearchCapabilityDefinition[] = [
+const RESEARCH_CAPABILITIES: readonly ResearchCapabilityDefinition[] = [
   { id: "literature-scout", label: "检索并获取相关文献", neededWhen: "contextual literature is part of the study" },
   { id: "citation-verifier", label: "核对引用来源与原文支持", neededWhen: "citations are bound to the paper" },
   { id: "methodology-critic", label: "审阅方法论设计缺陷", neededWhen: "a formal protocol/methodology is drafted" },
@@ -64,7 +64,7 @@ export const RESEARCH_CAPABILITIES: readonly ResearchCapabilityDefinition[] = [
 ];
 
 /** Study shape the planner matches against (kept coarse; host decides, not the model). */
-export interface ResearchStudyProfile {
+interface ResearchStudyProfile {
   hasQuantitativeExperiments: boolean;
   bindsCitations: boolean;
   hasFormalProtocol: boolean;
@@ -101,12 +101,12 @@ export function planResearchCapabilities(profile: ResearchStudyProfile): Record<
   return plan;
 }
 
-export function isResearchCapabilityStatus(value: unknown): value is ResearchCapabilityStatus {
+function isResearchCapabilityStatus(value: unknown): value is ResearchCapabilityStatus {
   return typeof value === "string" && (RESEARCH_CAPABILITY_STATUSES as readonly string[]).includes(value);
 }
 
 /** Registry row with the final execution outcome for a run. */
-export interface ResearchCapabilityRunRow {
+interface ResearchCapabilityRunRow {
   capability: ResearchCapabilityId;
   planned: ResearchCapabilityStatus;
   outcome?: ResearchCapabilityStatus;

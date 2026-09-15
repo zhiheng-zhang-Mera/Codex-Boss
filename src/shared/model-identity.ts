@@ -112,7 +112,7 @@ export function sourceRank(source: ModelIdentitySource): number {
 }
 
 /** Human-readable distinction required by the Engine UI (§18). */
-export type ModelIdentityProvenance = "OBSERVED" | "PROVIDER_DECLARED" | "INFERRED" | "UNKNOWN";
+type ModelIdentityProvenance = "OBSERVED" | "PROVIDER_DECLARED" | "INFERRED" | "UNKNOWN";
 
 export function provenanceOf(identity: Pick<ModelExecutionIdentity, "versionSource">): ModelIdentityProvenance {
   switch (identity.versionSource) {

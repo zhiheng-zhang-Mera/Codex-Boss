@@ -53,7 +53,7 @@ export interface ResearchServiceOptions {
 }
 
 /** Fail-closed READY verdict over the durable artifact tree (milestone §21). */
-export interface ResearchReadyVerdict {
+interface ResearchReadyVerdict {
   ok: boolean;
   reasons: string[];
 }

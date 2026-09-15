@@ -112,14 +112,14 @@ export const TRUST_CODES = {
   BOOTSTRAP_RECORD_SESSION_MISMATCH: "BOOTSTRAP_RECORD_SESSION_MISMATCH"
 } as const;
 
-export type TrustCode = (typeof TRUST_CODES)[keyof typeof TRUST_CODES];
+type TrustCode = (typeof TRUST_CODES)[keyof typeof TRUST_CODES];
 
 export function trustProblem(code: TrustCode | string, detail?: string): TrustProblem {
   return detail === undefined ? { code } : { code, detail };
 }
 
 /** The code of a problem, or "" when the value is not a problem. */
-export function trustCodeOf(problem: TrustProblem | undefined): string {
+function trustCodeOf(problem: TrustProblem | undefined): string {
   return problem && typeof problem.code === "string" ? problem.code : "";
 }
 
@@ -136,7 +136,7 @@ export function hasAnyTrustCode(problems: readonly TrustProblem[], codes: readon
  * reason strings had, so reports and logs keep reading the way they did while the
  * control flow moves to codes.
  */
-export function renderTrustProblem(problem: TrustProblem): string {
+function renderTrustProblem(problem: TrustProblem): string {
   return problem.detail === undefined ? problem.code : `${problem.code}:${problem.detail}`;
 }
 
@@ -157,16 +157,16 @@ export const PROVENANCE_CODES: readonly string[] = [
   TRUST_CODES.ATTESTATION_NOT_OBJECT
 ];
 
-export const SESSION_CODES: readonly string[] = [
+const SESSION_CODES: readonly string[] = [
   TRUST_CODES.ATTESTATION_SESSION_MISMATCH,
   TRUST_CODES.SESSION_NOT_OBJECT,
   TRUST_CODES.SESSION_FILE_MISSING
 ];
-export const COMMIT_CODES: readonly string[] = [
+const COMMIT_CODES: readonly string[] = [
   TRUST_CODES.ATTESTATION_COMMIT_MISMATCH,
   TRUST_CODES.SESSION_COMMIT_INVALID
 ];
-export const TREE_CODES: readonly string[] = [
+const TREE_CODES: readonly string[] = [
   TRUST_CODES.ATTESTATION_TREE_MISMATCH,
   TRUST_CODES.SESSION_TREE_MISSING,
   TRUST_CODES.SESSION_TREE_INVALID

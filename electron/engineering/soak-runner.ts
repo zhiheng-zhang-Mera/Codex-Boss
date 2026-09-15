@@ -32,7 +32,7 @@ import {
 
 export const SOAK_RECORD_FILE = "soak-record.json";
 
-export interface SoakRunnerConfig {
+interface SoakRunnerConfig {
   root: string;
   /** The bare repository the rounds clone from. */
   remote: string;
@@ -43,13 +43,13 @@ export interface SoakRunnerConfig {
   now?: () => Date;
 }
 
-export interface SoakRunInput {
+interface SoakRunInput {
   rounds?: number;
   /** The rounds (1-based) that must exercise the theme lane. */
   themeRounds?: readonly number[];
 }
 
-export interface SoakRecord {
+interface SoakRecord {
   schemaVersion: 1;
   version: "soak-record-1";
   rounds: SoakRound[];
@@ -59,7 +59,7 @@ export interface SoakRecord {
   workspace: string;
 }
 
-export interface SoakRunner {
+interface SoakRunner {
   run(input?: SoakRunInput): Promise<SoakRecord>;
   record(): SoakRecord | undefined;
 }

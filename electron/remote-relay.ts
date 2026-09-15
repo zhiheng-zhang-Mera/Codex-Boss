@@ -1,11 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { RemoteChannel, RemoteChannelSetting, RemoteChannelStatus } from "../src/shared/contracts";
 
-export type RelayRecord =
+type RelayRecord =
   | { type: "status"; channel: RemoteChannel; status: Exclude<RemoteChannelStatus, "disabled">; message: string }
   | { type: "command"; channel: RemoteChannel; body: string; sourceWindow: string };
 
-export function parseRelayLine(line: string): RelayRecord | null {
+function parseRelayLine(line: string): RelayRecord | null {
   try {
     const value = JSON.parse(line) as Partial<RelayRecord>;
     if (value.channel !== "wechat" && value.channel !== "qq") return null;

@@ -72,7 +72,7 @@ import { planCandidateRuntimeIsolation, StableRuntimePointer, type StablePointer
  * decision of its own.
  */
 
-export type SelfEvolutionOutcome =
+type SelfEvolutionOutcome =
   | "NOT_SELF"
   | "EMERGENCY_STOPPED"
   | "BLOCKED_EXTERNAL"
@@ -82,7 +82,7 @@ export type SelfEvolutionOutcome =
   | "ROLLED_BACK"
   | "CANDIDATE_FAILED";
 
-export interface SelfEvolutionTaskRequest {
+interface SelfEvolutionTaskRequest {
   taskId: string;
   /** The Owner's high-level goal. Never a file list. */
   objective: string;
@@ -129,7 +129,7 @@ export interface SelfEvolutionRunReport {
   finishedAt: string;
 }
 
-export interface SelfEvolutionCoordinatorOptions {
+interface SelfEvolutionCoordinatorOptions {
   /** Stable installation root. */
   stableRoot: string;
   /** Host-owned root for evolution run trees. Must be outside the Stable tree. */
@@ -860,7 +860,7 @@ function mapPromotionOutcome(state: PromotionState): SelfEvolutionOutcome {
  * toolchain, which the sandbox exposes to the Candidate as a read grant. The
  * *arguments* are still host-selected; only the executable's location moves.
  */
-export function commandArgv(root: string, command: AllowedCommand, files: string[], toolchainRoot?: string): string[] {
+function commandArgv(root: string, command: AllowedCommand, files: string[], toolchainRoot?: string): string[] {
   const absolute = files.map((file) => path.resolve(root, file));
   const tool = (relative: string): string | undefined => {
     const local = path.join(root, "node_modules", relative);
@@ -881,7 +881,7 @@ export function commandArgv(root: string, command: AllowedCommand, files: string
 }
 
 /** Rewrites `git diff --name-status` output for the protected-surface guard. */
-export function changeEntriesToSurfaceChanges(entries: readonly ChangeEntry[]): SurfaceChange[] {
+function changeEntriesToSurfaceChanges(entries: readonly ChangeEntry[]): SurfaceChange[] {
   return entries.map((entry) => ({
     path: entry.path,
     kind: entry.status === "A" ? "create" : entry.status === "D" ? "delete" : entry.status === "R" ? "rename" : "write",
@@ -890,7 +890,7 @@ export function changeEntriesToSurfaceChanges(entries: readonly ChangeEntry[]): 
 }
 
 /** Default host git handlers backed by the real repository. */
-export function createDefaultHostHandlers(base: {
+function createDefaultHostHandlers(base: {
   persistEvidence(file: string, payload: unknown): void;
   promotion: Omit<HostOperationHandlers, "commitCandidate" | "nameStatus" | "candidateHead" | "persistEvidence">;
   diffRunner?: (input: { workspace: string; baseSha: string; headSha: string }) => Promise<string>;

@@ -21,7 +21,7 @@ import type { BootModule, IpcRegistrar } from "./boot-module";
  * The narrow slice of the research subsystem these channels use: the service owns
  * run state (status/step/freeze/ledger), the supervisor owns advancing it.
  */
-export interface ResearchPort {
+interface ResearchPort {
   status(id: string): unknown;
   step(id: string): Promise<unknown>;
   freeze(id: string, protocol: unknown): unknown;
@@ -35,15 +35,15 @@ export interface ResearchPort {
   };
 }
 
-export interface HumanGuidancePort {
+interface HumanGuidancePort {
   raise(input: { taskId: string; kind: string; question: string; options?: string[]; blockingStepId: string; contextSummary?: string }): unknown;
 }
 
-export interface ResearchEventPort {
+interface ResearchEventPort {
   publish(event: { type: "HUMAN_APPROVED"; taskId: string; message: string }): void;
 }
 
-export interface ResearchIpcDeps {
+interface ResearchIpcDeps {
   handle: IpcRegistrar["handle"];
   /** Absent when the research subsystem is not installed in this session. */
   research?: ResearchPort | undefined;

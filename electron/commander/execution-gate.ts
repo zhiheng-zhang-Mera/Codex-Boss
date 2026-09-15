@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-export type ExecutionKind = "shell" | "filesystem" | "git" | "network";
-export type ExecutionStatus = "PROPOSED" | "VALIDATED" | "APPROVAL_REQUIRED" | "APPROVED" | "EXECUTING" | "SUCCEEDED" | "FAILED";
+type ExecutionKind = "shell" | "filesystem" | "git" | "network";
+type ExecutionStatus = "PROPOSED" | "VALIDATED" | "APPROVAL_REQUIRED" | "APPROVED" | "EXECUTING" | "SUCCEEDED" | "FAILED";
 export interface ExecutionProposal { id?: string; kind: ExecutionKind; description: string; payload: unknown; originArtifactId?: string; }
 export interface ExecutionRecord extends ExecutionProposal { id: string; status: ExecutionStatus; error?: string; }
 

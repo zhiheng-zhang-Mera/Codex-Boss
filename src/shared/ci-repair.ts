@@ -21,7 +21,7 @@ import { contentHashOf } from "./workbook";
 import { utf8Bytes } from "./hash";
 import { advanceRecovery, classifyFailure, planRecovery, type FailureClassification, type FailureObservation, type RecoveryAttempt, type RecoveryProgress } from "./recovery";
 
-export const CI_REPAIR_VERSION = "ci-repair-1" as const;
+const CI_REPAIR_VERSION = "ci-repair-1" as const;
 
 export interface CiRunDescriptor {
   workflow?: string;
@@ -141,7 +141,7 @@ export function parseCiFailure(input: { log: string; descriptor?: CiRunDescripto
 }
 
 /** §41 "classify": the parsed failure in §33's vocabulary. */
-export function ciObservationFor(parsed: ParsedCiFailure): FailureObservation {
+function ciObservationFor(parsed: ParsedCiFailure): FailureObservation {
   const detail = [
     parsed.step ? `step: ${parsed.step}` : "",
     ...parsed.issues.slice(0, 6).map((issue) => `${issue.file ?? "?"}(${issue.line ?? 0}): ${issue.code ?? "error"}: ${issue.message}`),
@@ -245,7 +245,7 @@ export function ciVerdict(read: { ok: boolean; conclusion?: string; reason?: str
 }
 
 /** §41: the loop stops at PASS or at a Hard Blocker, never by quietly giving up. */
-export type CiLoopOutcome = "PASS" | "HARD_BLOCKER" | "IN_PROGRESS";
+type CiLoopOutcome = "PASS" | "HARD_BLOCKER" | "IN_PROGRESS";
 
 export function loopOutcome(input: { verdict: { passed: boolean }; plan?: CiRepairPlan; attemptsUsed: number; maxAttempts: number }): CiLoopOutcome {
   if (input.verdict.passed) return "PASS";

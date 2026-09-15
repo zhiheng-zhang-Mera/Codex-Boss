@@ -45,7 +45,7 @@ import {
  * different facts and the report must not conflate them.
  */
 
-export interface HostObservabilitySources {
+interface HostObservabilitySources {
   /** Boss data root (`app.getPath("userData")`). */
   dataRoot: string;
   now?: () => string;

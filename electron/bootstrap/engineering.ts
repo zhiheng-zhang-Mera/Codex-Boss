@@ -30,7 +30,7 @@ import { LearningService } from "../learning/learning-service";
 type HostOptions = Parameters<typeof createSelfEvolutionHost>[0];
 type HostHandle = ReturnType<typeof createSelfEvolutionHost>;
 
-export interface EngineeringOptions {
+interface EngineeringOptions {
   /** Root the app was launched from (`app.getAppPath()`). */
   appPath: string;
   /** Electron `app.getPath("userData")`. */

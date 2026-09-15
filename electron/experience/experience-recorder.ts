@@ -9,7 +9,7 @@ import type { ExperienceStore } from "../experience/experience-store";
  * bounded (200/entry) and structural promotion rules are untouched.
  */
 
-export interface ExperienceRecorderOptions {
+interface ExperienceRecorderOptions {
   /** Maps a task id to its workspace id (or task id) — the observation source. */
   sourceFor?: (taskId: string) => string;
   /** Optional contribution weight, e.g. normalized by cost/tokens (default 1). */

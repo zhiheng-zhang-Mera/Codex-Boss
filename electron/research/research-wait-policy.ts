@@ -15,7 +15,7 @@ import type { InterventionKind } from "../../src/shared/intervention";
  * Deterministic and pure so supervisors and tests share one policy.
  */
 
-export interface ResearchWaitPolicyInput {
+interface ResearchWaitPolicyInput {
   autonomy: "AUTOPILOT" | "GUIDED";
   kind: InterventionKind;
   question: string;
@@ -23,7 +23,7 @@ export interface ResearchWaitPolicyInput {
 }
 
 /** Intervention vocabulary → Owner-Result question-kind axis. */
-export function questionKindForInterventionKind(kind: InterventionKind): QuestionKind {
+function questionKindForInterventionKind(kind: InterventionKind): QuestionKind {
   switch (kind) {
     case "AUTHORIZATION":
     case "LOGIN":

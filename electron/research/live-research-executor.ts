@@ -10,7 +10,7 @@ import { artifactKindForStage, roleForStage, stageArtifact, type ResearchStageAr
 import type { ResearchIR, ResearchState } from "../../src/shared/research-ir";
 import type { ResearchStageExecutor, StageOutcome } from "./research-supervisor";
 
-export interface LiveResearchExecutorOptions {
+interface LiveResearchExecutorOptions {
   /** Inner executor that performs the real stage work. */
   inner: ResearchStageExecutor;
   /** Optional artifact sink (ledger/evidence graph) receiving typed artifacts. */

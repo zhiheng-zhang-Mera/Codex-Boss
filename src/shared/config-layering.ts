@@ -3,19 +3,19 @@
 export type ConfigLayerName = "system" | "global" | "workspace" | "initiative" | "task" | "emergency";
 export const CONFIG_LAYER_ORDER: readonly ConfigLayerName[] = ["system", "global", "workspace", "initiative", "task", "emergency"];
 
-export type ConfigValue = number | boolean | string;
+type ConfigValue = number | boolean | string;
 
-export type ConfigValues = Record<string, ConfigValue>;
+type ConfigValues = Record<string, ConfigValue>;
 
-export type LayerValues = Record<string, ConfigValue | undefined>;
+type LayerValues = Record<string, ConfigValue | undefined>;
 
-export interface ConfigSourceEntry {
+interface ConfigSourceEntry {
   key: string;
   value: ConfigValue;
   source: ConfigLayerName;
 }
 
-export interface ResolvedConfig {
+interface ResolvedConfig {
   /** Final value per key, merged with fixed precedence. */
   values: ConfigValues;
   /** Per-key provenance: which layer contributed the winning value. */
@@ -53,8 +53,8 @@ export function configEntries(resolved: ResolvedConfig): ConfigSourceEntry[] {
   return Object.entries(resolved.values).map(([key, value]) => ({ key, value, source: resolved.sources[key] ?? "system" }));
 }
 
-export type OperationalLimitKey = "modelCalls" | "retries" | "toolCalls";
-export type OperationalLimits = Record<OperationalLimitKey, number>;
+type OperationalLimitKey = "modelCalls" | "retries" | "toolCalls";
+type OperationalLimits = Record<OperationalLimitKey, number>;
 
 export interface OperationalLimitOverrides {
   modelCalls?: number;
@@ -64,7 +64,7 @@ export interface OperationalLimitOverrides {
 
 const SYSTEM_OPERATIONAL_LIMITS: OperationalLimits = { modelCalls: 12, retries: 3, toolCalls: 100 };
 
-export interface ResolvedOperationalLimits {
+interface ResolvedOperationalLimits {
   values: OperationalLimits;
   sources: Record<OperationalLimitKey, ConfigLayerName>;
 }

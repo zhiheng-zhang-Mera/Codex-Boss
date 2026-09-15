@@ -29,7 +29,7 @@ export const fetchGitHubHttpTransport: GitHubHttpTransport = {
   }
 };
 
-export interface InstallationToken {
+interface InstallationToken {
   token: string;
   expiresAt: string;
   repositories?: string[];

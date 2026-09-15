@@ -104,7 +104,7 @@ export const UTILITY_WEIGHTS = {
   latencyScaleMs: 10_000
 } as const;
 
-export interface UtilityInputs {
+interface UtilityInputs {
   completion: number;
   quality: number;
   goalFidelity: number;

@@ -23,7 +23,7 @@
 /** The unified Root permission result (§4). */
 export type RootDecision = "ALLOW" | "REQUIRE_OWNER" | "DENY";
 
-export const ROOT_DECISIONS: readonly RootDecision[] = ["ALLOW", "REQUIRE_OWNER", "DENY"];
+const ROOT_DECISIONS: readonly RootDecision[] = ["ALLOW", "REQUIRE_OWNER", "DENY"];
 
 export function isRootDecision(value: unknown): value is RootDecision {
   return value === "ALLOW" || value === "REQUIRE_OWNER" || value === "DENY";
@@ -42,7 +42,7 @@ export function foldRootDecisions(decisions: readonly RootDecision[]): RootDecis
 }
 
 /** Strictness comparison, exposed so callers can assert "never loosened". */
-export function rootDecisionRank(decision: RootDecision): number {
+function rootDecisionRank(decision: RootDecision): number {
   return ROOT_DECISION_RANK[decision];
 }
 
@@ -141,7 +141,7 @@ export const ROOT_OPERATIONS: readonly RootOperation[] = [
   "gate.self.rewrite"
 ];
 
-export function isRootOperation(value: unknown): value is RootOperation {
+function isRootOperation(value: unknown): value is RootOperation {
   return typeof value === "string" && (ROOT_OPERATIONS as readonly string[]).includes(value);
 }
 
@@ -193,7 +193,7 @@ export const ROOT_OPERATION_FLOOR: Readonly<Record<RootOperation, RootDecision>>
 };
 
 /** The Root Owner as seen by the product. Never a credential, only an identity. */
-export interface RootIdentity {
+interface RootIdentity {
   /** GitHub login of the single Root Owner. Exactly one, by construction. */
   login: string;
   /** Human-facing display name; never used for authorization. */
@@ -237,8 +237,8 @@ export interface RootClassification {
 export type RootRequestMode = "ASSISTED" | "AUTONOMOUS" | "OWNER_RESULT" | "EVOLUTION" | "UNKNOWN";
 
 /** Execution profiles. Only EVOLUTION may run candidate construction (§10). */
-export type ExecutionProfile = "INTERACTIVE" | "ENGINEERING" | "EVOLUTION";
+type ExecutionProfile = "INTERACTIVE" | "ENGINEERING" | "EVOLUTION";
 
-export function isExecutionProfile(value: unknown): value is ExecutionProfile {
+function isExecutionProfile(value: unknown): value is ExecutionProfile {
   return value === "INTERACTIVE" || value === "ENGINEERING" || value === "EVOLUTION";
 }

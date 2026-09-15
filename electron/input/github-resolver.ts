@@ -14,7 +14,7 @@ import type { GithubTarget } from "../../src/shared/github-url";
 import { githubCacheKey } from "../../src/shared/github-url";
 import { removeTree } from "../fs-util";
 
-export interface GithubResolveResult {
+interface GithubResolveResult {
   /** Materialized repo checkout directory (contains .git). */
   checkoutDir: string;
   target: GithubTarget;

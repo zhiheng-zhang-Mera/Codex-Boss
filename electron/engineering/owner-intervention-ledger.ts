@@ -55,7 +55,7 @@ export function initializeOwnerLedger(session: AcceptanceSession, artifacts: str
   return ledger;
 }
 
-export interface RecordOwnerInterventionOptions {
+interface RecordOwnerInterventionOptions {
   /** Defaults to `<cwd>/artifacts/acceptance`. */
   artifacts?: string;
   root?: string;
@@ -64,7 +64,7 @@ export interface RecordOwnerInterventionOptions {
   now?: () => Date;
 }
 
-export interface OwnerInterventionRequestInput {
+interface OwnerInterventionRequestInput {
   source: string;
   reason: string;
   blocker_class?: string;
@@ -109,7 +109,7 @@ export function recordOwnerIntervention(
   return next.events[next.events.length - 1];
 }
 
-export interface OwnerLedgerInspection {
+interface OwnerLedgerInspection {
   ledger?: OwnerInterventionLedger;
   problems: TrustProblem[];
   /** §7.5: the derived count — the ledger's own event count, never an input. */
@@ -125,4 +125,4 @@ export function inspectOwnerLedger(session: AcceptanceSession, artifacts: string
 }
 
 /** Exposed for diagnostics: where a certification run's ledger lives. */
-export const OWNER_LEDGER_RELATIVE = path.join(ACCEPTANCE_RELATIVE, OWNER_LEDGER_FILE);
+const OWNER_LEDGER_RELATIVE = path.join(ACCEPTANCE_RELATIVE, OWNER_LEDGER_FILE);

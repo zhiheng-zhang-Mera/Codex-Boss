@@ -21,7 +21,7 @@ import { classifySurface, ROOT_SURFACE_HASH_EXCLUSIONS, type RootSurfaceFile } f
 const EXCLUDED_DIRECTORIES = new Set(["node_modules", "dist", "dist-electron", "artifacts", ".git", "runtime-data", ".cache", "history", "coverage"]);
 
 /** §3: CRLF-normalised SHA-256 of a file, or "" when it cannot be read. */
-export function normalizedFileHash(file: string): string {
+function normalizedFileHash(file: string): string {
   try {
     const bytes = fs.readFileSync(file);
     // Normalise the line endings without decoding: a text file that differs only in

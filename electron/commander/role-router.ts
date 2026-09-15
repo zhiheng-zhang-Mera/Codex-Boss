@@ -8,7 +8,7 @@ import { resolveCapabilityToKind } from "../../src/shared/cheapest-execution";
 import type { AdaptiveReranker, AdaptiveRoutingDecision } from "../../src/shared/adaptive-routing";
 
 export type RoleId = "planner" | "researcher" | "reviewer" | "synthesizer" | "coder" | "validator" | "critic";
-export const ROLE_CAPABILITY: Record<RoleId, RuntimeCapability> = { planner: "planning", researcher: "research", reviewer: "review", synthesizer: "synthesis", coder: "coding", validator: "validation", critic: "critique" };
+const ROLE_CAPABILITY: Record<RoleId, RuntimeCapability> = { planner: "planning", researcher: "research", reviewer: "review", synthesizer: "synthesis", coder: "coding", validator: "validation", critic: "critique" };
 
 export interface RoleRoutingRequest {
   role: RoleId;
@@ -24,7 +24,7 @@ export interface RoleRoutingRequest {
 export interface RuntimeCandidate { runtimeId: RuntimeId; rank: number; reason: string; }
 
 /** Optional context the adaptive scorer (Engine Phase 6) may use for soft ranking. */
-export interface RoleRoutingAdaptiveContext {
+interface RoleRoutingAdaptiveContext {
   taskId?: string;
   modelSnapshotKey?: string;
   behaviourEpochId?: string;
@@ -32,7 +32,7 @@ export interface RoleRoutingAdaptiveContext {
 }
 
 /** Last adaptive decision produced by a route() call (for the feedback ledger/UI). */
-export interface RoleRoutingOutcome {
+interface RoleRoutingOutcome {
   candidates: RuntimeCandidate[];
   adaptive?: AdaptiveRoutingDecision;
 }

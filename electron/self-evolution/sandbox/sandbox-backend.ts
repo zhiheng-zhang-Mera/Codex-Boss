@@ -91,7 +91,7 @@ export interface EvolutionSandbox {
  * A request that the sandbox must refuse outright, before the OS is involved.
  * Raised by the host policy layer, not by the launcher.
  */
-export class SandboxPolicyError extends Error {
+class SandboxPolicyError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "SandboxPolicyError";

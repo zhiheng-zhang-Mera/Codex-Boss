@@ -9,7 +9,7 @@ import { capabilityVerdicts, nodeStateFor, type CapabilityVerdict, type NodeProb
  * node state on every refresh. Records are isolated per node (one node's
  * DEGRADED/FAILED never touches another) and fail closed on corruption.
  */
-export interface NodeRegistryFile {
+interface NodeRegistryFile {
   schemaVersion: 1;
   records: Array<{
     nodeId: string;

@@ -16,12 +16,12 @@ import { manifestAllows, type PermissionKind, type PermissionManifest } from "..
  * deterministic fake), so this module stays an orchestration/control surface.
  */
 
-export interface SoftwareExecutor {
+interface SoftwareExecutor {
   /** Runs one structured action; throws to signal a hard failure. */
   run(action: SoftwareAction): Promise<SoftwareObservation>;
 }
 
-export interface SoftwareExecutionOptions {
+interface SoftwareExecutionOptions {
   ownerWorkspace?: string;
   ownerTask: string;
   target: string;

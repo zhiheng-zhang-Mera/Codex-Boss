@@ -29,14 +29,14 @@ import type { InterventionKind } from "../../src/shared/intervention";
  */
 
 /** One human-guidance request, reduced to what the dashboard reads. */
-export interface InterventionRecord {
+interface InterventionRecord {
   taskId: string;
   kind: InterventionKind;
   question: string;
   resolvedAt?: string;
 }
 
-export interface ResearchOwnerSurface {
+interface ResearchOwnerSurface {
   /** An absolute path under the application's data root. */
   dataFile(...segments: string[]): string;
   /** The research ledger's decisions for a run, shaped for the sufficiency gate. */
@@ -60,13 +60,13 @@ export interface ResearchOwnerSurface {
   now(): string;
 }
 
-export interface ResearchOwnerEvent {
+interface ResearchOwnerEvent {
   type: "HUMAN_APPROVED";
   taskId: string;
   message: string;
 }
 
-export interface ResearchOwnerIpcDeps {
+interface ResearchOwnerIpcDeps {
   handle: IpcRegistrar["handle"];
   owner: ResearchOwnerSurface;
   events: { publish(event: ResearchOwnerEvent): void };

@@ -6,10 +6,10 @@
  * "NOT_RUN" blanket. The electron side runs the in-process subset.
  */
 
-export type HardeningCoverage = "unit" | "integration" | "live";
+type HardeningCoverage = "unit" | "integration" | "live";
 export type HardeningResult = "PASS" | "FAIL" | "NOT_RUN";
 
-export interface HardeningScenario {
+interface HardeningScenario {
   id: string;
   label: string;
   coverage: HardeningCoverage;

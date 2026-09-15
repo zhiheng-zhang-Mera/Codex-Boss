@@ -13,20 +13,20 @@
 
 import type { AppSnapshot } from "./contracts";
 
-export const ACTIVE_TASK_STATUSES = new Set(["queued", "running", "waiting", "paused"]);
+const ACTIVE_TASK_STATUSES = new Set(["queued", "running", "waiting", "paused"]);
 
 /** Tasks that still need the conversation visible on the default list. */
-export function conversationHasActiveTask(snapshot: AppSnapshot, conversationId: string): boolean {
+function conversationHasActiveTask(snapshot: AppSnapshot, conversationId: string): boolean {
   return snapshot.tasks.some((task) => task.conversationId === conversationId && ACTIVE_TASK_STATUSES.has(task.status));
 }
 
 /** The completed task itself still counts as active until fully finalized. */
-export function isTaskFinalized(snapshot: AppSnapshot, taskId: string): boolean {
+function isTaskFinalized(snapshot: AppSnapshot, taskId: string): boolean {
   const task = snapshot.tasks.find((item) => item.id === taskId);
   return Boolean(task && (task.status === "completed" || task.status === "failed" || task.status === "cancelled"));
 }
 
-export interface ArchiveDecision {
+interface ArchiveDecision {
   archive: boolean;
   reason: string;
 }

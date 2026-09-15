@@ -28,10 +28,10 @@ import { completionGate, routeFindings, type ReviewFinding, type ReviewReport, t
 import type { ReviewOutcome } from "./review-engine";
 import type { ApplyResult, VerificationEngine } from "./verification-engine";
 
-export const IMPLEMENTATION_LOOP_VERSION = "implementation-loop-1" as const;
-export const DEFAULT_MAX_ITERATIONS = 3;
+const IMPLEMENTATION_LOOP_VERSION = "implementation-loop-1" as const;
+const DEFAULT_MAX_ITERATIONS = 3;
 
-export interface WorkerRequest {
+interface WorkerRequest {
   node: ExecutionNode;
   /** 1-based iteration number. */
   iteration: number;
@@ -53,7 +53,7 @@ export interface WorkerProposal {
  */
 export type ImplementationWorker = (request: WorkerRequest) => Promise<WorkerProposal | undefined> | WorkerProposal | undefined;
 
-export interface IterationRecord {
+interface IterationRecord {
   iteration: number;
   worker_note?: string;
   applied: boolean;
@@ -84,7 +84,7 @@ export interface IterationRecord {
   reason: string;
 }
 
-export interface LoopInput {
+interface LoopInput {
   node: ExecutionNode;
   requirements: readonly VerifiableRequirement[];
   worker?: ImplementationWorker;
@@ -126,7 +126,7 @@ export interface LoopInput {
   now?: () => Date;
 }
 
-export interface LoopOutcome {
+interface LoopOutcome {
   schemaVersion: 1;
   version: typeof IMPLEMENTATION_LOOP_VERSION;
   node_id: string;

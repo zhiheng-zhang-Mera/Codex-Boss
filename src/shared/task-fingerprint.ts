@@ -14,7 +14,7 @@
 export const TASK_FINGERPRINT_VERSION = "fingerprint-1.0.0";
 
 /** A learned concept reference — never an enum value. */
-export interface LearnedConceptRef {
+interface LearnedConceptRef {
   conceptId: string;
   similarity: number;
   confidence: number;

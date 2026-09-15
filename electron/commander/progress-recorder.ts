@@ -9,7 +9,7 @@ import { ProgressAggregator, type ProgressEvent, type ProgressSource, type Progr
  * raw log spam — without ever exposing private chain-of-thought.
  */
 
-export interface ProgressBridgeOptions {
+interface ProgressBridgeOptions {
   now?: () => string;
   maxTimeline?: number;
 }

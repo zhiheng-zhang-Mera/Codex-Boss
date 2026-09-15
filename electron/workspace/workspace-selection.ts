@@ -16,7 +16,7 @@ import type { WorkspaceSelectionState } from "../../src/shared/workspace-selecti
  *   - reading never throws: a corrupt, missing or unsupported record reads as
  *     UNSET, so damaged state cannot stop the application from starting.
  */
-export interface WorkspaceSelectionFile {
+interface WorkspaceSelectionFile {
   schemaVersion: 1;
   /** Canonical validated path, as accepted by the one path model. */
   workspacePath: string;

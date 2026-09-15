@@ -18,13 +18,13 @@ import type { KnowledgeRecordVNext, KnowledgeScope } from "../../src/shared/tenx
  * on top of this store; this module owns durable storage + retrieval only.
  */
 
-export interface TenxKnowledgeSpaceFile {
+interface TenxKnowledgeSpaceFile {
   schemaVersion: 1;
   /** All versions of all knowledgeIds (ACTIVE + SUPERSEDED). */
   records: KnowledgeRecordVNext[];
 }
 
-export interface KnowledgePutInput {
+interface KnowledgePutInput {
   content: string;
   source: string;
   createdByNode: string;
@@ -37,7 +37,7 @@ export interface KnowledgePutInput {
   createdAt?: string;
 }
 
-export function knowledgeContentId(content: string): string {
+function knowledgeContentId(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex").slice(0, 32);
 }
 

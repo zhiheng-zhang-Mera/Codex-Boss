@@ -36,7 +36,7 @@ export interface SectionBrief {
   evidenceIds: string[];      // run/statistic nodes backing those claims
 }
 
-export interface EvidenceCheckVerdict {
+interface EvidenceCheckVerdict {
   section: ManuscriptSection;
   passed: boolean;
   missingEvidence: string[];  // evidence ids asserted but absent from the graph
@@ -60,7 +60,7 @@ export function evidenceCheckDraft(draft: Pick<SectionDraft, "section" | "allowe
   return { section: draft.section, passed: missingEvidence.length === 0 && referencedOutsideScope.length === 0, missingEvidence: [...new Set([...missingEvidence, ...referencedOutsideScope])], missingClaims: [] };
 }
 
-export function validateManuscriptPlan(plan: ManuscriptPlan): void {
+function validateManuscriptPlan(plan: ManuscriptPlan): void {
   if (!plan || typeof plan.id !== "string" || !plan.id.trim()) throw new Error("Manuscript plan requires an id");
   for (const [claim, sections] of Object.entries(plan.claimsToSections ?? {})) {
     if (sections.length < 1 || sections.some((section) => !MANUSCRIPT_SECTIONS.includes(section))) throw new Error(`Invalid claim→section mapping for ${claim}`);
@@ -72,9 +72,9 @@ export function validateManuscriptPlan(plan: ManuscriptPlan): void {
  * must contain, never by a word count. Each obligation is a deterministic
  * predicate over the draft and the evidence/claim material it was briefed on.
  */
-export type SectionObligation = { section: ManuscriptSection; label: string; met(content: string, context: SectionObligationContext): boolean };
+type SectionObligation = { section: ManuscriptSection; label: string; met(content: string, context: SectionObligationContext): boolean };
 
-export interface SectionObligationContext {
+interface SectionObligationContext {
   claimIds: string[];
   evidenceIds: string[];
   hypothesis?: string;
@@ -83,7 +83,7 @@ export interface SectionObligationContext {
   runCount?: number;
 }
 
-export const SECTION_OBLIGATIONS: readonly SectionObligation[] = [
+const SECTION_OBLIGATIONS: readonly SectionObligation[] = [
   // Abstract: names the question + states a primary finding bound to evidence.
   { section: "abstract", label: "states the research question", met: (content) => /question|research question|investigat|studies?/i.test(content) },
   { section: "abstract", label: "reports the recorded result from evidence", met: (content, ctx) => ctx.evidenceIds.length === 0 || content.length > 240 },
@@ -100,11 +100,11 @@ export const SECTION_OBLIGATIONS: readonly SectionObligation[] = [
 ];
 
 /** All §18 obligations a section must satisfy (a section with no obligations passes trivially). */
-export function obligationsFor(section: ManuscriptSection): SectionObligation[] {
+function obligationsFor(section: ManuscriptSection): SectionObligation[] {
   return SECTION_OBLIGATIONS.filter((obligation) => obligation.section === section);
 }
 
-export interface SufficiencyVerdict {
+interface SufficiencyVerdict {
   section: ManuscriptSection;
   passed: boolean;
   unmet: string[];
@@ -121,7 +121,7 @@ export function sectionSufficiency(content: string, section: ManuscriptSection, 
  * must not close while significant material is undiscussed. Returns the
  * evidence/claims that no section addresses.
  */
-export interface PrematureClosureVerdict {
+interface PrematureClosureVerdict {
   premature: boolean;
   undiscussedClaims: string[];
   undiscussedEvidence: string[];
@@ -156,12 +156,12 @@ export function antiPrematureClosure(input: { claims: Array<{ id: string; text: 
 }
 
 /** A results row = one recorded run / condition with typed metric cells. */
-export interface ResultTableRow {
+interface ResultTableRow {
   label: string;
   cells: Array<{ value: number; raw?: string }>;
 }
 
-export interface ResultTableColumn {
+interface ResultTableColumn {
   /** Metric/column name, e.g. accuracy or condition. */
   name: string;
   unit?: string;

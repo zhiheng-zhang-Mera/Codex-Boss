@@ -28,7 +28,7 @@ import type { SessionLifecycle } from "../../src/shared/session-lifecycle";
  */
 
 /** The learning facade's surface, as these channels use it. */
-export interface LearningSurface {
+interface LearningSurface {
   panel(): unknown;
   drilldown(episodeId: string): unknown;
   rebuildDerived(): void;
@@ -39,13 +39,13 @@ export interface LearningSurface {
 }
 
 /** The device capability registry. Absent when it could not be opened. */
-export interface NodeRegistrySurface {
+interface NodeRegistrySurface {
   refresh(nodeId: string, probe: unknown): { state: string; reason: string } | undefined;
   status(nodeId: string): { verdicts: unknown[] } | undefined;
 }
 
 /** The GitHub machine identity. Absent when no credential provider is configured. */
-export interface GithubMachineSurface {
+interface GithubMachineSurface {
   configured: boolean;
   /**
    * Present only on the configured variant: the unconfigured machine has nothing to
@@ -71,7 +71,7 @@ export interface HostStatusService {
   proxyConfigured(): boolean;
 }
 
-export interface HostStatusIpcDeps {
+interface HostStatusIpcDeps {
   handle: IpcRegistrar["handle"];
   host: HostStatusService;
 }

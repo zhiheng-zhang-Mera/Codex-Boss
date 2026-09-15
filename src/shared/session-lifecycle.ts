@@ -21,7 +21,7 @@ export const SESSION_LIFECYCLES: readonly SessionLifecycle[] = [
   "UNKNOWN", "CHECKING", "LOGGED_IN", "EXPIRED", "REAUTH_REQUIRED", "FAILED"
 ];
 
-export const ALLOWED_TRANSITIONS: Readonly<Record<SessionLifecycle, readonly SessionLifecycle[]>> = {
+const ALLOWED_TRANSITIONS: Readonly<Record<SessionLifecycle, readonly SessionLifecycle[]>> = {
   UNKNOWN: ["CHECKING", "LOGGED_IN", "REAUTH_REQUIRED", "FAILED"],
   CHECKING: ["LOGGED_IN", "EXPIRED", "REAUTH_REQUIRED", "FAILED", "UNKNOWN"],
   LOGGED_IN: ["CHECKING", "EXPIRED", "REAUTH_REQUIRED", "FAILED"],

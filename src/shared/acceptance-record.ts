@@ -12,9 +12,9 @@ import { acceptanceDigest, rollupAcceptance, summarizeAcceptance, verdictReasonF
  * This file is pure: the fs writers live in the host modules that need them.
  */
 
-export const ACCEPTANCE_RECORD_SCHEMA_VERSION = 1;
+const ACCEPTANCE_RECORD_SCHEMA_VERSION = 1;
 
-export interface AcceptanceRecordEntry {
+interface AcceptanceRecordEntry {
   id: string;
   program: string;
   status: AcceptanceReport["overall"];
@@ -22,7 +22,7 @@ export interface AcceptanceRecordEntry {
   reason?: string;
 }
 
-export interface AcceptanceRecord {
+interface AcceptanceRecord {
   schemaVersion: typeof ACCEPTANCE_RECORD_SCHEMA_VERSION;
   kind: "HOST_ACCEPTANCE_RECORD";
   generatedAt: string;
@@ -60,14 +60,14 @@ export function recordFromReport(
   };
 }
 
-export interface AcceptanceFilter {
+interface AcceptanceFilter {
   /** Ignore these check ids entirely when comparing. */
   ignore?: readonly string[];
   /** Treat a degraded/skipped candidate as drift (default: only report it). */
   strict?: boolean;
 }
 
-export interface AcceptanceDrift {
+interface AcceptanceDrift {
   id: string;
   kind: "STATUS_CHANGED" | "MISSING_IN_CANDIDATE" | "NEW_IN_CANDIDATE";
   baseline?: AcceptanceReport["overall"];
@@ -80,7 +80,7 @@ export interface AcceptanceDrift {
  * change in either direction is drift, and a check that disappeared or appeared
  * is drift too. Nothing here modifies the candidate.
  */
-export function compareAcceptanceRecords(
+function compareAcceptanceRecords(
   baseline: AcceptanceRecord,
   candidate: AcceptanceRecord,
   filter: AcceptanceFilter = {}
@@ -117,7 +117,7 @@ export function compareAcceptanceRecords(
 }
 
 /** Recomputes a record's digest from its own entries (used to detect tampering). */
-export function recordDigest(record: AcceptanceRecord): string {
+function recordDigest(record: AcceptanceRecord): string {
   return acceptanceDigest(
     record.checks.map((entry) => ({
       id: entry.id,
@@ -134,7 +134,7 @@ export function recordDigest(record: AcceptanceRecord): string {
 }
 
 /** Verifies the record's declared digest matches its own contents. */
-export function recordIsSelfConsistent(record: AcceptanceRecord): boolean {
+function recordIsSelfConsistent(record: AcceptanceRecord): boolean {
   const summary = summarizeAcceptance(
     record.checks.map((entry) => ({
       id: entry.id,

@@ -7,7 +7,7 @@ export interface ConversationMenuState {
   y: number;
 }
 
-export interface ConversationMenuActions {
+interface ConversationMenuActions {
   rename: (conversationId: string) => void;
   move: (conversationId: string) => void;
   duplicate: (conversationId: string) => void;

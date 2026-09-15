@@ -12,7 +12,7 @@
  * a factory is enough.
  */
 
-export interface ModuleHealth {
+interface ModuleHealth {
   module: string;
   status: "READY" | "DEGRADED";
   detail: string;

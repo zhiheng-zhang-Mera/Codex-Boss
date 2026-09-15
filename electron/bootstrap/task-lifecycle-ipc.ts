@@ -20,20 +20,20 @@ import { buildRehydrationPrompts, type buildEvidenceBundle } from "../evidence-e
 
 /** The task/artifact/council shapes, taken from the functions that consume them. */
 type EvidenceArgs = Parameters<typeof buildEvidenceBundle>;
-export type TaskLifecycleTask = EvidenceArgs[0];
-export type TaskLifecycleArtifacts = EvidenceArgs[1];
-export type TaskLifecycleCouncil = EvidenceArgs[2];
-export type TaskLifecycleBundle = ReturnType<typeof buildEvidenceBundle>;
+type TaskLifecycleTask = EvidenceArgs[0];
+type TaskLifecycleArtifacts = EvidenceArgs[1];
+type TaskLifecycleCouncil = EvidenceArgs[2];
+type TaskLifecycleBundle = ReturnType<typeof buildEvidenceBundle>;
 /** The prompts a rehydration round is queued with — the builder's *return*, not its input. */
-export type RehydrationPrompts = ReturnType<typeof buildRehydrationPrompts>;
+type RehydrationPrompts = ReturnType<typeof buildRehydrationPrompts>;
 
 /** The three states a Codex review can be moved into. */
-export type CodexReviewPatch =
+type CodexReviewPatch =
   | { status: "RUNNING" }
   | { status: "COMPLETED"; content: string; completedAt: string }
   | { status: "FAILED"; error: string; completedAt: string };
 
-export interface TaskLifecycleSurface {
+interface TaskLifecycleSurface {
   /** The stop-and-start automation steps for one task. */
   prepareTask(taskId: string): Promise<void>;
   sendTask(taskId: string): Promise<void>;
@@ -60,13 +60,13 @@ export interface TaskLifecycleSurface {
   publish(): unknown;
 }
 
-export interface TaskEvent {
+interface TaskEvent {
   type: "HUMAN_APPROVED";
   taskId: string;
   message: string;
 }
 
-export interface TaskLifecycleIpcDeps {
+interface TaskLifecycleIpcDeps {
   handle: IpcRegistrar["handle"];
   tasks: TaskLifecycleSurface;
   events: { publish(event: TaskEvent): void };

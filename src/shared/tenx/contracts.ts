@@ -17,7 +17,7 @@
 export const TENX_CONTRACT_VERSION = "10.0.0" as const;
 
 /** Phase coverage map: each taskbook phase has at least one owning contract id. */
-export type TenxContractId =
+type TenxContractId =
   | "node" // 10B node identity + capability advertisement
   | "inspection" // 10C device self-inspection → NodeCapabilityReport
   | "fleet" // 10D fleet control plane

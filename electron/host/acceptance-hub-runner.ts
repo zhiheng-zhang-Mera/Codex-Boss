@@ -33,7 +33,7 @@ export interface ProcessRunner {
   run(name: string, args: readonly string[], options: { cwd: string; timeoutMs: number }): Promise<ProcessOutcome>;
 }
 
-export interface AcceptanceRunOptions {
+interface AcceptanceRunOptions {
   repoRoot: string;
   probes: HostProbes;
   /** Extended scope additionally enables the expensive/opt-in checks. */
@@ -51,7 +51,7 @@ export interface AcceptanceRunOptions {
   now?: () => string;
 }
 
-export interface AcceptanceRunResult {
+interface AcceptanceRunResult {
   report: AcceptanceReport;
   /** Populated when the run itself could not be assembled (still reported). */
   fatal?: string;
@@ -229,7 +229,7 @@ export async function runAcceptanceHub(
 }
 
 /** Explicitly marks opt-in checks that the caller chose not to request. */
-export function unrequestedOptIn(checks: readonly AcceptanceCheck[], requested: readonly string[]): AcceptanceCheckResult[] {
+function unrequestedOptIn(checks: readonly AcceptanceCheck[], requested: readonly string[]): AcceptanceCheckResult[] {
   const wanted = new Set(requested);
   return checks
     .filter((check) => check.enabledByDefault === false && !wanted.has(check.id))

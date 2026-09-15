@@ -21,7 +21,7 @@ import { createEvaluationRevision, type SemanticEvaluationRevision } from "../..
  *    consumes the same rows), so derived data can always be deleted + rebuilt.
  */
 
-export interface EpisodeStoreOptions {
+interface EpisodeStoreOptions {
   rootDir?: string;
   now?: () => string;
 }

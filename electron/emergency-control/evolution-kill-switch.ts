@@ -34,7 +34,7 @@ import { isInsideWorkspace as pathContainment } from "../workspace/path-utils";
 
 export type EvolutionControlState = "ENABLED" | "FROZEN_BY_OWNER";
 
-export interface EvolutionControlRecord {
+interface EvolutionControlRecord {
   schemaVersion: 1;
   state: EvolutionControlState;
   /** ISO timestamp of the freeze. */
@@ -47,7 +47,7 @@ export interface EvolutionControlRecord {
   unfrozenAt?: string;
 }
 
-export const EVOLUTION_CONTROL_SCHEMA_VERSION = 1;
+const EVOLUTION_CONTROL_SCHEMA_VERSION = 1;
 
 /**
  * The only thing that may clear a freeze. Constructed through
@@ -78,7 +78,7 @@ export class EvolutionFrozenError extends Error {
   }
 }
 
-export interface EvolutionKillSwitchOptions {
+interface EvolutionKillSwitchOptions {
   /** Durable control record. Must be outside every candidate workspace. */
   controlFile: string;
   /** Optional external sentinel; presence means frozen. Same location rule. */
@@ -87,7 +87,7 @@ export interface EvolutionKillSwitchOptions {
   candidateRoots?: readonly string[];
 }
 
-export interface EvolutionControlStatus {
+interface EvolutionControlStatus {
   state: EvolutionControlState;
   /** Why the state was reached, as machine-readable codes. */
   signals: string[];

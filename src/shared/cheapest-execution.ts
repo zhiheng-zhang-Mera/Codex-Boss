@@ -13,14 +13,14 @@ export interface CandidateExecution {
   supported: boolean;
 }
 
-export interface SufficiencyInput {
+interface SufficiencyInput {
   /** Free-text capability the plan needs, e.g. "web", "read files", "computer". */
   capability: string;
   candidates: CandidateExecution[];
   deterministicSufficient?: boolean;
 }
 
-export interface CheapestChoice {
+interface CheapestChoice {
   runtimeId: string | null;
   reason: string;
 }

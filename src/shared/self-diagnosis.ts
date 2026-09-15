@@ -1,6 +1,6 @@
 /** Self diagnosis + RFC (plan AP26). Pure failure clustering over telemetry. */
 
-export interface TelemetryLike {
+interface TelemetryLike {
   taskId: string;
   runtimeId: string;
   outcome: string;

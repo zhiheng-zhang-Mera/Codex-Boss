@@ -21,20 +21,20 @@
  * Pure: no fs, no clock, no network.
  */
 
-export const THEME_INTENT_VERSION = "theme-intent-1" as const;
+const THEME_INTENT_VERSION = "theme-intent-1" as const;
 
 /* ------------------------------------------------------------------ *
  * Intent model
  * ------------------------------------------------------------------ */
 
-export type ThemeTemperature = "COOL" | "WARM" | "NEUTRAL";
-export type ThemeLightness = "DARK" | "LIGHT" | "FOLLOW_BASE";
-export type ThemeDensity = "COMPACT" | "COMFORTABLE" | "SPACIOUS";
-export type ThemeRadius = "SHARP" | "SOFT" | "ROUNDED" | "PILL";
-export type ThemeTypography = "SANS" | "ROUNDED" | "MONO" | "SERIF" | "FOLLOW_BASE";
-export type ThemeContrast = "HIGH" | "NORMAL" | "SUBTLE";
+type ThemeTemperature = "COOL" | "WARM" | "NEUTRAL";
+type ThemeLightness = "DARK" | "LIGHT" | "FOLLOW_BASE";
+type ThemeDensity = "COMPACT" | "COMFORTABLE" | "SPACIOUS";
+type ThemeRadius = "SHARP" | "SOFT" | "ROUNDED" | "PILL";
+type ThemeTypography = "SANS" | "ROUNDED" | "MONO" | "SERIF" | "FOLLOW_BASE";
+type ThemeContrast = "HIGH" | "NORMAL" | "SUBTLE";
 
-export interface ThemeIntentSignal<T> {
+interface ThemeIntentSignal<T> {
   value: T;
   /** The prompt text that produced this signal (never empty). */
   evidence: string;
@@ -189,7 +189,7 @@ function allMatches(text: string, patterns: readonly RegExp[]): string[] {
 }
 
 /** Splits a revision into clauses so "再透明一些，其余不变" is an *adjustment*. */
-export function isRevisionRequest(prompt: string): boolean {
+function isRevisionRequest(prompt: string): boolean {
   return /更|再|稍微|略微|一点|一些|不要那么|改成|还是|still|more|less|slightly|a bit|too\s/i.test(prompt);
 }
 

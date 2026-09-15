@@ -40,9 +40,9 @@ export { AUTO_RUN_CLASSIFICATIONS };
 export type { DiscoverySummary, WorkBookDispatchRecord, WorkBookRefusal, WorkBookStage, WorkBookStageEntry };
 
 /** Classification kinds that may start provider work without human approval. */
-export const AUTO_RUN_KINDS = AUTO_RUN_CLASSIFICATIONS;
+const AUTO_RUN_KINDS = AUTO_RUN_CLASSIFICATIONS;
 
-export interface WorkBookDispatchDeps {
+interface WorkBookDispatchDeps {
   /** Registry used to PLAN duplicate/resume/amend relations (never written here). */
   registry?: WorkbookRegistry;
   /** Injected for tests; defaults to the real ingestion pipeline. */
@@ -63,7 +63,7 @@ export interface WorkBookDispatchDeps {
   now?: () => Date;
 }
 
-export interface WorkBookDispatchRequest {
+interface WorkBookDispatchRequest {
   /** User message; optional when attachments or a repository carry the request. */
   prompt?: string;
   title?: string;
@@ -113,19 +113,19 @@ export interface WorkBookDispatchResult {
  * Input rule
  * ------------------------------------------------------------------ */
 
-export interface PrimaryInputState {
+interface PrimaryInputState {
   text: boolean;
   attachment: boolean;
   repository: boolean;
 }
 
 /** The single rule for "this request has something to work on". */
-export function hasPrimaryInput(state: PrimaryInputState): boolean {
+function hasPrimaryInput(state: PrimaryInputState): boolean {
   return state.text || state.attachment || state.repository;
 }
 
 /** Derives the rule inputs from already-resolved, conversation-scoped refs. */
-export function primaryInputState(prompt: string, attachments: InputObjectRef[]): PrimaryInputState {
+function primaryInputState(prompt: string, attachments: InputObjectRef[]): PrimaryInputState {
   return {
     text: (prompt ?? "").trim().length > 0,
     attachment: attachments.length > 0,
@@ -145,7 +145,7 @@ export function assertPrimaryInput(prompt: string, attachments: InputObjectRef[]
  * Guardian screening
  * ------------------------------------------------------------------ */
 
-export type GuardianDenialCode =
+type GuardianDenialCode =
   | "BYPASS_ROOT"
   | "WEAKEN_SECURITY"
   | "WEAKEN_VERIFICATION"
@@ -153,7 +153,7 @@ export type GuardianDenialCode =
   | "WRITE_OUTSIDE_WORKSPACE"
   | "PROTECTED_AREA";
 
-export interface GuardianRefusal {
+interface GuardianRefusal {
   code: GuardianDenialCode;
   reason: string;
 }
@@ -284,8 +284,8 @@ function screeningText(prompt: string, documents: CanonicalTaskDocument[]): stri
  * ------------------------------------------------------------------ */
 
 /** Per-field bound so a single verbose section cannot dominate the objective. */
-export const OBJECTIVE_FIELD_LIMIT = 400;
-export const OBJECTIVE_LIMIT = 1200;
+const OBJECTIVE_FIELD_LIMIT = 400;
+const OBJECTIVE_LIMIT = 1200;
 
 function objectiveLine(label: string, items: string[]): string | undefined {
   const joined = items

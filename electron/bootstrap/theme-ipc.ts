@@ -30,12 +30,12 @@ import type { ThemePreviewState, ThemeService } from "../theme/theme-service";
  */
 
 /** The domain events this module publishes, named so the surface stays narrow. */
-export interface ThemeEvent {
+interface ThemeEvent {
   type: "THEME_ACTIVATED" | "THEME_FALLBACK" | "THEME_INSTALLED" | "THEME_VALIDATED" | "THEME_DRAFT_CREATED" | "THEME_PREVIEWED";
   message: string;
 }
 
-export type GenerateInput = Parameters<typeof generateThemeDraft>[0];
+type GenerateInput = Parameters<typeof generateThemeDraft>[0];
 
 /**
  * The service methods these channels actually use, derived from the service's own
@@ -48,7 +48,7 @@ export type ThemeSurface = Pick<
 >;
 
 /** One capture run, flattened so the module never sees a WebContents. */
-export interface ThemeCaptureResult {
+interface ThemeCaptureResult {
   frames: Array<{ surface: string; file: string; bytes: number }>;
   skipped: unknown;
   directory: string;
@@ -56,7 +56,7 @@ export interface ThemeCaptureResult {
   summary: string;
 }
 
-export interface ThemeIpcDeps {
+interface ThemeIpcDeps {
   handle: IpcRegistrar["handle"];
   themes: ThemeSurface;
   events: { publish(event: ThemeEvent): void };

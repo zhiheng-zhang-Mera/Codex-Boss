@@ -26,8 +26,8 @@ interface DomTarget { selector?: string; text?: string; providerId?: string }
 interface DomOutcome { ok: boolean; reason?: string; text?: string }
 
 export const DOM_TARGET_PREFIX = "dom:";
-export const DOM_MUTATIONS: readonly SemanticAction["name"][] = ["click_control", "enter_text", "submit"];
-export const DOM_READS: readonly SemanticAction["name"][] = ["read_page", "verify_state"];
+const DOM_MUTATIONS: readonly SemanticAction["name"][] = ["click_control", "enter_text", "submit"];
+const DOM_READS: readonly SemanticAction["name"][] = ["read_page", "verify_state"];
 
 function parseTarget(target: string): DomTarget | undefined {
   if (!target.startsWith(DOM_TARGET_PREFIX)) return undefined;
@@ -43,7 +43,7 @@ export function parseDomTarget(target: string): { providerId?: string; selector?
   return { providerId, selector, text };
 }
 
-export interface DomBackendOptions {
+interface DomBackendOptions {
   /** R-201: run the bounded pre-action readiness gate before high-risk actions. */
   preflightReadiness?: boolean;
   /** Max probe attempts before the action is refused (default 2). */

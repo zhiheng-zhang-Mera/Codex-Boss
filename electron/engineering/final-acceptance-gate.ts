@@ -36,7 +36,7 @@ export interface FinalAcceptanceConfig {
   now?: () => Date;
 }
 
-export interface FinalAcceptanceInput {
+interface FinalAcceptanceInput {
   requirements: readonly { id: string; type: string; text: string; visual: boolean; state: string }[];
   goal: string;
   /** Requirements the candidate claims to serve. */
@@ -47,7 +47,7 @@ export interface FinalAcceptanceInput {
   theme?: FinalEvidence["theme"];
 }
 
-export interface FinalAcceptanceOutcome {
+interface FinalAcceptanceOutcome {
   acceptance: FinalAcceptance;
   evidence: FinalEvidence;
   /**
@@ -63,12 +63,12 @@ export interface FinalAcceptanceOutcome {
  * What reading one report produced. `ABSENT` and `UNREADABLE` are deliberately
  * separate states rather than both being `undefined`.
  */
-export type ReportRead<T> =
+type ReportRead<T> =
   | { state: "READ"; value: T }
   | { state: "ABSENT" }
   | { state: "UNREADABLE"; reason: string };
 
-export interface FinalAcceptanceGate {
+interface FinalAcceptanceGate {
   evaluate(input: FinalAcceptanceInput): FinalAcceptanceOutcome;
   /** §42: the acceptance record the release can cite. */
   record(): FinalAcceptance | undefined;

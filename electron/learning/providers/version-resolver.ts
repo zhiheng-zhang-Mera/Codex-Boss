@@ -30,7 +30,7 @@ export interface ModelObservationCandidate {
   selfReported?: boolean;
 }
 
-export interface ModelObservationInput {
+interface ModelObservationInput {
   provider: string;
   surface: string;
   observedAt?: string;
@@ -104,7 +104,7 @@ export function resolveModelIdentity(input: ModelObservationInput): ResolvedMode
   return { identity, evidence, concrete: Boolean(observedModelId) || isConcreteModelId(identity.selectedModel) };
 }
 
-export function identityFingerprint(identity: ModelExecutionIdentity): string {
+function identityFingerprint(identity: ModelExecutionIdentity): string {
   return modelIdentityFingerprint(identity);
 }
 

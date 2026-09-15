@@ -11,13 +11,13 @@ import { ConceptRegistry } from "./concept-registry";
  * to have enough samples plus a large enough mean separation.
  */
 
-export interface SplitOptions {
+interface SplitOptions {
   minSamplesPerSide?: number;
   minMeanSeparation?: number;
   splitThreshold?: number;
 }
 
-export interface SplitProposal {
+interface SplitProposal {
   conceptId: string;
   high: string[];
   low: string[];

@@ -28,7 +28,7 @@ export function inspectProjectSignals(workspace: string): ProjectSignals {
   return { files: snapshot.files.length, testFiles, languages, topModules };
 }
 
-export interface LevelAPlannerOptions {
+interface LevelAPlannerOptions {
   /** Web-AI proposer: returns candidate questions for the project goal. */
   propose: (goal: string, signals: ProjectSignals) => Promise<CandidateQuestion[]>;
   primaryMetric?: ExperimentSpec["primaryMetric"];

@@ -75,7 +75,7 @@ export const GLOBAL_METRIC_KEYS: readonly GlobalMetricKey[] = [
 export const EMPTY_METRIC: MetricEstimate = { mean: 0, confidence: 0, samples: 0, updatedAt: "" };
 
 /** Only these outcomes contribute to semantic metrics. */
-export function outcomeIsSemanticPenalty(outcome: SemanticOutcome): boolean {
+function outcomeIsSemanticPenalty(outcome: SemanticOutcome): boolean {
   return outcome !== "UNCLASSIFIED";
 }
 

@@ -336,7 +336,7 @@ export const PRESTART_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] =
   ACCEPTANCE_SUPPORTING_CONTRACTS.filter((contract) => (contract.phase ?? "prestart") === "prestart");
 
 /** self-evlo §47/§100: the suites the autonomous-evolution certificate requires. */
-export const EVOLUTION_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] =
+const EVOLUTION_SUPPORTING_CONTRACTS: readonly AcceptanceGateContract[] =
   ACCEPTANCE_SUPPORTING_CONTRACTS.filter((contract) => contract.phase === "evolution");
 
 /** §43: which gate's trusted evidence establishes which critical capability. */

@@ -35,7 +35,7 @@ import {
   type ThemeObservation
 } from "../../src/shared/review-checks";
 
-export interface ReviewEngineConfig {
+interface ReviewEngineConfig {
   root: string;
   /** The verification engine whose §31.3 ledger is reviewed. */
   ledger: () => EvidenceLedgerFile;
@@ -45,7 +45,7 @@ export interface ReviewEngineConfig {
   now?: () => Date;
 }
 
-export interface ReviewRequest {
+interface ReviewRequest {
   /** The requirements this change is supposed to satisfy. */
   requirements: readonly (VerifiableRequirement & { claims_complete: boolean })[];
   scope: WorkerScope;
@@ -66,7 +66,7 @@ export interface ReviewOutcome {
   report: ReviewReport;
 }
 
-export interface ReviewEngine {
+interface ReviewEngine {
   review(request: ReviewRequest): ReviewOutcome;
   /** The §32 plan this host would apply to a change with these requirements. */
   planFor(requirements: readonly VerifiableRequirement[]): ReviewPlan;

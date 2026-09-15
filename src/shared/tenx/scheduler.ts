@@ -9,7 +9,7 @@
 
 import type { GitHubCapability } from "../github-machine";
 
-export type AllocationPolicy =
+type AllocationPolicy =
   | "local-preferred"
   | "provider-preferred"
   | "low-latency"
@@ -21,7 +21,7 @@ export type AllocationPolicy =
   | "offline-capable"
   | "capability-required";
 
-export const ALLOCATION_POLICIES: readonly AllocationPolicy[] = [
+const ALLOCATION_POLICIES: readonly AllocationPolicy[] = [
   "local-preferred",
   "provider-preferred",
   "low-latency",

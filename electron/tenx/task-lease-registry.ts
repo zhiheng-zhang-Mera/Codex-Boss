@@ -30,12 +30,12 @@ import {
  * Standalone (works with no fleet controller) and durable (restart restores).
  */
 
-export interface TenxLeaseFile {
+interface TenxLeaseFile {
   schemaVersion: 1;
   leases: TaskLeaseState[];
 }
 
-export interface LeaseOptions {
+interface LeaseOptions {
   takeoverAllowed: boolean;
   replaySafety: ReplaySafety;
   leaseMs?: number;

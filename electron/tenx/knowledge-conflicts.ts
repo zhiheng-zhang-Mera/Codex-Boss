@@ -24,14 +24,14 @@ import { TenxKnowledgeSpace } from "./knowledge-space";
  * - source-aware merge folds agreeing claims with the same meaning together.
  */
 
-export interface TenxConflictFile {
+interface TenxConflictFile {
   schemaVersion: 1;
   conflicts: KnowledgeConflictRecord[];
 }
 
 export type ConflictResolution = "keep-a" | "keep-b" | "supersede" | "merged";
 
-export interface SubmitResult {
+interface SubmitResult {
   outcome: DedupOutcome | "new" | "conflict";
   reason: string;
   record?: KnowledgeRecordVNext;

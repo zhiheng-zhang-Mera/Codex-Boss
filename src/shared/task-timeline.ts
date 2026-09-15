@@ -1,6 +1,6 @@
 import type { AuditEvent } from "./contracts";
 
-export interface TaskTimelineEntry {
+interface TaskTimelineEntry {
   timestamp: string;
   event: AuditEvent["type"];
   message: string;

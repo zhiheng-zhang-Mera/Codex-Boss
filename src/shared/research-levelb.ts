@@ -21,7 +21,7 @@ export interface CandidateQuestion {
   feasibilityScore?: number;
 }
 
-export interface QuestionSelection {
+interface QuestionSelection {
   selectedId: string | null;
   rejected: Array<{ id: string; reason: string }>;
   reason: string;
@@ -32,7 +32,7 @@ export function isFalsifiable(candidate: Pick<CandidateQuestion, "measurable" | 
   return candidate.measurable && candidate.falsifiable;
 }
 
-export function validateCandidateQuestion(candidate: CandidateQuestion): void {
+function validateCandidateQuestion(candidate: CandidateQuestion): void {
   if (!candidate || typeof candidate.id !== "string" || !candidate.id) throw new Error("Candidate requires an id");
   if (typeof candidate.question !== "string" || !candidate.question.trim() || candidate.question.length > 2000) throw new Error("Candidate question invalid");
   if (typeof candidate.proposedBy !== "string" || !candidate.proposedBy.trim()) throw new Error("Candidate requires a proposer");

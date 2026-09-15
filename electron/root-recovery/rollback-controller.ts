@@ -42,7 +42,7 @@ export const CANDIDATE_FAILURE_CLASSES: readonly CandidateFailureClass[] = [
   "compile-fail", "test-fail", "reviewer-blocker", "ci-fail", "stale-sha", "protected-surface-unapproved", "candidate-crash", "timeout", "state-corruption"
 ];
 
-export interface StableImpactAssessment {
+interface StableImpactAssessment {
   /** Always false: no Candidate failure class reaches Stable. */
   affectsStablePath: false;
   requiresRollback: false;
@@ -69,7 +69,7 @@ export function assessStableImpact(failure: CandidateFailureClass): StableImpact
   };
 }
 
-export interface RollbackCheckpoint {
+interface RollbackCheckpoint {
   runId: string;
   /** Stable SHA that was live before the promotion. */
   previousStableSha: string;
@@ -82,7 +82,7 @@ export interface RollbackCheckpoint {
   reason?: string;
 }
 
-export interface RollbackRecord {
+interface RollbackRecord {
   runId: string;
   previousStableSha: string;
   promotedSha: string;
@@ -113,7 +113,7 @@ export class RollbackError extends Error {
   }
 }
 
-export interface RollbackControllerOptions {
+interface RollbackControllerOptions {
   /** Durable checkpoint file. Must live outside the Candidate workspace. */
   checkpointFile: string;
   /** Durable rollback record file, same rule. */
@@ -125,7 +125,7 @@ export interface RollbackControllerOptions {
   git?: GitRunner;
 }
 
-export interface RollbackResult {
+interface RollbackResult {
   ok: boolean;
   record: RollbackRecord;
   /** Exact commands that were (or would have been) run — the deterministic plan. */

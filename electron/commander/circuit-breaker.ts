@@ -15,9 +15,9 @@ export function providerTechnicalInterruption(kind: InterruptionKind): boolean {
   return PROVIDER_TECHNICAL_KINDS.has(kind);
 }
 
-export type CircuitState = "CLOSED" | "OPEN" | "HALF_OPEN";
+type CircuitState = "CLOSED" | "OPEN" | "HALF_OPEN";
 
-export interface CircuitBreakerOptions {
+interface CircuitBreakerOptions {
   /** Consecutive provider-technical failures that trip the breaker OPEN. Default 3. */
   failureThreshold?: number;
   /** Milliseconds an OPEN breaker stays closed before HALF_OPEN admits one probe. Default 60000. */

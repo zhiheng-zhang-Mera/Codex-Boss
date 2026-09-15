@@ -10,16 +10,16 @@
  * working, and the final outcome degrades only the provider, not the process.
  */
 
-export type NetworkCapabilityId = "direct" | "system-proxy" | "user-proxy" | "regional-proxy" | "provider-proxy";
+type NetworkCapabilityId = "direct" | "system-proxy" | "user-proxy" | "regional-proxy" | "provider-proxy";
 
-export interface NetworkCapability {
+interface NetworkCapability {
   id: NetworkCapabilityId;
   available: boolean;
   detail?: string;
   providers?: string[];
 }
 
-export interface NetworkProbeInput {
+interface NetworkProbeInput {
   nodeId: string;
   directReachableProviders: string[];
   systemProxyConfigured?: boolean;
@@ -28,7 +28,7 @@ export interface NetworkProbeInput {
   providerProxyConfigured?: boolean;
 }
 
-export interface NetworkProbe {
+interface NetworkProbe {
   nodeId: string;
   capabilities: NetworkCapability[];
   /** Direct-first ordering hint consumed by the route policy. */
@@ -46,9 +46,9 @@ export function probeNetwork(input: NetworkProbeInput): NetworkProbe {
   return { nodeId: input.nodeId, capabilities, priority: ["direct", "system-proxy", "user-proxy", "regional-proxy", "provider-proxy"] };
 }
 
-export type RouteOutcome = "DIRECT" | "SYSTEM_PROXY" | "USER_PROXY" | "REGIONAL_PROXY" | "PROVIDER_PROXY" | "DEGRADE_PROVIDER";
+type RouteOutcome = "DIRECT" | "SYSTEM_PROXY" | "USER_PROXY" | "REGIONAL_PROXY" | "PROVIDER_PROXY" | "DEGRADE_PROVIDER";
 
-export interface RouteDecision {
+interface RouteDecision {
   route: RouteOutcome;
   reason: string;
 }

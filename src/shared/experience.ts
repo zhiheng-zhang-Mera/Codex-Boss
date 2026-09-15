@@ -2,7 +2,7 @@
 
 export type ExperienceLevel = "task" | "workspace" | "domain" | "global";
 
-export const EXPERIENCE_LEVEL_ORDER: readonly ExperienceLevel[] = ["task", "workspace", "domain", "global"];
+const EXPERIENCE_LEVEL_ORDER: readonly ExperienceLevel[] = ["task", "workspace", "domain", "global"];
 
 /** Worker contribution metric (plan §16): how this observation's worker performed. */
 export interface ExperienceContribution {
@@ -30,7 +30,7 @@ export interface ExperienceEntry {
   updatedAt: string;
 }
 
-export interface PromotionDecision {
+interface PromotionDecision {
   nextLevel: ExperienceLevel | null;
   reasons: string[];
 }

@@ -21,7 +21,7 @@ import type { GitHubResult } from "../../src/shared/github-machine";
 import type { ReleaseRunner, ReleaseInput } from "./release-runner";
 import type { VerificationEngine } from "./verification-engine";
 
-export const CI_REPAIR_RECORD_FILE = "ci-repair-record.json";
+const CI_REPAIR_RECORD_FILE = "ci-repair-record.json";
 export const DEFAULT_MAX_CI_ATTEMPTS = 3;
 
 export interface CiReadResult {
@@ -33,7 +33,7 @@ export interface CiReadResult {
   log?: string;
 }
 
-export interface CiRepairLoopConfig {
+interface CiRepairLoopConfig {
   root: string;
   /** Reads the latest CI result for a branch: the real gateway, or a test seam. */
   readCi: (branch: string) => Promise<CiReadResult>;
@@ -46,7 +46,7 @@ export interface CiRepairLoopConfig {
   now?: () => Date;
 }
 
-export interface CiRepairInput {
+interface CiRepairInput {
   task_id: string;
   branch: string;
   slug: string;
@@ -71,7 +71,7 @@ export interface CiRepairInput {
   maxAttempts?: number;
 }
 
-export interface CiAttemptRecord {
+interface CiAttemptRecord {
   attempt: number;
   run_id?: number;
   conclusion?: string;
@@ -86,7 +86,7 @@ export interface CiAttemptRecord {
   decision?: CiRepairPlan["decision"];
 }
 
-export interface CiRepairRecord {
+interface CiRepairRecord {
   schemaVersion: 1;
   version: "ci-repair-record-1";
   task_id: string;
@@ -98,7 +98,7 @@ export interface CiRepairRecord {
   created_at: string;
 }
 
-export interface CiRepairLoop {
+interface CiRepairLoop {
   run(input: CiRepairInput): Promise<CiRepairRecord>;
   record(): CiRepairRecord | undefined;
 }

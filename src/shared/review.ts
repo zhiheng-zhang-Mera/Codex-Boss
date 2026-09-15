@@ -20,31 +20,31 @@
 import { contentHashOf } from "./workbook";
 import type { VerificationGate } from "./execution-planner";
 
-export const REVIEW_VERSION = "review-1" as const;
+const REVIEW_VERSION = "review-1" as const;
 
 /* ------------------------------------------------------------------ *
  * §32 layers, §32.1 dimensions, §32.2 adversarial targets
  * ------------------------------------------------------------------ */
 
 export const REVIEW_LAYERS = ["IMPLEMENTATION_WORKER", "INTERNAL_REVIEWER", "ADVERSARIAL_REVIEWER"] as const;
-export type ReviewLayer = (typeof REVIEW_LAYERS)[number];
+type ReviewLayer = (typeof REVIEW_LAYERS)[number];
 
 export const REVIEW_DIMENSIONS = ["correctness", "architecture", "test_coverage", "scope", "maintainability"] as const;
 export const THEME_DIMENSIONS = ["visual_coherence", "surface_coverage", "fallback_safety", "theme_isolation"] as const;
-export type ReviewDimension = (typeof REVIEW_DIMENSIONS)[number];
-export type ThemeDimension = (typeof THEME_DIMENSIONS)[number];
-export type ReviewSubject = ReviewDimension | ThemeDimension;
+type ReviewDimension = (typeof REVIEW_DIMENSIONS)[number];
+type ThemeDimension = (typeof THEME_DIMENSIONS)[number];
+type ReviewSubject = ReviewDimension | ThemeDimension;
 
-export const SEVERITIES = ["HIGH", "MEDIUM", "LOW", "INFO"] as const;
-export type Severity = (typeof SEVERITIES)[number];
+const SEVERITIES = ["HIGH", "MEDIUM", "LOW", "INFO"] as const;
+type Severity = (typeof SEVERITIES)[number];
 
 /** §32.3: OPEN HIGH/MEDIUM goes back to the repair loop; nothing else blocks. */
-export const BLOCKING_SEVERITIES: readonly Severity[] = ["HIGH", "MEDIUM"];
+const BLOCKING_SEVERITIES: readonly Severity[] = ["HIGH", "MEDIUM"];
 
-export const FINDING_STATES = ["OPEN", "REPAIRED", "ACCEPTED_RISK", "DISMISSED"] as const;
-export type FindingState = (typeof FINDING_STATES)[number];
+const FINDING_STATES = ["OPEN", "REPAIRED", "ACCEPTED_RISK", "DISMISSED"] as const;
+type FindingState = (typeof FINDING_STATES)[number];
 
-export interface AdversarialProbe {
+interface AdversarialProbe {
   id: string;
   /** What the probe is looking for, in §32.2's own words. */
   phenomenon: string;
@@ -86,7 +86,7 @@ export function probeById(id: string): AdversarialProbe | undefined {
  * What a finding points at. §2.3: without at least one of these the finding is
  * unverifiable and is refused rather than argued about.
  */
-export interface FindingEvidence {
+interface FindingEvidence {
   requirement_ids?: string[];
   files?: string[];
   /** The gate whose result the finding is about. */
@@ -116,7 +116,7 @@ export interface ReviewFinding {
   accepted_by?: string;
 }
 
-export interface FindingVerdict {
+interface FindingVerdict {
   accepted: boolean;
   reason: string;
   /** Severity the finding keeps after validation. */
@@ -157,7 +157,7 @@ export function findingIdOf(input: Pick<ReviewFinding, "layer" | "subject" | "se
   return `rf-${contentHashOf([input.layer, input.subject, input.severity, input.statement.trim()].join("\u0000")).slice(0, 16)}`;
 }
 
-export interface RoutedFindings {
+interface RoutedFindings {
   /** §32.3: HIGH/MEDIUM and still open — must go back to the repair loop. */
   repair: ReviewFinding[];
   /** Recorded but not blocking (LOW/INFO, repaired, dismissed, owner-accepted). */
@@ -198,7 +198,7 @@ export function routeFindings(findings: readonly ReviewFinding[]): RoutedFinding
  * §32.1 what must be reviewed
  * ------------------------------------------------------------------ */
 
-export interface ReviewContext {
+interface ReviewContext {
   /** Requirement types/probes that widen the review. */
   touches_theme?: boolean;
   touches_ui?: boolean;
@@ -263,14 +263,14 @@ export interface ReviewRecord {
   findings: string[];
 }
 
-export interface CoverageEntry {
+interface CoverageEntry {
   subject: ReviewSubject | string;
   status: "REVIEWED" | "NOT_RUN";
   layers: ReviewLayer[];
   inspected: string[];
 }
 
-export interface CoverageReport {
+interface CoverageReport {
   entries: CoverageEntry[];
   /** §2.3: dimensions nobody reviewed. Never a pass. */
   not_run: string[];
@@ -307,7 +307,7 @@ export function reviewCoverage(plan: Pick<ReviewPlan, "dimensions" | "probes">, 
   };
 }
 
-export interface CompletionInput {
+interface CompletionInput {
   findings: readonly ReviewFinding[];
   coverage: CoverageReport;
   /** Requirement ids the §31.3 ledger still owes evidence for. */
@@ -316,7 +316,7 @@ export interface CompletionInput {
   failed_requirements?: string[];
 }
 
-export interface CompletionVerdict {
+interface CompletionVerdict {
   can_complete: boolean;
   reasons: string[];
   repair: ReviewFinding[];

@@ -12,12 +12,12 @@ import { ALL_ROUTE_IDS, effectiveNetworkState, routePriority, type NodeNetworkRe
  * enforcement. A node's failing route never affects another node.
  */
 
-export interface TenxNetworkFile {
+interface TenxNetworkFile {
   schemaVersion: 1;
   reports: NodeNetworkReport[];
 }
 
-export interface RouteSelection {
+interface RouteSelection {
   nodeId: string;
   selected: NodeNetworkState;
   availableRoutes: RouteId[];

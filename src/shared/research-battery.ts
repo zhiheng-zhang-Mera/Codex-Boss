@@ -13,7 +13,7 @@
  * needs the full §34 artifact chain.
  */
 
-export type ResearchDomain =
+type ResearchDomain =
   | "software-engineering"
   | "multi-agent"
   | "reliability"
@@ -28,7 +28,7 @@ export const RESEARCH_DOMAINS: readonly ResearchDomain[] = [
   "negative-null-result"
 ];
 
-export type ResearchTerminalStatus = "READY" | "REJECTED" | "INCONCLUSIVE" | "INSUFFICIENT_EVIDENCE" | "REPLICATION_FAILED";
+type ResearchTerminalStatus = "READY" | "REJECTED" | "INCONCLUSIVE" | "INSUFFICIENT_EVIDENCE" | "REPLICATION_FAILED";
 
 export interface ResearchEvidence {
   protocol: boolean;
@@ -42,7 +42,7 @@ export interface ResearchEvidence {
   finalAudit: boolean;
 }
 
-export interface ResearchOutcomeInput {
+interface ResearchOutcomeInput {
   domain: ResearchDomain;
   declaredStatus: ResearchTerminalStatus;
   /** Whether the recorded statistics support the original hypothesis. */
@@ -50,7 +50,7 @@ export interface ResearchOutcomeInput {
   evidence: ResearchEvidence;
 }
 
-export interface ResearchBatteryVerdict {
+interface ResearchBatteryVerdict {
   domain: ResearchDomain;
   declaredStatus: ResearchTerminalStatus;
   /** The status the evidence actually supports (authoritative). */
@@ -147,7 +147,7 @@ export function adjudicateResearchOutcome(input: ResearchOutcomeInput): Research
   return { domain, declaredStatus, status: "INSUFFICIENT_EVIDENCE", pass: false, reason: `unknown declared status ${declaredStatus}`, missing };
 }
 
-export interface BatteryScenario {
+interface BatteryScenario {
   input: ResearchOutcomeInput;
   expectPass: boolean;
   label: string;

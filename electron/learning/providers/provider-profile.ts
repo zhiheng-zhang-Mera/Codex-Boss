@@ -52,11 +52,11 @@ export interface ProfileScope {
   behaviourEpochId?: string;
 }
 
-export function profileKey(scope: ProfileScope): string {
+function profileKey(scope: ProfileScope): string {
   return `${scope.runtimeId}::${scope.modelSnapshotKey ?? "runtime"}::${scope.behaviourEpochId ?? "epochless"}`;
 }
 
-export function profileIdOf(scope: ProfileScope): string {
+function profileIdOf(scope: ProfileScope): string {
   return `pf-${structuralHashOf([scope.runtimeId, scope.modelSnapshotKey ?? "runtime", scope.behaviourEpochId ?? "epochless"])}`;
 }
 

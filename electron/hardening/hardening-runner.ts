@@ -9,12 +9,12 @@ import { HARDENING_SCENARIOS, summarizeHardening, type HardeningReport, type Har
  * other acceptance evidence files.
  */
 
-export interface HardeningProbe {
+interface HardeningProbe {
   id: string;
   run: () => Promise<boolean>;
 }
 
-export type HardeningProbeMap = Record<string, () => Promise<boolean> | boolean>;
+type HardeningProbeMap = Record<string, () => Promise<boolean> | boolean>;
 
 export async function runHardeningMatrix(probes: HardeningProbeMap = {}, reportFile?: string): Promise<HardeningReport> {
   const results: Record<string, HardeningResult> = {};

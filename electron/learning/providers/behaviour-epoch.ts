@@ -18,12 +18,12 @@ import { detectChangePoint, type BehaviourSample, type ChangePointOptions, type 
  *    simply route without epoch separation (A30).
  */
 
-export interface EpochLedgerFile {
+interface EpochLedgerFile {
   schemaVersion: 1;
   epochs: BehaviourEpoch[];
 }
 
-export interface EpochObservationResult {
+interface EpochObservationResult {
   epoch: BehaviourEpoch;
   opened: boolean;
   detection?: ChangePointResult;

@@ -37,9 +37,9 @@ import {
   type WorkspaceFacts
 } from "../../src/shared/recovery";
 
-export const CAPABILITY_GAP_FILE = "capability-gaps.json";
+const CAPABILITY_GAP_FILE = "capability-gaps.json";
 
-export interface RecoveryEngineConfig {
+interface RecoveryEngineConfig {
   root: string;
   /** The §31.3 ledger that holds the failing gates' real output. */
   ledger: () => EvidenceLedgerFile;
@@ -48,13 +48,13 @@ export interface RecoveryEngineConfig {
   now?: () => Date;
 }
 
-export interface CapabilityGapRecord {
+interface CapabilityGapRecord {
   gap: CapabilityGap;
   backlog: { stage: "IMPROVEMENT_TASK"; missing_capability: string; from_failure_class: string; severity: string; recorded_at: string };
   usage: HnsUsageRecord;
 }
 
-export interface ClassifiedFailure {
+interface ClassifiedFailure {
   requirement_id: string;
   /** The ledger row whose output was classified. */
   entry: EvidenceEntry;

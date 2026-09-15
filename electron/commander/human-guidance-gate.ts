@@ -11,7 +11,7 @@ import { interventionKey, validateInterventionRequest, type HumanInterventionReq
  * never restarting from scratch. One active intervention per task.
  */
 
-export interface InterventionFile {
+interface InterventionFile {
   schemaVersion: 1;
   interventions: HumanInterventionRequest[];
 }

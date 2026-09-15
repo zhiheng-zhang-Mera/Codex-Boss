@@ -13,13 +13,13 @@
 
 export type ModuleState = "UNINITIALIZED" | "CHECKING" | "READY" | "DEGRADED" | "FAILED" | "DISABLED" | "RECOVERING" | "UNKNOWN";
 
-export interface RouterCandidate {
+interface RouterCandidate {
   id: string;
   /** Capability ids this candidate actually supports (observed). */
   capabilities: string[];
 }
 
-export interface RoutedResult {
+interface RoutedResult {
   selected: string[];
   excluded: Array<{ id: string; reason: string }>;
   /** DEGRADED candidates admitted under explicit risk — tracked, never silent. */

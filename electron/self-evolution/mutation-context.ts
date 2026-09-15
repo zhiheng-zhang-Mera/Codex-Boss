@@ -49,7 +49,7 @@ export interface EvolutionRunContext {
   candidateId?: string;
 }
 
-export interface MutationAssertionInput {
+interface MutationAssertionInput {
   /** The path the mutating code path intends to write into. */
   workspace: string;
   /** True when the workspace is the Boss repository itself. */
@@ -146,7 +146,7 @@ export const evolutionRuns = new EvolutionRunRegistry();
  * `resolveIsSelf` is injected so this module does not need the git-backed
  * resolver (and stays synchronous and cheap at the seam).
  */
-export function guardSelfMutation(
+function guardSelfMutation(
   workspace: string,
   resolveIsSelf: (workspace: string) => { isSelf: boolean; stableRoot?: string },
   registry: EvolutionRunRegistry = evolutionRuns
@@ -162,7 +162,7 @@ export function guardSelfMutation(
 }
 
 /** True when the directory exists and is a directory. */
-export function directoryExists(target: string): boolean {
+function directoryExists(target: string): boolean {
   try {
     return fs.statSync(target).isDirectory();
   } catch {

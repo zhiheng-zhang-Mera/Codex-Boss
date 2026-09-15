@@ -32,7 +32,7 @@ import type { ResearchStageExecutor } from "../research/research-supervisor";
  * deprioritized by the provider layer rather than retried forever.
  */
 
-export interface ResearchOptions {
+interface ResearchOptions {
   /** The resolved data root — `app.getPath("userData")` in production. */
   dataRoot: string;
   /** The live state document: which provider panes are open is read from it. */
@@ -44,7 +44,7 @@ export interface ResearchOptions {
   automation(): ProviderAutomation | undefined;
 }
 
-export interface ResearchModuleService {
+interface ResearchModuleService {
   /** The one research service every research route forwards to. */
   research: ResearchService;
   /** How many provider pages are open right now, which is what a live stage needs. */

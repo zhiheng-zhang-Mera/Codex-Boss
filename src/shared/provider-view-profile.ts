@@ -31,7 +31,7 @@ export function zoomForPaneWidth(profile: ProviderDisplayProfile, paneWidth: num
   return Math.min(profile.maxZoom, Math.max(profile.minZoom, round3(raw)));
 }
 
-export function clampZoom(zoom: number, profile: ProviderDisplayProfile): number {
+function clampZoom(zoom: number, profile: ProviderDisplayProfile): number {
   return Math.min(profile.maxZoom, Math.max(profile.minZoom, round3(zoom)));
 }
 

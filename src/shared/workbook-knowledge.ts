@@ -16,9 +16,9 @@
  */
 import { classifyWorkBook, type CanonicalTaskDocument, type WorkBookVerdict } from "./workbook";
 
-export type KnowledgeVisibility = "PRIVATE" | "CONVERSATION" | "WORKSPACE" | "SHARED";
+type KnowledgeVisibility = "PRIVATE" | "CONVERSATION" | "WORKSPACE" | "SHARED";
 
-export interface KnowledgeIntakeRules {
+interface KnowledgeIntakeRules {
   /** Reject documents that fail validation instead of storing them. */
   failClosed: boolean;
   /** Keep the raw canonical document alongside extracted knowledge. */
@@ -27,23 +27,23 @@ export interface KnowledgeIntakeRules {
   visibility?: KnowledgeVisibility;
 }
 
-export const DEFAULT_INTAKE_RULES: KnowledgeIntakeRules = { failClosed: false, retainSource: true, visibility: "CONVERSATION" };
+const DEFAULT_INTAKE_RULES: KnowledgeIntakeRules = { failClosed: false, retainSource: true, visibility: "CONVERSATION" };
 
-export interface KnowledgeIntakeRequest {
+interface KnowledgeIntakeRequest {
   documents: CanonicalTaskDocument[];
   conversationId: string;
   workspacePath?: string;
   rules?: Partial<KnowledgeIntakeRules>;
 }
 
-export interface KnowledgeIntakeRecord {
+interface KnowledgeIntakeRecord {
   ids: string[];
   accepted: CanonicalTaskDocument[];
   rejected: { document_id: string; file_name: string; reasons: string[] }[];
 }
 
 /** Future: Knowledge Intake. Normalizes + validates before anything is stored. */
-export interface KnowledgeIntake {
+interface KnowledgeIntake {
   intake(request: KnowledgeIntakeRequest): Promise<KnowledgeIntakeRecord>;
 }
 
@@ -61,7 +61,7 @@ export interface KnowledgeItem {
   createdAt: string;
 }
 
-export interface KnowledgeItemQuery {
+interface KnowledgeItemQuery {
   text?: string;
   conversationId?: string;
   workspacePath?: string;
@@ -71,27 +71,27 @@ export interface KnowledgeItemQuery {
 }
 
 /** Future: Knowledge Store. Durable, conversation/workspace scoped. */
-export interface KnowledgeStorePort {
+interface KnowledgeStorePort {
   put(items: KnowledgeItem[]): Promise<void>;
   get(id: string): Promise<KnowledgeItem | undefined>;
   list(filter?: Omit<KnowledgeItemQuery, "text">): Promise<KnowledgeItem[]>;
   delete(id: string): Promise<boolean>;
 }
 
-export interface RetrievalHit {
+interface RetrievalHit {
   item: KnowledgeItem;
   score: number;
   matchedTerms: string[];
 }
 
-export type RetrievalStrategyId = "LEXICAL" | "CLASSIFICATION_FIRST";
+type RetrievalStrategyId = "LEXICAL" | "CLASSIFICATION_FIRST";
 
-export interface RetrievalRequest extends KnowledgeItemQuery {
+interface RetrievalRequest extends KnowledgeItemQuery {
   /** Deterministic strategies only; a reranker is a later, separate port. */
   strategy?: RetrievalStrategyId;
 }
 
-export interface RetrievalResult {
+interface RetrievalResult {
   hits: RetrievalHit[];
   strategy: RetrievalStrategyId;
   characters: number;
@@ -99,13 +99,13 @@ export interface RetrievalResult {
 }
 
 /** Future: Retrieval. Pluggable so a reranker can be added without caller changes. */
-export interface KnowledgeRetrieval {
+interface KnowledgeRetrieval {
   search(request: RetrievalRequest, items: KnowledgeItem[]): RetrievalResult;
 }
 
-export type ContextPurpose = "PLANNING" | "EXECUTION" | "ANSWER" | "VERIFICATION";
+type ContextPurpose = "PLANNING" | "EXECUTION" | "ANSWER" | "VERIFICATION";
 
-export interface ContextChunk {
+interface ContextChunk {
   record_id: string;
   canonical_document_id: string;
   section_ids: string[];
@@ -114,7 +114,7 @@ export interface ContextChunk {
 }
 
 /** Future: Provenance. Every chunk that reaches a provider carries one. */
-export interface ProvenanceRecord {
+interface ProvenanceRecord {
   record_id: string;
   canonical_document_id: string;
   file_name: string;
@@ -125,7 +125,7 @@ export interface ProvenanceRecord {
   captured_at: string;
 }
 
-export interface ProviderContext {
+interface ProviderContext {
   purpose: ContextPurpose;
   chunks: ContextChunk[];
   characters: number;
@@ -133,7 +133,7 @@ export interface ProviderContext {
   truncated: boolean;
 }
 
-export interface ContextBuildRequest {
+interface ContextBuildRequest {
   purpose: ContextPurpose;
   goal: string;
   documents: CanonicalTaskDocument[];
@@ -141,31 +141,31 @@ export interface ContextBuildRequest {
 }
 
 /** Future: Context Builder. Owns the budget and the provenance list. */
-export interface ContextBuilder {
+interface ContextBuilder {
   build(request: ContextBuildRequest): ProviderContext;
 }
 
-export interface ProvenanceLookup {
+interface ProvenanceLookup {
   forRecord(recordId: string): ProvenanceRecord | undefined;
   forDocument(documentId: string): ProvenanceRecord[];
 }
 
-export type ValidationRuleId = "NON_EMPTY" | "HAS_SECTIONS" | "NO_SECRETS" | "CLASSIFIABLE" | "HASH_PRESENT" | "PROVENANCE_COMPLETE";
+type ValidationRuleId = "NON_EMPTY" | "HAS_SECTIONS" | "NO_SECRETS" | "CLASSIFIABLE" | "HASH_PRESENT" | "PROVENANCE_COMPLETE";
 
-export interface ValidationDiagnostic {
+interface ValidationDiagnostic {
   document_id: string;
   rule: ValidationRuleId;
   severity: "WARN" | "ERROR";
   message: string;
 }
 
-export interface ValidationResult {
+interface ValidationResult {
   ok: boolean;
   diagnostics: ValidationDiagnostic[];
 }
 
 /** Future: Validation. Runs before storage and again before context injection. */
-export interface KnowledgeValidation {
+interface KnowledgeValidation {
   validate(documents: CanonicalTaskDocument[]): ValidationResult;
 }
 
@@ -176,7 +176,7 @@ export interface KnowledgeValidation {
 const SECRET_SHAPE = /\b(?:sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,})\b/;
 const REDACTION_MARKER = /\[REDACTED:[a-z-]+\]/;
 
-export const DEFAULT_VALIDATION_RULES: readonly ValidationRuleId[] = ["NON_EMPTY", "HAS_SECTIONS", "NO_SECRETS", "HASH_PRESENT"];
+const DEFAULT_VALIDATION_RULES: readonly ValidationRuleId[] = ["NON_EMPTY", "HAS_SECTIONS", "NO_SECRETS", "HASH_PRESENT"];
 
 export class DeterministicValidator implements KnowledgeValidation {
   constructor(private readonly rules: readonly ValidationRuleId[] = DEFAULT_VALIDATION_RULES) {}

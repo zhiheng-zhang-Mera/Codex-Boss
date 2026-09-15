@@ -40,7 +40,7 @@ export interface LoadedRootPolicy {
   degraded: boolean;
 }
 
-export const ROOT_POLICY_RELATIVE_PATH = path.join(".codex-boss", "root", "root-policy.json");
+const ROOT_POLICY_RELATIVE_PATH = path.join(".codex-boss", "root", "root-policy.json");
 
 export function rootPolicyPath(root: string): string {
   return path.join(path.resolve(root), ROOT_POLICY_RELATIVE_PATH);

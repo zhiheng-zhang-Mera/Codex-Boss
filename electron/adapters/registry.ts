@@ -58,6 +58,6 @@ export function adapterFor(provider: Provider): AdapterDefinition | null {
   return definitions[provider.id] ?? null;
 }
 
-export function supportedAdapterIds(): ProviderId[] {
+function supportedAdapterIds(): ProviderId[] {
   return Object.keys(definitions);
 }

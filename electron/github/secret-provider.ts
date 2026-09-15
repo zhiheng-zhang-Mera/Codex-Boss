@@ -1,12 +1,12 @@
 import type { SecretVaultStore } from "../security/secret-vault-store";
 
-export interface SecretLease {
+interface SecretLease {
   /** Secret exists only in this host-side lease and must never be serialized. */
   readonly value: string;
   dispose(): void;
 }
 
-export interface SecretProviderStatus {
+interface SecretProviderStatus {
   available: boolean;
   backend: string;
   reference: string;

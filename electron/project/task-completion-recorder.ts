@@ -10,7 +10,7 @@ import type { ProjectStateStore } from "./project-state";
  * task's declared continuation, never from a model summary.
  */
 
-export interface TaskCompletionInput {
+interface TaskCompletionInput {
   workspaceId: string;
   task: Pick<BossTask, "id" | "title" | "prompt">;
   findings: string;

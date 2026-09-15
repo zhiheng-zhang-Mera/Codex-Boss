@@ -15,11 +15,11 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { kindForFileName, validateInputObjectRef, type InputObject, type InputObjectRef } from "../../src/shared/input-object";
 
-export interface AttachmentMetadata extends InputObjectRef {
+interface AttachmentMetadata extends InputObjectRef {
   uploadedAt: string;
 }
 
-export interface ImportAttachmentInput {
+interface ImportAttachmentInput {
   conversationId: string;
   originalName: string;
   mime?: string;
@@ -29,7 +29,7 @@ export interface ImportAttachmentInput {
   bytes?: Uint8Array | Buffer;
 }
 
-export const MAX_ATTACHMENT_BYTES = 200 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 200 * 1024 * 1024;
 
 function mimeForName(name: string): string | undefined {
   const ext = path.extname(name).toLowerCase();

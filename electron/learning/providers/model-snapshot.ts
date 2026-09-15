@@ -14,7 +14,7 @@ import { modelIdentityFingerprint, type ModelExecutionIdentity, type ModelSnapsh
  * the history of the previous one (A18).
  */
 
-export interface ModelSnapshotFile {
+interface ModelSnapshotFile {
   schemaVersion: 1;
   snapshots: ModelSnapshot[];
 }

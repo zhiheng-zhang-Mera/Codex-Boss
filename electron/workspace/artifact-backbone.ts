@@ -9,7 +9,7 @@ import { writeJson } from "../commander/durable-json";
  * Writes under a run archive directory and never deletes prior stage artifacts
  * on a partial failure (each stage record is appended).
  */
-export interface ArtifactRecord {
+interface ArtifactRecord {
   stage: string;
   file: string;
   sha256: string;
@@ -17,7 +17,7 @@ export interface ArtifactRecord {
   provenance: string;
 }
 
-export interface RunManifest {
+interface RunManifest {
   schemaVersion: 1;
   runId: string;
   records: ArtifactRecord[];
@@ -31,7 +31,7 @@ export function sha256(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
-export function existingRunManifest(root: string, runId: string): RunManifest | undefined {
+function existingRunManifest(root: string, runId: string): RunManifest | undefined {
   const file = path.join(root, "manifest.json");
   if (!fs.existsSync(file)) return undefined;
   const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<RunManifest>;

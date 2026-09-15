@@ -16,7 +16,7 @@ import type { SemanticAction } from "./semantic-runtime";
  * anything less is UNCERTAIN/FAILED — never claimed as repaired.
  */
 
-export interface PageRepairOptions {
+interface PageRepairOptions {
   surface: DomPageSurface;
   /** Maps a planner target (kind + hint) onto a DOM selector; null = cannot target. */
   resolveTarget?: (target: ComputerTarget) => string | null;
@@ -28,7 +28,7 @@ export interface PageRepairOptions {
   readiness?: false | { attempts?: number; intervalMs?: number };
 }
 
-export interface PageRepairOutcome {
+interface PageRepairOutcome {
   status: "REPAIRED" | "UNCERTAIN" | "DENIED" | "UNSUPPORTED" | "FAILED";
   message: string;
   executed: Array<{ step: number; action: ComputerActionName; selector: string }>;
@@ -83,4 +83,4 @@ export function createPageRepairExecutor(options: PageRepairOptions) {
   return { execute, kind: "dom" as const };
 }
 
-export type PageRepairExecutor = ReturnType<typeof createPageRepairExecutor>;
+type PageRepairExecutor = ReturnType<typeof createPageRepairExecutor>;

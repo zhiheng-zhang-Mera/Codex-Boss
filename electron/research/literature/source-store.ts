@@ -10,14 +10,14 @@ import { verifyCitation, type CitationRecord, type CitationStatus } from "../../
  * re-run after a restart and each citation keeps its exact evidence state.
  */
 
-export interface CitationSource {
+interface CitationSource {
   ref: string;
   contentHash: string;
   text: string;
   fetchedAt: string;
 }
 
-export interface CitationFile {
+interface CitationFile {
   schemaVersion: 1;
   citations: CitationRecord[];
 }

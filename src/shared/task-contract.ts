@@ -27,7 +27,7 @@ export type DeclarationKind =
   | "PERMISSIONS"
   | "EXECUTION_STRATEGY";
 
-export const DECLARATION_KINDS: readonly DeclarationKind[] = [
+const DECLARATION_KINDS: readonly DeclarationKind[] = [
   "GOAL", "SCOPE", "CONSTRAINTS", "INPUTS", "DEPENDENCIES", "DELIVERABLES", "ACCEPTANCE_CRITERIA", "RISK", "PERMISSIONS", "EXECUTION_STRATEGY"
 ];
 
@@ -40,7 +40,7 @@ export type ContractAuthority = "WORKBOOK" | "USER";
  * their own source in `inherited_items`, so requirement isolation can trace
  * every item back to the section that actually contains it.
  */
-export interface ContractItemProvenance {
+interface ContractItemProvenance {
   item: string;
   source_document_id: string;
   source_section_id?: string;
@@ -61,7 +61,7 @@ export interface ContractDeclaration {
   item_provenance: ContractItemProvenance[];
 }
 
-export interface ContractInput {
+interface ContractInput {
   document_id: string;
   file_name: string;
   role?: string;
@@ -70,7 +70,7 @@ export interface ContractInput {
   sections_used: number;
 }
 
-export interface ContractOverride {
+interface ContractOverride {
   /** Raw user text that carries override authority. */
   text: string;
   authority: "USER";
@@ -80,7 +80,7 @@ export interface ContractOverride {
   reason: string;
 }
 
-export interface ExecutionStrategy {
+interface ExecutionStrategy {
   mode: "NATIVE" | "WORK" | "CHAT";
   analysis_only: boolean;
   requires_planning: boolean;
@@ -91,7 +91,7 @@ export interface ExecutionStrategy {
   rationale: string;
 }
 
-export interface TaskContractDiagnostics {
+interface TaskContractDiagnostics {
   warnings: string[];
   /** Declaration kinds nobody declared, in canonical order. */
   missing: DeclarationKind[];
@@ -131,7 +131,7 @@ const DECLARATION_KIND_FOR_ROLE: Partial<Record<SourceRoleName, DeclarationKind>
   PRIMARY_SPEC: "GOAL"
 };
 
-export interface CompileTaskContractInput {
+interface CompileTaskContractInput {
   documents: CanonicalTaskDocument[];
   userText?: string;
   analysisOnly?: { kind: string; confidence: number; reasons: string[] };
@@ -247,7 +247,7 @@ function isPureHeading(section: CanonicalSection): boolean {
  * Collects declarations per document: a headed section declares its kind, and
  * every following heading-less section is an implicit continuation of it.
  */
-export function collectDeclarations(document: CanonicalTaskDocument): FoundDeclaration[] {
+function collectDeclarations(document: CanonicalTaskDocument): FoundDeclaration[] {
   const found = new Map<DeclarationKind, FoundDeclaration>();
   let current: FoundDeclaration | undefined;
   for (const section of document.sections) {
@@ -516,7 +516,7 @@ export interface QuarantinedRequirement {
   reason: string;
 }
 
-export interface RequirementIsolationView {
+interface RequirementIsolationView {
   /** Items inside conflicting sections: blocked until a human resolves them. */
   quarantined: QuarantinedRequirement[];
   /** Items outside every conflicting section: still representable/executable. */
@@ -537,7 +537,7 @@ export interface RequirementIsolationView {
 }
 
 /** One conflicting or duplicate section pair, as role assignment reports it. */
-export interface SectionConflictInput {
+interface SectionConflictInput {
   kind: string;
   severity: "INFO" | "WARN" | "ERROR";
   similarity?: number;

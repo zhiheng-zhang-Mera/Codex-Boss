@@ -36,7 +36,7 @@ export const BOOTSTRAP_AUDIT_RECORD = "bootstrap-completion.json";
 /** Kept for readers that still import the per-gate report map. */
 export { REPORT_FILES };
 
-export interface BootstrapAuditGate {
+interface BootstrapAuditGate {
   root: string;
   artifacts?: string;
   now?: () => Date;
@@ -48,7 +48,7 @@ export interface BootstrapAuditGate {
   write?: boolean;
 }
 
-export interface BootstrapAuditOutcome {
+interface BootstrapAuditOutcome {
   audit: TrustedBootstrapAudit;
   reports: { gate: string; file: string; present: boolean; unit?: string }[];
   recordPath: string;

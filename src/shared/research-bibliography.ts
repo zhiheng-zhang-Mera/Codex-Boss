@@ -12,7 +12,7 @@
 
 import type { CitationRecord, CitationStatus } from "./research-citation";
 
-export const BIBLIOGRAPHY_STATUSES: readonly CitationStatus[] = ["SOURCE_RETRIEVED", "PASSAGE_VERIFIED", "CLAIM_SUPPORTED", "PARTIAL"];
+const BIBLIOGRAPHY_STATUSES: readonly CitationStatus[] = ["SOURCE_RETRIEVED", "PASSAGE_VERIFIED", "CLAIM_SUPPORTED", "PARTIAL"];
 
 export function bibliographyEntries(records: CitationRecord[]): string[] {
   return records.filter((record) => BIBLIOGRAPHY_STATUSES.includes(record.status)).map((record) => {
