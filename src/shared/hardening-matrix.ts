@@ -13,7 +13,14 @@ export interface HardeningScenario {
   id: string;
   label: string;
   coverage: HardeningCoverage;
-  /** Names of the deterministic test suite(s) that exercise this scenario. */
+  /**
+   * What exercises this scenario, by name: a test file, a source module or a
+   * driver script. The docblock here used to say "test suite", which was wrong —
+   * most entries name the *module* whose failure path the scenario is about (24 of
+   * 29 when this was measured), and five named something that no longer existed.
+   * `tests/unit/hardening-matrix-coverage.test.ts` now resolves every entry against
+   * the tree, so a renamed suite or module cannot leave a dangling claim.
+   */
   suite: string[];
   /** Why live-only scenarios are not run in CI (documented, not hidden). */
   reason?: string;
@@ -22,10 +29,10 @@ export interface HardeningScenario {
 export const HARDENING_SCENARIOS: readonly HardeningScenario[] = [
   { id: "provider-outage", label: "provider outage", coverage: "unit", suite: ["circuit-breaker", "runtime-registry", "role-router"] },
   { id: "api-credit", label: "API credit exhausted", coverage: "unit", suite: ["budget-manager", "role-router"] },
-  { id: "network-loss", label: "network loss", coverage: "unit", suite: ["recovery-closure", "semantic-runtime", "cli-process-recovery"] },
-  { id: "harness-crash", label: "harness crash", coverage: "unit", suite: ["recovery-closure", "store"] },
-  { id: "browser-crash", label: "browser crash", coverage: "integration", suite: ["provider-view-navigation", "recovery-closure"] },
-  { id: "boss-restart", label: "BOSS restart", coverage: "unit", suite: ["delivery-integration", "recovery-closure", "launcher"] },
+  { id: "network-loss", label: "network loss", coverage: "unit", suite: ["recovery-loop", "semantic-runtime", "recovery-engine"] },
+  { id: "harness-crash", label: "harness crash", coverage: "unit", suite: ["recovery-loop", "store"] },
+  { id: "browser-crash", label: "browser crash", coverage: "integration", suite: ["provider-views", "recovery-loop"] },
+  { id: "boss-restart", label: "BOSS restart", coverage: "unit", suite: ["acceptance-restart", "recovery-loop", "launcher"] },
   { id: "workspace-switch", label: "workspace switch", coverage: "unit", suite: ["workspace"] },
   { id: "multi-repo", label: "multi-repo workspace", coverage: "unit", suite: ["workspace"] },
   { id: "storage-failure", label: "storage failure", coverage: "unit", suite: ["durable-json", "store"] },
@@ -40,10 +47,10 @@ export const HARDENING_SCENARIOS: readonly HardeningScenario[] = [
   { id: "rollback", label: "rollback", coverage: "unit", suite: ["self-mod-sandbox", "schema-migration"] },
   { id: "corrupt-knowledge", label: "corrupted knowledge", coverage: "unit", suite: ["knowledge", "experience"] },
   { id: "secret-tainted-log", label: "secret-tainted log", coverage: "unit", suite: ["secret-scan", "telemetry"] },
-  { id: "approval-expiry", label: "approval expiry", coverage: "unit", suite: ["review-gate", "task-state-machine"] },
+  { id: "approval-expiry", label: "approval expiry", coverage: "unit", suite: ["review-engine", "task-state-machine"] },
   { id: "guardian-denial", label: "Guardian denial", coverage: "unit", suite: ["guardian", "self-mod-sandbox", "secret-vault"] },
   { id: "adapter-version-mismatch", label: "adapter version mismatch", coverage: "unit", suite: ["compatibility"] },
-  { id: "restart-during-upgrade", label: "restart during upgrade", coverage: "unit", suite: ["recovery-closure", "schema-migration"] },
+  { id: "restart-during-upgrade", label: "restart during upgrade", coverage: "unit", suite: ["recovery-loop", "schema-migration"] },
   { id: "long-running-soak", label: "long-running soak", coverage: "live", suite: [], reason: "deliberate soak run only in release validation, not per-commit CI" }
 ];
 
