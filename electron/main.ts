@@ -13,7 +13,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { migrateBrowserProfile, migrateLegacyPersistentData, runtimeRoots } from "./runtime-paths";
-import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, Provider, ProviderId, ViewBounds } from "../src/shared/contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
@@ -54,7 +54,7 @@ import { createPersistenceModule } from "./bootstrap/persistence";
 import { createKnowledgeModule } from "./bootstrap/knowledge";
 import { createAutomationModule } from "./bootstrap/automation";
 import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
-import { createProvidersModule } from "./bootstrap/providers";
+import { createProvidersModule, type ProvidersService } from "./bootstrap/providers";
 import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
@@ -106,6 +106,8 @@ import { createGitHubMachineRuntime } from "./github/github-machine-runtime";
 let mainWindow: BrowserWindow | null = null;
 /** The runtime boot module, assigned in the boot block; `createMainWindow` needs it. */
 let runtime: BootModule<RuntimeService<BrowserWindow>>;
+/** The provider pool's policies, assigned in the boot block; the wrappers above need it. */
+let providersRef: ProvidersService;
 let store: StateStore;
 let providerViews: ProviderViews;
 let automation: ProviderAutomation;
@@ -223,13 +225,10 @@ function publish(): AppSnapshot {
   return snapshot;
 }
 
-function provider(id: ProviderId) {
-  const match = store.snapshot().providers.find((item) => item.id === id);
-  if (!match) throw new Error(`Unknown provider: ${id}`);
-  return match;
+/** Phase F: the lookup and the concurrency rule are the pool module's (see below). */
+function provider(id: ProviderId): Provider {
+  return providersRef.provider(id);
 }
-
-let autoLayoutTimer: ReturnType<typeof setInterval> | undefined;
 
 /**
  * Continuous AI-processor layout monitor: whenever MORE than three web-AI
@@ -237,24 +236,15 @@ let autoLayoutTimer: ReturnType<typeof setInterval> | undefined;
  * (DETACHED) mode; three or fewer stay in the single-window (MERGED)
  * workspace. Called on every open/close change and on a lightweight periodic
  * tick so selection state is always reflected (idempotent when unchanged).
+ *
+ * Phase F: the rule itself lives in `electron/bootstrap/providers.ts` with the
+ * rest of the pool's policies; these two are the composition root's calls into it.
  */
 function autoLayoutForOpenWebProviders(reason: string): void {
-  try {
-    if (!providerViews) return;
-    const openWeb = store.snapshot().providers.filter((item) => item.windowOpen).length;
-    const wanted = openWeb > 3 ? "DETACHED" : "MERGED";
-    if (providerViews.workspaceView() !== wanted) {
-      providerViews.setWorkspaceView(wanted);
-      console.log(`[auto-layout] ${reason}: ${openWeb} web AI open -> ${wanted}`);
-    }
-  } catch (error) {
-    console.error("[auto-layout] monitor failed", error);
-  }
+  providersRef?.autoLayout(reason);
 }
 function startAutoLayoutMonitor(): void {
-  if (autoLayoutTimer) clearInterval(autoLayoutTimer);
-  autoLayoutTimer = setInterval(() => autoLayoutForOpenWebProviders("monitor"), 5000);
-  autoLayoutTimer.unref?.();
+  providersRef?.startLayoutMonitor();
 }
 
 /**
@@ -319,13 +309,10 @@ async function materializeGithubInput(conversationId: string, prompt: string): P
 }
 
 function openProviderWithinLimit(providerId: ProviderId): void {
-  const target = provider(providerId);
-  const openCount = store.snapshot().providers.filter((item) => item.windowOpen).length;
-  if (!target.windowOpen && openCount >= MAX_ACTIVE_PROVIDERS) throw new Error(`最多同时打开 ${MAX_ACTIVE_PROVIDERS} 个网页 AI`);
   // Bounded acceptance opens the pane but never navigates it: the dispatch
   // boundary is still traversed by the real code and its outcome is recorded
-  // truthfully, it just cannot reach a live AI page.
-  providerViews.open(target, !boundedProviderPane);
+  // truthfully, it just cannot reach a live AI page. The module holds both rules.
+  providersRef.openWithinLimit(providerId);
 }
 
 function openProjectState(workspaceId: string): ProjectStateStore {
@@ -685,9 +672,15 @@ if (ownsInstance) app.whenReady().then(() => {
         return safeStorage.encryptString(plainText).toString("base64");
       },
       unprotect: (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64"))
-    }
+    },
+    // A getter: the views are built around the controller window, which exists
+    // later than this module does.
+    views: () => providerViews,
+    maxActive: MAX_ACTIVE_PROVIDERS,
+    navigateOnOpen: !boundedProviderPane
   });
   bootModules.push(providers);
+  providersRef = providers.service;
   githubMachine = providers.service.githubMachine;
   providerApi = providers.service.apiClient;
   accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
