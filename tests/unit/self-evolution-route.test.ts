@@ -407,6 +407,45 @@ describe("coordinator end-to-end (ordinary, non-Root change)", () => {
     expect(report.promotionState).toBe("REJECTED");
     gitHub.setCheck("success");
   }, 300_000);
+
+  /**
+   * Phase H: evidence persistence must never fail a run, and must never be silent.
+   *
+   * This harness is itself the demonstration. The Root Authority denies
+   * `host.execute({ kind: "evidence.persist" })` here (`floor:evidence.write`,
+   * `path:escape` — the temporary governance root sits outside the floor), so EVERY
+   * run in this file fails to write its evidence file. Until this change that was
+   * swallowed: a run whose evidence was never written looked exactly like a run that
+   * produced none, and the promotion gate reads those files. The run must still
+   * complete, and the report must say what could not be written and why.
+   */
+  it("reports evidence it could not persist instead of completing in silence", async () => {
+    currentRunId = "run-evidence-unwritable";
+    sandbox.failFirstTest = false;
+    // A failing check gives the run a deterministic terminal state to assert on.
+    gitHub.setCheck("failure");
+    try {
+      const coordinator = makeCoordinator();
+      const report = await coordinator.run({
+        taskId: "task-evidence-unwritable",
+        objective: "Audit one low-risk internal diagnostic inconsistency.",
+        workspace: stableRoot,
+        runId: currentRunId,
+        maxIterations: 3
+      });
+      // The run still finished: the failure is reported with it, not thrown.
+      expect(report.outcome).toBe("REJECTED");
+      expect(report.evidenceWarnings?.length).toBeGreaterThan(0);
+      expect(report.evidenceWarnings?.join(" ")).toContain("evidence was not persisted");
+      // …and it carries the authority's own reason rather than a generic failure.
+      expect(report.evidenceWarnings?.join(" ")).toContain("evidence.persist");
+    } finally {
+      // Restored whatever happened: an assertion that throws before this line would
+      // otherwise leave a failing check behind and make every later case in this
+      // file promote against it.
+      gitHub.setCheck("success");
+    }
+  }, 300_000);
 });
 
 describe("SF-013 production emergency freeze blocks evolution", () => {

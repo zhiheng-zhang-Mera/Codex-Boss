@@ -110,6 +110,11 @@ export interface SelfEvolutionRunReport {
   loopState?: EngineeringLoopSummary["state"];
   candidateJournal?: CandidateJournal;
   blockedExternal?: string;
+  /**
+   * Evidence writes this run could not make, each with the reason. Absent when every
+   * write succeeded — which is not the same fact as "there was nothing to write".
+   */
+  evidenceWarnings?: string[];
   sandboxMechanism?: string;
   sandboxActive: boolean;
   evidenceFile?: string;
@@ -317,6 +322,8 @@ export class SelfEvolutionCoordinator {
     const stableRoot = selfTarget.stableRoot ?? path.resolve(this.options.stableRoot);
     const runId = request.runId ?? `evo-${Date.now().toString(36)}`;
     const evidenceFile = path.join(path.resolve(this.options.governanceRoot), "runs", `${runId}.json`);
+    // Reset per run: these are the writes of ONE run's evidence, reported with it.
+    this.evidenceFailures = [];
 
     // 1. before candidate creation
     try {
@@ -560,7 +567,9 @@ export class SelfEvolutionCoordinator {
         finishedAt: new Date().toISOString()
       };
       await this.persist(host, runId, report);
-      return report;
+      // Reported with the run: a caller reading the report can tell "no evidence was
+      // written because nothing needed writing" from "the write failed".
+      return this.evidenceFailures.length ? { ...report, evidenceWarnings: [...this.evidenceFailures] } : report;
     } finally {
       this.registry.release(runId);
     }
@@ -805,14 +814,26 @@ export class SelfEvolutionCoordinator {
     } as EngineeringGoalContract;
   }
 
+  /**
+   * Writes one piece of run evidence. Failures are RECORDED and reported with the
+   * run rather than thrown: evidence persistence must never be the reason a run
+   * fails, and the durable root ledger already holds every decision. What is not
+   * acceptable is the silence this used to keep — a run whose evidence file was
+   * never written looked exactly like a run that produced none, and the promotion
+   * gate reads those files.
+   */
   private async persist(host: EvolutionHostOperations, runId: string, payload: unknown): Promise<void> {
     try {
       await host.execute({ kind: "evidence.persist", name: `runs/${runId}.json`, payload });
-    } catch {
-      // Evidence persistence must never be the reason a run fails; the durable
-      // root ledger already records every decision.
+    } catch (error) {
+      const reason = `${runId}: evidence was not persisted (${error instanceof Error ? error.message : String(error)})`;
+      this.evidenceFailures.push(reason);
+      console.warn(`[evolution] ${reason}`);
     }
   }
+
+  /** Evidence writes this run could not make. Cleared when a run starts. */
+  private evidenceFailures: string[] = [];
 }
 
 function mapPromotionOutcome(state: PromotionState): SelfEvolutionOutcome {

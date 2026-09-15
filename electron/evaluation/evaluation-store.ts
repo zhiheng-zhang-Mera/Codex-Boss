@@ -21,20 +21,52 @@ export interface EvaluationFile {
 }
 
 export class EvaluationStore {
+  /** Set when the durable file exists but could not be used. */
+  private loadFailure?: string;
   constructor(private readonly file: string) {}
 
+  /**
+   * The durable baseline.
+   *
+   * A store that exists but cannot be used REFUSES rather than reading as an empty
+   * baseline — that direction was already right, because `readJson` throws on an
+   * unparseable file. What was wrong is how it refused: a raw `SyntaxError` from
+   * inside a JSON parse reached the caller with no file name and no statement that
+   * the durable measurement history is damaged, and nothing recorded the fact for a
+   * later reader. The refusal is still a throw; it now says what happened, and
+   * `loadDiagnostic()` reports it to anything that asks instead.
+   */
   load(): EvaluationFile {
-    const value = readJson<Partial<EvaluationFile>>(this.file);
+    let value: Partial<EvaluationFile> | undefined;
+    try {
+      value = readJson<Partial<EvaluationFile>>(this.file);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.loadFailure = `${this.file} exists but could not be parsed: ${message}`;
+      throw new Error(`Evaluation baseline is unreadable: ${this.file} (${message})`);
+    }
     if (!value) return { schemaVersion: 1, goldens: [], records: [] };
-    if (value.schemaVersion !== 1 || !Array.isArray(value.goldens) || !Array.isArray(value.records)) throw new Error("Invalid evaluation store");
+    if (value.schemaVersion !== 1 || !Array.isArray(value.goldens) || !Array.isArray(value.records)) {
+      this.loadFailure = `${this.file} is not an evaluation store`;
+      throw new Error("Invalid evaluation store");
+    }
+    this.loadFailure = undefined;
     return { schemaVersion: 1, goldens: value.goldens, records: value.records };
   }
 
+  /** Why the last load could not use the durable file, or `undefined` when it did. */
+  loadDiagnostic(): string | undefined {
+    return this.loadFailure;
+  }
+
   record(entry: EvaluationRecord): void {
+    // `load()` throws on a damaged or foreign store, so this write can never replace
+    // one: the refusal is what protects the measurement history, and it is asserted.
     const file = this.load();
     // Latest run per golden id: keeps the baseline deterministic and bounded.
     file.records = [...file.records.filter((item) => item.goldenId !== entry.goldenId), entry];
     writeJson(this.file, file);
+    this.loadFailure = undefined;
   }
 
   records(): EvaluationRecord[] { return this.load().records; }
