@@ -27,8 +27,8 @@ import type { ResearchIR } from "../../src/shared/research-ir";
 interface ResearchStartInput {
   id?: string;
   /**
-   * Milestone §1 human input: a falsifiable research question + workspace + budget;
-   * `researchQuestion` is the immutable anchor.
+   * The falsifiable research question the Owner typed, with the workspace and the
+   * budget; `researchQuestion` is the immutable anchor of the run.
    */
   researchQuestion?: string;
   goal: string;

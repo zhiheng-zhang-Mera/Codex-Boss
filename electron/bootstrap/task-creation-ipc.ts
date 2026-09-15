@@ -7,14 +7,14 @@ import type { MainCommander } from "../commander/main-commander";
 import type { CreateTaskInput, ProviderId } from "../../src/shared/contracts";
 
 /**
- * Creating a task (convergence book, Phase F/G).
+ * Creating a task.
  *
  * One channel — `boss:create-task` — and it is the whole of "make a task that has not
  * started yet". Its sibling `boss:dispatch-task` creates *and immediately drives* a
- * task, and deliberately stays in the composition root for now: it needs the pane
- * manager, the GitHub materializer and the WorkBook dispatch services at once, so it
- * moves last rather than first. The helpers both of them use already live in
- * `electron/tasks/task-inputs.ts`, so that last move will not have to carry them too.
+ * task, and lives in `electron/bootstrap/dispatch-ipc.ts`: it needs the pane manager,
+ * the GitHub materializer and the WorkBook dispatch services at once, which is why it
+ * moved after this slice rather than with it. The helpers both of them use live in
+ * `electron/tasks/task-inputs.ts`, so neither slice carries them.
  *
  * What this slice owns is the **refusal order**, which is the part that was only
  * visible by reading the composition root:

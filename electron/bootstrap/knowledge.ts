@@ -103,7 +103,7 @@ export function createKnowledgeModule(options: KnowledgeOptions): BootModule<Kno
     }
   };
   const themes = open("themes", () => new ThemeService({ root: boss("themes"), registryFile: boss("theme-registry.json"), contracts: uiContracts }));
-  // §12/§21/§48: materialize the locked built-ins, prove the persisted active
+  // Materialize the locked built-ins, prove the persisted active
   // theme is still valid, and fall back to a built-in when it is not.
   const themeBootstrap = themes.bootstrap();
   if (themeBootstrap.fallback) console.warn("[theme] active theme fell back", themeBootstrap.diagnostics.slice(-3));
@@ -112,7 +112,7 @@ export function createKnowledgeModule(options: KnowledgeOptions): BootModule<Kno
   const establishWorldModel = (root: string) => {
     const built = buildWorldModelWithGraph(canonicalize(root));
     worldModels.put(built.model);
-    // checkpoint-1 §29: the planner scopes nodes against what was actually
+    // The planner scopes nodes against what was actually
     // observed here — real files, real test files, real host commands.
     lastPlanContext = {
       files: built.model.modules.map((module) => module.path).concat(built.model.tests),
@@ -124,7 +124,7 @@ export function createKnowledgeModule(options: KnowledgeOptions): BootModule<Kno
         ...(built.model.tests.length ? { unit: "pnpm test" } : {}),
         ...(built.model.build_system.some((entry) => entry.tool === "vite") ? { build: "pnpm run build" } : {})
       },
-      // §29.3: the concurrency level is derived from what THIS host observes —
+      // The concurrency level is derived from what THIS host observes —
       // cores, free memory, provider health and the load already in flight.
       resources: (() => {
         const providers = store.snapshot().providers.filter((item) => item.windowOpen);

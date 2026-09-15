@@ -9,9 +9,9 @@ import type { Provider, ProviderId } from "../../src/shared/contracts";
 import type { WorkspaceViewState } from "../../src/shared/workspace-layout";
 
 /**
- * Provider-side integration and the pool's policies (convergence book, Phase F).
+ * Provider-side integration and the pool's policies.
  *
- * Two halves of the plan's `providers` group:
+ * Two halves of the provider group:
  *
  *  - the **API side** — the client every API runtime dispatches through, the
  *    GitHub machine identity, and the registration of one API runtime per
@@ -21,12 +21,14 @@ import type { WorkspaceViewState } from "../../src/shared/workspace-layout";
  *    the open count implies (more than three open switches to the detached
  *    second-window mode).
  *
- * The pool's OBJECTS — `ProviderViews` and `ProviderAutomation` — deliberately stay
- * in the composition root for now: they are built around the controller window and
- * around task-completion callbacks that reach the external-session ledger, the
- * recovery scheduler, the budget manager and the commander, so moving them is not
- * a slice of this group but a rearrangement of the boot block. What is here is what
- * has a narrow surface and a testable rule.
+ * The pool's OBJECTS — `ProviderViews` and `ProviderAutomation` — live in
+ * `electron/bootstrap/provider-pool.ts`, and where that module is constructed is the
+ * whole of its design: immediately before `createMainWindow()`, because the objects
+ * capture the account-session registry, the domain event bus and the attachment store
+ * at construction time. Built earlier they capture `undefined` — and TypeScript cannot
+ * see it, because the composition root holds those bindings as untyped `let`s; the
+ * desktop black box caught it, not the compiler, which is why the ordering is stated
+ * here rather than left to the next reader.
  *
  * Three behaviours are preserved verbatim, because each is a decision rather than
  * an accident:

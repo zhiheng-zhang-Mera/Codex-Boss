@@ -210,7 +210,7 @@ export function createTaskStateIpcModule(deps: TaskStateIpcDeps): BootModule<{ c
     return deps.state.publish();
   });
 
-  // U3 Evidence>Vote (§2.3/§4): when auto-finalization parked a task because its
+  // Evidence outranks a vote: when auto-finalization parked a task because its
   // evidence bundle holds DISPUTED/INSUFFICIENT claims or disputes, the operator may
   // explicitly accept the held evidence (records PASS) and then Boss finalizes —
   // never auto-published, never silently dropped.

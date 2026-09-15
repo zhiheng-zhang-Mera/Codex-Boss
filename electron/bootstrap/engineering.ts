@@ -4,18 +4,18 @@ import { createSelfEvolutionHost } from "../self-evolution/self-evolution-host";
 import { LearningService } from "../learning/learning-service";
 
 /**
- * The engineering side of the composition root (convergence book, Phase F).
+ * The engineering side of the composition root.
  *
  * Two things that belong to the engineering loop rather than to any IPC surface:
  *
- *  - **the §7.2 Self-Evolution host** — the mandatory route for a task that targets
+ *  - **the Self-Evolution host** — the mandatory route for a task that targets
  *    Boss itself. It is installed here, in the composition root's own module, so a
  *    self-target edit can never reach the ordinary engineering path: `MainCommander`
  *    hands such a task to the coordinator and the mutation guard refuses any seam
  *    that bypasses it. What this module does NOT own is how a coder/reviewer turn is
  *    routed — that dispatches through the commander, which is built after this
  *    module, so the turn is injected as `ask`. The policy that turn must obey is
- *    stated at the injection site in the composition root (§19: pinned to the codex
+ *    stated at the injection site in the composition root (pinned to the codex
  *    runtime, per goal + finding + role session ids, fail closed when codex is
  *    unavailable);
  *  - **the learning layer** (adaptive provider intelligence), created on first use
@@ -47,7 +47,7 @@ interface EngineeringOptions {
 }
 
 export interface EngineeringService {
-  /** The §7.2 mandatory Self-Evolution route. */
+  /** The mandatory Self-Evolution route for a task that targets Boss itself. */
   selfEvolution: HostHandle;
   /** The adaptive provider intelligence facade, created on first use. */
   learning(): LearningService;

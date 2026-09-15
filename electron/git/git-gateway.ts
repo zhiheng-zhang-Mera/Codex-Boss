@@ -1,13 +1,15 @@
 import { execFile, spawnSync } from "node:child_process";
 
 /**
- * The one place that runs `git` (convergence book, Phase M).
+ * The one place that runs `git`.
  *
  * Git is a side effect with process, filesystem and network reach, and it used to
- * be spawned from ~20 modules with independently chosen timeouts, buffers and
+ * be spawned from twenty modules with independently chosen timeouts, buffers and
  * error conventions — some resolved `{code}`, some resolved trimmed stdout, some
  * rejected, one swallowed. That is how a "git failed" turns into a silent success
- * in one module and a crash in another.
+ * in one module and a crash in another. `tests/unit/git-gateway.test.ts` now walks
+ * every `.ts` file under `electron/` and fails a direct git spawn that is not in its
+ * declared debt list, which is empty — so the invariant is checked, not asserted.
  *
  * Every call here states two things explicitly:
  *

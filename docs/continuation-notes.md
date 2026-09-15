@@ -100,6 +100,14 @@
   If a splice is genuinely needed, do it in **Node** (`fs.readFileSync(file, "utf8")`
   → `fs.writeFileSync(file, next, "utf8")`) and assert the non-ASCII character set is
   unchanged before and after.
+- **Do not READ UTF-8 source with PowerShell either, and do not author scripts
+  containing non-ASCII through it.** Two traps, both hit in one round: `Get-Content`
+  without `-Encoding utf8` renders this host's UTF-8 as GBK, so `§24` and `—` display
+  as `搂24`/`鈥` and a perfectly clean file looks corrupted; and the reverse happens on
+  the way in — a here-string containing `§` written with `Out-File -Encoding ascii`
+  reaches Node as `?`, which turned a citation regex into
+  `Invalid regular expression: Nothing to repeat`. Use the `read` tool (or Node) to
+  inspect, and put non-ASCII in scripts as escapes (`\u00a7`) or not at all.
 - **`.cache/` and `artifacts/` are gitignored.** `artifacts/acceptance/**` and
   `artifacts/evolution/**` are the attested chain's live state — do not prune them
   by hand; the gate sequence's `acceptance:session:start --clean` owns that.
@@ -141,9 +149,15 @@
 
 ## Snapshots (as of the checkpoint)
 
-- `electron/main.ts`: **1315 lines** (from 1884), constructor calls **92 → 61**,
-  inline IPC handlers 51 → **0**; **20** boot modules in `electron/bootstrap/`.
-- Tests: **171 files / 1863 tests** in the default tier, 62 postbuild, 25 slow;
+- `electron/main.ts`: **1314 lines** (from 1884), literal-channel `ipcMain.handle("…"`
+  registrations 51 → **0** (the 16 remaining `ipcMain.handle(` occurrences are the
+  registrar handed to the 16 IPC modules); **24** boot modules in
+  `electron/bootstrap/` (16 IPC + 8 service/domain).
+- Exports under `electron/**`/`src/**`: **2748**, all of them referenced; the surface
+  is enforced by `tests/unit/export-surface.test.ts`.
+- Comments citing a section number: **1452**, of which 1308 name no document that
+  exists here — frozen by `tests/unit/comment-citation.test.ts`, and meant to fall.
+- Tests: **182 files / 1932 tests** in the default tier, 62 postbuild, 25 slow;
   eight layers declared in `vitest.tiers.mjs` and enforced by
   `tests/unit/test-layers.test.ts`.
 - Gates: **0 files spawning git directly** (git gateway, empty debt list);

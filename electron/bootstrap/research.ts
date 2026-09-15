@@ -94,7 +94,7 @@ export function createResearchModule(options: ResearchOptions): BootModule<Resea
           return service;
         },
         provider,
-        // Overcomplete §9.3: REAL host literature retrieval (OpenAlex) before any
+        // REAL host literature retrieval (OpenAlex) before any
         // AI advisory intake. Offline/empty results degrade honestly to the
         // provider fallback inside the conductor.
         hostLiterature: async (ir) => runHostLiteraturePass({ rq: ir.researchQuestions[0] ?? ir.goal }, createOpenAlexLiteratureDeps())

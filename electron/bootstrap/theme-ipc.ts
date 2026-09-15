@@ -6,7 +6,7 @@ import { checkThemeVisuals, type VisualCheckInput } from "../../src/shared/theme
 import type { ThemePreviewState, ThemeService } from "../theme/theme-service";
 
 /**
- * Theme IPC (convergence book, Phase F/G).
+ * Theme IPC.
  *
  * Thirteen channels: the theme list and its lifecycle, and the one prompt →
  * intent → draft → preview cycle. Nothing here installs or activates on its own —
@@ -64,7 +64,7 @@ interface ThemeIpcDeps {
   uiContracts(): GenerateInput["contracts"];
   /** Captures the current interface; the Electron-facing half lives in the root. */
   capture(): Promise<ThemeCaptureResult>;
-  /** §24: durability of the intent/decisions; a failure must not fail the draft. */
+  /** Records the intent, the decisions and the validation outcome durably; a failure must not fail the draft. */
   recordKnowledge(input: {
     intent: ThemeIntent;
     packageId: string;
@@ -75,7 +75,7 @@ interface ThemeIpcDeps {
     feedback?: string;
     captureSummary?: string;
   }): void;
-  /** §26: where the numbers that decided are kept. */
+  /** Keeps the visual report whose measurements decided the draft. */
   persistVisualReport(report: unknown): void;
 }
 
@@ -152,10 +152,11 @@ export function createThemeIpcModule(deps: ThemeIpcDeps): BootModule<{ channels:
 
   on("boss:theme-validate", (_event, themeId: string) => deps.themes.validate(themeId));
 
-  /** §14/§15/§17/§19/§24 — one prompt → intent → draft → preview cycle. */
+  /** One prompt → intent → draft → preview cycle: parse the intent, capture the current UI, generate
+   *  against the locked contracts, preview, and record what decided the result. */
   let lastIntent: ThemeIntent | undefined;
   const draft = async (input: { prompt: string; name?: string; capture?: boolean; previous?: ThemeIntent; feedback?: string }): Promise<ThemeGenerationOutcome> => {
-    // §19: a layout/behaviour request is not a theme task.
+    // A layout/behaviour request is not a theme task: it is escalated instead of drafted.
     const intent = parseThemeIntent(input.prompt, input.previous ? { previous: input.previous } : {});
     if (requiresUiEngineering(intent)) {
       const reason = `该请求属于界面工程（布局/行为）而非主题：${intent.escalations.map((entry) => `${entry.phrase} — ${entry.reason}`).join("；")}`;
@@ -165,15 +166,15 @@ export function createThemeIpcModule(deps: ThemeIpcDeps): BootModule<{ channels:
         references: intent.references.map((entry) => entry.value), decisions: [], repairs: [], snapshot: deps.themes.snapshot()
       } as ThemeGenerationOutcome;
     }
-    // §16: capture the current interface (sanitized) before designing.
+    // Capture the current interface (sanitized) before designing.
     let captureSummary: string | undefined;
     if (input.capture !== false) {
       captureSummary = (await deps.capture()).summary;
     }
-    // §15: the generator always starts from the theme the user is looking at.
+    // The generator always starts from the theme the user is looking at.
     const basePackage = deps.themes.packageOf(deps.themes.snapshot().activeThemeId);
     if (!basePackage) {
-      return { ok: false, escalated: false, reason: "当前主题包不可读，无法生成（§15 要求先看到当前 UI 与 token）", prompt: intent.prompt, references: [], decisions: [], repairs: [], snapshot: deps.themes.snapshot() } as ThemeGenerationOutcome;
+      return { ok: false, escalated: false, reason: "当前主题包不可读，无法生成（生成器需要先看到当前 UI 与 token）", prompt: intent.prompt, references: [], decisions: [], repairs: [], snapshot: deps.themes.snapshot() } as ThemeGenerationOutcome;
     }
     const draftId = input.name
       ? `custom-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`
@@ -194,7 +195,7 @@ export function createThemeIpcModule(deps: ThemeIpcDeps): BootModule<{ channels:
       ...(captureSummary ? { captureSummary } : {})
     });
     lastIntent = intent;
-    // §24: record the intent, the decisions and the validation outcome durably — the
+    // Record the intent, the decisions and the validation outcome durably — the
     // sanitized frames themselves stay in the capture directory, never in knowledge.
     try {
       deps.recordKnowledge({

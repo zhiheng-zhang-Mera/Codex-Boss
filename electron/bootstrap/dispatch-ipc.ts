@@ -209,7 +209,7 @@ export function createDispatchIpcModule(deps: DispatchIpcDeps): BootModule<{ cha
     // capability, propose once instead of firing web providers blindly.
     const decision = escalateDecisionFor(task, dispatch.conversationInputObjects(task.conversationId));
     if (appMode === "chat" && decision.escalate) {
-      // §18 task-level interception (Owner-Result Rev.2): a Chat→WORK capability
+      // Task-level interception: a Chat→WORK capability
       // proposal is a DECIDABLE capability-routing question. Under OWNER_RESULT it is
       // auto-approved — recorded durably in the decision ledger FIRST — and the task
       // runs immediately (checkpointBudget=0: no routine pause). ASSISTED/AUTONOMOUS

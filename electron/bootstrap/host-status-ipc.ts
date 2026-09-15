@@ -6,7 +6,7 @@ import type { ProviderAccountMode } from "../../src/shared/contracts";
 import type { SessionLifecycle } from "../../src/shared/session-lifecycle";
 
 /**
- * Host, device and learning status IPC (convergence book, Phase F/G).
+ * Host, device and learning status IPC.
  *
  * Six channels that answer "what is this device and this installation actually
  * doing right now": the login scan, the device self-inspection, the per-node
@@ -128,7 +128,7 @@ export function createHostStatusIpcModule(deps: HostStatusIpcDeps): BootModule<{
   });
 
   on("boss:provider-intelligence", () => {
-    // Engine §18: Owner-facing provider intelligence panel. Learning is a
+    // Owner-facing provider intelligence panel. Learning is a
     // read-only projection here — a failure inside it can never affect tasks.
     return deps.host.learning().panel();
   });
@@ -138,7 +138,7 @@ export function createHostStatusIpcModule(deps: HostStatusIpcDeps): BootModule<{
   });
 
   on("boss:learning-control", (_event, action: string, enabled?: boolean) => {
-    // Engine §12 Owner controls: rebuild/reset derived data, disable adaptive
+    // Owner controls: rebuild/reset derived data, disable adaptive
     // routing while keeping learning, or disable learning entirely. An unknown
     // action is a no-op that still reports the state, so a newer renderer cannot
     // break an older host.

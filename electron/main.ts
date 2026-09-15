@@ -932,10 +932,10 @@ if (ownsInstance) app.whenReady().then(() => {
       publish: (event) => domainEvents.publish(event)
     }
   }));
-  // Phase F/G: creating a task lives in electron/bootstrap/task-creation-ipc.ts.
-  // `boss:dispatch-task` stays here for now: it needs the pane manager, the GitHub
-  // materializer and the WorkBook dispatch services at once, so it moves last. The
-  // input helpers it shares with this module already live in electron/tasks/.
+  // Creating a task and dispatching one both live under electron/bootstrap/:
+  // `boss:create-task` in task-creation-ipc.ts, `boss:dispatch-task` in dispatch-ipc.ts.
+  // What stays here is the wiring they share — the pane manager, the GitHub materializer
+  // and the WorkBook dispatch services — plus the input helpers in electron/tasks/.
   bootModules.push(createTaskCreationIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
     creation: {
