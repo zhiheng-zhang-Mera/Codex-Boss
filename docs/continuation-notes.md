@@ -9,7 +9,7 @@
 
 - Branch `Prestart-checkpoint-5` (branches follow `Prestart-checkpoint-N`; 1–4 are
   the earlier checkpoints), remote `origin` = `zhiheng-zhang-Mera/Codex-Boss`.
-- Root Trust Surface epoch **17** (`boss-root-trust-17`), 52 files.
+- Root Trust Surface epoch **20** (`boss-root-trust-20`), 54 files; `node scripts/acceptance-evolution-bless.cjs --check` says whether the committed epoch still anchors the live surface.
 - Local gate sequence: **70/70 steps** (`node .cache/run-gates.cjs`, which mirrors
   `.github/workflows/ci.yml` step order and writes transcripts to
   `artifacts/gate-run/<stamp>/`). Cloud CI: four jobs — `quality`, `unit`,
