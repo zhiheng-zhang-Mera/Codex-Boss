@@ -215,14 +215,11 @@ export function isValidStateNamespace(namespace: string): boolean {
 /**
  * Validate a semantic version.
  *
- * Exactly `major.minor.patch` with an optional pre-release/build suffix. The
- * subset is deliberate: `1.0` and `v1.0.0` are rejected so a manifest cannot
- * declare a version that the semver comparator below would then have to guess at.
+ * The implementation moved to `src/shared/semver.ts` so the knowledge layer can apply the same
+ * rule without `src/shared` importing the Electron side, which the repository's boundary guard
+ * forbids. Re-exported here so every existing caller of this module is unaffected.
  */
-export function isValidSemver(version: string): boolean {
-  return typeof version === "string"
-    && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-.]+)?(?:\+[0-9A-Za-z-.]+)?$/.test(version);
-}
+export { isValidSemver } from "../../src/shared/semver";
 
 /** The four requirement kinds the engineering book names, in report vocabulary. */
 type CapabilityEdgeKind = "required" | "optional";

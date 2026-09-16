@@ -67,7 +67,8 @@
     "architecture:manifests:generate": "node scripts/generate-capability-manifests.cjs",
     "state:migration-report": "node scripts/state-migration-report.cjs",
     "state:probe": "node scripts/probe-sqlite.cjs",
-    "capability:surface": "node scripts/permission-surface-report.cjs"
+    "capability:surface": "node scripts/permission-surface-report.cjs",
+    "data:lifecycle-report": "node scripts/data-lifecycle-report.cjs"
   },
   "dependencies": {
     "cross-env": "10.1.0",

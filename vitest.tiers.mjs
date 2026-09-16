@@ -188,5 +188,10 @@ export const BUILD_DEPENDENT_TESTS = [
   // Phase 03 gate 7: runs the permission-surface generator, which loads the compiled
   // capability layer, executes the escape battery against a real broker and forks a real
   // plugin under Node's permission model before writing the artifact.
-  "tests/acceptance/permission-surface-report.test.ts"
+  "tests/acceptance/permission-surface-report.test.ts",
+  // Phase 04 gate 7: runs the data-lifecycle generator, which loads the compiled retention and
+  // retrieval modules, walks the real state roots and executes a plan through a recording
+  // deleter. It also removes a protection marker from the compiled module to prove the
+  // generator fails rather than reporting an invariant it did not observe.
+  "tests/acceptance/data-lifecycle-report.test.ts"
 ];
