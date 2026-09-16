@@ -166,7 +166,7 @@ describe("Phase 05 Task D — every record is judged by its OWN declaration", ()
       })
     ];
     const withoutStage = [record("b1", ["implement"], [stage("implement", { defectsEscaped: 4 })])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("defectsEscaped");
     expect(result.reasons.join(" ")).toContain("c2");
@@ -175,7 +175,7 @@ describe("Phase 05 Task D — every record is judged by its OWN declaration", ()
   it("REGRESSION: the guard refuses when a decision measure is declared but null on a stage", () => {
     const withStage = [record("c1", ["implement", "review"], [stage("implement"), stage("review", { wallMs: null })])];
     const withoutStage = [record("b1", ["implement"], [stage("implement")])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("declared measured but is null");
     expect(result.reasons.join(" ")).toContain("review");
@@ -188,7 +188,7 @@ describe("Phase 05 Task D — every record is judged by its OWN declaration", ()
     const withoutStage = [record("b1", ["implement"], [stage("implement", { defectsEscaped: 4 })], {
       measured: ALL.filter((measure) => measure !== "defectsEscaped")
     })];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("not declared measured");
   });
@@ -294,7 +294,7 @@ describe("Phase 05 Task D — a measured cost with no measurable benefit is a RE
     // a negative answer — not an experiment that failed to run.
     const withStage = [record("c1", ["implement", "review"], [stage("implement", { defectsEscaped: 2 }), stage("review", { reworkAvoided: 0, inputTokens: 4_000, modelCalls: 3 })])];
     const withoutStage = [record("b1", ["implement"], [stage("implement", { defectsEscaped: 2, inputTokens: 1_000 })])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
     expect(result.verdict).toBe("COST_ONLY");
     const decision = permittedPipeline({ current: ["implement", "finalize"], candidate: "review", verdict: result.verdict });
     expect(decision.changed).toBe(false);
@@ -360,7 +360,7 @@ describe("Phase 05 Task D — the guard refuses to promote on unmeasured figures
     const noDefectMeasure = ALL.filter((measure) => measure !== "defectsEscaped");
     const withStage = [record("a", ["implement", "review"], [stage("implement"), stage("review", { reworkAvoided: 5 })], { measured: noDefectMeasure })];
     const withoutStage = [record("b", ["implement"], [stage("implement")], { measured: noDefectMeasure })];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("defectsEscaped");
   });
@@ -370,10 +370,25 @@ describe("Phase 05 Task D — the guard refuses to promote on unmeasured figures
     const result = evaluateStageGuard({
       stage: "review",
       withStage: [record("a", ["implement", "review"], [stage("implement"), stage("review")], { measured: sparse })],
-      withoutStage: [record("b", ["implement"], [stage("implement")], { measured: sparse })]
+      withoutStage: [record("b", ["implement"], [stage("implement")], { measured: sparse })],
+      decisionMeasures: ["reworkAvoided", "defectsEscaped"]
     });
-    expect(result.reasons.join(" ")).toContain("defectsEscaped");
+    // Both requested benefit measures are named as unobserved, so a refusal says everything it is
+    // missing rather than the first gap it met.
     expect(result.reasons.join(" ")).toContain("reworkAvoided");
+    expect(result.reasons.join(" ")).toContain("defectsEscaped");
+  });
+
+  it("decides on rework alone when escapes were never measured, which no ledger can do", () => {
+    // Escapes are discovered AFTER a task finishes, outside any run, so no ledger can report them.
+    // The default decision measure is therefore rework, and the reason says which measures were judged
+    // so a reader is not told about a figure that played no part.
+    const withStage = [record("c1", ["implement", "review"], [stage("implement", { reworkAvoided: 0 }), stage("review", { reworkAvoided: 3, inputTokens: 3_000 })])];
+    const withoutStage = [record("b1", ["implement"], [stage("implement", { reworkAvoided: 0, inputTokens: 1_000 })])];
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    expect(result.verdict).toBe("EARNS_PLACE");
+    expect(result.reasons.join(" ")).toContain("judged on reworkAvoided");
+    expect(result.reasons.join(" ")).not.toContain("escaped defects");
   });
 
   it("refuses to compare across two different runtimes", () => {
@@ -398,12 +413,15 @@ describe("Phase 05 Task D — the guard approves only a measured improvement", (
   it("EARNS_PLACE when the stage cuts escaped defects", () => {
     const result = evaluateStageGuard({
       stage: "review",
+      decisionMeasures: ["reworkAvoided", "defectsEscaped"],
       withStage: [reviewedTask("a", 0, 2), reviewedTask("b", 0, 1)],
       withoutStage: [baselineTask("c", 3), baselineTask("d", 2)]
     });
     expect(result.verdict).toBe("EARNS_PLACE");
     expect(result.comparison?.changeInDefectsEscaped).toBeLessThan(0);
+    // The reason names the measures the decision was actually made on.
     expect(result.reasons.join(" ")).toContain("escaped defects");
+    expect(result.reasons.join(" ")).toContain("judged on reworkAvoided and defectsEscaped");
   });
 
   it("EARNS_PLACE when the stage increases rework avoided, even with defects unchanged", () => {

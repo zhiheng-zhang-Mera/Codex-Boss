@@ -75,7 +75,10 @@
     "test:catalogue:check": "node scripts/generate-test-catalogue.cjs --check",
     "platform:certificate": "node scripts/platform-certificate.cjs",
     "soak:platform": "node scripts/platform-soak.cjs",
-    "verify:targeted": "node scripts/verify-targeted-vs-full.cjs"
+    "verify:targeted": "node scripts/verify-targeted-vs-full.cjs",
+    "economics:collect": "node scripts/agent-coordination-economics.cjs collect",
+    "economics:evaluate": "node scripts/agent-coordination-economics.cjs evaluate",
+    "economics:verify": "node scripts/agent-coordination-economics.cjs verify"
   },
   "dependencies": {
     "cross-env": "10.1.0",

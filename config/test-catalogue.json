@@ -978,6 +978,14 @@
       "obligation": "an extra agent stage is promoted only on a measured defect or rework improvement, and never on an unobserved figure"
     },
     {
+      "file": "tests/unit/platform/coordination-ledger.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ],
+      "obligation": "coordination records are derived from the durable ledger reporting only observed figures, with unobservable ones left null"
+    },
+    {
       "file": "tests/unit/platform/dependency-graph.test.ts",
       "tier": "unit",
       "covers": [

@@ -83,7 +83,7 @@ export interface CoordinationStageRecord {
  * nothing. So the pairing carries its identity explicitly and the guard refuses a mismatched pair,
  * rather than trusting whoever assembled the sets to have matched them.
  */
-export interface CoordinationPolicy {
+interface CoordinationPolicy {
   /** The model/runtime configuration, e.g. `api:deepseek:chat`. */
   runtime: string;
   /** The benchmark task family or cohort both arms were drawn from. */
@@ -255,8 +255,35 @@ export function totalStage(records: readonly CoordinationRecord[], stage: Coordi
 const GUARD_VERDICTS = ["EARNS_PLACE", "COST_ONLY", "INSUFFICIENT_EVIDENCE"] as const;
 type GuardVerdict = (typeof GUARD_VERDICTS)[number];
 
-/** The measures a promotion decision depends on. Without these there is no decision to make. */
-const DECISION_MEASURES: CoordinationMeasure[] = ["modelCalls", "inputTokens", "wallMs", "reworkAvoided", "defectsEscaped"];
+/**
+ * The measures a promotion decision can be based on.
+ *
+ * Two are derived from evidence the platform actually has, and both come from the durable ledger:
+ * `reworkAvoided` (jobs whose first attempt failed and a later attempt completed) and
+ * `reviewFindings` (the interruptions the loop raised).
+ *
+ * `defectsEscaped` is deliberately NOT here by default, and this is a finding rather than an
+ * oversight: escapes are discovered AFTER a task finishes, outside any run, so no ledger can report
+ * them. Only the Owner can, by reporting that something got through. An experiment that has that
+ * input passes `defectsEscaped` in `decisionMeasures`; one that does not is decided on rework, which
+ * is the book's other named benefit ("不改善 defect/rework").
+ */
+const COST_MEASURES: CoordinationMeasure[] = ["modelCalls", "inputTokens", "wallMs"];
+
+const DEFAULT_DECISION_MEASURES: CoordinationMeasure[] = ["reworkAvoided"];
+
+/** The measures that can additionally sharpen a decision when a caller has them. */
+const OPTIONAL_DECISION_MEASURES: CoordinationMeasure[] = ["defectsEscaped", "reviewFindings"];
+
+/** What a caller may base a decision on, and what the guard will therefore require. */
+interface GuardDecisionOptions {
+  /**
+   * The benefit measures this experiment claims to judge.
+   *
+   * Every one must be observed by every record, or the guard refuses. Defaults to rework alone.
+   */
+  decisionMeasures?: CoordinationMeasure[];
+}
 
 interface StageComparison {
   /** The pipeline without the candidate stage. */
@@ -302,10 +329,12 @@ function combine(records: readonly CoordinationRecord[]): CoordinationTotals & {
 }
 
 /** Whether a record observed every measure the decision needs, by its OWN declaration and value. */
-function decisionEvidenceProblems(records: readonly CoordinationRecord[]): string[] {
+function decisionEvidenceProblems(records: readonly CoordinationRecord[], decisions: readonly CoordinationMeasure[]): string[] {
   const problems: string[] = [];
+  // Cost is always required: a benefit comparison with no cost side is not a cost/benefit decision.
+  const required: CoordinationMeasure[] = [...COST_MEASURES, ...decisions];
   for (const record of records) {
-    for (const measure of DECISION_MEASURES) {
+    for (const measure of required) {
       if (!record.measured.includes(measure)) {
         problems.push(`${record.taskId}: ${measure} was not observed`);
         continue;
@@ -318,7 +347,7 @@ function decisionEvidenceProblems(records: readonly CoordinationRecord[]): strin
       }
     }
     for (const stage of record.stages) {
-      for (const measure of DECISION_MEASURES) {
+      for (const measure of required) {
         if (!record.measured.includes(measure) && stage[measure] !== null) {
           problems.push(`${record.taskId}: ${measure} has a value on ${stage.stage} but is not declared measured`);
         }
@@ -404,6 +433,8 @@ export function evaluateStageGuard(input: {
   withStage: readonly CoordinationRecord[];
   /** Records from comparable tasks that ran without it. */
   withoutStage: readonly CoordinationRecord[];
+  /** The benefit measures this experiment judges. Defaults to rework alone; see below. */
+  decisionMeasures?: CoordinationMeasure[];
 }): GuardResult {
   const reasons: string[] = [];
   const stage = input.stage;
@@ -427,7 +458,12 @@ export function evaluateStageGuard(input: {
   // defect that made the guard answerable only when the data was already clean: it previously looked
   // at whether the measure appeared in ANY record's declaration, so one well-measured task could vouch
   // for a set of tasks that had never measured the figure at all.
-  reasons.push(...decisionEvidenceProblems([...input.withStage, ...input.withoutStage]));
+  const decisions = [...new Set([...(input.decisionMeasures ?? DEFAULT_DECISION_MEASURES)])];
+  for (const measure of decisions) {
+    if (!COORDINATION_MEASURES.includes(measure)) reasons.push(`decision measure ${measure} is not a coordination measure`);
+  }
+  if (decisions.length === 0) reasons.push("no benefit measure was named, so there is no benefit to compare against the cost");
+  reasons.push(...decisionEvidenceProblems([...input.withStage, ...input.withoutStage], decisions));
   if (reasons.length > 0) return { verdict: "INSUFFICIENT_EVIDENCE", stage, comparison: null, reasons };
 
   const baseline = combine(input.withoutStage);
@@ -448,19 +484,35 @@ export function evaluateStageGuard(input: {
   // "earns" its place by being run more.
   const perTask = (totals: CoordinationTotals & { tasks: number }, pick: (entry: CoordinationTotals) => number): number =>
     totals.tasks === 0 ? 0 : pick(totals) / totals.tasks;
-  const defectsPerTask = perTask(candidate, (entry) => entry.defectsEscaped) - perTask(baseline, (entry) => entry.defectsEscaped);
   const reworkPerTask = perTask(candidate, (entry) => entry.reworkAvoided) - perTask(baseline, (entry) => entry.reworkAvoided);
   const costPerTask = perTask(candidate, (entry) => entry.inputTokens) - perTask(baseline, (entry) => entry.inputTokens);
 
-  const boughtSomething = defectsPerTask < 0 || reworkPerTask > 0;
+  // The benefit test reads the measures this experiment actually judged. An experiment that did not
+  // measure escapes cannot be decided on them, and pretending otherwise would either invent them or
+  // refuse every real run.
+  const defectsPerTask = decisions.includes("defectsEscaped")
+    ? perTask(candidate, (entry) => entry.defectsEscaped) - perTask(baseline, (entry) => entry.defectsEscaped)
+    : null;
+  const findingsPerTask = decisions.includes("reviewFindings")
+    ? perTask(candidate, (entry) => entry.reviewFindings) - perTask(baseline, (entry) => entry.reviewFindings)
+    : null;
+  const boughtSomething = (defectsPerTask !== null && defectsPerTask < 0) || reworkPerTask > 0;
   const costsMore = costPerTask > 0 || comparison.addedWallMs > 0;
+  // The benefit sentence names only the measures this experiment judged, so a reader is never told
+  // about a figure that was not part of the decision.
+  const benefitSentence = [
+    defectsPerTask === null ? null : `escaped defects by ${defectsPerTask.toFixed(2)}`,
+    `rework avoided by ${reworkPerTask.toFixed(2)}`,
+    findingsPerTask === null ? null : `findings by ${findingsPerTask.toFixed(2)}`
+  ].filter(Boolean).join(", ");
+  const judged = `judged on ${decisions.join(" and ")}`;
   if (boughtSomething) {
     return {
       verdict: "EARNS_PLACE",
       stage,
       comparison,
       reasons: [
-        `per task, ${stage} changed escaped defects by ${defectsPerTask.toFixed(2)} and rework avoided by ${reworkPerTask.toFixed(2)}`,
+        `per task, ${stage} changed ${benefitSentence} (${judged})`,
         `its added cost per task was ${costPerTask.toFixed(0)} input tokens`
       ]
     };
@@ -470,7 +522,7 @@ export function evaluateStageGuard(input: {
     stage,
     comparison,
     reasons: [
-      `per task, ${stage} changed escaped defects by ${defectsPerTask.toFixed(2)} and rework avoided by ${reworkPerTask.toFixed(2)}, so it bought nothing measurable`,
+      `per task, ${stage} changed ${benefitSentence} (${judged}), so it bought nothing measurable`,
       costsMore
         ? `it still added ${costPerTask.toFixed(0)} input tokens and ${comparison.addedWallMs} ms per task`
         : "it matched the baseline's cost, so a tie on benefit is decided against the extra stage"

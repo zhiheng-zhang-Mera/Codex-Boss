@@ -355,10 +355,11 @@ function main() {
   } else {
     sections.soakResourceTrend = { measured: false, reason: NOT_RUN.soakResourceTrend };
   }
-  // The model and its guard exist and are exercised; what does NOT exist is a recorded default
-  // pipeline to judge, so the section reports `measured: false` and the invariant below requires the
-  // guard to be CAPABLE OF REFUSING rather than merely present. That way the invariant cannot pass by
-  // being permanently false, and it cannot pass while the guard would promote a stage on a guess.
+  // The model, the guard and the collection infrastructure are delivered. Whether the section is
+  // MEASURED depends on the durable economics artifact, which is derived from the real task ledger by
+  // `scripts/agent-coordination-economics.cjs collect` and judged by `evaluate`. The certificate reads
+  // that artifact rather than restating anything, so a run that never happened cannot be reported as
+  // evidence and a stage that measured COST_ONLY is reported as the result it is.
   const coordination = load("src/shared/coordination-economics.js");
   const noBaseline = coordination.evaluateStageGuard({ stage: "review", withStage: [], withoutStage: [] });
   const noFigure = coordination.evaluateStageGuard({
@@ -366,10 +367,21 @@ function main() {
     withStage: [{ taskId: "probe", pipeline: ["implement", "review"], runtime: "certificate-probe", measured: [], at: "2026-01-01T00:00:00.000Z", stages: [] }],
     withoutStage: [{ taskId: "probe-baseline", pipeline: ["implement"], runtime: "certificate-probe", measured: [], at: "2026-01-01T00:00:00.000Z", stages: [] }]
   });
+  const economicsPath = path.join(ROOT, "artifacts", "platform-foundation", "agent-coordination-economics.json");
+  const economics = fs.existsSync(economicsPath) ? JSON.parse(fs.readFileSync(economicsPath, "utf8")) : undefined;
+  const evaluations = economics?.evaluations ?? [];
+  const realEvaluations = evaluations.filter((entry) => entry.provenance?.kind === "real-provider");
+  const decided = realEvaluations.filter((entry) => entry.verdict === "EARNS_PLACE" || entry.verdict === "COST_ONLY");
   sections.agentCoordinationEconomics = {
-    measured: false,
-    reason: NOT_RUN.agentCoordinationEconomics,
+    // Measured means: a REAL provider run produced the records AND the guard reached a verdict on it.
+    // A pair whose provenance is not a real run is recorded and reported as INSUFFICIENT_EVIDENCE, so
+    // infrastructure alone can never satisfy this section.
+    measured: decided.length > 0,
+    ...(decided.length > 0 ? {} : { reason: realEvaluations.length > 0
+      ? `a real provider run exists but the guard reached no verdict on it: ${realEvaluations.map((entry) => `${entry.pairId}=${entry.verdict}`).join(", ")}`
+      : NOT_RUN.agentCoordinationEconomics }),
     modelDelivered: true,
+    collectionDelivered: true,
     stages: [...coordination.COORDINATION_STAGES],
     measures: [...coordination.COORDINATION_MEASURES],
     guard: {
@@ -377,9 +389,21 @@ function main() {
       refusesOnAnUnmeasuredFigure: noFigure.verdict === "INSUFFICIENT_EVIDENCE",
       verdicts: ["EARNS_PLACE", "COST_ONLY", "INSUFFICIENT_EVIDENCE"]
     },
-    note: "the model and the guard are delivered and exercised; no default multi-agent pipeline has been recorded in this repository, so there is no cost/benefit comparison to report and none is invented"
+    // The durable evidence, or an explicit statement that there is none.
+    artifact: fs.existsSync(economicsPath) ? path.relative(ROOT, economicsPath).split(path.sep).join("/") : null,
+    records: economics?.records?.length ?? 0,
+    pairs: economics?.pairs?.length ?? 0,
+    evaluations: evaluations.map((entry) => ({
+      pairId: entry.pairId, candidateStage: entry.candidateStage, verdict: entry.verdict,
+      provenanceKind: entry.provenance?.kind ?? null, measuresUsed: entry.measuresUsed,
+      pipelineChanged: entry.pipelineDecision?.changed === true
+    })),
+    note: decided.length > 0
+      ? "a real paired run was collected from the durable ledger and judged; COST_ONLY means the stage was measured, bought nothing measurable, and is NOT added to the default pipeline"
+      : "the model, the guard and the collection infrastructure are delivered and exercised; no REAL provider paired run has been collected yet, so no cost/benefit verdict is reported and none is invented"
   };
   require_(sections.agentCoordinationEconomics.guard.refusesWithoutABaseline, "the coordination guard would promote a stage with no baseline to compare against");
+  require_(sections.agentCoordinationEconomics.collectionDelivered === true, "the coordination collection infrastructure is missing");
   require_(sections.agentCoordinationEconomics.guard.refusesOnAnUnmeasuredFigure, "the coordination guard would promote a stage whose benefit was never observed");
 
   // ---------------------------------------------------------------- promotion

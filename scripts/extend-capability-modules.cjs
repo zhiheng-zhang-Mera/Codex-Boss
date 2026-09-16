@@ -151,6 +151,7 @@ const EXTRA = {
     "src/shared/node-capabilities.ts",
     "src/shared/autonomy-supervisor.ts",
     "src/shared/coordination-economics.ts",
+    "src/shared/coordination-ledger.ts",
     "src/shared/microtask.ts",
     "src/shared/resource-model.ts"
   ],
@@ -225,6 +226,7 @@ const EXTRA = {
   ],
   runtime: [
     "electron/platform",
+    "electron/platform/coordination-store.ts",
     "electron/capability",
     "electron/bootstrap/boot-module.ts",
     "electron/bootstrap/shared/require-provider.ts",
