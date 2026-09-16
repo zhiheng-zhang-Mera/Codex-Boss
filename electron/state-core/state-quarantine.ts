@@ -23,7 +23,7 @@ import type { StateRepository } from "./state-repository";
  * has to ask for a quarantine, which makes it a decision with an author.
  */
 
-export interface StateQuarantineEntry {
+interface StateQuarantineEntry {
   id: string;
   namespace: string;
   key: string;
@@ -33,7 +33,7 @@ export interface StateQuarantineEntry {
   quarantinedAt: string;
 }
 
-export interface QuarantineReport {
+interface QuarantineReport {
   inspected: number;
   healthy: number;
   quarantined: StateQuarantineEntry[];

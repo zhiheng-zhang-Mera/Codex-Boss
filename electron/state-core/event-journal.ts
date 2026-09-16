@@ -35,7 +35,7 @@ import { withTransaction } from "./transaction";
  * repair.
  */
 
-export interface JournalEventInput<T = unknown> {
+interface JournalEventInput<T = unknown> {
   type: string;
   aggregateId: string;
   payload: T;
@@ -61,7 +61,7 @@ export interface JournalEvent<T = unknown> {
   producer: string;
 }
 
-export interface AppendResult<T> {
+interface AppendResult<T> {
   event: JournalEvent<T>;
   /** True when an event with this (producer, idempotencyKey) already existed. */
   duplicate: boolean;
@@ -69,7 +69,7 @@ export interface AppendResult<T> {
   quarantined: number;
 }
 
-export interface QuarantineEntry {
+interface QuarantineEntry {
   id: string;
   sequence: number | null;
   type: string | null;
@@ -78,7 +78,7 @@ export interface QuarantineEntry {
   quarantinedAt: string;
 }
 
-export interface JournalStats {
+interface JournalStats {
   events: number;
   maxSequence: number;
   quarantined: number;

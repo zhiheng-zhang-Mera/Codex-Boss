@@ -63,7 +63,7 @@ export function appliedMigrations(handle: DatabaseHandle): MigrationRecord[] {
 }
 
 /** Record a successful step. Called inside the step's own transaction. */
-export function recordMigration(handle: DatabaseHandle, step: MigrationStep, checkpoint: string | undefined, at: string): void {
+function recordMigration(handle: DatabaseHandle, step: MigrationStep, checkpoint: string | undefined, at: string): void {
   handle.raw
     .prepare("INSERT INTO state_migration(version, name, applied_at, checkpoint) VALUES (?, ?, ?, ?)")
     .run(step.version, step.name, at, checkpoint ?? null);

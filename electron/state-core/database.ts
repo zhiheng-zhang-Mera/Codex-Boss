@@ -83,7 +83,7 @@ function loadSqlite(): SqliteModule {
  * assigned by the engine at insert time, is strictly increasing within a transaction,
  * and needs no separate counter table. Ordering by it is therefore the commit order.
  */
-export const SCHEMA_STATEMENTS: readonly string[] = [
+const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS state_namespace (
      namespace   TEXT PRIMARY KEY,
      owner       TEXT NOT NULL,
@@ -173,12 +173,12 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
  * version describes a shape that is always present rather than a migration to run. Domain
  * migrations are numbered from here upward and layer on top.
  */
-export const CORE_SCHEMA_VERSION = 1;
+const CORE_SCHEMA_VERSION = 1;
 
 /** The schema version this build expects. Alias of the core version, kept for callers. */
 export const CURRENT_SCHEMA_VERSION = CORE_SCHEMA_VERSION;
 
-export interface DatabaseInfo {
+interface DatabaseInfo {
   file: string;
   schemaVersion: number;
   journalMode: string;

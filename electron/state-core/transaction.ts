@@ -33,7 +33,7 @@ import type { DatabaseHandle } from "./database";
  * than inside a transaction body.
  */
 
-export interface TransactionOptions {
+interface TransactionOptions {
   /** Attempts before `SQLITE_BUSY`/`SQLITE_LOCKED` gives up. Default 5. */
   attempts?: number;
   /** Base backoff in milliseconds; grows linearly per attempt. Default 10. */

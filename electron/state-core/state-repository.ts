@@ -26,9 +26,9 @@ import { withTransaction, type TransactionContext } from "./transaction";
  * order it was written in.
  */
 
-export type NamespaceKind = "document" | "append-only";
+type NamespaceKind = "document" | "append-only";
 
-export interface NamespaceDeclaration {
+interface NamespaceDeclaration {
   namespace: string;
   /** The capability that authoritatively writes this namespace (Phase 01 owner). */
   owner: string;
@@ -43,7 +43,7 @@ interface StateRow {
   updated_at: string;
 }
 
-export interface StateRecord<T> {
+interface StateRecord<T> {
   namespace: string;
   key: string;
   position: number;
@@ -51,7 +51,7 @@ export interface StateRecord<T> {
   value: T;
 }
 
-export interface NamespaceInfo {
+interface NamespaceInfo {
   namespace: string;
   owner: string;
   kind: NamespaceKind;

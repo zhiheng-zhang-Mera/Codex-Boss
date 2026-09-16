@@ -44,7 +44,7 @@ import {
  * beats continuing with an empty or downgraded database, and this is that refusal.
  */
 
-export interface MigrationRunResult {
+interface MigrationRunResult {
   before: SchemaState;
   after: SchemaState;
   applied: MigrationRecord[];
@@ -69,7 +69,7 @@ export interface MigrationRunResult {
   checkpointProblem?: string;
 }
 
-export interface MigrationRunnerOptions {
+interface MigrationRunnerOptions {
   /** Where checkpoints are written. Defaults to a `checkpoints` directory beside the database. */
   checkpointDir?: string;
   /** Skip the checkpoint. Only for an empty/in-memory database; refused when data exists. */

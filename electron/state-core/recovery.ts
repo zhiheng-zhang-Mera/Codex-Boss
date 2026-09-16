@@ -33,7 +33,7 @@ import type { EventConsumer } from "./event-consumer";
  * quarantined — never the same thing.
  */
 
-export type RecoveryObservation =
+type RecoveryObservation =
   | "database-opened-clean"
   | "database-created"
   | "integrity-ok"
@@ -48,7 +48,7 @@ export type RecoveryObservation =
   | "checkpoint-available"
   | "no-checkpoint-available";
 
-export interface ConsumerStatus {
+interface ConsumerStatus {
   consumer: string;
   lastSequence: number;
   deliveries: number;
@@ -59,7 +59,7 @@ export interface ConsumerStatus {
   stalled: boolean;
 }
 
-export interface RecoveryReport {
+interface RecoveryReport {
   at: string;
   file: string;
   integrity: IntegrityReport;
@@ -79,7 +79,7 @@ export interface RecoveryReport {
   detail: string;
 }
 
-export interface RecoveryInput {
+interface RecoveryInput {
   handle: DatabaseHandle;
   journal: EventJournal;
   quarantine: StateQuarantine;
@@ -164,7 +164,7 @@ export function inspectRecovery(input: RecoveryInput, at = new Date().toISOStrin
  * Separate from `inspectRecovery` because it must work when opening FAILED, which is the
  * corruption case: the caller has no handle to inspect, only a path and an error.
  */
-export function diagnoseUnopenable(file: string, error: unknown): { file: string; exists: boolean; bytes: number; reason: string; advice: string } {
+function diagnoseUnopenable(file: string, error: unknown): { file: string; exists: boolean; bytes: number; reason: string; advice: string } {
   const exists = fs.existsSync(file);
   const bytes = exists ? fs.statSync(file).size : 0;
   const reason = error instanceof Error ? error.message : String(error);

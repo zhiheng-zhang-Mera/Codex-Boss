@@ -29,7 +29,7 @@ import type { EventJournal, JournalEvent } from "./event-journal";
  * drives a handler that does exactly that and counts the effects.
  */
 
-export interface ConsumerCursor {
+interface ConsumerCursor {
   consumer: string;
   lastSequence: number;
   updatedAt: string;
@@ -37,7 +37,7 @@ export interface ConsumerCursor {
   failures: number;
 }
 
-export interface HandlerContext {
+interface HandlerContext {
   /** The consumer name, for logging. */
   consumer: string;
   readonly sequence: number;
@@ -52,9 +52,9 @@ export interface HandlerContext {
   idempotencyKey: string;
 }
 
-export type EventHandler<T = unknown> = (event: JournalEvent<T>, context: HandlerContext) => void | Promise<void>;
+type EventHandler<T = unknown> = (event: JournalEvent<T>, context: HandlerContext) => void | Promise<void>;
 
-export interface DeliveryOutcome {
+interface DeliveryOutcome {
   consumer: string;
   from: number;
   to: number;
