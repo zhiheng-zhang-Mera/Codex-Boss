@@ -31,20 +31,65 @@
  * already runs the list one file at a time, and separate processes were solving a
  * problem that was never theirs.
  */
-export const SLOW_ACCEPTANCE_TESTS = [
-  // Drives the real implementation loop with a real tsc and a real node --test in a
-  // fixture. Measured as a file: ~113s. Its slowest single scenario (C-03) is
-  // ~29s alone but exceeded the 60s per-test ceiling under full-suite parallelism,
-  // which turned three otherwise-green commits red — that is why the ceiling here
-  // is raised, and why the tier runs one file at a time so the bound is real.
-  "tests/acceptance/review-loop.test.ts",
-  // Spawns real AppContainer-sandboxed children for every containment attack and
-  // for its own control case: ~45s measured. Its cleanup is incomplete — a passing
-  // run left one `codexbossevolution-rt-sandbox*` profile behind (2 → 3) — so the
-  // profile count grows over repeated runs and needs clearing after interrupted
-  // battery runs.
-  "tests/unit/evolution-sandbox.test.ts"
-];
+/**
+ * The slow tier: suites that cannot be part of the signal a developer waits for.
+ *
+ * Declared as a RECORD rather than a list, because "why is this here" is the part that rots. A bare
+ * list lets a fast suite be parked here for convenience and lets a genuinely slow one be justified by
+ * a comment nobody re-reads. Each entry states its MEASURED cost and which kind it is:
+ *
+ *   - `spawns` — the suite starts real child processes (a compiler, a test runner, a sandboxed
+ *     candidate). This was the original and only accepted reason.
+ *   - `in-process` — the suite starts nothing but performs real durable work whose cost is dominated
+ *     by the storage engine. Added for the Phase 05 scale suite: it writes 100k real events and 100k
+ *     real state writes, measured at ~94s, and the cost is a property of the durable write path
+ *     rather than of the test. Requiring it to spawn a process to earn its place would have been
+ *     paying theatre to satisfy a rule.
+ *
+ * `tests/unit/test-layers.test.ts` checks both the reason's presence and, for `spawns`, the evidence
+ * in the file.
+ */
+export const SLOW_ACCEPTANCE_TESTS = {
+  // Drives the real implementation loop with a real tsc and a real node --test in a fixture.
+  // Measured as a file: ~113s. Its slowest single scenario (C-03) is ~29s alone but exceeded the 60s
+  // per-suite ceiling under full-suite parallelism, which turned three otherwise-green commits red —
+  // that is why the ceiling in this tier is raised, and why the tier runs one file at a time so the
+  // bound is the real one.
+  "tests/acceptance/review-loop.test.ts": {
+    kind: "spawns",
+    measured: "~113s as a file; slowest single scenario ~29s",
+    because: "drives the real implementation loop with a real tsc and a real node --test inside a fixture"
+  },
+  // Spawns real AppContainer-sandboxed children for every containment attack and for its own control
+  // case. Its cleanup is incomplete — a passing run left one `codexbossevolution-rt-sandbox*` profile
+  // behind (2 → 3) — so the profile count grows over repeated runs and needs clearing after
+  // interrupted battery runs.
+  "tests/unit/evolution-sandbox.test.ts": {
+    kind: "spawns",
+    measured: "~45s as a file",
+    because: "spawns a real AppContainer-sandboxed child per attack, plus its own control case"
+  },
+  // Phase 05 Task E / gate 5. Measured as a file: ~94s, of which ~74s is the append loop.
+  //
+  // The cost is a MEASURED property of the durable write path, not slack in the test: per-event cost
+  // rises from 0.22ms to 0.88ms as the journal grows, in ten 10k bands, then plateaus. The queries
+  // are not the cause — `EXPLAIN QUERY PLAN` confirms both the idempotency lookup and the id read use
+  // their indexes — and the cause is durability: `synchronous=1` with `wal_autocheckpoint=1000` means
+  // each checkpoint fsyncs a database file that grows with the journal. That curve is what Task F's
+  // soak exists to trend, so it is recorded rather than optimised away, and the test is explicitly
+  // NOT made faster by relaxing durability.
+  //
+  // The book requires the 100k scale, so the requirement is kept and the file is separated for timing
+  // instead. Relaxing `synchronous` would have flattered this number and broken Task F's target.
+  "tests/unit/platform/scale-synthetic.test.ts": {
+    kind: "in-process",
+    measured: "~94s as a file (~74s appending 100k events; 10k-band curve 0.22 → 0.88 ms/event)",
+    because: "writes 100k real events and 100k real state writes into a real database; no process is started, but the cost is the storage engine's"
+  }
+};
+
+/** The suite paths in the slow tier, for the configs that need a list. */
+export const SLOW_ACCEPTANCE_TEST_FILES = Object.keys(SLOW_ACCEPTANCE_TESTS);
 
 /**
  * The test layers (convergence book, Phase N).

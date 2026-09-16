@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { BUILD_DEPENDENT_TESTS, SLOW_ACCEPTANCE_TESTS } from "./vitest.tiers.mjs";
+import { BUILD_DEPENDENT_TESTS, SLOW_ACCEPTANCE_TEST_FILES } from "./vitest.tiers.mjs";
 
 /**
  * The default tier: what `pnpm test` runs.
@@ -16,7 +16,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    exclude: [...SLOW_ACCEPTANCE_TESTS, ...BUILD_DEPENDENT_TESTS, "node_modules/**", "dist/**", "dist-electron/**"],
+    exclude: [...SLOW_ACCEPTANCE_TEST_FILES, ...BUILD_DEPENDENT_TESTS, "node_modules/**", "dist/**", "dist-electron/**"],
     testTimeout: 60000
   }
 });

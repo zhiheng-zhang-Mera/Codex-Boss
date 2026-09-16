@@ -6,6 +6,7 @@ import {
   LAYER_RULES,
   LAYER_VOCABULARY,
   SLOW_ACCEPTANCE_TESTS,
+  SLOW_ACCEPTANCE_TEST_FILES,
   TEST_TIERS
 } from "../../vitest.tiers.mjs";
 
@@ -64,6 +65,9 @@ const FILES = allTestFiles();
 
 /** The evidence that a suite starts a real child process. */
 const SPAWN_MARKERS = /node:child_process|process\/process-gateway|git\/git-gateway|command-runner/;
+
+/** The slow tier's suite paths, in declaration order, for the config-agreement checks. */
+const slowFiles = (): string[] => SLOW_ACCEPTANCE_TEST_FILES;
 
 function primaryLayerOf(file: string): string[] {
   return Object.entries(LAYER_RULES)
@@ -160,7 +164,7 @@ describe("Phase N — the declared test layers", () => {
   });
 
   it("classifies every suite in a declared tier, and states why the tier exists", () => {
-    for (const file of [...SLOW_ACCEPTANCE_TESTS, ...BUILD_DEPENDENT_TESTS]) {
+    for (const file of [...slowFiles(), ...BUILD_DEPENDENT_TESTS]) {
       expect(fs.existsSync(path.join(PROJECT, file)), `tier names a missing file: ${file}`).toBe(true);
       expect(primaryLayerOf(file).length, `${file} is in a tier but unclassified`).toBe(1);
     }
@@ -169,10 +173,25 @@ describe("Phase N — the declared test layers", () => {
       expect(declaration.layers.length, `${tier} carries no layer`).toBeGreaterThan(0);
       for (const layer of declaration.layers) expect(LAYER_VOCABULARY).toContain(layer);
     }
-    // A suite put in the slow tier for timing must really start something: that is
-    // the stated reason, so it is checked rather than trusted.
-    for (const file of SLOW_ACCEPTANCE_TESTS) {
-      expect(SPAWN_MARKERS.test(fs.readFileSync(path.join(PROJECT, file), "utf8")), `${file} is slow-tier but starts no process`).toBe(true);
+    // Every slow entry must carry its MEASURED cost and the kind of cost it is, because a bare list
+    // lets a fast suite be parked here for convenience. Two kinds are accepted:
+    //   - `spawns`: the stated reason is that it starts real processes, so the evidence is checked;
+    //   - `in-process`: it starts nothing, so instead of demanding theatre the entry must name a
+    //     measurement, and the suite is required to touch real storage to justify the claim that the
+    //     cost belongs to the engine rather than to the test.
+    for (const [file, declaration] of Object.entries(SLOW_ACCEPTANCE_TESTS)) {
+      const source = fs.readFileSync(path.join(PROJECT, file), "utf8");
+      const entry = declaration as { kind: string; measured: string; because: string };
+      expect(entry.measured, `${file} is slow-tier without a measured cost`).toBeTruthy();
+      expect(entry.because, `${file} is slow-tier without a stated reason`).toBeTruthy();
+      expect(["spawns", "in-process"], `${file} declares an unknown slow-tier kind`).toContain(entry.kind);
+      if (entry.kind === "spawns") {
+        expect(SPAWN_MARKERS.test(source), `${file} claims it spawns but starts no process`).toBe(true);
+      } else {
+        expect(SPAWN_MARKERS.test(source), `${file} is marked in-process but does start a process; declare it as spawning`).toBe(false);
+        // The cost claim has to be about real durable work, not a busy loop in memory.
+        expect(/openDatabase|createEventJournal|createStateRepository/.test(source), `${file} claims in-process storage cost but never opens a database`).toBe(true);
+      }
     }
     // A build-dependent suite must reach the build, directly or through a harness.
     for (const file of BUILD_DEPENDENT_TESTS) {
@@ -184,12 +203,12 @@ describe("Phase N — the declared test layers", () => {
     const unit = (await import("../../vitest.unit.config.mjs")).default;
     const slow = (await import("../../vitest.slow.config.mjs")).default;
     const postbuild = (await import("../../vitest.postbuild.config.mjs")).default;
-    expect(slow.test?.include).toEqual(SLOW_ACCEPTANCE_TESTS);
+    expect(slow.test?.include).toEqual(slowFiles());
     expect(postbuild.test?.include).toEqual(BUILD_DEPENDENT_TESTS);
     // The default tier is "everything except the two declared groups", and its
     // include has to still cover every suite the layers describe.
     expect(unit.test?.include).toEqual(["tests/**/*.test.ts"]);
-    for (const file of [...SLOW_ACCEPTANCE_TESTS, ...BUILD_DEPENDENT_TESTS]) {
+    for (const file of [...slowFiles(), ...BUILD_DEPENDENT_TESTS]) {
       expect(unit.test?.exclude, `${file} is not excluded from the default tier`).toContain(file);
     }
   });

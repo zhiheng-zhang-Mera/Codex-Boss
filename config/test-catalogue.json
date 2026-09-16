@@ -980,6 +980,14 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/platform/scale-synthetic.test.ts",
+      "tier": "unit",
+      "covers": [
+        "state-core"
+      ],
+      "obligation": "the platform holds at 10x its capability set and at 100k durable events without inconsistency or cross-project contamination"
+    },
+    {
       "file": "tests/unit/platform/state-ownership.test.ts",
       "tier": "unit",
       "covers": [

@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { SLOW_ACCEPTANCE_TESTS } from "./vitest.tiers.mjs";
+import { SLOW_ACCEPTANCE_TEST_FILES } from "./vitest.tiers.mjs";
 
 /**
  * The slow tier: acceptance suites that compile and execute real projects.
@@ -20,7 +20,7 @@ import { SLOW_ACCEPTANCE_TESTS } from "./vitest.tiers.mjs";
 export default defineConfig({
   test: {
     environment: "node",
-    include: SLOW_ACCEPTANCE_TESTS,
+    include: SLOW_ACCEPTANCE_TEST_FILES,
     testTimeout: 180000,
     hookTimeout: 180000,
     // One file at a time: this tier exists because parallel load made the
