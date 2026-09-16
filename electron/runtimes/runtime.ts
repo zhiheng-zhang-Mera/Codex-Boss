@@ -44,6 +44,24 @@ export interface RuntimeMetrics {
   durationMs: number;
 }
 
+/**
+ * Token usage a PROVIDER actually reported for one completion.
+ *
+ * Every field is optional and means "the provider told us this number". An absent field is not zero and
+ * is never estimated: the platform's own `ceil(characters / 4)` figures stay on the ledger as
+ * diagnostics and must not be promoted into these fields, because a Gate 8 cost comparison that
+ * accepted a heuristic as a measurement would be comparing arithmetic the platform invented.
+ *
+ * The names are deliberately provider-neutral. Each adapter maps its own response schema onto this
+ * shape so nothing upstream has to know whether a vendor calls them `prompt_tokens`, `input_tokens` or
+ * `promptTokenCount`.
+ */
+export interface ProviderUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
 export interface RuntimeResult {
   runtimeId: RuntimeId;
   jobId: string;
@@ -52,6 +70,14 @@ export interface RuntimeResult {
   content?: string;
   failure?: RuntimeFailure;
   metrics?: RuntimeMetrics;
+  /**
+   * What the provider reported about this call, when it reported anything.
+   *
+   * Carried on the RESULT rather than only inside the artifact so the supervisor can persist it: a
+   * usage figure that stops at the adapter is a figure the ledger never sees, and the coordination
+   * record is derived from the ledger.
+   */
+  usage?: ProviderUsage;
 }
 
 export interface RuntimeAdapter {

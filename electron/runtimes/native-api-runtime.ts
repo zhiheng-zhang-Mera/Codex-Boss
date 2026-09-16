@@ -29,7 +29,9 @@ export class ApiRuntime implements RuntimeAdapter {
   async execute(request: RuntimeRequest): Promise<RuntimeResult> {
     try {
     const answer = await this.client.complete(this.providerId, [request.context, request.prompt].filter(Boolean).join("\n\n"));
-    return { runtimeId: this.id, jobId: request.jobId, status: "SUCCESS", content: answer.content };
+    // The provider usage travels with the result, so the supervisor can persist it. Dropping it here
+    // was how the real token counts never reached the ledger.
+    return { runtimeId: this.id, jobId: request.jobId, status: "SUCCESS", content: answer.content, ...(answer.usage ? { usage: answer.usage } : {}) };
     } catch (error) {
       const status = error instanceof ProviderHttpError ? error.status : 0;
       const code = status === 429 ? "RATE_LIMITED" : [401, 403].includes(status) ? "AUTH_REQUIRED" : "UNKNOWN";

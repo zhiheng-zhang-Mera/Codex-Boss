@@ -1020,6 +1020,14 @@
       "obligation": "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure"
     },
     {
+      "file": "tests/unit/platform/provider-usage.test.ts",
+      "tier": "unit",
+      "covers": [
+        "providers"
+      ],
+      "obligation": "real provider token usage travels the whole path to the durable ledger, and its absence stays unmeasured rather than becoming an estimate"
+    },
+    {
       "file": "tests/unit/platform/restart-recovery.test.ts",
       "tier": "unit",
       "covers": [

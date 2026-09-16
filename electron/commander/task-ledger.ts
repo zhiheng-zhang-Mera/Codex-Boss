@@ -8,7 +8,33 @@ import type { ConfigLayerName } from "../../src/shared/config-layering";
 import { resolveOperationalLimits, type OperationalLimitOverrides } from "../../src/shared/config-layering";
 import { validateReproductionSnapshot, type ReproductionSnapshot } from "../repro-snapshot";
 import { pruneTaskCheckpoints } from "./storage-budget";
-export interface Consumption { modelCalls: number; estimatedInputTokens: number; estimatedOutputTokens: number; toolCalls: number; browserActions: number; retries: number; workerRuntimeMs: number; providerWaitMs: number; }
+/**
+ * What a task consumed.
+ *
+ * Two families, and the difference matters:
+ *
+ *  - `estimatedInputTokens` / `estimatedOutputTokens` are the platform's OWN `ceil(characters / 4)`
+ *    figures. They are diagnostics: an approximation the platform computed, not a count any provider
+ *    reported, and Gate 8 refuses to treat them as measurements.
+ *  - `providerInputTokens` / `providerOutputTokens` / `providerTotalTokens` are what a PROVIDER said it
+ *    used. They are absent when the provider returned no usage block, and absent is not zero.
+ */
+export interface Consumption {
+  modelCalls: number;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  /** Provider-reported prompt tokens. Absent when the provider reported no usage. */
+  providerInputTokens?: number;
+  /** Provider-reported completion tokens. Absent when the provider reported no usage. */
+  providerOutputTokens?: number;
+  /** Provider-reported total, when it reported one distinct from the two parts. */
+  providerTotalTokens?: number;
+  toolCalls: number;
+  browserActions: number;
+  retries: number;
+  workerRuntimeMs: number;
+  providerWaitMs: number;
+}
 export interface WorkerSession {
   externalSessionId?: string;
   url?: string;

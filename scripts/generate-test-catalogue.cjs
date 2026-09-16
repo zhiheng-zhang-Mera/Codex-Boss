@@ -45,6 +45,7 @@ const CURATED = {
   "tests/unit/platform/external-compatibility.test.ts": { covers: ["providers"], obligation: "a single external dependency degrading stays local, is classified honestly, and reroutes or refuses accordingly" },
   "tests/unit/platform/scale-synthetic.test.ts": { covers: ["state-core"], obligation: "the platform holds at 10x its capability set and at 100k durable events without inconsistency or cross-project contamination" },
   "tests/unit/platform/platform-soak.test.ts": { covers: ["state-core"], obligation: "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure" },
+  "tests/unit/platform/provider-usage.test.ts": { covers: ["providers"], obligation: "real provider token usage travels the whole path to the durable ledger, and its absence stays unmeasured rather than becoming an estimate" },
   "tests/unit/platform/coordination-ledger.test.ts": { covers: ["tenx"], obligation: "coordination records are derived from the durable ledger reporting only observed figures, with unobservable ones left null" },
   "tests/unit/platform/coordination-economics.test.ts": { covers: ["tenx"], obligation: "an extra agent stage is promoted only on a measured defect or rework improvement, and never on an unobserved figure" },
   "tests/unit/platform/restart-recovery.test.ts": { covers: ["persistence"], obligation: "after a restart no committed work is lost and no external side effect is applied twice" },

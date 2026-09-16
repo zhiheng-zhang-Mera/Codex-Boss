@@ -181,6 +181,7 @@ export interface CoordinationRecord {
    */
   diagnostics?: {
     estimatedInputTokens?: number | null;
+    estimatedOutputTokens?: number | null;
     /** Why a diagnostic is not a measurement, so a reader is not left to infer it. */
     note?: string;
   };

@@ -59,6 +59,15 @@ export interface LedgerRecordView {
     modelCalls: number;
     estimatedInputTokens: number;
     estimatedOutputTokens: number;
+    /**
+     * What a PROVIDER reported, when one did.
+     *
+     * Optional because the field is absent on a ledger written before the plumbing existed, and on any
+     * task whose provider returned no usage block. Absent means unmeasured, never zero.
+     */
+    providerInputTokens?: number;
+    providerOutputTokens?: number;
+    providerTotalTokens?: number;
     toolCalls: number;
     retries: number;
     workerRuntimeMs: number;
@@ -137,11 +146,16 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
    */
   const totals: CoordinationTaskTotals = {
     modelCalls: record.usage.modelCalls,
-    // NOT `usage.estimatedInputTokens`. See the header: that figure is `ceil(characters / 4)`, a
-    // heuristic, and no provider usage block reaches the ledger, so there is no real token count to
-    // report. It is kept as a diagnostic instead of being renamed into a measurement.
-    inputTokens: null,
-    outputTokens: null,
+    /**
+     * The PROVIDER's figure, or nothing.
+     *
+     * `usage.estimatedInputTokens` is deliberately NOT read here: it is `ceil(characters / 4)`, a
+     * heuristic the platform computed, and promoting it would be the false provenance this audit
+     * removed. When no provider reported usage the value stays null and the measure stays undeclared,
+     * which makes the guard refuse rather than compare invented arithmetic.
+     */
+    inputTokens: record.usage.providerInputTokens ?? null,
+    outputTokens: record.usage.providerOutputTokens ?? null,
     wallMs,
     coordinationMs: record.usage.providerWaitMs,
     executionMs: record.usage.workerRuntimeMs,
@@ -153,6 +167,10 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
 
   const measured: CoordinationMeasure[] = [];
   if (record.usage.modelCalls >= 0) measured.push("modelCalls");
+  // Declared only when a provider really reported the figure. `?? null` above and this guard are the
+  // same test on purpose: a declared-but-null figure is refused by the guard, so they must agree.
+  if (record.usage.providerInputTokens !== undefined) measured.push("inputTokens");
+  if (record.usage.providerOutputTokens !== undefined) measured.push("outputTokens");
   if (wallMs !== null) measured.push("wallMs");
   if (record.usage.providerWaitMs >= 0) measured.push("coordinationMs");
   if (record.usage.workerRuntimeMs >= 0) measured.push("executionMs");
@@ -189,12 +207,15 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
       ...(options.cohort ? { cohort: options.cohort } : {}),
       diagnostics: {
         estimatedInputTokens: record.usage.estimatedInputTokens,
-        note: "estimatedInputTokens is ceil(prompt characters / 4), a heuristic rather than a tokenizer, and ApiCompletion carries no usage block, so it is a diagnostic and deliberately NOT a measurement of input tokens"
+        estimatedOutputTokens: record.usage.estimatedOutputTokens,
+        note: "the estimated* fields are ceil(characters / 4), heuristics the platform computed rather than counts any provider reported, so they are diagnostics and deliberately NOT measurements. inputTokens/outputTokens carry the provider's own usage when it returned one."
       },
       at: options.at
     },
     unmeasured,
     verificationFailed: record.verificationState === "FAILED",
-    tokenProvenance: "inputTokens is unmeasured: the platform estimates it as ceil(characters / 4) rather than counting tokens, and no provider-reported usage reaches the ledger"
+    tokenProvenance: record.usage.providerInputTokens !== undefined
+      ? `inputTokens came from the provider's own usage block (${record.usage.providerInputTokens} prompt tokens), persisted on the ledger`
+      : "inputTokens is unmeasured: the provider returned no usage block, and the platform's ceil(characters / 4) figure is a diagnostic rather than a measurement"
   };
 }

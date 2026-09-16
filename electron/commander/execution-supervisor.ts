@@ -68,6 +68,14 @@ export class ExecutionSupervisor {
           value.completedSteps = [...new Set([...value.completedSteps, request.jobId])]; value.currentStep = null; value.nextAction = "NEXT_STEP"; value.mode = "NORMAL";
           delete value.providerState;
           value.usage.estimatedOutputTokens += Math.ceil((result.content?.length ?? 0) / 4); value.usage.workerRuntimeMs += result.metrics?.durationMs ?? 0;
+          // What the PROVIDER reported, accumulated separately from the platform's own estimate.
+          //
+          // Absent stays absent: a provider that returned no usage block leaves these fields undefined
+          // rather than adding a zero, so the coordination record reports `inputTokens` unmeasured
+          // instead of recording a fabricated 0 that the cost comparison would then trust.
+          if (result.usage?.inputTokens !== undefined) value.usage.providerInputTokens = (value.usage.providerInputTokens ?? 0) + result.usage.inputTokens;
+          if (result.usage?.outputTokens !== undefined) value.usage.providerOutputTokens = (value.usage.providerOutputTokens ?? 0) + result.usage.outputTokens;
+          if (result.usage?.totalTokens !== undefined) value.usage.providerTotalTokens = (value.usage.providerTotalTokens ?? 0) + result.usage.totalTokens;
         });
         return result;
       }
