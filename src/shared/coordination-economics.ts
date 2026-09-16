@@ -74,6 +74,37 @@ export interface CoordinationStageRecord {
   defectsEscaped: number | null;
 }
 
+/**
+ * The identity a paired comparison must share.
+ *
+ * Gate 8's with/without sets have to differ in exactly one thing: the candidate stage. Equal task
+ * COUNTS are not comparability, and neither is a per-task average — two runs of different tasks, on
+ * different models, or against different acceptance criteria can have identical averages and prove
+ * nothing. So the pairing carries its identity explicitly and the guard refuses a mismatched pair,
+ * rather than trusting whoever assembled the sets to have matched them.
+ */
+export interface CoordinationPolicy {
+  /** The model/runtime configuration, e.g. `api:deepseek:chat`. */
+  runtime: string;
+  /** The benchmark task family or cohort both arms were drawn from. */
+  benchmarkTaskId: string;
+  /** A hash or id of the input and acceptance requirements, so "same input" is checkable. */
+  inputIdentity: string;
+  /**
+   * The one thing the two arms are allowed to differ in.
+   *
+   * A paired run declares this so the guard can say what the experiment WAS, instead of inferring the
+   * variable from whichever stages happen to be present.
+   */
+  plannedVariable: string;
+}
+
+/** A record's cohort: what it is comparable to. */
+export interface CoordinationCohort extends CoordinationPolicy {
+  /** `with-candidate` or `baseline`, plus anything a caller needs to name the arm. */
+  arm: string;
+}
+
 export interface CoordinationRecord {
   taskId: string;
   /** The pipeline the task ran through, in order. */
@@ -81,6 +112,13 @@ export interface CoordinationRecord {
   stages: CoordinationStageRecord[];
   /** Which model/runtime produced the figures, so a comparison is like for like. */
   runtime: string;
+  /**
+   * What this record may be compared against.
+   *
+   * Optional so a single observation can still be recorded, but a record without it can never take
+   * part in a promotion decision: the guard refuses a pairing whose cohort identity it cannot check.
+   */
+  cohort?: CoordinationCohort;
   /**
    * The measures a run actually observed.
    *
@@ -108,12 +146,13 @@ interface CoordinationTotals {
 
 interface StageEconomics {
   stage: CoordinationStage;
+  /** Totals over the records that observed each measure. `null` where no record did. */
   totals: CoordinationTotals;
   /** How many tasks ran this stage. */
   tasks: number;
-  /** Measures that at least one record left unobserved. */
+  /** Measures some record did not observe: either not declared, or declared and left null. */
   unmeasured: CoordinationMeasure[];
-  /** Whether every task that ran a stage observed every figure the comparison needs. */
+  /** Whether EVERY record observed EVERY measure the comparison reads, per that record's own declaration. */
   complete: boolean;
 }
 
@@ -121,10 +160,36 @@ function sum(values: Array<number | null>): number {
   return values.reduce<number>((total, value) => total + (value ?? 0), 0);
 }
 
-/** Total one record, counting each measure only where it was observed. */
+/**
+ * What one record's own declaration says about one of its stages.
+ *
+ * Two ways a figure can be unusable, and both are problems rather than zeroes:
+ *
+ *  - **declared but null**: the record says it measured this and then supplies nothing. Trusting the
+ *    declaration would count a missing figure as 0, which is the hand-filled arithmetic this phase
+ *    forbids;
+ *  - **not declared but present**: the record supplies a number it did not claim to have measured.
+ *    That is a contradiction, and a comparison built on it would be comparing a figure of unknown
+ *    provenance.
+ *
+ * A value that is neither declared nor present is a plain gap: not a problem, just unmeasured.
+ */
+function auditStage(record: CoordinationRecord, stage: CoordinationStageRecord, measure: CoordinationMeasure): { usable: boolean; problem: string | null } {
+  const declared = record.measured.includes(measure);
+  const value = stage[measure];
+  if (declared && value === null) {
+    return { usable: false, problem: `${record.taskId}/${stage.stage}: ${measure} is declared measured but is null, so it cannot be counted` };
+  }
+  if (!declared && value !== null) {
+    return { usable: false, problem: `${record.taskId}/${stage.stage}: ${measure} has a value but is not declared measured, so its provenance is unclear` };
+  }
+  return { usable: declared && value !== null, problem: null };
+}
+
+/** Total one record, counting each measure only where it was DECLARED and observed. */
 export function totalRecord(record: CoordinationRecord): CoordinationTotals {
   const pick = (measure: CoordinationMeasure): Array<number | null> =>
-    record.stages.map((stage) => (record.measured.includes(measure) ? stage[measure] : null));
+    record.stages.map((stage) => (auditStage(record, stage, measure).usable ? stage[measure] : null));
   const wallMs = sum(pick("wallMs"));
   const coordinationMs = sum(pick("coordinationMs"));
   return {
@@ -142,27 +207,47 @@ export function totalRecord(record: CoordinationRecord): CoordinationTotals {
   };
 }
 
-/** Total one stage across a set of records, keeping unmeasured figures visible. */
+/**
+ * Total one stage across a set of records.
+ *
+ * **Each record is checked against its OWN `measured` declaration.** The first version of this
+ * function read `relevant[0].measured` and applied it to every record — so one task that declared a
+ * figure made every other task's undeclared figure look observed, and a task that omitted
+ * `defectsEscaped` was counted as having escaped zero defects. That is precisely the "null treated as
+ * a real 0" failure, and it made the guard's `INSUFFICIENT_EVIDENCE` answer unavailable exactly when
+ * it was needed.
+ */
 export function totalStage(records: readonly CoordinationRecord[], stage: CoordinationStage): StageEconomics {
   const relevant = records.filter((record) => record.pipeline.includes(stage));
-  const stageRecords = relevant.map((record) => record.stages.find((entry) => entry.stage === stage)).filter((entry): entry is CoordinationStageRecord => entry !== undefined);
-  const unmeasured = COORDINATION_MEASURES.filter((measure) => stageRecords.some((entry) => !relevant[0].measured.includes(measure) || entry[measure] === null));
+  const pairs = relevant
+    .map((record) => ({ record, stage: record.stages.find((entry) => entry.stage === stage) }))
+    .filter((pair): pair is { record: CoordinationRecord; stage: CoordinationStageRecord } => pair.stage !== undefined);
+
+  const unmeasured = COORDINATION_MEASURES.filter((measure) =>
+    pairs.some((pair) => !auditStage(pair.record, pair.stage, measure).usable));
+  // Every record must be represented: a record whose pipeline names the stage but whose stages array
+  // omits it is a contradiction, and silently dropping it would inflate the totals' apparent coverage.
+  const everyRecordRepresented = pairs.length === relevant.length;
+  /**
+   * The aggregate carries only the measures that were usable everywhere.
+   *
+   * Passing `[...COORDINATION_MEASURES]` here was a defect inside the fix for the first defect: it
+   * declared every measure for the aggregate, which re-admitted the very value the audit had just
+   * judged undeclared, and the total then counted it. Deriving the declaration from the audit keeps
+   * the two consistent by construction.
+   */
+  const usableEverywhere = COORDINATION_MEASURES.filter((measure) =>
+    pairs.length > 0 && pairs.every((pair) => auditStage(pair.record, pair.stage, measure).usable));
   const totals = totalRecord({
-    taskId: `${stage}-aggregate`,
-    pipeline: [stage],
-    stages: stageRecords,
-    runtime: relevant[0]?.runtime ?? "unknown",
-    measured: [...COORDINATION_MEASURES],
-    at: relevant[0]?.at ?? ""
+    taskId: `${stage}-aggregate`, pipeline: [stage], stages: pairs.map((pair) => pair.stage),
+    runtime: relevant[0]?.runtime ?? "unknown", measured: [...usableEverywhere], at: relevant[0]?.at ?? ""
   });
   return {
     stage,
     totals,
     tasks: relevant.length,
     unmeasured,
-    // A stage is complete only when every figure the cost/benefit comparison reads was observed for
-    // every task that ran it. Anything less and the comparison would be between different things.
-    complete: relevant.length > 0 && unmeasured.length === 0
+    complete: relevant.length > 0 && everyRecordRepresented && unmeasured.length === 0
   };
 }
 
@@ -216,9 +301,84 @@ function combine(records: readonly CoordinationRecord[]): CoordinationTotals & {
   };
 }
 
-/** Whether a record observed every measure the decision needs. */
-function missingDecisionMeasures(records: readonly CoordinationRecord[]): CoordinationMeasure[] {
-  return DECISION_MEASURES.filter((measure) => records.some((record) => !record.measured.includes(measure)));
+/** Whether a record observed every measure the decision needs, by its OWN declaration and value. */
+function decisionEvidenceProblems(records: readonly CoordinationRecord[]): string[] {
+  const problems: string[] = [];
+  for (const record of records) {
+    for (const measure of DECISION_MEASURES) {
+      if (!record.measured.includes(measure)) {
+        problems.push(`${record.taskId}: ${measure} was not observed`);
+        continue;
+      }
+      // Declared: then every stage must actually carry it. A declared-but-null figure is a missing
+      // measurement wearing the label of a real one.
+      const missingOnStage = record.stages.filter((stage) => stage[measure] === null).map((stage) => stage.stage);
+      if (missingOnStage.length > 0) {
+        problems.push(`${record.taskId}: ${measure} is declared measured but is null on ${missingOnStage.join(", ")}`);
+      }
+    }
+    for (const stage of record.stages) {
+      for (const measure of DECISION_MEASURES) {
+        if (!record.measured.includes(measure) && stage[measure] !== null) {
+          problems.push(`${record.taskId}: ${measure} has a value on ${stage.stage} but is not declared measured`);
+        }
+      }
+    }
+  }
+  return [...new Set(problems)];
+}
+
+/**
+ * Whether two arms are a legitimate paired comparison.
+ *
+ * Comparability is NOT "the same number of tasks" and NOT "similar per-task averages": two arms of
+ * different tasks, on different models, or against different acceptance criteria can match on both
+ * and prove nothing. The identity has to be shared and the difference has to be the planned variable,
+ * so it is checked rather than assumed.
+ */
+function comparabilityProblems(withStage: readonly CoordinationRecord[], withoutStage: readonly CoordinationRecord[], stage: CoordinationStage): string[] {
+  const problems: string[] = [];
+  const all = [...withStage, ...withoutStage];
+  const missing = all.filter((record) => !record.cohort);
+  if (missing.length > 0) {
+    problems.push(`${missing.length} record(s) carry no cohort identity (${missing.slice(0, 3).map((record) => record.taskId).join(", ")}), so comparability cannot be checked`);
+    return problems;
+  }
+
+  const field = <K extends keyof CoordinationCohort>(pick: K): string[] => [...new Set(all.map((record) => String(record.cohort?.[pick])))].sort();
+  for (const [name, values] of [["runtime", field("runtime")], ["benchmarkTaskId", field("benchmarkTaskId")], ["inputIdentity", field("inputIdentity")], ["plannedVariable", field("plannedVariable")]] as const) {
+    if (values.length > 1) {
+      problems.push(`the two arms disagree on ${name} (${values.join(", ")}), so they are not a paired comparison`);
+    }
+  }
+  // The record's own runtime must agree with the cohort's, or one of the two is wrong.
+  for (const record of all) {
+    if (record.cohort && record.cohort.runtime !== record.runtime) {
+      problems.push(`${record.taskId}: runtime ${record.runtime} disagrees with its cohort's ${record.cohort.runtime}`);
+    }
+  }
+  // Exactly the candidate stage is the planned variable, and it is present in one arm and absent in
+  // the other. A "planned variable" naming something else means this is not the experiment being asked
+  // about, whatever the pipelines happen to look like.
+  if (all.every((record) => record.cohort?.plannedVariable !== stage)) {
+    problems.push(`no cohort declares ${stage} as its planned variable, so these records are not an experiment about ${stage}`);
+  }
+  const arms = new Set(all.map((record) => record.cohort?.arm));
+  if (arms.size < 2) {
+    problems.push(`both sets share the arm label ${[...arms].join(", ")}, so they are one arm rather than a pair`);
+  }
+  // Nothing outside the planned variable may differ between the arms.
+  const pipelineOf = (records: readonly CoordinationRecord[]): string[] =>
+    [...new Set(records.map((record) => [...record.pipeline].sort().join("+")))].sort();
+  const baselinePipelines = pipelineOf(withoutStage);
+  const candidatePipelines = pipelineOf(withStage);
+  for (const pipeline of candidatePipelines) {
+    const withoutStageName = pipeline.split("+").filter((entry) => entry !== stage).join("+");
+    if (!baselinePipelines.includes(withoutStageName)) {
+      problems.push(`the candidate pipeline ${pipeline} has no matching baseline ${withoutStageName}, so more than the candidate stage differs between the arms`);
+    }
+  }
+  return problems;
 }
 
 /**
@@ -233,6 +393,10 @@ function missingDecisionMeasures(records: readonly CoordinationRecord[]): Coordi
  *  - ties go against the stage. If it changed neither defects nor rework, the cheaper pipeline wins,
  *    which is the book's rule read literally: "只增加 token/wall-time 且不改善 defect/rework" is
  *    precisely a tie on benefit plus a cost.
+ *
+ * `COST_ONLY` is a RESULT, not a failure of the experiment: the book's purpose is to prevent an
+ * unprofitable stage becoming default, so a stage that measurably buys nothing and costs more has been
+ * correctly evaluated, and the answer is to leave it out.
  */
 export function evaluateStageGuard(input: {
   stage: CoordinationStage;
@@ -256,10 +420,14 @@ export function evaluateStageGuard(input: {
   if (mixedRuntimes.size > 1) {
     reasons.push(`the two sets ran on different runtimes (${[...mixedRuntimes].sort().join(", ")}), so their costs are not comparable`);
   }
-  const missing = missingDecisionMeasures([...input.withStage, ...input.withoutStage]);
-  if (missing.length > 0) {
-    reasons.push(`the decision needs ${missing.join(", ")}, which was not observed`);
+  if (input.withStage.length > 0 && input.withoutStage.length > 0) {
+    reasons.push(...comparabilityProblems(input.withStage, input.withoutStage, stage));
   }
+  // Every record is checked against its own declaration and its own values. This is the fix for a
+  // defect that made the guard answerable only when the data was already clean: it previously looked
+  // at whether the measure appeared in ANY record's declaration, so one well-measured task could vouch
+  // for a set of tasks that had never measured the figure at all.
+  reasons.push(...decisionEvidenceProblems([...input.withStage, ...input.withoutStage]));
   if (reasons.length > 0) return { verdict: "INSUFFICIENT_EVIDENCE", stage, comparison: null, reasons };
 
   const baseline = combine(input.withoutStage);
