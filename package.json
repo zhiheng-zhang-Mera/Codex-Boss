@@ -74,7 +74,8 @@
     "test:impact:verify": "node scripts/test-impact.cjs verify",
     "test:catalogue:check": "node scripts/generate-test-catalogue.cjs --check",
     "platform:certificate": "node scripts/platform-certificate.cjs",
-    "soak:platform": "node scripts/platform-soak.cjs"
+    "soak:platform": "node scripts/platform-soak.cjs",
+    "verify:targeted": "node scripts/verify-targeted-vs-full.cjs"
   },
   "dependencies": {
     "cross-env": "10.1.0",

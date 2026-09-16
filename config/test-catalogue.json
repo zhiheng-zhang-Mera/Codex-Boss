@@ -255,6 +255,14 @@
       ]
     },
     {
+      "file": "tests/acceptance/targeted-vs-full.test.ts",
+      "tier": "acceptance",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the targeted selection and the same commit's full gate agree, and the pairing refuses when they do not"
+    },
+    {
       "file": "tests/acceptance/theme-engine.test.ts",
       "tier": "acceptance",
       "covers": [

@@ -6,7 +6,7 @@
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
 > All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6, 7 and 9 are met.
-> Task D's cost/benefit COMPARISON is unmeasured, and gates 2 and 8 remain open. This file records what is done, what is not, and what was
+> Only Task D's cost/benefit COMPARISON is unmeasured; gate 8 alone remains open. This file records what is done, what is not, and what was
 > measured, so the next round starts from evidence rather than a summary.
 
 ---
@@ -367,7 +367,23 @@ rather than the behaviour I had assumed.
 
 ---
 
-## 9. What reconnaissance established for the remaining tasks
+## 9. Gate 2 — the targeted selection and the full gate agree
+
+`scripts/verify-targeted-vs-full.cjs` (`pnpm run verify:targeted`) runs the full unit tier recording its result PER FILE, then asks the selector what that commit would have run, and compares two real lists rather than restating a summary.
+
+The record: **200 files / 2303 tests, all passed**; the selector chose **23 suites** and skipped **190**; **184 of the skipped suites ran and passed**, **0 skipped suites failed**, and **nothing the selector chose was absent**.
+
+Three things the script got wrong first and now refuses, each a real failure mode:
+
+1. it compared against ONE tier, so the seven catalogued suites that run in `test:slow` and `test:postbuild` read as phantom selections. They are now reported as covered elsewhere, and the tier split is checked as an invariant — a suite declared in another tier that nevertheless ran in the unit tier is a defect, not an excuse;
+2. it matched every quoted `tests/...` path in the tier file, which counted the desktop black-box contract (its own primary layer, and it DOES run in the unit tier) as an other-tier suite and then reported it as a defect. The parse is now scoped to the tier arrays by name;
+3. its refusal path still WROTE the record, so a probe overwrote the evidence a reader trusts. `GATE2_OUT` now redirects it, and the suite asserts the real record is byte-identical after probing — an assertion that failed before the fix, correctly.
+
+The generator refuses to agree when the full run recorded any failure, or when the selector chose a suite that no tier accounts for, and both refusals are exercised with synthetic run records.
+
+---
+
+## 10. What reconnaissance established for the remaining tasks
 Recorded here because it is the expensive part of Tasks C, D and F, and re-deriving it would waste a
 round. All read-only, from the real tree.
 
@@ -399,7 +415,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 10. Gaps found, recorded rather than hidden
+## 11. Gaps found, recorded rather than hidden
 
 - **`experience` and `remote` have no authoritative suite at all.** `electron/experience/` and
   `src/shared/experience.ts` exist and are owned; nothing tests them. `remote-relay.ts` is named only
@@ -413,7 +429,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 11. Remaining tasks and gates
+## 12. Remaining tasks and gates
 
 | Task | State |
 | --- | --- |
@@ -426,7 +442,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 | Gate | State |
 | --- | --- |
 | 1 — Phases 01–04 gates still pass | re-run this phase: unit **2276**, postbuild **102**, typecheck, security scan (1105 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
-| 2 — targeted run agrees with the full gate for the same commit | **partly**: the comparison mechanism (`test-impact.cjs verify`) exists and is tested, and the certificate records `recorded: false` for the full-suite pairing rather than claiming it |
+| 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 200 files / 2303 tests paired with the selector's decision for the same commit; 184 skipped suites all ran and passed, and nothing chosen was absent |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
@@ -440,7 +456,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 12. Rollback rule
+## 13. Rollback rule
 
 The book's rule is that any missed-coverage evidence degrades to the full suite immediately. That is
 implemented rather than promised: `blind`, `changedSetUnknown`, an unattributed file, and every

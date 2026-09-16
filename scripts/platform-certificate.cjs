@@ -268,11 +268,41 @@ function main() {
   sections.verification = {
     tiers: ["unit", "postbuild", "slow"],
     impactSelector: impactAudit,
-    targetedAndFullAgreement: {
-      mechanism: "scripts/test-impact.cjs verify",
-      recorded: false,
-      reason: "the selection has been compared against the catalogue and the audit is enforced by tests, but a run of the full suite paired with a selection has not been recorded as evidence yet; gate 2 is therefore reported as partly met rather than met"
-    },
+    targetedAndFullAgreement: (() => {
+      // Read the pairing record rather than restating it. It is produced from a REAL full-suite run
+      // recorded per file plus the selector's decision for the same commit, and the generator refuses
+      // to claim the gate when the record is absent or did not agree.
+      const pairingPath = path.join(ROOT, "artifacts", "platform-foundation", "phase-05", "targeted-vs-full.json");
+      if (!fs.existsSync(pairingPath)) {
+        return {
+          mechanism: "scripts/verify-targeted-vs-full.cjs",
+          recorded: false,
+          reason: "no pairing record exists, so gate 2 is reported as partly met rather than met; run `pnpm run verify:targeted` to produce it"
+        };
+      }
+      const pairing = JSON.parse(fs.readFileSync(pairingPath, "utf8"));
+      require_(pairing.agreement?.agrees === true, `the targeted/full pairing does not agree: ${(pairing.agreement?.problems ?? []).join("; ")}`);
+      require_(pairing.fullRun?.passed === true, "the recorded full run did not pass");
+      require_((pairing.pairing?.skippedThatFailed ?? []).length === 0, "the selector skipped a suite that failed in the full run");
+      return {
+        mechanism: "scripts/verify-targeted-vs-full.cjs",
+        recorded: true,
+        fullRun: pairing.fullRun,
+        selection: {
+          changedFiles: pairing.selection?.changedFiles,
+          selectedCount: pairing.selection?.selectedCount,
+          skippedCount: pairing.selection?.skippedCount,
+          fullRunRequired: pairing.selection?.fullRunRequired
+        },
+        pairing: {
+          skippedThatRan: (pairing.pairing?.skippedThatRan ?? []).length,
+          skippedThatFailed: (pairing.pairing?.skippedThatFailed ?? []).length,
+          chosenThatDidNotRun: (pairing.pairing?.chosenThatDidNotRun ?? []).length,
+          chosenInAnotherTier: (pairing.pairing?.chosenInAnotherTier ?? []).length
+        },
+        note: "the fast path ran a subset and skipped the rest; the same commit's full run contained every skipped suite, all passed, and nothing the selector chose was absent — which is what 'the full gate agrees' means"
+      };
+    })(),
     restartAndRecovery: {
       // Both halves of gate 7, and where each is proven. The crash-window case — effect applied,
       // settlement not recorded — is the one that makes replay dangerous, so it is named explicitly.
@@ -399,6 +429,7 @@ function main() {
         "impact-selector-owns-the-tree": sections.verification.impactSelector.unownedSourceFiles === 0,
         "soak-trend-measured-and-bounded": sections.soakResourceTrend.measured === true && sections.soakResourceTrend.trendWithinLongRunAllowance === true,
         "restart-loses-nothing-and-repeats-nothing": sections.verification.restartAndRecovery.suitesPresent,
+        "targeted-and-full-agree": sections.verification.targetedAndFullAgreement.recorded === true,
         "certificate-cannot-bypass-the-gate": BYPASSES_ROOT_OR_OWNER_GATE === false
       }
     }

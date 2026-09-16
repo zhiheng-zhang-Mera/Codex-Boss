@@ -173,12 +173,25 @@ describe("Phase 05 Task G — the certificate is honest about what has not run",
     expect(certificate.completeness.phaseStatus).toBe("PARTIAL");
   });
 
-  it("reports the gate 2 shortfall instead of claiming it was met", () => {
+  it("records the gate 2 pairing once it exists, and says so when it does not", () => {
     const certificate = generate();
-    // The selector/full-run comparison mechanism exists and is tested; it has not been recorded
-    // against a full-suite execution, and the certificate says exactly that.
-    expect(certificate.sections.verification.targetedAndFullAgreement.recorded).toBe(false);
-    expect(certificate.sections.verification.targetedAndFullAgreement.reason).toMatch(/partly met|not been recorded/i);
+    const agreement = certificate.sections.verification.targetedAndFullAgreement as Record<string, any>;
+    if (agreement.recorded === true) {
+      // A record exists, so the certificate must carry the real figures rather than a summary of them.
+      expect(agreement.fullRun.files).toBeGreaterThan(150);
+      expect(agreement.fullRun.tests).toBeGreaterThan(1_000);
+      expect(agreement.fullRun.passed).toBe(true);
+      expect(agreement.selection.selectedCount).toBeGreaterThan(0);
+      expect(agreement.selection.selectedCount).toBeLessThan(agreement.fullRun.files);
+      // The half that matters: the suites the fast path skipped were all present and all passed.
+      expect(agreement.pairing.skippedThatRan).toBeGreaterThan(0);
+      expect(agreement.pairing.skippedThatFailed).toBe(0);
+      expect(agreement.pairing.chosenThatDidNotRun).toBe(0);
+      expect(certificate.acceptance.evidence["targeted-and-full-agree"]).toBe(true);
+    } else {
+      // No record: the section must say so WITH A REASON rather than claim the gate.
+      expect(String(agreement.reason)).toMatch(/partly met|no pairing record/i);
+    }
   });
 
   it("names the capabilities with no authoritative suite", () => {

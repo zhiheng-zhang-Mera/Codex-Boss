@@ -262,5 +262,10 @@ export const BUILD_DEPENDENT_TESTS = [
   // Phase 05 gate 6: runs the soak-report generator with a short duration, which exercises the real
   // measurement path AND the real failure path — a short run is all warmup, so its trend genuinely
   // exceeds the published allowance and the generator must refuse to certify it.
-  "tests/acceptance/platform-soak-report.test.ts"
+  "tests/acceptance/platform-soak-report.test.ts",
+  // Phase 05 gate 2: runs the pairing generator, which loads the compiled selector and compares a
+  // selection against a REAL full-suite run recorded per file. It also exercises the refusal paths
+  // with synthetic run records, so a generator that agreed on top of a failing or phantom-pointing
+  // run would fail this suite.
+  "tests/acceptance/targeted-vs-full.test.ts"
 ];
