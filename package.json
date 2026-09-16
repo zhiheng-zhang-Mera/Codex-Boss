@@ -68,7 +68,11 @@
     "state:migration-report": "node scripts/state-migration-report.cjs",
     "state:probe": "node scripts/probe-sqlite.cjs",
     "capability:surface": "node scripts/permission-surface-report.cjs",
-    "data:lifecycle-report": "node scripts/data-lifecycle-report.cjs"
+    "data:lifecycle-report": "node scripts/data-lifecycle-report.cjs",
+    "test:impact": "node scripts/test-impact.cjs select",
+    "test:impact:audit": "node scripts/test-impact.cjs audit",
+    "test:impact:verify": "node scripts/test-impact.cjs verify",
+    "test:catalogue:check": "node scripts/generate-test-catalogue.cjs --check"
   },
   "dependencies": {
     "cross-env": "10.1.0",
