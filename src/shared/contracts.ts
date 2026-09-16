@@ -67,6 +67,15 @@ export interface BossTask {
   /** Rev.2 §20–§22: when present, MODEL_DONE may not complete the task until the
    *  risk-gated verification plan passes with evidence (fail-closed REWORK). */
   verification?: import("./result-validator").VerificationContract;
+  /**
+   * The OPTIONAL independent review Agent, when the task asked for one.
+   *
+   * Distinct from `verification` in kind, not just in degree: verification is a mandatory platform
+   * gate that decides completion eligibility, while this is optional Agent work whose place in a
+   * default pipeline is exactly what Gate 8 adjudicates. Persisted so the trace, the ledger and the
+   * snapshot all agree about which of the two ran.
+   */
+  optionalReview?: import("./optional-review").OptionalReviewRequest;
   /** R-204: how this task treats its provider conversation (default deterministic:
    *  chat PERSISTENT, automated WORK fresh TEMPORARY). */
   conversationPolicy?: import("./conversation-policy").ConversationPolicy;

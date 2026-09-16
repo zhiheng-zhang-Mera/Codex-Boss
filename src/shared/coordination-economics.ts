@@ -39,6 +39,46 @@ export const COORDINATION_STAGES = [
 ] as const;
 export type CoordinationStage = (typeof COORDINATION_STAGES)[number];
 
+/**
+ * The stages that are MANDATORY platform contract gates rather than optional Agent stages.
+ *
+ * A live paired experiment (`scripts/gate8-pair-run.cjs`, recorded in the Phase 05 status document)
+ * established why this distinction has to be explicit. Running the same task twice, with and without a
+ * verification contract, produced two arms whose durable records both contain `verify` — because
+ * `EngineeringRuntime` writes `verificationState` on every completed task. There is no legal production
+ * pipeline without the verification gate, so `verify` has no no-verify baseline and an experiment about
+ * it can only ever return `INSUFFICIENT_EVIDENCE`.
+ *
+ * The conclusion is a definition, not a workaround: verification is a platform INVARIANT that
+ * establishes task-completion eligibility (tests, typecheck, acceptance checks, `verificationState`).
+ * It is never a candidate for removal, so it must never be the variable an economics experiment
+ * changes. What Gate 8 governs is the OPTIONAL Agent stages — an independent review, a second review,
+ * a critique, an adjudication, an optional repair agent — whose only justification is that they reduce
+ * rework or escaped defects by more than they cost.
+ *
+ * So a stage in this list may legitimately appear in BOTH arms of an experiment; a stage outside it may
+ * not.
+ */
+export const MANDATORY_GATE_STAGES = ["intake", "verify", "finalize"] as const;
+export type MandatoryGateStage = (typeof MANDATORY_GATE_STAGES)[number];
+
+/**
+ * The stages Gate 8 may select as a candidate: everything that is not a mandatory gate.
+ *
+ * `plan` is included because a planning pass is genuinely optional work that costs tokens — but note
+ * that a task whose plan is compiled by a planner Agent and a task that takes the deterministic
+ * compileIntent path differ in more than one variable, so a pairing on `plan` has to be arranged with
+ * care. `review`, `repair` and `critique`-style stages are the natural candidates.
+ */
+export const OPTIONAL_AGENT_STAGES = COORDINATION_STAGES.filter(
+  (stage): stage is Exclude<CoordinationStage, MandatoryGateStage> => !(MANDATORY_GATE_STAGES as readonly string[]).includes(stage)
+);
+
+/** Whether a stage is a mandatory platform contract gate rather than an optional Agent stage. */
+export function isMandatoryGateStage(stage: string): stage is MandatoryGateStage {
+  return (MANDATORY_GATE_STAGES as readonly string[]).includes(stage);
+}
+
 /** Which figures a record actually observed, as opposed to leaving unmeasured. */
 export const COORDINATION_MEASURES = [
   "modelCalls",
@@ -133,6 +173,25 @@ export interface CoordinationRecord {
   taskId: string;
   /** The pipeline the task ran through, in order. */
   pipeline: CoordinationStage[];
+  /**
+   * Where `pipeline` came from.
+   *
+   * `executed-trace` — the durable ledger recorded these stages as they ran. This is the only source
+   * that is evidence about stage PRESENCE, because it does not depend on the stage having left a
+   * diff, a retry or a finding behind.
+   *
+   * `inferred` — reconstructed from the finished record by `pipelineFrom`, which is a legacy fallback
+   * for ledgers written before the trace existed. It cannot tell a mandatory gate from an optional
+   * Agent stage, so a real Gate 8 pairing refuses a record that carries it.
+   *
+   * `caller` — supplied by the caller of the adapter. Kept for the certificate's probe records and the
+   * deterministic fixtures, both of which construct their pipelines explicitly and neither of which
+   * claims to be a production observation.
+   *
+   * Optional so a record written before this field existed still loads; a real pairing treats an
+   * absent value as untrusted rather than as traced.
+   */
+  pipelineSource?: "executed-trace" | "inferred" | "caller";
   /**
    * Task-level totals. THE decision grain.
    *
@@ -560,6 +619,22 @@ export function evaluateStageGuard(input: {
 }): GuardResult {
   const reasons: string[] = [];
   const stage = input.stage;
+
+  // A mandatory platform contract gate has no legal no-gate production arm, so it can never be the
+  // thing an experiment varies. Refusing here — rather than leaving it to a reader to notice — is what
+  // stops a safety invariant from being silently adjudicated out of the pipeline. A live paired run
+  // about `verify` produced exactly this result and was recorded as a platform design finding.
+  if (isMandatoryGateStage(stage)) {
+    return {
+      verdict: "INSUFFICIENT_EVIDENCE",
+      stage,
+      comparison: null,
+      reasons: [
+        `${stage} is a mandatory platform contract gate, not an optional Agent stage: it establishes task-completion eligibility and is present in every completed task's trace, so no legal production pipeline runs without it`,
+        `Gate 8 judges whether an EXTRA Agent stage earns its place; a mandatory gate is not a candidate for removal`
+      ]
+    };
+  }
 
   if (input.withStage.length === 0) reasons.push(`no task ran the pipeline with ${stage}, so nothing is being compared`);
   if (input.withoutStage.length === 0) reasons.push(`no comparable task ran the pipeline without ${stage}, so there is no baseline`);

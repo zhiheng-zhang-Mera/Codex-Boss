@@ -1003,6 +1003,13 @@
       "obligation": "a single external dependency degrading stays local, is classified honestly, and reroutes or refuses accordingly"
     },
     {
+      "file": "tests/unit/platform/optional-review.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/platform/platform-health.test.ts",
       "tier": "unit",
       "covers": [
@@ -1018,6 +1025,13 @@
         "state-core"
       ],
       "obligation": "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure"
+    },
+    {
+      "file": "tests/unit/platform/provider-models.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tasks"
+      ]
     },
     {
       "file": "tests/unit/platform/provider-usage.test.ts",

@@ -7,7 +7,17 @@
 
 import { assembleStablePrompt, type DynamicPromptSections, type StaticPromptSections } from "./prompt-layout";
 
-type V4Model = "deepseek-v4-flash" | "deepseek-v4-pro";
+/**
+ * The DeepSeek model ids Boss may select.
+ *
+ * These are the ids the provider actually serves. A live check of `GET /v1/models` offered exactly
+ * `deepseek-flash` and `deepseek-v4-pro`. The id `deepseek-v4-flash` — which this file and
+ * `electron/api-settings.ts` used to declare — does not exist on that endpoint, so every policy that
+ * named it would have failed against the real API. The vocabulary is pinned here rather than
+ * discovered at startup (see `src/shared/provider-models.ts` for why, and for the declared-vs-observed
+ * contract a test holds this list to), so a provider outage cannot change what Boss will ask for.
+ */
+type V4Model = "deepseek-flash" | "deepseek-v4-pro";
 type V4Effort = "low" | "high" | "max";
 
 export interface ModelPolicy {
@@ -25,9 +35,9 @@ export interface ModelPolicy {
 export type PolicyStage = "classify" | "route" | "plan" | "code" | "review" | "research" | "synthesis" | "adjudicate";
 
 /** §17.1 flash/non-thinking — classification, schema normalization, metadata. */
-const CLASSIFY_POLICY: ModelPolicy = { model: "deepseek-v4-flash", thinking: "disabled", maxOutputTokens: 1000, jsonOutput: true, promptVersion: "flash-classify-v1" };
+const CLASSIFY_POLICY: ModelPolicy = { model: "deepseek-flash", thinking: "disabled", maxOutputTokens: 1000, jsonOutput: true, promptVersion: "flash-classify-v1" };
 /** §17.2 flash/low — routing, small code retrieval, simple review, diff summary. */
-const ROUTE_POLICY: ModelPolicy = { model: "deepseek-v4-flash", thinking: "enabled", effort: "low", maxOutputTokens: 2000, promptVersion: "flash-low-v1" };
+const ROUTE_POLICY: ModelPolicy = { model: "deepseek-flash", thinking: "enabled", effort: "low", maxOutputTokens: 2000, promptVersion: "flash-low-v1" };
 /** §17.3 pro/high — multi-module planning, complex debugging, research, synthesis. */
 const PRO_HIGH_POLICY: ModelPolicy = { model: "deepseek-v4-pro", thinking: "enabled", effort: "high", maxOutputTokens: 8000, promptVersion: "pro-high-v1" };
 /** §17.4 pro/max — high-risk decisions, hard-to-reproduce bugs, research adjudication. */

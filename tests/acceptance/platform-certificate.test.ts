@@ -158,19 +158,39 @@ describe("Phase 05 Task G — the certificate is honest about what has not run",
       expect(String(soak.reason)).toMatch(/not started|not been run|no resource trend/i);
       expect(certificate.completeness.notRun).toContain("soakResourceTrend");
     }
-    // Task D is not started either way, so this half does not depend on the run.
-    expect(certificate.sections.agentCoordinationEconomics.measured).toBe(false);
-    expect(certificate.completeness.notRun).toContain("agentCoordinationEconomics");
-    // What IS asserted is that the guard could refuse: a coordination rule that would promote a stage
-    // on an unobserved figure is worse than no rule, so the certificate checks the refusal live rather
-    // than describing it. This is why the invariant can be true while the section is unmeasured.
+    // Task D's section follows its evidence: measured once a REAL paired provider run reached a
+    // verdict, unmeasured (with a reason) until then. Asserted as a conditional on the artifact rather
+    // than hardcoded either way, because the point of the section is that it reports what happened —
+    // a hardcoded `false` would keep reporting "not started" after Gate 8 closed, and a hardcoded
+    // `true` would claim a measurement that was never taken.
     const coordination = certificate.sections.agentCoordinationEconomics as Record<string, any>;
+    const decided = (coordination.evaluations ?? []).filter(
+      (entry: { provenanceKind?: string; verdict?: string }) =>
+        entry.provenanceKind === "real-provider" && ["EARNS_PLACE", "COST_ONLY"].includes(entry.verdict ?? "")
+    );
+    if (decided.length > 0) {
+      expect(coordination.measured).toBe(true);
+      expect(certificate.completeness.notRun).not.toContain("agentCoordinationEconomics");
+      // A verdict is only meaningful alongside the figures it rests on.
+      for (const entry of decided) {
+        expect(entry.measuresUsed.length).toBeGreaterThan(0);
+        expect(typeof entry.pipelineChanged).toBe("boolean");
+      }
+    } else {
+      expect(coordination.measured).toBe(false);
+      expect(String(coordination.reason)).toMatch(/no verdict|not started|no per-task/i);
+      expect(certificate.completeness.notRun).toContain("agentCoordinationEconomics");
+    }
+    // What is asserted either way is that the guard could refuse: a coordination rule that would
+    // promote a stage on an unobserved figure is worse than no rule, so the certificate checks the
+    // refusal live rather than describing it.
     expect(coordination.modelDelivered).toBe(true);
     expect(coordination.guard.refusesWithoutABaseline).toBe(true);
     expect(coordination.guard.refusesOnAnUnmeasuredFigure).toBe(true);
     expect(coordination.guard.verdicts).toContain("INSUFFICIENT_EVIDENCE");
-    // And the phase is PARTIAL until Task D's evidence lands.
-    expect(certificate.completeness.phaseStatus).toBe("PARTIAL");
+    // The phase status is DERIVED from the sections, so it can never claim COMPLETE while a section
+    // reports no measurement — the one direction in which a hardcoded status would be dangerous.
+    expect(certificate.completeness.phaseStatus).toBe(certificate.completeness.notRun.length === 0 ? "COMPLETE" : "PARTIAL");
   });
 
   it("records the gate 2 pairing once it exists, and says so when it does not", () => {

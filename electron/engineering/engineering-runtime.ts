@@ -100,6 +100,10 @@ export class EngineeringRuntime {
           state.jobs[key].result = { runtimeId: "engineering", jobId: step.id, status: passed ? "SUCCESS" : "PERMANENT_FAILURE", content: output };
           if (passed || deferred) state.jobs[key].completedAt = new Date().toISOString();
           if (passed) { state.completedSteps = [...new Set([...state.completedSteps, step.id])]; state.pendingSteps = state.pendingSteps.filter((id) => id !== step.id); }
+          // The MANDATORY verification lifecycle, kept OUT of `executedStages`: this is the platform
+          // contract gate that establishes completion eligibility, not an Agent stage that could be
+          // added to or removed from a pipeline, so it must never become an economics variable.
+          // The trace itself records the Agent stages and is written where each one starts.
           state.verificationState = passed ? "PASS" : "FAILED";
         }); return item;
       }));

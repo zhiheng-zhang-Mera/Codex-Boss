@@ -152,7 +152,7 @@ describe("Phase F — the persistence boot module", () => {
   it("uses the injected crypto and never stores an API key in the clear", () => {
     const root = makeRoot();
     const first = build(root);
-    first.service.apiSettings.update({ providerId: "deepseek", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-v4-flash", apiKey: "sk-secret-value" });
+    first.service.apiSettings.update({ providerId: "deepseek", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-flash", apiKey: "sk-secret-value" });
     const onDisk = fs.readFileSync(path.join(root, "api-settings.json"), "utf8");
     expect(onDisk).toContain("enc:");
     expect(onDisk).not.toContain("sk-secret-value");
@@ -167,7 +167,7 @@ describe("Phase F — the persistence boot module", () => {
     // at boot, so the very first snapshot already reflects durable settings.
     const root = makeRoot();
     const first = build(root);
-    first.service.apiSettings.update({ providerId: "deepseek", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-v4-flash", apiKey: "sk-secret-value" });
+    first.service.apiSettings.update({ providerId: "deepseek", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-flash", apiKey: "sk-secret-value" });
     const second = build(root);
     const entry = second.service.store.snapshot().apiSettings.find((item) => item.providerId === "deepseek");
     expect(entry?.hasApiKey).toBe(true);

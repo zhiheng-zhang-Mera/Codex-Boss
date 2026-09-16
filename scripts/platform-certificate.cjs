@@ -422,6 +422,9 @@ function main() {
   const BYPASSES_ROOT_OR_OWNER_GATE = false;
   require_(BYPASSES_ROOT_OR_OWNER_GATE === false, "the certificate would claim it can bypass the Root/Owner gate");
 
+  /** Sections that report no measurement. The phase status is derived from this, never declared. */
+  const notRunSections = Object.entries(sections).filter(([, section]) => section && section.measured === false).map(([name]) => name).sort();
+
   const certificate = {
     $comment: "Phase 05 platform certificate. Every section is recomputed from the compiled platform and cross-checked against the phase artifact it names; disagreements fail the generator rather than being reported. Sections whose task is not started say so instead of reporting a measurement that was never taken.",
     generatedAt: new Date().toISOString(),
@@ -431,8 +434,18 @@ function main() {
     completeness: {
       delivered: Object.entries(sections).filter(([, section]) => !section || section.measured !== false).map(([name]) => name).sort(),
       notRun: Object.entries(sections).filter(([, section]) => section && section.measured === false).map(([name]) => name).sort(),
-      phaseStatus: "PARTIAL",
-      note: "the phase is PARTIAL: Tasks D, E and F are not complete, and this certificate reports that rather than certifying a phase that is not finished"
+      /**
+       * Derived from the sections rather than declared.
+       *
+       * A hardcoded status can only be wrong in one of two ways: it keeps reporting PARTIAL after the
+       * work is done, or it reports COMPLETE while a section says a measurement was never taken. The
+       * second is the dangerous one, so the status is COMPLETE only when NO section reports
+       * `measured: false`, and the note names whatever is still outstanding.
+       */
+      phaseStatus: notRunSections.length === 0 ? "COMPLETE" : "PARTIAL",
+      note: notRunSections.length === 0
+        ? "every section reports a measurement that was actually taken; the certificate reports the phase's own gates, and the promotion fields below remain non-authorizing by design"
+        : `the phase is PARTIAL: ${notRunSections.join(", ")} report no measurement, and this certificate reports that rather than certifying work that is not finished`
     },
     promotion: {
       consumableBySelfEvolution: true,

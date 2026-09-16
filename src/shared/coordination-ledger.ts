@@ -74,7 +74,16 @@ export interface LedgerRecordView {
     providerWaitMs: number;
   };
   sessions: Array<{ provider: string; health: string }>;
+  /** Findings an optional review Agent raised. Absent when no reviewer ran. */
+  reviewFindings?: number;
   jobs: Record<string, { attempts: number; state: "RUNNING" | "COMPLETED" | "WAITING" | "FAILED"; startedAt?: string; completedAt?: string }>;
+  /**
+   * The durable first-class execution trace, when the ledger has one.
+   *
+   * This is the PREFERRED source for "which stages ran". Absent on a ledger written before the trace
+   * existed, which is the only case in which the inference below is used.
+   */
+  executedStages?: Array<{ stage: string; kind: "agent" | "platform"; startedAt: string }>;
 }
 
 /** What a caller must supply that the ledger does not carry. */
@@ -89,7 +98,16 @@ export interface CoordinationDerivationOptions {
   at: string;
 }
 
-/** Stages implied by the ledger's own record of what happened. */
+/**
+ * Stages implied by the ledger's own record of what happened.
+ *
+ * LEGACY FALLBACK, and only that. It infers `implement` from a non-empty `modifiedFiles`, `verify`
+ * from a non-`NOT_RUN` verification state and `repair` from a retry or a failure, so a stage that ran
+ * without producing a diff, a retry or a failure is invisible to it — and a mandatory gate is
+ * indistinguishable from an optional Agent stage. That is precisely the ambiguity that made a live
+ * experiment about `verify` unanswerable, so a record carrying the durable trace does NOT come through
+ * here. Kept so a ledger written before the trace existed still yields a record, flagged as inferred.
+ */
 function pipelineFrom(record: LedgerRecordView): CoordinationStage[] {
   const pipeline: CoordinationStage[] = [];
   pipeline.push("intake");
@@ -101,6 +119,24 @@ function pipelineFrom(record: LedgerRecordView): CoordinationStage[] {
   if (record.usage.retries > 0 || record.failureHistory.length > 0) pipeline.push("repair");
   pipeline.push("finalize");
   return [...new Set(pipeline)].filter((stage) => COORDINATION_STAGES.includes(stage));
+}
+
+/**
+ * The executed pipeline, from the trace when there is one.
+ *
+ * Returns the stages AND where the list came from. A reader — and the guard — must be able to tell a
+ * recorded observation from a reconstruction, because only the first is evidence about stage presence.
+ * A trace that names stages the vocabulary does not know is not silently trimmed: the unknown names
+ * are reported, so a pipeline cannot quietly lose a stage it actually ran.
+ */
+export function executedPipelineOf(record: LedgerRecordView): { stages: CoordinationStage[]; source: "executed-trace" | "inferred"; unknown: string[] } {
+  const trace = record.executedStages;
+  if (Array.isArray(trace) && trace.length > 0) {
+    const named = trace.map((entry) => entry.stage);
+    const stages = named.filter((stage): stage is CoordinationStage => COORDINATION_STAGES.includes(stage as CoordinationStage));
+    return { stages: [...new Set(stages)], source: "executed-trace", unknown: [...new Set(named.filter((stage) => !stages.includes(stage as CoordinationStage)))] };
+  }
+  return { stages: pipelineFrom(record), source: "inferred", unknown: [] };
 }
 
 /** Wall time from the job graph, which is the only durable timing the ledger keeps. */
@@ -132,8 +168,13 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
   verificationFailed: boolean;
   /** Why `inputTokens` is or is not a real measurement, so the provenance travels with the record. */
   tokenProvenance: string;
+  /** Where the pipeline list came from, and any stage name the vocabulary did not recognize. */
+  pipelineProvenance: { source: "executed-trace" | "inferred" | "caller"; unknown: string[] };
 } {
-  const pipeline = options.pipeline ?? pipelineFrom(record);
+  const observed = options.pipeline
+    ? { stages: options.pipeline, source: "caller" as const, unknown: [] }
+    : executedPipelineOf(record);
+  const pipeline = observed.stages;
   const wallMs = wallMsFrom(record);
   const reworkAvoided = reworkAvoidedFrom(record);
   const diffLines = options.diffLines === undefined ? null : options.diffLines;
@@ -159,7 +200,7 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
     wallMs,
     coordinationMs: record.usage.providerWaitMs,
     executionMs: record.usage.workerRuntimeMs,
-    reviewFindings: record.failureHistory.length,
+    reviewFindings: record.reviewFindings ?? null,
     reworkAvoided,
     diffLines,
     defectsEscaped: null
@@ -174,8 +215,11 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
   if (wallMs !== null) measured.push("wallMs");
   if (record.usage.providerWaitMs >= 0) measured.push("coordinationMs");
   if (record.usage.workerRuntimeMs >= 0) measured.push("executionMs");
-  // `failureHistory` is a real, durable list, so its length is a measurement even when it is zero.
-  measured.push("reviewFindings");
+  // An OPTIONAL review Agent's findings, when one ran. Absent means no reviewer ran, which is a
+  // different fact from a reviewer that ran and found nothing — so this is measured only when the
+  // ledger actually carries the count, and the "no reviewer" arm leaves it unmeasured rather than
+  // reporting a zero that a comparison would then trust.
+  if (record.reviewFindings !== undefined) measured.push("reviewFindings");
   if (reworkAvoided !== null) measured.push("reworkAvoided");
   if (diffLines !== null) measured.push("diffLines");
   // `inputTokens`, `outputTokens` and `defectsEscaped` are deliberately ABSENT from that list, and the
@@ -197,6 +241,7 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
     record: {
       taskId: record.taskId,
       pipeline,
+      ...(observed.source === "caller" ? {} : { pipelineSource: observed.source }),
       totals,
       measured,
       stages,
@@ -216,6 +261,7 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
     verificationFailed: record.verificationState === "FAILED",
     tokenProvenance: record.usage.providerInputTokens !== undefined
       ? `inputTokens came from the provider's own usage block (${record.usage.providerInputTokens} prompt tokens), persisted on the ledger`
-      : "inputTokens is unmeasured: the provider returned no usage block, and the platform's ceil(characters / 4) figure is a diagnostic rather than a measurement"
+      : "inputTokens is unmeasured: the provider returned no usage block, and the platform's ceil(characters / 4) figure is a diagnostic rather than a measurement",
+    pipelineProvenance: { source: observed.source, unknown: observed.unknown }
   };
 }

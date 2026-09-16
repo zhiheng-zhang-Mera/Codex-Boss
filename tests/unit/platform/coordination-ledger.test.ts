@@ -42,9 +42,16 @@ describe("Phase 05 Task D — the ledger adapter reports only what the ledger ob
     const { record, unmeasured, tokenProvenance } = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
     expect(record.runtime).toBe("api:deepseek");
     // Observed at the task grain, and declared.
-    for (const measure of ["modelCalls", "wallMs", "coordinationMs", "executionMs", "reviewFindings", "reworkAvoided"] as const) {
+    for (const measure of ["modelCalls", "wallMs", "coordinationMs", "executionMs", "reworkAvoided"] as const) {
       expect(record.measured, `${measure} should be declared`).toContain(measure);
     }
+    // `reviewFindings` is NOT among them for this ledger: no review Agent ran, so there are no
+    // findings to count. It used to be taken from `failureHistory.length`, which credited a reviewer
+    // with the interruptions the loop suffered — a different event entirely, and one that reported a
+    // confident zero for a stage that never ran.
+    expect(record.measured, "reviewFindings must not be declared when no reviewer ran").not.toContain("reviewFindings");
+    expect(record.totals.reviewFindings).toBeNull();
+    expect(unmeasured).toContain("reviewFindings");
     // NOT observed, and honestly absent. `inputTokens` is the one the provenance audit changed.
     for (const measure of ["inputTokens", "outputTokens", "defectsEscaped"] as const) {
       expect(record.measured, `${measure} must NOT be declared`).not.toContain(measure);
@@ -165,5 +172,78 @@ describe("Phase 05 Task D — the ledger adapter reports only what the ledger ob
     const first = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
     const second = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
     expect(second).toEqual(first);
+  });
+
+  /* ---------------------------------------------------------------- *
+   * the durable execution trace (Gate 8's stage-presence evidence)
+   * ---------------------------------------------------------------- */
+
+  it("reads stage presence from the execution trace, not from the finished record", () => {
+    // The point of the trace: `review` ran here, and NOTHING in the inferred inputs says so — no
+    // extra model call pattern, no retry, no diff of its own. Inference would report a pipeline
+    // without `review`, which is exactly how a stage that ran becomes invisible.
+    const traced = coordinationRecordFromLedger(
+      ledgerRecord({ executedStages: [{ stage: "intake", kind: "platform", startedAt: AT }, { stage: "review", kind: "agent", startedAt: AT }] }),
+      { at: AT }
+    );
+    expect(traced.record.pipeline).toContain("review");
+    expect(traced.record.pipelineSource).toBe("executed-trace");
+    expect(traced.pipelineProvenance.source).toBe("executed-trace");
+
+    // Without a trace the adapter still answers, but says the answer was reconstructed.
+    const inferred = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
+    expect(inferred.record.pipelineSource).toBe("inferred");
+    expect(inferred.record.pipeline).not.toContain("review");
+  });
+
+  it("keeps a mandatory gate in the trace while refusing to call it an Agent stage", () => {
+    // `verify` is recorded as a PLATFORM stage. Both arms of a real experiment carry it, which is the
+    // platform property that made it impossible to use as an A/B variable.
+    const { record } = coordinationRecordFromLedger(
+      ledgerRecord({ executedStages: [
+        { stage: "intake", kind: "platform", startedAt: AT },
+        { stage: "plan", kind: "agent", startedAt: AT },
+        { stage: "implement", kind: "platform", startedAt: AT },
+        { stage: "verify", kind: "platform", startedAt: AT },
+        { stage: "finalize", kind: "platform", startedAt: AT }
+      ] }),
+      { at: AT }
+    );
+    expect(record.pipeline).toEqual(expect.arrayContaining(["intake", "plan", "implement", "verify", "finalize"]));
+    expect(record.pipeline).not.toContain("review");
+  });
+
+  it("reports an unrecognized stage name instead of silently dropping it", () => {
+    // A stage the vocabulary does not know must not vanish, or a pipeline could quietly lose a stage
+    // it actually ran and the trace would look complete.
+    const { record, pipelineProvenance } = coordinationRecordFromLedger(
+      ledgerRecord({ executedStages: [{ stage: "adjudicate", kind: "agent", startedAt: AT }, { stage: "intake", kind: "platform", startedAt: AT }] }),
+      { at: AT }
+    );
+    expect(record.pipeline).toEqual(["intake"]);
+    expect(pipelineProvenance.unknown).toEqual(["adjudicate"]);
+  });
+
+  it("counts review findings only when a reviewer actually ran", () => {
+    // Zero from a real reviewer and absent-because-none-ran are different facts, and the guard needs
+    // to tell them apart: one is a measurement, the other is not evidence at all.
+    const reviewed = coordinationRecordFromLedger(ledgerRecord({ reviewFindings: 0 }), { at: AT });
+    expect(reviewed.record.measured).toContain("reviewFindings");
+    expect(reviewed.record.totals.reviewFindings).toBe(0);
+
+    const raised = coordinationRecordFromLedger(ledgerRecord({ reviewFindings: 3 }), { at: AT });
+    expect(raised.record.totals.reviewFindings).toBe(3);
+
+    const noReviewer = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
+    expect(noReviewer.record.measured).not.toContain("reviewFindings");
+  });
+
+  it("never infers a review stage from a failure the loop suffered", () => {
+    // The specific confusion the correction removes: five interruptions are not five review findings.
+    const { record } = coordinationRecordFromLedger(ledgerRecord({ failureHistory: [{ kind: "A" }, { kind: "B" }] }), { at: AT });
+    expect(record.pipeline).not.toContain("review");
+    expect(record.measured).not.toContain("reviewFindings");
+    // The interruptions are still reported, under the name that describes them.
+    expect(record.pipeline).toContain("repair");
   });
 });

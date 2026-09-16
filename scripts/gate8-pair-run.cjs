@@ -59,17 +59,51 @@ function parseArgs(argv) {
 }
 
 /* ------------------------------------------------------------------ *
- * the representative task
+ * the representative task, and the candidate stages that may vary
  * ------------------------------------------------------------------ */
 
 /**
  * One objective, run identically in both arms. It is a real refactor request against a real git
  * repository with a real passing test suite: the planner has to produce a plan, the coder has to
- * produce hash-bound proposals that the host applies and tests, and the verify stage has something
- * to actually verify. `needsPlanning()` is satisfied so the full production plan path is taken
- * rather than the deterministic L0 shortcut.
+ * produce hash-bound proposals that the host applies and tests, and the mandatory verification gate
+ * has something to actually verify. `needsPlanning()` is satisfied so the full production plan path is
+ * taken rather than the deterministic L0 shortcut.
  */
 const OBJECTIVE = "按照 tasks.md 重构项目并确保测试通过";
+
+/**
+ * The candidate stages an experiment may vary, and how each one differs between its arms.
+ *
+ * `verify` is deliberately ABSENT. A live paired run established that the verification gate is present
+ * in every completed task — `EngineeringRuntime` writes `verificationState` on every task, contract or
+ * not — so there is no legal production pipeline without it and no baseline to subtract. It is a
+ * mandatory platform contract gate, not an optional Agent stage, and `evaluateStageGuard` now refuses
+ * it by kind. The evidence from that run is preserved in the Phase 05 status document: its provenance
+ * was real-provider and its result was INSUFFICIENT_EVIDENCE for this reason.
+ *
+ * Every entry here must therefore be a stage whose presence the durable execution trace can record,
+ * and which a production task can legitimately be configured without.
+ */
+const CANDIDATE_STAGES = {
+  review: {
+    plannedVariable: "review",
+    benchmarkTaskId: "boss-gate8-refactor",
+    /**
+     * The MANDATORY verification contract, carried by BOTH arms.
+     *
+     * It is not the variable and must never be: it is the platform gate that decides completion
+     * eligibility. Both arms passing it is what makes the comparison a comparison of the review alone.
+     */
+    verification: { domain: "engineering", risk: "low" },
+    /** The acceptance criteria both arms are judged against, given to the reviewer as context. */
+    acceptance: "all four modules keep their existing behaviour and the suite in all.test.cjs passes",
+    /** What the candidate arm asks for, and the baseline arm does not. */
+    optionalReview: { passes: 1, acceptance: "all four modules keep their existing behaviour and the suite in all.test.cjs passes" },
+    /** The provider role the optional stage is dispatched as. */
+    reviewerRole: "reviewer",
+    describe: (arm) => (arm === "with" ? "with the optional independent review Agent" : "without the optional independent review Agent")
+  }
+};
 
 const MODULES = ["alpha.cjs", "bravo.cjs", "charlie.cjs", "delta.cjs"];
 const MODULE_BODY = "module.exports=(x)=>x;\n";
@@ -100,13 +134,13 @@ function makeWorkspace(label) {
  * ------------------------------------------------------------------ */
 
 /**
- * Run the objective once.
+ * Run the objective once, for one arm of one candidate stage.
  *
- * `withVerify` is the planned variable: the arm that carries a verification contract runs the
- * risk-gated verification gate; the arm without it follows the legacy completion path. Nothing else
- * differs — same objective, same workspace shape, same provider, same model.
+ * The arm configuration is the ONLY difference between the two runs of an experiment: same objective,
+ * same workspace shape, same provider and model, same mandatory verification. `withCandidate` decides
+ * whether the optional Agent stage runs at all.
  */
-async function runArm(options, withVerify) {
+async function runArm(options, withCandidate) {
   const { MainCommander } = load("electron/commander/main-commander.js");
   const { StateStore } = load("electron/store.js");
   const { RuntimeRegistry } = load("electron/commander/runtime-registry.js");
@@ -120,7 +154,7 @@ async function runArm(options, withVerify) {
   const { ProviderApiClient } = load("electron/provider-api.js");
   const { ApiRuntime } = load("electron/runtimes/native-api-runtime.js");
 
-  const armLabel = withVerify ? "with-verify" : "without-verify";
+  const armLabel = withCandidate ? `with-${options.stage}` : `without-${options.stage}`;
   const armRoot = path.join(options.dataRoot, armLabel);
   fs.mkdirSync(armRoot, { recursive: true });
   const workspace = makeWorkspace(armLabel);
@@ -156,14 +190,34 @@ async function runArm(options, withVerify) {
     new ContextManager(), new ExecutionGate(), ledger
   );
 
+  // The OPTIONAL review Agent's reviewer. Production dispatches the "reviewer" role through the same
+  // role router and supervisor every other model call goes through, so the review's tokens are counted
+  // exactly like any other work — which is the cost side of the comparison. Set on every arm so the
+  // only difference between them is whether the stage is REQUESTED.
+  const stage = CANDIDATE_STAGES[options.stage];
+  if (typeof stage?.describe !== "function") {
+    throw new Error(`unknown candidate stage '${options.stage}'; the harness supports: ${Object.keys(CANDIDATE_STAGES).join(", ")}`);
+  }
+
   const task = commander.createTask({
     title: `gate8 ${armLabel}`,
     objective: OBJECTIVE,
     providerIds: [options.provider],
     appMode: "work",
     transports: { [options.provider]: "api" },
-    ...(withVerify ? { verification: { domain: "engineering", risk: "low" } } : {})
+    // The MANDATORY gate, on BOTH arms: it is the platform invariant, not the variable.
+    ...(stage.verification ? { verification: stage.verification } : {}),
+    // The OPTIONAL Agent stage, on the candidate arm only.
+    ...(withCandidate && stage.optionalReview ? { optionalReview: stage.optionalReview } : {})
   });
+
+  if (stage.reviewerRole) {
+    commander.optionalReviewer = async (prompt) => {
+      const answer = await commander.dispatchRole(task.id, stage.reviewerRole, prompt);
+      if (answer.status !== "SUCCESS" || !answer.content) throw new Error(answer.failure?.message ?? "reviewer unavailable");
+      return answer.content;
+    };
+  }
 
   const started = Date.now();
   let status = "UNKNOWN";
@@ -196,7 +250,10 @@ async function runArm(options, withVerify) {
     failure,
     wallMs,
     verification: persisted?.verificationState ?? "ABSENT",
-    hasVerificationContract: withVerify,
+    /** The stages the durable trace recorded, so a reader sees presence rather than a reconstruction. */
+    executedStages: (persisted?.executedStages ?? []).map((entry) => `${entry.stage}:${entry.kind}`),
+    reviewFindings: persisted?.reviewFindings ?? null,
+    hasCandidateStage: withCandidate,
     modelCalls: usage.modelCalls ?? 0,
     providerInputTokens: usage.providerInputTokens ?? null,
     providerOutputTokens: usage.providerOutputTokens ?? null,
@@ -251,8 +308,8 @@ function buildPair(input) {
   const store = openCoordinationStore(ROOT);
   const at = new Date().toISOString();
   const derived = [];
-  for (const arm of ["without-verify", "with-verify"]) {
-    const armResult = input.arms[arm === "without-verify" ? "without" : "with"];
+  for (const arm of [`without-${candidateStage}`, `with-${candidateStage}`]) {
+    const armResult = input.arms[arm.startsWith("without") ? "without" : "with"];
     const recorder = createCoordinationRecorder({
       ledgerRoot: armResult.ledgerRoot,
       // The recorder persists through the same production store; the artifact is written once below.
@@ -276,11 +333,11 @@ function buildPair(input) {
   }
   store.putRecords(derived.map((entry) => entry.record));
 
-  const pairId = `gate8-verify-${input.runLabel}`;
+  const pairId = `gate8-${candidateStage}-${input.runLabel}`;
   const pairing = store.putPair({
     pairId,
-    candidateStage: cohort.plannedVariable,
-    describes: `${cohort.plannedVariable}: the risk-gated verification contract on a '${OBJECTIVE}' refactor, one real provider run per arm`,
+    candidateStage,
+    describes: `${candidateStage}: the OPTIONAL independent review Agent on a real refactor, with the mandatory verification contract carried by BOTH arms, one real provider run per arm`,
     cohort,
     baselineTaskIds: [input.arms.without.taskId],
     candidateTaskIds: [input.arms.with.taskId],
@@ -288,7 +345,7 @@ function buildPair(input) {
       executedAt: input.executedAt ?? at,
       kind: "real-provider",
       entryPoint: "scripts/gate8-pair-run.cjs",
-      notes: `provider ${input.provider}, model ${input.model}; both arms ran through MainCommander.executePlan with the production ApiRuntime and ProviderApiClient`
+      notes: `provider ${input.provider}, model ${input.model}; both arms ran through MainCommander.executePlan with the production ApiRuntime and ProviderApiClient, and both carried the mandatory verification contract. Stage presence is read from the durable execution trace, not inferred.`
     }
   });
   store.save(at);
@@ -324,6 +381,13 @@ async function main() {
     ? path.resolve(options["data-root"])
     : fs.mkdtempSync(path.join(os.tmpdir(), "boss-gate8-"));
   fs.mkdirSync(dataRoot, { recursive: true });
+  const candidateStage = typeof options.stage === "string" ? options.stage : "review";
+  const stage = CANDIDATE_STAGES[candidateStage];
+  if (!stage) {
+    process.stderr.write(`gate8: unknown --stage '${candidateStage}'; this harness supports ${Object.keys(CANDIDATE_STAGES).join(", ")}\n`);
+    process.stderr.write("gate8: `verify` is deliberately not among them — it is a mandatory platform contract gate with no legal no-verify arm\n");
+    return 2;
+  }
 
   const planFile = path.join(dataRoot, "gate8-run.json");
   if (command === "pair") {
@@ -335,7 +399,7 @@ async function main() {
     return buildPair(JSON.parse(fs.readFileSync(planFile, "utf8")));
   }
 
-  const resolved = { provider, credential, baseUrl: url, model, dataRoot };
+  const resolved = { provider, credential, baseUrl: url, model, dataRoot, stage: candidateStage };
   // Deliberately sequential: two live provider runs must not contend for rate limit, and the
   // baseline has to finish before the candidate starts for the pair to be a pair.
   const baseline = await runArm(resolved, false);
@@ -349,9 +413,9 @@ async function main() {
     // From the runtime object, not from the provider id: the ledger records the runtime id, and a
     // cohort spelling it differently is a pairing the guard correctly refuses.
     runtime: baseline.runtimeId,
-    benchmarkTaskId: "boss-gate8-refactor",
+    benchmarkTaskId: stage.benchmarkTaskId,
     inputIdentity: `objective:${Buffer.from(OBJECTIVE, "utf8").toString("hex").slice(0, 32)}`,
-    plannedVariable: "verify"
+    plannedVariable: stage.plannedVariable
   };
   const plan = {
     runLabel,
@@ -370,9 +434,10 @@ async function main() {
   // Printed shape: counts, ids and booleans. Never the credential, never a prompt, never a reply.
   for (const arm of [baseline, candidate]) {
     process.stdout.write(
-      `[gate8] ${arm.arm.padEnd(15)} status=${arm.status.padEnd(10)} verification=${String(arm.verification).padEnd(7)}` +
-      ` modelCalls=${arm.modelCalls} providerInputTokens=${arm.providerInputTokens ?? "unmeasured"}` +
-      ` retries=${arm.retries} modifiedFiles=${arm.modifiedFiles} wallMs=${arm.wallMs}\n`
+      `[gate8] ${arm.arm.padEnd(22)} status=${arm.status.padEnd(10)} verification=${String(arm.verification).padEnd(7)}` +
+      ` modelCalls=${arm.modelCalls} inputTokens=${arm.providerInputTokens ?? "unmeasured"}` +
+      ` reviewFindings=${arm.reviewFindings ?? "unmeasured"} retries=${arm.retries}\n` +
+      `[gate8]   trace=${arm.executedStages.join(", ") || "none"} modifiedFiles=${arm.modifiedFiles} wallMs=${arm.wallMs}\n`
     );
     if (arm.failure) process.stdout.write(`[gate8]   failure: ${arm.failure}\n`);
   }

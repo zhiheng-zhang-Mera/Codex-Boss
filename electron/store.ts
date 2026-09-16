@@ -498,6 +498,21 @@ export class StateStore {
     this.persist();
   }
 
+  /**
+   * Ask the OPTIONAL independent review Agent to run for this task.
+   *
+   * Kept separate from `setVerificationContract` because the two are different kinds of thing: that is
+   * a mandatory platform gate, this is optional Agent work. Nothing here is validated against a
+   * contract vocabulary, because there is no safety property to enforce — only a cost to measure.
+   */
+  setOptionalReview(taskId: string, request: import("../src/shared/optional-review").OptionalReviewRequest): void {
+    const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Unknown task");
+    task.optionalReview = { ...(request.passes !== undefined ? { passes: request.passes } : {}), ...(request.acceptance ? { acceptance: request.acceptance } : {}) };
+    task.updatedAt = new Date().toISOString();
+    this.persist();
+  }
+
   /** R-204: persists the task's conversation policy (TEMPORARY/REUSABLE/PERSISTENT/AUTO_DELETE). */
   setConversationPolicy(taskId: string, policy: import("../src/shared/conversation-policy").ConversationPolicy): void {
     if (!isConversationPolicy(policy)) throw new Error("Invalid conversation policy");

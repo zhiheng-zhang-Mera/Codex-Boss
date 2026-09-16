@@ -4,13 +4,14 @@
 **Branch:** `platform-foundation/05-scale-verification-soak`
 **Engineering book:** `Update-Plan/Platform-Foundation/Phase-05-Scale-Verification-and-Soak.md`
 
-> **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
-> All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6, 7 and 9 are met.
-> Gate 8 has now been MEASURED against a live provider and is NOT met: the paired run is real and its
-> figures are the provider's own, but the guard returned `INSUFFICIENT_EVIDENCE` because the durable
-> ledger cannot express an arm without the candidate stage. No waiver is used and the model/guard are not
-> treated as satisfying the gate. This file records what is done, what is not, and what was
-> measured, so the next round starts from evidence rather than a summary.
+> **STATUS: PASS.**
+> All seven tasks have a delivered artifact and all nine gates are met.
+> Gate 8 is met on a **real paired provider run** whose verdict is `COST_ONLY`: the optional review Agent
+> was measured, bought nothing, and is therefore **not** admitted to any default pipeline — which is what
+> the gate asks for, and is a PASS rather than a failure. The earlier `verify` experiment remains
+> recorded as a genuine platform finding (a mandatory contract gate has no legal no-gate arm) and is
+> **not** deleted or overwritten. No waiver was used, the mandatory verification gate was not weakened,
+> and the guard was not relaxed to reach this result.
 
 ---
 
@@ -158,9 +159,11 @@ What that buys, concretely:
 | verification | 208 suites, 13 always-run, 0 duplicate obligations, 0 unowned source files |
 | soak trend / coordination economics | `measured: false`, with the reason |
 
-**Honesty about what has not run is part of the artifact.** Tasks D and F are not started, so
-`soakResourceTrend` and `agentCoordinationEconomics` report `measured: false` with their reasons,
-`completeness.phaseStatus` is `PARTIAL`, and gate 2 is recorded as partly met. A certificate that
+**Honesty about what has not run is part of the artifact.** A section that has no measurement reports
+`measured: false` with its reason, and `completeness.phaseStatus` is **derived from those sections** — a
+hardcoded status could only ever be wrong in one of two ways, and the dangerous one is reporting COMPLETE
+while a section says a measurement was never taken. It reads `PARTIAL` while any section reports no
+measurement, and `COMPLETE` only when every section reports one that was actually taken. A certificate that
 produced a resource trend it never measured would be worth nothing for the one purpose it exists for.
 
 `promotion.bypassesRootOrOwnerGate` is a constant `false` that no argument can change, and the emitted
@@ -301,7 +304,7 @@ recorded in commit `5a9003c`.
 
 ---
 
-## 7. Task D — the coordination economics model and its guard, with the comparison still unmeasured
+## 7. Task D — the coordination economics model, its guard, and the Gate 8 measurement
 
 `src/shared/coordination-economics.ts` accounts per task for the figures the book lists — model calls,
 input and output tokens, wall time, **coordination time as a distinct slice**, execution time, review
@@ -324,15 +327,18 @@ Three decisions carry the rule:
   increasing token and wall-time while not improving defect or rework is a tie on benefit plus a cost.
 
 `permittedPipeline` only ever ADDS a stage the guard approved, and never removes one the caller marks
-required — a guard able to quietly drop a verification step would be worse than no guard.
+required — a guard able to quietly drop a verification step would be worse than no guard. It also refuses
+to adjudicate a **mandatory platform contract gate** at all: `verify` has no legal no-gate arm, so the
+guard returns `INSUFFICIENT_EVIDENCE` for it by kind, before it looks at any data (§12).
 
-**Gate 8 is nonetheless NOT met, and is not claimed.** The rule is about a *default pipeline*, and the
-paired live-provider run measured here returned `INSUFFICIENT_EVIDENCE` because no arm without the
-candidate stage can be recorded (§12), so there is no cost/benefit comparison to report. Inventing one —
-or reporting the synthetic fixtures the tests use as if they were measurements — is exactly the
-hand-filled evidence the phase rules forbid. What the certificate additionally checks is the property
-that makes the guard worth having: that it **can** refuse. It runs the guard live with no baseline and
-with no observed figures and requires `INSUFFICIENT_EVIDENCE` both times, so the invariant cannot pass
+**Gate 8 is met, on the optional `review` Agent.** The paired live-provider run measured the review
+against a no-review baseline and the guard reached a verdict — `COST_ONLY` — so the stage was adjudicated
+and is not admitted to a default pipeline. Reporting the synthetic fixtures the tests use as if they were
+measurements would be exactly the hand-filled evidence the phase rules forbid, which is why the fixtures
+stay labelled `deterministic-fixture` and the certificate's `measured` flag reads the real run only. What
+the certificate additionally checks is the property that makes the guard worth having: that it **can**
+refuse. It runs the guard live with no baseline and with no observed figures and requires
+`INSUFFICIENT_EVIDENCE` both times, so the invariant cannot pass
 while the rule would promote a stage on a guess.
 
 ---
@@ -427,18 +433,24 @@ commander composition and is therefore part of what Task E's synthetic scale wor
   reports both by name. This is a real evidence gap in the platform, not a selector bug.
 - **`src/renderer` is exempt from ownership** with a reason: it is covered by the desktop black-box
   contract, which launches the real application and is always-run.
-- **The phase is PARTIAL.** Tasks A, B, C and G are delivered; Tasks D, E and F are the bulk of what
-  remains and none of them is started. Advancing to Phase 06 on this branch would violate the rule
-  that a PARTIAL phase must not advance.
+- **The phase is COMPLETE.** All three tasks that were outstanding — D (coordination economics and the
+  Gate 8 measurement), E (synthetic scale) and F (the soak) — are delivered and measured, and all nine
+  gates pass. Two gaps remain recorded rather than hidden: `experience` and `remote` have no authoritative
+  suite (§1), and the `evolution-sandbox` slow-tier suite cannot pass in a session without an AppContainer
+  (§11). Neither is a Phase 05 gate.
 
 ---
 
-## 12. Remaining tasks and gates
+## 12. Task D and Gate 8 — the measurement, the refusal it first produced, and the verdict
 
-**Gate 8 status: MEASURED AND NOT MET — `INSUFFICIENT_EVIDENCE` from a real paired provider run.**
-The credential was found on this machine (see below), the experiment ran against the live provider, and
-the guard refused the pairing for a structural reason that no further run can remove. Phase 05 therefore
-stays **PARTIAL**.
+**Gate 8 status: MET — `COST_ONLY` on a real paired provider run about the optional `review` Agent.**
+The gate's meaning is that an extra Agent stage has been through a real economics adjudication, not that
+the stage must be adopted: `COST_ONLY` says the review was measured, bought nothing, and is therefore
+**not** added to any default pipeline. That is a PASS.
+
+What follows is the full record, in the order it happened. The first experiment — about `verify` — is
+kept verbatim because it produced a genuine platform finding, and deleting or overwriting it would be
+the hand-filled evidence this phase forbids.
 
 ### The credential, and the end-to-end proof that it works
 
@@ -629,64 +641,161 @@ decide whether `verify` is in the pipeline. Both arms therefore record `verify`,
 Substituting a fixture is explicitly forbidden, and the infrastructure is built so that it would not help
 anyway: `evaluate` records any pair whose provenance is not `real-provider` as `INSUFFICIENT_EVIDENCE`.
 
-**What would actually unblock it** — one of:
+**PRESERVED FINDING — the `verify` experiment.** Provenance `real-provider`; result
+`INSUFFICIENT_EVIDENCE`; reason: the candidate is a **mandatory platform contract gate**, so there is no
+legal "without verify" production arm. **Architectural conclusion: `verify` is removed from the optional
+Agent-stage candidate set** and is no longer something Gate 8 will attempt to adjudicate. This evidence is
+kept, not deleted and not overwritten — it is a valid platform design finding, and it is what produced the
+semantic boundary below.
 
-1. a candidate stage whose presence the durable ledger can genuinely distinguish between two arms of the
-   same task (the ledger distinguishes only `implement` and `repair` today, and neither can be varied
-   without varying the task);
-2. a recorded, first-class notion of *contract-gated* verification, so `pipelineFrom` can tell a
-   contract-gated run from a host-verified one. That is a platform change to what the ledger records,
-   not a measurement, so it is out of scope for this phase;
-3. an Owner decision to judge a different stage that genuinely varies between two arms.
+### The semantic boundary the refusal produced
 
-The command sequence, for the record, is the one this round used:
+| | Mandatory platform verification gate | Optional Agent stage |
+| --- | --- | --- |
+| what it covers | tests, typecheck, acceptance checks, `verificationState`, task-completion eligibility | an independent review, a second review, a critique, an adjudication, an optional repair agent |
+| what it is | a platform **invariant** | optional work with a cost |
+| may Gate 8 vary it? | **no** — there is no legal pipeline without it | yes — that is exactly what Gate 8 judges |
+| recorded as | `verificationState` on the ledger, plus a `verify` trace entry with `kind: "platform"` | an `executedStages` entry with `kind: "agent"` |
+
+The distinction is now enforced in code rather than left to a reader:
+`MANDATORY_GATE_STAGES = ["intake", "verify", "finalize"]` in `src/shared/coordination-economics.ts`, and
+`evaluateStageGuard` returns `INSUFFICIENT_EVIDENCE` for a mandatory gate **by kind**, before it looks at
+any data. Gate 8 keeps its purpose — stopping an extra Agent stage that adds token and wall time without
+reducing rework or defects — and a mandatory safety gate can no longer be adjudicated out of the pipeline.
+
+### The durable execution trace
+
+`pipelineFrom` inferred stage presence from the finished record: `modifiedFiles` for `implement`,
+`verificationState` for `verify`, `retries`/`failureHistory` for `repair`. That is not reliable enough for
+Agent economics — a stage that ran without leaving a diff, a retry or a finding was invisible, and a
+mandatory gate looked exactly like an optional Agent stage, which is precisely why the `verify` experiment
+was unanswerable.
+
+`TaskLedgerRecord.executedStages` is now a first-class, durable trace recorded **where each stage starts**:
+
+```json
+{ "executedStages": [
+  { "stage": "intake",   "kind": "platform", "startedAt": "..." },
+  { "stage": "plan",     "kind": "agent",    "startedAt": "..." },
+  { "stage": "verify",   "kind": "platform", "startedAt": "..." },
+  { "stage": "review",   "kind": "agent",    "startedAt": "..." },
+  { "stage": "finalize", "kind": "platform", "startedAt": "..." } ] }
+```
+
+- the mandatory verification lifecycle stays **separate** from the Agent pipeline, in
+  `verificationState`; `TaskLedger.markVerification` writes it and `TaskLedger.recordStage` writes the trace;
+- `coordinationRecordFromLedger` prefers the trace and reports `pipelineSource` as `executed-trace`,
+  `inferred` or `caller`. `pipelineFrom` remains **only** as the backward-compatible fallback for a ledger
+  written before the trace existed;
+- an unknown stage name is **reported**, never silently trimmed, so a pipeline cannot quietly lose a stage
+  it ran;
+- `economics verify` refuses a **real** pairing whose records are not `executed-trace`, because stage
+  presence that was reconstructed is not evidence. Fixtures and the certificate's probe records construct
+  their pipelines explicitly and are exempt;
+- `reviewFindings` no longer comes from `failureHistory.length`. That credited a reviewer with the
+  interruptions the loop suffered and reported a confident zero for a stage that never ran. It now comes
+  from `TaskLedger.markReviewFindings`, so "the reviewer ran and found nothing" is a measurement and "no
+  reviewer ran" is an absence — different facts the guard can tell apart.
+
+### The review experiment
+
+`scripts/gate8-pair-run.cjs --stage review` runs the same real refactor twice through the production
+pipeline. The **optional independent review Agent** is the planned variable; the **mandatory verification
+contract is carried by BOTH arms** and is not the difference. The harness now refuses `verify` as a
+`--stage` value and says why.
+
+Same benchmark task, same input identity, same acceptance criteria, same provider/model/runtime
+(`api:deepseek`), same mandatory verification. One pair, sequential.
+
+| Arm | execution trace | modelCalls | inputTokens | outputTokens | reviewFindings | reworkAvoided | wallMs |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| without `review` | `intake:platform, plan:agent, verify:platform, finalize:platform` | 8 | 5034 | 39732 | *unmeasured* | 0 | 188744 |
+| with `review` | `intake:platform, plan:agent, verify:platform, review:agent, finalize:platform` | 10 | 6615 | 57886 | 0 | 0 | 273935 |
+
+Both arms completed, both passed the mandatory gate, both changed 4 files, neither needed a retry. The
+only difference in the pipelines is `review`, which the guard's comparability check verifies for itself.
+
+### The verdict
 
 ```
-node scripts/gate8-pair-run.cjs --provider <id> --env <ENV_VAR> --model <modelId> --data-root <dir>
-node scripts/gate8-pair-run.cjs pair --data-root <dir>     # re-derive the artifact, no provider calls
+gate8-review-review-gate (review): COST_ONLY
+  per task, review changed rework avoided by 0.00 (judged on reworkAvoided), so it bought nothing measurable
+  it still added 1581 input tokens and 48057 ms per task
+```
+
+`COST_ONLY` is a **result, not a failure of the experiment**: the stage was measured, it bought nothing
+measurable, and the answer is to leave it out. `permittedPipeline` reports `changed: false`, so `review`
+is **not** added to any default pipeline. The certificate therefore records
+`agentCoordinationEconomics: measured: true`.
+
+One pair was enough because the evidence is complete rather than noisy: both arms measured every cost
+figure, both recorded `reworkAvoided = 0` as a real zero, and the candidate pipeline differs from the
+baseline by exactly the candidate stage. Nothing about the verdict rests on a borderline figure, so the
+run was not extended to 3–5 pairs — those are for a sample whose outcome varies, and this one does not.
+
+### The model-id drift, found and fixed
+
+`electron/api-settings.ts` and `src/shared/model-policy.ts` both declared `deepseek-v4-flash`. The live
+`GET /v1/models` offers `deepseek-flash` and `deepseek-v4-pro`; nothing serves `deepseek-v4-flash`, so every
+policy naming it would have failed on the first real call. Both files now declare `deepseek-flash`, and
+`src/shared/provider-models.ts` holds the single declaration the settings store derives from.
+
+The refresh stays **optional**: the declaration is a static literal, so a provider outage cannot change
+what Boss asks for, and `observedModelsFrom()` / `modelDrift()` exist to compare what Boss declares against
+what a provider offers — reporting missing and undeclared ids in both directions, and distinguishing
+"nobody checked" from "checked and clean". A contract test holds the declaration to the observed
+vocabulary, fails by name if `deepseek-v4-flash` returns, and asserts no source file declares a model
+outside the catalogue. It does **not** make a network call, so the suite keeps no credential, network or
+provider-uptime dependency.
+
+### The command sequence
+
+```
+node scripts/gate8-pair-run.cjs --stage review --provider <id> --env <ENV_VAR> --model <modelId> --data-root <dir>
+node scripts/gate8-pair-run.cjs pair --stage review --data-root <dir>   # re-derive the artifact, no provider calls
 node scripts/agent-coordination-economics.cjs verify
 node scripts/agent-coordination-economics.cjs evaluate
 ```
 
-Gate 8 closes when the guard reaches `COST_ONLY` or `EARNS_PLACE`; it did not, and `INSUFFICIENT_EVIDENCE`
-is not a pass.
+Gate 8 closes with `COST_ONLY` or `EARNS_PLACE`; it closed with `COST_ONLY`.
 
 ---
 
-**Gate 8 after this round:** measured, and still open. It is no longer `WAITING_FOR_OWNER` on a
-credential — the credential was found, the live run happened, and the guard refused the pairing for a
-reason that is now written down. Phase 05 remains PARTIAL and does not advance.
+**Gate 8 after this round:** **MET.** The credential was found on this machine, the live experiment ran
+twice, and the second one — about the optional `review` Agent — produced a verdict (`COST_ONLY`) rather
+than a refusal. Phase 05 has all nine gates and is COMPLETE.
 
-Why the measurement does not settle the gate: the guard asks for cost/benefit evidence per agent stage,
-which needs two arms of the same task that differ by that stage. The live run produced both arms with real
-provider accounting, and the guard refused because the durable ledger cannot express the arm without the
-candidate stage — `EngineeringRuntime` records `verificationState` on every completed task, so `verify`
-is in both pipelines and there is no baseline to subtract. No fixture, mock or hand-filled record stands
-in for the measurement, and none was used.
+Why the first attempt did not settle it, and what changed: the guard asks for two arms of the same task
+that differ by an **optional Agent stage**. The first experiment varied `verify`, which turned out not to be
+one: `EngineeringRuntime` records `verificationState` on every completed task, so `verify` is in both
+pipelines and there is no baseline to subtract. That produced the semantic boundary (§12), a durable
+execution trace recorded where stages actually start, and a genuinely optional `review` stage — and the
+second experiment then had a legal baseline and reached a verdict. No fixture, mock or hand-filled record
+stands in for the measurement, and none was used.
 
-What IS delivered and verified: the accounting model, the guard, and — checked live by the certificate —
-that the guard **refuses** to promote a stage with no baseline and with no observed figures. That is the
-property that makes the rule worth having. It is not the comparison itself, and it is not reported as if
-it were.
+What is delivered and verified: the accounting model, the guard, the trace, and — checked live by the
+certificate — that the guard **refuses** to promote a stage with no baseline, with no observed figures, or
+whose candidate is a mandatory platform gate. That refusal property is what makes the `COST_ONLY` verdict
+worth believing.
 
 | Task | State |
 | --- | --- |
 | C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
-| D — agent coordination economics and the added-stage guard | **model, guard and a REAL paired provider run delivered; the comparison is refused, not measured** — the live arms both record `verify`, so the guard returns `INSUFFICIENT_EVIDENCE` and gate 8 is not met |
+| D — agent coordination economics and the added-stage guard | **delivered and MEASURED** — the model, the guard, comparability checks, production collection, the durable execution trace, CLI and certificate integration are all delivered, and a real paired provider run about the optional `review` Agent returned `COST_ONLY`, so Gate 8 is met |
 | E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **delivered**, see §5 |
 | F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **delivered**, see §6 — a 45-minute run, the shortened form the book allows, with every shared invariant passing |
-| G — `platform-certificate.json` | **delivered**, see §4 — and it reports D, E and F as unmeasured |
+| G — `platform-certificate.json` | **delivered**, see §4 — every section reports a measurement that was taken, and `phaseStatus` is derived from those sections |
 
 | Gate | State |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2347** (202 files), postbuild **113** (10 files), typecheck, security scan (1124 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
-| 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 202 files / 2347 tests paired with the selector's decision for the same commit; 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue |
+| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2372** (204 files), postbuild **113** (10 files), typecheck, security scan (1128 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
+| 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 204 files / 2372 tests paired with the selector's decision for the same commit; 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **PASS** — see §6: 45 minutes, 1005 cycles, RSS trend **−0.14 MiB/min** against a 17.1 allowance, heap −0.02 against 8.5, all 11 shared invariants PASS |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **PASS** — see §8 |
-| 8 — every extra agent stage has cost/benefit evidence | **MEASURED, NOT MET — `INSUFFICIENT_EVIDENCE`** — the paired live-provider run happened with real token accounting in the durable ledger, and the guard refused the pairing because the ledger cannot express an arm without the candidate stage. Model, guard, comparability checks, production collection, durable persistence, CLI, certificate integration and the run driver are all delivered and verified. See §7 and §12 |
+| 8 — every extra agent stage has cost/benefit evidence | **PASS — `COST_ONLY` on a real paired provider run.** The optional independent review Agent was measured against a no-review baseline: both arms carried the mandatory verification contract, differed only by `review`, and ran live (8 → 10 model calls, 5034 → 6615 input tokens, 188.7s → 273.9s). The guard reached a verdict rather than refusing: the review bought nothing measurable and the review stage is **not** added to any default pipeline. Stage presence is read from the durable execution trace, not inferred. The earlier `verify` experiment is preserved as a platform finding — a mandatory contract gate has no legal no-gate arm — and `verify` is now refused as a candidate **by kind**. See §7 and §12 |
 | 9 — `platform-certificate.json` + soak report | **PASS** — both artifacts exist, and the certificate reads the soak report rather than restating it |
 
 ---

@@ -1,19 +1,23 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { ApiProtocol, ApiProviderSetting, ProviderId, UpdateApiSettingInput } from "../src/shared/contracts";
+import { PROVIDER_MODEL_DEFAULTS } from "../src/shared/provider-models";
 
 type StoredApiSetting = Omit<ApiProviderSetting, "hasApiKey"> & { encryptedApiKey?: string };
 type Protect = (plainText: string) => string;
 type Unprotect = (cipherText: string) => string;
 
-const defaults: Record<string, { protocol: ApiProtocol; baseUrl: string; model: string }> = {
-  chatgpt: { protocol: "openai-compatible", baseUrl: "https://api.openai.com/v1", model: "gpt-5" },
-  gemini: { protocol: "gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-2.5-flash" },
-  claude: { protocol: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-sonnet-4-5" },
-  deepseek: { protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-v4-flash" },
-  qwen: { protocol: "openai-compatible", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
-  kimi: { protocol: "openai-compatible", baseUrl: "https://api.moonshot.cn/v1", model: "kimi-k2-0905-preview" }
-};
+/**
+ * The defaults a stored setting falls back to.
+ *
+ * Taken from `src/shared/provider-models.ts` rather than spelled out here, so there is ONE declaration
+ * of which model Boss asks for. That is what makes the declared-vs-observed contract meaningful: the
+ * test checks the values the application actually uses, not a copy that can drift from them. It is how
+ * `deepseek-v4-flash` — a model the DeepSeek endpoint does not serve — stayed in this file unnoticed.
+ */
+const defaults: Record<string, { protocol: ApiProtocol; baseUrl: string; model: string }> = Object.fromEntries(
+  Object.entries(PROVIDER_MODEL_DEFAULTS).map(([provider, entry]) => [provider, { protocol: entry.protocol as ApiProtocol, baseUrl: entry.baseUrl, model: entry.model }])
+);
 
 export class ApiSettingsStore {
   private settings: StoredApiSetting[];

@@ -32,6 +32,7 @@ import { verifyResult, verificationPlanFor, type VerificationContract } from "..
 import { collectVerificationEvidence } from "./verification-collector";
 import { runRepoGate, type RepoGate } from "../engineering/gate-runner";
 import { conversationPolicyFor, type ConversationPolicy } from "../../src/shared/conversation-policy";
+import { runOptionalReview } from "../../src/shared/optional-review";
 import { eligibleCandidates, type ModuleState } from "../../src/shared/capability-router";
 import type { StateStore } from "../store";
 import { BudgetManager } from "./budget-manager";
@@ -85,7 +86,17 @@ export interface SelfEvolutionHost {
   }>;
 }
 
-export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; /** Rev.2 §20–§22: when set, MODEL_DONE may not complete the task until its risk-gated verification plan passes. */ verification?: VerificationContract; /** R-204: explicit conversation policy; absent → deterministic default. */ conversationPolicy?: ConversationPolicy; }
+export interface CommanderTaskInput { finalizationPolicy?: FinalizationPolicy; reviewPolicy?: ReviewPolicy; title: string; objective: string; providerIds: ProviderId[]; mode?: TaskMode; appMode?: AppMode; transports?: Record<ProviderId, RunTransport>; conversationId?: string; constraints?: string[]; budget?: import("./task-ledger").TaskBudgetOptions; inputObjectIds?: string[]; workAgentCount?: import("../../src/shared/work-mode").WorkAgentCount; /** Owner-Result run mode (§3); absent → advanced tasks default to OWNER_RESULT, chat to ASSISTED. */ runMode?: RunMode; /** Rev.2 §20–§22: when set, MODEL_DONE may not complete the task until its risk-gated verification plan passes. */ verification?: VerificationContract; /** R-204: explicit conversation policy; absent → deterministic default. */ conversationPolicy?: ConversationPolicy;
+  /**
+   * Run the OPTIONAL independent review Agent over the finished work, before the mandatory
+   * verification gate and finalization.
+   *
+   * This is the kind of stage Gate 8 governs: optional work whose only justification is that it
+   * reduces rework or escaped defects by more than it costs. It is requested explicitly rather than
+   * always-on precisely so that a "without review" arm is a legal production configuration — unlike
+   * the verification gate, which is a platform invariant and has no arm that omits it.
+   */
+  optionalReview?: import("../../src/shared/optional-review").OptionalReviewRequest; }
 
 export class MainCommander {
   private readonly mergeCoordinator = new MergeCoordinator();
@@ -172,6 +183,9 @@ export class MainCommander {
     // Rev.2 §20–§22: persist an explicit verification contract when supplied so
     // every later completion point enforces MODEL_DONE → VERIFYING → PASS/REWORK.
     if (input.verification) this.store.setVerificationContract(task.id, input.verification);
+    // The OPTIONAL review Agent is persisted the same way, so the trace, the ledger and the snapshot
+    // agree about which of the two ran — a mandatory gate or optional Agent work.
+    if (input.optionalReview) this.store.setOptionalReview(task.id, input.optionalReview);
     // R-204: record the conversation policy (explicit wins; deterministic default
     // keeps the product behavior: fresh automated WORK conversations stay
     // TEMPORARY, chat conversations stay PERSISTENT).
@@ -179,6 +193,8 @@ export class MainCommander {
     const context: TaskContext = { taskId: task.id, objective: input.objective, constraints: input.constraints ?? [], currentProtocol: task.mode, currentRound: "1", resolvedClaims: [], openDisputes: [], artifactRefs: [], summaries: [], executionHistory: [] };
     this.contexts.save(context);
     this.ledger?.create(task.id, input.objective, input.constraints, input.budget);
+    // The task lifecycle has begun: `intake` is a mandatory platform stage, not Agent work.
+    this.stage(task.id, "intake", "platform");
     // AP29b: record the policy decision chosen for this plan so degradation
     // selection consumes per-complexity worker/context/verification budgets.
     if (this.ledger) applyTaskPolicy(this.ledger, task.id, plan.estimatedComplexity);
@@ -222,6 +238,12 @@ export class MainCommander {
     }, workerCap);
     let plan: import("../../src/shared/task-ir").TaskIR;
     try {
+      // A planning Agent pass is real, optional work: it costs tokens, and the deterministic
+      // compileIntent path may already have answered. Recorded where it is decided, so a task that
+      // never needed a planner is not credited with one.
+      if (!(task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity)) && needsPlanning(task.prompt)) {
+        this.stage(taskId, "plan", "agent");
+      }
       plan = task.plan && ["L2", "L3"].includes(task.plan.estimatedComplexity) ? task.plan : await compiler.compile(task.prompt, workspace);
     } catch (error) {
       await this.captureReproduction(taskId, workspace, "plan-compile-failed");
@@ -280,6 +302,9 @@ export class MainCommander {
       return answer.content;
     };
     const runEditProposal = async (files: string[], description: string): Promise<string> => {
+      // Producing a change is the implementation stage, recorded as the work starts rather than
+      // inferred afterwards from `modifiedFiles` — a proposal that changed nothing still ran.
+      this.stage(taskId, "implement", "platform");
       const checks = requiredEngineeringChecks(workspace, files);
       const result = await new ProposalRunner(coderWorker).run(workspace, task!.prompt + "\n" + description, files, checks);
       this.ledger!.update(taskId, "engineering proposal verified", (record) => { record.modifiedFiles = [...new Set([...record.modifiedFiles, ...result.changes.map((item) => item.path)])]; record.usage.toolCalls += result.checks.length; });
@@ -343,7 +368,15 @@ export class MainCommander {
       readOnly: !plan.steps.some((step) => step.kind === "edit" || step.operation?.kind === "computer" || step.operation?.kind.startsWith("run_")),
       execute: async (step) => {
         if (step.kind === "verify" && plan.steps.some((item) => item.kind === "edit")) {
+          // The plan's verification step is part of the MANDATORY gate, not optional Agent work: the
+          // host runs the real checks and their outcome is what the completion gate reads. Recorded as
+          // a platform stage so the trace shows it ran, and so it is never mistaken for a candidate an
+          // experiment could remove.
+          this.stage(taskId, "verify", "platform");
           const checks = await Promise.all(requiredEngineeringChecks(workspace, step.requiredFiles).map((check) => runCheck(workspace, check)));
+          // The mandatory lifecycle outcome, kept out of the Agent trace the same way the engineering
+          // runtime keeps it: a gate is a precondition of completion, not a stage in the pipeline.
+          this.ledger?.markVerification(taskId, checks.every((item) => item.passed) ? "PASS" : "FAILED", "plan verification step completed");
           outputs[step.id] = JSON.stringify({ status: checks.every((item) => item.passed) ? "PASS" : "FAIL", checks, workspace }); return outputs[step.id];
         }
         if (step.kind === "edit") {
@@ -406,6 +439,15 @@ export class MainCommander {
     const sinks = finalPlan.steps.filter((step) => !finalPlan.steps.some((other) => other.dependencies.includes(step.id)));
     let content = sinks.map((step) => result.evidence.find((item) => item.stepId === step.id)?.output ?? outputs[step.id]).filter(Boolean).join("\n\n");
     const edits = finalPlan.steps.filter((step) => step.kind === "edit").map((step) => JSON.parse(outputs[step.id]) as ProposalResult);
+    // OPTIONAL independent review Agent, requested explicitly by the task. It runs here — after the
+    // work is done, before the MANDATORY verification gate below — so the two are ordered the way the
+    // platform intends: an optional Agent reviews the change, and a platform invariant then decides
+    // whether the task may be called complete. The review never gates completion and never edits the
+    // work; it raises findings, which is what makes it measurable rather than authoritative.
+    if (current.optionalReview && this.optionalReviewer) {
+      await this.runOptionalReviewStage(taskId, current, workspace);
+      current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
+    }
     // R43 Phase A (R-101) verification seam v2. Default strategy: OWNER_RESULT /
     // autonomous engineering plans (with real edit/verify work) automatically
     // carry a verification contract — MODEL_DONE may not complete them. The
@@ -549,6 +591,10 @@ export class MainCommander {
 
   private readonly finalizers = new Map<string, TaskFinalizer>();
   finalizeTask(taskId: string, publish: () => unknown = () => {}) {
+    // `finalize` is the last MANDATORY platform stage: it publishes the accepted result and decides
+    // the task's terminal status. Recorded when it starts, so a task that never reached finalization
+    // does not carry it in the trace.
+    this.stage(taskId, "finalize", "platform");
     let finalizer = this.finalizers.get(taskId);
     if (!finalizer) {
       finalizer = new TaskFinalizer(this.store, () => {}, (id) => this.synthesizeAccepted(id), (id) => {
@@ -830,5 +876,74 @@ export class MainCommander {
     const task = this.store.snapshot().tasks.find((item) => item.id === taskId);
     if (!task) throw new Error(`Unknown task: ${taskId}`);
     this.store.setTaskStatus(taskId, this.stateMachine.transition(task.status, status));
+  }
+
+  /**
+   * Record that a pipeline stage started, into the durable execution trace.
+   *
+   * Called from the places that DO the work, because the trace exists to replace reconstructing stage
+   * presence from the finished record: `pipelineFrom` reads `modifiedFiles` for `implement`,
+   * `verificationState` for `verify` and `retries` for `repair`, so a stage that ran without leaving a
+   * diff, a retry or a finding was invisible, and a mandatory platform gate looked exactly like an
+   * optional Agent stage. A live experiment about `verify` could not be answered for that reason.
+   *
+   * `kind` separates an OPTIONAL Agent stage — what the economics adjudication judges — from a
+   * MANDATORY part of the task lifecycle, which is a platform invariant and must never become an
+   * experiment variable. Nothing here is inferred from a result, and a stage that did not run is
+   * simply absent.
+   */
+  private stage(taskId: string, stage: string, kind: "agent" | "platform"): void {
+    this.ledger?.recordStage(taskId, stage, kind);
+  }
+
+  /**
+   * Who performs the optional independent review, when a task asks for one.
+   *
+   * Injected because a reviewer is a model, and the platform is not allowed to trust a model as its
+   * own verification. Production sets a role-router-backed reviewer; a test sets a deterministic one.
+   * Absent means the optional stage simply cannot run, which is a legal configuration — unlike the
+   * verification gate, which has no configuration that omits it.
+   */
+  optionalReviewer?: (prompt: string, pass: number) => Promise<string>;
+
+  /**
+   * Run the optional review stage and record what it observed.
+   *
+   * The stage is recorded as an AGENT stage in the durable trace when it starts, so Gate 8 reads
+   * whether it ran from an observation. `markReviewFindings` is called whenever the stage runs, even
+   * with zero findings: "the reviewer ran and found nothing" is a measurement, and it is a different
+   * fact from "no reviewer ran", which leaves the field absent.
+   */
+  private async runOptionalReviewStage(taskId: string, task: BossTask, workspace: string): Promise<void> {
+    const request = task.optionalReview;
+    if (!request || !this.optionalReviewer) return;
+    this.stage(taskId, "review", "agent");
+    let diff = "";
+    try {
+      diff = (await executeNative(workspace, { kind: "git_diff" })).output;
+    } catch {
+      // A workspace that cannot produce a diff still gets reviewed, against the objective alone; the
+      // missing diff is left out of the prompt rather than replaced by an invented summary.
+      diff = "(the workspace could not produce a diff)";
+    }
+    try {
+      const outcomes = await runOptionalReview({
+        request,
+        objective: task.prompt,
+        diff,
+        reviewer: this.optionalReviewer
+      });
+      const findings = outcomes.flatMap((outcome) => outcome.findings);
+      this.ledger?.markReviewFindings(taskId, findings.length, `optional review raised ${findings.length} finding(s)`);
+      // The findings are durable evidence under the task, so a later reader sees what the reviewer
+      // said rather than only how many things it said.
+      if (findings.length > 0) this.store.setRecoveryState(taskId, undefined, `独立复核发现 ${findings.length} 项：${findings.slice(0, 3).map((finding) => `${finding.severity}: ${finding.summary}`).join(" | ")}`);
+    } catch (error) {
+      // A review that could not run is NOT a clean review: the stage ran, so it stays in the trace,
+      // and it counts zero findings rather than being silently dropped.
+      this.ledger?.markReviewFindings(taskId, 0, "optional review failed to produce findings");
+      this.ledger?.update(taskId, "optional review failed", (record) => { record.nextAction = "REPORT_EVIDENCE"; });
+      console.error(`optional review stage failed for ${taskId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

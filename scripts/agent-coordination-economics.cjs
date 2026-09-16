@@ -51,6 +51,27 @@ function readArtifact(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+/**
+ * Enforce the trace requirement for a REAL pairing.
+ *
+ * A pair whose records were reconstructed by `pipelineFrom` rather than read from the durable execution
+ * trace cannot establish stage presence: that inference reads `modifiedFiles` for `implement`,
+ * `verificationState` for `verify` and `retries` for `repair`, so a stage that ran without leaving a
+ * diff, a retry or a finding is invisible, and a MANDATORY platform gate looks exactly like an
+ * OPTIONAL Agent stage. A live experiment about `verify` returned INSUFFICIENT_EVIDENCE for precisely
+ * that reason, which is why new real evidence must come from the trace.
+ *
+ * Deterministic fixtures and the certificate's probe records construct their pipelines explicitly and
+ * are not production observations, so they are not subject to this check.
+ */
+function traceProblems(records) {
+  const untraced = records.filter((record) => record.pipelineSource !== "executed-trace");
+  if (untraced.length === 0) return [];
+  return [
+    `${untraced.length} of ${records.length} record(s) carry pipelineSource=${untraced.map((record) => record.pipelineSource ?? "absent").join(", ")} rather than 'executed-trace', so which stages actually ran was reconstructed rather than observed`
+  ];
+}
+
 /** Derive the guard result for every recorded pair, without writing anything. */
 function evaluatePairs(artifact, shared) {
   const results = [];
@@ -61,15 +82,20 @@ function evaluatePairs(artifact, shared) {
       ...(pair.baselineTaskIds ?? []).filter((id) => !baseline.some((record) => record.taskId === id)).map((id) => `baseline:${id}`),
       ...(pair.candidateTaskIds ?? []).filter((id) => !candidate.some((record) => record.taskId === id)).map((id) => `candidate:${id}`)
     ];
+    const realRun = pair.provenance?.kind === "real-provider";
+    const traced = realRun && missing.length === 0 ? traceProblems([...baseline, ...candidate]) : [];
     // A pair naming records that do not exist cannot be judged at all; that is a refusal, not a zero.
+    // Neither can a real pair whose stage presence was reconstructed rather than observed.
     const guard = missing.length > 0
       ? { verdict: "INSUFFICIENT_EVIDENCE", stage: pair.candidateStage, comparison: null, reasons: [`the pair names ${missing.length} record(s) that are not in the artifact: ${missing.join(", ")}`] }
-      : shared.evaluateStageGuard({
-          stage: pair.candidateStage,
-          withStage: candidate,
-          withoutStage: baseline,
-          ...(Array.isArray(pair.decisionMeasures) && pair.decisionMeasures.length > 0 ? { decisionMeasures: pair.decisionMeasures } : {})
-        });
+      : traced.length > 0
+        ? { verdict: "INSUFFICIENT_EVIDENCE", stage: pair.candidateStage, comparison: null, reasons: traced }
+        : shared.evaluateStageGuard({
+            stage: pair.candidateStage,
+            withStage: candidate,
+            withoutStage: baseline,
+            ...(Array.isArray(pair.decisionMeasures) && pair.decisionMeasures.length > 0 ? { decisionMeasures: pair.decisionMeasures } : {})
+          });
     const decision = shared.permittedPipeline({ current: ["intake", "implement", "finalize"], candidate: pair.candidateStage, verdict: guard.verdict });
     results.push({ pairId: pair.pairId, candidateStage: pair.candidateStage, describes: pair.describes, verdict: guard.verdict, reasons: guard.reasons, missing, comparison: guard.comparison, pipelineDecision: { changed: decision.changed, reason: decision.reason } });
   }
@@ -114,6 +140,12 @@ function commandCollect(options) {
   process.stdout.write(`[economics] records written: ${sweep.added} added, ${sweep.replaced} replaced\n`);
   if (sweep.skipped.length > 0) process.stdout.write(`[economics] skipped ${sweep.skipped.length}: ${sweep.skipped.slice(0, 3).map((entry) => `${entry.taskId} (${entry.reason})`).join(", ")}\n`);
   process.stdout.write(`[economics] unmeasured everywhere: ${sweep.unmeasuredEverywhere.join(", ") || "none"}\n`);
+  // Where the pipelines came from. `executed-trace` is an observation; `inferred` is a reconstruction
+  // that cannot tell a mandatory platform gate from an optional Agent stage, so a reader can see which
+  // kind of evidence the artifact now holds.
+  const sources = Object.entries(sweep.pipelineSources ?? {}).map(([source, ids]) => `${source}=${ids.length}`).join(", ");
+  process.stdout.write(`[economics] pipeline provenance: ${sources || "none"}\n`);
+  if ((sweep.unknownStages ?? []).length > 0) process.stdout.write(`[economics] WARNING unknown stage name(s) recorded but not in the vocabulary: ${sweep.unknownStages.join(", ")}\n`);
   process.stdout.write(`[economics] artifact: ${path.relative(ROOT, ARTIFACT)}\n`);
   return 0;
 }

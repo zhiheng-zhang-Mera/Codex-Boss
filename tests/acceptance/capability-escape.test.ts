@@ -292,7 +292,15 @@ describe("Phase 03 gate 3 — the plugin boundary, measured in a real child proc
       expect(host.health().status).toBe("READY");
       expect(host.kill()).toBe(true);
       // The plugin is now DEGRADED, and the broker — the rest of Boss — still decides normally.
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      //
+      // Waited for rather than slept through. A fixed pause is a proxy for "the child process has
+      // exited and the host has reaped it", and that reaping is at the mercy of machine scheduling: a
+      // loaded runner can take longer than the pause, which made this assertion fail intermittently
+      // while the behaviour under test was correct. The assertion is unchanged — the host must notice
+      // the exit and report DEGRADED — and the bound is what makes a host that never notices fail
+      // rather than pass.
+      const deadline = Date.now() + 10_000;
+      while (host.running() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 25));
       expect(host.running()).toBe(false);
       expect(host.health().status).toBe("DEGRADED");
       expect(host.health().detail).toMatch(/exited|restart|giving up/i);

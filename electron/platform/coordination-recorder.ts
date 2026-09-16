@@ -20,7 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { TaskLedger, TaskLedgerRecord } from "../commander/task-ledger";
-import { coordinationRecordFromLedger, type CoordinationDerivationOptions, type LedgerRecordView } from "../../src/shared/coordination-ledger";
+import { coordinationRecordFromLedger, executedPipelineOf, type CoordinationDerivationOptions, type LedgerRecordView } from "../../src/shared/coordination-ledger";
 import { openCoordinationStore, type CoordinationStore } from "./coordination-store";
 import type { CoordinationRecord } from "../../src/shared/coordination-economics";
 
@@ -46,6 +46,16 @@ interface SweepResult {
   skipped: Array<{ taskId: string; reason: string }>;
   /** Measures no record observed, so the gap is visible before the guard refuses. */
   unmeasuredEverywhere: string[];
+  /**
+   * Where each record's pipeline came from, and any stage name the vocabulary did not recognize.
+   *
+   * Reported rather than assumed, because the two sources are not equal evidence: `executed-trace` is
+   * an observation of which stages ran, `inferred` is a reconstruction that cannot tell a mandatory
+   * platform gate from an optional Agent stage. A caller about to judge a pairing needs to know which
+   * it is holding, and an unrecognized stage name must be visible rather than silently trimmed.
+   */
+  pipelineSources: Record<string, string[]>;
+  unknownStages: string[];
 }
 
 /** Every task id the ledger directory holds, sorted so a sweep is deterministic. */
@@ -67,7 +77,12 @@ function viewOf(record: TaskLedgerRecord): LedgerRecordView {
     activeProvider: record.activeProvider,
     usage: record.usage,
     sessions: record.sessions.map((session) => ({ provider: session.provider, health: session.health })),
-    jobs: record.jobs
+    jobs: record.jobs,
+    // The durable execution trace and the reviewer's own finding count, when the ledger carries them.
+    // Both are copied through rather than derived, because the whole point of the trace is that it is
+    // an observation: reconstructing it here would put the inference back that it exists to replace.
+    ...(record.executedStages ? { executedStages: record.executedStages } : {}),
+    ...(record.reviewFindings !== undefined ? { reviewFindings: record.reviewFindings } : {})
   };
 }
 
@@ -107,6 +122,8 @@ export function createCoordinationRecorder(options: CoordinationRecorderOptions)
       const skipped: SweepResult["skipped"] = [];
       const records: CoordinationRecord[] = [];
       const unmeasuredCounts = new Map<string, number>();
+      const pipelineSources: Record<string, string[]> = {};
+      const unknownStages = new Set<string>();
       for (const taskId of tasks) {
         const result = derive(ledger, taskId);
         if (!result.record) {
@@ -114,6 +131,14 @@ export function createCoordinationRecorder(options: CoordinationRecorderOptions)
           continue;
         }
         records.push(result.record);
+        // Read the provenance from the adapter itself rather than from the record, so the report and
+        // the evidence cannot disagree about where the pipeline came from.
+        const persisted = ledger.load(taskId);
+        if (persisted) {
+          const observed = executedPipelineOf(viewOf(persisted));
+          (pipelineSources[observed.source] ??= []).push(taskId);
+          for (const stage of observed.unknown) unknownStages.add(stage);
+        }
         for (const measure of result.unmeasured ?? []) {
           unmeasuredCounts.set(measure, (unmeasuredCounts.get(measure) ?? 0) + 1);
         }
@@ -124,7 +149,7 @@ export function createCoordinationRecorder(options: CoordinationRecorderOptions)
       const present = new Set(records.flatMap((record) => record.measured));
       const unmeasuredEverywhere = ["modelCalls", "inputTokens", "outputTokens", "wallMs", "coordinationMs", "executionMs", "reviewFindings", "reworkAvoided", "diffLines", "defectsEscaped"]
         .filter((measure) => !present.has(measure as never));
-      return { tasks, added: written.added, replaced: written.replaced, skipped, unmeasuredEverywhere };
+      return { tasks, added: written.added, replaced: written.replaced, skipped, unmeasuredEverywhere, pipelineSources, unknownStages: [...unknownStages].sort() };
     }
   };
 }

@@ -93,7 +93,7 @@ describe("Phase F — the providers boot module", () => {
     const { module, persistence } = build();
     // Before the Owner configures it, the client refuses to dispatch at all.
     expect(() => module.service.apiClient.validate("deepseek")).toThrow();
-    persistence.service.apiSettings.update({ providerId: "deepseek", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-v4-flash", apiKey: "sk-from-the-store" });
+    persistence.service.apiSettings.update({ providerId: "deepseek", enabled: true, protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-flash", apiKey: "sk-from-the-store" });
     // The client reads the settings store it was CONSTRUCTED with, so a key saved
     // after construction is the key the next dispatch uses — which is the whole
     // point of handing the module the durable store rather than a snapshot.
