@@ -362,10 +362,15 @@ function main() {
   // evidence and a stage that measured COST_ONLY is reported as the result it is.
   const coordination = load("src/shared/coordination-economics.js");
   const noBaseline = coordination.evaluateStageGuard({ stage: "review", withStage: [], withoutStage: [] });
+  // Task-grain probe records: every total null and nothing declared measured, which is a record that
+  // observed nothing. The guard must refuse it. Building the probe at the CURRENT grain keeps this
+  // check honest: an earlier version used the pre-split shape and the guard crashed reading it, which
+  // is itself evidence that the grain change reached every consumer.
+  const blankTotals = Object.fromEntries(coordination.COORDINATION_MEASURES.map((measure) => [measure, null]));
   const noFigure = coordination.evaluateStageGuard({
     stage: "review",
-    withStage: [{ taskId: "probe", pipeline: ["implement", "review"], runtime: "certificate-probe", measured: [], at: "2026-01-01T00:00:00.000Z", stages: [] }],
-    withoutStage: [{ taskId: "probe-baseline", pipeline: ["implement"], runtime: "certificate-probe", measured: [], at: "2026-01-01T00:00:00.000Z", stages: [] }]
+    withStage: [{ taskId: "probe", pipeline: ["implement", "review"], totals: blankTotals, measured: [], stages: [], stageMeasured: [], runtime: "certificate-probe", at: "2026-01-01T00:00:00.000Z" }],
+    withoutStage: [{ taskId: "probe-baseline", pipeline: ["implement"], totals: blankTotals, measured: [], stages: [], stageMeasured: [], runtime: "certificate-probe", at: "2026-01-01T00:00:00.000Z" }]
   });
   const economicsPath = path.join(ROOT, "artifacts", "platform-foundation", "agent-coordination-economics.json");
   const economics = fs.existsSync(economicsPath) ? JSON.parse(fs.readFileSync(economicsPath, "utf8")) : undefined;

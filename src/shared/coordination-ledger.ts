@@ -45,7 +45,7 @@ import {
   type CoordinationMeasure,
   type CoordinationRecord,
   type CoordinationStage,
-  type CoordinationStageRecord
+  type CoordinationTaskTotals
 } from "./coordination-economics";
 
 /** The subset of a durable ledger record this adapter reads. Structural, so no import cycle. */
@@ -116,28 +116,43 @@ function reworkAvoidedFrom(record: LedgerRecordView): number | null {
  * Returns the record plus the measures it could NOT observe, so a caller can report the gap rather
  * than discovering it when the guard refuses.
  */
-function zeroStage(stage: CoordinationStage): CoordinationStageRecord {
-  return {
-    stage, modelCalls: null, inputTokens: null, outputTokens: null, wallMs: null,
-    coordinationMs: null, executionMs: null, reviewFindings: null, reworkAvoided: null,
-    diffLines: null, defectsEscaped: null
-  };
-}
-
 export function coordinationRecordFromLedger(record: LedgerRecordView, options: CoordinationDerivationOptions): {
   record: CoordinationRecord;
   unmeasured: CoordinationMeasure[];
   /** The real signal the ledger DOES carry about quality, reported under its own name. */
   verificationFailed: boolean;
+  /** Why `inputTokens` is or is not a real measurement, so the provenance travels with the record. */
+  tokenProvenance: string;
 } {
   const pipeline = options.pipeline ?? pipelineFrom(record);
   const wallMs = wallMsFrom(record);
   const reworkAvoided = reworkAvoidedFrom(record);
   const diffLines = options.diffLines === undefined ? null : options.diffLines;
 
+  /**
+   * Task-level totals: the decision grain, one row per task.
+   *
+   * The ledger sums a task's consumption and does not attribute it per stage, so this is the only
+   * grain at which the figures are real. Nothing here is copied onto stages.
+   */
+  const totals: CoordinationTaskTotals = {
+    modelCalls: record.usage.modelCalls,
+    // NOT `usage.estimatedInputTokens`. See the header: that figure is `ceil(characters / 4)`, a
+    // heuristic, and no provider usage block reaches the ledger, so there is no real token count to
+    // report. It is kept as a diagnostic instead of being renamed into a measurement.
+    inputTokens: null,
+    outputTokens: null,
+    wallMs,
+    coordinationMs: record.usage.providerWaitMs,
+    executionMs: record.usage.workerRuntimeMs,
+    reviewFindings: record.failureHistory.length,
+    reworkAvoided,
+    diffLines,
+    defectsEscaped: null
+  };
+
   const measured: CoordinationMeasure[] = [];
-  if (record.usage.modelCalls > 0 || record.usage.modelCalls === 0) measured.push("modelCalls");
-  if (record.usage.estimatedInputTokens >= 0) measured.push("inputTokens");
+  if (record.usage.modelCalls >= 0) measured.push("modelCalls");
   if (wallMs !== null) measured.push("wallMs");
   if (record.usage.providerWaitMs >= 0) measured.push("coordinationMs");
   if (record.usage.workerRuntimeMs >= 0) measured.push("executionMs");
@@ -145,44 +160,41 @@ export function coordinationRecordFromLedger(record: LedgerRecordView, options: 
   measured.push("reviewFindings");
   if (reworkAvoided !== null) measured.push("reworkAvoided");
   if (diffLines !== null) measured.push("diffLines");
-  // `outputTokens` and `defectsEscaped` are deliberately absent: see the header.
+  // `inputTokens`, `outputTokens` and `defectsEscaped` are deliberately ABSENT from that list, and the
+  // values above are null to match: a declared-but-null figure would be refused by the guard anyway,
+  // and declaring them would be the false provenance this audit exists to remove.
 
-  // One stage carries the task's figures and the rest carry only what they can honestly claim. The
-  // ledger does not attribute cost per stage, so attributing it to `implement` would be a guess
-  // dressed as a measurement; the aggregate stage keeps the totals and the others stay null.
-  const carrier: CoordinationStage = pipeline.includes("implement") ? "implement" : pipeline[0];
-  const stages: CoordinationStageRecord[] = pipeline.map((stage) => {
-    const base = zeroStage(stage);
-    if (stage === carrier) {
-      return {
-        ...base,
-        modelCalls: record.usage.modelCalls,
-        inputTokens: record.usage.estimatedInputTokens,
-        wallMs,
-        coordinationMs: record.usage.providerWaitMs,
-        executionMs: record.usage.workerRuntimeMs,
-        reviewFindings: record.failureHistory.length,
-        reworkAvoided,
-        diffLines
-      };
-    }
-    return base;
-  });
+  /**
+   * No stage attribution.
+   *
+   * An empty array is the honest answer: the ledger has no per-stage cost, and the alternative the
+   * first version chose — putting the task totals on one arbitrary "carrier" stage — both invented an
+   * attribution and made every other stage look like an unmeasured gap.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- documented as the stage grain above
+  const stages: import("./coordination-economics").CoordinationStageRecord[] = [];
 
   const unmeasured = COORDINATION_MEASURES.filter((measure) => !measured.includes(measure));
   return {
     record: {
       taskId: record.taskId,
       pipeline,
+      totals,
+      measured,
       stages,
+      stageMeasured: [],
       // The provider the task ended on, or a named placeholder when none was ever selected. Naming it
       // `unknown` rather than inventing a runtime keeps an unpaired record from looking comparable.
       runtime: record.activeProvider ?? record.sessions[0]?.provider ?? "unknown",
       ...(options.cohort ? { cohort: options.cohort } : {}),
-      measured,
+      diagnostics: {
+        estimatedInputTokens: record.usage.estimatedInputTokens,
+        note: "estimatedInputTokens is ceil(prompt characters / 4), a heuristic rather than a tokenizer, and ApiCompletion carries no usage block, so it is a diagnostic and deliberately NOT a measurement of input tokens"
+      },
       at: options.at
     },
     unmeasured,
-    verificationFailed: record.verificationState === "FAILED"
+    verificationFailed: record.verificationState === "FAILED",
+    tokenProvenance: "inputTokens is unmeasured: the platform estimates it as ceil(characters / 4) rather than counting tokens, and no provider-reported usage reaches the ledger"
   };
 }

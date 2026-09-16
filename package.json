@@ -78,7 +78,8 @@
     "verify:targeted": "node scripts/verify-targeted-vs-full.cjs",
     "economics:collect": "node scripts/agent-coordination-economics.cjs collect",
     "economics:evaluate": "node scripts/agent-coordination-economics.cjs evaluate",
-    "economics:verify": "node scripts/agent-coordination-economics.cjs verify"
+    "economics:verify": "node scripts/agent-coordination-economics.cjs verify",
+    "economics:fixtures": "node scripts/gate8-fixtures.cjs"
   },
   "dependencies": {
     "cross-env": "10.1.0",

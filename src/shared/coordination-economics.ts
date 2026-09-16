@@ -105,11 +105,62 @@ export interface CoordinationCohort extends CoordinationPolicy {
   arm: string;
 }
 
+/**
+ * What a whole task cost and produced.
+ *
+ * This is the grain the cost/benefit decision is made at, because it is the grain the durable ledger
+ * actually records: it holds task totals and does not attribute them to stages. Every field is
+ * `number | null` with its own declaration, so "we measured zero" and "we did not measure" stay
+ * distinguishable.
+ */
+export interface CoordinationTaskTotals {
+  modelCalls: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  wallMs: number | null;
+  coordinationMs: number | null;
+  executionMs: number | null;
+  reviewFindings: number | null;
+  reworkAvoided: number | null;
+  diffLines: number | null;
+  defectsEscaped: number | null;
+}
+
+/** The measures a task-level totals block declares as observed. */
+export type CoordinationTaskMeasured = CoordinationMeasure[];
+
 export interface CoordinationRecord {
   taskId: string;
   /** The pipeline the task ran through, in order. */
   pipeline: CoordinationStage[];
+  /**
+   * Task-level totals. THE decision grain.
+   *
+   * Separate from `stages` because a task total is not a stage measurement: the ledger sums a task's
+   * cost without knowing which stage spent it. Keeping them apart is what lets a five-stage production
+   * record be judged on its real totals without inventing a per-stage attribution, and it is why
+   * `stages` may legitimately be empty.
+   */
+  totals: CoordinationTaskTotals;
+  /** The measures `totals` actually observed. */
+  measured: CoordinationTaskMeasured;
+  /**
+   * Stage-level measurements, ONLY where a stage's cost was genuinely attributable.
+   *
+   * Empty when the source could not attribute cost per stage, which is the normal case for a ledger
+   * derived record. An empty array means "no stage attribution available", never "every stage cost
+   * nothing" — the distinction the first version of this model lost by putting task totals into a
+   * carrier stage and then requiring every other stage to carry them too.
+   */
   stages: CoordinationStageRecord[];
+  /**
+   * The measures the `stages` rows genuinely observe.
+   *
+   * The STAGE grain, kept separate from `measured` (the task grain) because they are different claims:
+   * a task total says "the task cost this much", a stage measurement says "THIS STAGE cost this much".
+   * Empty is the honest state for a source that could not attribute cost per stage.
+   */
+  stageMeasured?: CoordinationMeasure[];
   /** Which model/runtime produced the figures, so a comparison is like for like. */
   runtime: string;
   /**
@@ -120,12 +171,19 @@ export interface CoordinationRecord {
    */
   cohort?: CoordinationCohort;
   /**
-   * The measures a run actually observed.
+   * Figures kept for DIAGNOSIS that are deliberately NOT measurements.
    *
-   * Declared rather than inferred from nulls, because "we measured zero findings" and "we did not
-   * look for findings" are different claims and only the first can support a promotion.
+   * `estimatedInputTokens` belongs here: the platform computes it as `ceil(characters / 4)`, which is
+   * a heuristic rather than a tokenizer, and `ApiCompletion` carries no usage block at all so no
+   * provider-counted tokens ever reach the ledger. Publishing it as `inputTokens` would be exactly the
+   * "estimate wearing the label of a measurement" this phase forbids, and renaming it would not change
+   * where it came from.
    */
-  measured: CoordinationMeasure[];
+  diagnostics?: {
+    estimatedInputTokens?: number | null;
+    /** Why a diagnostic is not a measurement, so a reader is not left to infer it. */
+    note?: string;
+  };
   at: string;
 }
 
@@ -161,7 +219,7 @@ function sum(values: Array<number | null>): number {
 }
 
 /**
- * What one record's own declaration says about one of its stages.
+ * What one record's own declaration says about one of its STAGE measurements.
  *
  * Two ways a figure can be unusable, and both are problems rather than zeroes:
  *
@@ -172,82 +230,142 @@ function sum(values: Array<number | null>): number {
  *    That is a contradiction, and a comparison built on it would be comparing a figure of unknown
  *    provenance.
  *
- * A value that is neither declared nor present is a plain gap: not a problem, just unmeasured.
+ * A value that is neither declared nor present is a plain gap: not a problem, just unmeasured. The
+ * declaration consulted here is `stageMeasured` — the STAGE grain — not the task-level one, because a
+ * stage figure and a task figure are different claims and the first version conflated them.
  */
 function auditStage(record: CoordinationRecord, stage: CoordinationStageRecord, measure: CoordinationMeasure): { usable: boolean; problem: string | null } {
-  const declared = record.measured.includes(measure);
+  const declared = (record.stageMeasured ?? []).includes(measure);
   const value = stage[measure];
   if (declared && value === null) {
-    return { usable: false, problem: `${record.taskId}/${stage.stage}: ${measure} is declared measured but is null, so it cannot be counted` };
+    return { usable: false, problem: `${record.taskId}/${stage.stage}: ${measure} is declared as a stage measurement but is null, so it cannot be counted` };
   }
   if (!declared && value !== null) {
-    return { usable: false, problem: `${record.taskId}/${stage.stage}: ${measure} has a value but is not declared measured, so its provenance is unclear` };
+    return { usable: false, problem: `${record.taskId}/${stage.stage}: ${measure} has a stage value but is not declared a stage measurement, so its provenance is unclear` };
   }
   return { usable: declared && value !== null, problem: null };
 }
 
-/** Total one record, counting each measure only where it was DECLARED and observed. */
+/**
+ * Whether a task-level figure is usable: declared AND non-null.
+ *
+ * The task-level counterpart of `auditStage`, and the grain the decision reads. A declared-but-null
+ * task total is a missing measurement wearing the label of a real one, so it must fail closed rather
+ * than be summed as zero.
+ */
+function auditTaskTotal(record: CoordinationRecord, measure: CoordinationMeasure): { usable: boolean; problem: string | null } {
+  const declared = record.measured.includes(measure);
+  const value = record.totals[measure];
+  if (declared && value === null) {
+    return { usable: false, problem: `${record.taskId}: ${measure} is declared as a task total but is null, so it cannot be counted` };
+  }
+  if (!declared && value !== null) {
+    return { usable: false, problem: `${record.taskId}: ${measure} carries a task total but is not declared measured, so its provenance is unclear` };
+  }
+  return { usable: declared && value !== null, problem: null };
+}
+
+/**
+ * Total ONE TASK from its task-level totals.
+ *
+ * The decision grain. It reads `record.totals`, never the stages — so it cannot double-count, because
+ * a task total is already the whole task. The stage rows are consulted only to report how much of the
+ * task was attributed per stage, which is diagnostic.
+ */
 export function totalRecord(record: CoordinationRecord): CoordinationTotals {
-  const pick = (measure: CoordinationMeasure): Array<number | null> =>
-    record.stages.map((stage) => (auditStage(record, stage, measure).usable ? stage[measure] : null));
-  const wallMs = sum(pick("wallMs"));
-  const coordinationMs = sum(pick("coordinationMs"));
+  const value = (measure: CoordinationMeasure): number | null =>
+    auditTaskTotal(record, measure).usable ? record.totals[measure] : null;
+  const wallMs = value("wallMs") ?? 0;
+  const coordinationMs = value("coordinationMs") ?? 0;
   return {
-    modelCalls: sum(pick("modelCalls")),
-    inputTokens: sum(pick("inputTokens")),
-    outputTokens: sum(pick("outputTokens")),
+    modelCalls: value("modelCalls") ?? 0,
+    inputTokens: value("inputTokens") ?? 0,
+    outputTokens: value("outputTokens") ?? 0,
     wallMs,
     coordinationMs,
-    executionMs: sum(pick("executionMs")),
-    reviewFindings: sum(pick("reviewFindings")),
-    reworkAvoided: sum(pick("reworkAvoided")),
-    diffLines: sum(pick("diffLines")),
-    defectsEscaped: sum(pick("defectsEscaped")),
+    executionMs: value("executionMs") ?? 0,
+    reviewFindings: value("reviewFindings") ?? 0,
+    reworkAvoided: value("reworkAvoided") ?? 0,
+    diffLines: value("diffLines") ?? 0,
+    defectsEscaped: value("defectsEscaped") ?? 0,
     coordinationShare: wallMs > 0 ? coordinationMs / wallMs : null
   };
 }
 
 /**
- * Total one stage across a set of records.
+ * How much of a task's cost was attributed to each stage, for diagnosis.
  *
- * **Each record is checked against its OWN `measured` declaration.** The first version of this
- * function read `relevant[0].measured` and applied it to every record — so one task that declared a
- * figure made every other task's undeclared figure look observed, and a task that omitted
- * `defectsEscaped` was counted as having escaped zero defects. That is precisely the "null treated as
- * a real 0" failure, and it made the guard's `INSUFFICIENT_EVIDENCE` answer unavailable exactly when
- * it was needed.
+ * Reports the attributed figure and whether the attribution is COMPLETE for the task. An incomplete
+ * attribution is not an error — it is the normal case for a ledger-derived record, whose source sums
+ * a task without knowing which stage spent what. What must never happen is treating the attributed
+ * part as if it were the whole, which is why the task totals are the decision grain.
  */
-export function totalStage(records: readonly CoordinationRecord[], stage: CoordinationStage): StageEconomics {
+export function stageAttribution(record: CoordinationRecord, measure: CoordinationMeasure): { attributed: number; stages: number; complete: boolean } {
+  const rows = record.stages.filter((stage) => (record.stageMeasured ?? []).includes(measure) && stage[measure] !== null);
+  const attributed = rows.reduce((total, stage) => total + (stage[measure] ?? 0), 0);
+  const total = auditTaskTotal(record, measure).usable ? record.totals[measure] ?? 0 : 0;
+  return { attributed, stages: rows.length, complete: rows.length > 0 && attributed === total };
+}
+
+/**
+ * Total one stage across a set of records, using ONLY genuine stage provenance.
+ *
+ * Records that carry no stage attribution are excluded from the stage figure and counted in
+ * `unattributedTasks`, rather than contributing a zero or being silently dropped. The first version of
+ * this function instead required EVERY record to carry the measure on the stage, which made any
+ * normal multi-stage production record unusable.
+ */
+export function totalStage(records: readonly CoordinationRecord[], stage: CoordinationStage): StageEconomics & { unattributedTasks: string[]; measuresWithAttribution: CoordinationMeasure[] } {
   const relevant = records.filter((record) => record.pipeline.includes(stage));
   const pairs = relevant
     .map((record) => ({ record, stage: record.stages.find((entry) => entry.stage === stage) }))
     .filter((pair): pair is { record: CoordinationRecord; stage: CoordinationStageRecord } => pair.stage !== undefined);
+  const unattributedTasks = relevant.filter((record) => !record.stages.some((entry) => entry.stage === stage)).map((record) => record.taskId).sort();
 
   const unmeasured = COORDINATION_MEASURES.filter((measure) =>
     pairs.some((pair) => !auditStage(pair.record, pair.stage, measure).usable));
-  // Every record must be represented: a record whose pipeline names the stage but whose stages array
-  // omits it is a contradiction, and silently dropping it would inflate the totals' apparent coverage.
-  const everyRecordRepresented = pairs.length === relevant.length;
   /**
-   * The aggregate carries only the measures that were usable everywhere.
+   * The aggregate carries only the measures that were usable everywhere among the records that DID
+   * attribute this stage.
    *
-   * Passing `[...COORDINATION_MEASURES]` here was a defect inside the fix for the first defect: it
-   * declared every measure for the aggregate, which re-admitted the very value the audit had just
-   * judged undeclared, and the total then counted it. Deriving the declaration from the audit keeps
-   * the two consistent by construction.
+   * Passing `[...COORDINATION_MEASURES]` here was a defect inside an earlier fix: it declared every
+   * measure for the aggregate, which re-admitted the very value the audit had just judged undeclared.
    */
   const usableEverywhere = COORDINATION_MEASURES.filter((measure) =>
     pairs.length > 0 && pairs.every((pair) => auditStage(pair.record, pair.stage, measure).usable));
-  const totals = totalRecord({
-    taskId: `${stage}-aggregate`, pipeline: [stage], stages: pairs.map((pair) => pair.stage),
-    runtime: relevant[0]?.runtime ?? "unknown", measured: [...usableEverywhere], at: relevant[0]?.at ?? ""
-  });
+  /**
+   * The stage aggregate sums the STAGE rows directly.
+   *
+   * Not via `totalRecord`: that function reads the TASK grain, which would report a task's whole cost
+   * as if it were this stage's — the exact attribution error the grain split exists to prevent. A
+   * measure contributes only where it was declared a stage measurement AND is non-null.
+   */
+  const stageValue = (measure: CoordinationMeasure): Array<number | null> =>
+    pairs.map((pair) => (auditStage(pair.record, pair.stage, measure).usable ? pair.stage[measure] : null));
+  const wallMs = sum(stageValue("wallMs"));
+  const coordinationMs = sum(stageValue("coordinationMs"));
+  const totals: CoordinationTotals = {
+    modelCalls: sum(stageValue("modelCalls")),
+    inputTokens: sum(stageValue("inputTokens")),
+    outputTokens: sum(stageValue("outputTokens")),
+    wallMs,
+    coordinationMs,
+    executionMs: sum(stageValue("executionMs")),
+    reviewFindings: sum(stageValue("reviewFindings")),
+    reworkAvoided: sum(stageValue("reworkAvoided")),
+    diffLines: sum(stageValue("diffLines")),
+    defectsEscaped: sum(stageValue("defectsEscaped")),
+    coordinationShare: wallMs > 0 ? coordinationMs / wallMs : null
+  };
   return {
     stage,
     totals,
     tasks: relevant.length,
     unmeasured,
-    complete: relevant.length > 0 && everyRecordRepresented && unmeasured.length === 0
+    // Complete means every record that ran this stage attributed it, and every measure was usable.
+    complete: relevant.length > 0 && unattributedTasks.length === 0 && unmeasured.length === 0,
+    unattributedTasks,
+    measuresWithAttribution: usableEverywhere
   };
 }
 
@@ -308,6 +426,14 @@ interface GuardResult {
   reasons: string[];
 }
 
+/**
+ * Combine several tasks into one arm's totals.
+ *
+ * Each record contributes its TASK total exactly once. It does not also add up the stage rows: those
+ * are an attribution of the same money, so summing both would count a task's cost twice — once as a
+ * total and again as the parts that make it up. That double count is the specific hazard the grain
+ * split exists to prevent.
+ */
 function combine(records: readonly CoordinationRecord[]): CoordinationTotals & { tasks: number } {
   const totals = records.map(totalRecord);
   const wallMs = sum(totals.map((entry) => entry.wallMs));
@@ -328,29 +454,24 @@ function combine(records: readonly CoordinationRecord[]): CoordinationTotals & {
   };
 }
 
-/** Whether a record observed every measure the decision needs, by its OWN declaration and value. */
+/**
+ * Whether every record observed every measure the decision needs, AT THE TASK GRAIN.
+ *
+ * This reads `record.totals` and `record.measured`. It deliberately does NOT read the stage rows: a
+ * record whose source could not attribute cost per stage has an empty `stages` array, which is a
+ * normal and honest state, and requiring the task total to appear on every stage would refuse every
+ * production record. Stage-level completeness is a separate question, answered by `totalStage` and
+ * reported as diagnosis rather than as a precondition for the decision.
+ */
 function decisionEvidenceProblems(records: readonly CoordinationRecord[], decisions: readonly CoordinationMeasure[]): string[] {
   const problems: string[] = [];
   // Cost is always required: a benefit comparison with no cost side is not a cost/benefit decision.
   const required: CoordinationMeasure[] = [...COST_MEASURES, ...decisions];
   for (const record of records) {
     for (const measure of required) {
-      if (!record.measured.includes(measure)) {
-        problems.push(`${record.taskId}: ${measure} was not observed`);
-        continue;
-      }
-      // Declared: then every stage must actually carry it. A declared-but-null figure is a missing
-      // measurement wearing the label of a real one.
-      const missingOnStage = record.stages.filter((stage) => stage[measure] === null).map((stage) => stage.stage);
-      if (missingOnStage.length > 0) {
-        problems.push(`${record.taskId}: ${measure} is declared measured but is null on ${missingOnStage.join(", ")}`);
-      }
-    }
-    for (const stage of record.stages) {
-      for (const measure of required) {
-        if (!record.measured.includes(measure) && stage[measure] !== null) {
-          problems.push(`${record.taskId}: ${measure} has a value on ${stage.stage} but is not declared measured`);
-        }
+      const audited = auditTaskTotal(record, measure);
+      if (!audited.usable) {
+        problems.push(audited.problem ?? `${record.taskId}: ${measure} is not usable as a task total`);
       }
     }
   }

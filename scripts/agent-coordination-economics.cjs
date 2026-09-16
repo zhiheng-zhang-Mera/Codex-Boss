@@ -64,7 +64,12 @@ function evaluatePairs(artifact, shared) {
     // A pair naming records that do not exist cannot be judged at all; that is a refusal, not a zero.
     const guard = missing.length > 0
       ? { verdict: "INSUFFICIENT_EVIDENCE", stage: pair.candidateStage, comparison: null, reasons: [`the pair names ${missing.length} record(s) that are not in the artifact: ${missing.join(", ")}`] }
-      : shared.evaluateStageGuard({ stage: pair.candidateStage, withStage: candidate, withoutStage: baseline });
+      : shared.evaluateStageGuard({
+          stage: pair.candidateStage,
+          withStage: candidate,
+          withoutStage: baseline,
+          ...(Array.isArray(pair.decisionMeasures) && pair.decisionMeasures.length > 0 ? { decisionMeasures: pair.decisionMeasures } : {})
+        });
     const decision = shared.permittedPipeline({ current: ["intake", "implement", "finalize"], candidate: pair.candidateStage, verdict: guard.verdict });
     results.push({ pairId: pair.pairId, candidateStage: pair.candidateStage, describes: pair.describes, verdict: guard.verdict, reasons: guard.reasons, missing, comparison: guard.comparison, pipelineDecision: { changed: decision.changed, reason: decision.reason } });
   }

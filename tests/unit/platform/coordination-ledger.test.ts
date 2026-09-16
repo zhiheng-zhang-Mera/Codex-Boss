@@ -38,30 +38,44 @@ function ledgerRecord(overrides: Partial<LedgerRecordView> = {}): LedgerRecordVi
 }
 
 describe("Phase 05 Task D — the ledger adapter reports only what the ledger observed", () => {
-  it("derives the observed figures and leaves the two unobservable ones out", () => {
-    const { record, unmeasured } = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
+  it("derives the observed TASK figures and leaves the unobservable ones out", () => {
+    const { record, unmeasured, tokenProvenance } = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
     expect(record.runtime).toBe("api:deepseek");
-    // Observed, and declared.
-    for (const measure of ["modelCalls", "inputTokens", "wallMs", "coordinationMs", "executionMs", "reviewFindings", "reworkAvoided"] as const) {
+    // Observed at the task grain, and declared.
+    for (const measure of ["modelCalls", "wallMs", "coordinationMs", "executionMs", "reviewFindings", "reworkAvoided"] as const) {
       expect(record.measured, `${measure} should be declared`).toContain(measure);
     }
-    // NOT observed, and honestly absent.
-    expect(record.measured).not.toContain("outputTokens");
-    expect(record.measured).not.toContain("defectsEscaped");
-    expect(unmeasured).toContain("outputTokens");
-    expect(unmeasured).toContain("defectsEscaped");
-    // `estimatedOutputTokens` exists on the ledger and is deliberately NOT promoted to a measurement.
-    const carrier = record.stages.find((stage) => stage.modelCalls !== null);
-    expect(carrier?.outputTokens).toBeNull();
-    expect(carrier?.defectsEscaped).toBeNull();
+    // NOT observed, and honestly absent. `inputTokens` is the one the provenance audit changed.
+    for (const measure of ["inputTokens", "outputTokens", "defectsEscaped"] as const) {
+      expect(record.measured, `${measure} must NOT be declared`).not.toContain(measure);
+      expect(unmeasured).toContain(measure);
+      expect(record.totals[measure], `${measure} must be null`).toBeNull();
+    }
+    // The heuristic estimate is kept as a DIAGNOSTIC, with the reason attached, and is not a
+    // measurement: `estimatedInputTokens` is ceil(characters / 4), and ApiCompletion carries no usage
+    // block, so no provider-counted tokens ever reach the ledger.
+    expect(record.diagnostics?.estimatedInputTokens).toBe(48_000);
+    expect(record.diagnostics?.note).toContain("ceil");
+    expect(tokenProvenance).toContain("unmeasured");
+  });
+
+  it("carries NO stage attribution, because the ledger has no per-stage cost", () => {
+    // An empty stages array is the honest answer. The first version put the task totals on one
+    // arbitrary carrier stage, which invented an attribution and made every other stage look like an
+    // unmeasured gap — so a realistic multi-stage record could never be judged.
+    const { record } = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
+    expect(record.stages).toEqual([]);
+    expect(record.stageMeasured).toEqual([]);
+    // The pipeline is still reported: knowing which stages RAN is different from knowing what each cost.
+    expect(record.pipeline).toContain("implement");
+    expect(record.pipeline).toContain("finalize");
   });
 
   it("measures wall time from the durable job timestamps", () => {
     const { record } = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
-    const carrier = record.stages.find((stage) => stage.wallMs !== null);
-    expect(carrier?.wallMs).toBe(120_000);
-    expect(carrier?.executionMs).toBe(118_000);
-    expect(carrier?.coordinationMs).toBe(2_000);
+    expect(record.totals.wallMs).toBe(120_000);
+    expect(record.totals.executionMs).toBe(118_000);
+    expect(record.totals.coordinationMs).toBe(2_000);
   });
 
   it("reports no wall time when no job carries durable timestamps", () => {
@@ -81,12 +95,12 @@ describe("Phase 05 Task D — the ledger adapter reports only what the ledger ob
       { at: AT }
     );
     expect(recovered.record.measured).toContain("reworkAvoided");
-    expect(recovered.record.stages.find((stage) => stage.reworkAvoided !== null)?.reworkAvoided).toBe(1);
+    expect(recovered.record.totals.reworkAvoided).toBe(1);
 
     // A job that completed on its first attempt absorbed no rework — a real zero, which is different
     // from unmeasured.
     const firstTry = coordinationRecordFromLedger(ledgerRecord(), { at: AT });
-    expect(firstTry.record.stages.find((stage) => stage.reworkAvoided !== null)?.reworkAvoided).toBe(0);
+    expect(firstTry.record.totals.reworkAvoided).toBe(0);
     // No jobs at all is unmeasured rather than zero.
     const noJobs = coordinationRecordFromLedger(ledgerRecord({ jobs: {} }), { at: AT });
     expect(noJobs.record.measured).not.toContain("reworkAvoided");
@@ -97,7 +111,7 @@ describe("Phase 05 Task D — the ledger adapter reports only what the ledger ob
     expect(without.record.measured).not.toContain("diffLines");
     const with_ = coordinationRecordFromLedger(ledgerRecord(), { at: AT, diffLines: 42 });
     expect(with_.record.measured).toContain("diffLines");
-    expect(with_.record.stages.find((stage) => stage.diffLines !== null)?.diffLines).toBe(42);
+    expect(with_.record.totals.diffLines).toBe(42);
   });
 
   it("reports a repair stage only when something actually had to be repaired", () => {
@@ -139,8 +153,10 @@ describe("Phase 05 Task D — the ledger adapter reports only what the ledger ob
       const { record } = coordinationRecordFromLedger(view, { at: AT, diffLines: 5 });
       for (const measure of record.measured) {
         expect(COORDINATION_MEASURES).toContain(measure);
-        const carried = record.stages.some((stage) => stage[measure] !== null);
-        expect(carried, `${measure} was declared but no stage carries it`).toBe(true);
+        // Declared at the TASK grain, so the task total must carry it. This is the invariant that
+        // keeps the adapter and the guard consistent: a declared-but-null total is refused, so the
+        // adapter must never declare one.
+        expect(record.totals[measure], `${measure} was declared but the task total is null`).not.toBeNull();
       }
     }
   });

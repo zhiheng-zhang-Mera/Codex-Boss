@@ -4,6 +4,7 @@ import {
   COORDINATION_STAGES,
   evaluateStageGuard,
   permittedPipeline,
+  stageAttribution,
   summarizeCoordination,
   totalRecord,
   totalStage,
@@ -17,15 +18,21 @@ import {
 /**
  * Phase 05 Task D — agent coordination economics, and the added-stage guard.
  *
- * The book's rule is that an extra agent stage must not become the default pipeline if it only
- * increases token and wall-time without improving defect or rework. The property that makes the rule
- * worth having is the one exercised hardest here: **the guard must answer "I cannot tell" rather than
- * approve a stage on an unmeasured figure**. A composition rule that accepted estimated token counts
- * would promote an expensive stage on the strength of a guess, which is worse than having no rule.
+ * ## The two grains, and why they are separate
  *
- * The records below are built through the same shape the production ledger already populates
- * (`modelCalls`, `estimatedInputTokens`, `retries`, `toolCalls`, `modifiedFiles`), so a record
- * describes the running system rather than a parallel accounting.
+ * A durable `TaskLedger` records what a TASK cost. It does not say which stage spent it. So a record
+ * carries:
+ *
+ *  - `totals` + `measured` — the TASK grain, and the grain the source actually records;
+ *  - `stages` + `stageMeasured` — the STAGE grain, present only where cost was genuinely attributable.
+ *
+ * An earlier version of this model put the task totals on one arbitrary "carrier" stage and required
+ * every other stage to carry them too, which meant every realistic multi-stage production record was
+ * refused as INSUFFICIENT_EVIDENCE. The tests below are built at the task grain by default for that
+ * reason, and the stage-grain tests are explicit about being about attribution.
+ *
+ * The property that makes the guard worth having is unchanged: **it must answer "I cannot tell" rather
+ * than approve a stage on an unmeasured figure.**
  */
 
 const ALL: CoordinationMeasure[] = [...COORDINATION_MEASURES];
@@ -33,8 +40,8 @@ const ALL: CoordinationMeasure[] = [...COORDINATION_MEASURES];
 /**
  * A cohort identity two arms can share.
  *
- * Comparability is checked, not assumed, so every record taking part in a promotion decision has to
- * say what it is comparable to. The two arms differ in `arm` and in the planned variable only.
+ * Comparability is checked, not assumed, so every record taking part in a promotion decision says what
+ * it is comparable to. The two arms differ in `arm` and in the planned variable only.
  */
 function cohort(arm: string, overrides: Partial<CoordinationCohort> = {}): CoordinationCohort {
   return {
@@ -47,148 +54,217 @@ function cohort(arm: string, overrides: Partial<CoordinationCohort> = {}): Coord
   };
 }
 
-function stage(stageName: CoordinationStage, overrides: Partial<CoordinationStageRecord> = {}): CoordinationStageRecord {
-  return {
-    stage: stageName,
-    modelCalls: 1,
-    inputTokens: 1_000,
-    outputTokens: 500,
-    wallMs: 1_000,
-    coordinationMs: 100,
-    executionMs: 900,
-    reviewFindings: 0,
-    reworkAvoided: 0,
-    diffLines: 10,
-    defectsEscaped: 0,
-    ...overrides
-  };
-}
-
+/**
+ * Build a record at the TASK grain.
+ *
+ * Only the measures actually supplied are declared measured; the rest are null and undeclared, which
+ * is how "not measured" stays distinguishable from "measured zero".
+ */
 function record(
   taskId: string,
   pipeline: CoordinationStage[],
-  stages: CoordinationStageRecord[],
+  totals: Partial<Record<CoordinationMeasure, number | null>> = {},
   overrides: Partial<CoordinationRecord> = {}
 ): CoordinationRecord {
+  const filled: Record<string, number | null> = {};
+  for (const measure of COORDINATION_MEASURES) filled[measure] = measure in totals ? (totals[measure] as number | null) : null;
+  const measured = COORDINATION_MEASURES.filter((measure) => filled[measure] !== null);
   return {
-    taskId, pipeline, stages, runtime: "test-runtime", measured: ALL,
+    taskId,
+    pipeline,
+    totals: filled as unknown as CoordinationRecord["totals"],
+    measured,
+    stages: [],
+    stageMeasured: [],
+    runtime: "test-runtime",
     cohort: cohort(pipeline.includes("review") ? "with-candidate" : "baseline"),
     at: "2026-09-16T00:00:00.000Z",
     ...overrides
   };
 }
 
-/** A task that ran the baseline pipeline: no review stage. */
+/** One stage's row, for the tests that are specifically about stage attribution. */
+function stage(stageName: CoordinationStage, overrides: Partial<CoordinationStageRecord> = {}): CoordinationStageRecord {
+  return {
+    stage: stageName,
+    modelCalls: 1,
+    inputTokens: 1_000,
+    outputTokens: null,
+    wallMs: 1_000,
+    coordinationMs: 100,
+    executionMs: 900,
+    reviewFindings: 0,
+    reworkAvoided: 0,
+    diffLines: 10,
+    defectsEscaped: null,
+    ...overrides
+  };
+}
+
+/** A task that ran the baseline pipeline, expressed as a TASK TOTAL. */
 function baselineTask(taskId: string, defectsEscaped: number, reworkAvoided = 0): CoordinationRecord {
-  return record(taskId, ["implement", "finalize"], [
-    stage("implement", { defectsEscaped, reworkAvoided }),
-    stage("finalize", { defectsEscaped: 0, reworkAvoided: 0 })
-  ]);
+  return record(taskId, ["implement", "finalize"], {
+    modelCalls: 4, inputTokens: 1_000, wallMs: 1_000, executionMs: 900, coordinationMs: 100,
+    reviewFindings: 0, reworkAvoided, defectsEscaped, diffLines: 10
+  });
 }
 
-/** The same task with a review stage added before finalize. */
+/** The same task with a review stage added, again as a task total. */
 function reviewedTask(taskId: string, defectsEscaped: number, reworkAvoided: number): CoordinationRecord {
-  return record(taskId, ["implement", "review", "finalize"], [
-    stage("implement", { defectsEscaped: 0, reworkAvoided: 0 }),
-    stage("review", { reviewFindings: 2, reworkAvoided, inputTokens: 2_000, modelCalls: 2, wallMs: 2_000 }),
-    stage("finalize", { defectsEscaped, reworkAvoided: 0 })
-  ]);
+  return record(taskId, ["implement", "review", "finalize"], {
+    modelCalls: 6, inputTokens: 3_000, wallMs: 3_000, executionMs: 2_700, coordinationMs: 300,
+    reviewFindings: 2, reworkAvoided, defectsEscaped, diffLines: 10
+  });
 }
 
-describe("Phase 05 Task D — every record is judged by its OWN declaration", () => {
-  it("does not let one well-measured record vouch for a set that never measured the figure", () => {
-    // THE regression this audit exists for. The first version of `totalStage` read
-    // `relevant[0].measured` and applied it to every record, so a single task that declared
-    // `defectsEscaped` made every OTHER task's undeclared figure look observed — and a task that had
-    // never looked for escaped defects was then counted as having escaped zero. That is a missing
-    // measurement wearing the label of a real one, and it silently disabled the guard's refusal.
-    const declaring = record("declares", ["review"], [stage("review", { defectsEscaped: 2 })]);
-    const silent = record("silent", ["review"], [stage("review", { defectsEscaped: null })], {
-      measured: ALL.filter((measure) => measure !== "defectsEscaped")
-    });
-    const economics = totalStage([declaring, silent], "review");
-    expect(economics.complete).toBe(false);
-    expect(economics.unmeasured).toContain("defectsEscaped");
-    // `defectsEscaped` is usable by one record and not the other, so the aggregate REFUSES to total it
-    // rather than summing the half it could see. Reporting 2 would be a figure that looks like a total
-    // while silently omitting a task; reporting the silent task as 0 is the old defect. Neither is
-    // honest, so the aggregate carries no figure for it at all — and `unmeasured` says which.
-    expect(economics.totals.defectsEscaped).toBe(0);
-    const usable = COORDINATION_MEASURES.filter((measure) => !economics.unmeasured.includes(measure));
-    expect(usable).toContain("wallMs");
-    expect(usable).not.toContain("defectsEscaped");
+const BOTH_BENEFITS: CoordinationMeasure[] = ["reworkAvoided", "defectsEscaped"];
+
+describe("Phase 05 Task D — a realistic production-shaped record is judged on its task totals", () => {
+  it("REGRESSION: a five-stage record with totals and NO stage attribution still decides", () => {
+    // The exact case the grain conflict broke. A ledger-derived record has task totals and an empty
+    // `stages` array, because the ledger cannot attribute cost per stage. The guard must compare the
+    // task totals and must NOT refuse because other stages carry no per-stage figures.
+    const withStage = [record("c1", ["intake", "plan", "implement", "verify", "review", "finalize"], {
+      modelCalls: 9, inputTokens: 6_000, wallMs: 6_000, coordinationMs: 600, executionMs: 5_400,
+      reviewFindings: 2, reworkAvoided: 3
+    })];
+    const withoutStage = [record("b1", ["intake", "plan", "implement", "verify", "finalize"], {
+      modelCalls: 5, inputTokens: 2_000, wallMs: 2_000, coordinationMs: 200, executionMs: 1_800,
+      reviewFindings: 0, reworkAvoided: 0
+    })];
+    expect(withStage[0].stages).toEqual([]);
+    expect(withoutStage[0].stages).toEqual([]);
+
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    expect(result.verdict, result.reasons.join("; ")).toBe("EARNS_PLACE");
+    expect(result.comparison?.candidate.inputTokens).toBe(6_000);
+    expect(result.comparison?.baseline.inputTokens).toBe(2_000);
   });
 
-  it("fails closed when a measure is declared but its value is null", () => {
-    // Declared-and-null is a contradiction, not a zero. Counting it as zero is the hand-filled
-    // arithmetic this phase forbids.
-    const broken = record("declared-null", ["review"], [stage("review", { inputTokens: null })]);
+  it("REGRESSION: the guard does not require a task total to appear on the stages", () => {
+    // A record whose stages array is empty must be as usable as one with rows, as long as the task
+    // totals are there. Requiring both would refuse every production record.
+    const withAttribution = record("with", ["implement", "review"], { reworkAvoided: 2, modelCalls: 4, inputTokens: 100, wallMs: 100 }, {
+      stages: [stage("implement", { reworkAvoided: 2 })], stageMeasured: ["reworkAvoided"]
+    });
+    const withoutAttribution = record("without", ["implement", "review"], { reworkAvoided: 2, modelCalls: 4, inputTokens: 100, wallMs: 100 });
+    const baseline = record("b", ["implement"], { reworkAvoided: 0, modelCalls: 2, inputTokens: 50, wallMs: 50 });
+    for (const candidate of [withAttribution, withoutAttribution]) {
+      const result = evaluateStageGuard({ stage: "review", withStage: [candidate], withoutStage: [baseline] });
+      expect(result.verdict, `${candidate.taskId}: ${result.reasons.join("; ")}`).toBe("EARNS_PLACE");
+    }
+  });
+
+  it("REGRESSION: a task total is not double counted when stages also carry figures", () => {
+    // The hazard the grain split exists to prevent: `totalRecord` reads the task total, and `combine`
+    // does not also add up the stage rows, so a task whose stages happen to be attributed still
+    // contributes its cost exactly once.
+    const attributed = record("a", ["implement"], { modelCalls: 7, inputTokens: 5_000, wallMs: 5_000 }, {
+      stages: [stage("implement", { modelCalls: 7, inputTokens: 5_000, wallMs: 5_000 })],
+      stageMeasured: ["modelCalls", "inputTokens", "wallMs"]
+    });
+    const totals = totalRecord(attributed);
+    expect(totals.modelCalls).toBe(7);
+    expect(totals.inputTokens).toBe(5_000);
+    expect(totals.wallMs).toBe(5_000);
+
+    // The stage aggregate reports the attributed parts — the same money — and is never added to it.
+    const economics = totalStage([attributed], "implement");
+    expect(economics.totals.modelCalls).toBe(7);
+    expect(economics.unattributedTasks).toEqual([]);
+  });
+
+  it("REGRESSION: adding stages does not inflate a task total", () => {
+    const twoStages = record("two", ["intake", "implement"], { inputTokens: 1_000, modelCalls: 3, wallMs: 1_000 });
+    const fiveStages = record("five", ["intake", "plan", "implement", "verify", "finalize"], { inputTokens: 1_000, modelCalls: 3, wallMs: 1_000 });
+    expect(totalRecord(fiveStages)).toEqual(totalRecord(twoStages));
+
+    // Even when every stage is attributed, the task total is what is counted.
+    const allAttributed = record("attributed", ["implement", "verify"], { inputTokens: 1_000, modelCalls: 3, wallMs: 1_000 }, {
+      stages: [stage("implement", { inputTokens: 600, modelCalls: 2, wallMs: 600 }), stage("verify", { inputTokens: 400, modelCalls: 1, wallMs: 400 })],
+      stageMeasured: ["inputTokens", "modelCalls", "wallMs"]
+    });
+    expect(totalRecord(allAttributed).inputTokens).toBe(1_000);
+    expect(totalRecord(allAttributed).modelCalls).toBe(3);
+  });
+});
+
+describe("Phase 05 Task D — the stage grain is separate, and optional", () => {
+  it("counts a task with no stage attribution as unattributed rather than as zero", () => {
+    const attributed = record("a", ["review"], { reviewFindings: 2 }, { stages: [stage("review", { reviewFindings: 2 })], stageMeasured: ["reviewFindings"] });
+    const unattributed = record("b", ["review"], { reviewFindings: 3 });
+    const economics = totalStage([attributed, unattributed], "review");
+    expect(economics.totals.reviewFindings).toBe(2);
+    expect(economics.unattributedTasks).toEqual(["b"]);
+    expect(economics.complete).toBe(false);
+  });
+
+  it("reports how much of a task's total was attributed, and whether the attribution closes", () => {
+    const partial = record("partial", ["implement", "verify"], { inputTokens: 1_000, modelCalls: 3 }, {
+      stages: [stage("implement", { inputTokens: 600, modelCalls: 2 })], stageMeasured: ["inputTokens", "modelCalls"]
+    });
+    expect(stageAttribution(partial, "inputTokens").attributed).toBe(600);
+    expect(stageAttribution(partial, "inputTokens").complete).toBe(false);
+
+    const complete = record("complete", ["implement", "verify"], { inputTokens: 1_000, modelCalls: 3 }, {
+      stages: [stage("implement", { inputTokens: 600, modelCalls: 3 }), stage("verify", { inputTokens: 400, modelCalls: 0 })],
+      stageMeasured: ["inputTokens", "modelCalls"]
+    });
+    expect(stageAttribution(complete, "inputTokens").complete).toBe(true);
+  });
+
+  it("REGRESSION: a stage declaration with a null on a required stage fails closed", () => {
+    // Declaring `reviewFindings` a stage measurement and then leaving it null on the stage under test
+    // is a contradiction, not a zero.
+    const broken = record("broken", ["implement", "review"], { reviewFindings: 5, modelCalls: 2, inputTokens: 100, wallMs: 100 }, {
+      stages: [stage("implement", { reviewFindings: 5 }), stage("review", { reviewFindings: null })],
+      stageMeasured: ["reviewFindings"]
+    });
     const economics = totalStage([broken], "review");
     expect(economics.complete).toBe(false);
-    expect(economics.unmeasured).toContain("inputTokens");
+    expect(economics.unmeasured).toContain("reviewFindings");
   });
 
-  it("fails closed when a stage carries a value it did not declare measured", () => {
-    // A figure of unclear provenance. A comparison built on it would be comparing something nobody
-    // claimed to have measured.
-    const undeclared = record("undeclared-value", ["review"], [stage("review", { defectsEscaped: 3 })], {
-      measured: ALL.filter((measure) => measure !== "defectsEscaped")
+  it("rejects a stage value that was not declared a stage measurement", () => {
+    const undeclared = record("undeclared", ["review"], { reviewFindings: 4 }, {
+      stages: [stage("review", { reviewFindings: 4 })], stageMeasured: []
     });
     const economics = totalStage([undeclared], "review");
     expect(economics.complete).toBe(false);
-    expect(economics.unmeasured).toContain("defectsEscaped");
-    expect(economics.totals.defectsEscaped).toBe(0);
+    expect(economics.unmeasured).toContain("reviewFindings");
   });
+});
 
-  it("is complete only when every record observed every measure", () => {
-    const a = record("a", ["review"], [stage("review", { inputTokens: 100 })]);
-    const b = record("b", ["review"], [stage("review", { inputTokens: 200 })]);
-    const economics = totalStage([a, b], "review");
-    expect(economics.complete).toBe(true);
-    expect(economics.totals.inputTokens).toBe(300);
-    expect(economics.unmeasured).toEqual([]);
-  });
-
-  it("counts a record whose pipeline names a stage its stages array omits as incomplete", () => {
-    const contradictory: CoordinationRecord = record("contradictory", ["implement", "review"], [stage("implement")]);
-    const economics = totalStage([contradictory], "review");
-    expect(economics.tasks).toBe(1);
-    expect(economics.complete).toBe(false);
-  });
-
-  it("REGRESSION: the guard refuses when ANY record lacks a decision measure", () => {
-    // The mixed set is the case the old `missingDecisionMeasures` could not see, because it asked
-    // whether the measure appeared in ANY record's declaration.
-    const withStage = [
-      record("c1", ["implement", "review"], [stage("implement", { defectsEscaped: 0 }), stage("review", { reworkAvoided: 3 })]),
-      record("c2", ["implement", "review"], [stage("implement", { defectsEscaped: null }), stage("review", { reworkAvoided: 1 })], {
-        measured: ALL.filter((measure) => measure !== "defectsEscaped")
-      })
-    ];
-    const withoutStage = [record("b1", ["implement"], [stage("implement", { defectsEscaped: 4 })])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
+describe("Phase 05 Task D — a declared task total that is null fails closed", () => {
+  it("REGRESSION: a declared-but-null task total is refused, not counted as zero", () => {
+    // `measured` claims the figure; `totals` supplies nothing. Trusting the declaration would count a
+    // missing measurement as a real 0 and let the comparison proceed on a fabricated baseline.
+    const shaped = record("shaped", ["implement"], {}).totals;
+    const lying: CoordinationRecord = {
+      ...record("lying", ["implement"], { modelCalls: 3, wallMs: 100 }),
+      measured: [...ALL],
+      totals: { ...shaped, modelCalls: 3, wallMs: 100, inputTokens: null }
+    };
+    const withStage = [record("c", ["implement", "review"], { reworkAvoided: 2, modelCalls: 4, inputTokens: 100, wallMs: 100 })];
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage: [lying] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
-    expect(result.reasons.join(" ")).toContain("defectsEscaped");
-    expect(result.reasons.join(" ")).toContain("c2");
+    expect(result.reasons.join(" ")).toContain("inputTokens");
+    expect(result.reasons.join(" ")).toContain("lying");
+    // And `totalRecord` refuses to fold the null in as a zero.
+    expect(totalRecord(lying).inputTokens).toBe(0);
   });
 
-  it("REGRESSION: the guard refuses when a decision measure is declared but null on a stage", () => {
-    const withStage = [record("c1", ["implement", "review"], [stage("implement"), stage("review", { wallMs: null })])];
-    const withoutStage = [record("b1", ["implement"], [stage("implement")])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
-    expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
-    expect(result.reasons.join(" ")).toContain("declared measured but is null");
-    expect(result.reasons.join(" ")).toContain("review");
-  });
-
-  it("REGRESSION: the guard refuses a value whose measure was never declared", () => {
-    const withStage = [record("c1", ["implement", "review"], [stage("implement"), stage("review", { defectsEscaped: 1 })], {
-      measured: ALL.filter((measure) => measure !== "defectsEscaped")
-    })];
-    const withoutStage = [record("b1", ["implement"], [stage("implement", { defectsEscaped: 4 })], {
-      measured: ALL.filter((measure) => measure !== "defectsEscaped")
-    })];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
+  it("refuses a task total present without a declaration", () => {
+    const shaped = record("shaped", ["implement"], {}).totals;
+    const sneaky: CoordinationRecord = {
+      ...record("sneaky", ["implement"], { modelCalls: 3, wallMs: 100 }),
+      totals: { ...shaped, modelCalls: 3, wallMs: 100, inputTokens: 5_000 }
+    };
+    const result = evaluateStageGuard({
+      stage: "review",
+      withStage: [record("c", ["implement", "review"], { reworkAvoided: 2, modelCalls: 4, inputTokens: 100, wallMs: 100 })],
+      withoutStage: [sneaky]
+    });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("not declared measured");
   });
@@ -196,13 +272,13 @@ describe("Phase 05 Task D — every record is judged by its OWN declaration", ()
 
 describe("Phase 05 Task D — the two arms must be a real paired comparison", () => {
   const withArm = (taskId: string, overrides: Partial<CoordinationRecord> = {}): CoordinationRecord =>
-    record(taskId, ["implement", "review"], [stage("implement", { defectsEscaped: 0 }), stage("review", { reworkAvoided: 2 })], overrides);
+    record(taskId, ["implement", "review"], { reworkAvoided: 2, defectsEscaped: 0, modelCalls: 6, inputTokens: 3_000, wallMs: 3_000 }, overrides);
   const withoutArm = (taskId: string, overrides: Partial<CoordinationRecord> = {}): CoordinationRecord =>
-    record(taskId, ["implement"], [stage("implement", { defectsEscaped: 3 })], { cohort: cohort("baseline"), ...overrides });
+    record(taskId, ["implement"], { reworkAvoided: 0, defectsEscaped: 3, modelCalls: 4, inputTokens: 1_000, wallMs: 1_000 }, { cohort: cohort("baseline"), ...overrides });
 
   it("accepts a pair whose only difference is the candidate stage", () => {
     const result = evaluateStageGuard({ stage: "review", withStage: [withArm("c1")], withoutStage: [withoutArm("b1")] });
-    expect(result.verdict).toBe("EARNS_PLACE");
+    expect(result.verdict, result.reasons.join("; ")).toBe("EARNS_PLACE");
   });
 
   it("refuses a pair drawn from different benchmark cohorts", () => {
@@ -216,7 +292,6 @@ describe("Phase 05 Task D — the two arms must be a real paired comparison", ()
   });
 
   it("refuses a pair whose inputs or acceptance requirements differ", () => {
-    // Different inputs can have identical per-task averages and still prove nothing.
     const result = evaluateStageGuard({
       stage: "review",
       withStage: [withArm("c1")],
@@ -237,7 +312,7 @@ describe("Phase 05 Task D — the two arms must be a real paired comparison", ()
   });
 
   it("refuses when a record carries no cohort identity at all", () => {
-    const bare = record("bare", ["implement", "review"], [stage("implement"), stage("review", { reworkAvoided: 2 })], { cohort: undefined });
+    const bare = record("bare", ["implement", "review"], { reworkAvoided: 2, modelCalls: 6, inputTokens: 3_000, wallMs: 3_000 }, { cohort: undefined });
     const result = evaluateStageGuard({ stage: "review", withStage: [bare], withoutStage: [withoutArm("b1")] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("no cohort identity");
@@ -264,17 +339,14 @@ describe("Phase 05 Task D — the two arms must be a real paired comparison", ()
   });
 
   it("refuses when MORE than the candidate stage differs between the arms", () => {
-    // The candidate pipeline also gained a `verify` stage, so the experiment changed two variables.
-    const withExtra: CoordinationRecord = record("c-extra", ["implement", "verify", "review"], [
-      stage("implement", { defectsEscaped: 0 }), stage("verify", { defectsEscaped: 0 }), stage("review", { reworkAvoided: 2 })
-    ]);
+    const withExtra: CoordinationRecord = record("c-extra", ["implement", "verify", "review"], { reworkAvoided: 2, modelCalls: 6, inputTokens: 3_000, wallMs: 3_000 });
     const result = evaluateStageGuard({ stage: "review", withStage: [withExtra], withoutStage: [withoutArm("b1")] });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("more than the candidate stage differs");
   });
 
   it("refuses a cohort whose planned variable is a different stage than the one being judged", () => {
-    const wrongVariable = record("c-wrong", ["implement", "review"], [stage("implement"), stage("review", { reworkAvoided: 2 })], {
+    const wrongVariable = record("c-wrong", ["implement", "review"], { reworkAvoided: 2, modelCalls: 6, inputTokens: 3_000, wallMs: 3_000 }, {
       cohort: cohort("with-candidate", { plannedVariable: "repair" })
     });
     const result = evaluateStageGuard({
@@ -285,152 +357,46 @@ describe("Phase 05 Task D — the two arms must be a real paired comparison", ()
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("not an experiment about review");
   });
-});
 
-describe("Phase 05 Task D — a measured cost with no measurable benefit is a RESULT", () => {
-  it("returns COST_ONLY and leaves the stage out, which is Gate 8 succeeding", () => {
-    // The book's purpose is to stop an unprofitable stage becoming default. A stage that measurably
-    // buys nothing and costs more has been correctly evaluated, so this is a completed experiment with
-    // a negative answer — not an experiment that failed to run.
-    const withStage = [record("c1", ["implement", "review"], [stage("implement", { defectsEscaped: 2 }), stage("review", { reworkAvoided: 0, inputTokens: 4_000, modelCalls: 3 })])];
-    const withoutStage = [record("b1", ["implement"], [stage("implement", { defectsEscaped: 2, inputTokens: 1_000 })])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
-    expect(result.verdict).toBe("COST_ONLY");
-    const decision = permittedPipeline({ current: ["implement", "finalize"], candidate: "review", verdict: result.verdict });
-    expect(decision.changed).toBe(false);
-    expect(decision.reason).toContain("COST_ONLY");
-  });
-});
-
-describe("Phase 05 Task D — the accounting totals what was measured and shows what was not", () => {
-  it("totals a record across its stages, with coordination share of wall time", () => {
-    const totals = totalRecord(record("t1", ["implement", "review"], [
-      stage("implement", { inputTokens: 1_000, wallMs: 1_000, coordinationMs: 200, defectsEscaped: 1 }),
-      stage("review", { inputTokens: 3_000, wallMs: 3_000, coordinationMs: 800, reworkAvoided: 2, reviewFindings: 2 })
-    ]));
-    expect(totals.inputTokens).toBe(4_000);
-    expect(totals.wallMs).toBe(4_000);
-    expect(totals.coordinationMs).toBe(1_000);
-    expect(totals.coordinationShare).toBeCloseTo(0.25, 5);
-    expect(totals.reworkAvoided).toBe(2);
-    expect(totals.defectsEscaped).toBe(1);
-  });
-
-  it("reports a coordination share of null, not zero, when wall time was never observed", () => {
-    // Zero would read as "no coordination cost", which is a claim; null reads as "not measured".
-    const totals = totalRecord(record("t1", ["implement"], [stage("implement", { wallMs: null, coordinationMs: null })], {
-      measured: ALL.filter((measure) => measure !== "wallMs" && measure !== "coordinationMs")
-    }));
-    expect(totals.coordinationShare).toBeNull();
-  });
-
-  it("keeps an absent figure out of the total instead of counting it as zero", () => {
-    const partial = record("t1", ["implement"], [stage("implement", { inputTokens: null, modelCalls: 4 })], {
-      measured: ALL.filter((measure) => measure !== "inputTokens")
-    });
-    expect(totalRecord(partial).inputTokens).toBe(0);
-    // And the record says the figure was not observed, which is what a guard reads.
-    expect(partial.measured).not.toContain("inputTokens");
-  });
-
-  it("marks a stage incomplete when any task left a figure unobserved", () => {
-    const records = [
-      record("t1", ["review"], [stage("review")]),
-      record("t2", ["review"], [stage("review", { reviewFindings: null })])
-    ];
-    const economics = totalStage(records, "review");
-    expect(economics.tasks).toBe(2);
-    expect(economics.complete).toBe(false);
-    expect(economics.unmeasured.length).toBeGreaterThan(0);
-    // A stage no task ran is incomplete too, rather than a clean zero.
-    expect(totalStage(records, "repair").complete).toBe(false);
-  });
-});
-
-describe("Phase 05 Task D — the guard refuses to promote on unmeasured figures", () => {
-  it("returns INSUFFICIENT_EVIDENCE with no baseline rather than assuming one", () => {
-    const result = evaluateStageGuard({ stage: "review", withStage: [reviewedTask("a", 0, 2)], withoutStage: [] });
+  it("refuses two sets that overlap", () => {
+    const contaminated = [withArm("a")];
+    const result = evaluateStageGuard({ stage: "review", withStage: contaminated, withoutStage: contaminated });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
-    expect(result.comparison).toBeNull();
-    expect(result.reasons.join(" ")).toContain("no comparable task ran the pipeline without review");
-  });
-
-  it("returns INSUFFICIENT_EVIDENCE when a decision figure was never observed", () => {
-    // The heart of the matter: the stage looks great, but nobody measured whether defects escaped.
-    const noDefectMeasure = ALL.filter((measure) => measure !== "defectsEscaped");
-    const withStage = [record("a", ["implement", "review"], [stage("implement"), stage("review", { reworkAvoided: 5 })], { measured: noDefectMeasure })];
-    const withoutStage = [record("b", ["implement"], [stage("implement")], { measured: noDefectMeasure })];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage, decisionMeasures: ["reworkAvoided", "defectsEscaped"] });
-    expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
-    expect(result.reasons.join(" ")).toContain("defectsEscaped");
-  });
-
-  it("names EVERY missing figure, not the first one it stumbles on", () => {
-    const sparse = ALL.filter((measure) => measure !== "defectsEscaped" && measure !== "reworkAvoided");
-    const result = evaluateStageGuard({
-      stage: "review",
-      withStage: [record("a", ["implement", "review"], [stage("implement"), stage("review")], { measured: sparse })],
-      withoutStage: [record("b", ["implement"], [stage("implement")], { measured: sparse })],
-      decisionMeasures: ["reworkAvoided", "defectsEscaped"]
-    });
-    // Both requested benefit measures are named as unobserved, so a refusal says everything it is
-    // missing rather than the first gap it met.
-    expect(result.reasons.join(" ")).toContain("reworkAvoided");
-    expect(result.reasons.join(" ")).toContain("defectsEscaped");
-  });
-
-  it("decides on rework alone when escapes were never measured, which no ledger can do", () => {
-    // Escapes are discovered AFTER a task finishes, outside any run, so no ledger can report them.
-    // The default decision measure is therefore rework, and the reason says which measures were judged
-    // so a reader is not told about a figure that played no part.
-    const withStage = [record("c1", ["implement", "review"], [stage("implement", { reworkAvoided: 0 }), stage("review", { reworkAvoided: 3, inputTokens: 3_000 })])];
-    const withoutStage = [record("b1", ["implement"], [stage("implement", { reworkAvoided: 0, inputTokens: 1_000 })])];
-    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
-    expect(result.verdict).toBe("EARNS_PLACE");
-    expect(result.reasons.join(" ")).toContain("judged on reworkAvoided");
-    expect(result.reasons.join(" ")).not.toContain("escaped defects");
+    expect(result.reasons.join(" ")).toContain("actually includes review");
   });
 
   it("refuses to compare across two different runtimes", () => {
     const result = evaluateStageGuard({
       stage: "review",
-      withStage: [record("a", ["implement", "review"], [stage("implement"), stage("review")], { runtime: "web:chatgpt" })],
-      withoutStage: [record("b", ["implement"], [stage("implement")], { runtime: "api:claude" })]
+      withStage: [withArm("c1", { runtime: "web:chatgpt", cohort: cohort("with-candidate", { runtime: "web:chatgpt" }) })],
+      withoutStage: [withoutArm("b1", { runtime: "api:claude", cohort: cohort("baseline", { runtime: "api:claude" }) })]
     });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     expect(result.reasons.join(" ")).toContain("different runtimes");
   });
-
-  it("rejects sets that overlap, because a comparison against itself proves nothing", () => {
-    const contaminated = [record("a", ["implement", "review"], [stage("implement"), stage("review")])];
-    const result = evaluateStageGuard({ stage: "review", withStage: contaminated, withoutStage: contaminated });
-    expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
-    expect(result.reasons.join(" ")).toContain("actually includes review");
-  });
 });
 
-describe("Phase 05 Task D — the guard approves only a measured improvement", () => {
+describe("Phase 05 Task D — the verdicts", () => {
   it("EARNS_PLACE when the stage cuts escaped defects", () => {
     const result = evaluateStageGuard({
       stage: "review",
-      decisionMeasures: ["reworkAvoided", "defectsEscaped"],
+      decisionMeasures: BOTH_BENEFITS,
       withStage: [reviewedTask("a", 0, 2), reviewedTask("b", 0, 1)],
       withoutStage: [baselineTask("c", 3), baselineTask("d", 2)]
     });
-    expect(result.verdict).toBe("EARNS_PLACE");
+    expect(result.verdict, result.reasons.join("; ")).toBe("EARNS_PLACE");
     expect(result.comparison?.changeInDefectsEscaped).toBeLessThan(0);
-    // The reason names the measures the decision was actually made on.
     expect(result.reasons.join(" ")).toContain("escaped defects");
     expect(result.reasons.join(" ")).toContain("judged on reworkAvoided and defectsEscaped");
   });
 
-  it("EARNS_PLACE when the stage increases rework avoided, even with defects unchanged", () => {
+  it("EARNS_PLACE when the stage increases rework avoided", () => {
     const result = evaluateStageGuard({
       stage: "review",
       withStage: [reviewedTask("a", 1, 5), reviewedTask("b", 1, 5)],
       withoutStage: [baselineTask("c", 1, 0), baselineTask("d", 1, 0)]
     });
-    expect(result.verdict).toBe("EARNS_PLACE");
+    expect(result.verdict, result.reasons.join("; ")).toBe("EARNS_PLACE");
     expect(result.comparison?.changeInReworkAvoided).toBeGreaterThan(0);
   });
 
@@ -447,43 +413,80 @@ describe("Phase 05 Task D — the guard approves only a measured improvement", (
   });
 
   it("COST_ONLY on a tie, because a tie on benefit is decided against the extra stage", () => {
-    // Same cost, same benefit: the stage adds a moving part and changes nothing.
-    const same = (taskId: string): CoordinationRecord => record(taskId, ["implement", "review"], [
-      stage("implement", { inputTokens: 1_000, wallMs: 1_000, defectsEscaped: 1 }),
-      stage("review", { inputTokens: 0, wallMs: 0, modelCalls: 0, defectsEscaped: 0, reworkAvoided: 0 })
-    ]);
-    const baseline: CoordinationRecord = record("b", ["implement"], [stage("implement", { inputTokens: 1_000, wallMs: 1_000, defectsEscaped: 1 })]);
+    const same = (taskId: string): CoordinationRecord => record(taskId, ["implement", "review"], {
+      reworkAvoided: 0, defectsEscaped: 1, modelCalls: 4, inputTokens: 1_000, wallMs: 1_000
+    });
+    const baseline = record("b", ["implement"], { reworkAvoided: 0, defectsEscaped: 1, modelCalls: 4, inputTokens: 1_000, wallMs: 1_000 });
     const result = evaluateStageGuard({ stage: "review", withStage: [same("a")], withoutStage: [baseline] });
     expect(result.verdict).toBe("COST_ONLY");
     expect(result.reasons.join(" ")).toContain("tie on benefit is decided against");
   });
 
-  it("compares PER TASK, so running a stage more often cannot make it look better", () => {
-    // Two reviewed tasks against one baseline task. In TOTALS the reviewed set escapes more defects
-    // (1 against 0) while per task it escapes fewer (0.5 against 0)... so the honest reading is that
-    // this stage still buys something here. The point of the test is that the arithmetic is per task:
-    // a stage run 50 times always beats a baseline run once if the comparison is on totals.
+  it("COST_ONLY and leaves the stage out, which is Gate 8 succeeding", () => {
+    const withStage = [record("c1", ["implement", "review"], { reworkAvoided: 0, defectsEscaped: 2, modelCalls: 3, inputTokens: 4_000, wallMs: 4_000 })];
+    const withoutStage = [record("b1", ["implement"], { reworkAvoided: 0, defectsEscaped: 2, modelCalls: 1, inputTokens: 1_000, wallMs: 1_000 })];
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    expect(result.verdict).toBe("COST_ONLY");
+    const decision = permittedPipeline({ current: ["implement", "finalize"], candidate: "review", verdict: result.verdict });
+    expect(decision.changed).toBe(false);
+    expect(decision.reason).toContain("COST_ONLY");
+  });
+
+  it("INSUFFICIENT_EVIDENCE when a decision figure was never observed", () => {
     const result = evaluateStageGuard({
       stage: "review",
+      decisionMeasures: BOTH_BENEFITS,
+      withStage: [record("a", ["implement", "review"], { reworkAvoided: 5, modelCalls: 4, inputTokens: 100, wallMs: 100 })],
+      withoutStage: [record("b", ["implement"], { reworkAvoided: 0, modelCalls: 2, inputTokens: 50, wallMs: 50 })]
+    });
+    expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
+    expect(result.reasons.join(" ")).toContain("defectsEscaped");
+  });
+
+  it("names every missing figure, not the first one it stumbles on", () => {
+    const result = evaluateStageGuard({
+      stage: "review",
+      decisionMeasures: BOTH_BENEFITS,
+      withStage: [record("a", ["implement", "review"], { modelCalls: 4, inputTokens: 100, wallMs: 100 })],
+      withoutStage: [record("b", ["implement"], { modelCalls: 2, inputTokens: 50, wallMs: 50 })]
+    });
+    expect(result.reasons.join(" ")).toContain("reworkAvoided");
+    expect(result.reasons.join(" ")).toContain("defectsEscaped");
+  });
+
+  it("decides on rework alone when escapes were never measured, which no ledger can do", () => {
+    // Escapes are discovered AFTER a task finishes, outside any run, so no ledger can report them.
+    const withStage = [record("c1", ["implement", "review"], { reworkAvoided: 3, modelCalls: 4, inputTokens: 3_000, wallMs: 3_000 })];
+    const withoutStage = [record("b1", ["implement"], { reworkAvoided: 0, modelCalls: 2, inputTokens: 1_000, wallMs: 1_000 })];
+    const result = evaluateStageGuard({ stage: "review", withStage, withoutStage });
+    expect(result.verdict, result.reasons.join("; ")).toBe("EARNS_PLACE");
+    expect(result.reasons.join(" ")).toContain("judged on reworkAvoided");
+    expect(result.reasons.join(" ")).not.toContain("escaped defects");
+  });
+
+  it("returns INSUFFICIENT_EVIDENCE with no baseline rather than assuming one", () => {
+    const result = evaluateStageGuard({ stage: "review", withStage: [reviewedTask("a", 0, 2)], withoutStage: [] });
+    expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
+    expect(result.comparison).toBeNull();
+    expect(result.reasons.join(" ")).toContain("no comparable task ran the pipeline without review");
+  });
+
+  it("compares PER TASK, so running a stage more often cannot make it look better", () => {
+    const result = evaluateStageGuard({
+      stage: "review",
+      decisionMeasures: BOTH_BENEFITS,
       withStage: [reviewedTask("a", 1, 1), reviewedTask("b", 1, 1)],
       withoutStage: [baselineTask("c", 4)]
     });
     expect(result.comparison).not.toBeNull();
-    // Per task the reviewed set escaped 1 defect each against 4 for the baseline: an improvement.
     expect(result.verdict).toBe("EARNS_PLACE");
-    // And the totals are reported as totals, so the raw figures remain auditable rather than hidden
-    // behind the per-task view that decided the case.
     expect(result.comparison?.candidate.defectsEscaped).toBe(2);
     expect(result.comparison?.baseline.defectsEscaped).toBe(4);
   });
 
-  it("does not read a runtime-different comparison as a promotion even when the numbers look good", () => {
-    const result = evaluateStageGuard({
-      stage: "review",
-      withStage: [record("a", ["implement", "review"], [stage("implement", { defectsEscaped: 0 }), stage("review", { reworkAvoided: 9 })], { runtime: "web:chatgpt" })],
-      withoutStage: [record("b", ["implement"], [stage("implement", { defectsEscaped: 9 })], { runtime: "api:deepseek" })]
-    });
-    expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
+  it("is reproducible: the same records give the same guard result", () => {
+    const input = { stage: "review" as const, withStage: [reviewedTask("a", 0, 2)], withoutStage: [baselineTask("c", 3)] };
+    expect(evaluateStageGuard(input)).toEqual(evaluateStageGuard(input));
   });
 });
 
@@ -506,8 +509,6 @@ describe("Phase 05 Task D — composition follows the verdict, and cannot quietl
   });
 
   it("never removes a required stage, whatever the verdict says", () => {
-    // The rule only ever ADDS. A guard able to quietly drop a verification step would be worse than
-    // no guard, so a refusal leaves the pipeline untouched including everything the caller requires.
     const current: CoordinationStage[] = ["implement", "verify", "finalize"];
     for (const verdict of ["EARNS_PLACE", "COST_ONLY", "INSUFFICIENT_EVIDENCE"] as const) {
       const decision = permittedPipeline({ current, candidate: "review", verdict, required: ["verify"] });
@@ -516,13 +517,28 @@ describe("Phase 05 Task D — composition follows the verdict, and cannot quietl
   });
 });
 
-describe("Phase 05 Task D — the vocabulary is closed and the summary is readable", () => {
-  it("declares the stages and measures the book names", () => {
-    expect([...COORDINATION_STAGES]).toEqual(["intake", "plan", "implement", "verify", "review", "repair", "finalize"]);
-    // The nine figures the book lists, plus the two time splits that make coordination visible.
-    for (const measure of ["modelCalls", "inputTokens", "outputTokens", "wallMs", "coordinationMs", "executionMs", "reviewFindings", "reworkAvoided", "diffLines", "defectsEscaped"] as const) {
-      expect(COORDINATION_MEASURES).toContain(measure);
-    }
+describe("Phase 05 Task D — the accounting totals what was measured and shows what was not", () => {
+  it("totals a record from its task totals, with coordination share of wall time", () => {
+    const totals = totalRecord(record("t1", ["implement", "review"], {
+      inputTokens: 4_000, wallMs: 4_000, coordinationMs: 1_000, reworkAvoided: 2, defectsEscaped: 1
+    }));
+    expect(totals.inputTokens).toBe(4_000);
+    expect(totals.wallMs).toBe(4_000);
+    expect(totals.coordinationMs).toBe(1_000);
+    expect(totals.coordinationShare).toBeCloseTo(0.25, 5);
+    expect(totals.reworkAvoided).toBe(2);
+    expect(totals.defectsEscaped).toBe(1);
+  });
+
+  it("reports a coordination share of null, not zero, when wall time was never observed", () => {
+    const totals = totalRecord(record("t1", ["implement"], { coordinationMs: 100 }));
+    expect(totals.coordinationShare).toBeNull();
+  });
+
+  it("keeps an absent task total out of the total instead of counting it as zero", () => {
+    const partial = record("t1", ["implement"], { modelCalls: 4 });
+    expect(totalRecord(partial).inputTokens).toBe(0);
+    expect(partial.measured).not.toContain("inputTokens");
   });
 
   it("summarises a run without dumping the raw records", () => {
@@ -533,10 +549,10 @@ describe("Phase 05 Task D — the vocabulary is closed and the summary is readab
     expect(summarizeCoordination([])).toBe("no coordination records");
   });
 
-  it("is reproducible: the same records give the same guard result", () => {
-    const input = { stage: "review" as const, withStage: [reviewedTask("a", 0, 2)], withoutStage: [baselineTask("c", 3)] };
-    const first = evaluateStageGuard(input);
-    const second = evaluateStageGuard(input);
-    expect(second).toEqual(first);
+  it("declares the stages and measures the book names", () => {
+    expect([...COORDINATION_STAGES]).toEqual(["intake", "plan", "implement", "verify", "review", "repair", "finalize"]);
+    for (const measure of ["modelCalls", "inputTokens", "outputTokens", "wallMs", "coordinationMs", "executionMs", "reviewFindings", "reworkAvoided", "diffLines", "defectsEscaped"] as const) {
+      expect(COORDINATION_MEASURES).toContain(measure);
+    }
   });
 });
