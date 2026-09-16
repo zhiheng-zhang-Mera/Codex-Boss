@@ -1,5 +1,5 @@
 import type { BootModule, IpcRegistrar } from "./boot-module";
-import { requireProvider } from "./settings-ipc";
+import { requireProvider } from "./shared/require-provider";
 import { taskTransports, titleForTask, workbookAttachments, type InputRefSources } from "../tasks/task-inputs";
 import { runWorkDispatch } from "../commander/workbook-production";
 import { assertPrimaryInput, shouldRunWorkBookIntake } from "../commander/workbook-dispatch";

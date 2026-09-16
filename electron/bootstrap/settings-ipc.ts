@@ -1,4 +1,5 @@
 import type { BootModule, IpcRegistrar } from "./boot-module";
+import { requireProvider } from "./shared/require-provider";
 import type { RoleRouteView, UpdateApiSettingInput, UpdateRemoteChannelInput } from "../../src/shared/contracts";
 
 /**
@@ -74,18 +75,6 @@ export const SETTINGS_IPC_CHANNELS = [
 
 function isWorkspaceView(value: unknown): value is WorkspaceView {
   return (WORKSPACE_VIEWS as readonly unknown[]).includes(value);
-}
-
-/**
- * Refuses an unknown provider by name.
- *
- * Exported because it is the guard the settings channels and the native tool surface
- * both rely on: one message, one place, so a caller is never told "unknown provider"
- * by one path and something vaguer by another.
- */
-export function requireProvider(known: readonly string[], providerId: string): string {
-  if (!known.includes(providerId)) throw new Error(`Unknown provider: ${providerId}`);
-  return providerId;
 }
 
 export function createSettingsIpcModule(deps: SettingsIpcDeps): BootModule<{ channels: readonly string[] }> {
