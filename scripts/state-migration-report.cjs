@@ -44,8 +44,8 @@ const PLAN = {
   "decision-ledger": {
     storage: "database",
     authoritativeSide: "state-core (SQLite)",
-    status: "pilot-complete",
-    reason: "Selected as the first pilot: an append-only audit ledger, so a divergence is a missing audit record — the loss a comparison window exists to catch. Migration is exercised end to end by tests/unit/state-core/decision-ledger-migration.test.ts."
+    status: "pilot-mechanism-verified-not-integrated",
+    reason: "Selected as the first pilot: an append-only audit ledger, so a divergence is a missing audit record — the loss a comparison window exists to catch. The full migration sequence is exercised end to end, against a real JSON file and a real state database, by tests/unit/state-core/decision-ledger-migration.test.ts, and re-run for real by this generator. NOT yet integrated: no production boot path constructs the migration, so the running application still writes the JSON ledger through DecisionLedgerStore alone. The authority flip in production therefore remains to be done, and this row will keep saying so until a boot path constructs it."
   },
   tasks: {
     storage: "json",
@@ -249,6 +249,7 @@ function main() {
       pilotsAttempted: 2,
       pilotsCompleted: 1,
       pilotsDeferred: 1,
+      pilotsIntegratedIntoProduction: 0,
       duplicateOwners: 0
     },
     namespaces: rows,
@@ -262,6 +263,10 @@ function main() {
       }
     },
     pilotEvidence,
+    integration: {
+      productionBootPathsConstructingTheStateCore: [],
+      note: "The state core is a tested subsystem with no production entry point yet: electron/main.ts does not reference electron/state-core at all, so nothing in the running application constructs the database, the journal or the migration. Every acceptance below is therefore verified MECHANICALLY — against a real JSON file and a real SQLite database driven by the tests and by this generator — and not yet against the shipped application. Wiring it in is the remaining Task C work and is recorded as such rather than implied to be done."
+    },
     deferred: rows.filter((row) => row.status === "not-selected").map((row) => ({ namespace: row.namespace, reason: row.reason })),
     acceptance: {
       gate3AtomicMultiState: {
