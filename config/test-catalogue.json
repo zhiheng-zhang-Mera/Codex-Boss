@@ -954,6 +954,14 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/platform/external-compatibility.test.ts",
+      "tier": "unit",
+      "covers": [
+        "providers"
+      ],
+      "obligation": "a single external dependency degrading stays local, is classified honestly, and reroutes or refuses accordingly"
+    },
+    {
       "file": "tests/unit/platform/platform-health.test.ts",
       "tier": "unit",
       "covers": [

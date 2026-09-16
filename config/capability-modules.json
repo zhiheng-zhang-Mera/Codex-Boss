@@ -125,6 +125,7 @@
       "src/shared/capability-router.ts",
       "src/shared/cheapest-execution.ts",
       "src/shared/computer-recovery.ts",
+      "src/shared/external-compatibility.ts",
       "src/shared/login-scan.ts",
       "src/shared/network-policy.ts",
       "src/shared/perception.ts",

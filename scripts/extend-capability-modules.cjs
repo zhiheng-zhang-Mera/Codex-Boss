@@ -48,7 +48,8 @@ const EXTRA = {
     "src/shared/adaptive-routing.ts",
     "src/shared/cheapest-execution.ts",
     "src/shared/capability-router.ts",
-    "src/shared/login-scan.ts"
+    "src/shared/login-scan.ts",
+    "src/shared/external-compatibility.ts"
   ],
   promotion: [
     "electron/self-evolution",
