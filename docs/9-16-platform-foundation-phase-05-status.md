@@ -435,6 +435,51 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 built, verified and committed; the A/B experiment itself is the only step left, and it needs one thing
 this session does not have.
 
+### The measurement grain, corrected
+
+An inspection of `2a9a271` found that the production collector and the guard disagreed about the grain,
+and the conflict made every realistic production record unusable:
+
+- `coordinationRecordFromLedger` put the task totals on one arbitrary **carrier** stage and left the
+  other stages null, because a durable `TaskLedger` sums a task without saying which stage spent it;
+- `decisionEvidenceProblems` read the record-level declaration as "every stage must carry this", so a
+  five-stage production record was refused as `INSUFFICIENT_EVIDENCE`.
+
+Copying the totals onto every stage would have fixed the symptom while inventing an attribution and
+double counting, so the model was split instead:
+
+| Grain | Stored as | Used by |
+| --- | --- | --- |
+| task | `record.totals` + `record.measured` | `totalRecord`, `combine`, and therefore the whole cost/benefit decision |
+| stage | `record.stages` + `record.stageMeasured` | `totalStage`, `stageAttribution` — diagnosis only |
+
+`totalStage` now sums stage rows directly rather than through `totalRecord`, which would have reported
+a whole task's cost as if it were one stage's. Records that never attributed a stage appear in
+`unattributedTasks` rather than contributing a zero, and the adapter returns an **empty** stages array,
+which is the honest answer for a ledger-derived record.
+
+### Token provenance, audited
+
+`usage.estimatedInputTokens` was declared a real measurement while the equally estimated
+`estimatedOutputTokens` was refused. The audit shows the refusal was right and the acceptance was
+wrong: the figure is `Math.ceil((prompt.length + context.length) / 4)` in `execution-supervisor.ts` — a
+characters-over-four heuristic, not a tokenizer — and `ApiCompletion` in `provider-api.ts` carries no
+usage block at all (`content`, `sourceUrl`, `adapterVersion`). No provider-reported token count ever
+reaches the ledger.
+
+`inputTokens` is therefore **unmeasured**, and the heuristic is kept as
+`diagnostics.estimatedInputTokens` with its reason attached rather than renamed into respectability.
+Wiring real provider usage (`usage.input_tokens` / `prompt_tokens`) into the ledger is the follow-up
+that would make it a genuine measurement; it is not done here.
+
+### Fixture validation (not a gate measurement)
+
+`pnpm run economics:fixtures` runs 11 checks over deterministic fixtures covering task-level
+aggregation, stage-level aggregation, cohort comparability, no double counting, and all three verdicts.
+All 11 pass. The fixtures carry `provenance.kind: "deterministic-fixture"`; installing them as the
+economics artifact makes the evaluator record all four pairs as `INSUFFICIENT_EVIDENCE` and the
+certificate report `measured: false`, verified rather than assumed.
+
 ### What was completed this round
 
 | Item | State |
@@ -506,7 +551,7 @@ it were.
 
 | Gate | State |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2333** (201 files), postbuild **112** (10 files), typecheck, security scan (1120 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
+| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2334** (201 files), postbuild **112** (10 files), typecheck, security scan (1121 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
 | 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 200 files / 2303 tests paired with the selector's decision for the same commit; 184 skipped suites all ran and passed, and nothing chosen was absent |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
