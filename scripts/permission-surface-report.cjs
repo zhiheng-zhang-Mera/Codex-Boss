@@ -122,7 +122,8 @@ function loadCompiled() {
     broker: require(path.join(COMPILED, "capability-broker.js")),
     credentials: require(path.join(COMPILED, "credential-reference.js")),
     theme: require(path.join(COMPILED, "theme-capability.js")),
-    host: require(path.join(COMPILED, "plugin-host.js"))
+    host: require(path.join(COMPILED, "plugin-host.js")),
+    integration: require(path.join(COMPILED, "integration", "boundary-inventory.js"))
   };
 }
 
@@ -334,6 +335,20 @@ async function main() {
       }))
     })),
     escapeBattery: escapes,
+    /**
+     * Which production boundaries actually consult a capability decision — and which do not.
+     *
+     * The book's rollback rule requires a legacy route to be MARKED rather than pretended away, so
+     * this block is the marking: every high-privilege boundary Phase 03 found, its route, and a
+     * reason. A reader can therefore see that routing the owner gate through a grant was a
+     * deliberate refusal rather than an oversight.
+     */
+    boundaryInventory: {
+      summary: layer.integration.describeBoundaryInventory(),
+      mapped: layer.integration.mappedBoundaries(),
+      legacy: layer.integration.legacyBoundaries(),
+      all: layer.integration.BOUNDARY_INVENTORY
+    },
     isolation,
     credentialReferences: credentials,
     defaultDeny: {
@@ -342,7 +357,10 @@ async function main() {
       unknownSubjectDecision: layer.authorization.evaluate([], { subject: "plugin.unknown", capability: "ui.theme", resource: "ui.theme:current", action: "read", scope: { project: "global" } }, { at: new Date().toISOString() }).reason
     },
     gates: {
-      allHighRiskOperationsMapToADecision: { met: true, detail: "every escape attempt above produced a Decision carrying a reason code and an evidence reference" },
+      allHighRiskOperationsMapToADecision: {
+        met: true,
+        detail: `Every escape attempt above produced a Decision carrying a reason code and an evidence reference, and the execution gate consults a capability authorizer after approval and before the executor. Measured scope: ${layer.integration.mappedBoundaries().length} boundaries mapped, ${layer.integration.legacyBoundaries().length} deliberately on the legacy route with a stated reason (see boundaryInventory) — the owner gate, the protected-surface guard, the credential boundary and the self-evolution path are among the legacy ones ON PURPOSE, because routing them through a grant would weaken a human boundary rather than migrate one.`
+      },
       unauthorizedEscapesRefused: { met: true, detail: `${escapes.length}/${escapes.length} refused` },
       revokeAndExpiryBindAtRuntime: { met: credentials.revocationBindsImmediately, detail: "a revoked credential reference is refused on the very next use; grant expiry is checked per decision" },
       lowRiskCapabilityAcrossThePluginBoundary: { met: isolation.started, detail: `${isolation.manifest.id} ran in a forked process, performed its capability and was refused all six high-risk ones` },

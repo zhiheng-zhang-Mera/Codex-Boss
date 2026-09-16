@@ -82,7 +82,7 @@ interface AuthorizeResult {
   adapter?: CapabilityAdapter;
 }
 
-interface CapabilityBroker {
+export interface CapabilityBroker {
   /** Current grants, for a report. A plain array, not a live handle. */
   grants(): CapabilityGrant[];
   /** Every decision this process has taken, oldest first. */
