@@ -87,7 +87,21 @@ export interface CoordinationStore {
   readonly file: string;
 }
 
-export function openCoordinationStore(file: string): CoordinationStore {
+/**
+ * Resolve the artifact location.
+ *
+ * A repo root resolves to the standard artifact path, so every entry point that has a checkout can
+ * name the artifact without repeating the layout; a path that already ends in `.json` is taken as the
+ * file itself, which is what the tests and the fixture validation pass.
+ */
+function artifactFileUnder(rootOrFile: string): string {
+  return rootOrFile.endsWith(".json")
+    ? rootOrFile
+    : path.join(rootOrFile, "artifacts", "platform-foundation", "agent-coordination-economics.json");
+}
+
+export function openCoordinationStore(rootOrFile: string): CoordinationStore {
+  const file = artifactFileUnder(rootOrFile);
   function load(): CoordinationArtifact {
     if (!fs.existsSync(file)) return { ...EMPTY, records: [], pairs: [] };
     const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<CoordinationArtifact>;
@@ -150,9 +164,4 @@ export function openCoordinationStore(file: string): CoordinationStore {
       fs.writeFileSync(file, `${JSON.stringify(current, null, 2)}\n`, "utf8");
     }
   };
-}
-
-/** The artifact path, so every entry point agrees on one location. */
-function coordinationArtifactPath(repoRoot: string): string {
-  return path.join(repoRoot, "artifacts", "platform-foundation", "agent-coordination-economics.json");
 }

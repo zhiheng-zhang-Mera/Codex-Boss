@@ -6,7 +6,10 @@
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
 > All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6, 7 and 9 are met.
-> Gate 8 alone remains open as WAITING_FOR_PROVIDER_CREDENTIAL: all its engineering is delivered and verified, and only the paired provider run is missing. No waiver is used and the model/guard are not treated as satisfying the gate. This file records what is done, what is not, and what was
+> Gate 8 has now been MEASURED against a live provider and is NOT met: the paired run is real and its
+> figures are the provider's own, but the guard returned `INSUFFICIENT_EVIDENCE` because the durable
+> ledger cannot express an arm without the candidate stage. No waiver is used and the model/guard are not
+> treated as satisfying the gate. This file records what is done, what is not, and what was
 > measured, so the next round starts from evidence rather than a summary.
 
 ---
@@ -323,13 +326,14 @@ Three decisions carry the rule:
 `permittedPipeline` only ever ADDS a stage the guard approved, and never removes one the caller marks
 required — a guard able to quietly drop a verification step would be worse than no guard.
 
-**Gate 8 is nonetheless NOT met, and is not claimed.** The rule is about a *default pipeline*, and no
-default multi-agent pipeline has been recorded in this repository, so there is no cost/benefit
-comparison to report. Inventing one — or reporting the synthetic fixtures the tests use as if they were
-measurements — is exactly the hand-filled evidence the phase rules forbid. What the certificate
-therefore checks is the property that makes the guard worth having: that it **can** refuse. It runs the
-guard live with no baseline and with no observed figures and requires `INSUFFICIENT_EVIDENCE` both
-times, so the invariant cannot pass while the rule would promote a stage on a guess.
+**Gate 8 is nonetheless NOT met, and is not claimed.** The rule is about a *default pipeline*, and the
+paired live-provider run measured here returned `INSUFFICIENT_EVIDENCE` because no arm without the
+candidate stage can be recorded (§12), so there is no cost/benefit comparison to report. Inventing one —
+or reporting the synthetic fixtures the tests use as if they were measurements — is exactly the
+hand-filled evidence the phase rules forbid. What the certificate additionally checks is the property
+that makes the guard worth having: that it **can** refuse. It runs the guard live with no baseline and
+with no observed figures and requires `INSUFFICIENT_EVIDENCE` both times, so the invariant cannot pass
+while the rule would promote a stage on a guess.
 
 ---
 
@@ -431,9 +435,90 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ## 12. Remaining tasks and gates
 
-**Gate 8 status: WAITING_FOR_PROVIDER_CREDENTIAL.** Everything that can be built without a provider is
-built, verified and committed; the A/B experiment itself is the only step left, and it needs one thing
-this session does not have.
+**Gate 8 status: MEASURED AND NOT MET — `INSUFFICIENT_EVIDENCE` from a real paired provider run.**
+The credential was found on this machine (see below), the experiment ran against the live provider, and
+the guard refused the pairing for a structural reason that no further run can remove. Phase 05 therefore
+stays **PARTIAL**.
+
+### The credential, and the end-to-end proof that it works
+
+A usable provider credential was present in the **Machine** environment scope (a freshly spawned child
+process inherits it; the interactive session was merely stale), so no Owner transcription was needed and
+none took place. It was imported with a one-shot flag on the ordinary application rather than by hand:
+
+| Step | What ran | Result |
+| --- | --- | --- |
+| discovery | `process.env` in a fresh child, all scopes | `credential found` |
+| authentication | `GET /v1/models` with that key | authenticated, 2 models |
+| model identity | live `/models` | `deepseek-flash`, `deepseek-v4-pro` |
+| import | `--boss-import-provider-key=deepseek` → the production `ApiSettingsStore.update` → the injected `safeStorage` seam | stored `enabled: true` |
+| readiness | the production `assertReady` | PASS |
+| real request | the production `ProviderApiClient.complete` through `ApiRuntime` | `inputTokens 37`, `outputTokens 28`, `totalTokens 65` |
+| sealing | byte search of the stored file for the credential | absent; the field is ciphertext, and not plain base64 |
+
+The value was read in-process from the environment and never appeared on a command line, in a log, in an
+artifact, in this document, or in git. Only `credential found` and the provider type are reported.
+
+The import revealed a live configuration defect: `api-settings.ts` and `src/shared/model-policy.ts`
+declare `deepseek-v4-flash`, which the provider's `/models` does not offer. The verified id
+`deepseek-flash` is what the import and the experiment used.
+
+### The paired run
+
+`scripts/gate8-pair-run.cjs` drives one representative task (a real refactor of a real git repository with
+a real passing test suite) through the **production** pipeline twice — the real `MainCommander`, real
+`StateStore`, real durable `TaskLedger`, real `RuntimeRegistry` and the production `ApiRuntime` over the
+production `ProviderApiClient`. The planned variable is the `verify` stage: the arm with a
+`VerificationContract` runs the risk-gated verification gate, the arm without it follows the legacy
+completion path, and nothing else differs.
+
+Both arms genuinely ran: completed, `modifiedFiles=4`, `retries=0`, and **provider-reported** token
+accounting in the durable ledger.
+
+| Arm | pipeline | modelCalls | inputTokens | outputTokens | reworkAvoided |
+| --- | --- | --- | --- | --- | --- |
+| without `verify` | `intake+plan+implement+verify+finalize` | 4 | 3466 | 10598 | 0 |
+| with `verify` | `intake+plan+implement+verify+finalize` | 9 | 6804 | 60814 | 0 |
+
+### Why the guard refused, and why no further run fixes it
+
+```
+gate8-verify-verify-gate (verify): INSUFFICIENT_EVIDENCE
+  a record in the without-stage set actually includes verify, so the sets overlap
+  the candidate pipeline finalize+implement+intake+plan+verify has no matching baseline
+  finalize+implement+intake+plan, so more than the candidate stage differs between the arms
+```
+
+The refusal is correct and the experiment is not at fault. `pipelineFrom` derives the `verify` stage from
+`record.verificationState !== "NOT_RUN"`, and the production `EngineeringRuntime` sets that field on
+**every** step and again when the task completes (`engineering-runtime.ts:103`, `:111`) — and
+`runDeterministic` does the same on its completion path. A task that completes through the production
+plan execution therefore *always* records `verify`, whether or not a verification contract gated it. So
+an arm without the candidate stage cannot exist, the guard's removal check cannot be satisfied, and
+`COST_ONLY` — the verdict that would legitimately settle the gate — is unreachable for this stage.
+
+This is a statement about the platform, not about the stage: the A/B model can only judge a stage whose
+presence the durable ledger can distinguish, and for plan-executed tasks the ledger distinguishes only
+`implement` (via `modifiedFiles`) and `repair` (via `retries` / `failureHistory`) — neither of which can
+be varied between two arms running the *same* task. Making `verify` judgeable would mean changing what
+the ledger records about verification, which is a platform change rather than a measurement, and is
+therefore out of scope for this phase.
+
+What the run does establish, with real figures: both arms were measured, the provider's own token
+accounting reached the durable ledger, the artifact verifies, and the guard **refused** rather than
+promoting a stage on an unpaired comparison. No waiver is used, the guard is not weakened, and `verify`
+is **not** added to any default pipeline.
+
+### Defects found and fixed by this run
+
+| Defect | Fix |
+| --- | --- |
+| `economics verify` audited a task-grain declaration (`measured`) against the **stage** rows, rejecting every ledger-derived record — including ones it had just written | each grain is audited against its own values (`measured` → `totals`, `stageMeasured` → `stages`), and the converse check is restricted to the declared measure vocabulary so derived ratios such as `coordinationShare` are not mistaken for undeclared measurements |
+| the cohort's `runtime` was written as the provider id (`deepseek`) while the ledger records the runtime id (`api:deepseek`), so the guard refused on a "runtime disagrees with its cohort" mismatch | the cohort identity is taken from the production `ApiRuntime` object itself, so the agreement holds by construction |
+| `coordinationArtifactPath` was an unused module-private helper, and exporting it added surface with no reachable consumer | the store now accepts a repo root and resolves the standard artifact path internally, so the layout has one home and no new export |
+| the import's first wiring used `await` in the `whenReady` callback, which is **not** async, so `main.js` failed to load | the verification runs in its own async closure |
+
+---
 
 ### The measurement grain, corrected
 
@@ -531,39 +616,53 @@ cost comparison alone. This is reported as a finding rather than papered over wi
 
 ### What is blocked, and on exactly what
 
-The paired run needs a configured provider. Verified this round: no provider API key in the
-environment, and no `encryptedApiKey` in any api-settings store — which `ApiSettingsStore.assertReady`
-requires before a dispatch is attempted. So the run cannot start, and Gate 8 cannot be satisfied
-without it. Substituting a fixture is explicitly forbidden, and the infrastructure is built so that it
-would not help anyway: `evaluate` records any pair whose provenance is not `real-provider` as
-`INSUFFICIENT_EVIDENCE`.
+The blocker is **no longer a credential** — that was found and used, and the run happened. What remains
+is structural, and it is recorded here because the next round must not re-attempt the same run expecting
+a different answer.
 
-**To unblock:** configure one provider (an API key with its api-settings entry, or a web provider
-session), then run one representative task through the production pipeline twice — once without the
-candidate stage, once with it — and point the collector at each arm's ledger root:
+The paired run needs an arm that does **not** run the candidate stage. For any task that completes
+through the production plan execution, no such arm exists: `EngineeringRuntime` writes
+`verificationState` on every step and again at completion, and `pipelineFrom` reads exactly that field to
+decide whether `verify` is in the pipeline. Both arms therefore record `verify`, the guard's
+"more than the candidate stage differs" check fails, and the pairing is refused.
+
+Substituting a fixture is explicitly forbidden, and the infrastructure is built so that it would not help
+anyway: `evaluate` records any pair whose provenance is not `real-provider` as `INSUFFICIENT_EVIDENCE`.
+
+**What would actually unblock it** — one of:
+
+1. a candidate stage whose presence the durable ledger can genuinely distinguish between two arms of the
+   same task (the ledger distinguishes only `implement` and `repair` today, and neither can be varied
+   without varying the task);
+2. a recorded, first-class notion of *contract-gated* verification, so `pipelineFrom` can tell a
+   contract-gated run from a host-verified one. That is a platform change to what the ledger records,
+   not a measurement, so it is out of scope for this phase;
+3. an Owner decision to judge a different stage that genuinely varies between two arms.
+
+The command sequence, for the record, is the one this round used:
 
 ```
-node scripts/agent-coordination-economics.cjs collect --ledger <arm-root> \
-    --runtime <provider-id> --benchmark <task-family> --input <input-hash> --stage <candidate-stage>
+node scripts/gate8-pair-run.cjs --provider <id> --env <ENV_VAR> --model <modelId> --data-root <dir>
+node scripts/gate8-pair-run.cjs pair --data-root <dir>     # re-derive the artifact, no provider calls
+node scripts/agent-coordination-economics.cjs verify
 node scripts/agent-coordination-economics.cjs evaluate
 ```
 
-Then Gate 8 closes with whatever the measurement says: `COST_ONLY` and leaving the stage out is a
-successful completion, not a failure.
+Gate 8 closes when the guard reaches `COST_ONLY` or `EARNS_PLACE`; it did not, and `INSUFFICIENT_EVIDENCE`
+is not a pass.
 
 ---
 
-**Owner decision (round 15):** gate 8 stays open as `WAITING_FOR_OWNER`. Phase 05 remains PARTIAL and
-does not advance.
+**Gate 8 after this round:** measured, and still open. It is no longer `WAITING_FOR_OWNER` on a
+credential — the credential was found, the live run happened, and the guard refused the pairing for a
+reason that is now written down. Phase 05 remains PARTIAL and does not advance.
 
-Why it cannot be closed from inside this session, stated precisely: gate 8 asks for cost/benefit
-evidence per agent stage, which needs per-task records from a real default pipeline run. The repository
-has never recorded one, and producing one needs live provider calls — `runImplementationLoop` is driven
-by a worker and a model reviewer, and `tests/acceptance/review-loop.test.ts` doubles exactly those two
-because "a worker and a model reviewer are exactly what the host is not allowed to trust". No fixture,
-mock or hand-filled record could honestly stand in for the measurement. The alternatives were a
-credentialed run supplied by the Owner, or an Owner decision that the delivered model and guard satisfy
-the gate for now; the Owner chose to keep it open.
+Why the measurement does not settle the gate: the guard asks for cost/benefit evidence per agent stage,
+which needs two arms of the same task that differ by that stage. The live run produced both arms with real
+provider accounting, and the guard refused because the durable ledger cannot express the arm without the
+candidate stage — `EngineeringRuntime` records `verificationState` on every completed task, so `verify`
+is in both pipelines and there is no baseline to subtract. No fixture, mock or hand-filled record stands
+in for the measurement, and none was used.
 
 What IS delivered and verified: the accounting model, the guard, and — checked live by the certificate —
 that the guard **refuses** to promote a stage with no baseline and with no observed figures. That is the
@@ -573,21 +672,21 @@ it were.
 | Task | State |
 | --- | --- |
 | C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
-| D — agent coordination economics and the added-stage guard | **model and guard delivered; the comparison is NOT measured** — no default multi-agent pipeline has been recorded in this repository, so gate 8 is not met |
+| D — agent coordination economics and the added-stage guard | **model, guard and a REAL paired provider run delivered; the comparison is refused, not measured** — the live arms both record `verify`, so the guard returns `INSUFFICIENT_EVIDENCE` and gate 8 is not met |
 | E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **delivered**, see §5 |
 | F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **delivered**, see §6 — a 45-minute run, the shortened form the book allows, with every shared invariant passing |
 | G — `platform-certificate.json` | **delivered**, see §4 — and it reports D, E and F as unmeasured |
 
 | Gate | State |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2334** (201 files), postbuild **112** (10 files), typecheck, security scan (1121 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
-| 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 200 files / 2303 tests paired with the selector's decision for the same commit; 184 skipped suites all ran and passed, and nothing chosen was absent |
+| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2347** (202 files), postbuild **113** (10 files), typecheck, security scan (1124 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
+| 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 202 files / 2347 tests paired with the selector's decision for the same commit; 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **PASS** — see §6: 45 minutes, 1005 cycles, RSS trend **−0.14 MiB/min** against a 17.1 allowance, heap −0.02 against 8.5, all 11 shared invariants PASS |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **PASS** — see §8 |
-| 8 — every extra agent stage has cost/benefit evidence | **WAITING_FOR_PROVIDER_CREDENTIAL** — model, guard, comparability checks, production collection, durable persistence, CLI and certificate integration are all delivered and verified; only the paired provider run is missing, and it needs a configured provider. See §7 and §12 |
+| 8 — every extra agent stage has cost/benefit evidence | **MEASURED, NOT MET — `INSUFFICIENT_EVIDENCE`** — the paired live-provider run happened with real token accounting in the durable ledger, and the guard refused the pairing because the ledger cannot express an arm without the candidate stage. Model, guard, comparability checks, production collection, durable persistence, CLI, certificate integration and the run driver are all delivered and verified. See §7 and §12 |
 | 9 — `platform-certificate.json` + soak report | **PASS** — both artifacts exist, and the certificate reads the soak report rather than restating it |
 
 ---

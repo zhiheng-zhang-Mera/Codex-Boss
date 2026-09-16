@@ -190,11 +190,32 @@ function commandVerify(options) {
   for (const record of artifact.records ?? []) {
     if (!Array.isArray(record.measured)) problems.push(`${record.taskId} declares no measured list`);
     if (!record.cohort) problems.push(`${record.taskId} carries no cohort identity, so it cannot take part in a pairing`);
-    // A record must not declare a measure it left null anywhere: the guard refuses it, so the artifact
-    // should not be publishing it as measured either.
+    // A record must not declare a measure it left null ANYWHERE — the guard refuses it, so the
+    // artifact should not be publishing it as measured either.
+    //
+    // Read at the record's own grain. `measured` describes TASK totals (`record.totals`);
+    // `stageMeasured` describes the stage rows. Checking a task-grain declaration against the stage
+    // rows — which is what this did — rejects every record whose source could not attribute cost per
+    // stage, and that is the normal, honest state for a ledger-derived record: the task ledger sums a
+    // task's cost without knowing which stage spent it. The two grains are separate claims and each
+    // is audited against its own values.
     for (const measure of record.measured ?? []) {
+      const value = record.totals?.[measure];
+      if (value === null || value === undefined) problems.push(`${record.taskId}: ${measure} is declared measured but the record's totals carry no value`);
+    }
+    for (const measure of record.stageMeasured ?? []) {
       const stageWithValue = (record.stages ?? []).some((stage) => stage[measure] !== null && stage[measure] !== undefined);
-      if (!stageWithValue) problems.push(`${record.taskId}: ${measure} is declared measured but no stage carries a value`);
+      if (!stageWithValue) problems.push(`${record.taskId}: ${measure} is declared a stage measurement but no stage row carries a value`);
+    }
+    // A published MEASURE whose provenance is not declared is exactly the "estimate wearing the label
+    // of a measurement" this phase forbids. Restricted to the measure vocabulary on purpose: `totals`
+    // also carries derived figures (`coordinationShare`) that are ratios over measurements rather than
+    // measurements, and demanding a declaration for those would be demanding the wrong thing.
+    for (const measure of Object.keys(record.totals ?? {})) {
+      if (!shared.COORDINATION_MEASURES.includes(measure)) continue;
+      if (record.totals[measure] !== null && record.totals[measure] !== undefined && !(record.measured ?? []).includes(measure)) {
+        problems.push(`${record.taskId}: totals carry ${measure} without declaring it measured`);
+      }
     }
   }
   for (const pair of artifact.pairs ?? []) {

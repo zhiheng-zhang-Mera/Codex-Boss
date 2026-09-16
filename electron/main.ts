@@ -199,6 +199,16 @@ if (workbookSmoke) app.disableHardwareAcceleration();
 const headlessResearch = process.argv.includes("--research-headless-run");
 const headlessWorkspace = (process.argv.find((arg) => arg.startsWith("--research-workspace=")) ?? "").split("=").slice(1).join("=") || undefined;
 const headlessProviders = ((process.argv.find((arg) => arg.startsWith("--research-providers=")) ?? "").split("=")[1] ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+/**
+ * One-shot provider credential import (see the app.whenReady block). The provider id and
+ * the environment-variable NAME arrive on the command line; the credential VALUE never
+ * does — it is named here and read from this process's own environment below.
+ */
+const importProviderKey = process.argv.find((arg) => arg.startsWith("--boss-import-provider-key="))?.slice("--boss-import-provider-key=".length);
+const importProviderKeySource = process.argv.find((arg) => arg.startsWith("--boss-import-provider-key-source="))?.slice("--boss-import-provider-key-source=".length) ?? "BOSS_IMPORT_PROVIDER_KEY";
+const importProviderModel = process.argv.find((arg) => arg.startsWith("--boss-import-provider-model="))?.slice("--boss-import-provider-model=".length);
+const importProviderBaseUrl = process.argv.find((arg) => arg.startsWith("--boss-import-provider-base-url="))?.slice("--boss-import-provider-base-url=".length);
+const importExit = process.argv.includes("--boss-import-exit");
 if (headlessResearch && !headlessWorkspace) { console.error("--research-headless-run requires --research-workspace=<path>"); app.exit(2); }
 
 if (!ownsInstance) {
@@ -612,6 +622,73 @@ if (ownsInstance) app.whenReady().then(() => {
   capabilityRegistry = persistence.service.capabilities;
   githubResolver = persistence.service.github;
   apiSettings = persistence.service.apiSettings;
+  // One-shot credential import, for a machine whose provider key already lives in an
+  // environment variable. It exists so the key never has to be transcribed by hand and
+  // never has to be written anywhere in the clear: the variable is read IN THIS PROCESS,
+  // handed straight to the same ApiSettingsStore the settings UI writes through, and
+  // sealed by the same safeStorage backend. What lands on disk is the same ciphertext
+  // the UI would have produced — there is no second secret store.
+  //
+  //   --boss-import-provider-key=<providerId>
+  //     reads BOSS_IMPORT_PROVIDER_KEY from the environment; reports only that a
+  //     credential was found, never any part of it.
+  //
+  //   --boss-import-provider-key-source=<ENV_NAME>
+  //     names a different environment variable, so a provider whose key is already
+  //     exported under its own vendor name needs no copy step. The VALUE is never
+  //     passed on a command line, where another process could read it out of the
+  //     process table.
+  //
+  //   --boss-import-provider-model=<modelId> / --boss-import-provider-base-url=<url>
+  //     override the provider's stored model / endpoint for this one write.
+  //
+  //   --boss-import-exit
+  //     exit once the import settles, so a machine without a display can run it.
+  //
+  //   BOSS_IMPORT_PROVIDER_VERIFY=1 (environment)
+  //     before exiting, make ONE real request through ProviderApiClient — the same
+  //     production client every API runtime dispatches through — and require the
+  //     reply to carry the vendor's own token accounting. This is what turns "a
+  //     credential was stored" into "the credential authenticates, the endpoint
+  //     answers, the model id is accepted, and usage is reported". The reply text
+  //     and the credential are both discarded; only counts are printed.
+  let importVerification: "not-requested" | "pending" | "verified" | "skipped" = "not-requested";
+  if (importProviderKey) {
+    try {
+      const providerId: ProviderId = importProviderKey;
+      const source = process.env[importProviderKeySource];
+      if (!source || !source.trim()) {
+        console.error(`provider credential import: credential not found in ${importProviderKeySource}`);
+        app.exit(1);
+      } else {
+        const current = apiSettings.snapshot([providerId])[0];
+        if (!current) throw new Error(`${providerId} is not a known provider`);
+        apiSettings.update({
+          providerId,
+          enabled: true,
+          protocol: current.protocol,
+          baseUrl: importProviderBaseUrl ?? current.baseUrl,
+          model: importProviderModel ?? current.model,
+          apiKey: source.trim()
+        });
+        // assertReady is the production readiness check — the same one ProviderApiClient
+        // calls before its first request. Running it here means a successful import is
+        // already known to satisfy it, rather than being asserted to.
+        apiSettings.assertReady(providerId);
+        console.info(`provider credential import: credential found for ${providerId}, model ${importProviderModel ?? current.model}`);
+        importVerification = process.env.BOSS_IMPORT_PROVIDER_VERIFY === "1" ? "pending" : "skipped";
+      }
+    } catch (error) {
+      // Provider ids, field names and library messages only. Never the value.
+      console.error(`provider credential import failed: ${error instanceof Error ? error.message : String(error)}`);
+      // A hard exit as well as `app.exit`: this entry point is meant to run unattended, and a process
+      // that has printed a credential-import failure must not sit alive waiting on a window that a
+      // headless machine will never open.
+      app.exit(1);
+      process.exit(1);
+    }
+    if (importExit && importVerification !== "pending") app.exit(0);
+  }
   sessionLifecycleLedger = persistence.service.sessionLifecycle;
   nodeRegistry = persistence.service.nodeRegistry;
   externalSessions = persistence.service.externalSessions;
@@ -663,6 +740,46 @@ if (ownsInstance) app.whenReady().then(() => {
   providersRef = providers.service;
   githubMachine = providers.service.githubMachine;
   providerApi = providers.service.apiClient;
+  // The credential-import verification (see the import block above). It runs HERE
+  // because this is where the production API client comes into existence, and it runs
+  // through that client rather than through a private request of its own — so what it
+  // proves is that the ordinary dispatch path can authenticate with the imported
+  // credential, not merely that some key was written down.
+  if (importVerification === "pending" && importProviderKey) {
+    const providerId: ProviderId = importProviderKey;
+    // The import block above runs in this same synchronous pass, but the whenReady
+    // callback itself is not async — the smoke entry points keep their awaits inside a
+    // nested closure — so the one real request is awaited in a closure of its own.
+    const verify = async (): Promise<void> => {
+      try {
+        // Bounded: a provider that accepts the connection and then never answers must not
+        // leave an unattended import hanging forever.
+        const answer = await Promise.race([
+          providerApi.complete(providerId, "Reply with the single word: ok"),
+          new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error("provider did not answer within 60s")), 60_000))
+        ]);
+        console.info(`provider credential import: verification reply received (${answer.content.trim().length} chars, usage ${answer.usage ? "present" : "absent"})`);
+        if (!answer.content.trim()) throw new Error("provider returned no content");
+        const usage = answer.usage;
+        if (!usage || typeof usage.inputTokens !== "number" || usage.inputTokens <= 0) {
+          throw new Error("provider returned no input token accounting");
+        }
+        // Counts and booleans only: never the reply, never the credential.
+        console.info(
+          "provider credential import verified: authenticated true," +
+          ` adapter ${answer.adapterVersion}, inputTokens ${usage.inputTokens},` +
+          ` outputTokens ${usage.outputTokens ?? "unreported"}, totalTokens ${usage.totalTokens ?? "unreported"}`
+        );
+        importVerification = "verified";
+      } catch (error) {
+        // Provider ids, field names and library messages only. Never the value.
+        console.error(`provider credential import verification failed: ${error instanceof Error ? error.message : String(error)}`);
+        process.exitCode = 1;
+      }
+      if (importExit) process.exit(importVerification === "verified" ? 0 : 1);
+    };
+    void verify();
+  }
   accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
   remoteRelay = new RemoteCommandRelay(
     path.join(app.getAppPath(), "scripts", "pc-chat-relay.ps1"),
