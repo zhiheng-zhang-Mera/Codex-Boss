@@ -54,7 +54,7 @@ interface HandlerContext {
 
 type EventHandler<T = unknown> = (event: JournalEvent<T>, context: HandlerContext) => void | Promise<void>;
 
-interface DeliveryOutcome {
+export interface DeliveryOutcome {
   consumer: string;
   from: number;
   to: number;
