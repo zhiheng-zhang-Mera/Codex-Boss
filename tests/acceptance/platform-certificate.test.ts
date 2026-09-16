@@ -188,6 +188,22 @@ describe("Phase 05 Task G — the certificate is honest about what has not run",
     expect(certificate.sections.verification.impactSelector.unownedSourceFiles).toBe(0);
   });
 
+  it("names the gate 7 evidence for both halves, and checks the suites are real", () => {
+    const certificate = generate();
+    const restart = certificate.sections.verification.restartAndRecovery;
+    // Both halves the book states. Losing work is visible; applying an effect twice looks like
+    // success, which is why the crash window is named explicitly rather than left to the reader.
+    expect(String(restart.noCommittedWorkLost)).toContain("restart-recovery");
+    expect(String(restart.noCommittedWorkLost)).toContain("state-core-crash");
+    expect(String(restart.noDuplicatedSideEffect)).toContain("PARKED");
+    expect(String(restart.recoveryIsBounded).length).toBeGreaterThan(20);
+    // The certificate resolves those names against the CATALOGUE, so naming a suite that is not run
+    // fails the generator rather than reading as evidence.
+    expect(restart.suitesPresent).toBe(true);
+    expect(restart.missing).toEqual([]);
+    expect(certificate.acceptance.evidence["restart-loses-nothing-and-repeats-nothing"]).toBe(true);
+  });
+
   it("cannot claim it may bypass the Root or Owner gate", () => {
     const certificate = generate();
     expect(certificate.promotion.consumableBySelfEvolution).toBe(true);

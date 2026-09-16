@@ -1004,6 +1004,14 @@
       "obligation": "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure"
     },
     {
+      "file": "tests/unit/platform/restart-recovery.test.ts",
+      "tier": "unit",
+      "covers": [
+        "persistence"
+      ],
+      "obligation": "after a restart no committed work is lost and no external side effect is applied twice"
+    },
+    {
       "file": "tests/unit/platform/scale-synthetic.test.ts",
       "tier": "unit",
       "covers": [

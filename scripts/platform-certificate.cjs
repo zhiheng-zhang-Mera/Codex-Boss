@@ -260,6 +260,11 @@ function main() {
 
   // ---------------------------------------------------------------- verification evidence
   const impactAudit = runImpactAudit();
+  // Gate 7's evidence is checked live: the durability suites must exist and be catalogued, and the
+  // certificate refuses to claim the gate from a section it merely wrote down.
+  const restartSuites = ["tests/unit/platform/restart-recovery.test.ts", "tests/acceptance/state-core-crash.test.ts"];
+  const catalogued = new Set(cataloguedSuiteFiles());
+  const missingRestartEvidence = restartSuites.filter((file) => !fs.existsSync(path.join(ROOT, file)) || !catalogued.has(file));
   sections.verification = {
     tiers: ["unit", "postbuild", "slow"],
     impactSelector: impactAudit,
@@ -268,10 +273,20 @@ function main() {
       recorded: false,
       reason: "the selection has been compared against the catalogue and the audit is enforced by tests, but a run of the full suite paired with a selection has not been recorded as evidence yet; gate 2 is therefore reported as partly met rather than met"
     },
+    restartAndRecovery: {
+      // Both halves of gate 7, and where each is proven. The crash-window case — effect applied,
+      // settlement not recorded — is the one that makes replay dangerous, so it is named explicitly.
+      noCommittedWorkLost: "tests/unit/platform/restart-recovery.test.ts (ledger reopened from disk after one and after two restarts) and tests/acceptance/state-core-crash.test.ts (a real child killed mid-work)",
+      noDuplicatedSideEffect: "tests/unit/platform/restart-recovery.test.ts asserts a replay-UNSAFE request that fails after its effect is applied is PARKED for verification rather than retried, and the effect log holds exactly one entry",
+      recoveryIsBounded: "the recovery scheduler pauses an exhausted wakeup instead of looping, and does not let a duplicate schedule push a deadline later or double-fire after a restart",
+      suitesPresent: missingRestartEvidence.length === 0,
+      missing: missingRestartEvidence
+    },
     testCatalogue: { path: "config/test-catalogue.json", checkedBy: "node scripts/generate-test-catalogue.cjs --check" }
   };
   require_(impactAudit.suites > 0, "the impact selector reported no suites");
   require_(impactAudit.unownedSourceFiles === 0, `${impactAudit.unownedSourceFiles} source file(s) are owned by no capability`);
+  require_(missingRestartEvidence.length === 0, `the restart/recovery evidence is missing or uncatalogued: ${missingRestartEvidence.join(", ")}`);
 
   // ---------------------------------------------------------------- soak
   //
@@ -383,6 +398,7 @@ function main() {
         "provider-failure-is-local": sections.providerDegradedMode.probeVerdictWithTwoOfThreeBroken === "DEGRADED",
         "impact-selector-owns-the-tree": sections.verification.impactSelector.unownedSourceFiles === 0,
         "soak-trend-measured-and-bounded": sections.soakResourceTrend.measured === true && sections.soakResourceTrend.trendWithinLongRunAllowance === true,
+        "restart-loses-nothing-and-repeats-nothing": sections.verification.restartAndRecovery.suitesPresent,
         "certificate-cannot-bypass-the-gate": BYPASSES_ROOT_OR_OWNER_GATE === false
       }
     }
@@ -414,6 +430,12 @@ function main() {
 }
 
 /** Run the impact audit through the compiled selector, so the certificate reads its numbers not its prose. */
+/** The catalogued suite paths, so the certificate can check that named evidence is actually run. */
+function cataloguedSuiteFiles() {
+  const impact = load("electron/platform/test-impact.js");
+  return impact.loadImpactRepository(ROOT).catalogue.map((suite) => suite.file);
+}
+
 function runImpactAudit() {
   const impact = load("electron/platform/test-impact.js");
   const shared = load("src/shared/test-impact.js");

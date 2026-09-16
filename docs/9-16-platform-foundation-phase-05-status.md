@@ -5,8 +5,8 @@
 **Engineering book:** `Update-Plan/Platform-Foundation/Phase-05-Scale-Verification-and-Soak.md`
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
-> All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6 and 9 are met.
-> Task D's cost/benefit COMPARISON is unmeasured and gates 2, 7 and 8 remain open. This file records what is done, what is not, and what was
+> All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6, 7 and 9 are met.
+> Task D's cost/benefit COMPARISON is unmeasured, and gates 2 and 8 remain open. This file records what is done, what is not, and what was
 > measured, so the next round starts from evidence rather than a summary.
 
 ---
@@ -333,7 +333,41 @@ times, so the invariant cannot pass while the rule would promote a stage on a gu
 
 ---
 
-## 8. What reconnaissance established for the remaining tasks
+## 8. Gate 7 — restart and recovery, delivered
+
+`tests/unit/platform/restart-recovery.test.ts` (6 tests) drives a real `ExecutionSupervisor` over a
+durable `TaskLedger` and a durable `RecoveryScheduler`, with the external effect recorded **in a
+file** — a restart is only meaningful if what survives it is on disk.
+
+**No committed work lost.** A completed task is still `COMPLETED` when the ledger is reopened from
+disk, after one restart and again after two, so a save that only wrote on the first close would be
+caught. Phase 02's `state-core-crash` suite covers the harsher version — a real child killed mid-work
+— and `scripts/acceptance-restart.cjs` drives the real Electron app through a seed and verify phase,
+asserting the two runs are different processes.
+
+**No duplicated side effect.** The case that matters is the crash window: the effect has been applied,
+the ledger does not know it, and a naive replay applies it again. The test makes the runtime apply its
+effect and then report a technical failure on a replay-**unsafe** request, and requires the platform to
+**park the task for verification rather than retry it**, with the effect log holding exactly one
+entry. It asserts both the outcome (`nextAction` is `HUMAN_REQUIRED` or `VERIFY_SIDE_EFFECT`) and the
+count, so it cannot be satisfied by a run that quietly did both.
+
+**Recovery is bounded and idempotent.** A wakeup survives a restart with its state intact and fires
+once; a duplicate schedule keeps the **earliest** deadline rather than pushing it later (a lost retry
+is the failure mode there) and does not create a second record; and a wakeup whose handler keeps
+failing **pauses** at the attempts ceiling instead of looping.
+
+The certificate resolves those suite names against the catalogue, so naming evidence that is not
+actually run fails the generator rather than reading as proof.
+
+Two of my expectations were wrong and the code was right: task jobs settle as `COMPLETED`, not `DONE`,
+and exhaustion is marked by the `PAUSED` state and the attempt count, with the terminal `error` field
+belonging to the failure path. Both assertions were corrected to the platform's actual behaviour
+rather than the behaviour I had assumed.
+
+---
+
+## 9. What reconnaissance established for the remaining tasks
 Recorded here because it is the expensive part of Tasks C, D and F, and re-deriving it would waste a
 round. All read-only, from the real tree.
 
@@ -365,7 +399,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 9. Gaps found, recorded rather than hidden
+## 10. Gaps found, recorded rather than hidden
 
 - **`experience` and `remote` have no authoritative suite at all.** `electron/experience/` and
   `src/shared/experience.ts` exist and are owned; nothing tests them. `remote-relay.ts` is named only
@@ -379,7 +413,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 10. Remaining tasks and gates
+## 11. Remaining tasks and gates
 
 | Task | State |
 | --- | --- |
@@ -397,16 +431,16 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **PASS** — see §6: 45 minutes, 1005 cycles, RSS trend **−0.14 MiB/min** against a 17.1 allowance, heap −0.02 against 8.5, all 11 shared invariants PASS |
-| 7 — no committed work lost and no duplicated external side effect after restart/recovery | **not started** |
+| 7 — no committed work lost and no duplicated external side effect after restart/recovery | **PASS** — see §8 |
 | 8 — every extra agent stage has cost/benefit evidence | **not met** — the accounting model and the guard are delivered and their refusal paths are checked live by the certificate; the cost/benefit comparison itself needs a recorded default pipeline, and none exists. See §7 |
-| 9 — `platform-certificate.json` + soak report | **certificate delivered**; the soak report is **not started**, and the certificate says so |
+| 9 — `platform-certificate.json` + soak report | **PASS** — both artifacts exist, and the certificate reads the soak report rather than restating it |
 
 ---
 
 
 ---
 
-## 11. Rollback rule
+## 12. Rollback rule
 
 The book's rule is that any missed-coverage evidence degrades to the full suite immediately. That is
 implemented rather than promised: `blind`, `changedSetUnknown`, an unattributed file, and every
