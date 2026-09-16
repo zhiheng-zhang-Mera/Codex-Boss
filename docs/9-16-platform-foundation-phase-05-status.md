@@ -5,7 +5,7 @@
 **Engineering book:** `Update-Plan/Platform-Foundation/Phase-05-Scale-Verification-and-Soak.md`
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
-> Tasks A and B are delivered, measured and tested. Tasks C to G and gates 4 to 9 remain open.
+> Tasks A, B and C are delivered, measured and tested. Tasks D to G and gates 5 to 9 remain open.
 > This file records what is done, what is not, and what was measured, so the next round starts
 > from evidence rather than from a summary.
 
@@ -78,11 +78,52 @@ report is the deliverable and it is asserted as computable, not as empty.
 
 ---
 
-## 3. Not delivered — remaining tasks and gates
+## 3. Delivered: Task C — the external compatibility registry, and gate 4
+
+One record per external dependency carrying `contractVersion`, `lastKnownGood`, `healthProbe`,
+`failureClass`, `degradedFallback` and `observedAt`, plus the property the book asks to be PROVEN:
+a single provider/adapter/UI degrading shows an accurate local `DEGRADED`, reroutes when a legitimate
+alternative exists, and refuses rather than misroutes when the route is unclear.
+
+| File | Responsibility |
+| --- | --- |
+| `src/shared/external-compatibility.ts` | the model: closed failure vocabulary, per-class fallback, `observeCompatibility`, `contractDrift`, `rerouteTarget`, `evaluateCompatibility` |
+| `electron/platform/external-compatibility.ts` | fills the model from the real `RuntimeRegistry` + `CircuitBreaker` |
+| `tests/unit/platform/external-compatibility.test.ts` | 23 tests, gate 4 over the real supervisor |
+
+Three decisions carry the guarantee:
+
+- **An external failure can never become a core verdict.** `evaluateCompatibility` derives the
+  verdict from the entries rather than accepting one, and only a `criticalToCore` dependency can move
+  it past `DEGRADED`. Nothing observed from the runtime plane is critical to the core, and that is
+  asserted over the real registry.
+- **`lastKnownGood` only advances from an observation that worked.** A version read off a page that no
+  longer functions cannot become the baseline; recording it would file the breakage as the good state.
+- **A `REFUSE` survives a candidate being available.** A fallback that ignores a refusal is not a
+  refusal, and the book's rollback rule is that an unclear route fails closed.
+
+**A defect this phase found in its own bridge:** an OPEN circuit with a stale `AVAILABLE` reading was
+attributed `UNKNOWN`, and `UNKNOWN` refuses — so a provider that merely kept timing out would have had
+work refused instead of moved to a healthy peer. An open circuit over an otherwise readable provider
+is now `TOOL_TIMEOUT`, which reroutes, and a test pins both directions.
+
+**Gate 4 evidence**, over the REAL `RuntimeRegistry` + `CircuitBreaker` + `ExecutionSupervisor` +
+`TaskLedger`: three consecutive provider-technical failures open the broken provider's circuit; the
+healthy peer stays `CLOSED` and completes the work; the core verdict over the real registry is
+`DEGRADED` and never `FAILED`; the scheduler names the healthy peer as the target. The failure-class
+sweep covers the whole closed vocabulary, and one test asserts the refusal direction.
+
+A behaviour worth recording because the test had to be built against it: the supervisor's retry budget
+is 3 for a replay-SAFE request, so one dispatch is not one breaker failure. The isolation proof uses a
+replay-unsafe request, where a failure is definitive and counts once.
+
+---
+
+## 4. Not delivered — remaining tasks and gates
 
 | Task | State |
 | --- | --- |
-| C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **not started** |
+| C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
 | D — agent coordination economics and the added-stage guard | **not started** |
 | E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **not started** |
 | F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **not started** |
@@ -90,10 +131,10 @@ report is the deliverable and it is asserted as computable, not as empty.
 
 | Gate | State |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run this phase: unit **2253**, postbuild **89**, security scan, architecture ratchet, state probe, review-loop 11/11 |
+| 1 — Phases 01–04 gates still pass | re-run this phase: unit **2276**, postbuild **89**, typecheck, security scan (1103 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
 | 2 — targeted run agrees with the full gate for the same commit | **partly**: the comparison mechanism (`test-impact.cjs verify`) exists and is tested; it has not been run over a full-suite execution and recorded as evidence |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
-| 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **not delivered**; recon done, see §4 |
+| 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | Phase 04 covers 10k retrieval; the 100k event half is **not started** |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **not started** |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **not started** |
@@ -102,7 +143,7 @@ report is the deliverable and it is asserted as computable, not as empty.
 
 ---
 
-## 4. What reconnaissance established for the remaining tasks
+## 5. What reconnaissance established for the remaining tasks
 
 Recorded here because it is the expensive part of Tasks C, D and F, and re-deriving it would waste a
 round. All read-only, from the real tree.
@@ -127,13 +168,15 @@ Two gaps worth stating before the proof is written:
 
 The strongest existing evidence is `tests/unit/multi-fault-isolation.test.ts:62` and `:107` (isolation
 and reroute over the real supervisor) and `tests/unit/platform/platform-health.test.ts:61,77,88,125`.
-What does **not** exist, and is exactly what gate 4 asks for: a test that a single DEGRADED provider
-leaves unrelated modules READY, and an end-to-end reroute through `MainCommander.dispatchRole` (the
-existing reroute proof is at the `ExecutionSupervisor` level with `web:a`/`web:b`/`web:c` fakes).
+What did **not** exist, and is what §3 now supplies: a test that a single DEGRADED provider leaves
+unrelated capabilities READY, over the real registry and breaker. The reroute is now proven at the
+`ExecutionSupervisor` level deterministically rather than incidentally; a reroute through
+`MainCommander.dispatchRole` end to end is still **not** covered, because that path needs a real
+commander composition and is therefore part of what Task E's synthetic scale work should drive.
 
 ---
 
-## 5. Gaps found, recorded rather than hidden
+## 6. Gaps found, recorded rather than hidden
 
 - **`experience` and `remote` have no authoritative suite at all.** `electron/experience/` and
   `src/shared/experience.ts` exist and are owned; nothing tests them. `remote-relay.ts` is named only
@@ -146,7 +189,7 @@ existing reroute proof is at the `ExecutionSupervisor` level with `web:a`/`web:b
 
 ---
 
-## 6. Rollback rule
+## 7. Rollback rule
 
 The book's rule is that any missed-coverage evidence degrades to the full suite immediately. That is
 implemented rather than promised: `blind`, `changedSetUnknown`, an unattributed file, and every
