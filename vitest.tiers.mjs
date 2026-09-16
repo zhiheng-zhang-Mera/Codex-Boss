@@ -184,5 +184,9 @@ export const BUILD_DEPENDENT_TESTS = [
   // Phase 02 gate 7: runs the migration-report generator, which loads the compiled
   // decision-ledger pilot out of dist-electron and performs the migration for real in a
   // temporary data root before writing the artifact.
-  "tests/acceptance/state-migration-report.test.ts"
+  "tests/acceptance/state-migration-report.test.ts",
+  // Phase 03 gate 7: runs the permission-surface generator, which loads the compiled
+  // capability layer, executes the escape battery against a real broker and forks a real
+  // plugin under Node's permission model before writing the artifact.
+  "tests/acceptance/permission-surface-report.test.ts"
 ];

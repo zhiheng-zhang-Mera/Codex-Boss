@@ -97,7 +97,11 @@ exports.create = function create() {
        */
       if (request.action === "probe") {
         const results = await probe();
-        respond({ handled: true, probes: results });
+        // The sandbox's own verdict travels with the probe, measured INSIDE this process. Reported
+        // here rather than only on a health message so a caller gets the evidence in one round trip
+        // — the first version left it on a channel nothing asked for, and the report recorded `null`
+        // for the very evidence it was supposed to contain.
+        respond({ handled: true, probes: results, sandbox: boss.selfTest() });
         return;
       }
       return { handled: false, detail: `unsupported action ${request.action}` };

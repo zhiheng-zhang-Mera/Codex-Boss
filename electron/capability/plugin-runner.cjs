@@ -58,8 +58,16 @@ function send(message) {
  *
  * The evidence for "a plugin cannot read the project's files" should come from the process that
  * would be doing the reading, not from the host's description of it.
+ *
+ * The probe targets `process.cwd()/package.json` rather than `__filename`. The first version read
+ * `__filename` — this runner's own module — and Node ALLOWS that, because it has to load the entry
+ * module to start at all. The result was a self-test reporting `fs.readFileSync: ALLOWED`, which
+ * looked like a hole and was really a badly chosen target: reading the module that is already
+ * loaded proves nothing, while reading the project's manifest is exactly the attack the boundary
+ * exists to stop.
  */
 function selfTest() {
+  const projectFile = require("node:path").join(process.cwd(), "package.json");
   const probe = (name, run) => {
     try {
       run();
@@ -70,7 +78,7 @@ function selfTest() {
     }
   };
   return {
-    "fs.readFileSync": probe("fs.readFileSync", () => require("node:fs").readFileSync(__filename)),
+    "fs.readFileSync(project)": probe("fs.readFileSync(project)", () => require("node:fs").readFileSync(projectFile, "utf8")),
     "fs.writeFileSync": probe("fs.writeFileSync", () => require("node:fs").writeFileSync("boss-plugin-probe.txt", "x")),
     "child_process.execSync": probe("child_process.execSync", () => require("node:child_process").execSync("echo probe")),
     "worker_threads.Worker": probe("worker_threads.Worker", () => new (require("node:worker_threads").Worker)("", { eval: true })),
