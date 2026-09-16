@@ -72,7 +72,8 @@
     "test:impact": "node scripts/test-impact.cjs select",
     "test:impact:audit": "node scripts/test-impact.cjs audit",
     "test:impact:verify": "node scripts/test-impact.cjs verify",
-    "test:catalogue:check": "node scripts/generate-test-catalogue.cjs --check"
+    "test:catalogue:check": "node scripts/generate-test-catalogue.cjs --check",
+    "platform:certificate": "node scripts/platform-certificate.cjs"
   },
   "dependencies": {
     "cross-env": "10.1.0",

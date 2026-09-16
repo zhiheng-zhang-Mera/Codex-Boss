@@ -193,5 +193,10 @@ export const BUILD_DEPENDENT_TESTS = [
   // retrieval modules, walks the real state roots and executes a plan through a recording
   // deleter. It also removes a protection marker from the compiled module to prove the
   // generator fails rather than reporting an invariant it did not observe.
-  "tests/acceptance/data-lifecycle-report.test.ts"
+  "tests/acceptance/data-lifecycle-report.test.ts",
+  // Phase 05 gate 9: runs the platform-certificate generator, which loads the compiled platform
+  // (registry, ratchet, permission validator, retention and compatibility models) and re-derives
+  // every section rather than transcribing the phase artifacts. It also points the generator at
+  // COPIES of the artifacts with a cross-check deliberately broken, to prove it fails closed.
+  "tests/acceptance/platform-certificate.test.ts"
 ];

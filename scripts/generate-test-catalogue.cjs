@@ -44,6 +44,7 @@ const CURATED = {
   "tests/unit/platform/test-impact.test.ts": { covers: ["runtime"], obligation: "the impact selector picks the affected suites, fails closed, and its audit detects what it dropped", alwaysRun: true },
   "tests/unit/platform/external-compatibility.test.ts": { covers: ["providers"], obligation: "a single external dependency degrading stays local, is classified honestly, and reroutes or refuses accordingly" },
   "tests/acceptance/platform-architecture-diagnostics.test.ts": { covers: ["runtime"], obligation: "the architecture CLI reports the same graph the registry builds", alwaysRun: true },
+  "tests/acceptance/platform-certificate.test.ts": { covers: ["runtime"], obligation: "the platform certificate recomputes rather than transcribes, is honest about what has not run, and fails closed", alwaysRun: true },
   "tests/acceptance/architecture-discovery.test.ts": { covers: ["runtime"], obligation: "the built application's architecture evidence matches the source tree", alwaysRun: true },
   // --- the selector and the taxonomy it depends on: they must never be skippable.
   "tests/unit/test-layers.test.ts": { covers: ["runtime"], obligation: "the test layers and tiers agree with the declarations", alwaysRun: true },

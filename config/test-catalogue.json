@@ -172,6 +172,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/acceptance/platform-certificate.test.ts",
+      "tier": "acceptance",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the platform certificate recomputes rather than transcribes, is honest about what has not run, and fails closed",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/acceptance/prestart-adversarial.test.ts",
       "tier": "acceptance",
       "covers": [
