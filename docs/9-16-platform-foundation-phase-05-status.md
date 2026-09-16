@@ -5,9 +5,9 @@
 **Engineering book:** `Update-Plan/Platform-Foundation/Phase-05-Scale-Verification-and-Soak.md`
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
-> Tasks A, B and C are delivered, measured and tested. Tasks D to G and gates 5 to 9 remain open.
-> This file records what is done, what is not, and what was measured, so the next round starts
-> from evidence rather than from a summary.
+> Tasks A, B, C, E and G are delivered, measured and tested; gates 1, 3, 4, 5 and 9 are met.
+> Tasks D and F, and gates 2, 6, 7 and 8, remain open. This file records what is done, what is
+> not, and what was measured, so the next round starts from evidence rather than a summary.
 
 ---
 
@@ -172,7 +172,53 @@ both defaulting to the real paths.
 
 ---
 
-## 5. What reconnaissance established for the remaining tasks
+## 5. Delivered: Task E — synthetic scale, and gate 5
+
+`tests/unit/platform/scale-synthetic.test.ts`, registered in the **slow tier** (see below).
+
+| Book requirement | Evidence |
+| --- | --- |
+| capability manifests 10× | **271** synthetic capabilities against the repository's 27, every one pushed through the real `validateCapabilityManifest` — a scale test that hand-built graph nodes would be measuring a data structure rather than the platform's ability to accept a large one |
+| dependency edges 10× | **270** edges, asserted as a comparison against the real manifest set rather than a round number |
+| boot order total and dependency-respecting | every capability appears exactly once and after everything it requires, checked edge by edge, with the resolved-edge count asserted so the check cannot pass over an empty loop |
+| 100k+ durable events | 100k real events: monotone sequences, no duplicate durable id, per-aggregate ordering, idempotent replay on a sample, and **the counts survive a close and reopen** |
+| no consistency error | a 2000-write transaction that rolls back leaves journal and state at zero, and the same work committed does land — so the rollback test is not passing because nothing works |
+| multi-project, no contamination | four projects, one owner per namespace, a second owner refused, 500 records each, project-qualified aggregate ids, and clearing one project leaving the others intact |
+| multi-provider partial failure | covered by Task C's gate 4 suite |
+
+**Two defects the test caught in its own construction**, both real and both fixed:
+
+1. The dependency-ordering check resolved targets through `requirement.capability.id`, which holds the
+   **interface** id parsed out of the ref (`shared-provider.iface@1` → `shared-provider.iface`) rather
+   than the capability id — so comparing it against capability ids silently looked up nothing. It now
+   resolves through `graph.providers[requirement.ref]`, and the resolved-edge count is asserted.
+2. The synthetic fleet was **10 short of 10×** (261 against a required 270) because the chain depth
+   was chosen by arithmetic instead of compared against the real set. The assertion caught it.
+
+**A measured performance finding, published rather than optimised away.** Appending 100k events costs
+~74 s, and per-event cost **rises from 0.22 ms to 0.88 ms** as the journal grows (ten 10k bands) before
+plateauing. The queries are not the cause — `EXPLAIN QUERY PLAN` confirms both the idempotency lookup
+and the id read use their indexes — and the cause is durability: `synchronous=1` with
+`wal_autocheckpoint=1000` means each checkpoint fsyncs a database file that grows with the journal.
+That curve is exactly what Task F's soak exists to trend, so it is recorded, and the suite is
+explicitly **not** made faster by relaxing `synchronous` — which would have flattered the number and
+broken Task F's target.
+
+**Registering it in the slow tier required a guard change, not a workaround.** `test-layers.test.ts`
+required every slow-tier suite to spawn a process, and this one starts nothing. Making it spawn
+something to earn its place would have been paying theatre to satisfy a rule, so
+`SLOW_ACCEPTANCE_TESTS` is now a **record** carrying each entry's measured cost and its kind —
+`spawns` (the original reason, still checked against the file) or `in-process` (real durable work whose
+cost belongs to the storage engine). The guard now checks that every entry states a measurement and a
+reason, that a `spawns` entry really spawns, and that an `in-process` entry really does not and really
+opens a database. Stricter than what it replaced, not looser.
+
+Default tier unchanged at **198 files / 2276 tests in 220 s**; the slow tier runs the scale suite at
+4/4 in 97 s.
+
+---
+
+## 6. What reconnaissance established for the remaining tasks
 Recorded here because it is the expensive part of Tasks C, D and F, and re-deriving it would waste a
 round. All read-only, from the real tree.
 
@@ -204,7 +250,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 6. Gaps found, recorded rather than hidden
+## 7. Gaps found, recorded rather than hidden
 
 - **`experience` and `remote` have no authoritative suite at all.** `electron/experience/` and
   `src/shared/experience.ts` exist and are owned; nothing tests them. `remote-relay.ts` is named only
@@ -218,13 +264,13 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 7. Not delivered — remaining tasks and gates
+## 8. Not delivered — remaining tasks and gates
 
 | Task | State |
 | --- | --- |
 | C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
 | D — agent coordination economics and the added-stage guard | **not started** |
-| E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **not started** |
+| E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **delivered**, see §5 |
 | F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **not started** |
 | G — `platform-certificate.json` | **delivered**, see §4 — and it reports D, E and F as unmeasured |
 
@@ -234,7 +280,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 | 2 — targeted run agrees with the full gate for the same commit | **partly**: the comparison mechanism (`test-impact.cjs verify`) exists and is tested, and the certificate records `recorded: false` for the full-suite pairing rather than claiming it |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
-| 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | Phase 04 covers 10k retrieval; the 100k event half is **not started** |
+| 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **not started** |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **not started** |
 | 8 — every extra agent stage has cost/benefit evidence | **not started** |
@@ -245,7 +291,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 8. Rollback rule
+## 9. Rollback rule
 
 The book's rule is that any missed-coverage evidence degrades to the full suite immediately. That is
 implemented rather than promised: `blind`, `changedSetUnknown`, an unattributed file, and every
