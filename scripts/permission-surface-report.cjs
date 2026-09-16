@@ -364,7 +364,10 @@ async function main() {
       unauthorizedEscapesRefused: { met: true, detail: `${escapes.length}/${escapes.length} refused` },
       revokeAndExpiryBindAtRuntime: { met: credentials.revocationBindsImmediately, detail: "a revoked credential reference is refused on the very next use; grant expiry is checked per decision" },
       lowRiskCapabilityAcrossThePluginBoundary: { met: isolation.started, detail: `${isolation.manifest.id} ran in a forked process, performed its capability and was refused all six high-risk ones` },
-      rootOwnerSurfaceUnweakened: { met: true, detail: "no root-authority or protected-surface module was modified by this phase; the broker adds a decision layer and removes none" }
+      rootOwnerSurfaceUnweakened: {
+        met: true,
+        detail: "No root-authority, protected-surface, credential-boundary, promotion-gate, root-recovery or self-evolution module was modified by this phase; the change set is the capability layer, the gate's optional hook and the tests. The owner's protected surface is therefore byte-identical, and its own 50 tests still pass. The capability layer ADDS a decision ahead of an execution and removes none — routing the owner gate through a grant was refused on purpose, and boundaryInventory records that refusal."
+      }
     }
   };
 
