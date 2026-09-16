@@ -175,5 +175,10 @@ export const BUILD_DEPENDENT_TESTS = [
   // against the artifacts it describes.
   "tests/acceptance/autonomous-evolution-identity.test.ts",
   // Spawns the closure acceptance harnesses, which `require` compiled modules.
-  "tests/unit/closure-terminal-logic.test.ts"
+  "tests/unit/closure-terminal-logic.test.ts",
+  // Phase 02: spawns a real child process that loads the compiled state core out of
+  // dist-electron and then dies mid-work. It cannot run before a build, and unlike the
+  // others it MUST NOT be skipped silently — the whole point is that a hard kill does
+  // not lose committed work, so it fails loudly rather than passing vacuously.
+  "tests/acceptance/state-core-crash.test.ts"
 ];
