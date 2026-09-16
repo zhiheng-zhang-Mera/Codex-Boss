@@ -1,0 +1,16 @@
+id: task-creation
+version: 1.0.0
+kind: feature
+provides:
+  - task.creation@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/task-creation-ipc.ts
+bootModules:
+  - electron/bootstrap/task-creation-ipc.ts
+surface: []
+permissions: []

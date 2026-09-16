@@ -1,0 +1,16 @@
+id: host-status
+version: 1.0.0
+kind: feature
+provides:
+  - host.status@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/host-status-ipc.ts
+bootModules:
+  - electron/bootstrap/host-status-ipc.ts
+surface: []
+permissions: []

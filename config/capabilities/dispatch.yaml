@@ -1,0 +1,16 @@
+id: dispatch
+version: 1.0.0
+kind: feature
+provides:
+  - dispatch.task@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/dispatch-ipc.ts
+bootModules:
+  - electron/bootstrap/dispatch-ipc.ts
+surface: []
+permissions: []

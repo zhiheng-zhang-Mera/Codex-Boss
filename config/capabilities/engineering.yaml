@@ -1,0 +1,19 @@
+id: engineering
+version: 1.0.0
+kind: feature
+provides:
+  - engineering.service@1
+  - engineering.learning@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/engineering.ts
+  - electron/bootstrap/engineering-surface-ipc.ts
+bootModules:
+  - electron/bootstrap/engineering.ts
+  - electron/bootstrap/engineering-surface-ipc.ts
+surface: []
+permissions: []

@@ -1,0 +1,15 @@
+id: tenx
+version: 1.0.0
+kind: feature
+provides:
+  - tenx.artifact@1
+  - tenx.network@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules: []
+bootModules: []
+surface: []
+permissions: []

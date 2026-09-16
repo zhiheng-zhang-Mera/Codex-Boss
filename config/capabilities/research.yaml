@@ -1,0 +1,33 @@
+id: research
+version: 1.0.0
+kind: feature
+provides:
+  - research.service@1
+  - research.ledger@1
+requires:
+  - ref: knowledge.store@1
+    reason: a research run records its evidence and reading list through the shared knowledge base rather than keeping a second, divergent store of its own.
+optional: []
+state:
+  - namespace: research-runs
+    owner: research
+  - namespace: research-protocols
+    owner: research
+  - namespace: research-contracts
+    owner: research
+  - namespace: research-reviews
+    owner: research
+health:
+  critical: false
+modules:
+  - electron/bootstrap/research.ts
+  - electron/bootstrap/research-ipc.ts
+  - electron/bootstrap/research-owner-ipc.ts
+  - electron/bootstrap/research-run-ipc.ts
+bootModules:
+  - electron/bootstrap/research.ts
+  - electron/bootstrap/research-ipc.ts
+  - electron/bootstrap/research-owner-ipc.ts
+  - electron/bootstrap/research-run-ipc.ts
+surface: []
+permissions: []

@@ -1,0 +1,14 @@
+id: promotion
+version: 1.0.0
+kind: feature
+provides:
+  - promotion.gate@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules: []
+bootModules: []
+surface: []
+permissions: []

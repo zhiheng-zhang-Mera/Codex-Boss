@@ -1,0 +1,18 @@
+id: theme
+version: 1.0.0
+kind: feature
+provides:
+  - theme.ipc@1
+requires:
+  - ref: theme.registry@1
+    reason: the theme channels read and mutate the theme registry, whose durable owner is the knowledge capability; this module is the transport, not the store.
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/theme-ipc.ts
+bootModules:
+  - electron/bootstrap/theme-ipc.ts
+surface: []
+permissions: []

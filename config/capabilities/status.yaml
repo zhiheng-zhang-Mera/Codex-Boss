@@ -1,0 +1,16 @@
+id: status
+version: 1.0.0
+kind: feature
+provides:
+  - status.snapshot@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/status-ipc.ts
+bootModules:
+  - electron/bootstrap/status-ipc.ts
+surface: []
+permissions: []

@@ -1,0 +1,16 @@
+id: conversation
+version: 1.0.0
+kind: feature
+provides:
+  - conversation.registry@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/conversation-ipc.ts
+bootModules:
+  - electron/bootstrap/conversation-ipc.ts
+surface: []
+permissions: []

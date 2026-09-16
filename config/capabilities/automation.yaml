@@ -1,0 +1,22 @@
+id: automation
+version: 1.0.0
+kind: feature
+provides:
+  - automation.lifecycle@1
+requires: []
+optional: []
+state:
+  - namespace: telemetry
+    owner: automation
+  - namespace: recovery
+    owner: automation
+  - namespace: circuit-breaker
+    owner: automation
+health:
+  critical: false
+modules:
+  - electron/bootstrap/automation.ts
+bootModules:
+  - electron/bootstrap/automation.ts
+surface: []
+permissions: []

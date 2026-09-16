@@ -1,0 +1,17 @@
+id: settings
+version: 1.0.0
+kind: feature
+provides:
+  - settings.ipc@1
+  - settings.panes@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/settings-ipc.ts
+bootModules:
+  - electron/bootstrap/settings-ipc.ts
+surface: []
+permissions: []

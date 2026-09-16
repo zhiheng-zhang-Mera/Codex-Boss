@@ -1,0 +1,29 @@
+id: knowledge
+version: 1.0.0
+kind: feature
+provides:
+  - knowledge.store@1
+  - theme.registry@1
+requires:
+  - ref: persistence.store@1
+    reason: the knowledge base and the theme registry are durable files under the resolved data root, which only the persistence kernel knows how to locate and write atomically.
+optional: []
+state:
+  - namespace: knowledge-base
+    owner: knowledge
+  - namespace: world-model
+    owner: knowledge
+  - namespace: ui-surfaces
+    owner: knowledge
+  - namespace: theme-registry
+    owner: knowledge
+  - namespace: theme-packages
+    owner: knowledge
+health:
+  critical: false
+modules:
+  - electron/bootstrap/knowledge.ts
+bootModules:
+  - electron/bootstrap/knowledge.ts
+surface: []
+permissions: []

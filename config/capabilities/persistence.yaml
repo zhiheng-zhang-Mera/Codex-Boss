@@ -1,0 +1,59 @@
+id: persistence
+version: 1.0.0
+kind: kernel
+provides:
+  - persistence.store@1
+  - persistence.history@1
+  - persistence.tasks@1
+  - persistence.settings@1
+requires: []
+optional: []
+state:
+  # The durable stores this module is the composition root for. Each namespace has
+  # exactly one authoritative writer; the registry rejects a second claimant.
+  - namespace: history
+    owner: persistence
+  - namespace: tasks
+    owner: persistence
+  - namespace: app-state
+    owner: persistence
+  - namespace: attachments
+    owner: persistence
+  - namespace: provider-capabilities
+    owner: persistence
+  - namespace: api-settings
+    owner: persistence
+  - namespace: session-lifecycle
+    owner: persistence
+  - namespace: node-registry
+    owner: persistence
+  - namespace: external-sessions
+    owner: persistence
+  - namespace: runtime-budget
+    owner: persistence
+  - namespace: interventions
+    owner: persistence
+  - namespace: decision-ledger
+    owner: persistence
+  - namespace: workspaces
+    owner: persistence
+  - namespace: workspace-selection
+    owner: persistence
+  - namespace: permission-manifest
+    owner: persistence
+  - namespace: project-state
+    owner: persistence
+  - namespace: experience
+    owner: persistence
+  - namespace: runtime-resources
+    owner: persistence
+  - namespace: task-contexts
+    owner: persistence
+health:
+  critical: true
+modules:
+  - electron/bootstrap/persistence.ts
+bootModules:
+  - electron/bootstrap/persistence.ts
+surface: []
+permissions: []

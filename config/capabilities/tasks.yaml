@@ -1,0 +1,19 @@
+id: tasks
+version: 1.0.0
+kind: feature
+provides:
+  - task.lifecycle@1
+  - task.state@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/task-lifecycle-ipc.ts
+  - electron/bootstrap/task-state-ipc.ts
+bootModules:
+  - electron/bootstrap/task-lifecycle-ipc.ts
+  - electron/bootstrap/task-state-ipc.ts
+surface: []
+permissions: []

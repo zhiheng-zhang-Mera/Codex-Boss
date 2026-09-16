@@ -1,0 +1,16 @@
+id: attachments
+version: 1.0.0
+kind: feature
+provides:
+  - attachment.store@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/attachment-ipc.ts
+bootModules:
+  - electron/bootstrap/attachment-ipc.ts
+surface: []
+permissions: []

@@ -1,0 +1,17 @@
+id: runtime
+version: 1.0.0
+kind: kernel
+provides:
+  - runtime.window@1
+  - runtime.registry@1
+requires: []
+optional: []
+state: []
+health:
+  critical: true
+modules:
+  - electron/bootstrap/runtime.ts
+bootModules:
+  - electron/bootstrap/runtime.ts
+surface: []
+permissions: []

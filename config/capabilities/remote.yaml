@@ -1,0 +1,14 @@
+id: remote
+version: 1.0.0
+kind: feature
+provides:
+  - remote.relay@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules: []
+bootModules: []
+surface: []
+permissions: []

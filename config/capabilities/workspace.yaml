@@ -1,0 +1,16 @@
+id: workspace
+version: 1.0.0
+kind: feature
+provides:
+  - workspace.selection@1
+requires: []
+optional: []
+state: []
+health:
+  critical: false
+modules:
+  - electron/bootstrap/workspace-ipc.ts
+bootModules:
+  - electron/bootstrap/workspace-ipc.ts
+surface: []
+permissions: []

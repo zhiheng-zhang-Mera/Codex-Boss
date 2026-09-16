@@ -1,0 +1,22 @@
+id: providers
+version: 1.0.0
+kind: kernel
+provides:
+  - provider.pool@1
+  - provider.policies@1
+  - provider.registry@1
+requires: []
+optional: []
+state: []
+health:
+  critical: true
+modules:
+  - electron/bootstrap/provider-ipc.ts
+  - electron/bootstrap/provider-pool.ts
+  - electron/bootstrap/providers.ts
+bootModules:
+  - electron/bootstrap/provider-ipc.ts
+  - electron/bootstrap/provider-pool.ts
+  - electron/bootstrap/providers.ts
+surface: []
+permissions: []
