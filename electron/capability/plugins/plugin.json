@@ -1,0 +1,13 @@
+{
+  "id": "plugin.example.theme",
+  "version": "1.0.0",
+  "entrypoint": "example-theme-plugin.cjs",
+  "describes": "reads the active theme and proposes another one; it has no access to files, processes, the network or credentials",
+  "capabilities": [
+    {
+      "capability": "ui.theme",
+      "actions": ["read", "propose"],
+      "resources": ["ui.theme:current", "ui.theme:proposal"]
+    }
+  ]
+}
