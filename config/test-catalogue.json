@@ -962,6 +962,14 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/platform/coordination-economics.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ],
+      "obligation": "an extra agent stage is promoted only on a measured defect or rework improvement, and never on an unobserved figure"
+    },
+    {
       "file": "tests/unit/platform/dependency-graph.test.ts",
       "tier": "unit",
       "covers": [

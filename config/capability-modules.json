@@ -271,6 +271,7 @@
       "electron/fleet",
       "electron/tenx",
       "src/shared/autonomy-supervisor.ts",
+      "src/shared/coordination-economics.ts",
       "src/shared/fleet.ts",
       "src/shared/microtask.ts",
       "src/shared/node-capabilities.ts",

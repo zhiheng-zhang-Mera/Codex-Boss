@@ -5,8 +5,8 @@
 **Engineering book:** `Update-Plan/Platform-Foundation/Phase-05-Scale-Verification-and-Soak.md`
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
-> Tasks A, B, C, E, F and G are delivered, measured and tested; gates 1, 3, 4, 5, 6 and 9 are met.
-> Task D and gates 2, 7 and 8 remain open. This file records what is done, what is not, and what was
+> All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6 and 9 are met.
+> Task D's cost/benefit COMPARISON is unmeasured and gates 2, 7 and 8 remain open. This file records what is done, what is not, and what was
 > measured, so the next round starts from evidence rather than a summary.
 
 ---
@@ -298,7 +298,42 @@ recorded in commit `5a9003c`.
 
 ---
 
-## 7. What reconnaissance established for the remaining tasks
+## 7. Task D — the coordination economics model and its guard, with the comparison still unmeasured
+
+`src/shared/coordination-economics.ts` accounts per task for the figures the book lists — model calls,
+input and output tokens, wall time, **coordination time as a distinct slice**, execution time, review
+findings, rework avoided, diff size, defects escaped — and decides whether an extra stage earns a place
+in the default pipeline.
+
+It consumes the figures the repository already records rather than a parallel accounting that could
+drift from them: `Consumption` on the task ledger carries `modelCalls`, `estimatedInputTokens`,
+`retries` and `toolCalls`, incremented as work happens, and `modifiedFiles` is the diff surface.
+
+Three decisions carry the rule:
+
+- **A figure that was not observed is `null`, never zero**, and each record declares which measures it
+  observed. "We measured zero findings" and "we did not look for findings" are different claims and
+  only the first can support a promotion.
+- **The guard answers `INSUFFICIENT_EVIDENCE` rather than approving on a guess.** No baseline, an
+  unmeasured decision figure, mixed runtimes, or overlapping sets all refuse. A per-task normalisation
+  stops a stage "earning" its place by being run more often.
+- **A tie is decided against the extra stage**, which is the book's rule read literally: only
+  increasing token and wall-time while not improving defect or rework is a tie on benefit plus a cost.
+
+`permittedPipeline` only ever ADDS a stage the guard approved, and never removes one the caller marks
+required — a guard able to quietly drop a verification step would be worse than no guard.
+
+**Gate 8 is nonetheless NOT met, and is not claimed.** The rule is about a *default pipeline*, and no
+default multi-agent pipeline has been recorded in this repository, so there is no cost/benefit
+comparison to report. Inventing one — or reporting the synthetic fixtures the tests use as if they were
+measurements — is exactly the hand-filled evidence the phase rules forbid. What the certificate
+therefore checks is the property that makes the guard worth having: that it **can** refuse. It runs the
+guard live with no baseline and with no observed figures and requires `INSUFFICIENT_EVIDENCE` both
+times, so the invariant cannot pass while the rule would promote a stage on a guess.
+
+---
+
+## 8. What reconnaissance established for the remaining tasks
 Recorded here because it is the expensive part of Tasks C, D and F, and re-deriving it would waste a
 round. All read-only, from the real tree.
 
@@ -330,7 +365,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 8. Gaps found, recorded rather than hidden
+## 9. Gaps found, recorded rather than hidden
 
 - **`experience` and `remote` have no authoritative suite at all.** `electron/experience/` and
   `src/shared/experience.ts` exist and are owned; nothing tests them. `remote-relay.ts` is named only
@@ -344,12 +379,12 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 9. Not delivered — remaining tasks and gates
+## 10. Remaining tasks and gates
 
 | Task | State |
 | --- | --- |
 | C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
-| D — agent coordination economics and the added-stage guard | **not started** |
+| D — agent coordination economics and the added-stage guard | **model and guard delivered; the comparison is NOT measured** — no default multi-agent pipeline has been recorded in this repository, so gate 8 is not met |
 | E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **delivered**, see §5 |
 | F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **delivered**, see §6 — a 45-minute run, the shortened form the book allows, with every shared invariant passing |
 | G — `platform-certificate.json` | **delivered**, see §4 — and it reports D, E and F as unmeasured |
@@ -363,7 +398,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **PASS** — see §6: 45 minutes, 1005 cycles, RSS trend **−0.14 MiB/min** against a 17.1 allowance, heap −0.02 against 8.5, all 11 shared invariants PASS |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **not started** |
-| 8 — every extra agent stage has cost/benefit evidence | **not started** |
+| 8 — every extra agent stage has cost/benefit evidence | **not met** — the accounting model and the guard are delivered and their refusal paths are checked live by the certificate; the cost/benefit comparison itself needs a recorded default pipeline, and none exists. See §7 |
 | 9 — `platform-certificate.json` + soak report | **certificate delivered**; the soak report is **not started**, and the certificate says so |
 
 ---
@@ -371,7 +406,7 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ---
 
-## 10. Rollback rule
+## 11. Rollback rule
 
 The book's rule is that any missed-coverage evidence degrades to the full suite immediately. That is
 implemented rather than promised: `blind`, `changedSetUnknown`, an unattributed file, and every

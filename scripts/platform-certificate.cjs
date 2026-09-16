@@ -310,7 +310,32 @@ function main() {
   } else {
     sections.soakResourceTrend = { measured: false, reason: NOT_RUN.soakResourceTrend };
   }
-  sections.agentCoordinationEconomics = { measured: false, reason: NOT_RUN.agentCoordinationEconomics };
+  // The model and its guard exist and are exercised; what does NOT exist is a recorded default
+  // pipeline to judge, so the section reports `measured: false` and the invariant below requires the
+  // guard to be CAPABLE OF REFUSING rather than merely present. That way the invariant cannot pass by
+  // being permanently false, and it cannot pass while the guard would promote a stage on a guess.
+  const coordination = load("src/shared/coordination-economics.js");
+  const noBaseline = coordination.evaluateStageGuard({ stage: "review", withStage: [], withoutStage: [] });
+  const noFigure = coordination.evaluateStageGuard({
+    stage: "review",
+    withStage: [{ taskId: "probe", pipeline: ["implement", "review"], runtime: "certificate-probe", measured: [], at: "2026-01-01T00:00:00.000Z", stages: [] }],
+    withoutStage: [{ taskId: "probe-baseline", pipeline: ["implement"], runtime: "certificate-probe", measured: [], at: "2026-01-01T00:00:00.000Z", stages: [] }]
+  });
+  sections.agentCoordinationEconomics = {
+    measured: false,
+    reason: NOT_RUN.agentCoordinationEconomics,
+    modelDelivered: true,
+    stages: [...coordination.COORDINATION_STAGES],
+    measures: [...coordination.COORDINATION_MEASURES],
+    guard: {
+      refusesWithoutABaseline: noBaseline.verdict === "INSUFFICIENT_EVIDENCE",
+      refusesOnAnUnmeasuredFigure: noFigure.verdict === "INSUFFICIENT_EVIDENCE",
+      verdicts: ["EARNS_PLACE", "COST_ONLY", "INSUFFICIENT_EVIDENCE"]
+    },
+    note: "the model and the guard are delivered and exercised; no default multi-agent pipeline has been recorded in this repository, so there is no cost/benefit comparison to report and none is invented"
+  };
+  require_(sections.agentCoordinationEconomics.guard.refusesWithoutABaseline, "the coordination guard would promote a stage with no baseline to compare against");
+  require_(sections.agentCoordinationEconomics.guard.refusesOnAnUnmeasuredFigure, "the coordination guard would promote a stage whose benefit was never observed");
 
   // ---------------------------------------------------------------- promotion
   /**

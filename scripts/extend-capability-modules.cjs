@@ -150,6 +150,7 @@ const EXTRA = {
     "src/shared/fleet.ts",
     "src/shared/node-capabilities.ts",
     "src/shared/autonomy-supervisor.ts",
+    "src/shared/coordination-economics.ts",
     "src/shared/microtask.ts",
     "src/shared/resource-model.ts"
   ],

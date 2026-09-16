@@ -161,7 +161,15 @@ describe("Phase 05 Task G — the certificate is honest about what has not run",
     // Task D is not started either way, so this half does not depend on the run.
     expect(certificate.sections.agentCoordinationEconomics.measured).toBe(false);
     expect(certificate.completeness.notRun).toContain("agentCoordinationEconomics");
-    // The phase is PARTIAL until Task D lands, whatever the soak did.
+    // What IS asserted is that the guard could refuse: a coordination rule that would promote a stage
+    // on an unobserved figure is worse than no rule, so the certificate checks the refusal live rather
+    // than describing it. This is why the invariant can be true while the section is unmeasured.
+    const coordination = certificate.sections.agentCoordinationEconomics as Record<string, any>;
+    expect(coordination.modelDelivered).toBe(true);
+    expect(coordination.guard.refusesWithoutABaseline).toBe(true);
+    expect(coordination.guard.refusesOnAnUnmeasuredFigure).toBe(true);
+    expect(coordination.guard.verdicts).toContain("INSUFFICIENT_EVIDENCE");
+    // And the phase is PARTIAL until Task D's evidence lands.
     expect(certificate.completeness.phaseStatus).toBe("PARTIAL");
   });
 
