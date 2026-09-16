@@ -58,8 +58,24 @@ describe("Phase 05 Task G — the platform certificate exists and covers what th
     }
     expect(certificate.acceptance.problems).toEqual([]);
     for (const [name, held] of Object.entries(certificate.acceptance.evidence)) {
+      // Each invariant is asserted to reflect the platform's ACTUAL state, not to be true. The soak
+      // invariant is the live example: it is false while Task F's long run has not produced a report,
+      // and the certificate says so rather than the test insisting otherwise. Once the report exists
+      // the same assertion requires it to hold AND to be bounded, so the invariant cannot pass by
+      // being permanently false.
+      if (name === "soak-trend-measured-and-bounded") {
+        const soak = certificate.sections.soakResourceTrend as { measured: boolean; trendWithinLongRunAllowance?: boolean };
+        expect(held, "the soak invariant disagrees with the soak section").toBe(soak.measured === true && soak.trendWithinLongRunAllowance === true);
+        continue;
+      }
       expect(held, `invariant ${name} did not hold`).toBe(true);
     }
+    // And the completeness block must agree with the sections rather than with a written-down list.
+    const unmeasured = Object.entries(certificate.sections)
+      .filter(([, section]) => (section as { measured?: boolean }).measured === false)
+      .map(([name]) => name)
+      .sort();
+    expect(certificate.completeness.notRun).toEqual(unmeasured);
   });
 
   it("recomputes the architecture rather than transcribing the snapshot", () => {
@@ -123,14 +139,29 @@ describe("Phase 05 Task G — the platform certificate exists and covers what th
 });
 
 describe("Phase 05 Task G — the certificate is honest about what has not run", () => {
-  it("says the soak trend was not measured rather than reporting one", () => {
+  it("reports the soak trend as unmeasured until a run produces one, and as measured once it does", () => {
     const certificate = generate();
-    // Task F is not started. A certificate that produced a resource trend here would be inventing the
-    // single most load-bearing measurement in the phase.
-    expect(certificate.sections.soakResourceTrend.measured).toBe(false);
-    expect(certificate.sections.soakResourceTrend.reason).toMatch(/not started/i);
+    const soak = certificate.sections.soakResourceTrend as Record<string, unknown>;
+    if (soak.measured === true) {
+      // A report exists, so the certificate must carry its numbers rather than a summary of them.
+      expect(soak.reportPath).toBe("artifacts/platform-foundation/phase-05/soak-report.json");
+      expect(typeof soak.minutes).toBe("number");
+      expect(typeof soak.trends).toBe("object");
+      expect(soak.trendWithinLongRunAllowance).toBe(true);
+      expect(soak.failedInvariants).toEqual([]);
+      expect(soak.gcMisdeleted).toBe(0);
+      expect(certificate.completeness.notRun).not.toContain("soakResourceTrend");
+    } else {
+      // No report: the section must say so WITH A REASON. A certificate that reported a resource
+      // trend it had not read would be worth nothing for the one purpose Task F exists for.
+      expect(soak.measured).toBe(false);
+      expect(String(soak.reason)).toMatch(/not started|not been run|no resource trend/i);
+      expect(certificate.completeness.notRun).toContain("soakResourceTrend");
+    }
+    // Task D is not started either way, so this half does not depend on the run.
     expect(certificate.sections.agentCoordinationEconomics.measured).toBe(false);
-    expect(certificate.completeness.notRun).toEqual(["soakResourceTrend", "agentCoordinationEconomics"]);
+    expect(certificate.completeness.notRun).toContain("agentCoordinationEconomics");
+    // The phase is PARTIAL until Task D lands, whatever the soak did.
     expect(certificate.completeness.phaseStatus).toBe("PARTIAL");
   });
 

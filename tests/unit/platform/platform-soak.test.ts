@@ -189,6 +189,22 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
     }
   }, 240_000);
 
+  it("distinguishes a recovered provider from a crash loop", async () => {
+    // The distinction a 45-minute run forced. The first version counted every circuit OPEN as a
+    // crash-loop transition, so a soak that degrades a provider and lets it recover on purpose — 295
+    // times over 45 minutes — failed the shared `provider-crash-loop-bounded` invariant while the
+    // platform was behaving exactly as designed. What that bound exists to catch is a provider that
+    // keeps opening and NEVER comes back, so the count is now built from the opens that never closed.
+    const result = await soak(tempRoot());
+    expect(result.totals.degradedProviders, "the soak never degraded a provider, so this proves nothing").toBeGreaterThan(0);
+    // Every degradation was followed by an unattended recovery.
+    expect(result.totals.recoveredCircuits).toBeGreaterThan(0);
+    // What is handed to the shared invariant is the opens that never closed — and because the soak
+    // always recovers, that is at most the single provider left open when the run stopped.
+    const reportedOpens = Object.values(result.circuitOpenCounts).reduce((total, count) => total + count, 0);
+    expect(reportedOpens).toBeLessThanOrEqual(1);
+  }, 240_000);
+
   it("is reproducible in shape: the same configuration runs the same stages", async () => {
     const first = await soak(tempRoot());
     const second = await soak(tempRoot());

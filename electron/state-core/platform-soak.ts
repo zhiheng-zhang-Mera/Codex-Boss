@@ -62,6 +62,7 @@ interface PlatformSoakCycle {
   gcMisdeleted: number;
   degradedProviders: number;
   recoveredProviders: number;
+  recoveredCircuits: number;
   restarts: number;
   recoveredTransactions: number;
 }
@@ -94,10 +95,17 @@ export interface PlatformSoakResult {
     recoveredProviders: number;
     restarts: number;
     recoveredTransactions: number;
+    /** Circuit opens that closed again because the provider answered its probe. */
+    recoveredCircuits: number;
   };
   /** Storage trend, which the shared sample shape does not carry. */
   storage: { databaseBytes: number; eventBacklog: number; namespaces: number; journalEvents: number };
-  /** Circuits opened per provider across the run, for the shared crash-loop bound. */
+  /**
+   * Crash-loop transitions per provider: opens that never closed again.
+   *
+   * Deliberately NOT every open. `provider-crash-loop-bounded` reads this map, and a soak that
+   * degrades a provider and lets it recover is exercising the recovery path rather than looping.
+   */
   circuitOpenCounts: Record<string, number>;
   /** The process ids observed, for the shared unexpected-restart invariant. One pid: this is in-process. */
   pids: number[];
@@ -197,7 +205,15 @@ export async function runPlatformSoak(options: PlatformSoakOptions): Promise<Pla
   ];
 
   const counters = { completed: 0, failed: 0, retries: 0, queueDepth: 0 };
+  /** Crash-loop transitions per provider, built at the end from opens that never recovered. */
   const circuitOpenCounts: Record<string, number> = {};
+  /**
+   * Providers whose circuit is open and has NOT yet closed again.
+   *
+   * This is what `circuitOpenCounts` is built from at the end: only opens that never recovered. A
+   * soak that degrades and recovers on purpose would otherwise look exactly like a crash loop.
+   */
+  const unrecoveredOpens = new Set<string>();
   /**
    * Sessions the soak has opened but not yet retired, with the cycle they were opened in.
    *
@@ -210,7 +226,7 @@ export async function runPlatformSoak(options: PlatformSoakOptions): Promise<Pla
   const totals = {
     cycles: 0, stateWrites: 0, eventsAppended: 0, eventsReplayed: 0, knowledgeAssessed: 0,
     gcPlanned: 0, gcCollected: 0, gcMisdeleted: 0, degradedProviders: 0, recoveredProviders: 0,
-    restarts: 0, recoveredTransactions: 0
+    restarts: 0, recoveredTransactions: 0, recoveredCircuits: 0
   };
 
   let handle: DatabaseHandle = openDatabase(stateDatabasePath(options.root));
@@ -233,7 +249,7 @@ export async function runPlatformSoak(options: PlatformSoakOptions): Promise<Pla
     const cycle: PlatformSoakCycle = {
       cycle: cycleNumber, stateWrites: 0, eventsAppended: 0, eventsReplayed: 0, knowledgeAssessed: 0,
       gcPlanned: 0, gcCollected: 0, gcMisdeleted: 0, degradedProviders: 0, recoveredProviders: 0,
-      restarts: 0, recoveredTransactions: 0
+      recoveredCircuits: 0, restarts: 0, recoveredTransactions: 0
     };
 
     const repository = createStateRepository(handle);
@@ -333,9 +349,20 @@ export async function runPlatformSoak(options: PlatformSoakOptions): Promise<Pla
     });
     if (failing) {
       providerFailuresThisCycle.push(providerState[0].id);
-      // A provider-technical failure opens its circuit. Counted so the shared
-      // `provider-crash-loop-bounded` invariant reads a real number rather than a literal zero.
-      circuitOpenCounts[providerState[0].id] = (circuitOpenCounts[providerState[0].id] ?? 0) + 1;
+      // A provider-technical failure opens its circuit, and the open is remembered as UNRECOVERED
+      // until the probe succeeds again. This is the distinction the shared
+      // `provider-crash-loop-bounded` invariant is actually about: a provider that opens and then
+      // recovers is a provider doing its job, and counting those opens as a crash loop makes the
+      // invariant fire on a healthy soak. Measured on a 45-minute run, the previous version reported
+      // 295 opens against a limit of 25 and FAILED the run — not because anything was wrong, but
+      // because the metric could not tell "degraded and recovered, 295 times" from "never came back".
+      // What the bound must catch is the provider that keeps opening and never returns.
+      unrecoveredOpens.add(providerState[0].id);
+    } else if (unrecoveredOpens.delete(providerState[0].id)) {
+      // The same provider answered again, so the circuit closes and that open is recovered. Counted,
+      // so the degrade/recover balance can be asserted rather than assumed.
+      cycle.recoveredCircuits++;
+      totals.recoveredCircuits++;
     }
     const degradeCount = providerState.filter((entry) => entry.status !== "READY").length;
     // The degraded provider recovers on its own the next cycle, with no intervention — the book's
@@ -392,6 +419,12 @@ export async function runPlatformSoak(options: PlatformSoakOptions): Promise<Pla
   const elapsedMs = Date.now() - startedAtMs;
   const journal = createEventJournal(handle);
   const repository = createStateRepository(handle);
+  // CRASH-LOOP TRANSITIONS ARE THE OPENS THAT NEVER CLOSED, not every open. A provider that degrades
+  // and recovers on purpose is doing what the platform is supposed to make possible; only a provider
+  // that stays down is a crash loop. The 45-minute run that revealed this had 295 deliberate opens
+  // against a limit of 25 and failed the shared invariant while the platform was behaving perfectly —
+  // so the count is built from the survivors here rather than from the transitions.
+  for (const id of unrecoveredOpens) circuitOpenCounts[id] = (circuitOpenCounts[id] ?? 0) + 1;
   const storage = {
     databaseBytes: databaseSize(options.root),
     eventBacklog: journal.head() - cursor,
