@@ -119,32 +119,60 @@ replay-unsafe request, where a failure is definitive and counts once.
 
 ---
 
-## 4. Not delivered — remaining tasks and gates
+## 4. Delivered: Task G — the platform certificate
 
-| Task | State |
-| --- | --- |
-| C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
-| D — agent coordination economics and the added-stage guard | **not started** |
-| E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **not started** |
-| F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **not started** |
-| G — `platform-certificate.json` | **not started** |
+`scripts/platform-certificate.cjs` writes
+`artifacts/platform-foundation/phase-05/platform-certificate.json`, and
+`tests/acceptance/platform-certificate.test.ts` asserts it (13 tests, build-dependent, always-run).
 
-| Gate | State |
+**The rule that shapes it: the certificate recomputes; it does not transcribe.** A certificate
+assembled by copying the phase artifacts would report what those runs said at the time and would keep
+saying it after the tree moved underneath them. So each section is re-derived from the compiled
+platform and the live manifests, and the phase artifact is then cross-checked against the
+recomputation — a disagreement fails the generator rather than becoming a footnote.
+
+What that buys, concretely:
+
+- the architecture ratchet is **re-evaluated**, and the baseline is compared against the current
+  measurement, so a baseline widened to pass is caught here rather than certified here;
+- the permission surface is re-validated with the real `findWildcardAuthority` over **every** grant —
+  resource wildcards, action wildcards and an ambient credential — while the artifact's own summary
+  is left alone, so a grant added after the surface was measured cannot hide behind a stale count;
+- `decision-ledger` having exactly one owning manifest is re-derived from the manifests rather than
+  believed from Phase 02's note about it;
+- provenance is probed live: a verified claim over a mutable source is offered to the validator, and
+  the certificate records that it was refused.
+
+| Section | Value |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run this phase: unit **2276**, postbuild **89**, typecheck, security scan (1103 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
-| 2 — targeted run agrees with the full gate for the same commit | **partly**: the comparison mechanism (`test-impact.cjs verify`) exists and is tested; it has not been run over a full-suite execution and recorded as evidence |
-| 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
-| 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
-| 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | Phase 04 covers 10k retrieval; the 100k event half is **not started** |
-| 6 — no unbounded memory/disk/handle/process growth in a real soak | **not started** |
-| 7 — no committed work lost and no duplicated external side effect after restart/recovery | **not started** |
-| 8 — every extra agent stage has cost/benefit evidence | **not started** |
-| 9 — `platform-certificate.json` + soak report | **not started** |
+| architecture | 27 capabilities, 3 edges, ratchet `pass`, baseline matches measurement |
+| state ownership | 32 namespaces, 0 duplicate owners, `decision-ledger` owned by `persistence` |
+| platform health | bootable, 0 fatal |
+| migrations | 32 inventoried, accounting complete, 0 duplicate owners |
+| permission surface | 9/9 escapes refused, 0 wildcard grants across every live grant, default deny on |
+| knowledge and retention | verified-over-mutable-source refused live, PROTECTED undeletable, 0 misdeleted |
+| provider degraded mode | 2-of-3 broken ⇒ core `DEGRADED`, 8 failure classes each with a fallback and a reason |
+| verification | 208 suites, 13 always-run, 0 duplicate obligations, 0 unowned source files |
+| soak trend / coordination economics | `measured: false`, with the reason |
+
+**Honesty about what has not run is part of the artifact.** Tasks D and F are not started, so
+`soakResourceTrend` and `agentCoordinationEconomics` report `measured: false` with their reasons,
+`completeness.phaseStatus` is `PARTIAL`, and gate 2 is recorded as partly met. A certificate that
+produced a resource trend it never measured would be worth nothing for the one purpose it exists for.
+
+`promotion.bypassesRootOrOwnerGate` is a constant `false` that no argument can change, and the emitted
+object is re-read before the file is written, so what is asserted is what is written.
+
+**It fails closed, and that is tested in the direction that matters.** Two probes point the generator
+at **copies** of the phase artifacts with a cross-check deliberately broken — a snapshot whose
+capability count disagrees with the live graph, and a surface carrying ambient-credential authority
+behind an unchanged summary — and require it to exit non-zero with no certificate written. The real
+artifacts are never mutated: the generator reads `PHASE_CERT_ARTIFACTS` and writes `PHASE_CERT_OUT`,
+both defaulting to the real paths.
 
 ---
 
 ## 5. What reconnaissance established for the remaining tasks
-
 Recorded here because it is the expensive part of Tasks C, D and F, and re-deriving it would waste a
 round. All read-only, from the real tree.
 
@@ -184,12 +212,40 @@ commander composition and is therefore part of what Task E's synthetic scale wor
   reports both by name. This is a real evidence gap in the platform, not a selector bug.
 - **`src/renderer` is exempt from ownership** with a reason: it is covered by the desktop black-box
   contract, which launches the real application and is always-run.
-- **The phase is PARTIAL.** Tasks C–G are the bulk of the book and none of them is started. Advancing
-  to Phase 06 on this branch would violate the rule that a PARTIAL phase must not advance.
+- **The phase is PARTIAL.** Tasks A, B, C and G are delivered; Tasks D, E and F are the bulk of what
+  remains and none of them is started. Advancing to Phase 06 on this branch would violate the rule
+  that a PARTIAL phase must not advance.
 
 ---
 
-## 7. Rollback rule
+## 7. Not delivered — remaining tasks and gates
+
+| Task | State |
+| --- | --- |
+| C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
+| D — agent coordination economics and the added-stage guard | **not started** |
+| E — synthetic scale (10× manifests, 10× edges, 100k events, 10k–100k knowledge, multi-project, multi-provider partial failure) | **not started** |
+| F — controlled 24h/72h soak with memory/disk/handle/process/queue/DB trend | **not started** |
+| G — `platform-certificate.json` | **delivered**, see §4 — and it reports D, E and F as unmeasured |
+
+| Gate | State |
+| --- | --- |
+| 1 — Phases 01–04 gates still pass | re-run this phase: unit **2276**, postbuild **102**, typecheck, security scan (1105 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
+| 2 — targeted run agrees with the full gate for the same commit | **partly**: the comparison mechanism (`test-impact.cjs verify`) exists and is tested, and the certificate records `recorded: false` for the full-suite pairing rather than claiming it |
+| 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
+| 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
+| 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | Phase 04 covers 10k retrieval; the 100k event half is **not started** |
+| 6 — no unbounded memory/disk/handle/process growth in a real soak | **not started** |
+| 7 — no committed work lost and no duplicated external side effect after restart/recovery | **not started** |
+| 8 — every extra agent stage has cost/benefit evidence | **not started** |
+| 9 — `platform-certificate.json` + soak report | **certificate delivered**; the soak report is **not started**, and the certificate says so |
+
+---
+
+
+---
+
+## 8. Rollback rule
 
 The book's rule is that any missed-coverage evidence degrades to the full suite immediately. That is
 implemented rather than promised: `blind`, `changedSetUnknown`, an unattributed file, and every
