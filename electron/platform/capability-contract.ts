@@ -196,12 +196,20 @@ export function isValidCapabilityId(id: string): boolean {
 /**
  * Validate a durable state namespace.
  *
- * Same alphabet as a capability id, and for the same reason: the namespace is the
- * key the ownership registry deduplicates on, so `research.run` and `research-run`
- * must not be able to look like two different stores.
+ * Same alphabet as a capability id, PLUS `:`, because the durable state core names its own
+ * bookkeeping namespace `state-core:migration` with a capability-scoped prefix.
+ *
+ * The colon was added after this parser and `scripts/architecture.cjs` turned out to
+ * disagree about it: the CLI accepted the namespace and counted it, while this parser
+ * rejected the entire manifest — so the same repository was valid to the diagnostic and
+ * invalid to the tests. Widening this side is correct rather than narrowing the CLI,
+ * because a capability-scoped durable namespace is a legitimate shape.
+ *
+ * Still strict on the rest: the namespace is the key the ownership registry deduplicates
+ * on, so `research.run` and `research-run` must not be able to look like two stores.
  */
 export function isValidStateNamespace(namespace: string): boolean {
-  return typeof namespace === "string" && /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/.test(namespace);
+  return typeof namespace === "string" && /^[a-z0-9][a-z0-9._:-]*$/.test(namespace);
 }
 
 /**

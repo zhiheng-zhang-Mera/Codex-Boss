@@ -59,7 +59,7 @@ interface ConsumerStatus {
   stalled: boolean;
 }
 
-interface RecoveryReport {
+export interface RecoveryReport {
   at: string;
   file: string;
   integrity: IntegrityReport;
@@ -86,6 +86,16 @@ interface RecoveryInput {
   consumers: ReadonlyArray<EventConsumer>;
   root: string;
   checkpointDir?: string;
+  /**
+   * The highest domain schema version THIS BUILD understands.
+   *
+   * Without it, "ahead" is undetectable: the expectation would be derived from the file's own
+   * contents, so it could never exceed the file's own version. That was a real hole — the boot
+   * module's guard against a newer build could not fire, and a test proved it by setting
+   * `user_version = 99` and watching the module still report READY. A caller that knows what
+   * it implements has to say so.
+   */
+  supportedVersion?: number;
 }
 
 export function inspectRecovery(input: RecoveryInput, at = new Date().toISOString()): RecoveryReport {
@@ -93,17 +103,21 @@ export function inspectRecovery(input: RecoveryInput, at = new Date().toISOStrin
   const integrity = checkIntegrity(input.handle);
   const migrations = appliedMigrations(input.handle);
   /**
-   * What "current" means for THIS file.
+   * What "current" means for THIS file, given what this build implements.
    *
    * `user_version` is the DOMAIN migration version. The core's own tables are created
-   * idempotently at open time and are not versioned here, so a fresh store legitimately
-   * sits at 0 and is healthy. The expectation is therefore the furthest version this file
-   * has any evidence of — the highest recorded migration, or its own version when nothing
-   * has been recorded. That makes `behind` mean something specific and actionable: a
-   * migration is PENDING, which is exactly the state an interrupted chain leaves.
+   * idempotently at open time and are not versioned here, so a fresh store legitimately sits
+   * at 0 and is healthy.
+   *
+   * The expectation deliberately does NOT include the file's own version. Including it made
+   * `ahead` self-cancelling — the maximum always equalled the file's version, so the relation
+   * could only ever be `current` or `behind`, and the boot module's guard against a database
+   * from a NEWER build could not fire. Measured: `user_version = 99` reported `relation:
+   * current`. The expectation is what this build can legitimately be at: the migrations it has
+   * recorded, and the version it implements.
    */
   const recordedMax = migrations.reduce((highest, record) => Math.max(highest, record.version), 0);
-  const expected = Math.max(recordedMax, Number((input.handle.raw.prepare("PRAGMA user_version").get()?.user_version as number | undefined) ?? 0));
+  const expected = Math.max(recordedMax, input.supportedVersion ?? 0);
   const schema = readSchemaState(input.handle, expected);
   const stats = input.journal.stats();
   const quarantinedRows = input.quarantine.entries().length;

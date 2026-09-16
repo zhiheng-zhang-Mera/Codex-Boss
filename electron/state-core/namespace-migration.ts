@@ -286,6 +286,6 @@ export function createNamespaceMigrationRegistry(handle: DatabaseHandle, reposit
 }
 
 /** One line per namespace for a migration report or a boot health line. */
-function describeMigration(state: NamespaceMigrationState): string {
+export function describeMigration(state: NamespaceMigrationState): string {
   return `${state.namespace}: authority=${state.authority} phase=${state.phase} clean=${state.consecutiveClean}/${state.requiredClean} divergences=${state.divergences.length}`;
 }

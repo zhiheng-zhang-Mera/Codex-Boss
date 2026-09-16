@@ -44,14 +44,20 @@ const PLAN = {
   "decision-ledger": {
     storage: "database",
     authoritativeSide: "state-core (SQLite)",
-    status: "pilot-mechanism-verified-not-integrated",
-    reason: "Selected as the first pilot: an append-only audit ledger, so a divergence is a missing audit record — the loss a comparison window exists to catch. The full migration sequence is exercised end to end, against a real JSON file and a real state database, by tests/unit/state-core/decision-ledger-migration.test.ts, and re-run for real by this generator. NOT yet integrated: no production boot path constructs the migration, so the running application still writes the JSON ledger through DecisionLedgerStore alone. The authority flip in production therefore remains to be done, and this row will keep saying so until a boot path constructs it."
+    status: "pilot-integrated",
+    reason: "Selected as the first pilot: an append-only audit ledger, so a divergence is a missing audit record — the loss a comparison window exists to catch. INTEGRATED: electron/bootstrap/state-core.ts is constructed by the composition root and main.ts routes every ledger read and write through it, so the running application imports the legacy baseline, shadow-compares each append, and can be promoted. The boot module deliberately does NOT promote itself; authority moves only when the comparison battery has passed and a caller asks, which is the book's gate 6."
   },
   tasks: {
     storage: "json",
     authoritativeSide: "persistence (JSON task ledger)",
     status: "not-selected",
     reason: "The second candidate, deliberately NOT migrated in this phase. The ledger is a revision-guarded read-modify-write tree of checkpoint files whose readers include the host observer and the fault lab, so it needs its own comparison battery before it can move. The book asks for one or two pilots, not a sweep, and one done properly is worth more than two done partially."
+  },
+  "state-core:migration": {
+    storage: "database",
+    authoritativeSide: "state-core (SQLite)",
+    status: "infrastructure",
+    reason: "The migration bookkeeping record itself: which side is authoritative for each migrated namespace, how the shadow comparison is going, and what may still write. It lives in the state database rather than a JSON file so that a store asking 'may I write?' cannot get its answer from a file that was lost with the store. It is machinery rather than domain state, which is why it is classified explicitly instead of inheriting the default."
   }
 };
 
@@ -207,7 +213,7 @@ function main() {
     // Fine: everything else falls through to the explicit "not selected" reason below.
   }
   for (const [namespace, entry] of Object.entries(PLAN)) {
-    if (!namespaces.some((item) => item.namespace === namespace) && namespace !== "state-core:migration") {
+    if (!namespaces.some((item) => item.namespace === namespace)) {
       throw new Error(`the plan names a namespace that Phase 01 does not inventory: ${namespace}`);
     }
   }
@@ -218,16 +224,10 @@ function main() {
     return { namespace: entry.namespace, owner: entry.owner, storage: "json", authoritativeSide: `${entry.owner} (JSON)`, status: "not-selected", reason: NOT_SELECTED_REASON };
   });
 
-  // The state core's own bookkeeping namespace is not part of the Phase 01 inventory: it
-  // did not exist then, and it is machinery rather than domain state.
-  rows.push({
-    namespace: "state-core:migration",
-    owner: "state-core",
-    storage: "database",
-    authoritativeSide: "state-core (SQLite)",
-    status: "infrastructure",
-    reason: "The migration bookkeeping record itself. Stored in the state database so that a store asking 'may I write?' cannot get the answer from a file that was lost with the store."
-  });
+  // The state core's own bookkeeping namespace is declared by `config/capabilities/state-core.yaml`
+  // and classified in PLAN above, so it arrives through the inventory. Nothing is appended here:
+  // appending it twice is what the acceptance test caught, and a namespace listed twice is
+  // indistinguishable from two namespaces.
 
   const migrated = rows.filter((row) => row.storage === "database");
   const remainingJson = rows.filter((row) => row.storage === "json");
@@ -249,7 +249,7 @@ function main() {
       pilotsAttempted: 2,
       pilotsCompleted: 1,
       pilotsDeferred: 1,
-      pilotsIntegratedIntoProduction: 0,
+      pilotsIntegratedIntoProduction: 1,
       duplicateOwners: 0
     },
     namespaces: rows,
@@ -264,8 +264,14 @@ function main() {
     },
     pilotEvidence,
     integration: {
-      productionBootPathsConstructingTheStateCore: [],
-      note: "The state core is a tested subsystem with no production entry point yet: electron/main.ts does not reference electron/state-core at all, so nothing in the running application constructs the database, the journal or the migration. Every acceptance below is therefore verified MECHANICALLY — against a real JSON file and a real SQLite database driven by the tests and by this generator — and not yet against the shipped application. Wiring it in is the remaining Task C work and is recorded as such rather than implied to be done."
+      productionBootPathsConstructingTheStateCore: ["electron/bootstrap/state-core.ts"],
+      constructedBy: "electron/main.ts (the composition root builds it after the persistence module, because the state database mirrors the ledger persistence creates)",
+      routedCallSites: [
+        "electron/main.ts decisionLedgerEntries — reads through the migration",
+        "electron/main.ts appendDecision (dispatch-ipc) — the automatic Chat→Work approval records its decision through the migration, so the write that must be durable-first is the write that feeds the comparison window"
+      ],
+      degradesLocally: true,
+      note: "The boot module reports DEGRADED and hands back the legacy JSON store unchanged when the database cannot be opened, fails integrity_check, or comes from a newer build — so a young subsystem cannot take the boot down, and the application keeps a working durable ledger either way. Authority still moves only on an explicit promote() after the comparison battery passes."
     },
     deferred: rows.filter((row) => row.status === "not-selected").map((row) => ({ namespace: row.namespace, reason: row.reason })),
     acceptance: {

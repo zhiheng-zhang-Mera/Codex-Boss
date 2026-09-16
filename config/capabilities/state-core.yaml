@@ -1,0 +1,31 @@
+id: state-core
+version: 1.0.0
+kind: kernel
+provides:
+  - state.store@1
+  - state.journal@1
+  - state.migration@1
+requires: []
+optional: []
+state:
+  # The migration bookkeeping record: which side is authoritative for each migrated
+  # namespace, how the shadow comparison is going, and what may still write. It lives in
+  # the state database rather than a JSON file so that a store asking "may I write?"
+  # cannot get its answer from a file that was lost with the store.
+  #
+  # `decision-ledger` is deliberately NOT claimed here. It moved storage — from
+  # `.boss/decision-ledger.json` to the database — but not ownership: `persistence` is
+  # still its single authoritative owner, exactly as Phase 01 declared and as
+  # tests/unit/bootstrap-persistence.test.ts asserts. Declaring it here as well would be
+  # the second-owner failure the ownership registry exists to catch, and the migration is
+  # required not to create one.
+  - namespace: state-core:migration
+    owner: state-core
+health:
+  critical: true
+modules:
+  - electron/bootstrap/state-core.ts
+bootModules:
+  - electron/bootstrap/state-core.ts
+surface: []
+permissions: []

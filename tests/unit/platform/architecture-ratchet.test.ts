@@ -239,7 +239,11 @@ describe("Phase 01 Task D — the real repository satisfies every ratchet", () =
   });
 
   it("registers every wired boot module in exactly one manifest", () => {
-    expect(evidence.wiredBootFactories.length).toBe(24);
+    // 24 at Phase 01. Phase 02 added `electron/bootstrap/state-core.ts`, the durable state
+    // and event substrate, and recorded the increase through the explicit baseline command
+    // rather than relaxing the ratchet. The number is asserted so a boot module cannot be
+    // wired without a manifest naming it.
+    expect(evidence.wiredBootFactories.length).toBe(25);
     expect(evidence.wiredBootFactories).toEqual(evidence.registeredBootFactories);
     expect(evidence.moduleOwnershipConflicts).toEqual([]);
   });

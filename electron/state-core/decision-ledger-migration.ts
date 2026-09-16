@@ -59,7 +59,7 @@ interface DecisionLedgerSnapshot {
   entries: DecisionLedgerEntry[];
 }
 
-interface DecisionLedgerMigration {
+export interface DecisionLedgerMigration {
   /** The side currently allowed to write. */
   authority(): MigrationAuthority | undefined;
   /** The migration record, for a report. */

@@ -51,6 +51,7 @@ import { createResearchRunIpcModule } from "./bootstrap/research-run-ipc";
 import { createTaskCreationIpcModule } from "./bootstrap/task-creation-ipc";
 import { createDispatchIpcModule } from "./bootstrap/dispatch-ipc";
 import { createPersistenceModule } from "./bootstrap/persistence";
+import { createStateCoreModule } from "./bootstrap/state-core";
 import { createKnowledgeModule } from "./bootstrap/knowledge";
 import { createAutomationModule } from "./bootstrap/automation";
 import { createRuntimeModule, type RuntimeService } from "./bootstrap/runtime";
@@ -618,6 +619,21 @@ if (ownsInstance) app.whenReady().then(() => {
   humanGuidance = persistence.service.guidance;
   decisionLedger = persistence.service.decisions;
   workspaceSelection = persistence.service.workspaceSelection;
+  // Platform foundation Phase 02: the durable state core, and with it the decision-ledger
+  // migration. Built here because it needs the ledger the persistence module just made:
+  // the state database mirrors that ledger, so it cannot exist before it.
+  //
+  // It imports the legacy entries, begins shadow comparison and reports DEGRADED with a
+  // reason if the database cannot be used — in which case `stateCore.service.ledger` is
+  // the legacy store unchanged and nothing about the application's behaviour moves. It
+  // does NOT promote itself; authority stays on JSON until the comparison battery has
+  // passed and something explicitly promotes, which is the book's gate 6.
+  const stateCore = createStateCoreModule({ dataRoot: app.getPath("userData"), legacy: decisionLedger });
+  bootModules.push(stateCore);
+  // Everything below reads the ledger through the migration routing rather than the store
+  // directly, so a production append is what feeds the comparison window.
+  const ledger = stateCore.service.ledger;
+
   // Workspace-rooted and resource state, handed on to the services below exactly
   // as the inline versions were.
   const { workspaces, permissionManifests, experiences, resources: resourceController, contexts: contextManager } = persistence.service;
@@ -912,7 +928,7 @@ if (ownsInstance) app.whenReady().then(() => {
       interventions: () => humanGuidance?.list() ?? [],
       resolveIntervention: (taskId, kind, answer) => humanGuidance?.resolve(taskId, kind, answer),
       snapshot: () => store.snapshot(),
-      decisionLedgerEntries: () => decisionLedger?.list() ?? [],
+      decisionLedgerEntries: () => ledger.list(),
       activeWorkspaceId: () => workspaces.activeWorkspaceId(),
       projectState: (target) => openProjectState(target),
       now: () => new Date().toISOString()
@@ -949,9 +965,9 @@ if (ownsInstance) app.whenReady().then(() => {
   // Phase F/G: dispatching a task lives in electron/bootstrap/dispatch-ipc.ts. The
   // module owns the decision order and the branching; this root owns the service
   // bundles it drives, including the WorkBook dispatch's own dependencies.
-  // Captured in a local so the arrow below sees the narrowed type: the ledger's
-  // PRESENCE is what gates an automatic Chat→Work approval.
-  const dispatchLedger = decisionLedger;
+  // Routed through the migration rather than the store: an automatic Chat→Work approval
+  // records its decision durably FIRST, so this is the write that must feed the
+  // comparison window and, once promoted, the durable journal.
   bootModules.push(createDispatchIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
     dispatch: {
@@ -987,9 +1003,10 @@ if (ownsInstance) app.whenReady().then(() => {
       setRecoveryState: (taskId, retryAt, reason) => store.setRecoveryState(taskId, retryAt, reason),
       approveModeTransition: (taskId) => store.approveModeTransition(taskId),
       stageModeTransition: (taskId, transition) => store.stageModeTransition(taskId, transition),
-      // Supplied only when a ledger exists: its PRESENCE is what gates an automatic
-      // Chat→Work approval, because that path must record the decision before it acts.
-      ...(dispatchLedger ? { appendDecision: (entry: Parameters<typeof dispatchLedger.append>[0]) => dispatchLedger.append(entry) } : {}),
+      // Always supplied: the routed ledger falls back to the JSON store when the state
+      // core is degraded, so the automatic Chat→Work approval path can rely on it. That
+      // path must record the decision before it acts.
+      appendDecision: (entry: Parameters<typeof ledger.append>[0]) => { ledger.append(entry); },
       publish: () => publish()
     }
   }));

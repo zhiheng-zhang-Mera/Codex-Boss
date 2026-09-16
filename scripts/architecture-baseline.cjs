@@ -33,11 +33,16 @@ const METRIC_KEYS = [
   "durableNamespaceCount"
 ];
 
-/** Re-derive the metrics by running the diagnostic, so there is one measurement path. */
+/**
+ * Re-derive the metrics by running the diagnostic's `metrics` mode, so there is one
+ * measurement path. Deliberately NOT `ratchet`: that command is gated, so it exits 1
+ * exactly when a bump is needed, and the updater would then be unable to record the very
+ * increase it exists to record.
+ */
 function measure() {
   const probe = require("node:child_process").execFileSync(
     process.execPath,
-    [path.join(ROOT, "scripts", "architecture.cjs"), "ratchet"],
+    [path.join(ROOT, "scripts", "architecture.cjs"), "metrics"],
     { cwd: ROOT, encoding: "utf8" }
   );
   return JSON.parse(probe).metrics;

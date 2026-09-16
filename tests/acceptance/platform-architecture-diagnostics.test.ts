@@ -99,7 +99,9 @@ describe("Phase 01 Task E — the diagnostics are readable by an Agent", () => {
     expect(status).toBe(0);
     expect(body.pass).toBe(true);
     expect(body.violations).toEqual([]);
-    expect(body.metrics.bootModuleCount).toBe(24);
+    // 24 at Phase 01; Phase 02 added the state-core boot module and recorded the increase
+    // through the explicit baseline command.
+    expect(body.metrics.bootModuleCount).toBe(25);
     expect(body.baseline.reason).toBeTruthy();
   });
 
@@ -177,14 +179,14 @@ describe("Phase 01 — the phase artifact", () => {
     expect(snapshot.stateOwnership.namespaces).toBeGreaterThanOrEqual(25);
     expect(snapshot.stateOwnership.conflicts).toEqual([]);
 
-    expect(snapshot.bootModules.wiredCount).toBe(24);
+    expect(snapshot.bootModules.wiredCount).toBe(25);
     expect(snapshot.bootModules.unregistered).toEqual([]);
     expect(snapshot.bootModules.registeredNotWired).toEqual([]);
 
     expect(snapshot.ratchet.literalIpcRegistrationsInMain).toBe(0);
     expect(snapshot.ratchet.moduleOwnershipConflicts).toEqual([]);
     expect(snapshot.ratchet.baseline.reason).toBeTruthy();
-    expect(snapshot.ratchet.metrics.bootModuleCount).toBe(24);
+    expect(snapshot.ratchet.metrics.bootModuleCount).toBe(25);
   });
 
   it("is regenerated identically from the same sources", () => {

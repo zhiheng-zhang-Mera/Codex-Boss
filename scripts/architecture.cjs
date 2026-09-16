@@ -374,6 +374,24 @@ function main() {
     return ownership.conflicts.length === 0 ? 0 : 1;
   }
 
+  if (command === "metrics") {
+    // The measurement WITHOUT the gate. `architecture-baseline` needs this: it must read
+    // the current numbers in order to record them, and asking the gated command for them
+    // fails exactly when a bump is needed — measured, the first attempt at this could not
+    // record an increase because `ratchet` exited 1 on that very increase.
+    console.log(JSON.stringify({
+      metrics: {
+        bootModuleCount: wired.length,
+        capabilityCount: graph.nodes.length,
+        dependencyEdgeCount: graph.edges.length,
+        requiredEdgeCount: graph.edges.filter((edge) => edge.kind === "required").length,
+        featureCapabilityCount: graph.nodes.filter((node) => node.kind === "feature").length,
+        durableNamespaceCount: ownership.namespaces.length
+      }
+    }, null, 2));
+    return 0;
+  }
+
   if (command === "ratchet") {
     const baseline = loadBaseline();
     const violations = [];

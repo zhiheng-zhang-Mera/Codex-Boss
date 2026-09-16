@@ -167,13 +167,21 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 ];
 
 /**
- * The schema version of the state core's OWN tables.
+ * The schema version of the state core's OWN tables, and the version this build implements.
  *
- * Everything in `SCHEMA_STATEMENTS` is idempotent DDL applied on every open, so this
- * version describes a shape that is always present rather than a migration to run. Domain
- * migrations are numbered from here upward and layer on top.
+ * Everything in `SCHEMA_STATEMENTS` is idempotent DDL applied on every open, so this version
+ * describes a shape that is always present rather than a migration to run. Domain migrations
+ * are numbered from here upward and layer on top.
+ *
+ * It is NOT stamped into `user_version`: that field is the DOMAIN migration version, and
+ * writing the core's version there made the first domain step look already-applied so its DDL
+ * was skipped.
+ *
+ * It IS the value a caller passes as `supportedVersion` when inspecting recovery, which is
+ * what makes a database from a NEWER build detectable. Without it the expectation is derived
+ * from the file itself and "ahead" can never be observed at all.
  */
-const CORE_SCHEMA_VERSION = 1;
+export const CORE_SCHEMA_VERSION = 1;
 
 /** The schema version this build expects. Alias of the core version, kept for callers. */
 export const CURRENT_SCHEMA_VERSION = CORE_SCHEMA_VERSION;

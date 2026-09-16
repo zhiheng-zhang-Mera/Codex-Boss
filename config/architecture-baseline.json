@@ -1,14 +1,14 @@
 {
   "$comment": "Ratchet baseline (platform foundation Phase 01). Absolute ratchets are never recorded here — only the monotone metrics a growing capability set legitimately raises. Updated only by `node scripts/architecture-baseline.cjs --reason \"...\"`, never by a test.",
-  "version": 1,
-  "reason": "Phase 01 initial baseline: 26 capabilities covering all 24 boot modules, 31 durable namespaces, 3 required dependency edges",
-  "updatedAt": "2026-09-16T01:27:48.160Z",
+  "version": 2,
+  "reason": "Phase 02: the state-core boot module joins the composition root (24 -> 25 boot modules) as the durable state and event substrate, and declares its own migration-bookkeeping namespace. decision-ledger ownership is unchanged: persistence remains its single authoritative owner.",
+  "updatedAt": "2026-09-16T02:25:17.163Z",
   "metrics": {
-    "bootModuleCount": 24,
-    "capabilityCount": 26,
+    "bootModuleCount": 25,
+    "capabilityCount": 27,
     "dependencyEdgeCount": 3,
     "requiredEdgeCount": 3,
     "featureCapabilityCount": 23,
-    "durableNamespaceCount": 31
+    "durableNamespaceCount": 32
   }
 }
