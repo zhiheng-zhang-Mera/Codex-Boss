@@ -6,7 +6,7 @@
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
 > All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6, 7 and 9 are met.
-> Gate 8 alone remains open: the Owner has elected to keep it WAITING_FOR_OWNER because the cost/benefit comparison needs a credentialed live-pipeline run this session cannot produce. This file records what is done, what is not, and what was
+> Gate 8 alone remains open as WAITING_FOR_PROVIDER_CREDENTIAL: all its engineering is delivered and verified, and only the paired provider run is missing. No waiver is used and the model/guard are not treated as satisfying the gate. This file records what is done, what is not, and what was
 > measured, so the next round starts from evidence rather than a summary.
 
 ---
@@ -431,6 +431,54 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ## 12. Remaining tasks and gates
 
+**Gate 8 status: WAITING_FOR_PROVIDER_CREDENTIAL.** Everything that can be built without a provider is
+built, verified and committed; the A/B experiment itself is the only step left, and it needs one thing
+this session does not have.
+
+### What was completed this round
+
+| Item | State |
+| --- | --- |
+| `totalStage()` judged each record by its own `measured` declaration | **fixed** — it previously read `relevant[0].measured` for every record, so one well-measured task vouched for tasks that had never measured the figure, and an unmeasured `defectsEscaped` was counted as a real 0 |
+| decision measures require declared **and** non-null | **fixed** — declared-but-null and value-without-declaration both fail closed to `INSUFFICIENT_EVIDENCE`, naming the record and stage |
+| the aggregate declares only the measures usable by every contributing record | **fixed** — passing `[...COORDINATION_MEASURES]` was a second defect inside the first fix: it re-admitted the value the audit had just rejected |
+| A/B comparability | **strengthened** — records carry `runtime`, `benchmarkTaskId`, `inputIdentity`, `plannedVariable` and `arm`; the guard refuses on any disagreement, on a missing identity, on a runtime contradicting its own cohort, on both sets sharing one arm, on the wrong planned variable, and on **more than the candidate stage differing**. Equal task counts and equal per-task averages are explicitly NOT treated as comparability |
+| production collection | **delivered** — `coordinationRecordFromLedger` derives records deterministically from the durable `TaskLedger`; `coordination-recorder` provides the production hook and an after-the-fact sweep; no manual ledger hunting |
+| durable persistence | **delivered** — `artifacts/platform-foundation/agent-coordination-economics.json`, written by `scripts/agent-coordination-economics.cjs collect` and judged by `evaluate` / `verify` |
+| certificate integration | **delivered** — the certificate reads the artifact and reports `measured: true` only when a REAL run produced the records AND the guard reached a verdict |
+
+### A finding that shaped the design
+
+`defectsEscaped` is **not derivable from any ledger**: escapes are discovered after a task finishes,
+outside the run that produced it. So the guard's default decision measure is `reworkAvoided`, which the
+ledger does observe, and `defectsEscaped` / `reviewFindings` are opt-in per experiment via
+`decisionMeasures`. An experiment with no benefit measure available is refused rather than decided on a
+cost comparison alone. This is reported as a finding rather than papered over with a plausible number.
+
+### What is blocked, and on exactly what
+
+The paired run needs a configured provider. Verified this round: no provider API key in the
+environment, and no `encryptedApiKey` in any api-settings store — which `ApiSettingsStore.assertReady`
+requires before a dispatch is attempted. So the run cannot start, and Gate 8 cannot be satisfied
+without it. Substituting a fixture is explicitly forbidden, and the infrastructure is built so that it
+would not help anyway: `evaluate` records any pair whose provenance is not `real-provider` as
+`INSUFFICIENT_EVIDENCE`.
+
+**To unblock:** configure one provider (an API key with its api-settings entry, or a web provider
+session), then run one representative task through the production pipeline twice — once without the
+candidate stage, once with it — and point the collector at each arm's ledger root:
+
+```
+node scripts/agent-coordination-economics.cjs collect --ledger <arm-root> \
+    --runtime <provider-id> --benchmark <task-family> --input <input-hash> --stage <candidate-stage>
+node scripts/agent-coordination-economics.cjs evaluate
+```
+
+Then Gate 8 closes with whatever the measurement says: `COST_ONLY` and leaving the stage out is a
+successful completion, not a failure.
+
+---
+
 **Owner decision (round 15):** gate 8 stays open as `WAITING_FOR_OWNER`. Phase 05 remains PARTIAL and
 does not advance.
 
@@ -458,14 +506,14 @@ it were.
 
 | Gate | State |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2303** (200 files), postbuild **112** (10 files), typecheck, security scan (1115 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
+| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2333** (201 files), postbuild **112** (10 files), typecheck, security scan (1120 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
 | 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 200 files / 2303 tests paired with the selector's decision for the same commit; 184 skipped suites all ran and passed, and nothing chosen was absent |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **PASS** — see §6: 45 minutes, 1005 cycles, RSS trend **−0.14 MiB/min** against a 17.1 allowance, heap −0.02 against 8.5, all 11 shared invariants PASS |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **PASS** — see §8 |
-| 8 — every extra agent stage has cost/benefit evidence | **WAITING_FOR_OWNER** — the model and guard are delivered and the guard's refusal paths are checked live; the comparison needs a credentialed live-pipeline run, and the Owner has elected to keep the gate open. See §7 and §12 |
+| 8 — every extra agent stage has cost/benefit evidence | **WAITING_FOR_PROVIDER_CREDENTIAL** — model, guard, comparability checks, production collection, durable persistence, CLI and certificate integration are all delivered and verified; only the paired provider run is missing, and it needs a configured provider. See §7 and §12 |
 | 9 — `platform-certificate.json` + soak report | **PASS** — both artifacts exist, and the certificate reads the soak report rather than restating it |
 
 ---
