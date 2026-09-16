@@ -147,11 +147,29 @@ async function onHostInvoke(message) {
     send({ kind: "invoke-result", callId: message.callId, allowed: false, reason: "the plugin does not implement onInvoke" });
     return;
   }
+  /**
+   * `respond` settles this invocation.
+   *
+   * A plugin's `onInvoke` often needs to call BACK through `boss.invoke` — that is the whole point
+   * of the boundary — so it cannot also be the return value. The first version returned whatever
+   * `onInvoke` gave back, which meant an `await boss.invoke(...)` inside the plugin was discarded
+   * and the host saw only `{handled:true}`. A plugin may either return a value, in which case that
+   * is the result, or call `respond(result)` once; whichever happens first wins.
+   */
+  let settled = false;
+  const respond = (result, reason) => {
+    if (settled) return;
+    settled = true;
+    send({ kind: "invoke-result", callId: message.callId, allowed: reason === undefined, result, ...(reason === undefined ? {} : { reason }) });
+  };
   try {
-    const result = await plugin.onInvoke({ capability: message.capability, action: message.action, resource: message.resource, input: message.input });
-    send({ kind: "invoke-result", callId: message.callId, allowed: true, result });
+    const result = await plugin.onInvoke(
+      { capability: message.capability, action: message.action, resource: message.resource, input: message.input },
+      respond
+    );
+    if (!settled) respond(result);
   } catch (error) {
-    send({ kind: "invoke-result", callId: message.callId, allowed: false, reason: error instanceof Error ? error.message : String(error) });
+    respond(undefined, error instanceof Error ? error.message : String(error));
   }
 }
 

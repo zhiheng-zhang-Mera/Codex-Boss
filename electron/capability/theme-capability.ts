@@ -18,7 +18,7 @@ import type { AdapterProvider, CapabilityAdapter } from "./capability-broker";
  * authorization layer were wrong.
  */
 
-export interface ThemeProposal {
+interface ThemeProposal {
   /** A name the proposer suggests. */
   name: string;
   /** Token overrides, as a flat string map. */
@@ -36,12 +36,12 @@ export interface ThemeSurface {
 }
 
 /** What the plugin may do with a theme, and nothing else. */
-export const THEME_ACTIONS: readonly string[] = ["read", "propose"];
+const THEME_ACTIONS: readonly string[] = ["read", "propose"];
 
 /** What a plugin with `ui.theme` can address. A trailing `:` is a prefix match, not a wildcard. */
-export const THEME_RESOURCES: readonly string[] = ["ui.theme:current", "ui.theme:proposal"];
+const THEME_RESOURCES: readonly string[] = ["ui.theme:current", "ui.theme:proposal"];
 
-export interface ThemeCapabilityOptions {
+interface ThemeCapabilityOptions {
   surface: ThemeSurface;
 }
 
@@ -92,7 +92,7 @@ export function createThemeCapabilityProvider(options: ThemeCapabilityOptions): 
  * reaches one of these, the failure is loud and immediate — a silent no-op would let a boundary bug
  * pass the escape tests while the real subsystem was still exposed.
  */
-export interface HighRiskCapabilityNames {
+interface HighRiskCapabilityNames {
   filesystem: string;
   shell: string;
   network: string;

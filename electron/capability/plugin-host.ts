@@ -26,10 +26,10 @@ import { restrictedNodeArguments, sanitizedPluginEnvironment, type PluginHealth,
  */
 
 /** How long a plugin has to answer by default. */
-export const DEFAULT_PLUGIN_TIMEOUT_MS = 5_000;
+const DEFAULT_PLUGIN_TIMEOUT_MS = 5_000;
 
 /** How many automatic restarts a crashing plugin gets before the host gives up. */
-export const DEFAULT_PLUGIN_MAX_RESTARTS = 2;
+const DEFAULT_PLUGIN_MAX_RESTARTS = 2;
 
 interface PendingCall {
   at: string;
@@ -77,7 +77,7 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
 
   function onMessage(message: unknown): void {
     if (!message || typeof message !== "object") return;
-    const typed = message as { kind?: string; callId?: string; allowed?: boolean; result?: unknown; reason?: string; exports?: string[]; status?: string; detail?: string; sandbox?: Record<string, string> };
+    const typed = message as { kind?: string; callId?: string; allowed?: boolean; result?: unknown; reason?: string; exports?: string[]; status?: string; detail?: string; sandbox?: Record<string, string>; capability?: string; action?: string; resource?: string; input?: unknown };
 
     if (typed.kind === "ready") {
       ready = true;
@@ -87,6 +87,47 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
         : `ready; exports: ${exports.join(", ")}`;
       return;
     }
+
+    /**
+     * The plugin asking the HOST for a capability.
+     *
+     * This is the direction that matters: the plugin has no authority of its own, so its only route
+     * to an action is `boss.invoke`, which arrives here and is answered by `options.authorize` —
+     * which in production is the broker. Without this branch the plugin's own requests were dropped
+     * on the floor and every real invocation came back denied, which is how the first version of
+     * this host failed its own sandbox test.
+     *
+     * The reply is always sent, including the denial, because a silent refusal would leave the
+     * plugin waiting and turn an authorization decision into a timeout.
+     */
+    if (typed.kind === "invoke" && typed.callId) {
+      const callId = typed.callId;
+      let allowed = false;
+      let result: unknown;
+      let reason: string | undefined;
+      try {
+        const decision = options.authorize({
+          capability: typed.capability ?? "",
+          action: typed.action ?? "",
+          resource: typed.resource ?? "",
+          ...(typed.input === undefined ? {} : { input: typed.input })
+        });
+        allowed = decision.allowed === true;
+        result = decision.result;
+        reason = decision.reason;
+      } catch (error) {
+        allowed = false;
+        reason = `the host could not decide the request: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      if (!allowed) denials++;
+      try {
+        child?.send({ kind: "invoke-result", callId, allowed, ...(allowed ? { result } : { reason: reason ?? "denied" }) });
+      } catch {
+        /* the channel closed while deciding; the exit handler has already failed the callers */
+      }
+      return;
+    }
+
     if (typed.kind === "invoke-result" && typed.callId) {
       const call = pending.get(typed.callId);
       if (!call) return;
@@ -129,6 +170,18 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
     });
 
     child.on("message", onMessage);
+    /**
+     * Keep the child's stderr as the failure detail.
+     *
+     * A plugin that dies during load reports nothing on the channel, so without this the health
+     * line says only "exited unexpectedly" and the actual reason — a syntax error, a denied require
+     * — is lost. stdout is deliberately NOT forwarded to the host's console: a plugin must not be
+     * able to write into the application's log.
+     */
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8").trim().split("\n").slice(-3).join(" | ");
+      if (text) lastDetail = `the plugin wrote to stderr: ${text.slice(0, 300)}`;
+    });
     child.on("error", (error) => {
       lastDetail = `the plugin process errored: ${error.message}`;
       ready = false;
@@ -137,7 +190,9 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
       ready = false;
       failPending(`the plugin exited (code ${code ?? "null"}${signal ? `, signal ${signal}` : ""})`);
       if (disposed) return;
-      lastDetail = `the plugin exited unexpectedly (code ${code ?? "null"}${signal ? `, signal ${signal}` : ""})`;
+      // A stderr line is more specific than "exited", so it is not overwritten by the exit notice.
+      const exited = `the plugin exited unexpectedly (code ${code ?? "null"}${signal ? `, signal ${signal}` : ""})`;
+      lastDetail = lastDetail.startsWith("the plugin wrote to stderr") ? `${lastDetail}; ${exited}` : exited;
       if (restarts < maxRestarts) {
         restarts++;
         lastDetail += `; restart ${restarts}/${maxRestarts}`;

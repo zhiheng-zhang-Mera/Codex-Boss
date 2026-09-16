@@ -96,7 +96,7 @@ export function isResolvableAction(action: ActionId): boolean {
   return typeof action === "string" && ACTION_PATTERN.test(action.trim()) && action !== "*" && action !== "all";
 }
 
-export function isResolvableSubject(subject: SubjectId): boolean {
+function isResolvableSubject(subject: SubjectId): boolean {
   return typeof subject === "string" && SUBJECT_PATTERN.test(subject.trim());
 }
 

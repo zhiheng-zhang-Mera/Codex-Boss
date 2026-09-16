@@ -1,5 +1,3 @@
-import { fork, type ChildProcess } from "node:child_process";
-
 /**
  * Plugin isolation contract (platform foundation, Phase 03 Task C).
  *
@@ -55,7 +53,7 @@ export interface PluginManifest {
   describes: string;
 }
 
-export interface PluginCapabilityRequest {
+interface PluginCapabilityRequest {
   capability: string;
   actions: string[];
   resources: string[];
@@ -72,7 +70,7 @@ export interface PluginHealth {
 }
 
 /** A request the plugin makes over the boundary. */
-export interface PluginInvokeMessage {
+interface PluginInvokeMessage {
   kind: "invoke";
   /** Correlation id, echoed on the reply. */
   callId: string;
@@ -82,22 +80,22 @@ export interface PluginInvokeMessage {
   input?: unknown;
 }
 
-export interface PluginReadyMessage {
+interface PluginReadyMessage {
   kind: "ready";
   /** What the plugin's entry module exported, reduced to what the host reports. */
   exports: string[];
 }
 
-export interface PluginLogMessage {
+interface PluginLogMessage {
   kind: "log";
   level: "info" | "warn" | "error";
   message: string;
 }
 
-export type PluginToHostMessage = PluginInvokeMessage | PluginReadyMessage | PluginLogMessage;
+type PluginToHostMessage = PluginInvokeMessage | PluginReadyMessage | PluginLogMessage;
 
 /** What the host answers with. */
-export type HostToPluginMessage =
+type HostToPluginMessage =
   | { kind: "invoke-result"; callId: string; allowed: true; result: unknown }
   | { kind: "invoke-result"; callId: string; allowed: false; reason: string }
   | { kind: "shutdown" };

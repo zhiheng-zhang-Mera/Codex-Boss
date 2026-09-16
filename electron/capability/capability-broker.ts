@@ -3,6 +3,7 @@ import { validateGrant } from "./permission-contract";
 import type {
   CapabilityGrant,
   CapabilityRequest,
+  CapabilityScope,
   Decision,
   ResourceId,
   SubjectId
@@ -58,7 +59,7 @@ export interface AdapterProvider {
   create(): CapabilityAdapter;
 }
 
-export interface BrokerInvocation {
+interface BrokerInvocation {
   at: string;
   subject: SubjectId;
   capability: string;
@@ -68,20 +69,20 @@ export interface BrokerInvocation {
   detail: string;
 }
 
-export interface BrokerDecisionRecord {
+interface BrokerDecisionRecord {
   at: string;
   principal: SubjectId;
   decision: Decision;
 }
 
-export interface AuthorizeResult {
+interface AuthorizeResult {
   allowed: boolean;
   decision: Decision;
   /** Present only for an `ALLOW`. */
   adapter?: CapabilityAdapter;
 }
 
-export interface CapabilityBroker {
+interface CapabilityBroker {
   /** Current grants, for a report. A plain array, not a live handle. */
   grants(): CapabilityGrant[];
   /** Every decision this process has taken, oldest first. */
@@ -96,8 +97,12 @@ export interface CapabilityBroker {
    * `principal` is who is asking ON BEHALF OF the subject — the caller. It is recorded rather
    * than used to widen anything, so an audit can tell a plugin's own request from one a core
    * module made for it.
+   *
+   * `scope` is optional and defaults to `global`, which is the WIDEST scope: it can only match a
+   * grant that is itself global or that names the project. Omitting it therefore never grants
+   * reach a narrower request would have been refused — the grant still has to cover it.
    */
-  authorize(subject: SubjectId, request: Omit<CapabilityRequest, "subject">, principal: SubjectId, at: string): AuthorizeResult;
+  authorize(subject: SubjectId, request: Omit<CapabilityRequest, "subject" | "scope"> & { scope?: CapabilityScope }, principal: SubjectId, at: string): AuthorizeResult;
   /** Revoke a grant by id. Effective on the next `authorize`, not the next restart. */
   revoke(grantId: string): boolean;
   /** Replace the grant set, e.g. when a manifest is reloaded. Validation is applied. */
@@ -112,7 +117,7 @@ export interface CapabilityBroker {
   recordInvocation(entry: BrokerInvocation): void;
 }
 
-export interface BrokerOptions {
+interface BrokerOptions {
   providers: readonly AdapterProvider[];
   grants?: readonly CapabilityGrant[];
   /** Capabilities a plugin subject may hold, whatever a provider says. */
@@ -125,9 +130,9 @@ export interface BrokerOptions {
  * A caller can extend this, but the extension is an explicit act with a name attached rather
  * than a default, and every provider still has to declare itself `pluginSafe` as well.
  */
-export const DEFAULT_PLUGIN_CAPABILITIES: readonly string[] = ["ui.theme"];
+const DEFAULT_PLUGIN_CAPABILITIES: readonly string[] = ["ui.theme"];
 
-export class BrokerConfigurationError extends Error {
+class BrokerConfigurationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "BrokerConfigurationError";
@@ -135,7 +140,7 @@ export class BrokerConfigurationError extends Error {
 }
 
 /** How many records each trail retains. */
-export const BROKER_AUDIT_RETENTION = 1000;
+const BROKER_AUDIT_RETENTION = 1000;
 
 export function createCapabilityBroker(options: BrokerOptions): CapabilityBroker {
   const providers = new Map<string, AdapterProvider>();
@@ -152,6 +157,18 @@ export function createCapabilityBroker(options: BrokerOptions): CapabilityBroker
   const pluginAllowlist = new Set(options.pluginCapabilityAllowlist ?? DEFAULT_PLUGIN_CAPABILITIES);
 
   let grants: CapabilityGrant[] = [];
+  /**
+   * Seed the grant set from the options.
+   *
+   * The first version declared `let grants = []` and never assigned `options.grants`, so a broker
+   * constructed with grants held NONE — every decision was a default deny, and the tests that
+   * asserted on the plugin allowlist passed anyway because they were denied for a different reason.
+   * Validated here for the same reason `grant()` validates: a wildcard must not enter by any door.
+   */
+  if (options.grants && options.grants.length > 0) {
+    validateGrants(options.grants);
+    grants = [...options.grants];
+  }
   const revoked = new Set<string>();
   const decisionTrail: BrokerDecisionRecord[] = [];
   const invocationTrail: BrokerInvocation[] = [];
@@ -201,6 +218,9 @@ export function createCapabilityBroker(options: BrokerOptions): CapabilityBroker
 
     authorize(subject, request, principal, at) {
       const capability = request.capability;
+      // A caller that names no scope is asking globally, which is the widest reading and still has
+      // to be covered by a grant. It is not a way to widen anything.
+      const scope = request.scope ?? { project: "global" };
 
       // 1. A plugin may only ever hold a capability the plugin contract publishes. Checked BEFORE
       //    the grant set, so an over-broad grant cannot hand a plugin the filesystem.
@@ -240,7 +260,7 @@ export function createCapabilityBroker(options: BrokerOptions): CapabilityBroker
 
       // 2. The ordinary evaluation, with revocation folded in.
       const evaluateOptions: EvaluateOptions = { at, revokedGrantIds: revoked };
-      const decision = evaluate(grants, { ...request, subject, capability }, evaluateOptions);
+      const decision = evaluate(grants, { ...request, subject, capability, scope }, evaluateOptions);
       push(decisionTrail, { at, principal, decision });
       if (decision.outcome !== "ALLOW") return { allowed: false, decision };
       return { allowed: true, decision, adapter: adapterFor(capability) };
@@ -256,11 +276,14 @@ export function createCapabilityBroker(options: BrokerOptions): CapabilityBroker
  * This is the shape every high-privilege operation is meant to take: ask, and only then act. It
  * records the attempt whether or not it was allowed, so a refusal is as visible as a success —
  * which is what the escape tests in Task E assert against.
+ *
+ * `scope` is optional and defaults to `global` inside the broker, so a caller that names no project
+ * is asking for the widest reading and still has to be covered by a grant.
  */
 export function invokeThroughBroker(
   broker: CapabilityBroker,
   subject: SubjectId,
-  request: Omit<CapabilityRequest, "subject">,
+  request: Omit<CapabilityRequest, "subject" | "scope"> & { scope?: CapabilityScope },
   principal: SubjectId,
   at: string,
   input?: unknown

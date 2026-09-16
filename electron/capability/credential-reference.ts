@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
  *
  * The book's rule is absolute: external credentials are used INDIRECTLY through a capability
  * token or reference, and "the secret itself must not be handed to an Agent or a plugin". So the
- * type system here makes the raw secret unreachable from the caller's side 鈥?a plugin receives a
+ * type system here makes the raw secret unreachable from the caller's side —a plugin receives a
  * `CredentialReference`, which is an opaque id plus the scope it is valid for, and no API in this
  * module ever returns the secret.
  *
@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
  *
  * A reference is bound to a provider and optionally narrowed to a repository, an account and a
  * set of actions. The `use` call names what it wants, and anything the reference does not cover is
- * refused 鈥?so a reference minted for reading a pull request cannot be used to push a commit even
+ * refused —so a reference minted for reading a pull request cannot be used to push a commit even
  * if it is leaked to a subject that holds a broader grant.
  *
  * ## Revocation
@@ -31,10 +31,10 @@ import { randomUUID } from "node:crypto";
  * revoked cannot be re-resolved by presenting the token again.
  */
 
-export type CredentialProvider = string;
+type CredentialProvider = string;
 
 /** What a reference is allowed to be used for. Absent fields mean "any within the provider". */
-export interface CredentialScope {
+interface CredentialScope {
   /** e.g. `zhiheng-zhang-Mera/Codex-Boss`. */
   repo?: string;
   /** The account the credential belongs to, when the provider has more than one. */
@@ -50,7 +50,7 @@ export interface CredentialScope {
  * requires this module's in-memory registry, so a leaked token is useless to anyone outside the
  * process and can be revoked.
  */
-export interface CredentialReference {
+interface CredentialReference {
   id: string;
   token: string;
   provider: CredentialProvider;
@@ -63,7 +63,7 @@ export interface CredentialReference {
 }
 
 /** Raised when a credential cannot be used. Every case names which of the rules refused it. */
-export class CredentialDeniedError extends Error {
+class CredentialDeniedError extends Error {
   constructor(readonly code:
     | "unknown-token"
     | "revoked"
@@ -78,7 +78,7 @@ export class CredentialDeniedError extends Error {
 }
 
 /** The audit record of one credential use. Written by the module, never by the caller. */
-export interface CredentialUseRecord {
+interface CredentialUseRecord {
   at: string;
   referenceId: string;
   subject: string;
@@ -88,7 +88,7 @@ export interface CredentialUseRecord {
   detail: string;
 }
 
-export interface IssueOptions {
+interface IssueOptions {
   provider: CredentialProvider;
   subject: string;
   /** The raw secret. It is captured in the registry closure and never returned. */
@@ -101,7 +101,7 @@ export interface IssueOptions {
   at?: string;
 }
 
-export interface UseOptions {
+interface UseOptions {
   reference: CredentialReference;
   /** The subject presenting the reference. Must match the one it was minted for. */
   subject: string;
@@ -112,7 +112,7 @@ export interface UseOptions {
   at?: string;
 }
 
-export interface CredentialRegistry {
+interface CredentialRegistry {
   /** Mint a reference. The returned handle never contains the secret. */
   issue(options: IssueOptions): CredentialReference;
   /**
@@ -135,7 +135,7 @@ export interface CredentialRegistry {
 }
 
 /** How many audit records are retained. */
-export const CREDENTIAL_AUDIT_RETENTION = 500;
+const CREDENTIAL_AUDIT_RETENTION = 500;
 
 export function createCredentialRegistry(): CredentialRegistry {
   interface Held {
@@ -164,14 +164,21 @@ export function createCredentialRegistry(): CredentialRegistry {
     };
 
     // Checked as an explicit return rather than through the `deny` helper, because TypeScript
-    // cannot narrow a value through a closure that throws 鈥?and a `found!` assertion here would
+    // cannot narrow a value through a closure that throws —and a `found!` assertion here would
     // be exactly the place a missing credential turned into a crash instead of a denial.
     if (!found) return deny("unknown-token", `no credential reference with id ${options.reference.id}`);
     const known: Held = found;
+    /**
+     * Revocation is checked BEFORE the token.
+     *
+     * `revoke` deletes the token mapping, so checking the token first reported a revoked reference
+     * as "the token does not resolve" — technically true and operationally misleading, since the
+     * operator revoked it deliberately. The more specific diagnosis wins.
+     */
+    if (revoked.has(options.reference.id)) deny("revoked", `credential reference ${options.reference.id} was revoked`);
     // The token must match too: a forged reference object with a real id but a made-up token is
     // refused, so the opaque token is doing work rather than being decorative.
     if (byToken.get(options.reference.token) !== options.reference.id) deny("unknown-token", `the token presented for ${options.reference.id} does not resolve`);
-    if (revoked.has(options.reference.id)) deny("revoked", `credential reference ${options.reference.id} was revoked`);
     if (known.reference.expiresAt && Date.parse(at) >= Date.parse(known.reference.expiresAt)) {
       deny("expired", `credential reference ${options.reference.id} expired at ${known.reference.expiresAt}`);
     }
@@ -251,7 +258,7 @@ export function createCredentialRegistry(): CredentialRegistry {
     },
 
     references() {
-      // `structuredClone` of the reference only 鈥?the secret is not part of it, so it cannot leak
+      // `structuredClone` of the reference only —the secret is not part of it, so it cannot leak
       // through this path even by accident.
       return [...held.values()].map((entry) => structuredClone(entry.reference));
     },

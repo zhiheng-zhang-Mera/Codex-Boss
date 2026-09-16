@@ -37,16 +37,45 @@ const ATTEMPTS = [
 exports.create = function create() {
   const state = { reads: 0, proposals: 0, refusals: [] };
 
+  /**
+   * Attempt every capability this plugin should not have, and report the outcome.
+   *
+   * The plugin is not asked to behave; it is asked to TRY. Each answer comes from the broker, so
+   * the result is evidence about the boundary rather than about the plugin's manners.
+   */
+  async function probe() {
+    const results = [];
+    for (const attempt of ATTEMPTS) {
+      const answer = await boss.invoke({ capability: attempt.capability, action: attempt.action, resource: attempt.resource });
+      results.push({
+        label: attempt.label,
+        capability: attempt.capability,
+        allowed: answer.allowed === true,
+        reason: answer.reason ?? (answer.allowed ? "ALLOWED" : "denied")
+      });
+      if (answer.allowed !== true) state.refusals.push(attempt.capability);
+    }
+    return results;
+  }
+
   return {
-    /** Called by the host for each capability invocation the BROKER authorized. */
-    async onInvoke(request) {
+    /**
+     * Called by the host for each capability invocation the BROKER authorized.
+     *
+     * `respond` is how a plugin settles a call it could not answer synchronously. A plugin's work
+     * usually needs to go BACK through `boss.invoke` — that is the point of the boundary — so the
+     * result cannot also be this function's return value. The first version returned the value
+     * directly, which silently discarded an awaited `boss.invoke` and reported only `{handled:true}`.
+     */
+    async onInvoke(request, respond) {
       if (request.capability !== THEME_CAPABILITY) {
         return { handled: false, detail: `this plugin only handles ${THEME_CAPABILITY}` };
       }
       if (request.action === "read") {
         state.reads++;
         const answer = await boss.invoke({ capability: THEME_CAPABILITY, action: "read", resource: "ui.theme:current" });
-        return { handled: true, theme: answer.allowed ? answer.result : { denied: answer.reason } };
+        respond({ handled: true, theme: answer.allowed ? answer.result : { denied: answer.reason } });
+        return;
       }
       if (request.action === "propose") {
         state.proposals++;
@@ -56,30 +85,32 @@ exports.create = function create() {
           resource: "ui.theme:proposal",
           input: request.input ?? { name: "example", tokens: { accent: "#8ab4f8" } }
         });
-        return { handled: true, proposal: answer.allowed ? answer.result : { denied: answer.reason } };
+        respond({ handled: true, proposal: answer.allowed ? answer.result : { denied: answer.reason } });
+        return;
+      }
+      /**
+       * Attempt every capability this plugin should not have, and report the outcome.
+       *
+       * The plugin is not asked to behave; it is asked to TRY, and every answer comes from the
+       * broker over the real channel. This exists so the escape suite can drive the probe from
+       * outside rather than trusting the plugin's own summary of itself.
+       */
+      if (request.action === "probe") {
+        const results = await probe();
+        respond({ handled: true, probes: results });
+        return;
       }
       return { handled: false, detail: `unsupported action ${request.action}` };
     },
 
     /**
-     * Attempt every capability this plugin should not have, and report the outcome.
+     * Attempt every capability this plugin should not have.
      *
-     * The plugin is not asked to behave; it is asked to TRY. Each answer comes from the broker, so
-     * the result is evidence about the boundary rather than about the plugin's manners.
+     * Exposed as `probeBoundary` for a caller that reaches it directly, and reached through the
+     * `probe` action over the channel by the escape suite.
      */
     async probeBoundary() {
-      const results = [];
-      for (const attempt of ATTEMPTS) {
-        const answer = await boss.invoke({ capability: attempt.capability, action: attempt.action, resource: attempt.resource });
-        results.push({
-          label: attempt.label,
-          capability: attempt.capability,
-          allowed: answer.allowed === true,
-          reason: answer.reason ?? (answer.allowed ? "ALLOWED" : "denied")
-        });
-        if (answer.allowed !== true) state.refusals.push(attempt.capability);
-      }
-      return results;
+      return probe();
     },
 
     health() {

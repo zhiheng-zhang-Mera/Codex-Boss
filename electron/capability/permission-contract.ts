@@ -47,7 +47,7 @@ export interface CapabilityScope {
 }
 
 /** How long a grant lives. `session` means "until the process exits or it is revoked". */
-export interface CapabilityLifetime {
+interface CapabilityLifetime {
   mode: "session" | "expiry" | "forever";
   /** Required when `mode` is `expiry`. An ISO timestamp. */
   expiresAt?: string;
@@ -139,7 +139,7 @@ export type DenialReason =
   | "unresolvable-resource"
   | "unresolvable-action";
 
-export type AllowReason = "granted" | "granted-with-narrower-constraints";
+type AllowReason = "granted" | "granted-with-narrower-constraints";
 
 /**
  * The outcome. `DENY` is the only answer this type can give for an unknown request, because
@@ -180,7 +180,7 @@ export function isWildcardAction(action: string): boolean {
  * first version only excluded `*` — so `all` passed the grammar check and reached `evaluate`, where
  * it was refused as an unresolvable action only by luck of ordering. Asserted directly now.
  */
-export function isAllAction(action: string): boolean {
+function isAllAction(action: string): boolean {
   return action === "all";
 }
 

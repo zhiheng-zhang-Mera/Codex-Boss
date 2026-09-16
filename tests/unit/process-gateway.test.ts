@@ -188,6 +188,22 @@ const DECLARED_PROCESS_DEBT: Record<string, string> = {
   "electron/self-evolution/sandbox/windows-appcontainer-backend.ts": "the sandbox IS the process boundary for Candidate work; it may not delegate the child's creation"
 };
 
+/**
+ * Modules that start a process to ISOLATE it rather than to read it.
+ *
+ * A third category, distinct from both gateways and debt. The process gateway exists to capture a
+ * child's output with bands; a sandbox exists to run untrusted code where it cannot reach the
+ * parent. Delegating a plugin's process creation to the gateway would be wrong in the direction
+ * that matters — the gateway would hand the untrusted child a capture channel and run it under the
+ * parent's own privileges — so these modules must own their `fork` and the child's permissions.
+ *
+ * The distinction is kept visible rather than folded into the debt list: debt means "not migrated
+ * yet", this means "must not migrate".
+ */
+const ISOLATION_BOUNDARIES: Record<string, string> = {
+  "electron/capability/plugin-host.ts": "the plugin boundary: it forks an untrusted plugin under Node's permission model, a shape the gateway's capture-and-return surface cannot express and must not absorb"
+};
+
 /** The modules Phase M's process half has already moved onto the gateway. */
 const MIGRATED_TO_GATEWAY = [
   "electron/engineering/command-runner.ts",
@@ -298,7 +314,7 @@ describe("Phase M — one entry point for a process started for its output", () 
     const offenders: string[] = [];
     for (const full of sourceFilesUnder(path.join(process.cwd(), "electron"))) {
       const relative = path.relative(process.cwd(), full).split(path.sep).join("/");
-      if (relative in GATEWAYS || relative in DECLARED_PROCESS_DEBT) continue;
+      if (relative in GATEWAYS || relative in DECLARED_PROCESS_DEBT || relative in ISOLATION_BOUNDARIES) continue;
       if (!CHILD_PROCESS_IMPORT.test(fs.readFileSync(full, "utf8"))) continue;
       offenders.push(relative);
     }
@@ -317,6 +333,19 @@ describe("Phase M — one entry point for a process started for its output", () 
       .filter((relative) => !CHILD_PROCESS_IMPORT.test(fs.readFileSync(repoFile(relative), "utf8")))
       .sort();
     expect(missing).toEqual([]);
+  });
+
+  it("keeps the isolation boundaries real, and separate from the gateways and the debt", () => {
+    // Same honesty rule the other two lists get: a boundary entry that no longer forks, or that
+    // duplicates a gateway, would mean the exemption outlived its reason.
+    const names = Object.keys(ISOLATION_BOUNDARIES);
+    expect(names.length).toBeGreaterThan(0);
+    for (const relative of names) {
+      expect(ISOLATION_BOUNDARIES[relative], `${relative} has no stated reason`).toBeTruthy();
+      expect(CHILD_PROCESS_IMPORT.test(fs.readFileSync(repoFile(relative), "utf8")), `${relative} is listed as an isolation boundary but does not fork`).toBe(true);
+      expect(relative in GATEWAYS, `${relative} is both a gateway and an isolation boundary`).toBe(false);
+      expect(relative in DECLARED_PROCESS_DEBT, `${relative} is both debt and an isolation boundary; debt means "not migrated yet"`).toBe(false);
+    }
   });
 
   it("is what the migrated modules actually reach for", () => {
