@@ -354,9 +354,11 @@ describe("Phase 02 Task C — gate 5: events are idempotent and recoverable", ()
     target.migration.promote();
 
     // Simulate "committed the ledger row, died before publishing the event" by writing a
-    // row straight to the repository and leaving the journal alone.
+    // row straight to the repository and leaving the journal alone. The row must be
+    // timestamped AFTER promotion: `reconcile` only repairs writes that were supposed to
+    // publish an event, and promotion is the boundary.
     const repository = createStateRepository(target.handle);
-    const orphan = decision({ id: "orphan" });
+    const orphan = decision({ id: "orphan", createdAt: new Date().toISOString() });
     repository.put(DECISION_LEDGER_NAMESPACE, orphan.id, orphan);
 
     const journal = createEventJournal(target.handle);
@@ -369,6 +371,43 @@ describe("Phase 02 Task C — gate 5: events are idempotent and recoverable", ()
     const second = target.migration.reconcile();
     expect(second.reEmitted).toBe(0);
     expect(journal.read(0).filter((event) => event.idempotencyKey === "orphan")).toHaveLength(1);
+  });
+
+  it("does NOT publish events for history that predates promotion", () => {
+    const target = pilot([decision({ id: "old-1", createdAt: "2026-01-01T00:00:00.000Z" })]);
+    target.migration.importLegacy();
+    fillBattery(target);
+    target.migration.promote();
+
+    // The imported baseline was never published, because it happened before the database
+    // was authoritative. Re-emitting it would announce history as if it had just been
+    // committed, so `reconcile` must leave it alone — this is the boundary that makes
+    // "reEmitted" mean "repaired a lost commit" rather than "published everything".
+    const journal = createEventJournal(target.handle);
+    const before = journal.read(0).filter((event) => event.idempotencyKey === "old-1").length;
+    const result = target.migration.reconcile();
+    expect(before).toBe(0);
+    expect(result.reEmitted).toBe(0);
+    expect(journal.read(0).filter((event) => event.idempotencyKey === "old-1")).toHaveLength(0);
+    // The row is still in the ledger: not publishing it did not discard it.
+    expect(createStateRepository(target.handle).get(DECISION_LEDGER_NAMESPACE, "old-1")).toBeTruthy();
+  });
+
+  it("repairs only the writes that were supposed to publish, leaving the rest counted", () => {
+    const target = pilot();
+    fillBattery(target);
+    target.migration.promote();
+    const repository = createStateRepository(target.handle);
+    // One post-promotion row with its event already present, one without.
+    const published = decision({ id: "published", createdAt: new Date().toISOString() });
+    repository.put(DECISION_LEDGER_NAMESPACE, published.id, published);
+    target.migration.reconcile();
+    const lost = decision({ id: "lost", createdAt: new Date().toISOString() });
+    repository.put(DECISION_LEDGER_NAMESPACE, lost.id, lost);
+
+    const result = target.migration.reconcile();
+    expect(result.reEmitted, "the freshly lost event is repaired").toBe(1);
+    expect(result.alreadyPresent, "the already-published one is counted, not re-emitted").toBeGreaterThanOrEqual(1);
   });
 
   it("refuses to reconcile while JSON is still authoritative", () => {

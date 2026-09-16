@@ -52,6 +52,12 @@ jobs:
       # than after a 20-minute suite. It is a separate step from the unit tests so the
       # failing boundary is named in the CI UI without reading a log.
       - run: pnpm run architecture:ratchet
+      # Platform foundation Phase 02: the runtime must actually provide the SQLite
+      # features the state core depends on. The probe MEASURES them (WAL, savepoints,
+      # user_version, durability across reopen, a loud refusal on a corrupt file) and
+      # exits non-zero if any is missing, so a runtime change cannot silently remove the
+      # substrate the durable state core is built on.
+      - run: pnpm run state:probe
 
   unit:
     needs: quality

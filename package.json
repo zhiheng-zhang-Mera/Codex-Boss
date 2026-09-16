@@ -64,7 +64,9 @@
     "architecture:ratchet": "node scripts/architecture.cjs ratchet",
     "architecture:snapshot": "node scripts/architecture.cjs snapshot",
     "architecture:baseline:update": "node scripts/architecture-baseline.cjs",
-    "architecture:manifests:generate": "node scripts/generate-capability-manifests.cjs"
+    "architecture:manifests:generate": "node scripts/generate-capability-manifests.cjs",
+    "state:migration-report": "node scripts/state-migration-report.cjs",
+    "state:probe": "node scripts/probe-sqlite.cjs"
   },
   "dependencies": {
     "cross-env": "10.1.0",

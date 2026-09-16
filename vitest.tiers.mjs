@@ -180,5 +180,9 @@ export const BUILD_DEPENDENT_TESTS = [
   // dist-electron and then dies mid-work. It cannot run before a build, and unlike the
   // others it MUST NOT be skipped silently — the whole point is that a hard kill does
   // not lose committed work, so it fails loudly rather than passing vacuously.
-  "tests/acceptance/state-core-crash.test.ts"
+  "tests/acceptance/state-core-crash.test.ts",
+  // Phase 02 gate 7: runs the migration-report generator, which loads the compiled
+  // decision-ledger pilot out of dist-electron and performs the migration for real in a
+  // temporary data root before writing the artifact.
+  "tests/acceptance/state-migration-report.test.ts"
 ];

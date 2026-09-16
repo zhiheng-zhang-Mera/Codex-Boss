@@ -284,11 +284,18 @@ export function createDecisionLedgerMigration(options: DecisionLedgerMigrationOp
       // Only meaningful once the database is authoritative: before that the JSON side is
       // the record of truth and the database is a mirror, so re-emitting from it would
       // publish events for data that has not been promoted.
-      if (registry.authorityOf(DECISION_LEDGER_NAMESPACE) !== "database") return { reEmitted: 0, alreadyPresent: 0 };
+      const state = registry.state(DECISION_LEDGER_NAMESPACE);
+      if (registry.authorityOf(DECISION_LEDGER_NAMESPACE) !== "database" || !state) return { reEmitted: 0, alreadyPresent: 0 };
       let reEmitted = 0;
       let alreadyPresent = 0;
       for (const record of repository.list<DecisionLedgerEntry>(DECISION_LEDGER_NAMESPACE)) {
         const entry = record.value;
+        // Entries that predate promotion were imported from the legacy baseline, which
+        // never published events. Re-emitting them would announce history rather than
+        // repair a lost commit, so the boundary is the promotion instant: everything
+        // written at or after it was supposed to publish, and anything missing there is a
+        // genuine crash-window loss.
+        if (state.promotedAt && entry.createdAt < state.promotedAt) continue;
         if (journal.hasIdempotencyKey("persistence", entry.id)) { alreadyPresent++; continue; }
         publish(entry);
         reEmitted++;
