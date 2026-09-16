@@ -472,6 +472,35 @@ reaches the ledger.
 Wiring real provider usage (`usage.input_tokens` / `prompt_tokens`) into the ledger is the follow-up
 that would make it a genuine measurement; it is not done here.
 
+**Update — this is now done.** All three API adapters were reading the provider response, taking the
+content and discarding the usage block every vendor returns. The chain is complete end to end:
+
+```text
+provider response
+  -> provider-api normaliser per vendor schema
+  -> ApiCompletion.usage        (neutral: inputTokens / outputTokens / totalTokens)
+  -> ApiRuntime -> RuntimeResult.usage
+  -> ExecutionSupervisor -> durable TaskLedger
+     usage.providerInputTokens / providerOutputTokens / providerTotalTokens
+  -> coordinationRecordFromLedger -> totals.inputTokens / outputTokens
+  -> record.measured -> economics artifact -> evaluateStageGuard -> certificate
+```
+
+| Provider protocol | Source fields read |
+| --- | --- |
+| OpenAI-compatible (chatgpt, deepseek, qwen, kimi) | `usage.prompt_tokens`, `completion_tokens`, `total_tokens` (also the `input_tokens` spelling) |
+| Anthropic (claude) | `usage.input_tokens`, `output_tokens` |
+| Gemini | `usageMetadata.promptTokenCount`, `candidatesTokenCount`, `totalTokenCount` |
+
+**Absent is not zero.** `reportedNumber` accepts only a finite non-negative number, so `null`, a string
+and a negative all read as "not reported", while a genuine `0` is kept as a measurement of nothing. A
+usage block carrying no figure is dropped, so "no usage" and "empty usage" read alike. A provider that
+reports nothing leaves the ledger fields absent — not zeroed, not backfilled from the estimate — so
+`inputTokens` stays null and undeclared and the guard fails closed.
+
+`COST_MEASURES` is **unchanged**: `inputTokens` is still required, now that it is actually obtainable.
+The standard was not lowered to make the plumbing unnecessary.
+
 ### Fixture validation (not a gate measurement)
 
 `pnpm run economics:fixtures` runs 11 checks over deterministic fixtures covering task-level
