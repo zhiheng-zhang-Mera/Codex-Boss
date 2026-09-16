@@ -44,6 +44,8 @@ const CURATED = {
   "tests/unit/platform/test-impact.test.ts": { covers: ["runtime"], obligation: "the impact selector picks the affected suites, fails closed, and its audit detects what it dropped", alwaysRun: true },
   "tests/unit/platform/external-compatibility.test.ts": { covers: ["providers"], obligation: "a single external dependency degrading stays local, is classified honestly, and reroutes or refuses accordingly" },
   "tests/unit/platform/scale-synthetic.test.ts": { covers: ["state-core"], obligation: "the platform holds at 10x its capability set and at 100k durable events without inconsistency or cross-project contamination" },
+  "tests/unit/platform/platform-soak.test.ts": { covers: ["state-core"], obligation: "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure" },
+  "tests/acceptance/platform-soak-report.test.ts": { covers: ["state-core"], obligation: "the soak report covers every dimension the book names, declares what it cannot observe, and fails a run whose trend exceeds the allowance" },
   "tests/acceptance/platform-architecture-diagnostics.test.ts": { covers: ["runtime"], obligation: "the architecture CLI reports the same graph the registry builds", alwaysRun: true },
   "tests/acceptance/platform-certificate.test.ts": { covers: ["runtime"], obligation: "the platform certificate recomputes rather than transcribes, is honest about what has not run, and fails closed", alwaysRun: true },
   "tests/acceptance/architecture-discovery.test.ts": { covers: ["runtime"], obligation: "the built application's architecture evidence matches the source tree", alwaysRun: true },

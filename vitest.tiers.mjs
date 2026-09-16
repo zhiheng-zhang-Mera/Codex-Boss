@@ -85,6 +85,21 @@ export const SLOW_ACCEPTANCE_TESTS = {
     kind: "in-process",
     measured: "~94s as a file (~74s appending 100k events; 10k-band curve 0.22 → 0.88 ms/event)",
     because: "writes 100k real events and 100k real state writes into a real database; no process is started, but the cost is the storage engine's"
+  },
+  // Phase 05 Task F / gate 6. Runs the whole platform lifecycle repeatedly — state transactions
+  // including a deliberate failure and its unattended recovery, event append and cursor replay,
+  // knowledge staleness, GC plan and execute, provider degrade and recover, and controlled restarts —
+  // sampling memory, CPU, handles, queue lag and database size throughout. ~75s as a file, of which
+  // the bulk is the run itself rather than test overhead.
+  //
+  // This is the shortened CI form of a 24h/72h soak, which the book explicitly allows. What makes the
+  // shortening evidence rather than theatre is that the growth bound is SCALED to the time actually
+  // run: `SOAK_BOUNDS` allows 512MiB of RSS growth over the 30-minute reference tier, and applied
+  // unchanged to a 45-second run it would never bite.
+  "tests/unit/platform/platform-soak.test.ts": {
+    kind: "in-process",
+    measured: "~75s as a file (~45s of soak at the smoke tier's audit floor, plus five further runs)",
+    because: "drives the real platform loop against a real database for the tier's full audit duration; no process is started, but the cost is the workload's"
   }
 };
 
@@ -243,5 +258,9 @@ export const BUILD_DEPENDENT_TESTS = [
   // (registry, ratchet, permission validator, retention and compatibility models) and re-derives
   // every section rather than transcribing the phase artifacts. It also points the generator at
   // COPIES of the artifacts with a cross-check deliberately broken, to prove it fails closed.
-  "tests/acceptance/platform-certificate.test.ts"
+  "tests/acceptance/platform-certificate.test.ts",
+  // Phase 05 gate 6: runs the soak-report generator with a short duration, which exercises the real
+  // measurement path AND the real failure path — a short run is all warmup, so its trend genuinely
+  // exceeds the published allowance and the generator must refuse to certify it.
+  "tests/acceptance/platform-soak-report.test.ts"
 ];

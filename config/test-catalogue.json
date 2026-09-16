@@ -181,6 +181,14 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/acceptance/platform-soak-report.test.ts",
+      "tier": "acceptance",
+      "covers": [
+        "state-core"
+      ],
+      "obligation": "the soak report covers every dimension the book names, declares what it cannot observe, and fails a run whose trend exceeds the allowance"
+    },
+    {
       "file": "tests/acceptance/prestart-adversarial.test.ts",
       "tier": "acceptance",
       "covers": [
@@ -978,6 +986,14 @@
       ],
       "obligation": "a missing optional capability degrades locally instead of failing the platform",
       "alwaysRun": true
+    },
+    {
+      "file": "tests/unit/platform/platform-soak.test.ts",
+      "tier": "unit",
+      "covers": [
+        "state-core"
+      ],
+      "obligation": "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure"
     },
     {
       "file": "tests/unit/platform/scale-synthetic.test.ts",

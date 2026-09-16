@@ -274,7 +274,42 @@ function main() {
   require_(impactAudit.unownedSourceFiles === 0, `${impactAudit.unownedSourceFiles} source file(s) are owned by no capability`);
 
   // ---------------------------------------------------------------- soak
-  sections.soakResourceTrend = { measured: false, reason: NOT_RUN.soakResourceTrend };
+  //
+  // The soak report is READ rather than restated. If it is missing the section stays unmeasured and
+  // says so: a certificate that reported a resource trend it had not read would be worth nothing for
+  // the one purpose Task F exists for.
+  const soakReportPath = path.join(ROOT, "artifacts", "platform-foundation", "phase-05", "soak-report.json");
+  if (fs.existsSync(soakReportPath)) {
+    const soak = JSON.parse(fs.readFileSync(soakReportPath, "utf8"));
+    const failedInvariants = soak.acceptance?.failedInvariants ?? [];
+    sections.soakResourceTrend = {
+      measured: true,
+      reportPath: "artifacts/platform-foundation/phase-05/soak-report.json",
+      minutes: Math.round((soak.elapsedMs ?? 0) / 60_000),
+      samples: soak.samples,
+      cycles: soak.totals?.cycles,
+      stateWrites: soak.totals?.stateWrites,
+      eventsAppended: soak.totals?.eventsAppended,
+      restarts: soak.totals?.restarts,
+      recoveredTransactions: soak.totals?.recoveredTransactions,
+      gcPlanned: soak.totals?.gcPlanned,
+      gcCollected: soak.totals?.gcCollected,
+      gcMisdeleted: soak.totals?.gcMisdeleted,
+      databaseBytes: soak.storage?.databaseBytes,
+      eventBacklog: soak.storage?.eventBacklog,
+      trends: soak.trends,
+      allowancePerMinute: soak.bounds?.longRunAllowancePerMinute,
+      trendWithinLongRunAllowance: soak.bounds?.trendWithinLongRunAllowance === true,
+      failedInvariants,
+      unavailable: soak.unavailable
+    };
+    require_(failedInvariants.length === 0, `the soak report records failed invariant(s): ${failedInvariants.join(", ")}`);
+    require_(soak.bounds?.trendWithinLongRunAllowance === true, "the soak report's resource trend exceeds the long-run allowance per minute");
+    require_((soak.totals?.gcMisdeleted ?? -1) === 0, "the soak deleted protected data");
+    require_((soak.totals?.recoveredTransactions ?? 0) === (soak.totals?.cycles ?? -1), "the soak did not recover its deliberate transaction failure every cycle");
+  } else {
+    sections.soakResourceTrend = { measured: false, reason: NOT_RUN.soakResourceTrend };
+  }
   sections.agentCoordinationEconomics = { measured: false, reason: NOT_RUN.agentCoordinationEconomics };
 
   // ---------------------------------------------------------------- promotion
@@ -295,8 +330,8 @@ function main() {
     node: process.version,
     sections,
     completeness: {
-      delivered: ["architectureGraph", "stateOwnership", "platformHealth", "migrations", "eventJournal", "permissionSurface", "knowledgeAndRetention", "providerDegradedMode", "verification"],
-      notRun: ["soakResourceTrend", "agentCoordinationEconomics"],
+      delivered: Object.entries(sections).filter(([, section]) => !section || section.measured !== false).map(([name]) => name).sort(),
+      notRun: Object.entries(sections).filter(([, section]) => section && section.measured === false).map(([name]) => name).sort(),
       phaseStatus: "PARTIAL",
       note: "the phase is PARTIAL: Tasks D, E and F are not complete, and this certificate reports that rather than certifying a phase that is not finished"
     },
@@ -322,6 +357,7 @@ function main() {
         "retention-protects-evidence": sections.knowledgeAndRetention.protectedDeletable === false && sections.knowledgeAndRetention.zeroMisdeletion,
         "provider-failure-is-local": sections.providerDegradedMode.probeVerdictWithTwoOfThreeBroken === "DEGRADED",
         "impact-selector-owns-the-tree": sections.verification.impactSelector.unownedSourceFiles === 0,
+        "soak-trend-measured-and-bounded": sections.soakResourceTrend.measured === true && sections.soakResourceTrend.trendWithinLongRunAllowance === true,
         "certificate-cannot-bypass-the-gate": BYPASSES_ROOT_OR_OWNER_GATE === false
       }
     }
