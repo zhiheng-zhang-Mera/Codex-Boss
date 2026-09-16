@@ -26,7 +26,7 @@ import {
  */
 
 /** Where a namespace's ownership is declared, for a reviewable diagnostic. */
-export interface StateOwnerDeclaration {
+interface StateOwnerDeclaration {
   namespace: string;
   owner: CapabilityId;
   /** The manifest file that declared it, repo-relative POSIX path. */
@@ -34,7 +34,7 @@ export interface StateOwnerDeclaration {
 }
 
 /** One namespace and its single authoritative owner. */
-export interface StateNamespaceRecord {
+interface StateNamespaceRecord {
   namespace: string;
   /** The capability allowed to authoritatively write this namespace. */
   owner: CapabilityId;
@@ -45,7 +45,7 @@ export interface StateNamespaceRecord {
 }
 
 /** A namespace claimed by more than one capability — the failure this registry exists to catch. */
-export interface StateOwnershipConflict {
+interface StateOwnershipConflict {
   namespace: string;
   owners: CapabilityId[];
   declarations: StateOwnerDeclaration[];

@@ -354,7 +354,7 @@ function main() {
     const id = graph.nodes.some((node) => node.id === selector.trim())
       ? selector.trim()
       : (parsed ? graph.providers[`${parsed[1]}@${parsed[2]}`] : undefined);
-    if (!id) { console.error(JSON.stringify({ error: `unknown capability: ${selector}`, known: graph.nodes.map((node) => node.id) }, null, 2)); return 2; }
+    if (!id) { console.log(JSON.stringify({ error: `unknown capability: ${selector}`, known: graph.nodes.map((node) => node.id) }, null, 2)); return 2; }
     const impact = impactRadius(graph, id);
     console.log(JSON.stringify({
       capability: id,
@@ -440,7 +440,7 @@ function main() {
         }))
       },
       dependencyGraph: {
-        edges: graph.edges.length,
+        edgeCount: graph.edges.length,
         requiredEdges: graph.edges.filter((edge) => edge.kind === "required").length,
         optionalEdges: graph.edges.filter((edge) => edge.kind === "optional").length,
         cycles: graph.cycles.map((cycle) => ({ kind: cycle.kind, path: [...cycle.path, cycle.path[0]] })),

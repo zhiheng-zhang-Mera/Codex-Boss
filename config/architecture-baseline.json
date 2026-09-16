@@ -1,0 +1,14 @@
+{
+  "$comment": "Ratchet baseline (platform foundation Phase 01). Absolute ratchets are never recorded here — only the monotone metrics a growing capability set legitimately raises. Updated only by `node scripts/architecture-baseline.cjs --reason \"...\"`, never by a test.",
+  "version": 1,
+  "reason": "Phase 01 initial baseline: 26 capabilities covering all 24 boot modules, 31 durable namespaces, 3 required dependency edges",
+  "updatedAt": "2026-09-16T01:27:48.160Z",
+  "metrics": {
+    "bootModuleCount": 24,
+    "capabilityCount": 26,
+    "dependencyEdgeCount": 3,
+    "requiredEdgeCount": 3,
+    "featureCapabilityCount": 23,
+    "durableNamespaceCount": 31
+  }
+}

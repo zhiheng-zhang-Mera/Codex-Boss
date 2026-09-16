@@ -31,7 +31,7 @@ import {
  */
 
 /** A manifest that failed validation, kept together with everything wrong with it. */
-export class ManifestValidationError extends Error {
+class ManifestValidationError extends Error {
   constructor(readonly source: string, readonly problems: readonly ManifestProblem[]) {
     super(`${source}: ${problems.length} manifest problem(s)\n${problems.map((problem) => `  ${problem.path}: ${problem.message}`).join("\n")}`);
     this.name = "ManifestValidationError";
@@ -378,7 +378,7 @@ export function parseCapabilityManifestFile(file: string, repoRoot: string): { m
 }
 
 /** The manifest file extensions the loader accepts, in the order it prefers them. */
-export const MANIFEST_EXTENSIONS = [".yaml", ".yml", ".json"] as const;
+const MANIFEST_EXTENSIONS = [".yaml", ".yml", ".json"] as const;
 
 /**
  * Every manifest under a capabilities root, in a deterministic order.

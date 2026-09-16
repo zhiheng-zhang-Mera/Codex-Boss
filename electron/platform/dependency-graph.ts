@@ -27,7 +27,7 @@ import {
  */
 
 /** An edge in the capability graph, in the resolved `id@major` vocabulary. */
-export interface CapabilityEdge {
+interface CapabilityEdge {
   /** The depending capability. */
   from: CapabilityId;
   /** The provided contract being depended on. */
@@ -47,7 +47,7 @@ export interface MissingCapability {
 }
 
 /** A dependency loop, with the exact path that closes it. */
-export interface CapabilityCycle {
+interface CapabilityCycle {
   /**
    * `required` when every edge on the loop is required — fatal.
    * `optional` when at least one edge could be dropped — reported, not fatal.
@@ -61,7 +61,7 @@ export interface CapabilityCycle {
 }
 
 /** One capability's resolved position in the graph. */
-export interface CapabilityNode {
+interface CapabilityNode {
   id: CapabilityId;
   version: string;
   kind: "kernel" | "feature";
@@ -328,7 +328,7 @@ export function impactRadius(graph: DependencyGraph, capabilityId: CapabilityId)
 }
 
 /** The impact radius with the path that caused each capability to be included. */
-export interface ImpactEntry {
+interface ImpactEntry {
   capability: CapabilityId;
   /** Shortest reverse path from the changed capability, e.g. [`a`, `b`] for a -> b. */
   via: CapabilityId[];

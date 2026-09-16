@@ -54,7 +54,7 @@ export interface CapabilityRequirement {
 }
 
 /** A durable state namespace this capability claims to own authoritatively. */
-export interface CapabilityStateClaim {
+interface CapabilityStateClaim {
   namespace: string;
   /**
    * The capability that authoritatively writes this namespace. Must equal the
@@ -71,7 +71,7 @@ export interface CapabilityStateClaim {
  * required to degrade locally: the engineering book forbids turning a missing
  * optional capability into a global boot failure.
  */
-export interface CapabilityHealth {
+interface CapabilityHealth {
   critical: boolean;
 }
 
@@ -217,4 +217,4 @@ export function isValidSemver(version: string): boolean {
 }
 
 /** The four requirement kinds the engineering book names, in report vocabulary. */
-export type CapabilityEdgeKind = "required" | "optional";
+type CapabilityEdgeKind = "required" | "optional";

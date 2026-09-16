@@ -25,7 +25,7 @@ import type { StateOwnershipRegistry } from "./state-ownership";
  */
 
 /** The knobs whose values a baseline records. */
-export type RatchetMetricKey =
+type RatchetMetricKey =
   | "bootModuleCount"
   | "capabilityCount"
   | "dependencyEdgeCount"
@@ -34,7 +34,7 @@ export type RatchetMetricKey =
   | "durableNamespaceCount";
 
 /** The invariants. `absolute` ones are reported but never baselined. */
-export type RatchetId =
+type RatchetId =
   | "required-dependency-cycles"
   | "unresolved-required-dependencies"
   | "duplicate-state-owners"
@@ -45,7 +45,7 @@ export type RatchetId =
   | "boot-module-density"
   | "dependency-edge-density";
 
-export interface RatchetDeclaration {
+interface RatchetDeclaration {
   id: RatchetId;
   /** `absolute` = expectation is fixed and unbaselineable. `monotone` = baselined quantity. */
   kind: "absolute" | "monotone";
@@ -133,7 +133,7 @@ export const RATCHET_DECLARATIONS: readonly RatchetDeclaration[] = [
 ];
 
 /** A single boundary crossing found by inspection, precise enough to act on. */
-export interface RatchetViolation {
+interface RatchetViolation {
   ratchet: RatchetId;
   /** Repo-relative POSIX file that carries the violation, when there is one. */
   file?: string;
@@ -165,10 +165,10 @@ export interface ArchitectureEvidence {
 }
 
 /** The measured value of every baselined metric. */
-export type RatchetMetrics = Record<RatchetMetricKey, number>;
+type RatchetMetrics = Record<RatchetMetricKey, number>;
 
 /** One ratchet's outcome. */
-export interface RatchetResult {
+interface RatchetResult {
   id: RatchetId;
   kind: "absolute" | "monotone";
   /** What the ratchet required, rendered for a report. */
@@ -181,7 +181,7 @@ export interface RatchetResult {
   violations: RatchetViolation[];
 }
 
-export interface RatchetReport {
+interface RatchetReport {
   results: RatchetResult[];
   metrics: RatchetMetrics;
   pass: boolean;

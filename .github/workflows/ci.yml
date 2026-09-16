@@ -45,6 +45,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm run security:scan
+      # Platform foundation Phase 01: the architecture ratchets. This is the
+      # `quality` layer rather than the `unit` layer on purpose — it needs no build
+      # and no Electron, and a dependency cycle or a duplicate durable-state owner is
+      # exactly the kind of failure that should be reported in the first minute rather
+      # than after a 20-minute suite. It is a separate step from the unit tests so the
+      # failing boundary is named in the CI UI without reading a log.
+      - run: pnpm run architecture:ratchet
 
   unit:
     needs: quality

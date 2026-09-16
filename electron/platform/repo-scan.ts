@@ -57,7 +57,7 @@ export function countLiteralIpcRegistrations(mainSource: string): number {
   return [...mainSource.matchAll(/ipcMain\.handle\(\s*["'`]/g)].length;
 }
 
-export interface ScanOptions {
+interface ScanOptions {
   repoRoot?: string;
   /** Injected so a test can supply a registry without touching the disk. */
   registry?: CapabilityRegistry;

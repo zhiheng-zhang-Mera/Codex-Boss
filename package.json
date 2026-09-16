@@ -57,7 +57,14 @@
     "acceptance:github-machine": "node scripts/acceptance-github-machine-identity.cjs",
     "acceptance:github-machine:live": "electron dist-electron/electron/github/live-acceptance.js",
     "bootstrap:github-machine": "electron dist-electron/electron/github/bootstrap.js",
-    "install:electron": "node node_modules/electron/install.js"
+    "install:electron": "node node_modules/electron/install.js",
+    "architecture:graph": "node scripts/architecture.cjs graph",
+    "architecture:impact": "node scripts/architecture.cjs impact",
+    "architecture:ownership": "node scripts/architecture.cjs ownership",
+    "architecture:ratchet": "node scripts/architecture.cjs ratchet",
+    "architecture:snapshot": "node scripts/architecture.cjs snapshot",
+    "architecture:baseline:update": "node scripts/architecture-baseline.cjs",
+    "architecture:manifests:generate": "node scripts/generate-capability-manifests.cjs"
   },
   "dependencies": {
     "cross-env": "10.1.0",
