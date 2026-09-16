@@ -6,7 +6,7 @@
 
 > **STATUS: PARTIAL — this phase is NOT complete and must not be reported as PASS.**
 > All seven tasks have a delivered artifact; gates 1, 3, 4, 5, 6, 7 and 9 are met.
-> Only Task D's cost/benefit COMPARISON is unmeasured; gate 8 alone remains open. This file records what is done, what is not, and what was
+> Gate 8 alone remains open: the Owner has elected to keep it WAITING_FOR_OWNER because the cost/benefit comparison needs a credentialed live-pipeline run this session cannot produce. This file records what is done, what is not, and what was
 > measured, so the next round starts from evidence rather than a summary.
 
 ---
@@ -431,6 +431,23 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 ## 12. Remaining tasks and gates
 
+**Owner decision (round 15):** gate 8 stays open as `WAITING_FOR_OWNER`. Phase 05 remains PARTIAL and
+does not advance.
+
+Why it cannot be closed from inside this session, stated precisely: gate 8 asks for cost/benefit
+evidence per agent stage, which needs per-task records from a real default pipeline run. The repository
+has never recorded one, and producing one needs live provider calls — `runImplementationLoop` is driven
+by a worker and a model reviewer, and `tests/acceptance/review-loop.test.ts` doubles exactly those two
+because "a worker and a model reviewer are exactly what the host is not allowed to trust". No fixture,
+mock or hand-filled record could honestly stand in for the measurement. The alternatives were a
+credentialed run supplied by the Owner, or an Owner decision that the delivered model and guard satisfy
+the gate for now; the Owner chose to keep it open.
+
+What IS delivered and verified: the accounting model, the guard, and — checked live by the certificate —
+that the guard **refuses** to promote a stage with no baseline and with no observed figures. That is the
+property that makes the rule worth having. It is not the comparison itself, and it is not reported as if
+it were.
+
 | Task | State |
 | --- | --- |
 | C — external compatibility registry (contractVersion, lastKnownGood, healthProbe, failureClass, degradedFallback, observedAt) | **delivered**, see §3 |
@@ -441,14 +458,14 @@ commander composition and is therefore part of what Task E's synthetic scale wor
 
 | Gate | State |
 | --- | --- |
-| 1 — Phases 01–04 gates still pass | re-run this phase: unit **2276**, postbuild **102**, typecheck, security scan (1105 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
+| 1 — Phases 01–04 gates still pass | re-run at this commit: unit **2303** (200 files), postbuild **112** (10 files), typecheck, security scan (1115 files), architecture ratchet `pass: true`, state probe, review-loop 11/11 |
 | 2 — targeted run agrees with the full gate for the same commit | **PASS** — see §9: a recorded full-suite run of 200 files / 2303 tests paired with the selector's decision for the same commit; 184 skipped suites all ran and passed, and nothing chosen was absent |
 | 3 — a deliberately dropped capability's tests are detected by a meta-test | **PASS** — `tests/unit/platform/test-impact.test.ts` META-TEST |
 | 4 — one provider degrading causes only local DEGRADED, with accurate fallback/refusal | **PASS** — see §3 |
 | 5 — 100k events and large knowledge/history with no consistency error or cross-project contamination | **PASS** — see §5: 100k events through the real journal with a close-and-reopen durability check, four projects coexisting with no contamination, and Phase 04's 10k retrieval |
 | 6 — no unbounded memory/disk/handle/process growth in a real soak | **PASS** — see §6: 45 minutes, 1005 cycles, RSS trend **−0.14 MiB/min** against a 17.1 allowance, heap −0.02 against 8.5, all 11 shared invariants PASS |
 | 7 — no committed work lost and no duplicated external side effect after restart/recovery | **PASS** — see §8 |
-| 8 — every extra agent stage has cost/benefit evidence | **not met** — the accounting model and the guard are delivered and their refusal paths are checked live by the certificate; the cost/benefit comparison itself needs a recorded default pipeline, and none exists. See §7 |
+| 8 — every extra agent stage has cost/benefit evidence | **WAITING_FOR_OWNER** — the model and guard are delivered and the guard's refusal paths are checked live; the comparison needs a credentialed live-pipeline run, and the Owner has elected to keep the gate open. See §7 and §12 |
 | 9 — `platform-certificate.json` + soak report | **PASS** — both artifacts exist, and the certificate reads the soak report rather than restating it |
 
 ---
