@@ -218,8 +218,25 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **Explicitly forbidden** | Deleting, skipping or relaxing `evolution-sandbox` to make an audit green. `PF-DEBT-003` forbids exactly that, and this entry must not become the reason it happens. A baseline difference must be measured, not declared. |
 | **Target / revisit phase** | Phase 06 (Task D follow-up) — **this was the largest single item between Phase 06 and PASS** |
 | **How it was resolved** | Not by patching the repair loop — that would have silently changed self-evolution. `electron/engineering/engineering-goal-loop.ts` adds the second loop the phase needed, and the split is the design: the audit is a **precondition** (an environment finding refuses the run up front, by name) and a **record** (pre-existing CODE findings are carried in the result and never worked); the **objective** is the work list; convergence requires the host's checks to pass over a NON-EMPTY change set. The dogfooding harness now uses it. Two platform refinements came out of making it runnable, both default-closed: `applyScopedChanges` gained an opt-in `options.mayCreate` predicate consulted only for a file that does not exist (narrower than authorising a directory, which would also permit overwriting it), and `createGoalLoopOperations` distinguishes a file allowance from a directory/prefix allowance — including tolerating `"tests/unit"` without a trailing slash, which had been read as a file allowance and made every creation fail. `tests/unit/engineering-goal-loop.test.ts` (11 tests) covers the semantics and `tests/unit/root-authority-red-team.test.ts` still refuses an unauthorised path. |
-| **Evidence the resolution produced** | Four real dogfood runs, each blocked by a genuine platform decision rather than a harness bug: the audit found a pre-existing failure and the goal loop recorded it instead of chasing it; the tree was refused as Boss-itself until it became a clone without an origin remote; the coder proposed a file and the host refused it as out of scope until a creation grant existed; then the grant was mis-specified by the caller. The fifth run cleared all of those and stopped on `Invalid hash-bound change` — the coder's own manifest failing schema validation, which the platform reported correctly and refused. |
-| **Last reviewed SHA** | `4b46aee4bcf6d1825f8946562afec3b811651a1b` |
+| **Evidence the resolution produced** | Six real dogfood runs, each blocked by a genuine platform decision rather than a harness bug: the audit found a pre-existing failure and the goal loop recorded it instead of chasing it; the tree was refused as Boss-itself until it became a clone without an origin remote; the coder proposed a file and the host refused it as out of scope until a creation grant existed; then the grant was mis-specified by the caller; then the manifest's `expectedSha256` was format-checked by a rule stricter than the applier's own check, so a formatting slip in a field the applier recomputes ended the run and burned the automatic retry. The SIXTH run reached `CONVERGED`: one file applied, typecheck + test + `git diff` all passed, the pre-existing failure recorded and not worked, `checkoutUntouched=true`, 1 930 provider-reported input tokens, and the produced test verified to pass when run independently of the platform. |
+| **Last reviewed SHA** | `c192d0d14362bacf49f88a90f7a4d4d421c024d8` |
+
+## PF-DEBT-011 — the host verifies that a check passes, not that it asserts anything
+
+| Field | Info |
+| --- | --- |
+| **ID** | `PF-DEBT-011` |
+| **Title** | A vacuously-passing test satisfies the host's verification |
+| **Discovered phase** | 06 (Task D — the first CONVERGED dogfood run) |
+| **Status** | `EVIDENCE-TIER NOTE` |
+| **Severity** | `LOW` — a boundary to state, not a defect to fix |
+| **Affected capability** | `engineering` (verification) |
+| **Evidence / source** | The converged run's objective asked for a round-trip test **and** a malformed-entry test. The platform produced `tests/unit/intervention-file-properties.test.ts` (1 019 bytes, 2 cases, verified to pass when run independently), and the host's checks — typecheck, the test command and `git diff` — all passed. One of the two cases round-trips an **empty** array, which is weaker evidence than the objective described. |
+| **Why this is a note rather than a defect** | The host cannot judge whether an assertion is meaningful, and it should not pretend to: it runs the allowlisted commands and reports their outcome. That is the correct division of labour — `MANDATORY_GATE_STAGES` establishes completion eligibility, and judging the *quality* of a test is what an independent reader is for. The alternative (a heuristic that rejects "weak-looking" tests) would be a false-confidence machine. |
+| **Consequence, stated plainly** | "The host's checks passed" means the change compiles, the suite is green and the diff is clean. It does NOT mean the change does what the objective asked. A reader of a `CONVERGED` result must not inflate it into a quality claim, and Phase 06's own evidence is worded accordingly. |
+| **What would close it** | A downstream quality gate that reads the change against the objective. The optional Agent review stage is the natural place — and `Gate 8` measured it `COST_ONLY`, so it is not in the default pipeline and this is not currently covered. |
+| **Target / revisit phase** | Not a Phase 06 gate; revisit when a review stage earns its place |
+| **Last reviewed SHA** | `c192d0d14362bacf49f88a90f7a4d4d421c024d8` |
 
 
 
@@ -233,6 +250,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | Phase 06 Task C batch 3 | 06 (construction) | none | `PF-DEBT-001` (`experience` authoritative suite), `PF-DEBT-002` (`remote` authoritative suite) — capability coverage now **27 of 27** |
 | Phase 06 Task D batch 4 | 06 (construction) | `PF-DEBT-009` (environment failure misreported as a code finding), `PF-DEBT-010` (audit cost + aborts on pre-existing failures) | none — D's harness is delivered, its findings are recorded, and neither is fixed yet |
 | Phase 06 Task D follow-up batch 5 | 06 (construction) | none | `PF-DEBT-009` (environment findings classified as environment, both directions tested). `PF-DEBT-010` re-classified from `OPEN` to `ARCHITECTURE ISSUE`: the driver is a REPAIR loop and a new-goal objective needs a different one, which cannot be patched without changing self-evolution semantics |
+| Phase 06 Task D batch 6 | 06 (construction) | `PF-DEBT-011` (a vacuously-passing test satisfies the host) | `PF-DEBT-010` (resolved by adding the goal-driven loop, not by patching the repair loop). A dogfood run reached `CONVERGED` |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a

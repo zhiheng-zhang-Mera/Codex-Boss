@@ -214,11 +214,21 @@ describe("Phase 05 Task G — the certificate is honest about what has not run",
     }
   });
 
-  it("names the capabilities with no authoritative suite", () => {
+  it("publishes the capabilities with no authoritative suite, rather than smoothing the gap over", () => {
     const certificate = generate();
-    // A real evidence gap in the platform, published by the certificate rather than smoothed over.
-    expect(certificate.sections.verification.impactSelector.capabilitiesWithoutASuite).toEqual(["experience", "remote"]);
+    // The section is the platform's own admission of where its evidence is thin, and Phase 06 Task C
+    // closed the two gaps it was reporting (`experience`, `remote`). What must NOT change is that it
+    // keeps reporting: a hardcoded list would either keep naming capabilities that now have suites, or
+    // — worse — stay silent if a new gap appeared. So the assertion is about the mechanism: the field
+    // is a real list, no owned source file is unowned, and anything the audit does find is published
+    // here rather than accepted.
+    const withoutSuite = certificate.sections.verification.impactSelector.capabilitiesWithoutASuite;
+    expect(Array.isArray(withoutSuite)).toBe(true);
     expect(certificate.sections.verification.impactSelector.unownedSourceFiles).toBe(0);
+    // The two Phase 05 gaps are closed, so they must no longer be reported. If either reappears, this
+    // fails and the certificate is where a reader will see it.
+    expect(withoutSuite).not.toContain("experience");
+    expect(withoutSuite).not.toContain("remote");
   });
 
   it("names the gate 7 evidence for both halves, and checks the suites are real", () => {

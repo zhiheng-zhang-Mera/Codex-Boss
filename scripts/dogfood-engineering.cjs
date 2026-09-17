@@ -397,7 +397,9 @@ async function main() {
       note: "providerInputTokens/OutputTokens are the provider's own counts. No ceil(chars/4) estimate is promoted to a measurement."
     };
 
-    evidence.status = summary.state === "ENGINEERING_CONVERGED" ? "CONVERGED" : "NOT_CONVERGED";
+    // The goal loop's own state is the verdict — it is not the repair loop's `ENGINEERING_CONVERGED`.
+    // Comparing against the wrong vocabulary reported a converged run as NOT_CONVERGED.
+    evidence.status = summary.state;
   } catch (error) {
     evidence.status = "FAILED";
     evidence.error = error instanceof Error ? error.message : String(error);

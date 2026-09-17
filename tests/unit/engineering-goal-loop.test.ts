@@ -64,7 +64,7 @@ describe("Phase 06 — the audit is a precondition, not a work list", () => {
   it("records pre-existing CODE findings and does not work them", async () => {
     // The inversion. A repair loop would target `command:test`; this loop must record it and work the
     // objective instead.
-    const implement = vi.fn(async () => ({ changedFiles: ["tests/a.test.ts"], status: "PASS" as const, checks: [{ kind: "test", passed: true }] }));
+    const implement = vi.fn(async (_goal: EngineeringGoalContract, _objective: string) => ({ changedFiles: ["tests/a.test.ts"], status: "PASS" as const, checks: [{ kind: "test", passed: true }] }));
     const summary = await runEngineeringGoalLoop({
       goal: goal(),
       operations: operations({ audit: async () => [codeFinding("command:test")], implement })

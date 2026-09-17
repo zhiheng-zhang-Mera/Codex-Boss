@@ -81,10 +81,18 @@ Run 5 reached the coder twice (4 663 provider-reported input tokens) with `check
 
 ### The open item
 
-A dogfood run has not yet reached `CONVERGED`. The remaining cause is the **coder's manifest compliance** —
-`expectedSha256` must be `null` or a 64-hex digest — not a platform defect: the platform validated,
-refused and reported it exactly as designed. Closing it is harness work (a proposal contract the model
-follows reliably, or a bounded repair of a rejected manifest), not a change to the platform's guarantees.
+**Closed.** A dogfood run reached `CONVERGED` on the sixth attempt: one file applied, typecheck + the test
+command + `git diff` all passed, the pre-existing failure recorded and not worked, `checkoutUntouched=true`,
+1 930 provider-reported input tokens, and the platform's generated test verified to pass when run
+independently of the platform.
+
+Getting there closed `PF-DEBT-010` (the goal-driven loop) and one further real defect: `parseManifest`
+format-checked `expectedSha256` with a rule **stricter than the applier's own check** — `applyScopedChanges`
+recomputes the target's digest and refuses a mismatch, and `null` already means "no prior hash". So a model's
+formatting slip in a field the applier was going to recompute ended the run and spent the single automatic
+schema retry. The format check is gone, the safety property is not, and
+`tests/unit/change-manifest-boundary.test.ts` holds both halves: a malformed digest is normalised, and a
+**wrong** hash is still refused with "Source changed since proposal".
 
 ### What Task A actually found
 

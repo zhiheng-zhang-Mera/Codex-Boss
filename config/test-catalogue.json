@@ -464,6 +464,14 @@
       ]
     },
     {
+      "file": "tests/unit/change-manifest-boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "engineering",
+        "promotion"
+      ]
+    },
+    {
       "file": "tests/unit/closure-terminal-logic.test.ts",
       "tier": "unit",
       "covers": [

@@ -16,7 +16,7 @@ export class ProposalRunner {
         const content = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
         return { path: file, expectedSha256: content === null ? null : digest(content), content };
       });
-      const prompt = JSON.stringify({ objective, files, failures, requiredChecks, responseContract: "Return strict JSON with changes:[{path,expectedSha256,content}] and checks copied exactly from requiredChecks. Syntax checks use singular file, while test checks use files. Change only listed files. Preserve hashes exactly. Do not execute commands. Repair the reported failure without weakening checks." });
+      const prompt = JSON.stringify({ objective, files, failures, requiredChecks, responseContract: "Return strict JSON with changes:[{path,expectedSha256,content}] and checks copied exactly from requiredChecks. expectedSha256 must be copied EXACTLY as given for a listed file, and must be null when the file is new (no `files` entry for it). Syntax checks use singular file, while test checks use files. Change only listed files. Do not execute commands. Repair the reported failure without weakening checks." });
       if (prompt.length > 200000) throw new Error("Proposal context exceeds budget");
       const response = await this.worker(prompt);
       let manifest;

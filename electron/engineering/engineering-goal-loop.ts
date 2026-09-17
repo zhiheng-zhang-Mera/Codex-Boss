@@ -60,7 +60,7 @@ interface EngineeringGoalLoopSummary {
   terminalReason: string;
 }
 
-interface EngineeringGoalLoopOperations {
+export interface EngineeringGoalLoopOperations {
   /** The precondition check. Returns what is wrong with the workspace as it stands. */
   audit(goal: EngineeringGoalContract): Promise<EngineeringFinding[]>;
   /** Propose, apply and verify one bounded change for the objective. Undefined change set = nothing to do. */
