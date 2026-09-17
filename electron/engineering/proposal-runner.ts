@@ -6,7 +6,7 @@ import type { RunAllowedCommandOptions } from "./command-runner";
 export interface ProposalResult { verificationHistory?: CheckEvidence[]; status: "PASS" | "FAIL"; changes: ChangeEvidence[]; checks: CheckEvidence[]; repairs: number; diff: string; }
 export class ProposalRunner {
   constructor(private readonly worker: (prompt: string) => Promise<string>, private readonly checkOptions: RunAllowedCommandOptions = {}) {}
-  async run(root: string, objective: string, authorizedPaths: string[], requiredChecks: CheckSpec[]): Promise<ProposalResult> {
+  async run(root: string, objective: string, authorizedPaths: string[], requiredChecks: CheckSpec[], options: { mayCreate?: (path: string) => boolean } = {}): Promise<ProposalResult> {
     if (!authorizedPaths.length || !requiredChecks.length) throw new Error("Engineering requires explicit file and verification scope");
     const changes: ChangeEvidence[] = []; const verificationHistory: CheckEvidence[] = []; let repairs = 0;
     const propose = async (failures: CheckEvidence[] = []) => {
@@ -22,7 +22,7 @@ export class ProposalRunner {
       let manifest;
       try { manifest = parseManifest(response); }
       catch (error) { manifest = parseManifest(await this.worker(prompt + "\nCorrect the response schema once: " + String(error) + "\nUse the exact requiredChecks objects; syntax uses file, not files. Previous response: " + response.slice(0, 200000))); }
-      changes.push(...applyManifest(root, manifest, authorizedPaths));
+      changes.push(...applyManifest(root, manifest, authorizedPaths, options));
     };
     await propose();
     // Worker checks are advisory. Required checks are selected by the host before proposal.

@@ -8,7 +8,21 @@ import { assertMutationAllowed } from "../self-evolution/mutation-guard";
 export interface FileChange { path: string; expectedSha256: string | null; content: string; }
 export interface ChangeEvidence { path: string; before: string | null; after: string; }
 export function digest(content: string): string { return createHash("sha256").update(content).digest("hex"); }
-export function applyScopedChanges(root: string, changes: FileChange[], authorizedPaths: string[]): ChangeEvidence[] {
+/**
+ * Apply a proposed change set, whole-or-nothing.
+ *
+ * `options.mayCreate` is an OPT-IN grant that lets a named path be CREATED, and it exists because a
+ * goal such as "add this test file" is otherwise impossible: a file that does not exist yet cannot be
+ * pre-authorised by listing it, so the only alternatives were to authorise nothing (the goal can never
+ * succeed) or to authorise a directory wholesale by putting it in `authorizedPaths` (which would also
+ * permit OVERWRITING every file in it).
+ *
+ * So the grant is deliberately narrower than that: it is consulted ONLY for a file that does not exist,
+ * it is a caller-supplied predicate rather than a flag, and it defaults to absent — meaning the
+ * existing behaviour, and every existing caller, is unchanged. Overwriting an existing file still
+ * requires that file to be in `authorizedPaths`.
+ */
+export function applyScopedChanges(root: string, changes: FileChange[], authorizedPaths: string[], options: { mayCreate?: (path: string) => boolean } = {}): ChangeEvidence[] {
   if (!changes.length || changes.length > 50 || new Set(changes.map((item) => item.path)).size !== changes.length) throw new Error("Invalid change set");
   // §7.3 host-level assertion: this is the single write boundary every proposal
   // and every merge funnels through. If the target is the Stable Boss
@@ -19,10 +33,15 @@ export function applyScopedChanges(root: string, changes: FileChange[], authoriz
   // Preflight the entire manifest before changing any file.
   const prepared = changes.map((change) => {
     const target = workspacePath(root, change.path);
-    if (!authorized.has(target)) throw new Error("Change outside authorized scope");
+    const exists = fs.existsSync(target);
+    // An existing file must be authorised by name. A file being CREATED may instead be authorised by
+    // the caller's explicit creation grant — never by absence from the authorised list.
+    if (!authorized.has(target) && !(exists === false && options.mayCreate?.(change.path) === true)) {
+      throw new Error("Change outside authorized scope");
+    }
     if (/(^|[\\/])(?:\.git|\.codex|\.agents|AGENTS\.md)([\\/]|$)/i.test(change.path)) throw new Error("Protected workspace metadata");
     if (Buffer.byteLength(change.content) > 1000000) throw new Error("Change exceeds budget");
-    const before = fs.existsSync(target) ? digest(fs.readFileSync(target, "utf8")) : null;
+    const before = exists ? digest(fs.readFileSync(target, "utf8")) : null;
     if (before !== change.expectedSha256) throw new Error("Source changed since proposal");
     return { change, target, before };
   });

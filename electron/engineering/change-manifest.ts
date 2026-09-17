@@ -12,6 +12,6 @@ export function parseManifest(content: string): ChangeManifest {
   }
   return value;
 }
-export function applyManifest(root: string, manifest: ChangeManifest, authorizedPaths: string[]) {
-  return applyScopedChanges(root, manifest.changes, authorizedPaths);
+export function applyManifest(root: string, manifest: ChangeManifest, authorizedPaths: string[], options: { mayCreate?: (path: string) => boolean } = {}) {
+  return applyScopedChanges(root, manifest.changes, authorizedPaths, options);
 }

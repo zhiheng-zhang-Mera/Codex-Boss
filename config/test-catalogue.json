@@ -677,6 +677,13 @@
       ]
     },
     {
+      "file": "tests/unit/engineering-goal-loop.test.ts",
+      "tier": "unit",
+      "covers": [
+        "engineering"
+      ]
+    },
+    {
       "file": "tests/unit/engineering-goal-rollback.test.ts",
       "tier": "unit",
       "covers": [
