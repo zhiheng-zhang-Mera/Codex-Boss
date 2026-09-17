@@ -183,7 +183,41 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **Target / revisit phase** | Phase 06 Task A |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
----
+## PF-DEBT-009 — the engineering audit cannot tell an environment failure from a code finding
+
+| Field | Value |
+| --- | --- |
+| **ID** | `PF-DEBT-009` |
+| **Title** | A toolchain/environment failure is reported as an unscopable HIGH code finding |
+| **Discovered phase** | 06 (Task D — the dogfooding harness, on its first real run) |
+| **Status** | `OPEN` |
+| **Severity** | `HIGH` |
+| **Affected capability** | `engineering` (the audit → triage → scope path) |
+| **Evidence / source** | Established by running the dogfooding harness against a linked worktree that had no `node_modules`. `runAllowedCommand` invokes the workspace's own compilers by absolute path (`node_modules/typescript/bin/tsc`, `node_modules/vitest/vitest.mjs` — `command-runner.ts:61-64`), so with no toolchain both commands exit 1. `commandFinding` (`repo-engineering-operations.ts:46-56`) maps that to `{ id: "command:typecheck", area: "build", severity: "HIGH" }`, and `candidateFilesForFinding` (`finding-scope.ts:62-80`) finds no candidate because the diagnostic names `node_modules/typescript/bin/tsc` — a path with **no file extension**, which `CODE_PATH_TOKEN` (`finding-scope.ts:18-19`) does not match. The loop then aborts with *"scope inference found no candidate file for finding command:typecheck (build); aborting bounded patch"*, recorded in `artifacts/platform-foundation/phase-06/dogfood-run-1.json`. |
+| **Consequence** | A missing toolchain, an uninstalled dependency or any other environment fault is presented as a HIGH-severity code finding with no scope. A reader cannot tell "the compiler is not installed" from "the code does not compile", and the loop consumes its iteration budget aborting on a problem no code change can fix. The finding's own description would have distinguished them — it carries the compiler's message — but the abort reason does not, and nothing in the pipeline classifies it. |
+| **Why it matters beyond this harness** | Any workspace whose toolchain is incomplete — a fresh clone, a CI container before install, a user's first run — produces this shape. It is the platform's first impression of an unbuildable tree. |
+| **What would close it** | The audit distinguishing an environment/toolchain fault from a code diagnostic and reporting it as such (its own finding kind, or an explicit non-implementable classification) instead of a HIGH code finding; the abort reason naming that classification rather than "no candidate file"; and a test proving both directions — an environment fault is classified as environment, and a genuine compiler diagnostic still yields a scoped code finding. |
+| **Target / revisit phase** | Phase 06 (Task D follow-up) |
+| **Last reviewed SHA** | `34a591c444ed3de1a54b7955f03b965d1b4cf4f9` |
+
+## PF-DEBT-010 — the autonomous audit runs the full test suite on every iteration of every round
+
+| Field | Info |
+| --- | --- |
+| **ID** | `PF-DEBT-010` |
+| **Title** | Each audit iteration runs the whole test suite, and the loop aborts on pre-existing failures |
+| **Discovered phase** | 06 (Task D — observed on a real run) |
+| **Status** | `OPEN` |
+| **Severity** | `MEDIUM` |
+| **Affected capability** | `engineering` / `runtime` (cost), and the usefulness of dogfooding itself |
+| **Evidence / source** | `repo-engineering-operations.ts:74-83`: `audit()` runs `typecheck` **and** the full `test` command unconditionally. On a real run against this repository the audit alone took **489 503 ms** for one finding (`artifacts/platform-foundation/phase-06/dogfood-run-3.json`), because it ran the whole 2447-test suite. The finding it produced was `command:test`, and the test that failed was `tests/acceptance/evolution-sandbox.test.ts` — already recorded as `PF-DEBT-003`, environment-blocked on this host. The loop therefore aborts on a failure it did not cause and cannot fix. |
+| **Consequence** | Two costs. (1) The audit is the loop's most expensive step by an order of magnitude, and it repeats per iteration. (2) On any host with a pre-existing environment-blocked failure, autonomous engineering can never proceed past the first audit — every round re-discovers the same unfixable finding. That is fail-closed rather than unsafe, but it means dogfooding cannot run on this machine until the finding is excluded on evidence rather than by weakening a test. |
+| **What would close it** | The audit distinguishing "failures this change could have caused" from "failures present before the change" (a baseline comparison), so a pre-existing environment-blocked suite is reported as a known-baseline condition rather than as the round's target — with the exclusion derived from a measured baseline, never from a hand-maintained skip list. Phase 01's impact selector already exists for the cost half and is not used here. |
+| **Explicitly forbidden** | Deleting, skipping or relaxing `evolution-sandbox` to make the audit green. `PF-DEBT-003` forbids exactly that, and this entry must not become the reason it happens. |
+| **Target / revisit phase** | Phase 06 (Task D follow-up) |
+| **Last reviewed SHA** | `34a591c444ed3de1a54b7955f03b965d1b4cf4f9` |
+
+
 
 ## Review log
 
@@ -193,6 +227,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | Phase 06 Task B batch 1 | 06 (construction) | `PF-DEBT-005`, `PF-DEBT-006` | `PF-DEBT-005` (B1), `PF-DEBT-006` (B2) |
 | Phase 06 Task A batch 2 | 06 (construction) | none | `PF-DEBT-007` (journal layout owner), `PF-DEBT-008` (machine-identity layout owner) |
 | Phase 06 Task C batch 3 | 06 (construction) | none | `PF-DEBT-001` (`experience` authoritative suite), `PF-DEBT-002` (`remote` authoritative suite) — capability coverage now **27 of 27** |
+| Phase 06 Task D batch 4 | 06 (construction) | `PF-DEBT-009` (environment failure misreported as a code finding), `PF-DEBT-010` (audit cost + aborts on pre-existing failures) | none — D's harness is delivered, its findings are recorded, and neither is fixed yet |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a
