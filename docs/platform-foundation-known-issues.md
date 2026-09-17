@@ -152,14 +152,15 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **ID** | `PF-DEBT-007` |
 | **Title** | One durable state file is built by several independent construction sites |
 | **Discovered phase** | 06 (during book reconstruction) |
-| **Status** | `OPEN` |
-| **Severity** | `MEDIUM` |
+| **Status** | `FIXED` (Phase 06 Task A) |
+| **Severity** | `MEDIUM` — raised from the originally recorded suspicion: the two documents are mutually destructive, so this is data corruption, not only duplicated authority |
 | **Affected capability** | `engineering` / `self-evolution` |
-| **Evidence / source** | `electron/commander/main-commander.ts:775` and `:776` construct two stores over the same resolved path inside one function; `:871` constructs a third; `electron/self-evolution/self-evolution-coordinator.ts:434` constructs one over a different root (`layout.journal`). |
-| **Consequence** | The Phase 01 state-ownership contract claims one authoritative owner per durable namespace. With several independent `path.join(...)` sites, the ownership report and the runtime behaviour can disagree, and a root move becomes a hunt rather than a change to one module. |
-| **Why recorded now** | Located during reconstruction. Whether the self-evolution root is genuinely a different namespace must be **proved**, not assumed — merging two distinct namespaces would be a worse defect than the duplication. |
+| **Evidence / source** | `electron/commander/main-commander.ts:778` and `:779` built two stores over the same resolved path inside one function; `:871` built a third; `electron/self-evolution/self-evolution-coordinator.ts:434` built one over `layout.journal`. Reading both stores end to end showed the sharper fact: `EngineeringLoopStore`'s reader **requires** an `iterations` array and throws `Invalid engineering loop file` without it (`engineering-loop-store.ts:128`), while `EngineeringRecoveryLedger` writes `{ schemaVersion, events }` (`engineering-recovery.ts:137`). The recovery ledger's own comment already claimed it is *"deliberately separate from the iteration rows: a recovery event must not overwrite the iteration's findings"* — nothing enforced it. `recoveryLedgerFor(file)` compounded this by building a sibling of whatever path it was handed, so passing a directory silently produced a plausible wrong path. |
+| **Consequence** | Beyond duplicated authority, the two documents are **mutually destructive**. Writing a recovery event over the loop document leaves a file the loop store can no longer open at all — its reader throws rather than reporting an empty journal — so a run whose journal hits this cannot be inspected or resumed through the loop store. The failure is worse than loud: the loop store spreads what it parsed, so the recovery event survives inside the loop document and the file becomes a silent mixture of two shapes that neither owner knows about. |
+| **Why recorded now** | Located during reconstruction by reading both stores end to end. Whether the self-evolution root is genuinely a different namespace had to be **proved** rather than assumed — merging two distinct namespaces would be a worse defect than the duplication. |
 | **What would close it** | One resolution point per namespace, used by every caller; the ownership report's owner being the code that actually constructs it; existing Phase 02/03/05 tests still passing; and a documented reason for any site that legitimately resolves a different root. |
 | **Target / revisit phase** | Phase 06 Task A |
+| **How it was closed** | `electron/engineering/engineering-journal.ts` now owns the layout: `ENGINEERING_JOURNAL_FILES` names the two documents and `engineeringJournalAt(directory)` returns both stores plus the directory it resolved, so a caller cannot pair a loop store from one run with a recovery ledger from another. All three `main-commander` sites and the self-evolution site resolve through it. The path-taking `recoveryLedgerFor(file)` was **removed** — a helper that accepted the wrong kind of path and invented an answer is worse than one that refuses — and its test callers were routed through the resolver. The self-evolution journal was proved to be a genuinely different directory (`layout.journal`) and is kept, now via the shared resolver rather than a hand-derived filename. `tests/unit/engineering-journal-layout.test.ts` reproduces the collision, asserts the loop store throws over the shared file, then asserts both documents stay readable through the resolved paths. |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
 ## PF-DEBT-008 — `secret-vault.json` is constructed at two sites with differing labelling
@@ -169,13 +170,14 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **ID** | `PF-DEBT-008` |
 | **Title** | The machine-identity vault file has two construction sites |
 | **Discovered phase** | 06 (during book reconstruction) |
-| **Status** | `OPEN` |
+| **Status** | `FIXED` (Phase 06 Task A) |
 | **Severity** | `MEDIUM` |
 | **Affected capability** | `security` / `github-machine-identity` |
 | **Evidence / source** | `electron/github/bootstrap.ts:39` constructs `SecretVaultStore` over `path.join(root, "secret-vault.json")`; `electron/github/github-machine-runtime.ts:47` constructs it over the same file name while passing a vault label (`"machine-identity"`). |
 | **Consequence** | Same namespace-shape risk as `PF-DEBT-007`, in the security surface: two places decide what the vault's file and label are, so a label or root change in one silently disagrees with the other. |
 | **Why recorded now** | Located during reconstruction. Security-adjacent, so any consolidation must be behaviour-preserving and covered by the existing tests before and after. |
 | **What would close it** | A single resolver for the vault's path and label, used by both callers, with the existing security tests passing unchanged. |
+| **How it was closed** | `electron/github/machine-identity-layout.ts` declares the three files (`github-machine-identity.json`, `secret-vault.json`, `node-machine-identity.json`) and the vault label, and `githubMachineIdentityAt(bossDirectory)` resolves them together. Both construction sites use it — the Root Owner credential ceremony that WRITES the private key and the production runtime that READS it — so the file name and the label are one declaration instead of two coincidences. `tests/unit/machine-identity-layout.test.ts` asserts the vault document is distinct from the non-secret config, that writer and reader resolve the same file and label, and that a differently-spelled root normalises to the same path. |
 | **Target / revisit phase** | Phase 06 Task A |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
@@ -187,6 +189,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | --- | --- | --- | --- |
 | `14fd222aba782f97ec40662b04fc19f391f2653d` | 06 (reconstruction) | `PF-DEBT-001` … `PF-DEBT-008` | none |
 | Phase 06 Task B batch 1 | 06 (construction) | `PF-DEBT-005`, `PF-DEBT-006` | `PF-DEBT-005` (B1), `PF-DEBT-006` (B2) |
+| Phase 06 Task A batch 2 | 06 (construction) | none | `PF-DEBT-007` (journal layout owner), `PF-DEBT-008` (machine-identity layout owner) |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a

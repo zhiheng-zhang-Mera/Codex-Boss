@@ -679,6 +679,13 @@
       ]
     },
     {
+      "file": "tests/unit/engineering-journal-layout.test.ts",
+      "tier": "unit",
+      "covers": [
+        "engineering"
+      ]
+    },
+    {
       "file": "tests/unit/engineering-recovery.test.ts",
       "tier": "unit",
       "covers": [
@@ -910,6 +917,13 @@
       "tier": "unit",
       "covers": [
         "providers"
+      ]
+    },
+    {
+      "file": "tests/unit/machine-identity-layout.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security"
       ]
     },
     {

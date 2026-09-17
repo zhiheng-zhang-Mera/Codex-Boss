@@ -27,6 +27,7 @@ import type { PromotionState } from "../../src/shared/root-authority/promotion-s
 import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineering/engineering-loop-driver";
 import type { EngineeringFinding, ReviewerFinding } from "../../src/shared/engineering-loop";
 import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
+import { engineeringJournalAt } from "../engineering/engineering-journal";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
 import { appDataUnder } from "../runtime-paths";
@@ -431,7 +432,10 @@ export class SelfEvolutionCoordinator {
 
         setState("WORKING");
         const goal = this.buildGoal(request, layout.workspace);
-        const loopStore = new EngineeringLoopStore(path.join(layout.journal, "engineering-loop.json"));
+        // The journal layout is resolved, not re-derived: this site is a different root from the
+        // commander's, which is exactly why deriving the filename here was a hazard (PF-DEBT-007).
+        const journal = engineeringJournalAt(layout.journal);
+        const loopStore = journal.loopStore();
         loopStore.freezeGoal(goal);
         const live = createLiveEngineeringOperations({
           workspace: layout.workspace,

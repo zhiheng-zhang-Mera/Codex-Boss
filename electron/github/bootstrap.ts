@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, dialog, safeStorage } from "electron";
 import { SecretVaultStore } from "../security/secret-vault-store";
+import { githubMachineIdentityAt } from "./machine-identity-layout";
 import { appDataUnder } from "../runtime-paths";
 import { BOSS_GITHUB_LOGICAL_IDENTITY, validateGitHubMachineIdentityConfig } from "../../src/shared/github-machine";
 
@@ -35,11 +36,15 @@ app.whenReady().then(async () => {
   });
   if (!config) throw new Error("Invalid App ID, Installation ID, or repository allowlist");
   const root = path.join(app.getPath("userData"), ".boss");
+  // The same layout declaration the production runtime reads through. The Root Owner ceremony WRITES
+  // the key and the runtime READS it, so the file name and the vault label are part of one contract
+  // rather than two independent decisions (PF-DEBT-008).
+  const layout = githubMachineIdentityAt(root);
   const vault = new SecretVaultStore(
-    path.join(root, "secret-vault.json"),
+    layout.vaultFile,
     (plainText) => safeStorage.encryptString(plainText).toString("base64"),
     (cipherText) => safeStorage.decryptString(Buffer.from(cipherText, "base64")),
-    "machine-identity"
+    layout.vaultLabel
   );
   const confirmation = await dialog.showMessageBox({
     type: "warning",

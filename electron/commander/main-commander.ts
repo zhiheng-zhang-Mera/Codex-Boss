@@ -49,14 +49,14 @@ import { resourceProfile } from "../../src/shared/software-session";
 import { applyTaskPolicy } from "./task-policy";
 import { isWorkAgentCount } from "../../src/shared/work-mode";
 import { EngineeringLoopDriver, type EngineeringLoopSummary } from "../engineering/engineering-loop-driver";
-import { EngineeringLoopStore } from "../engineering/engineering-loop-store";
+import { engineeringJournalAt, type EngineeringJournal } from "../engineering/engineering-journal";
 import { createRepoEngineeringOperations } from "../engineering/repo-engineering-operations";
 import { createLiveEngineeringOperations, type EngineeringRoleWorker } from "../engineering/live-engineering-operations";
 import { engineeringSessionId, type EngineeringSessionKey } from "../engineering/engineering-session";
 import { canonicalRealPathSync } from "../workspace/path-utils";
 import {
   captureRecoveryPoint, closeGoalWithoutRecoveryPoint, EngineeringRecoveryError,
-  preserveWorkspaceAfter, recordRecoveryOutcome, recoveryLabel, recoveryLedgerFor, restoreRecoveryPoint,
+  preserveWorkspaceAfter, recordRecoveryOutcome, recoveryLabel, restoreRecoveryPoint,
   type WorkspaceRecoveryOutcome
 } from "../engineering/engineering-recovery";
 import { desktopMutationGate } from "../../src/shared/permission";
@@ -775,8 +775,9 @@ export class MainCommander {
     if (!this.ledger) throw new Error("Autonomous engineering requires a durable ledger");
     const now = new Date().toISOString();
     const goal: EngineeringGoalContract = { schemaVersion: 1, id: input.goal.id ?? `eng-${TaskLedger.fingerprint(input.goal.objective).slice(0, 12)}`, createdAt: now, ...input.goal };
-    const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
-    const recoveryLedger = recoveryLedgerFor(path.join(this.ledger.root, "..", "engineering-loop.json"));
+    const journal = this.engineeringJournal();
+    const loopStore = journal.loopStore();
+    const recoveryLedger = journal.recoveryLedger();
     if (input.replace) loopStore.replaceGoal(goal); else loopStore.freezeGoal(goal);
 
     // §38 + Update-Plan/cleaning.md §7 (fail closed): the working tree is
@@ -871,8 +872,20 @@ export class MainCommander {
    */
   engineeringGoalStatus(): EngineeringGoalSnapshot {
     if (!this.ledger) throw new Error("Autonomous engineering requires a durable ledger");
-    const loopStore = new EngineeringLoopStore(path.join(this.ledger.root, "..", "engineering-loop.json"));
+    const loopStore = this.engineeringJournal().loopStore();
     return loopStore.status();
+  }
+
+  /**
+   * The autonomous engineering journal for this commander's ledger root.
+   *
+   * One resolver, because deriving the paths here is what allowed three sites to disagree: the loop
+   * store and the recovery ledger persist different documents, and `PF-DEBT-007` records that a single
+   * derived path was previously able to hand both of them the same file.
+   */
+  private engineeringJournal(): EngineeringJournal {
+    if (!this.ledger) throw new Error("Autonomous engineering requires a durable ledger");
+    return engineeringJournalAt(path.join(this.ledger.root, ".."));
   }
 
   private transition(taskId: string, status: TaskStatus): void {

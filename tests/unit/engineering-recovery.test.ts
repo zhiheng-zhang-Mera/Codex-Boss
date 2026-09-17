@@ -13,9 +13,10 @@ import { ContextManager } from "../../electron/commander/context-manager";
 import { ExecutionGate } from "../../electron/commander/execution-gate";
 import { TaskLedger } from "../../electron/commander/task-ledger";
 import { EngineeringLoopStore } from "../../electron/engineering/engineering-loop-store";
+import { engineeringJournalAt } from "../../electron/engineering/engineering-journal";
 import {
   captureRecoveryPoint, EngineeringRecoveryError, EngineeringRecoveryLedger,
-  preserveWorkspaceAfter, recoveryLedgerFor, restoreRecoveryPoint
+  preserveWorkspaceAfter, restoreRecoveryPoint
 } from "../../electron/engineering/engineering-recovery";
 import type { EngineeringGoalContract, WorkspaceRecoveryOutcome } from "../../src/shared/engineering-loop";
 
@@ -150,14 +151,15 @@ describe("§7 checkpoint fail-closed: no recovery point, no autonomous mutation"
     const { commander, ledger } = commanderFor(dir);
     const summary = await commander.runEngineeringGoal({ goal: goal(dir), workspace: dir, disableCoder: true, disableReviewer: true });
 
-    const loopFile = path.join(ledger.root, "..", "engineering-loop.json");
+    const journal = engineeringJournalAt(path.join(ledger.root, ".."));
+    const loopFile = journal.loopFile;
     const loop = new EngineeringLoopStore(loopFile);
     const iterations = loop.iterations();
     expect(iterations).toHaveLength(1);
     expect(iterations[0]!.status).toBe("ABORTED");
     expect(iterations[0]!.remainingRisk).toBe(summary.terminalReason);
 
-    const events = recoveryLedgerFor(loopFile).list();
+    const events = engineeringJournalAt(path.dirname(loopFile)).recoveryLedger().list();
     expect(events).toHaveLength(1);
     const event = events[0]!;
     expect(event.code).toBe("CHECKPOINT_UNAVAILABLE");
@@ -276,7 +278,7 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
     expect(alpha(dir)).toBe(before);
     expect(status(dir)).toBe("");
 
-    const events = recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list();
+    const events = engineeringJournalAt(path.join(ledger.root, "..")).recoveryLedger().list();
     expect(events).toHaveLength(1);
     expect(events[0]!.code).toBe("ENGINEERING_DRIVER_FAILED");
     expect(events[0]!.driverError).toBe("driver exploded while implementing");
@@ -316,7 +318,7 @@ describe("§8 a driver exception rolls back and preserves both errors", () => {
     // The rollback refusal is why the tree still holds the change — reported, not hidden.
     expect(alpha(dir)).not.toBe(before);
 
-    const events = recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list();
+    const events = engineeringJournalAt(path.join(ledger.root, "..")).recoveryLedger().list();
     expect(events[0]!.code).toBe("ENGINEERING_DRIVER_FAILED");
     expect(attemptedRollback(events[0]!.recovery).ok).toBe(false);
   }, 120000);
@@ -365,7 +367,7 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
     expect(summary.terminalReason).toContain("ABORTED");
     expect(alpha(dir)).toBe(before);
     expect(status(dir)).toBe("");
-    expect(recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list()[0]!.code).toBe("ROLLBACK_ABORTED");
+    expect(engineeringJournalAt(path.join(ledger.root, "..")).recoveryLedger().list()[0]!.code).toBe("ROLLBACK_ABORTED");
   }, 120000);
 
   it("CONVERGED preserves its verified changes and records the preserved checkpoint", async () => {
@@ -413,8 +415,9 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
     expect(summary.recovery).toEqual({ attempted: false, code: "CHECKPOINT_PRESERVED", reason: expect.any(String) });
     expect(summary.terminalReason).toBeUndefined();
 
-    const loopFile = path.join(ledger.root, "..", "engineering-loop.json");
-    const events = recoveryLedgerFor(loopFile).list();
+    const journal = engineeringJournalAt(path.join(ledger.root, ".."));
+    const loopFile = journal.loopFile;
+    const events = engineeringJournalAt(path.dirname(loopFile)).recoveryLedger().list();
     expect(events).toHaveLength(1);
     expect(events[0]!.code).toBe("CHECKPOINT_PRESERVED");
     expect(new EngineeringLoopStore(loopFile).iterations().at(-1)!.status).toBe("CONVERGED");
@@ -455,7 +458,7 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
     expect(alpha(dir)).toBe(before);
     expect(fs.existsSync(path.join(dir, "scratch.cjs"))).toBe(false);
     expect(status(dir)).toBe("");
-    expect(recoveryLedgerFor(path.join(ledger.root, "..", "engineering-loop.json")).list()[0]!.code).toBe("ROLLBACK_STAGNANT");
+    expect(engineeringJournalAt(path.join(ledger.root, "..")).recoveryLedger().list()[0]!.code).toBe("ROLLBACK_STAGNANT");
   }, 180000);
 });
 

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PROCESS_MAX_BUFFER_BYTES, PROCESS_TIMEOUT_MS, runProcess } from "../process/process-gateway";
 import { SecretVaultStore } from "../security/secret-vault-store";
 import { loadGitHubMachineIdentityConfig } from "./github-config";
+import { githubMachineIdentityAt } from "./machine-identity-layout";
 import { GitHubAppAuthProvider, fetchGitHubHttpTransport } from "./github-app-auth";
 import { GitHubGateway } from "./github-gateway";
 import { SecretVaultProvider } from "./secret-provider";
@@ -41,13 +42,17 @@ export function createGitHubMachineRuntime(input: { userData: string; crypto: Pl
   | { configured: false }
   | { configured: true; nodeId: string; auth: GitHubAppAuthProvider; gateway: GitHubGateway; selfCheck(): ReturnType<typeof checkNodeGitHubCapabilities> } {
   const root = path.join(input.userData, ".boss");
-  const configFile = path.join(root, "github-machine-identity.json");
+  // The vault file and its label come from the one layout declaration, which the Root Owner
+  // credential ceremony uses as well — so the caller that WRITES the key and this one that READS it
+  // cannot disagree about where it lives or what label it is under (PF-DEBT-008).
+  const layout = githubMachineIdentityAt(root);
+  const configFile = layout.configFile;
   if (!fs.existsSync(configFile)) return { configured: false };
   const config = loadGitHubMachineIdentityConfig(configFile);
-  const vault = new SecretVaultStore(path.join(root, "secret-vault.json"), input.crypto.protect, input.crypto.unprotect, "machine-identity");
+  const vault = new SecretVaultStore(layout.vaultFile, input.crypto.protect, input.crypto.unprotect, layout.vaultLabel);
   const secrets = new SecretVaultProvider(vault, process.platform === "win32" ? "windows-secure-store" : "platform-secure-store");
   const auth = new GitHubAppAuthProvider(config, secrets, fetchGitHubHttpTransport);
-  const nodeId = persistentNodeId(path.join(root, "node-machine-identity.json"));
+  const nodeId = persistentNodeId(layout.nodeFile);
   const gateway = new GitHubGateway({ config, auth, transport: fetchGitHubHttpTransport, nodeId });
   return {
     configured: true, nodeId, auth, gateway,

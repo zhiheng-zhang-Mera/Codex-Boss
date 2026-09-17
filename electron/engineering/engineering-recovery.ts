@@ -164,11 +164,6 @@ export class EngineeringRecoveryLedger {
   }
 }
 
-/** The sidecar path that belongs to a loop store file. */
-export function recoveryLedgerFor(loopStoreFile: string): EngineeringRecoveryLedger {
-  return new EngineeringRecoveryLedger(path.join(path.dirname(loopStoreFile), "engineering-recovery.json"));
-}
-
 /* -------------------------------------------------------------------------- */
 /* Terminal summaries                                                          */
 /* -------------------------------------------------------------------------- */
