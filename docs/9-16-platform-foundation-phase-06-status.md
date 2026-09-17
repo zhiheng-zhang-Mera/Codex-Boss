@@ -1,13 +1,13 @@
 # Phase 06 — Dogfooding Closure: status record
 
-> **STATUS: IN PROGRESS — this phase is NOT complete and must not be reported as PASS.**
+> **STATUS: PASS.** All five tasks are delivered, a dogfood run reached `CONVERGED` on a real workspace,
+> and the full inherited regression passes at the final head. No waiver was used, no test or security
+> constraint was weakened, and no Phase 05 conclusion was rewritten. Nine defects were closed
+> (`PF-DEBT-001` … `010`) and one boundary note recorded (`PF-DEBT-011`).
 >
-> Tasks A, B, C and D are delivered and committed. Task D's follow-ups (`PF-DEBT-009`,
-> `PF-DEBT-010`) are recorded and open, and Task E's full inherited regression at a final head has not
-> been run. The phase has no final head yet.
->
-> Phase 05 remains sealed and PASS. Nothing in this phase has reopened it, and every inherited contract
-> is re-verified at each batch (see §5).
+> `PF-DEBT-003` (`evolution-sandbox` needs an AppContainer) remains `ENVIRONMENT-BLOCKED` and is **not** a
+> Phase 06 gate; its exclusion from the audit is measured, never declared, and lowering the sandbox
+> requirement to make it green stays forbidden.
 
 ## 1. Identity
 
@@ -16,7 +16,7 @@
 | Phase | `06-dogfooding-closure` |
 | Branch | `platform-foundation/06-dogfooding-closure` |
 | **BASE_SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` (Phase 05 certified FINAL_HEAD) |
-| Head so far | `4b46aee4bcf6d1825f8946562afec3b811651a1b` |
+| **FINAL_SHA** | `76ba899ea360bb86724ab7d4e37c74390cf96682` |
 | `main` | `af8b85c47306b0b992fed1e1cf6eea0f1d652ba5` — untouched |
 | Phase 07 | not started |
 
@@ -44,8 +44,8 @@ already-tracked files.
 | A — state-ownership closure | **delivered** | `engineering-journal.ts`, `machine-identity-layout.ts`; `PF-DEBT-007`, `PF-DEBT-008` FIXED |
 | B — failure-surface correctness | **delivered** | `intervention-file.ts`, `BudgetManager.reconcile`; `PF-DEBT-005`, `PF-DEBT-006` FIXED |
 | C — evidence-gap closure | **delivered** | `experience-capability.test.ts` (22), `remote-capability.test.ts` (22); `PF-DEBT-001`, `PF-DEBT-002` FIXED; capability coverage **27 of 27** |
-| D — dogfooding harness | **delivered; follow-up closed** | `dogfood-engineering.cjs`, `engineering-goal-loop.ts`; `PF-DEBT-009`, `PF-DEBT-010` FIXED |
-| E — inherited regression at final head | **not run** | per-batch gate green; the final run awaits a final head |
+| D — dogfooding harness | **delivered; CONVERGED** | `dogfood-engineering.cjs`, `engineering-goal-loop.ts`; `PF-DEBT-009`, `PF-DEBT-010` FIXED |
+| E — inherited regression at final head | **PASS** | §7 below, at `76ba899` |
 
 ### PF-DEBT-010 resolved as a second loop, not a patched one
 
@@ -103,28 +103,38 @@ comment already claimed the two were "deliberately separate" — nothing enforce
 ends up unable to open its own journal. `recoveryLedgerFor(file)` made it worse by accepting a
 **directory** and inventing a plausible wrong path, so it was removed rather than documented.
 
-### What Task D actually found
+### What Task D actually found, and how it ended
 
-The harness puts a real objective through the production autonomous-engineering seam against a linked
-worktree at a detached HEAD, and verifies the live checkout did not move (`checkoutUntouched=true` on the
-recorded runs). Its first runs found four things:
+The harness puts a real objective through the production autonomous-engineering seam against a **clone
+without an origin remote**, and verifies the live checkout did not move. Six real runs, each blocked by a
+genuine platform decision rather than a harness bug:
 
-- the isolation check demanded a *clean* checkout before the run, so a developer's own uncommitted work
-  produced a false `false`, and a run that dirtied a clean tree then tidied up would have produced a false
-  `true` — it now compares before and after field by field;
-- a worktree has no `node_modules`, and the audit runs the workspace's **own** compilers by absolute path,
-  so the harness now installs the toolchain and refuses to run without it rather than measuring its own
-  omission;
-- `PF-DEBT-009` (HIGH) — that toolchain failure is reported as a **HIGH code finding**, because scope
-  inference cannot match `node_modules/typescript/bin/tsc` (no file extension). "The compiler is not
-  installed" is therefore indistinguishable from "the code does not compile";
-- `PF-DEBT-010` (MEDIUM) — the audit runs the **full** test suite every iteration (489 503 ms for one
-  finding), and on this host the failure it finds is the already-recorded `PF-DEBT-003` AppContainer
-  suite, so the loop aborts on something it did not cause and cannot fix.
+1. the audit found a pre-existing failure (`command:test`, the `PF-DEBT-003` suite) and the goal loop
+   **recorded it instead of chasing it** — the inversion the phase needed;
+2. a **linked worktree was refused** by the mutation guard, correctly: it shares the Boss repository's git
+   identity, so ordinary engineering may not mutate it. The harness moved to a clone with no origin
+   remote, which matches neither the structural nor the identity signal;
+3. the coder proposed `tests/unit/intervention-file-properties.test.ts` and the host refused it as
+   **out of scope** — a file that does not exist cannot be pre-authorised by listing it;
+4. an opt-in, default-closed creation grant was added, and the caller then **mis-specified it** (no
+   trailing slash), which the platform reported as the same refusal;
+5. the manifest parser **format-checked `expectedSha256` more strictly than the applier does**, so a
+   model's formatting slip in a field `applyScopedChanges` recomputes ended the run and spent the single
+   automatic schema retry;
+6. **`CONVERGED`** — one file applied, typecheck + the test command + `git diff` all passed, the
+   pre-existing failure recorded and not worked, `checkoutUntouched=true`, 1 930 provider-reported input
+   tokens across 2 calls, and the platform's generated test verified to pass when run **independently of
+   the platform**.
 
-Both are recorded with file-and-line evidence in `docs/platform-foundation-known-issues.md` and are
-explicitly **not** fixed yet. Deleting or skipping `evolution-sandbox` to make the audit green is
-forbidden, and `PF-DEBT-010` records that it must not become the reason it happens.
+`PF-DEBT-009`, `PF-DEBT-010` and the manifest defect are fixed with file-and-line evidence in
+`docs/platform-foundation-known-issues.md`. Deleting or skipping `evolution-sandbox` to make an audit
+green remains forbidden, and `PF-DEBT-010` records that it must not become the reason it happens.
+
+`PF-DEBT-011` is recorded as an `EVIDENCE-TIER NOTE`: the host verifies that a check **passes**, not that
+it **asserts** anything. One of the generated test's two cases round-trips an empty array. The host cannot
+judge assertion quality and should not pretend to, so the note states plainly that "the host's checks
+passed" means the change compiles, the suite is green and the diff is clean — and **not** that the change
+does what the objective asked.
 
 ## 4. Known-issues log
 
@@ -132,16 +142,22 @@ forbidden, and `PF-DEBT-010` records that it must not become the reason it happe
 title, discovered phase, status, severity, affected capability, evidence/source, why deferred, what would
 close it, target/revisit phase and last reviewed SHA, with a controlled status vocabulary and a review log.
 
-`PF-DEBT-001` … `004` are the mandated records. `005` … `010` were located during this phase and each was
+`PF-DEBT-001` … `004` are the mandated records. `005` … `011` were located during this phase, and each was
 verified in code or on a real run before being written down.
+
+| State at `76ba899` | Entries |
+| --- | --- |
+| `FIXED` | `PF-DEBT-001`, `002`, `005`, `006`, `007`, `008`, `009`, `010` |
+| `EVIDENCE-TIER NOTE` | `PF-DEBT-004` (Phase 05 evidence is local exact-head, not remote CI), `PF-DEBT-011` |
+| `ENVIRONMENT-BLOCKED` | `PF-DEBT-003` (AppContainer) — not a Phase 06 gate |
 
 ## 5. Inherited contracts — re-verified per batch
 
 | Contract | Verified by |
 | --- | --- |
-| mandatory gate vs optional Agent stage | `MANDATORY_GATE_STAGES` / `OPTIONAL_AGENT_STAGES`; the guard still refuses `verify` **by kind** |
-| `executedStages` is authoritative provenance | read live in the dogfood run's evidence |
-| real-provider economics provenance | Phase 05 artifact intact: `real-provider`, `COST_ONLY`, `executed-trace` |
+| mandatory gate vs optional Agent stage | `MANDATORY_GATE_STAGES` / `OPTIONAL_AGENT_STAGES`; the guard still refuses `verify` **by kind** (`INSUFFICIENT_EVIDENCE`) |
+| `executedStages` is authoritative provenance | read live in the dogfood run's evidence; Phase 05 pairs still `executed-trace` |
+| real-provider economics provenance | Phase 05 artifact intact: `real-provider`, `COST_ONLY` |
 | provider usage vs heuristic estimate | kept apart in the harness's `usage` block too |
 | task-grain vs stage-grain | untouched; `totalStage` still sums stage rows only |
 | `COST_ONLY` is a legal verdict | Phase 05 certificate still reads `measured: true` |
@@ -149,18 +165,25 @@ verified in code or on a real run before being written down.
 | provider model declaration single-source | `PROVIDER_MODELS` single declaration; contract test green |
 | security scan / typecheck / ratchet / state probe | green at every batch |
 
-Regression at `c06141d`: unit **2447 tests / 210 files**, postbuild **113 / 10**, typecheck (electron,
-renderer, tests), security scan (1141 files), architecture ratchet `violations: []`, state probe, 0
-unowned source files, 0 duplicate obligations.
+## 6. Acceptance at FINAL_SHA
 
-## 6. What remains before Phase 06 can be called PASS
+At `76ba899ea360bb86724ab7d4e37c74390cf96682`, exact head:
 
-1. **Task D follow-ups** — fix `PF-DEBT-009` (classify an environment/toolchain fault as such, with a test
-   proving both directions) and `PF-DEBT-010` (derive a pre-existing-failure baseline from measurement so
-   the audit stops aborting on a condition it did not cause). Neither may be closed by weakening a test.
-2. **Re-run the dogfooding harness to a real conclusion on this host** and record the resulting evidence.
-3. **Task E** — the full inherited regression at the final exact head.
-4. **A Phase 06 certificate/evidence artifact** under `artifacts/platform-foundation/phase-06/`.
+| Gate | Result |
+| --- | --- |
+| unit tier | **2471 tests / 213 files**, 0 failed |
+| postbuild tier | **113 tests / 10 files**, 0 failed |
+| typecheck | electron + renderer + tests, all clean |
+| security scan | `PASS files=1146` |
+| architecture ratchet | `violations: []` |
+| state probe | pass |
+| gate 2 (targeted vs full) | 213 files / 2471 tests, 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue — **the selection and the full gate agree** |
+| certificate | **17/17 invariants**, `phaseStatus=COMPLETE`, `notRun=[]`, 227 suites, 0 unowned source files |
+| gate8 fixtures | **11/11** |
+| test catalogue | current; 0 unowned source files, 0 duplicate obligations, capability coverage **27 of 27** |
 
-Until then the phase is IN PROGRESS. No waiver has been used, the mandatory verification gate has not been
-weakened, and no Phase 05 conclusion has been rewritten.
+**Evidence tier.** As `PF-DEBT-004` states, these are exact-head LOCAL executions recorded at this commit,
+verified by re-running them here. They are **not** remote CI, and must not be described as such.
+
+Phase 06 is **PASS**. No waiver was used, the mandatory verification gate was not weakened, no test or
+security constraint was relaxed, and no Phase 05 conclusion was rewritten.
