@@ -171,18 +171,27 @@ function makeProviderWorker(provider, client, evidence) {
   return {
     async ask(role, prompt) {
       const started = Date.now();
-      const answer = await client.complete(provider, prompt);
-      const elapsedMs = Date.now() - started;
-      evidence.calls.push({
-        role,
-        elapsedMs,
-        promptChars: prompt.length,
-        replyChars: answer.content.length,
+      // Recorded BEFORE the call is awaited, and updated after. A call that throws must still appear:
+      // recording only successes meant a run whose coder call failed reported `calls: []`, which reads
+      // as "the coder was never asked" rather than "the coder was asked and the call died" — the same
+      // observability gap as an uncaptured audit finding.
+      const record = { role, promptChars: prompt.length, elapsedMs: 0, outcome: "PENDING" };
+      evidence.calls.push(record);
+      try {
+        const answer = await client.complete(provider, prompt);
+        record.elapsedMs = Date.now() - started;
+        record.outcome = "OK";
+        record.replyChars = answer.content.length;
         // The PROVIDER's own accounting, when it reported any. Absent stays absent.
-        ...(answer.usage ? { usage: answer.usage } : {}),
-        adapterVersion: answer.adapterVersion
-      });
-      return answer.content;
+        if (answer.usage) record.usage = answer.usage;
+        record.adapterVersion = answer.adapterVersion;
+        return answer.content;
+      } catch (error) {
+        record.elapsedMs = Date.now() - started;
+        record.outcome = "FAILED";
+        record.failure = error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 200) : String(error).slice(0, 200);
+        throw error;
+      }
     }
   };
 }
@@ -338,9 +347,11 @@ async function main() {
       reviewer: (prompt) => worker.ask("reviewer", prompt),
       // The objective's own named paths, so the coder is handed exactly the files the goal is about.
       namedFiles: goalFilesFor(objective),
-      // A goal that asks for a NEW test file must be allowed to create it. This is an allowance for
-      // files under the test tree, not a blanket permission over the repository.
-      allowPaths: ["tests/unit", "tests/acceptance"],
+      // A goal that asks for a NEW test file must be allowed to create it. The TRAILING SLASH is what
+      // makes these prefix grants rather than file allowances — without it they would authorise nothing
+      // creatable and the run would fail with "Change outside authorized scope" (which it did, twice,
+      // before this was noticed). It is an allowance over the test tree, not a blanket permission.
+      allowPaths: ["tests/unit/", "tests/acceptance/"],
       maxScopeFiles: 12,
       audit: (g) => instrumented.audit(g)
     });
@@ -373,13 +384,16 @@ async function main() {
       remainingRisk: item.remainingRisk
     }));
 
-    // Provider-reported totals, plus the platform's own estimate kept apart as a diagnostic.
-    const reported = evidence.calls.map((call) => call.usage).filter(Boolean);
+    // Provider-reported totals, plus the platform's own estimate kept apart as a diagnostic. A call
+    // that FAILED contributes no usage — absent stays absent rather than becoming a zero.
+    const completed = evidence.calls.filter((call) => call.outcome === "OK");
+    const reported = completed.map((call) => call.usage).filter(Boolean);
     evidence.usage = {
-      calls: evidence.calls.length,
+      calls: completed.length,
+      failedCalls: evidence.calls.length - completed.length,
       providerInputTokens: reported.length ? reported.reduce((sum, usage) => sum + (usage.inputTokens ?? 0), 0) : null,
       providerOutputTokens: reported.length ? reported.reduce((sum, usage) => sum + (usage.outputTokens ?? 0), 0) : null,
-      totalWallMs: evidence.calls.reduce((sum, call) => sum + call.elapsedMs, 0),
+      totalWallMs: evidence.calls.reduce((sum, call) => sum + (call.elapsedMs ?? 0), 0),
       note: "providerInputTokens/OutputTokens are the provider's own counts. No ceil(chars/4) estimate is promoted to a measurement."
     };
 

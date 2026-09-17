@@ -16,7 +16,7 @@
 | Phase | `06-dogfooding-closure` |
 | Branch | `platform-foundation/06-dogfooding-closure` |
 | **BASE_SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` (Phase 05 certified FINAL_HEAD) |
-| Head so far | `c06141dea7558d08024eb7da6831ad3a00ef9337` |
+| Head so far | `4b46aee4bcf6d1825f8946562afec3b811651a1b` |
 | `main` | `af8b85c47306b0b992fed1e1cf6eea0f1d652ba5` — untouched |
 | Phase 07 | not started |
 
@@ -44,8 +44,47 @@ already-tracked files.
 | A — state-ownership closure | **delivered** | `engineering-journal.ts`, `machine-identity-layout.ts`; `PF-DEBT-007`, `PF-DEBT-008` FIXED |
 | B — failure-surface correctness | **delivered** | `intervention-file.ts`, `BudgetManager.reconcile`; `PF-DEBT-005`, `PF-DEBT-006` FIXED |
 | C — evidence-gap closure | **delivered** | `experience-capability.test.ts` (22), `remote-capability.test.ts` (22); `PF-DEBT-001`, `PF-DEBT-002` FIXED; capability coverage **27 of 27** |
-| D — dogfooding harness | **delivered; follow-ups open** | `dogfood-engineering.cjs`; `PF-DEBT-009`, `PF-DEBT-010` OPEN |
+| D — dogfooding harness | **delivered; follow-up closed** | `dogfood-engineering.cjs`, `engineering-goal-loop.ts`; `PF-DEBT-009`, `PF-DEBT-010` FIXED |
 | E — inherited regression at final head | **not run** | per-batch gate green; the final run awaits a final head |
+
+### PF-DEBT-010 resolved as a second loop, not a patched one
+
+`EngineeringLoopDriver` is a REPAIR loop — every round it asks the workspace what is wrong and fixes the
+first thing it finds — and its two production callers depend on exactly that. Given a goal it therefore
+worked whatever was already failing. Changing it would have silently altered self-evolution, so the phase
+added the loop it actually needed:
+
+- the **audit is a precondition**: an environment finding refuses the run up front, by name;
+- pre-existing **code findings are recorded, never worked**;
+- the **objective is the work list**;
+- convergence requires the host's checks over a **non-empty** change set — "the goal needed no change" and
+  "the goal was implemented" are different answers, and a no-op is reported as the first.
+
+### What the dogfood runs established, in order
+
+Five real runs. Each was blocked by a genuine platform decision rather than a harness bug, which is what
+makes them evidence rather than noise:
+
+1. the audit found a pre-existing failure (`command:test`, the `PF-DEBT-003` suite) and the goal loop
+   **recorded it instead of chasing it** — the inversion the phase needed;
+2. a **linked worktree was refused** by the mutation guard, correctly: it shares the Boss repository's git
+   identity, so ordinary engineering may not mutate it. The harness moved to a clone with no origin
+   remote, which matches neither the structural nor the identity signal;
+3. the coder proposed `tests/unit/intervention-file-properties.test.ts` and the host refused it as
+   **out of scope** — a file that does not exist cannot be pre-authorised by listing it;
+4. an opt-in, default-closed creation grant was added, and the caller then **mis-specified it** (no
+   trailing slash), which the platform reported as the same refusal;
+5. with all of that cleared, the run stopped on **`Invalid hash-bound change`** — the coder's own manifest
+   failing schema validation, which the platform reported and refused correctly.
+
+Run 5 reached the coder twice (4 663 provider-reported input tokens) with `checkoutUntouched=true`.
+
+### The open item
+
+A dogfood run has not yet reached `CONVERGED`. The remaining cause is the **coder's manifest compliance** —
+`expectedSha256` must be `null` or a 64-hex digest — not a platform defect: the platform validated,
+refused and reported it exactly as designed. Closing it is harness work (a proposal contract the model
+follows reliably, or a bounded repair of a rejected manifest), not a change to the platform's guarantees.
 
 ### What Task A actually found
 

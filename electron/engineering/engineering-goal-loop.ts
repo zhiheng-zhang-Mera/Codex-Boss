@@ -34,6 +34,8 @@
  * something else and report success.
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
 import { isEnvironmentFinding } from "../../src/shared/engineering-loop";
 import { ProposalRunner } from "./proposal-runner";
@@ -234,6 +236,24 @@ export function createGoalLoopOperations(input: {
   };
 
   /**
+   * Treat an allowance that names an existing DIRECTORY as a prefix grant.
+   *
+   * A caller writing `"tests/unit"` means the directory; requiring the trailing slash made that read as
+   * a file allowance, authorise nothing creatable, and fail with the same "Change outside authorized
+   * scope" a real run already hit twice. The distinction the API draws is still between "this file" and
+   * "under here" — it just no longer depends on the caller remembering one character.
+   */
+  const isPrefixGrant = (value: string): boolean => {
+    const clean = normalize(value);
+    if (clean.endsWith("/")) return true;
+    try {
+      return fs.statSync(path.join(input.workspace, clean)).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
+  /**
    * Whether the goal authorises CREATING a file at this path.
    *
    * A new file is authorised only by an explicit prefix grant. It is never added to the scope handed to
@@ -244,11 +264,11 @@ export function createGoalLoopOperations(input: {
     const normalized = normalize(file);
     return (input.allowPaths ?? []).some((prefix) => {
       const clean = normalize(prefix);
-      return clean.endsWith("/") && normalized.startsWith(clean) && normalized.length > clean.length;
+      return isPrefixGrant(prefix) && normalized.startsWith(clean) && normalized.length > clean.length;
     });
   };
 
-  const grantsCreation = (): boolean => (input.allowPaths ?? []).some((prefix) => normalize(prefix).endsWith("/"));
+  const grantsCreation = (): boolean => (input.allowPaths ?? []).some(isPrefixGrant);
 
   return {
     audit: input.audit,
@@ -262,7 +282,7 @@ export function createGoalLoopOperations(input: {
       }
       // Checks are selected by the host over what will be judged. When only a new file is authorised,
       // the grant's own directory decides which check applies.
-      const checkTargets = scope.length ? scope : [`${normalize((input.allowPaths ?? []).find((prefix) => normalize(prefix).endsWith("/")) ?? "tests/")}probe.test.ts`];
+      const checkTargets = scope.length ? scope : [`${normalize((input.allowPaths ?? []).find(isPrefixGrant) ?? "tests/")}probe.test.ts`];
       const checks = engineeringChecksFor(input.workspace, checkTargets);
       if (!checks.length) {
         return { changedFiles: [], status: "FAIL" as const, checks: [], error: `no host check applies to the authorised scope (${checkTargets.join(", ")}), so a change to it could not be judged` };
