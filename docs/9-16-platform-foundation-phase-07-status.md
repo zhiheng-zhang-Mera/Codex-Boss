@@ -16,7 +16,7 @@
 | Phase | `07-semantic-acceptance` |
 | Branch | `platform-foundation/07-semantic-acceptance` |
 | **BASE_SHA** | `e135f8c54fbe9dcc448c2d8f05611d344d7291a4` (Phase 06 certified FINAL_HEAD) |
-| **FINAL_SHA** | recorded in §9 after the ratified head is tagged |
+| **FINAL_SHA** | the commit that introduces this file — `e4e99f8` plus this status record only |
 | `main` | `af8b85c47306b0b992fed1e1cf6eea0f1d652ba5` — untouched |
 | Phase 08 | not started |
 
@@ -126,12 +126,16 @@ negatives in succession, each of which had refused a genuinely meaningful file:
    were consulted, so the widened scope reached the "what value arrived" question but not the
    `referencesInput` decision that gates it.
 
-The third run converged: a real `deepseek-flash` provider wrote a two-element populated fixture, asserted
+The next run converged: a real `deepseek-flash` provider wrote a two-element populated fixture, asserted
 `document` against the schema version and the input, and asserted the parsed result equals the input — and
 the production judgement accepted it, with `checkoutUntouched: true` and 1 922 provider-reported input
-tokens across 2 calls. The refused files are embedded verbatim in
-`tests/unit/platform/acceptance.test.ts`, so the reader that must accept them is re-tested on every run
-rather than only when a model happens to write that shape again.
+tokens across 2 calls. That record is `artifacts/platform-foundation/phase-07/case-B-meaningful.json`.
+
+The refused files are what `tests/unit/platform/acceptance.test.ts` embeds, so the reader that must accept
+them is re-tested on every run rather than only when a model happens to write that shape again. One earlier
+provider run of this case failed in transport (`fetch failed`) rather than on a verdict; it is kept as
+`case-B-transport-failure.json` instead of being discarded, because a run whose result is unknown is not a
+run whose result was good.
 
 ### Case C is a boundary, stated rather than faked
 
@@ -226,34 +230,60 @@ weakened or skipped, and no Phase 05 or Phase 06 conclusion was rewritten.
 
 ## 8. Inherited regression at the final head
 
-The gate ran at the head recorded below, on a clean tree.
+Every gate below ran at `e4e99f8472bd4eeca3ca53bf0ef778b23ded1f06`, on a clean tree, in this session.
 
-| Check | Result |
+| Gate | Result |
 | --- | --- |
-| unit suite | `pnpm run test` — see §9 for the exact counts at FINAL_SHA |
-| typecheck (electron, renderer, tests) | green |
-| security scan | green |
-| architecture ratchet | `violations: []` |
-| test-impact audit | no unowned source files, no duplicate obligations |
-| capability coverage | 27 of 27 |
-| test catalogue | `--check` green |
-| targeted-vs-full equivalence | `verify:targeted` green |
-| certificate | see §9 |
-| state probe | green |
+| unit tier (`pnpm run test`) | **2517 tests / 215 files**, 0 failed |
+| postbuild tier (`pnpm run test:postbuild`) | **113 tests / 10 files**, 0 failed |
+| typecheck (electron, renderer, tests) | clean |
+| security scan | `TRACKED_SECRET_SCAN=PASS files=1156` |
+| architecture ratchet | `violations: []`, 3 edges, 32 durable namespaces |
+| state probe | all checks ok, including "a corrupt file fails loudly instead of reading as empty" |
+| state migration report | `promotionPhase: migrated`, `crashWindowRepaired: true` |
+| gate 2 (targeted vs full) | 215 files / 2517 tests, 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue — **the selection and the full gate agree** |
+| platform certificate | **17/17 invariants**, `phaseStatus=COMPLETE`, `notRun=[]`, 229 suites, 0 unowned source files, permission 9/9 escapes refused, 0 wildcard grants |
+| Gate 8 fixtures | **11/11** |
+| test catalogue | current, 229 suites; 0 unowned source files, 0 duplicate obligations; capability coverage **27 of 27** |
+| Phase 07 counterexamples | A refused, B converged (scripted **and** real provider), C boundary recorded, D refused — all through the real pipeline |
 
-At the previous recorded head `10fb071`: unit **2508 tests / 215 files** · security scan 1152 files ·
-capability coverage **27 of 27**.
+For comparison, at the previous recorded head `10fb071`: unit **2508 tests / 215 files**, security scan 1152
+files, capability coverage **27 of 27**.
 
-At `2c6a6da`: unit **2525 tests / 215 files** · typecheck (electron, renderer, tests) · security scan
-(1154 files) · architecture ratchet `violations: []` · state probe · 0 unowned source files · 0 duplicate
-obligations · capability coverage **27 of 27** · test catalogue check green.
+**Evidence tier.** As `PF-DEBT-004` states, these are exact-head LOCAL executions recorded at this commit,
+not remote CI, and must not be described as such.
 
-Phase 06 contracts re-verified at the final head: the mandatory gate is still refused as an economics
-candidate **by kind**; the Gate 8 pair is still `real-provider` `COST_ONLY`; records are still
-`executed-trace`; the goal loop still records pre-existing findings without working them; the
-mutation/scope/root-authority guards are untouched; `PF-DEBT-003` is still `ENVIRONMENT-BLOCKED` with the
-AppContainer requirement unlowered.
+**One inherited script reports INVALID_CERTIFICATE, and it is not a Phase 07 gate.** `pnpm run
+verify:certificate` (the *evolution* prestart attestation) now reports `INVALID_CERTIFICATE` with
+`artifacts/acceptance/prestart-attestation.json is missing`. That file belongs to the evolution/BOOTSTRAP
+acceptance line, is generated by `acceptance:attest` against a live session, and is absent from this
+workstation's artifact tree. It is **not** one of the gates Phase 05 or Phase 06 recorded their acceptance
+against — those name the platform certificate (`pnpm run platform:certificate`), which passes 17/17 here.
+It is recorded rather than hidden, and it is not presented as a Phase 07 result either way.
 
-## 9. FINAL_SHA and the gate record
+### Phase 06 contracts, re-verified at this head
 
-Recorded by the final gate run.
+- the mandatory platform verification gate is still refused as an economics candidate **by kind**, before
+  any data is consulted (`MANDATORY_GATE_STAGES` vs `OPTIONAL_AGENT_STAGES`);
+- the Gate 8 pair is still `real-provider` **`COST_ONLY`**, and `review` is still not in the default
+  pipeline — Phase 07 did **not** reopen that by defaulting a reviewer Agent in;
+- `executedStages` is still the authoritative stage provenance (`kind: agent | platform`), with
+  `pipelineFrom` as the migration fallback only;
+- the goal loop still records a pre-existing code finding without working it, and still refuses an
+  environment precondition up front;
+- the mutation, scope and root-authority guards are untouched (`PF-DEBT-003` remains
+  `ENVIRONMENT-BLOCKED` with the AppContainer requirement unlowered);
+- provider token accounting is still the provider's own counts, with `ceil(chars/4)` never promoted.
+
+## 9. FINAL_SHA
+
+**FINAL_SHA = the commit that introduces this status record.**
+
+Its parent is the code head **`e4e99f8472bd4eeca3ca53bf0ef778b23ded1f06`**, and the difference between the
+two is this file — one docs-only change, stated rather than assumed, in the same way Phase 06 recorded its
+own docs-only delta. Naming a hash inside the commit that creates it is self-defeating (the hash changes
+the moment the file is written), so the relationship is recorded instead: `git show --stat FINAL_SHA` must
+show exactly this document, and `FINAL_SHA^` must be the tree §8's gate table was run against.
+
+That is the point of the section, not a technicality: "the gates passed" is a claim about a specific tree,
+and a reader must be able to see which one.
