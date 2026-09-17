@@ -271,6 +271,133 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     expect(strength.inputs.nonEmpty).toBe(0);
     // No input expression is recorded: the case supplies nothing, which is exactly the finding.
     expect(strength.inputs.expressions).toEqual([]);
+    // The file-grain count is reported for a reader, and it must not be satisfied by the scaffold: the
+    // `it("round-trips", …)` label is a description, not a value fed to the behaviour. Counting it made a
+    // file whose only input was `[]` report "1 non-empty call argument" — a true count of the wrong thing.
+    expect(strength.callInputs.nonEmpty).toBe(0);
+  });
+
+  it("does not count a test's own label as an input it supplies", () => {
+    // The same distinction the acceptance judgement turns on: `describe`/`it` arguments are names, and a
+    // file consisting only of well-named empty cases has supplied nothing.
+    const source = [
+      'import { expect, it } from "vitest";',
+      'it("round-trips a representative non-empty interventions array", () => {',
+      "  const interventions = [];",
+      "  expect(interventions).toEqual([]);",
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    expect(strength.discriminating).toBe(0);
+    expect(strength.callInputs.nonEmpty).toBe(0);
+  });
+
+  it("still counts the values a case really supplies", () => {
+    // The other side of the same guard: excluding the scaffolding must not exclude the fixture. A populated
+    // binding and a non-empty literal argument both still show up.
+    const source = [
+      'import { expect, it } from "vitest";',
+      'it("works", () => {',
+      '  const cases = [{ id: "a" }];',
+      "  const result = normalize(cases, 3);",
+      "  expect(result).toEqual(cases);",
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    expect(strength.discriminating).toBe(1);
+    expect(strength.callInputs.nonEmpty).toBeGreaterThan(0);
+  });
+
+  it("reads a fixture whose declaration carries a TYPE ANNOTATION", () => {
+    // A regression, from a real provider run. The generated test was meaningful — a populated two-element
+    // fixture, a round-trip, an equality against the input — and the judgement still refused it, because
+    // the declaration was `const interventions: HumanInterventionRequest[] = [...]`. The assignment pattern
+    // expected `=` right after the name, found `:`, matched nothing, and so the fixture was never bound:
+    // every reference to it read as an opaque variable. The reader was too strict where it had been too
+    // loose, and refusing genuine evidence is the same class of error as accepting vacuous evidence — it
+    // would fail real work instead of the fake version of it.
+    const source = [
+      'import { expect, it } from "vitest";',
+      'import type { HumanInterventionRequest } from "../../src/shared/intervention";',
+      'it("round-trips", () => {',
+      "  const interventions: HumanInterventionRequest[] = [",
+      '    { id: "intervention-1", taskId: "task-1", kind: "question" },',
+      '    { id: "intervention-2", taskId: "task-2", kind: "approval" },',
+      "  ];",
+      "  const document = interventionFileDocument(interventions);",
+      "  const result = parseInterventionFile(JSON.stringify(document));",
+      '  expect(result.status).toBe("ok");',
+      "  expect(result.interventions).toEqual(interventions);",
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    // One of the two sites is the discriminating one — the equality against the input — and the other is
+    // correctly weak on its own (`expect(result.status).toBe("ok")` compares a result-derived value with a
+    // literal, which any constant status would satisfy). One is enough: the case could have failed.
+    expect(strength.discriminating).toBe(1);
+    expect(strength.weak).toHaveLength(1);
+    expect(strength.weak[0]!.assertion).toBe("toBe");
+    expect(strength.inputs.nonEmpty).toBe(1);
+  });
+
+  it("reads a fixture bound with a TYPE ASSERTION suffixed to the literal", () => {
+    // The same run, one step later: the model annotated the literal instead of the declaration —
+    // `] as unknown as HumanInterventionRequest[]`. The type is not part of the VALUE, and leaving it in
+    // made a populated array shape as `unknown`, which is non-discriminating by construction.
+    const source = [
+      'import { expect, it } from "vitest";',
+      'it("round-trips", () => {',
+      "  const interventions = [",
+      '    { id: "intervention-1", taskId: "task-1", kind: "question" },',
+      '    { id: "intervention-2", taskId: "task-2", kind: "approval" },',
+      "  ] as unknown as HumanInterventionRequest[];",
+      "  const document = interventionFileDocument(interventions);",
+      "  const result = parseInterventionFile(JSON.stringify(document));",
+      "  expect(result.interventions).toEqual(interventions);",
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    expect(strength.discriminating).toBe(1);
+    expect(strength.weak).toEqual([]);
+  });
+
+  it("keeps the vacuous case refused through a type annotation", () => {
+    // The other direction, because the fix must not open a hole: the same constructs around an EMPTY
+    // fixture stay vacuous. `[] as unknown as HumanInterventionRequest[]` is still an empty array, and a
+    // type written on it does not make it representative.
+    const source = [
+      'import { expect, it } from "vitest";',
+      'it("round-trips", () => {',
+      "  const interventions: HumanInterventionRequest[] = [];",
+      "  const result = parseInterventionFile(JSON.stringify(interventionFileDocument(interventions)));",
+      "  expect(result.interventions).toEqual(interventions);",
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    expect(strength.discriminating).toBe(0);
+    expect(strength.inputs.nonEmpty).toBe(0);
+    // The binding resolves and the assertion does reference it — and it is STILL refused, because what
+    // resolves is an empty literal. Discriminating is about the value, not about the syntax reaching it.
+    expect(strength.weak[0]!.reason).toContain("no non-empty value reaches the assertion");
+  });
+
+  it("strips only a real type suffix, never a value expression", () => {
+    // The guard on the fix. A suffix is only removed when it reads like a TYPE: `x as number` is an
+    // assertion, whereas a comparison whose right-hand side happens to contain the word `as` is not, and
+    // deleting it would report a constant where there was a varying operand.
+    expect(operandShapeOf("[1, 2] as const")).toBe("non-empty-literal");
+    expect(operandShapeOf("[] as const")).toBe("empty-literal");
+    expect(operandShapeOf("[] as unknown as Foo[]")).toBe("empty-literal");
+    // A named fixture the caller supplies is a VARIABLE — opaque, but a value. Reading it as `unknown`
+    // would refuse every test that takes its input as a parameter, which is most of them.
+    expect(operandShapeOf("cases as Case[]")).toBe("variable");
+    // Not types, so left intact: an expression ending in a call, one whose suffix carries an operator, and
+    // a string that merely contains the word.
+    expect(operandShapeOf("value as string | undefined")).toBe("unknown");
+    expect(operandShapeOf("has as")).toBe("unknown");
+    expect(operandShapeOf('"as"')).toBe("non-empty-literal");
+    // A nested type argument is a type: `Record<string, number>` is not a value.
+    expect(operandShapeOf("{a:1} as Record<string, number>")).toBe("non-empty-literal");
   });
 
   it("counts a discriminating case when the test exercises a representative value", () => {

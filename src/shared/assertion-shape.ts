@@ -43,9 +43,20 @@ const MATCHER_AFTER_RECEIVER = /^\s*(?:\.\s*(?:not|resolves|rejects)\s*)?\.\s*([
  * reads as a `variable` and the emptiness is invisible.
  */
 export function operandShapeOf(expression: string, bindings?: ReadonlyMap<string, string>): OperandShape {
-  const value = expression.trim();
-  if (!value) return "unknown";
-  // A directly empty literal or its common constructors.
+  const raw = expression.trim();
+  if (!raw) return "unknown";
+
+  // STRIP A TYPE ASSERTION BEFORE SHAPING, and keep the expression only when the suffix really is a type.
+  // This is not cosmetic: the real generated test that exposed it bound its fixture with
+  // `] as unknown as HumanInterventionRequest[]`, and reading that as part of the VALUE made a populated
+  // two-element fixture come back `unknown` — i.e. non-discriminating. That is a false negative, and a
+  // reader that refuses genuine evidence is as wrong as one that accepts vacuous evidence: it would fail
+  // the real work instead of the fake version of it.
+  const assertion = splitTypeAssertion(raw);
+  const value = assertion.stripped ? assertion.expression : raw;
+  if (!value.trim()) return "unknown"; // A pure type name is not a value: fail closed rather than guess.
+  // A directly empty literal or its common constructors. Checked before `as const` so an empty value
+  // stays empty whichever way it is annotated.
   if (/^(?:\[\s*\]|\{\s*\}|""|''|``|new\s+(?:Map|Set|Array)\s*\(\s*\))$/.test(value)) return "empty-literal";
   if (/^(?:\[\s*\]|\{\s*\}|""|''|``)\s+as\s+const$/.test(value)) return "empty-literal";
   if (value === "0") return "empty-literal";
@@ -103,6 +114,72 @@ export function operandShapeOf(expression: string, bindings?: ReadonlyMap<string
 }
 
 /**
+ * Split a value expression from a TypeScript type assertion suffixed to it.
+ *
+ * `[{ … }] as unknown as HumanInterventionRequest[]` is a populated literal with a type written on the
+ * end. The type is not part of the value, so the shape must be taken from what precedes it — and the
+ * suffix is only accepted when it actually reads like a type (`A`, `A[]`, `A<B>`, `A.B`, `readonly A[]`),
+ * so an expression that merely contains the word `as` is left alone. Fail-closed: an unreadable suffix
+ * returns the text unchanged, and the caller then reads the whole thing as it did before.
+ *
+ * A trailing `as const` is the one suffix that carries meaning for shaping — it distinguishes an array
+ * literal from a tuple — so it is reported and removed rather than treated as an opaque type.
+ */
+function splitTypeAssertion(expression: string): { expression: string; stripped: boolean } {
+  const value = expression.trim();
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]!;
+    if (quote) { if (char === quote && value[index - 1] !== "\\") quote = null; continue; }
+    if (char === '"' || char === "'" || char === "`") { quote = char; continue; }
+    if ("([{".includes(char)) { depth += 1; continue; }
+    if (")]}".includes(char)) { depth -= 1; continue; }
+    if (depth !== 0) continue;
+    // Only a TOP-LEVEL `<space>as<space>`. Inside a literal it is a property name or a string, and the
+    // spaces on both sides are what make it the keyword. (Anchoring on the SPACE rather than the `a` also
+    // lets the loop step straight over `as` inside an identifier like `has`.)
+    if (value.slice(index, index + 4) !== " as ") continue;
+    // What precedes the keyword decides whether it IS the keyword. It must be a type annotation, whose
+    // left side is a name or a closing bracket — `value as T`, `arr.map(…) as T` — so `has as`, `was as`
+    // and `as as` are refused. Testing the character immediately before instead was wrong twice over: it
+    // read the space as a word character's successor (`cases as` → `s`), and it cannot tell a variable
+    // from an identifier ending in the letters `as`.
+    const before = value.slice(0, index).trimEnd();
+    const left = before[before.length - 1];
+    if (left === undefined || !/[\w$)\]}"'`]/.test(left)) continue;
+    const after = value.slice(index + 4).trim();
+    if (!after) continue;
+    const constAssertion = /^const$/.test(after);
+    if (!constAssertion && !isTypeName(after)) continue;
+    return { expression: before, stripped: true };
+  }
+  return { expression: value, stripped: false };
+}
+
+/**
+ * Whether a suffix reads like a type annotation rather than another expression.
+ *
+ * Deliberately strict. A suffix that is itself a value expression must NOT be stripped: `expect(x).toBe(a
+ * as b)` would otherwise have its right-hand side deleted before shaping, and the reader would report a
+ * constant where there was a comparison.
+ */
+function isTypeName(suffix: string): boolean {
+  if (!/^(?:readonly\s+)?[A-Za-z_$]/.test(suffix)) return false;
+  let depth = 0;
+  for (let index = 0; index < suffix.length; index++) {
+    const char = suffix[index]!;
+    if ("([{<".includes(char)) { depth += 1; continue; }
+    if (")]}>".includes(char)) { depth -= 1; continue; }
+    if (depth < 0 || depth > 2) return false; // Unbalanced or nested deeper than any type written here.
+    if (depth === 0 && /[=+\-*/%&|!?;,'"`]/.test(char)) return false; // An operator means an expression.
+    if (depth === 0 && char === "." && !/[A-Za-z_$][\w$]*$/.test(suffix.slice(0, index))) return false;
+    if (!/[\w$.[\]<>,\s]/.test(char)) return false;
+  }
+  return depth === 0;
+}
+
+/**
  * The file's simple local assignments: `const name = <expression>`.
  *
  * One lexical pass, deliberately shallow — it reads the literal a fixture is bound to so that
@@ -112,7 +189,15 @@ export function operandShapeOf(expression: string, bindings?: ReadonlyMap<string
  */
 function readBindings(source: string): Map<string, string> {
   const bindings = new Map<string, string>();
-  const ASSIGNMENT = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*/g;
+  // A TYPE ANNOTATION is part of the declaration, not of the value:
+  // `const interventions: HumanInterventionRequest[] = [...]`. Without this the pattern above failed to
+  // match the declaration AT ALL — `name` was followed by `:`, not `=` — so the fixture was never bound
+  // and every reference to it read as an opaque variable. That is how a real, meaningful test came back
+  // `INSUFFICIENT_EVIDENCE`.
+  //
+  // The annotation is spelled out as the characters a TYPE can contain rather than `[^=]*`, because the
+  // loose version would happily jump the first `=` of an object literal and bind the wrong expression.
+  const ASSIGNMENT = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::\s*[\w$[\].<>,|\s{}()]*?)?=\s*/g;
   let match: RegExpExecArray | null;
   while ((match = ASSIGNMENT.exec(source)) !== null) {
     const name = match[1]!;
@@ -266,20 +351,28 @@ function lineAt(source: string, offset: number): number {
  *
  * Calls whose name is an assertion entry point are excluded — their arguments are already the assertion's
  * operands, and counting them twice would let an assertion about an empty fixture look like an input.
+ *
+ * The whole assertion is removed before this walk, matcher chain included. Excluding only the `expect` name
+ * left the MATCHER's arguments behind, so `toEqual([])` was read as a supplied value and a file whose only
+ * input was `[]` reported a non-empty call argument.
+ *
+ * The test SCAFFOLDING is excluded for the same reason: `describe("intervention-file", …)` and
+ * `it("round-trips", …)` are labels, not values fed to the behaviour.
  */
 function readCallArgumentShapes(source: string): { expressions: string[]; shapes: OperandShape[] } {
   const expressions: string[] = [];
   const shapes: OperandShape[] = [];
+  const withoutAssertions = stripAssertions(source);
   const bindings = readBindings(source);
   const CALL = /\b([A-Za-z_$][\w$.]*)\s*\(/g;
   let match: RegExpExecArray | null;
-  while ((match = CALL.exec(source)) !== null) {
+  while ((match = CALL.exec(withoutAssertions)) !== null) {
     const name = match[1]!;
     if (/(^|\.)(expect|assert|expectTypeOf|describe|it|test)$/.test(name)) continue;
     const openIndex = match.index + match[0].length - 1;
-    const closeIndex = matchParen(source, openIndex);
+    const closeIndex = matchParen(withoutAssertions, openIndex);
     if (closeIndex < 0) continue;
-    for (const argument of splitArguments(source.slice(openIndex + 1, closeIndex))) {
+    for (const argument of splitArguments(withoutAssertions.slice(openIndex + 1, closeIndex))) {
       if (!argument.trim()) continue;
       expressions.push(argument.trim());
       shapes.push(operandShapeOf(argument, bindings));
@@ -368,6 +461,15 @@ export function summarizeAssertionStrength(source: string, file: string): {
   discriminating: number;
   weak: Array<{ at: string; assertion: string; reason: string }>;
   inputs: { total: number; nonEmpty: number; empty: number; expressions: string[] };
+  /**
+   * What the file's CALLS are given, at file grain.
+   *
+   * Reported separately from `inputs`, which counts only what reaches an ASSERTION. This one answers a
+   * different question — *did anything in this file exercise a non-empty value at all?* — and it is what a
+   * reader wants when a change is refused: the two answers differ, and conflating them made the refusal
+   * message name a count it had never measured.
+   */
+  callInputs: { total: number; nonEmpty: number };
 } {
   const cases = testCases(source);
   const shapes: AssertionShape[] = [];
@@ -404,11 +506,16 @@ export function summarizeAssertionStrength(source: string, file: string): {
     if (!caseShapes.length) emptyInputs += 1;
   }
 
+  const fileCallArguments = readCallArgumentShapes(source);
   return {
     total: shapes.length,
     discriminating,
     weak,
-    inputs: { total: cases.length, nonEmpty: nonEmptyInputs, empty: emptyInputs, expressions }
+    inputs: { total: cases.length, nonEmpty: nonEmptyInputs, empty: emptyInputs, expressions },
+    callInputs: {
+      total: fileCallArguments.shapes.length,
+      nonEmpty: fileCallArguments.shapes.filter((shape) => shape === "non-empty-literal").length
+    }
   };
 }
 

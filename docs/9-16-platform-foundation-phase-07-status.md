@@ -16,7 +16,7 @@
 | Phase | `07-semantic-acceptance` |
 | Branch | `platform-foundation/07-semantic-acceptance` |
 | **BASE_SHA** | `e135f8c54fbe9dcc448c2d8f05611d344d7291a4` (Phase 06 certified FINAL_HEAD) |
-| Head so far | `10fb0717ed7c3ce1cd4dca221e5154413580e889` |
+| Head so far | `54508aa56ead9000805b836351b5c86efeb044b2` |
 | `main` | `af8b85c47306b0b992fed1e1cf6eea0f1d652ba5` — untouched |
 | Phase 08 | not started |
 
@@ -40,8 +40,61 @@ its first line, and recovered from:
 | A — the acceptance contract | **delivered** | `src/shared/acceptance.ts`; 22 tests |
 | B — deterministic assertion-shape reading | **delivered** | `src/shared/assertion-shape.ts`; same suite |
 | C — `CONVERGED` semantics | **delivered** | `electron/engineering/engineering-goal-loop.ts`; 5 new loop tests |
-| D — counterexample dogfooding | **model level delivered; real runs outstanding** | `tests/unit/engineering/goal-acceptance.test.ts`; 10 tests |
+| D — counterexample dogfooding | **A proven end to end; B is a false negative; C structural** | `case-A-vacuous.json`; `tests/unit/engineering/goal-acceptance.test.ts`; 10 tests |
 | E — inherited regression at final head | **not run** | per-batch gate green |
+
+### Case A, proven through the real pipeline
+
+The scripted vacuous proposal — the exact Phase 06 shape, its round-trip case binding an empty array —
+produced:
+
+```
+status       OBJECTIVE_INSUFFICIENT_EVIDENCE
+checks       typecheck PASS, test PASS, diff PASS
+changedFiles tests/unit/intervention-file-properties.test.ts
+acceptance   INSUFFICIENT_EVIDENCE
+isolation    checkoutUntouched = true
+```
+
+Every check passed and the change was applied, and the run still did not converge. That is the phase's
+mandated regression, demonstrated rather than asserted. `scripts/fixtures/phase07-case-A-vacuous.json`
+makes it reproducible: a counterexample that only reproduces when a model happens to write it is not a
+regression test, so the harness gained `--scripted` to fix the proposal while leaving everything else real.
+
+Getting there fixed the acceptance model three times, each a false positive that would have accepted the
+vacuous case: it judged the **file** rather than each case (so one case's fixture vouched for another's
+empty one); it counted a non-empty literal **anywhere**, including an assertion's expected value; and it
+accepted a bare identifier without checking what it holds.
+
+### Case B is a FALSE NEGATIVE, and that is why the phase is not PASS
+
+A meaningful proposal through the same real pipeline produced genuinely good evidence — a populated
+two-element fixture, and an assertion echoing the input inside the expected object:
+
+```ts
+const interventions = [ { id: "intervention-1", … }, { id: "intervention-2", … } ];
+expect(parsed).toEqual({ status: "ok", interventions });
+```
+
+The judgement returned `INSUFFICIENT_EVIDENCE` anyway:
+
+> compares a value derived from the result against a literal and never references the input
+
+So the reader is now **too strict where it was too loose**: `referencesInput` looks for a known binding
+name in the matcher operand text and is not recognising `{ status: "ok", interventions }`.
+
+This asymmetry is the honest state of the work. **A model that refuses everything is not a solution to
+`PF-DEBT-011`** — it would fail real work instead of accepting the vacuous version of it. Fixing this
+direction is the next concrete step.
+
+### Case C is structural, and stated rather than faked
+
+`CONTRADICTED` arises from a **discriminating failure**, and in the loop that is the host's verification —
+which runs *before* acceptance. A failing check is therefore reported as `NOT_CONVERGED`, and the
+acceptance judgement is never reached. `OBJECTIVE_CONTRADICTED` is reachable when a caller's acceptance
+model observes the contradiction directly, which is exactly what `engineering-goal-loop.test.ts` asserts
+(green checks, non-empty change, `CONTRADICTED` verdict → `OBJECTIVE_CONTRADICTED`). It is stated here
+because it is a real property of the design, not a gap to be papered over.
 
 ## 4. What the phase actually establishes so far
 

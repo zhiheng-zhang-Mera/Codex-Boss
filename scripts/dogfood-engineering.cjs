@@ -397,6 +397,23 @@ async function main() {
           weakSignals: verdict.weakSignals,
           claims: verdict.claims.map((claim) => ({ claimId: claim.claimId, criticality: claim.criticality, verdict: claim.verdict, reasons: claim.reasons }))
         };
+        // THE FILES THE JUDGEMENT ACTUALLY READ, verbatim.
+        //
+        // Without this the evidence is not self-contained: a verdict of `INSUFFICIENT_EVIDENCE` on a
+        // generated test cannot be checked by anyone who does not still have the temp workspace, and the
+        // first real case-B run had to be diagnosed from a directory that only survived because `--keep`
+        // happened to be passed. A reader must be able to reproduce the judgement from the artifact, so the
+        // judged evidence is copied in beside the verdict. Only the changed TEST files are captured — they
+        // are the input to this judgement and they are what a refusal is about.
+        evidence.judgedFiles = changedFiles
+          .filter((file) => /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file))
+          .map((file) => {
+            try {
+              return { path: file, chars: fs.statSync(path.join(workspace.workspace, file.split("/").join(path.sep))).size, content: fs.readFileSync(path.join(workspace.workspace, file.split("/").join(path.sep)), "utf8") };
+            } catch (error) {
+              return { path: file, error: error instanceof Error ? error.message : String(error) };
+            }
+          });
         return verdict;
       }
     });
@@ -489,6 +506,7 @@ async function main() {
     // The Phase 07 line: the host's checks and the objective's satisfaction are different claims, and a
     // reader must be able to see both.
     process.stdout.write(`[dogfood] acceptance=${evidence.summary?.acceptanceVerdict ?? "not judged"} (checks ${evidence.summary?.verification?.passed === true ? "PASS" : "not run"})\n`);
+    process.stdout.write(`[dogfood] judged=${(evidence.judgedFiles ?? []).map((file) => `${file.path}(${file.chars ?? "unreadable"}c)`).join(", ") || "none"}\n`);
     if (evidence.error) process.stdout.write(`[dogfood] error: ${evidence.error}\n`);
     process.stdout.write(`[dogfood] evidence: ${path.relative(ROOT, out).split(path.sep).join("/")}\n`);
   }

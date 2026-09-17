@@ -100,12 +100,16 @@ export function judgeGoalAcceptance(input: AcceptanceEvidenceInput): Satisfactio
     }
     const strength = summarizeAssertionStrength(source, file);
     const discriminating = strength.discriminating > 0 && strength.inputs.nonEmpty > 0;
+    // A refusal names EVERY reason the reader found, not just the first. Naming only `weak[0]` reported
+    // "1 assertion(s) but none discriminating" for a file that carried two assertion sites and an explicit
+    // throw — the reader had judged both, and a message that hides the rest is not auditable.
+    const reasons = strength.weak.map((entry) => entry.reason).join("; ") || "no varying input was exercised";
     const detail = discriminating
       ? `${file} carries ${strength.discriminating} discriminating assertion(s) over ${strength.inputs.nonEmpty} varying input(s)`
-      : `${file} has ${strength.total} assertion(s) but none discriminating: ${strength.weak[0]?.reason ?? "no varying input was exercised"}`;
+      : `${file} carries ${strength.total} assertion site(s) over ${strength.callInputs.total} call argument(s), of which ${strength.discriminating} discriminate: ${reasons}`;
     // The proxies this phase forbids are recorded as signals a reader may see, and are structurally
     // incapable of satisfying the obligation.
-    weakSignals.push(`${file}: ${strength.total} assertion(s), ${strength.inputs.total} call argument(s)`);
+    weakSignals.push(`${file}: ${strength.total} assertion site(s), ${strength.callInputs.nonEmpty} non-empty call argument(s)`);
     evidence.push({
       id: `assertions:${file}`,
       claimId: claim.id,

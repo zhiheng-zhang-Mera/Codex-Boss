@@ -80,8 +80,10 @@ describe("Phase 07 Task D — A: a vacuous green test", () => {
     // The refusal names the file and says why, so a reader can act on it.
     expect(result.reasons.join(" ")).toContain("non-discriminating");
     expect(result.reasons.join(" ")).toContain("vacuous.test.ts");
-    // And the proxies are recorded WITHOUT being consulted.
-    expect(result.weakSignals.join(" ")).toContain("assertion(s)");
+    // And the proxies are recorded WITHOUT being consulted. The wording says `site(s)` because that is
+    // what is counted — assertion SITES, not passing assertions — and a refusal that overstates its own
+    // measurement is the habit this phase exists to break.
+    expect(result.weakSignals.join(" ")).toContain("assertion site(s)");
     expect(result.claims[0]!.verdict).toBe("INSUFFICIENT_EVIDENCE");
   });
 
@@ -164,7 +166,7 @@ describe("Phase 07 — the model is deterministic and cannot be talked into acce
     const result = judgeGoalAcceptance({ objective: OBJECTIVE, changedFiles: ["tests/unit/many-weak.test.ts"], workspace });
     expect(result.verdict).toBe("INSUFFICIENT_EVIDENCE");
     // The count is visible as a signal, and made no difference to the verdict.
-    expect(result.weakSignals.join(" ")).toMatch(/20 assertion/);
+    expect(result.weakSignals.join(" ")).toMatch(/20 assertion site/);
   });
 
   it("accepts when even one discriminating case is present among weak ones", () => {
