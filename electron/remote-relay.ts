@@ -5,7 +5,19 @@ type RelayRecord =
   | { type: "status"; channel: RemoteChannel; status: Exclude<RemoteChannelStatus, "disabled">; message: string }
   | { type: "command"; channel: RemoteChannel; body: string; sourceWindow: string };
 
-function parseRelayLine(line: string): RelayRecord | null {
+/**
+ * Parse one line of the relay script's stdout.
+ *
+ * Exported because it is the relay's whole input contract and it is PURE: given a line, this decides
+ * what the platform will believe. It was module-private and therefore untested — the `remote`
+ * capability had no authoritative suite at all (PF-DEBT-002) — and the parsing rules are exactly the
+ * part that must not drift: an unrecognized channel, a missing field or a malformed record has to be
+ * refused rather than half-accepted.
+ *
+ * Returns `unknown` on purpose: the shape is asserted by the tests that exercise it, so the union does
+ * not need to be part of the module's published surface.
+ */
+export function parseRelayLine(line: string): unknown {
   try {
     const value = JSON.parse(line) as Partial<RelayRecord>;
     if (value.channel !== "wechat" && value.channel !== "qq") return null;
@@ -17,6 +29,9 @@ function parseRelayLine(line: string): RelayRecord | null {
   }
 }
 
+/** How a relay child process is launched. Injectable so the relay's own behaviour is testable. */
+type RelaySpawn = (command: string, args: string[], options: { windowsHide: boolean; stdio: ["pipe", "pipe", "pipe"] }) => ChildProcessWithoutNullStreams;
+
 export class RemoteCommandRelay {
   private readonly processes = new Map<RemoteChannel, { child: ChildProcessWithoutNullStreams; commandPrefix: string }>();
   private readonly stopping = new WeakSet<ChildProcessWithoutNullStreams>();
@@ -24,7 +39,13 @@ export class RemoteCommandRelay {
   constructor(
     private readonly scriptPath: string,
     private readonly onStatus: (channel: RemoteChannel, status: RemoteChannelStatus, message: string) => void,
-    private readonly onCommand: (channel: RemoteChannel, body: string, sourceWindow: string) => void
+    private readonly onCommand: (channel: RemoteChannel, body: string, sourceWindow: string) => void,
+    /**
+     * The launcher. Defaults to the real `spawn`; a test injects one so the relay's lifecycle —
+     * dedupe by command prefix, status reporting, command forwarding, exit handling, disposal — is
+     * exercised without claiming to have verified a PowerShell script this host may not run.
+     */
+    private readonly spawnChild: RelaySpawn = spawn as unknown as RelaySpawn
   ) {}
 
   sync(settings: RemoteChannelSetting[]): void {
@@ -43,7 +64,7 @@ export class RemoteCommandRelay {
     const existing = this.processes.get(channel);
     if (existing?.commandPrefix === commandPrefix) return;
     if (existing) this.stop(channel);
-    const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", this.scriptPath, "-Channel", channel, "-CommandPrefix", commandPrefix], {
+    const child = this.spawnChild("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", this.scriptPath, "-Channel", channel, "-CommandPrefix", commandPrefix], {
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -82,9 +103,11 @@ export class RemoteCommandRelay {
     this.onStatus(channel, "disabled", "远程指令监听已关闭");
   }
 
-  private handleRecord(record: RelayRecord | null): void {
-    if (!record) return;
-    if (record.type === "status") this.onStatus(record.channel, record.status, record.message);
-    else this.onCommand(record.channel, record.body, record.sourceWindow);
+  /** Narrow a parsed line back to the record union. A line that is not a record is dropped, not guessed. */
+  private handleRecord(record: unknown): void {
+    if (!record || typeof record !== "object") return;
+    const value = record as RelayRecord;
+    if (value.type === "status") this.onStatus(value.channel, value.status, value.message);
+    else if (value.type === "command") this.onCommand(value.channel, value.body, value.sourceWindow);
   }
 }

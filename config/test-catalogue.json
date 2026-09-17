@@ -749,6 +749,14 @@
       ]
     },
     {
+      "file": "tests/unit/experience-capability.test.ts",
+      "tier": "unit",
+      "covers": [
+        "experience",
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/export-surface.test.ts",
       "tier": "unit",
       "covers": [
@@ -1165,6 +1173,14 @@
       "tier": "unit",
       "covers": [
         "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/remote-capability.test.ts",
+      "tier": "unit",
+      "covers": [
+        "remote",
+        "status"
       ]
     },
     {

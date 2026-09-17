@@ -37,13 +37,14 @@ run and artifact, that establishes it.
 | **ID** | `PF-DEBT-001` |
 | **Title** | `experience` capability has no authoritative test suite |
 | **Discovered phase** | 05 (recorded in `docs/9-16-platform-foundation-phase-05-status.md` §11) |
-| **Status** | `DEFERRED` |
+| **Status** | `FIXED` (Phase 06 Task C) |
 | **Severity** | `HIGH` |
 | **Affected capability** | `experience` |
-| **Evidence / source** | `test-impact` ownership audit: `electron/experience/` and `src/shared/experience.ts` are owned by the `experience` capability, and no catalogue entry declares an authoritative obligation for it. Phase 05 §11 records it by name: *"`experience` and `remote` have no authoritative suite at all … This is a real evidence gap in the platform, not a selector bug."* |
+| **Evidence / source** | `test-impact` ownership audit: `electron/experience/` and `src/shared/experience.ts` are owned by the `experience` capability, and no catalogue entry declared an authoritative obligation for it. Phase 05 §11 records it by name: *"`experience` and `remote` have no authoritative suite at all … This is a real evidence gap in the platform, not a selector bug."* |
 | **Why deferred** | Not a Phase 05 gate, and the gap cannot be closed honestly by inventing a suite: an authoritative suite must test the capability's declared contract, and the contract itself has to be established first. Writing a test that asserts whatever the implementation happens to do would manufacture coverage rather than evidence. |
 | **What would close it** | An authoritative suite in `config/test-catalogue.json` whose obligations match the capability's declared invariants, passing at an exact head, and the capability no longer appearing in the ownership audit's unowned-obligation list. If the contract turns out not to exist in the implementation, the honest close is a `ARCHITECTURE ISSUE` entry instead — not an empty test. |
 | **Target / revisit phase** | Phase 06 Task C |
+| **How it was closed** | `tests/unit/experience-capability.test.ts` (22 tests) is the authoritative suite. It covers the promotion hierarchy and its thresholds (including that distinct WORKSPACES are counted, not observations, so a single project's habit cannot become a domain rule), the contribution statistics (including a `null` rate rather than a `0` for an unrated runtime), the durable store (claim-keyed entries, the 200-observation bound, restart durability, fail-closed reads, missing-is-empty), and the bus→store bridge (which events become observations, the caller's source mapping and weight, that an event without a task or runtime is ignored, and that detaching really detaches). The suite states what it does NOT cover: the Commander's USE of a promoted claim. Nothing in the platform reads the store back to alter a decision — wiring promotion into routing is a product change Phase 06 is forbidden to make — and that is recorded rather than dressed up as coverage. |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
 ## PF-DEBT-002 — `remote` capability has no authoritative test suite
@@ -53,13 +54,14 @@ run and artifact, that establishes it.
 | **ID** | `PF-DEBT-002` |
 | **Title** | `remote` capability has no authoritative test suite |
 | **Discovered phase** | 05 (recorded in `docs/9-16-platform-foundation-phase-05-status.md` §11) |
-| **Status** | `DEFERRED` |
+| **Status** | `FIXED` (Phase 06 Task C) |
 | **Severity** | `HIGH` |
 | **Affected capability** | `remote` |
-| **Evidence / source** | `electron/remote-relay.ts` is named only by `tests/unit/process-gateway.test.ts`, which asserts the **import boundary** rather than behaviour. No catalogue entry declares an authoritative obligation for `remote`. |
-| **Why deferred** | Same as `PF-DEBT-001`. Additionally, a relay's real behaviour is partly environmental (it drives an external channel), so the authoritative suite must separate what is testable in-process from what is not — and must say which half it covers rather than implying full coverage. |
-| **What would close it** | An authoritative suite covering the relay's in-process contract (routing, refusal, status reporting), explicitly declaring which behaviour is **not** covered in-process, and `remote` ceasing to appear in the unowned-obligation list. |
+| **Evidence / source** | `electron/remote-relay.ts` was named only by `tests/unit/process-gateway.test.ts`, which asserts the **import boundary** rather than behaviour. No catalogue entry declared an authoritative obligation for `remote`. |
+| **Why deferred** | Same as `PF-DEBT-001`. Additionally, a relay's real behaviour is partly environmental (it drives an external channel), so the authoritative suite has to separate what is testable in-process from what is not — and say which half it covers rather than implying full coverage. |
+| **What would close it** | An authoritative suite covering the relay's in-process contract (parsing, routing, refusal, status reporting, lifecycle), explicitly declaring which behaviour is **not** covered in-process, and `remote` ceasing to appear in the unowned-obligation list. |
 | **Target / revisit phase** | Phase 06 Task C |
+| **How it was closed** | `tests/unit/remote-capability.test.ts` (22 tests) is the authoritative suite. The relay was made testable by two narrow changes that add no behaviour: `parseRelayLine` is exported (it is pure, it is the relay's entire input contract, and it was the untested part that must not drift), and the launcher is an injectable constructor parameter defaulting to the real `spawn`, so the channel lifecycle is exercised deterministically. The suite covers both halves: the input contract (well-formed status/command records, trim, and the refusals — an unserved channel, an unmodelled status including `disabled`, a missing field, a whitespace-only command, malformed input without throwing, and the body/window bounds) and the lifecycle (only the enabled channel starts, an unchanged prefix is not restarted, a changed prefix replaces the old listener, disabling stops and reports, chunk reassembly, multiple records per chunk, status forwarding, an unparseable line ignored, an unexpected exit reported as an error carrying stderr, a DELIBERATE stop NOT reported as an error, a launcher failure surfaced, and disposal). The suite states what it does NOT cover: `scripts/pc-chat-relay.ps1` and the Windows desktop automation behind it, which needs a logged-in WeChat/QQ client on a Windows host. The relay treats that script as an untrusted line producer, which is why the parsing contract is authoritative on its own. |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
 > **Both entries must stay visible.** Closing the evidence gap is allowed; making the capability disappear
@@ -190,6 +192,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | `14fd222aba782f97ec40662b04fc19f391f2653d` | 06 (reconstruction) | `PF-DEBT-001` … `PF-DEBT-008` | none |
 | Phase 06 Task B batch 1 | 06 (construction) | `PF-DEBT-005`, `PF-DEBT-006` | `PF-DEBT-005` (B1), `PF-DEBT-006` (B2) |
 | Phase 06 Task A batch 2 | 06 (construction) | none | `PF-DEBT-007` (journal layout owner), `PF-DEBT-008` (machine-identity layout owner) |
+| Phase 06 Task C batch 3 | 06 (construction) | none | `PF-DEBT-001` (`experience` authoritative suite), `PF-DEBT-002` (`remote` authoritative suite) — capability coverage now **27 of 27** |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a
