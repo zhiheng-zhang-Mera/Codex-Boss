@@ -1012,6 +1012,15 @@
       ]
     },
     {
+      "file": "tests/unit/platform/acceptance.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "a claim is satisfied only by discriminating evidence, and a vacuous green test yields INSUFFICIENT_EVIDENCE rather than acceptance",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/platform/architecture-ratchet.test.ts",
       "tier": "unit",
       "covers": [

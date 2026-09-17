@@ -22,6 +22,8 @@
       "electron/bootstrap/engineering.ts",
       "electron/engineering",
       "electron/self-engineering",
+      "src/shared/acceptance.ts",
+      "src/shared/assertion-shape.ts",
       "src/shared/capability-gap.ts",
       "src/shared/ci-repair.ts",
       "src/shared/correction.ts",

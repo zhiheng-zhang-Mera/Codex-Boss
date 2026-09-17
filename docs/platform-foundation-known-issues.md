@@ -235,8 +235,8 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **Why this is a note rather than a defect** | The host cannot judge whether an assertion is meaningful, and it should not pretend to: it runs the allowlisted commands and reports their outcome. That is the correct division of labour — `MANDATORY_GATE_STAGES` establishes completion eligibility, and judging the *quality* of a test is what an independent reader is for. The alternative (a heuristic that rejects "weak-looking" tests) would be a false-confidence machine. |
 | **Consequence, stated plainly** | "The host's checks passed" means the change compiles, the suite is green and the diff is clean. It does NOT mean the change does what the objective asked. A reader of a `CONVERGED` result must not inflate it into a quality claim, and Phase 06's own evidence is worded accordingly. |
 | **What would close it** | A downstream quality gate that reads the change against the objective. The optional Agent review stage is the natural place — and `Gate 8` measured it `COST_ONLY`, so it is not in the default pipeline and this is not currently covered. |
-| **Target / revisit phase** | Not a Phase 06 gate; revisit when a review stage earns its place |
-| **Last reviewed SHA** | `c192d0d14362bacf49f88a90f7a4d4d421c024d8` |
+| **Target / revisit phase** | **Phase 07** (`platform-foundation/07-semantic-acceptance`) — being worked. Deliberately **not** marked `FIXED` yet: it closes only once (a) the semantic acceptance contract is the production path, (b) the vacuous-green case is refused with `INSUFFICIENT_EVIDENCE`, (c) meaningful evidence satisfies, and (d) a real dogfood run proves it. Marking it fixed on a passing unit test would be the same error this entry describes. |
+| **Last reviewed SHA** | `e135f8c54fbe9dcc448c2d8f05611d344d7291a4` |
 
 
 

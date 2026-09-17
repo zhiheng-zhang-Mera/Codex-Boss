@@ -49,6 +49,10 @@ const CURATED = {
   "tests/unit/platform/coordination-ledger.test.ts": { covers: ["tenx"], obligation: "coordination records are derived from the durable ledger reporting only observed figures, with unobservable ones left null" },
   "tests/unit/platform/coordination-economics.test.ts": { covers: ["tenx"], obligation: "an extra agent stage is promoted only on a measured defect or rework improvement, and never on an unobserved figure" },
   "tests/unit/platform/restart-recovery.test.ts": { covers: ["persistence"], obligation: "after a restart no committed work is lost and no external side effect is applied twice" },
+  // Phase 07: the acceptance model decides whether a change satisfies the OBJECTIVE, not merely whether a
+  // check passed. Always-run because every other suite's green is only as meaningful as this judgement,
+  // and it guards a shared contract rather than one capability's behaviour.
+  "tests/unit/platform/acceptance.test.ts": { covers: ["runtime"], obligation: "a claim is satisfied only by discriminating evidence, and a vacuous green test yields INSUFFICIENT_EVIDENCE rather than acceptance", alwaysRun: true },
   "tests/acceptance/targeted-vs-full.test.ts": { covers: ["runtime"], obligation: "the targeted selection and the same commit's full gate agree, and the pairing refuses when they do not" },
   "tests/acceptance/platform-soak-report.test.ts": { covers: ["state-core"], obligation: "the soak report covers every dimension the book names, declares what it cannot observe, and fails a run whose trend exceeds the allowance" },
   "tests/acceptance/platform-architecture-diagnostics.test.ts": { covers: ["runtime"], obligation: "the architecture CLI reports the same graph the registry builds", alwaysRun: true },
