@@ -285,6 +285,11 @@ async function main() {
     return 2;
   }
   const maxIterations = Number.isInteger(Number(options.iterations)) ? Number(options.iterations) : 1;
+  // Extra authorized paths for a case whose point IS a non-test change. Recorded in the evidence, so a
+  // reader can see the scope the run was given rather than having to infer it from what applied.
+  const allowedPaths = (typeof options.allow === "string" ? options.allow.split(",") : [])
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
   // `clone` by default: only a tree that is NOT the Boss repository by identity can be mutated by the
   // ordinary engineering path. `worktree` is kept so the guard's refusal can be reproduced on demand.
   const workspaceMode = options.worktree === true ? "worktree" : "clone";
@@ -303,6 +308,8 @@ async function main() {
     inputIdentity: `objective:${Buffer.from(objective, "utf8").toString("hex").slice(0, 32)}`,
     calls: [],
     isolation: { checkoutHeadBefore: before.head, checkoutCleanBefore: before.status === "" },
+    // The scope this run was GRANTED, so a reader can see it rather than infer it from what applied.
+    authorizedPaths: ["tests/unit/", "tests/acceptance/", ...allowedPaths],
     status: "RUNNING"
   };
 
@@ -382,8 +389,19 @@ async function main() {
       // makes these prefix grants rather than file allowances — without it they would authorise nothing
       // creatable and the run would fail with "Change outside authorized scope" (which it did, twice,
       // before this was noticed). It is an allowance over the test tree, not a blanket permission.
-      allowPaths: ["tests/unit/", "tests/acceptance/"],
+      //
+      // `--allow <path>` (repeatable) widens it for a case that is ABOUT a non-test change. Case D needs a
+      // source-only proposal, and without this the run stopped before the acceptance model was ever
+      // consulted: `attempt 1 could not apply a change: Engineering requires explicit file and verification
+      // scope`. That is the scope guard doing its job, not a finding — so the case grants the scope it is
+      // about rather than the guard being weakened to accommodate it.
+      allowPaths: ["tests/unit/", "tests/acceptance/", ...allowedPaths],
       maxScopeFiles: 12,
+      // The host's own account of the scope and checks it settled on, per attempt. A refusal is otherwise
+      // unattributable from the artifact.
+      describe: (observation) => {
+        evidence.scopeObservations = [...(evidence.scopeObservations ?? []), observation];
+      },
       audit: (g) => instrumented.audit(g),
       // The acceptance judgement, captured into evidence. It is the default production model
       // (`judgeGoalAcceptance`), recorded here so the run's verdict is auditable alongside the checks it

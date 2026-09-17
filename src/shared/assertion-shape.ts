@@ -487,6 +487,7 @@ export function summarizeAssertionStrength(source: string, file: string): {
     // and a non-empty value supplied to it.
     const caseShapes = readAssertionShapes(body, file);
     const caseBindings = readBindings(body);
+    let caseDiscriminating = false;
     for (const shape of caseShapes) {
       shapes.push(shape);
       const judgement = assertionDiscriminates(shape);
@@ -496,6 +497,7 @@ export function summarizeAssertionStrength(source: string, file: string): {
       if (judgement.discriminating && supplied.found) {
         discriminating += 1;
         nonEmptyInputs += 1;
+        caseDiscriminating = true;
         expressions.push(...supplied.expressions);
       } else if (judgement.discriminating) {
         weak.push({ at: shape.at, assertion: shape.assertion, reason: `${shape.at} ties the result to its input, but no non-empty value reaches the assertion` });
@@ -503,7 +505,10 @@ export function summarizeAssertionStrength(source: string, file: string): {
         weak.push({ at: shape.at, assertion: shape.assertion, reason: judgement.reason });
       }
     }
-    if (!caseShapes.length) emptyInputs += 1;
+    // `empty` counts cases that exercised no non-empty value — which is what the field is read as meaning,
+    // and what it did NOT mean before: incrementing it only for cases with no assertion site at all made
+    // it a count of assertion-less cases wearing the name of a count of empty ones.
+    if (!caseDiscriminating) emptyInputs += 1;
   }
 
   const fileCallArguments = readCallArgumentShapes(source);

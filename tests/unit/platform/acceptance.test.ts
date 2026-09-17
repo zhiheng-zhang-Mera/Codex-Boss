@@ -275,6 +275,10 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     // `it("round-trips", …)` label is a description, not a value fed to the behaviour. Counting it made a
     // file whose only input was `[]` report "1 non-empty call argument" — a true count of the wrong thing.
     expect(strength.callInputs.nonEmpty).toBe(0);
+    // And the case counts as EMPTY. It used to count as empty only when it carried no assertion site at
+    // all, which made the field a count of assertion-less cases wearing the name of a count of empty ones.
+    expect(strength.inputs.total).toBe(1);
+    expect(strength.inputs.empty).toBe(1);
   });
 
   it("does not count a test's own label as an input it supplies", () => {
@@ -306,6 +310,8 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
     expect(strength.discriminating).toBe(1);
     expect(strength.callInputs.nonEmpty).toBeGreaterThan(0);
+    // A case that exercised a non-empty value is not one of the empty ones.
+    expect(strength.inputs.empty).toBe(0);
   });
 
   it("reads a fixture whose declaration carries a TYPE ANNOTATION", () => {

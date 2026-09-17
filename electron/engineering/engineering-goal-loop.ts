@@ -255,6 +255,15 @@ export function createGoalLoopOperations(input: {
    * its own is making a deliberate choice rather than leaving the judgement undone.
    */
   acceptance?: (goal: EngineeringGoalContract, changedFiles: string[]) => Promise<SatisfactionResult>;
+  /**
+   * Record what the host believed about its scope and checks, per attempt.
+   *
+   * Optional, and read nothing else. It exists so a caller's evidence can attribute a refusal to the scope
+   * or to the checks rather than leaving a reader to guess — the case-D run that reported "Engineering
+   * requires explicit file and verification scope" carried no such record, and the diagnosis had to be
+   * reconstructed from the loop's source.
+   */
+  describe?: (observation: { attempt: number; scope: string[]; checks: string[]; createdAt: string }) => void | Promise<void>;
 }): EngineeringGoalLoopOperations {
   const maxScopeFiles = Math.max(1, input.maxScopeFiles ?? 12);
 
@@ -325,6 +334,13 @@ export function createGoalLoopOperations(input: {
     acceptance: input.acceptance ?? (async (goal, changedFiles) => judgeGoalAcceptance({ objective: goal.objective, changedFiles, workspace: input.workspace })),
     async implement(goal, objective, attempt) {
       const scope = scopeFor(goal);
+      // WHAT THE HOST BELIEVED ABOUT ITS OWN SCOPE, before it tried anything.
+      //
+      // Recorded because a refusal is otherwise unattributable: a real case-D run reported "Engineering
+      // requires explicit file and verification scope" with an empty `changedFiles`, and nothing in the
+      // evidence said whether the scope was empty, the checks were empty, or the coder failed. A caller may
+      // supply `describe` to write this down; silence is the default so no caller is forced to.
+      await input.describe?.({ attempt, scope, checks: [], createdAt: new Date().toISOString() });
       // A goal that names only a NEW file has no existing file to hand the coder, but it is still
       // workable when the caller granted a prefix. Demanding an existing file would have made
       // "add this test" impossible.
@@ -335,6 +351,7 @@ export function createGoalLoopOperations(input: {
       // the grant's own directory decides which check applies.
       const checkTargets = scope.length ? scope : [`${normalize((input.allowPaths ?? []).find(isPrefixGrant) ?? "tests/")}probe.test.ts`];
       const checks = engineeringChecksFor(input.workspace, checkTargets);
+      await input.describe?.({ attempt, scope, checks: checks.map((check) => String(check.kind ?? "unknown")), createdAt: new Date().toISOString() });
       if (!checks.length) {
         return { changedFiles: [], status: "FAIL" as const, checks: [], error: `no host check applies to the authorised scope (${checkTargets.join(", ")}), so a change to it could not be judged` };
       }
