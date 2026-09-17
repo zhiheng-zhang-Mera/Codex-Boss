@@ -406,6 +406,13 @@
       ]
     },
     {
+      "file": "tests/unit/budget-predicate-purity.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/candidate-gate.test.ts",
       "tier": "unit",
       "covers": [
@@ -858,6 +865,15 @@
       ]
     },
     {
+      "file": "tests/unit/intervention-store-contract.test.ts",
+      "tier": "unit",
+      "covers": [
+        "host-status",
+        "tasks",
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/knowledge-foundation.test.ts",
       "tier": "unit",
       "covers": [
@@ -1030,6 +1046,7 @@
       "file": "tests/unit/platform/provider-models.test.ts",
       "tier": "unit",
       "covers": [
+        "runtime",
         "tasks"
       ]
     },

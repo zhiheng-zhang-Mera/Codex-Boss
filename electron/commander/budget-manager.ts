@@ -49,9 +49,43 @@ export class BudgetManager {
     return undefined;
   }
 
+  /**
+   * Whether a runtime may be dispatched to.
+   *
+   * PURE: no clock read that mutates, no I/O, no throwing. This is a hot-path predicate — the
+   * scheduler and the execution supervisor call it per dispatch candidate — and it previously called
+   * `update()` when a reset window had passed, which writes the whole budget file to disk from inside
+   * a question. A write failure then escaped from a method whose callers treat it as pure.
+   *
+   * The expiry decision itself is unchanged; only WHERE it is applied moved. Call `reconcile()` to
+   * apply due expirations, then ask this. A caller that only asks still gets the right answer for the
+   * state as it currently stands, it just does not trigger a state transition as a side effect of
+   * asking.
+   */
   eligible(runtimeId: RuntimeId): boolean {
-    const state = this.get(runtimeId);
-    if (state.resetAt && Date.parse(state.resetAt) <= Date.now()) this.update(runtimeId, "UNKNOWN", "OBSERVED");
     return this.get(runtimeId).state !== "EXHAUSTED";
+  }
+
+  /**
+   * Apply every reset window that has passed, in memory, and report what changed.
+   *
+   * Deliberately does NOT persist. The reconciliation is a state correction derived from the clock, so
+   * it is recomputed on the next call rather than written on every check — the durability contract for
+   * this store is that OBSERVED transitions persist (see `observeSuccess` / `observeFailure` /
+   * `update`), and a clock tick is not an observation.
+   *
+   * Returns the runtime ids that were released, so a caller can report the transition instead of it
+   * happening invisibly inside a predicate.
+   */
+  reconcile(now: number = Date.now()): RuntimeId[] {
+    const released: RuntimeId[] = [];
+    for (const [runtimeId, state] of [...this.states]) {
+      if (!state.resetAt || Date.parse(state.resetAt) > now) continue;
+      // The reset window has passed: the previous level was a forecast, not a verdict, so the runtime
+      // returns to UNKNOWN and is eligible again until something observes otherwise.
+      this.states.set(runtimeId, { ...state, state: "UNKNOWN", source: "OBSERVED", updatedAt: new Date(now).toISOString(), resetAt: undefined });
+      released.push(runtimeId);
+    }
+    return released;
   }
 }

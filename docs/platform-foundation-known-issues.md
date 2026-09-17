@@ -116,13 +116,14 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **ID** | `PF-DEBT-005` |
 | **Title** | Unresolved human interventions are silently never collected |
 | **Discovered phase** | 06 (during book reconstruction) |
-| **Status** | `OPEN` |
+| **Status** | `FIXED` (Phase 06 Task B1, commit `phase-06` batch 1) |
 | **Severity** | `HIGH` |
-| **Affected capability** | `human-guidance` (write side) / `host-observability` (read side) |
-| **Evidence / source** | **Writer:** `electron/commander/human-guidance-gate.ts:14-17` declares `InterventionFile { schemaVersion: 1; interventions: HumanInterventionRequest[] }` and `:78` writes that key. **Reader:** `electron/host/host-observer-collector.ts:441-446` parses the same file as `{ items?: Array<{ taskId; kind; question; resolvedAt? }> }` and iterates `parsed?.items ?? []`. The key differs (`interventions` vs `items`), and the reader expects a `question` field while the writer stores the request's own shape. The whole read sits inside a `try/catch` that treats any problem as "interventions.json absent" (`:447-449`). |
+| **Affected capability** | `tasks` (write side — the guidance gate) / `status` (read side — the observation surface) |
+| **Evidence / source** | **Writer:** `electron/commander/human-guidance-gate.ts:14-17` declared `InterventionFile { schemaVersion: 1; interventions: HumanInterventionRequest[] }` and `:78` wrote that key. **Reader:** `electron/host/host-observer-collector.ts:441-446` parsed the same file as `{ items?: Array<{ taskId; kind; question; resolvedAt? }> }` and iterated `parsed?.items ?? []`. The key differed (`interventions` vs `items`), and the whole read sat inside a `try/catch` that treated any problem as "interventions.json absent" (`:447-449`). |
 | **Consequence** | The observation surface reports **zero** unresolved human interventions, always. Tasks waiting on a human are invisible to the failure/inspection surface, and the failure is silent rather than reported — a defect disguised as "nothing wrong". |
 | **Why recorded now** | Located during reconstruction and confirmed by reading both sides. Not fixed here because the Phase 06 book is written before construction begins. |
 | **What would close it** | Reader and writer constrained by one shared type/constant rather than two hand-written key strings; a **two-way** test proving an unresolved intervention *is* collected and a resolved one *is not*; and a parse failure distinguished from "no interventions" and surfaced as degradation instead of swallowed. |
+| **How it was closed** | `src/shared/intervention-file.ts` is now the single contract: `interventionFileDocument()` is what the gate persists, and `parseInterventionFile()` is what the observation surface reads, so the two cannot drift into different keys again. The read has three explicit states — `ok` / `missing` / `unreadable` — and `unreadable` is reported as a `store-degradation` failure rather than swallowed as absence. `tests/unit/intervention-store-contract.test.ts` (10 tests) exercises BOTH sides against one file, in both directions: an unresolved pause is collected, a resolved pause is not, a missing file is not a degradation, and an unreadable one is. |
 | **Target / revisit phase** | Phase 06 Task B1 |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
@@ -133,14 +134,15 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **ID** | `PF-DEBT-006` |
 | **Title** | A high-frequency eligibility predicate performs persisted state transitions |
 | **Discovered phase** | 06 (during book reconstruction) |
-| **Status** | `OPEN` |
+| **Status** | `FIXED` (Phase 06 Task B2) |
 | **Severity** | `MEDIUM` |
-| **Affected capability** | `runtime-budget` (consumed by scheduler and execution supervisor) |
-| **Evidence / source** | `electron/commander/budget-manager.ts:52-56`: `eligible()` calls `this.update(...)` when `resetAt` has passed; `update()` writes the whole state list to disk at `:42` when a file is configured. `eligible()` is called per dispatch candidate from the scheduler/supervisor path. |
+| **Affected capability** | `runtime` (the budget predicate is consumed by the scheduler and the execution supervisor) |
+| **Evidence / source** | `electron/commander/budget-manager.ts:52-56`: `eligible()` called `this.update(...)` when `resetAt` had passed; `update()` writes the whole state list to disk at `:42` when a file is configured. `eligible()` is called per dispatch candidate from the scheduler/supervisor path. |
 | **Consequence** | Every eligibility check on an expired reset window rewrites the budget file — a predicate with I/O, called on a hot path. A write failure propagates out of a predicate whose callers treat it as a pure question, and repeated calls produce repeated writes. |
 | **Why recorded now** | Located during reconstruction by reading the class end to end. |
 | **What would close it** | Expiry evaluation separated from persistence: the predicate stays pure, repeatable and free of I/O errors, while the expiry transition still happens and is still persisted. A test proving repeated predicate calls cause no extra write, and that an expired window is genuinely corrected. |
 | **Target / revisit phase** | Phase 06 Task B2 |
+| **How it was closed** | `eligible()` is now a pure predicate — no clock-driven transition, no I/O, no throwing. `reconcile(now)` applies every reset window that has passed and RETURNS the released runtime ids, so the transition a dispatch depends on is explicit and observable instead of hidden inside a question. It deliberately does not persist: a clock tick is not an observation, and the durability contract for this store is that observed transitions persist. Callers that need the transition (`ExecutionSupervisor.run`, `MainCommander.synthesizeAccepted`) reconcile once per dispatch before asking. `tests/unit/budget-predicate-purity.test.ts` (8 tests) proves both halves — 50 consecutive predicate calls produce byte-identical and untouched files, and an expired window is still genuinely released, while a verdict with no reset forecast is not. |
 | **Last reviewed SHA** | `14fd222aba782f97ec40662b04fc19f391f2653d` |
 
 ## PF-DEBT-007 — `engineering-loop.json` is constructed at up to three sites
@@ -184,6 +186,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | Reviewed at SHA | Phase | Entries added | Entries closed |
 | --- | --- | --- | --- |
 | `14fd222aba782f97ec40662b04fc19f391f2653d` | 06 (reconstruction) | `PF-DEBT-001` … `PF-DEBT-008` | none |
+| Phase 06 Task B batch 1 | 06 (construction) | `PF-DEBT-005`, `PF-DEBT-006` | `PF-DEBT-005` (B1), `PF-DEBT-006` (B2) |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a

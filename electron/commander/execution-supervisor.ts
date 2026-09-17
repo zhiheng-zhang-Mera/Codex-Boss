@@ -30,6 +30,10 @@ export class ExecutionSupervisor {
     if (old && old.state !== "COMPLETED" && ["VERIFY_SIDE_EFFECT", "HUMAN_REQUIRED"].includes(state.nextAction)) return this.defer(request, "Human reconciliation remains required", "USER_ACTION_REQUIRED");
     if (old?.state === "RUNNING" && !request.replaySafe) return this.defer(request, "Prior side effect must be verified before replay", "USER_ACTION_REQUIRED");
     if (old?.retryAt && old.retryAt > Date.now()) return this.defer(request, "Waiting for retry deadline", "RATE_LIMITED");
+    // Apply any reset window that has passed BEFORE asking who is eligible. The eligibility predicate
+    // is pure, so the reconciliation a dispatch depends on happens here, once per dispatch, instead of
+    // as a disk write inside the predicate on every call.
+    this.budgets?.reconcile();
     const compatible = candidates.filter((runtime) => runtime.capabilities.roles.includes(request.role) && (!this.budgets || this.budgets.eligible(runtime.id)) && (!this.breaker || !this.breaker.isOpen(runtime.id)));
     if (!compatible.length) return this.defer(request, "No compatible backend", "UNSUPPORTED");
     for (let index = 0; index < compatible.length; index++) {

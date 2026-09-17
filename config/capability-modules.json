@@ -250,6 +250,7 @@
       "src/shared/final-response.ts",
       "src/shared/host-maturity-flags.ts",
       "src/shared/input-object.ts",
+      "src/shared/intervention-file.ts",
       "src/shared/intervention.ts",
       "src/shared/model-identity.ts",
       "src/shared/model-policy.ts",

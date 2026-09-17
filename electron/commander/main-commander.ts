@@ -648,6 +648,9 @@ export class MainCommander {
     const cached = this.ledger?.load(taskId)?.jobs[request.jobId];
     if (cached?.state === "COMPLETED" && cached.fingerprint === TaskLedger.fingerprint({ prompt: request.prompt, role: request.role, context: request.context })) return this.acceptSynthesis(taskId, request.jobId, cached.result, task.reviewPolicy?.output);
     const runtime = this.registry.get("codex:cli");
+    // Reconcile before asking, because `eligible` is a pure predicate: a reset window that has passed
+    // is applied here rather than as a disk write inside the question.
+    this.budgets.reconcile();
     if (!runtime || snapshot.runtimeStatuses.find((item) => item.runtimeId === runtime.id)?.enabled === false || !this.budgets.eligible(runtime.id)) return;
     await this.registry.refreshHealth(runtime.id);
     if (this.registry.getHealth(runtime.id)?.availability !== "AVAILABLE") return;

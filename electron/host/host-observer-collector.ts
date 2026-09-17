@@ -11,6 +11,7 @@ import { RecoveryScheduler } from "../commander/recovery-scheduler";
 import { TelemetryStore } from "../telemetry/telemetry-store";
 import { LearningService } from "../learning/learning-service";
 import { nodeStateFor as fleetStateFor } from "../../src/shared/fleet";
+import { parseInterventionFile, unresolvedInterventions } from "../../src/shared/intervention-file";
 import type { Interruption } from "../commander/interruption";
 import {
   dimensionReport,
@@ -437,15 +438,26 @@ export async function collectHostSnapshot(sources: HostObservabilitySources): Pr
         // no tasks dir yet
       }
       // 4. unresolved human interventions.
-      try {
+      //
+      // Read through the same contract the guidance gate WRITES with. This block used to parse
+      // `{ items: [...] }` while the writer produced `{ interventions: [...] }`, so it iterated an
+      // empty array and the surface reported zero unresolved pauses, always — a defect that looked
+      // exactly like good news because the surrounding catch reported every failure as "absent".
+      //
+      // The three states are now distinct and "unreadable" is reported rather than swallowed: a store
+      // that cannot be understood is a set of tasks that cannot be resumed, which is the opposite of
+      // nothing to report.
+      {
         const file = path.join(boss, "interventions.json");
-        const parsed = readJsonSafe<{ items?: Array<{ taskId: string; kind: string; question: string; resolvedAt?: string }> }>(file);
-        for (const item of parsed?.items ?? []) {
-          if (item.resolvedAt) continue;
-          collected.push({ source: "intervention", taskId: item.taskId, kind: item.kind, detail: item.question });
+        const raw = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : undefined;
+        const parsed = raw === undefined ? ({ status: "missing" } as const) : parseInterventionFile(raw);
+        if (parsed.status === "unreadable") {
+          collected.push({ source: "store-degradation", kind: "unreadable-store", detail: `interventions: ${parsed.reason}` });
+        } else {
+          for (const item of unresolvedInterventions(parsed)) {
+            collected.push({ source: "intervention", taskId: item.taskId, kind: item.kind, detail: item.question });
+          }
         }
-      } catch {
-        // interventions.json absent
       }
       // 5. stores that self-reported corruption.
       for (const entry of learning?.degraded ?? []) {

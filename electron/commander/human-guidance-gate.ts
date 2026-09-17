@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { interventionKey, validateInterventionRequest, type HumanInterventionRequest, type InterventionKind } from "../../src/shared/intervention";
+import { interventionFileDocument, parseInterventionFile } from "../../src/shared/intervention-file";
 
 /**
  * Durable human-guidance gate (plan 9-6 Phase 4). Research/work tasks run on
@@ -9,13 +10,12 @@ import { interventionKey, validateInterventionRequest, type HumanInterventionReq
  * (with checkpoint/context summary) before anything stops, and resolution is
  * an append of the decision artifact so the task resumes from its checkpoint,
  * never restarting from scratch. One active intervention per task.
+ *
+ * The document shape is NOT declared here. It lives in `src/shared/intervention-file.ts`, which the
+ * observation surface that reads this file also uses, because the two sides previously hand-wrote
+ * different keys (`interventions` vs `items`) and the reader silently reported zero unresolved pauses
+ * as a result. One contract, two consumers, is the fix.
  */
-
-interface InterventionFile {
-  schemaVersion: 1;
-  interventions: HumanInterventionRequest[];
-}
-
 export class HumanGuidanceGate {
   private readonly requests = new Map<string, HumanInterventionRequest>();
 
@@ -60,22 +60,18 @@ export class HumanGuidanceGate {
 
   private restore(): void {
     if (!this.filePath || !fs.existsSync(this.filePath)) return;
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<InterventionFile>;
-      if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.interventions)) throw new Error("Invalid intervention store");
-      for (const request of parsed.interventions) {
-        validateInterventionRequest(request);
-        this.requests.set(interventionKey(request), request);
-      }
-    } catch (error) {
-      throw error; // fail closed: an unresolved pause must not silently vanish
-    }
+    // Read through the shared parser. `ok` is the only state this may proceed from: a store that is
+    // present but unreadable is a set of pauses that cannot be recovered, and treating it as empty
+    // would silently drop them. Fail closed, as before, but now the failure names its reason.
+    const parsed = parseInterventionFile(fs.readFileSync(this.filePath, "utf8"));
+    if (parsed.status !== "ok") throw new Error(parsed.status === "unreadable" ? parsed.reason : "Intervention store is absent");
+    for (const request of parsed.interventions) this.requests.set(interventionKey(request), request);
   }
 
   private persist(): void {
     if (!this.filePath) return;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const file: InterventionFile = { schemaVersion: 1, interventions: [...this.requests.values()] };
+    const file = interventionFileDocument([...this.requests.values()]);
     const temporary = `${this.filePath}.tmp`;
     fs.writeFileSync(temporary, JSON.stringify(file, null, 2), "utf8");
     try { fs.renameSync(temporary, this.filePath); }
