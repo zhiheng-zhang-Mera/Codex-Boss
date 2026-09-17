@@ -190,7 +190,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **ID** | `PF-DEBT-009` |
 | **Title** | A toolchain/environment failure is reported as an unscopable HIGH code finding |
 | **Discovered phase** | 06 (Task D — the dogfooding harness, on its first real run) |
-| **Status** | `OPEN` |
+| **Status** | `FIXED` (Phase 06 Task D follow-up) |
 | **Severity** | `HIGH` |
 | **Affected capability** | `engineering` (the audit → triage → scope path) |
 | **Evidence / source** | Established by running the dogfooding harness against a linked worktree that had no `node_modules`. `runAllowedCommand` invokes the workspace's own compilers by absolute path (`node_modules/typescript/bin/tsc`, `node_modules/vitest/vitest.mjs` — `command-runner.ts:61-64`), so with no toolchain both commands exit 1. `commandFinding` (`repo-engineering-operations.ts:46-56`) maps that to `{ id: "command:typecheck", area: "build", severity: "HIGH" }`, and `candidateFilesForFinding` (`finding-scope.ts:62-80`) finds no candidate because the diagnostic names `node_modules/typescript/bin/tsc` — a path with **no file extension**, which `CODE_PATH_TOKEN` (`finding-scope.ts:18-19`) does not match. The loop then aborts with *"scope inference found no candidate file for finding command:typecheck (build); aborting bounded patch"*, recorded in `artifacts/platform-foundation/phase-06/dogfood-run-1.json`. |
@@ -198,23 +198,25 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **Why it matters beyond this harness** | Any workspace whose toolchain is incomplete — a fresh clone, a CI container before install, a user's first run — produces this shape. It is the platform's first impression of an unbuildable tree. |
 | **What would close it** | The audit distinguishing an environment/toolchain fault from a code diagnostic and reporting it as such (its own finding kind, or an explicit non-implementable classification) instead of a HIGH code finding; the abort reason naming that classification rather than "no candidate file"; and a test proving both directions — an environment fault is classified as environment, and a genuine compiler diagnostic still yields a scoped code finding. |
 | **Target / revisit phase** | Phase 06 (Task D follow-up) |
-| **Last reviewed SHA** | `34a591c444ed3de1a54b7955f03b965d1b4cf4f9` |
+| **How it was fixed** | `EngineeringFinding` gained an optional `kind: "code" \| "environment"` (absent means code, so every existing producer is unchanged) plus `isEnvironmentFinding()`. `commandFinding` now keys off the runner's own signal — `runAllowedCommand` reports a missing tool with `exitCode: null` and a "Required local tool unavailable" message — and produces `environment:<command>` with `area: "environment"`, a description that says the command could not run and why, and evidence stating that no source change can clear it. `createLiveEngineeringOperations.implement` refuses an environment finding with *"is an environment fault, not a code defect … the workspace must be made buildable first"* instead of running scope inference and reporting "no candidate file". `tests/unit/audit-environment-finding.test.ts` proves **both** directions: a workspace with no `node_modules` yields environment findings and an implement refusal that does not mention candidate files, and a workspace that has a compiler and a genuine type error still yields a scoped `command:typecheck` code finding naming the offending file. The path-escape case is classified as environment too, with its own wording, because the runner already distinguishes "the tool is missing" from "the tool resolved outside the workspace" and the two need different remedies. |
+| **Last reviewed SHA** | `02943b0de912be52dbe6513b721e1722df1407bf` |
 
-## PF-DEBT-010 — the autonomous audit runs the full test suite on every iteration of every round
+## PF-DEBT-010 — the engineering loop is a REPAIR loop, so it cannot run a new-goal objective
 
 | Field | Info |
 | --- | --- |
 | **ID** | `PF-DEBT-010` |
-| **Title** | Each audit iteration runs the whole test suite, and the loop aborts on pre-existing failures |
+| **Title** | A new-goal objective is driven through repair semantics, so the loop targets pre-existing failures it was never asked to fix |
 | **Discovered phase** | 06 (Task D — observed on a real run) |
-| **Status** | `OPEN` |
-| **Severity** | `MEDIUM` |
-| **Affected capability** | `engineering` / `runtime` (cost), and the usefulness of dogfooding itself |
-| **Evidence / source** | `repo-engineering-operations.ts:74-83`: `audit()` runs `typecheck` **and** the full `test` command unconditionally. On a real run against this repository the audit alone took **489 503 ms** for one finding (`artifacts/platform-foundation/phase-06/dogfood-run-3.json`), because it ran the whole 2447-test suite. The finding it produced was `command:test`, and the test that failed was `tests/acceptance/evolution-sandbox.test.ts` — already recorded as `PF-DEBT-003`, environment-blocked on this host. The loop therefore aborts on a failure it did not cause and cannot fix. |
-| **Consequence** | Two costs. (1) The audit is the loop's most expensive step by an order of magnitude, and it repeats per iteration. (2) On any host with a pre-existing environment-blocked failure, autonomous engineering can never proceed past the first audit — every round re-discovers the same unfixable finding. That is fail-closed rather than unsafe, but it means dogfooding cannot run on this machine until the finding is excluded on evidence rather than by weakening a test. |
-| **What would close it** | The audit distinguishing "failures this change could have caused" from "failures present before the change" (a baseline comparison), so a pre-existing environment-blocked suite is reported as a known-baseline condition rather than as the round's target — with the exclusion derived from a measured baseline, never from a hand-maintained skip list. Phase 01's impact selector already exists for the cost half and is not used here. |
-| **Explicitly forbidden** | Deleting, skipping or relaxing `evolution-sandbox` to make the audit green. `PF-DEBT-003` forbids exactly that, and this entry must not become the reason it happens. |
-| **Target / revisit phase** | Phase 06 (Task D follow-up) |
+| **Status** | `ARCHITECTURE ISSUE` |
+| **Severity** | `HIGH` |
+| **Affected capability** | `engineering` (and `self-evolution`, which consumes the same driver) |
+| **Evidence / source** | `engineering-loop-driver.ts:114-144`: every round begins with `audit(goal)`, and `target` is the first non-out-of-contract finding of HIGH-or-significant severity — **the goal's objective is never consulted to decide whether a finding is in scope for it**. On a real dogfooding run against an objective that asked for a new test file, the audit reported `command:test` (the `PF-DEBT-003` AppContainer suite, environment-blocked on this host), that pre-existing failure became the round's target, and the loop aborted. Recorded in `artifacts/platform-foundation/phase-06/dogfood-run-3.json`. `audit()` also runs the full suite every iteration — **489 503 ms** for that one finding (`repo-engineering-operations.ts:74-83`). |
+| **Why this is an architecture issue and not a defect to patch** | The driver is correct for what it was built for: **repair**. Its two production callers are `main-commander.ts:821` (the autonomous engineering goal, whose documented purpose is converging a repo to a clean audit) and `self-evolution-coordinator.ts:453` (which repairs the platform itself). In both, "the audit found a failure ⇒ fix it" is exactly the intended semantics, and changing it would silently alter self-evolution behaviour. What is missing is a DIFFERENT loop: one that treats the audit as a **precondition** (is this workspace in a known-good state?) and then works the goal's objective, targeting only findings attributable to the change it made. Two different jobs are being asked of one driver. |
+| **Consequence** | A dogfooding run cannot exercise the platform's real engineering path on any host or workspace that has a pre-existing failing suite — which is every real repository at some point. The run measures the environment's existing faults instead of the goal, and burns a full-suite audit per iteration doing it. |
+| **What would close it** | Either a goal-driven loop alongside the repair loop (audit as a precondition and a post-change attributable-delta, objective worked directly), or an explicit, measured baseline-difference mode on the existing driver — with the pre-existing set derived from a measured baseline run and never from a hand-maintained skip list. Phase 01's impact selector already exists for the cost half and is not used here. |
+| **Explicitly forbidden** | Deleting, skipping or relaxing `evolution-sandbox` to make an audit green. `PF-DEBT-003` forbids exactly that, and this entry must not become the reason it happens. A baseline difference must be measured, not declared. |
+| **Target / revisit phase** | Phase 06 (Task D follow-up) — **this is the largest single item between Phase 06 and PASS** |
 | **Last reviewed SHA** | `34a591c444ed3de1a54b7955f03b965d1b4cf4f9` |
 
 
@@ -228,6 +230,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | Phase 06 Task A batch 2 | 06 (construction) | none | `PF-DEBT-007` (journal layout owner), `PF-DEBT-008` (machine-identity layout owner) |
 | Phase 06 Task C batch 3 | 06 (construction) | none | `PF-DEBT-001` (`experience` authoritative suite), `PF-DEBT-002` (`remote` authoritative suite) — capability coverage now **27 of 27** |
 | Phase 06 Task D batch 4 | 06 (construction) | `PF-DEBT-009` (environment failure misreported as a code finding), `PF-DEBT-010` (audit cost + aborts on pre-existing failures) | none — D's harness is delivered, its findings are recorded, and neither is fixed yet |
+| Phase 06 Task D follow-up batch 5 | 06 (construction) | none | `PF-DEBT-009` (environment findings classified as environment, both directions tested). `PF-DEBT-010` re-classified from `OPEN` to `ARCHITECTURE ISSUE`: the driver is a REPAIR loop and a new-goal objective needs a different one, which cannot be patched without changing self-evolution semantics |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a

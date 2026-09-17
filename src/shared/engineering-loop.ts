@@ -99,6 +99,27 @@ export interface EngineeringFinding {
   description: string;
   severity: EngineeringSeverity;
   evidence?: string;
+  /**
+   * What KIND of problem this is, when it is not a code defect.
+   *
+   * Absent means an ordinary code finding — the default, so every existing producer is unchanged.
+   *
+   * `"environment"` means the fault is in the workspace's setup, not in its source: a missing
+   * toolchain, an uninstalled dependency. The distinction is load-bearing rather than cosmetic. The
+   * audit's own commands run the workspace's compilers by absolute path, so an unbuildable tree
+   * produces a command failure that used to be reported as a HIGH code finding. Scope inference then
+   * found no candidate file — the diagnostic names `node_modules/typescript/bin/tsc`, a path with no
+   * file extension, which the scope tokenizer does not match — and the loop aborted with
+   * *"scope inference found no candidate file"*. The result was that "the compiler is not installed"
+   * and "the code does not compile" were indistinguishable, and no code change could ever clear it
+   * (PF-DEBT-009).
+   */
+  kind?: "code" | "environment";
+}
+
+/** Whether a finding can be closed by editing source. An environment fault cannot. */
+export function isEnvironmentFinding(finding: EngineeringFinding): boolean {
+  return finding.kind === "environment";
 }
 
 /** §31 priority: Critical → High → significant Medium → structural debt → Low → cosmetic. */

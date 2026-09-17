@@ -306,6 +306,13 @@
       ]
     },
     {
+      "file": "tests/unit/audit-environment-finding.test.ts",
+      "tier": "unit",
+      "covers": [
+        "engineering"
+      ]
+    },
+    {
       "file": "tests/unit/autonomous-evolution-identity-unreadable.test.ts",
       "tier": "unit",
       "covers": [

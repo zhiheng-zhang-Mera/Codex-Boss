@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
-import { parseReviewerFindings } from "../../src/shared/engineering-loop";
+import { parseReviewerFindings, isEnvironmentFinding } from "../../src/shared/engineering-loop";
 import type { EngineeringLoopOperations } from "./engineering-loop-driver";
 import type { EngineeringSessionKey } from "./engineering-session";
 import { resolveWorkspacePathSync, WorkspacePathError } from "../workspace/path-utils";
@@ -113,6 +113,13 @@ export function createLiveEngineeringOperations(options: LiveEngineeringOperatio
   const scopeLimit = options.maxScopeFiles ?? 40;
 
   const implement: EngineeringLoopOperations["implement"] = async (_goal, finding) => {
+    // An environment finding is not implementable, and saying so plainly is the point: the previous
+    // behaviour ran scope inference anyway, found nothing (the diagnostic names a path with no file
+    // extension), and reported "scope inference found no candidate file" — which reads as a puzzling
+    // code finding rather than "this workspace cannot compile" (PF-DEBT-009).
+    if (isEnvironmentFinding(finding)) {
+      return { changedFiles: [], error: `finding ${finding.id} is an environment fault, not a code defect, so there is no source change to make; the workspace must be made buildable first (${finding.description.slice(0, 200)})` };
+    }
     const candidates = candidateFilesForFinding(root, finding, { maxFiles: scopeLimit });
     if (!candidates.length) {
       return { changedFiles: [], error: `scope inference found no candidate file for finding ${finding.id} (${finding.area}); aborting bounded patch` };
