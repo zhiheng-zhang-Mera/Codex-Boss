@@ -9,6 +9,7 @@ import {
   type ClaimSatisfaction,
   type EvidenceObligation,
   type ObservedEvidence,
+  type OperandShape,
   type SatisfactionResult
 } from "../../../src/shared/acceptance";
 import { operandShapeOf, readAssertionShapes, splitArguments, summarizeAssertionStrength } from "../../../src/shared/assertion-shape";
@@ -265,7 +266,7 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     expect(strength.discriminating).toBe(0);
     // BOTH signals agree it is vacuous: the assertion's own operand is an empty collection, and the only
     // input the case supplies is the empty array reached through the binding.
-    expect(strength.weak[0]!.reason).toContain("single varying operand");
+    expect(strength.weak[0]!.reason).toContain("exercises only empty values");
     expect(strength.inputs.empty).toBe(1);
     expect(strength.inputs.expressions).toContain("JSON.stringify(interventionFileDocument(interventions))");
   });
@@ -286,15 +287,17 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
   });
 
   it("treats a truthiness-only assertion as non-discriminating", () => {
-    // The other classic vacuous shape: it passes for almost any value, however many varying operands it
-    // has. The assertion name alone is enough to refuse it.
-    expect(assertionDiscriminates({ at: "t:1", operandShapes: ["variable", "variable"], assertion: "toBeDefined" }).discriminating).toBe(false);
-    expect(assertionDiscriminates({ at: "t:1", operandShapes: ["variable", "variable"], assertion: "toBeTruthy" }).discriminating).toBe(false);
-    expect(assertionDiscriminates({ at: "t:1", operandShapes: ["variable", "variable"], assertion: "not.toBeDefined" }).discriminating).toBe(false);
-    // A real matcher over two varying operands is the shape that can fail.
-    expect(assertionDiscriminates({ at: "t:1", operandShapes: ["variable", "variable"], assertion: "toEqual" }).discriminating).toBe(true);
-    // And an echo of the input is stronger still.
-    expect(assertionDiscriminates({ at: "t:1", operandShapes: ["variable", "variable"], assertion: "toEqual", echoOfInput: true }).discriminating).toBe(true);
+    // The other classic vacuous shape. The assertion NAME alone refuses it, even when everything else about
+    // the shape says strong — which is why the name is checked before any operand reasoning.
+    const strong = { at: "t:1", operandShapes: ["variable", "variable"] as OperandShape[], exercisesNonEmptyInput: true, echoOfInput: true };
+    expect(assertionDiscriminates({ ...strong, assertion: "toBeDefined" }).discriminating).toBe(false);
+    expect(assertionDiscriminates({ ...strong, assertion: "toBeTruthy" }).discriminating).toBe(false);
+    expect(assertionDiscriminates({ ...strong, assertion: "not.toBeDefined" }).discriminating).toBe(false);
+    // A real matcher over a non-empty input that the assertion ties back to the input is the shape that can
+    // fail, and it is accepted.
+    expect(assertionDiscriminates({ ...strong, assertion: "toEqual" }).discriminating).toBe(true);
+    // Without a non-empty input, even a real matcher and an echo are refused: there is nothing to fail on.
+    expect(assertionDiscriminates({ at: "t:1", operandShapes: ["variable", "variable"], assertion: "toEqual", echoOfInput: true, exercisesNonEmptyInput: false }).discriminating).toBe(false);
   });
 
   it("treats an unreadable assertion as non-discriminating, so it can never count as evidence", () => {
@@ -314,8 +317,10 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     const shapes = readAssertionShapes(source, "t.ts");
     expect(shapes.map((shape) => shape.assertion)).toEqual(["toBe", "toEqual", "not.toBeDefined", "toBeTruthy", "toBeDefined"]);
     // Only the first is both a real matcher and exercising a varying operand.
-    expect(shapes.map((shape) => assertionDiscriminates(shape).discriminating)).toEqual([true, false, false, false, false]);
-    expect(hasDiscriminatingCase(shapes).ok).toBe(true);
+    expect(shapes.map((shape) => assertionDiscriminates(shape).discriminating)).toEqual([false, false, false, false, false]);
+    // Every one of them is refused, and for the honest reason rather than by accident: none of them feeds a
+    // non-empty value into a call, so none can establish a property of non-empty inputs.
+    expect(hasDiscriminatingCase(shapes).ok).toBe(false);
     expect(hasDiscriminatingCase([shapes[1]!]).ok).toBe(false);
   });
 });

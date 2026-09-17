@@ -135,18 +135,100 @@ function readBindings(source: string): Map<string, string> {
   return bindings;
 }
 
+
 /**
- * Whether an operand is something whose VALUE can vary between runs of the assertion.
+ * Whether the case feeds a NON-EMPTY value into the behaviour it exercises.
  *
- * `isVarying` is what separates an assertion that cannot fail from one that can. A literal — empty or
- * not — is the same on every execution, so an assertion between two literals or against a fixed expected
- * object is a constant comparison dressed up as a test. A variable or a call whose arguments vary is the
- * only thing that makes the comparison depend on the behaviour under test.
+ * ## Why this is a source scan rather than a call-graph walk
+ *
+ * The precise question — "is the value reaching the function under test non-empty?" — requires knowing
+ * which call IS the function under test and which bindings are inputs rather than results. Four attempts
+ * at that classification each produced a confident wrong answer (an internal `JSON.stringify` counted as
+ * the input; the result binding counted as an input; an assertion's expected value counted as an input;
+ * a named-import call mistaken for a method call). A lexical reader cannot answer it, and a wrong answer
+ * here is worse than a coarse one, because it would let the vacuous case through.
+ *
+ * So it answers the question it CAN answer reliably, and it answers it conservatively:
+ *
+ *   **does the file supply any non-empty literal that is not part of an assertion's expectation?**
+ *
+ * A file containing only `[]`, `{}` and `""` outside its assertions exercises nothing representative — that
+ * is the Phase 06 dogfood shape, and it is refused. A file containing a populated fixture is not purely
+ * vacuous, and is allowed to proceed to the assertion-level judgement.
+ *
+ * Assertion bodies are excluded first, so `expect(result).toEqual([1, 2, 3])` — an expectation, not an
+ * input — cannot be mistaken for test data.
  */
-function isVarying(expression: string, bindings?: ReadonlyMap<string, string>): boolean {
-  const shape = operandShapeOf(expression, bindings);
-  return shape === "variable" || shape === "non-empty-literal";
+function exercisesNonEmptyInput(source: string): boolean {
+  // Only the CASE BODIES are scanned. A suite's description (`it("round-trips a representative …")`) is a
+  // string literal that says what the author intended, not what the test supplies — reading it as input is
+  // how a test that only ever fed `[]` was classified as exercising something.
+  const body = stripAssertions(testBodies(source));
+  if (!body.trim()) return false;
+  if (/\[[^\]]*[^\s,\[\]]/.test(body)) return true;
+  if (/\{[^}]*[^\s,{}:]\s*:/.test(body)) return true;
+  if (/["'`][^"'`\n]+["'`]/.test(body)) return true;
+  return false;
 }
+
+/**
+ * The bodies of every test case in the source.
+ *
+ * `it(name, () => { … })` — everything after the arrow's brace. A file with no recognisable case yields an
+ * empty string, which the caller treats as "nothing representative was found" — the fail-closed direction.
+ */
+function testBodies(source: string): string {
+  const bodies: string[] = [];
+  const CASE = /\b(?:it|test)\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = CASE.exec(source)) !== null) {
+    const open = match.index + match[0].length - 1;
+    const close = matchParen(source, open);
+    if (close < 0) continue;
+    const call = source.slice(open + 1, close);
+    // The body is whatever follows the first `{` that opens an arrow or function body.
+    const brace = call.indexOf("{");
+    if (brace >= 0) bodies.push(call.slice(brace + 1));
+    CASE.lastIndex = close + 1;
+  }
+  return bodies.join("\n");
+}
+
+/**
+ * Remove every assertion site from the source, using the same paren matcher the reader uses.
+ *
+ * An assertion's arguments are EXPECTATIONS, not inputs: `expect(result).toEqual([1, 2, 3])` must not be
+ * read as "the case supplies a populated array". A regex over the whole call is not reliable here — an
+ * assertion spanning several lines has nested parentheses — so this walks the text and consumes each
+ * `expect(...)` plus whatever matcher chain follows it.
+ */
+function stripAssertions(source: string): string {
+  let result = "";
+  const ASSERTION = /\b(expect|assert|expectTypeOf)\s*\(/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = ASSERTION.exec(source)) !== null) {
+    if (match.index < cursor) continue;
+    const open = match.index + match[0].length - 1;
+    const close = matchParen(source, open);
+    if (close < 0) break;
+    result += source.slice(cursor, match.index);
+    cursor = close + 1;
+    // Consume the matcher chain that follows, so its arguments go too.
+    for (;;) {
+      const chain = /^\s*(?:\.\s*(?:not|resolves|rejects)\s*)?\.\s*\w+\s*\(/.exec(source.slice(cursor));
+      if (!chain) break;
+      const chainOpen = cursor + chain[0].length - 1;
+      const chainClose = matchParen(source, chainOpen);
+      if (chainClose < 0) break;
+      cursor = chainClose + 1;
+    }
+  }
+  result += source.slice(cursor);
+  return result;
+}
+
+
 
 /** Split a call's argument list, respecting nesting and quoted strings. */
 export function splitArguments(source: string): string[] {
@@ -261,8 +343,16 @@ export function readAssertionShapes(source: string, file: string): AssertionShap
       // actually fail: `expect(result).toEqual(input)` is refuted by any implementation that drops or
       // mangles the input. `expect(result).toEqual({ status: "ok" })` is refuted by nothing except a wrong
       // status string, so it cannot carry a claim about round-tripping.
-      const echoes = receivers.some((receiver) => matcherOperands.some((operand) => operand.trim() === receiver.trim() && isVarying(receiver, bindings)));
-      shapes.push({ at, operandShapes, assertion: `${negation}${matcher[1]}`, echoOfInput: echoes, ...(nested.length ? { callArguments: nested } : {}) });
+      const echoes = receivers.some((receiver) => matcherOperands.some((operand) => operand.trim() === receiver.trim() && /^[A-Za-z_$][\w$.]*$/.test(receiver.trim())));
+      // Whether the comparison references the INPUT as well as the result. `expect(result.count).toBe(3)`
+      // compares a result-derived value against a literal and is satisfied by any constant result;
+      // `expect(result.count).toBe(input.length)` involves the input, so mishandling the input refutes it.
+      const referencesInput = matcherOperands.some((operand) => {
+        const trimmed = operand.trim();
+        if (receivers.some((receiver) => receiver.trim() === trimmed)) return false; // An echo, handled above.
+        return [...bindings.keys()].some((name) => new RegExp(`(^|[^\\w$.])${name.replace(/\$/g, "\\$")}(\\b|\\.|\\[)`).test(trimmed));
+      });
+      shapes.push({ at, operandShapes, assertion: `${negation}${matcher[1]}`, echoOfInput: echoes, referencesInput, exercisesNonEmptyInput: exercisesNonEmptyInput(source), ...(nested.length ? { callArguments: nested } : {}) });
       ASSERTION_CALL.lastIndex = closeIndex + 1;
       continue;
     }

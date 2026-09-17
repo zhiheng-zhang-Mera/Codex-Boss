@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runEngineeringGoalLoop, type EngineeringGoalLoopOperations } from "../../electron/engineering/engineering-goal-loop";
 import type { EngineeringFinding, EngineeringGoalContract } from "../../src/shared/engineering-loop";
+import type { SatisfactionResult } from "../../src/shared/acceptance";
 
 /**
  * PF-DEBT-010 — the goal-driven loop's semantics, which are the whole point of it existing.
@@ -32,10 +33,21 @@ function goal(): EngineeringGoalContract {
 const codeFinding = (id: string): EngineeringFinding => ({ id, area: "tests", description: `${id} was already failing`, severity: "HIGH", kind: "code" });
 const environmentFinding = (id: string): EngineeringFinding => ({ id, area: "environment", description: `${id} could not run`, severity: "HIGH", kind: "environment" });
 
+/** A satisfaction verdict, so a test states the judgement rather than inheriting one. */
+const satisfaction = (verdict: SatisfactionResult["verdict"], reasons: string[] = ["stated by the test"]): SatisfactionResult => ({
+  verdict,
+  claims: [{ claimId: "objective-established", statement: "the objective is established", criticality: "mandatory", verdict, reasons, satisfiedObligations: [], unsatisfiedObligations: [] }],
+  weakSignals: [],
+  reasons
+});
+
 function operations(overrides: Partial<EngineeringGoalLoopOperations> = {}): EngineeringGoalLoopOperations {
   return {
     audit: async () => [],
     implement: async () => ({ changedFiles: ["tests/a.test.ts"], status: "PASS" as const, checks: [{ kind: "test", passed: true }] }),
+    // Acceptance is REQUIRED by the contract, so every case here states one. The default is SATISFIED so
+    // the pre-Phase-07 convergence cases keep testing what they were written for.
+    acceptance: async () => satisfaction("SATISFIED"),
     ...overrides
   };
 }
@@ -169,6 +181,71 @@ describe("Phase 06 — a failure is reported as itself", () => {
     });
     expect(summary.state).toBe("NOT_CONVERGED");
     expect(summary.changedFiles).toEqual(["tests/first.test.ts"]);
+  });
+});
+
+describe("Phase 07 — CONVERGED requires the objective to be satisfied, not just the checks to pass", () => {
+  it("does NOT converge when the objective is contradicted, even though the checks passed", () => {
+    // The four Phase 06 conditions all hold here — a real change, green checks, valid scope — and the run
+    // still must not report success, because the evidence refutes the objective.
+    return runEngineeringGoalLoop({
+      goal: goal(),
+      operations: operations({ acceptance: async () => satisfaction("CONTRADICTED", ["the round trip dropped a field"]) })
+    }).then((summary) => {
+      expect(summary.state).toBe("OBJECTIVE_CONTRADICTED");
+      expect(summary.verification?.passed).toBe(true);
+      expect(summary.acceptance?.verdict).toBe("CONTRADICTED");
+      expect(summary.terminalReason).toContain("the objective is CONTRADICTED");
+      expect(summary.terminalReason).toContain("dropped a field");
+    });
+  });
+
+  it("does NOT converge when the objective has insufficient evidence — the vacuous case", () => {
+    // THE Phase 07 regression at the loop level: checks green over a non-discriminating test.
+    return runEngineeringGoalLoop({
+      goal: goal(),
+      operations: operations({ acceptance: async () => satisfaction("INSUFFICIENT_EVIDENCE", ["tests/a.test.ts exercises only empty operand(s)"]) })
+    }).then((summary) => {
+      expect(summary.state).toBe("OBJECTIVE_INSUFFICIENT_EVIDENCE");
+      expect(summary.verification?.passed).toBe(true);
+      expect(summary.changedFiles).toEqual(["tests/a.test.ts"]);
+      expect(summary.terminalReason).toContain("the host's checks passed, but the objective is INSUFFICIENT_EVIDENCE");
+    });
+  });
+
+  it("converges only when the host's checks AND the objective both hold", () => {
+    return runEngineeringGoalLoop({ goal: goal(), operations: operations() }).then((summary) => {
+      expect(summary.state).toBe("CONVERGED");
+      expect(summary.verification?.passed).toBe(true);
+      expect(summary.acceptance?.verdict).toBe("SATISFIED");
+      expect(summary.terminalReason).toContain("the objective is satisfied");
+    });
+  });
+
+  it("asks for the acceptance judgement only after the checks have passed", () => {
+    // A failed attempt must not consult the acceptance model: there is nothing yet to accept, and asking
+    // would let an acceptance verdict describe a change that was never applied.
+    const acceptance = vi.fn(async (_goal: EngineeringGoalContract, _changed: string[]) => satisfaction("SATISFIED"));
+    return runEngineeringGoalLoop({
+      goal: goal(),
+      maxAttempts: 1,
+      operations: operations({ acceptance, implement: async () => ({ changedFiles: ["tests/a.test.ts"], status: "FAIL" as const, checks: [{ kind: "test", passed: false }] }) })
+    }).then((summary) => {
+      expect(summary.state).toBe("NOT_CONVERGED");
+      expect(summary.acceptance).toBeUndefined();
+      expect(acceptance).not.toHaveBeenCalled();
+    });
+  });
+
+  it("passes the applied files to the acceptance model, so it judges what actually changed", () => {
+    const acceptance = vi.fn(async (_goal: EngineeringGoalContract, _changed: string[]) => satisfaction("SATISFIED"));
+    return runEngineeringGoalLoop({
+      goal: goal(),
+      operations: operations({ acceptance, implement: async () => ({ changedFiles: ["tests/specific.test.ts"], status: "PASS" as const, checks: [{ kind: "test", passed: true }] }) })
+    }).then(() => {
+      expect(acceptance).toHaveBeenCalledTimes(1);
+      expect(acceptance.mock.calls[0]![1]).toEqual(["tests/specific.test.ts"]);
+    });
   });
 });
 

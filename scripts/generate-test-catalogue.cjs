@@ -53,6 +53,9 @@ const CURATED = {
   // check passed. Always-run because every other suite's green is only as meaningful as this judgement,
   // and it guards a shared contract rather than one capability's behaviour.
   "tests/unit/platform/acceptance.test.ts": { covers: ["runtime"], obligation: "a claim is satisfied only by discriminating evidence, and a vacuous green test yields INSUFFICIENT_EVIDENCE rather than acceptance", alwaysRun: true },
+  // Phase 07 Task D: the counterexample cases. The book is explicit that proving the good path is not the
+  // work — the vacuous, contradicted and no-evidence cases are what the phase exists for.
+  "tests/unit/engineering/goal-acceptance.test.ts": { covers: ["engineering"], obligation: "a change is judged by the evidence it carries: a vacuous green test and a change with no test are both INSUFFICIENT_EVIDENCE, and a representative non-empty case satisfies" },
   "tests/acceptance/targeted-vs-full.test.ts": { covers: ["runtime"], obligation: "the targeted selection and the same commit's full gate agree, and the pairing refuses when they do not" },
   "tests/acceptance/platform-soak-report.test.ts": { covers: ["state-core"], obligation: "the soak report covers every dimension the book names, declares what it cannot observe, and fails a run whose trend exceeds the allowance" },
   "tests/acceptance/platform-architecture-diagnostics.test.ts": { covers: ["runtime"], obligation: "the architecture CLI reports the same graph the registry builds", alwaysRun: true },

@@ -146,6 +146,24 @@ export interface AssertionShape {
    * a wrong status string, so it cannot carry a claim about round-tripping.
    */
   echoOfInput?: boolean;
+  /**
+   * Whether the assertion references a value derived from the INPUT, rather than only from the result.
+   *
+   * The distinction that separates a real test from a plausible-looking one. `expect(result.count).toBe(3)`
+   * is satisfied by any implementation whose count happens to be 3 for this input and says nothing about
+   * other inputs; `expect(result.count).toBe(input.length)` is refuted the moment the behaviour mishandles
+   * the input.
+   */
+  referencesInput?: boolean;
+  /**
+   * Whether the case feeds a NON-EMPTY value into the calls it makes.
+   *
+   * Read from the INNERMOST arguments of those calls — the actual leaf values the behaviour is handed —
+   * so a wrapper like `JSON.stringify(intermediate)` in the middle of a chain is not mistaken for the
+   * input. This is the signal the mandated regression turns on: `roundTrip([])` fails it, and no amount of
+   * assertion richness compensates.
+   */
+  exercisesNonEmptyInput?: boolean;
 }
 
 /** The literal shape of one operand, reduced to what decides strength. */
@@ -199,13 +217,12 @@ const NON_DISCRIMINATING_ASSERTIONS = new Set([
  * non-empty supported values. `roundTrip([])` may exercise a real code path, but it cannot show that
  * `roundTrip` works for the inputs the claim is about.
  *
- * Two shapes count as empty, and the distinction matters for honesty rather than for strictness:
- *
- *  - `empty-literal` — the operand IS `[]`, `{}`, `""`, `0`;
- *  - `empty-collection` — the operand is a collection that CONTAINS nothing, e.g. `{ interventions: [] }`.
- *    Nothing in it varies, so an assertion over only those still cannot fail for the reason the claim
- *    cares about. A mixed literal like `{ status: "ok", interventions: [] }` is NOT in this category: it
- *    carries a real value, so it can discriminate.
+ * Beyond emptiness, the criterion is whether the comparison involves a value that can VARY with the
+ * behaviour. Three things cannot: a literal (fixed), a property read off the result
+ * (`expect(result.status)` is the same on every run for the same input), and the result object itself when
+ * compared against a constant. `expect(result.status).toBe("ok")` looks substantial and is satisfied by a
+ * round-trip that drops every field but the status — which is why the `referencesInput` and `echoOfInput`
+ * signals exist and why this is deliberately strict.
  */
 export function assertionDiscriminates(shape: AssertionShape): { discriminating: boolean; reason: string } {
   if (NON_DISCRIMINATING_ASSERTIONS.has(shape.assertion)) {
@@ -218,26 +235,30 @@ export function assertionDiscriminates(shape: AssertionShape): { discriminating:
     // Unreadable stays unreadable rather than being assumed strong.
     return { discriminating: false, reason: `${shape.at} has an operand that could not be read, so its strength cannot be established` };
   }
+  if (shape.exercisesNonEmptyInput !== true) {
+    // THE core refusal. Whatever the assertion looks like, the case only ever feeds empty values into the
+    // calls it makes — so it cannot establish a property of non-empty inputs. This is the shape the real
+    // Phase 06 test had: a binding to `[]`, passed through a wrapper, compared against a constant.
+    const inputs = shape.callArguments ?? [];
+    const inputNote = inputs.length ? ` The case only calls with: ${inputs.slice(0, 3).join(", ")}.` : "";
+    return { discriminating: false, reason: `${shape.at} exercises only empty values, so it cannot establish a property of non-empty inputs.${inputNote}` };
+  }
   if (shape.echoOfInput === true) {
     // The strongest shape available: the assertion says the behaviour RETURNS what it was given. Any
     // implementation that drops, reorders or mangles the input is refuted by it.
     return { discriminating: true, reason: `${shape.at} asserts the behaviour echoes the input it was given` };
   }
-  // An assertion between two CONSTANTS cannot depend on the behaviour, so it cannot fail because of it.
-  // `expect(result).toEqual({ status: "ok" })` is refuted by nothing except a wrong status string; a real
-  // round-trip could be broken in a dozen ways and this would still pass.
-  if (!shape.operandShapes.some((operand) => operand === "non-empty-literal" || operand === "variable")) {
-    const inputs = shape.callArguments ?? [];
-    const inputNote = inputs.length ? ` The case only calls with: ${inputs.slice(0, 3).join(", ")}.` : "";
-    return { discriminating: false, reason: `${shape.at} compares constant operand(s), so its outcome cannot depend on the behaviour under test.${inputNote}` };
+  if (shape.referencesInput === true) {
+    return { discriminating: true, reason: `${shape.at} compares the result against a value derived from the input it was given` };
   }
-  // At least one operand varies, but the assertion does not tie the result back to the input: a constant
-  // expected value plus a variable receiver is weak, because a wrong-but-constant result would pass.
-  const varyingOperands = shape.operandShapes.filter((operand) => operand === "non-empty-literal" || operand === "variable").length;
-  if (varyingOperands === 1) {
-    return { discriminating: false, reason: `${shape.at} has a single varying operand against a constant, so a constant result would satisfy it` };
+  // A varying operand that does NOT come from the input is derived from the result, so comparing it
+  // against a literal is satisfied by any constant result: `expect(result.status).toBe("ok")` passes for a
+  // round-trip that drops every field but the status.
+  const varying = shape.operandShapes.some((operand) => operand === "variable" || operand === "non-empty-literal");
+  if (!varying) {
+    return { discriminating: false, reason: `${shape.at} compares a constant against a constant, so its outcome cannot depend on the behaviour under test` };
   }
-  return { discriminating: true, reason: `${shape.at} compares two varying operands, so its outcome depends on the behaviour` };
+  return { discriminating: false, reason: `${shape.at} compares a value derived from the result against a literal and never references the input, so any constant result would satisfy it` };
 }
 
 /** Whether a set of assertion shapes contains at least one that could fail. */

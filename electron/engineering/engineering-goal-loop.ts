@@ -38,12 +38,22 @@ import fs from "node:fs";
 import path from "node:path";
 import type { EngineeringFinding, EngineeringGoalContract, ReviewerFinding } from "../../src/shared/engineering-loop";
 import { isEnvironmentFinding } from "../../src/shared/engineering-loop";
+import type { SatisfactionResult } from "../../src/shared/acceptance";
+import { judgeGoalAcceptance } from "./goal-acceptance";
 import { ProposalRunner } from "./proposal-runner";
 import { engineeringChecksFor } from "./verification-policy";
 import type { EngineeringReviewEvidence } from "./engineering-loop-driver";
 import { scanRepo } from "./repo-inspector";
 
-type EngineeringGoalLoopState = "CONVERGED" | "NOT_CONVERGED" | "PRECONDITION_FAILED" | "NO_EDITOR";
+type EngineeringGoalLoopState =
+  | "CONVERGED"
+  | "NOT_CONVERGED"
+  /** The change applied and the checks passed, but the OBJECTIVE is contradicted by the evidence. */
+  | "OBJECTIVE_CONTRADICTED"
+  /** The change applied and the checks passed, but nothing establishes the objective. */
+  | "OBJECTIVE_INSUFFICIENT_EVIDENCE"
+  | "PRECONDITION_FAILED"
+  | "NO_EDITOR";
 
 interface EngineeringGoalLoopSummary {
   state: EngineeringGoalLoopState;
@@ -54,6 +64,14 @@ interface EngineeringGoalLoopSummary {
   preExisting: EngineeringFinding[];
   /** The host's verification result for the final attempt, when one ran. */
   verification?: { passed: boolean; checks: Array<{ kind: string; passed: boolean; detail?: string }> };
+  /**
+   * Whether the OBJECTIVE is satisfied, and why.
+   *
+   * Separate from `verification`, and the distinction is the point of Phase 07: `verification` says the
+   * checks passed; this says the checks establish what the goal claimed. `CONVERGED` requires both, so a
+   * green suite over an empty case can no longer be reported as success.
+   */
+  acceptance?: SatisfactionResult;
   /** Findings the independent reviewer raised about the final attempt. */
   reviewFindings: ReviewerFinding[];
   /** Machine-readable reason the run reached its terminal state. */
@@ -65,6 +83,16 @@ export interface EngineeringGoalLoopOperations {
   audit(goal: EngineeringGoalContract): Promise<EngineeringFinding[]>;
   /** Propose, apply and verify one bounded change for the objective. Undefined change set = nothing to do. */
   implement(goal: EngineeringGoalContract, objective: string, attempt: number): Promise<{ changedFiles: string[]; status: "PASS" | "FAIL"; checks: Array<{ kind: string; passed: boolean; detail?: string }>; error?: string }>;
+  /**
+   * Judge whether the objective is satisfied by evidence.
+   *
+   * REQUIRED. A caller must say how acceptance is decided — `return { verdict: "SATISFIED", … }` is
+   * allowed, but it has to be written down. Leaving the judgement optional made it possible to converge
+   * having judged nothing, which is the defect this phase exists to close; requiring it means the
+   * production composition root names its acceptance model, and a caller who has none must say so
+   * explicitly rather than inherit silence.
+   */
+  acceptance(goal: EngineeringGoalContract, changedFiles: string[]): Promise<SatisfactionResult>;
   /** Independent review of the applied change. Absent means no reviewer is configured. */
   review?(goal: EngineeringGoalContract, changedFiles: string[], evidence: EngineeringReviewEvidence): Promise<{ findings: ReviewerFinding[] }>;
 }
@@ -155,14 +183,27 @@ export async function runEngineeringGoalLoop(options: EngineeringGoalLoopOptions
         const review = await options.operations.review(goal, outcome.changedFiles, { buildPassed: true, testsPassed: true });
         reviewFindings = review.findings;
       }
+
+      // OBJECTIVE SATISFACTION. The checks passing is not the same claim as the checks establishing what
+      // the goal asked for, and Phase 07 exists because that difference was invisible: a green suite over
+      // an empty case reached CONVERGED. The judgement is required, so this cannot be skipped by omission.
+      const acceptance = await options.operations.acceptance(goal, outcome.changedFiles);
+      const converged = acceptance.verdict === "SATISFIED";
       return {
-        state: "CONVERGED",
+        state: converged
+          ? "CONVERGED"
+          : acceptance.verdict === "CONTRADICTED"
+            ? "OBJECTIVE_CONTRADICTED"
+            : "OBJECTIVE_INSUFFICIENT_EVIDENCE",
         iterations: attempt,
         changedFiles: [...changedFiles].sort(),
         preExisting,
         verification,
+        acceptance,
         reviewFindings,
-        terminalReason: `attempt ${attempt} applied ${outcome.changedFiles.length} file(s) and the host's checks passed`
+        terminalReason: converged
+          ? `attempt ${attempt} applied ${outcome.changedFiles.length} file(s); the host's checks passed and the objective is satisfied (${acceptance.reasons[0] ?? "no reason recorded"})`
+          : `attempt ${attempt} applied ${outcome.changedFiles.length} file(s) and the host's checks passed, but the objective is ${acceptance.verdict}: ${acceptance.reasons.slice(0, 3).join(" | ")}`
       };
     }
 
@@ -207,6 +248,13 @@ export function createGoalLoopOperations(input: {
   maxScopeFiles?: number;
   /** Audit and verification are the host's, injected so the loop does not invent its own. */
   audit: (goal: EngineeringGoalContract) => Promise<EngineeringFinding[]>;
+  /**
+   * Override the acceptance model.
+   *
+   * Optional here because the default is the production one (`judgeGoalAcceptance`); a caller supplying
+   * its own is making a deliberate choice rather than leaving the judgement undone.
+   */
+  acceptance?: (goal: EngineeringGoalContract, changedFiles: string[]) => Promise<SatisfactionResult>;
 }): EngineeringGoalLoopOperations {
   const maxScopeFiles = Math.max(1, input.maxScopeFiles ?? 12);
 
@@ -272,6 +320,9 @@ export function createGoalLoopOperations(input: {
 
   return {
     audit: input.audit,
+    // The production acceptance model, unless the caller supplies its own. It is never absent: the loop
+    // requires a judgement, so a caller who has a different model must say so rather than inherit silence.
+    acceptance: input.acceptance ?? (async (goal, changedFiles) => judgeGoalAcceptance({ objective: goal.objective, changedFiles, workspace: input.workspace })),
     async implement(goal, objective, attempt) {
       const scope = scopeFor(goal);
       // A goal that names only a NEW file has no existing file to hand the coder, but it is still

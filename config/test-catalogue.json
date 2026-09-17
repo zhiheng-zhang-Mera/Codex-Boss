@@ -726,6 +726,14 @@
       ]
     },
     {
+      "file": "tests/unit/engineering/goal-acceptance.test.ts",
+      "tier": "unit",
+      "covers": [
+        "engineering"
+      ],
+      "obligation": "a change is judged by the evidence it carries: a vacuous green test and a change with no test are both INSUFFICIENT_EVIDENCE, and a representative non-empty case satisfies"
+    },
+    {
       "file": "tests/unit/evaluation-store-baseline.test.ts",
       "tier": "unit",
       "covers": [
