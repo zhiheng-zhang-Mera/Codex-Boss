@@ -314,6 +314,67 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     expect(strength.inputs.empty).toBe(0);
   });
 
+  // The generated test from a real provider run, embedded verbatim from
+  // `artifacts/platform-foundation/phase-07/case-B-meaningful.json` (`judgedFiles[0].content`). It is the
+  // artifact of the third false negative, and keeping it here means the reader that must ACCEPT it is
+  // re-tested on every run rather than only when a model happens to write this shape again.
+  const PROVIDER_MEANINGFUL = "import { describe, expect, it } from \"vitest\";\nimport {\n  interventionFileDocument,\n  parseInterventionFile,\n  INTERVENTION_SCHEMA_VERSION,\n} from \"../../src/shared/intervention-file\";\nimport {\n  validateInterventionRequest,\n  type HumanInterventionRequest,\n} from \"../../src/shared/intervention\";\n\nconst interventionKind = (() => {\n  const base = {\n    id: \"intervention-1\",\n    taskId: \"task-1\",\n    question: \"Should the migration proceed?\",\n    blockingStepId: \"step-1\",\n    createdAt: \"2025-01-02T03:04:05.000Z\",\n  } as const;\n  const candidateKinds = [\n    \"question\",\n    \"approval\",\n    \"permission\",\n    \"clarification\",\n    \"review\",\n    \"confirm\",\n    \"confirmation\",\n    \"input\",\n    \"choice\",\n    \"manual\",\n    \"other\",\n    \"pause\",\n    \"resume\",\n  ];\n  for (const kind of candidateKinds) {\n    const candidate = { ...base, kind } as unknown as HumanInterventionRequest;\n    try {\n      validateInterventionRequest(candidate);\n      return kind as unknown as HumanInterventionRequest[\"kind\"];\n    } catch {\n      // Try the next candidate kind.\n    }\n  }\n  throw new Error(\"could not construct a valid HumanInterventionRequest fixture\");\n})();\n\nconst interventions: HumanInterventionRequest[] = [\n  {\n    id: \"intervention-1\",\n    taskId: \"task-1\",\n    kind: interventionKind,\n    question: \"Should the migration proceed?\",\n    blockingStepId: \"step-1\",\n    createdAt: \"2025-01-02T03:04:05.000Z\",\n  },\n  {\n    id: \"intervention-2\",\n    taskId: \"task-2\",\n    kind: interventionKind,\n    question: \"Is the backup complete?\",\n    blockingStepId: \"step-2\",\n    createdAt: \"2025-01-02T04:05:06.000Z\",\n    resolvedAt: \"2025-01-02T04:06:07.000Z\",\n  },\n];";
+
+  const PROVIDER_CASE = "describe(\"intervention-file round-trip\", () => {\n  it(\"round-trips a representative non-empty interventions array\", () => {\n    const document = interventionFileDocument(interventions);\n\n    expect(document).toEqual({\n      schemaVersion: INTERVENTION_SCHEMA_VERSION,\n      interventions,\n    });\n\n    const parsed = parseInterventionFile(JSON.stringify(document));\n\n    expect(parsed).toEqual({\n      status: \"ok\",\n      interventions,\n    });\n\n    if (parsed.status !== \"ok\") {\n      throw new Error(`expected parsed interventions, got ${parsed.status}`);\n    }\n\n    expect(interventionFileDocument(parsed.interventions)).toEqual(document);\n  });\n});";
+
+  it("accepts a meaningful test whose fixture is declared at MODULE scope", () => {
+    // The third false negative, and the one a real provider produced. The fixture is `const interventions:
+    // HumanInterventionRequest[] = […]` at module scope, referenced from inside the case; only the case's
+    // OWN bindings were consulted, so a genuinely meaningful file was refused. A module-level fixture is
+    // still a value the case supplied.
+    const strength = summarizeAssertionStrength(`${PROVIDER_MEANINGFUL}\n\n${PROVIDER_CASE}`, "tests/unit/intervention-file-properties.test.ts");
+    expect(strength.discriminating).toBeGreaterThan(0);
+    expect(strength.inputs.empty).toBe(0);
+    // And the citations are absolute to the file, not to the case body it was read from. A refusal that
+    // cites `file:4` for an assertion on line 40 is a citation a reader cannot follow.
+    for (const entry of strength.weak) {
+      expect(entry.at).toMatch(/^tests\/unit\/intervention-file-properties\.test\.ts:\d+$/);
+    }
+  });
+
+  it("still refuses an EMPTY module-scope fixture", () => {
+    // The guard on that fallback, because widening the scope must not widen what counts. A module-level
+    // `const cases = []` referenced by the assertion is exactly case A with the fixture moved up, and it
+    // stays non-discriminating.
+    const source = [
+      'import { expect, it } from "vitest";',
+      "const cases = [];",
+      'it("round-trips", () => {',
+      "  const result = parse(encode(cases));",
+      "  expect(result).toEqual(cases);",
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    expect(strength.discriminating).toBe(0);
+    expect(strength.inputs.nonEmpty).toBe(0);
+    // Refused because what reaches the assertion is EMPTY, not because the reader could not see it. The
+    // assertion does reference the fixture — `referencesInput` is true — and the refusal is the honest one:
+    // the value it references is an empty literal, so the case exercised nothing that could vary.
+    expect(strength.weak).toHaveLength(1);
+    expect(strength.weak[0]!.reason).toContain("no non-empty value reaches the assertion");
+  });
+
+  it("does not let an unrelated module-scope fixture vouch for a case", () => {
+    // The other guard: the wider scope is a FALLBACK for names the assertion actually mentions, not a
+    // licence to search the file for any populated literal. The case supplies nothing and must be refused
+    // even though a populated fixture exists at module scope.
+    const source = [
+      'import { expect, it } from "vitest";',
+      'const unrelated = [{ id: "a" }, { id: "b" }];',
+      'it("round-trips", () => {',
+      "  const result = parse(encode([]));",
+      '  expect(result.status).toBe("ok");',
+      "});"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(source, "tests/x.test.ts");
+    expect(strength.discriminating).toBe(0);
+  });
+
   it("reads a fixture whose declaration carries a TYPE ANNOTATION", () => {
     // A regression, from a real provider run. The generated test was meaningful — a populated two-element
     // fixture, a round-trip, an equality against the input — and the judgement still refused it, because

@@ -245,8 +245,8 @@ function isCompleteExpression(fragment: string): boolean {
 }
 
 
-function testBodies(source: string): string[] {
-  const bodies: string[] = [];
+function testBodies(source: string): Array<{ body: string; start: number }> {
+  const bodies: Array<{ body: string; start: number }> = [];
   const CASE = /\b(?:it|test)\s*\(/g;
   let match: RegExpExecArray | null;
   while ((match = CASE.exec(source)) !== null) {
@@ -256,7 +256,7 @@ function testBodies(source: string): string[] {
     const call = source.slice(open + 1, close);
     // The body is whatever follows the first `{` that opens an arrow or function body.
     const brace = call.indexOf("{");
-    if (brace >= 0) bodies.push(call.slice(brace + 1));
+    if (brace >= 0) bodies.push({ body: call.slice(brace + 1), start: open + 1 + brace + 1 });
     CASE.lastIndex = close + 1;
   }
   return bodies;
@@ -343,6 +343,23 @@ function lineAt(source: string, offset: number): number {
 }
 
 /**
+ * A citation relative to the WHOLE file, not to the fragment being read.
+ *
+ * The summary reads each test CASE in isolation, so a line number computed inside one is relative to that
+ * body — and a refusal that cites `file:4` for an assertion on line 40 is a citation a reader cannot follow.
+ * `offset` is where the fragment starts in the file, so the count is anchored there.
+ *
+ * `chunk` is searched for from that offset first, which keeps the number correct for the case body (whose
+ * first character is the enclosing brace, not the line's start) while staying exact for a whole-file read.
+ */
+function atLine(file: string, source: string, index: number, offset: number): string {
+  const chunk = source.slice(index, index + 24);
+  const found = offset > 0 ? source.indexOf(chunk, offset) : index;
+  const anchor = found >= 0 ? found : offset + index;
+  return `${file}:${lineAt(source, anchor)}`;
+}
+
+/**
  * Every call argument in the source, reduced to a shape.
  *
  * This is how the INPUT a case exercises is read. The assertion's own operands describe the comparison;
@@ -389,9 +406,15 @@ function readCallArgumentShapes(source: string): { expressions: string[]; shapes
  * call in the surrounding case — because either side can carry the varying case, and the INPUT is as
  * decisive as the comparison.
  */
-export function readAssertionShapes(source: string, file: string): AssertionShape[] {
+export function readAssertionShapes(source: string, file: string, offset = 0, outer?: ReadonlyMap<string, string>): AssertionShape[] {
   const shapes: AssertionShape[] = [];
-  const bindings = readBindings(source);
+  // The case body's own bindings, then the FILE's. A module-scope fixture has to be visible HERE, because
+  // this is where `referencesInput` and `echoOfInput` are decided: passing the wider scope only to
+  // `nonEmptyOperandIn` meant the summary asked "did a non-empty value reach the assertion?" of a shape
+  // whose `referencesInput` had already been computed as `false` for want of the very binding in question.
+  // The second false negative was exactly that — a real provider put its fixture at module scope.
+  const bindings = new Map(outer ?? []);
+  for (const [name, bound] of readBindings(source)) bindings.set(name, bound);
   ASSERTION_CALL.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = ASSERTION_CALL.exec(source)) !== null) {
@@ -401,7 +424,7 @@ export function readAssertionShapes(source: string, file: string): AssertionShap
     const receivers = splitArguments(source.slice(openIndex + 1, closeIndex));
     const after = source.slice(closeIndex + 1);
     const matcher = MATCHER_AFTER_RECEIVER.exec(after);
-    const at = `${file}:${lineAt(source, match.index)}`;
+    const at = atLine(file, source, match.index, offset);
     const operandShapes: OperandShape[] = receivers.map((receiver) => operandShapeOf(receiver, bindings));
 
     if (matcher) {
@@ -472,6 +495,12 @@ export function summarizeAssertionStrength(source: string, file: string): {
   callInputs: { total: number; nonEmpty: number };
 } {
   const cases = testCases(source);
+  // The FILE-scope bindings, which are the ones a module-level fixture lives in. A real provider run put
+  // its `const interventions: HumanInterventionRequest[] = […]` at module scope and referenced it from
+  // inside every case — and because only the case body's own bindings were consulted, a genuinely
+  // meaningful file was refused for the third time. Somewhere in the file is a weaker claim than "in this
+  // case", so it is a fallback that must still be NAMED by the assertion, never a licence to search.
+  const fileBindings = readBindings(source);
   const shapes: AssertionShape[] = [];
   const weak: Array<{ at: string; assertion: string; reason: string }> = [];
   let discriminating = 0;
@@ -479,13 +508,13 @@ export function summarizeAssertionStrength(source: string, file: string): {
   let emptyInputs = 0;
   const expressions: string[] = [];
 
-  for (const body of cases) {
+  for (const { body, start } of cases) {
     // ATTRIBUTED PER CASE, which is the correction that matters. Judging a file as a whole let one case's
     // non-empty fixture vouch for another case's empty one — and that is exactly how a real generated test
     // shipped a round-trip over `[]` alongside an error case over a populated object and was accepted.
     // A case is discriminating only when BOTH hold within that same case: an assertion that could fail,
     // and a non-empty value supplied to it.
-    const caseShapes = readAssertionShapes(body, file);
+    const caseShapes = readAssertionShapes(body, file, start, fileBindings);
     const caseBindings = readBindings(body);
     let caseDiscriminating = false;
     for (const shape of caseShapes) {
@@ -493,7 +522,7 @@ export function summarizeAssertionStrength(source: string, file: string): {
       const judgement = assertionDiscriminates(shape);
       // The value must reach the ASSERTION, not merely appear in the case. A string literal in an expected
       // object (`{ status: "ok" }`) is not an input, and counting it made a vacuous case look representative.
-      const supplied = nonEmptyOperandIn(shape, caseBindings);
+      const supplied = nonEmptyOperandIn(shape, [caseBindings, fileBindings]);
       if (judgement.discriminating && supplied.found) {
         discriminating += 1;
         nonEmptyInputs += 1;
@@ -524,10 +553,10 @@ export function summarizeAssertionStrength(source: string, file: string): {
   };
 }
 
-/** The bodies of every test case in the source, or the whole source when no case is recognisable. */
-function testCases(source: string): string[] {
+/** The bodies of every test case in the source, each with where it starts, or the whole source when no case is recognisable. */
+function testCases(source: string): Array<{ body: string; start: number }> {
   const bodies = testBodies(source);
-  return bodies.length ? bodies : [source];
+  return bodies.length ? bodies : [{ body: source, start: 0 }];
 }
 /**
  * Whether a non-empty value REACHES this assertion, and which.
@@ -541,7 +570,7 @@ function testCases(source: string): string[] {
  * `const input = [{…}]`. A binding that is itself a CALL result does not: that is the behaviour's output,
  * and counting it would be circular.
  */
-function nonEmptyOperandIn(shape: AssertionShape, bindings: ReadonlyMap<string, string>): { found: boolean; expressions: string[] } {
+function nonEmptyOperandIn(shape: AssertionShape, scopes: ReadonlyArray<ReadonlyMap<string, string>>): { found: boolean; expressions: string[] } {
   const expressions: string[] = [];
   const names = shape.operandNames ?? [];
   // The binding's name is looked for ANYWHERE in the assertion's operand text, because a representative
@@ -549,15 +578,20 @@ function nonEmptyOperandIn(shape: AssertionShape, bindings: ReadonlyMap<string, 
   // A word-boundary test, so `input` does not match `inputLength`.
   const referenced = (name: string): boolean => names.some((operand) => new RegExp(`(^|[^\\w$])${name.replace(/\$/g, "\\$")}([^\\w$]|$)`).test(operand));
 
-  for (const [name, bound] of bindings) {
-    const expression = bound.trim();
-    // A binding that is a call result is the behaviour's OUTPUT, not an input. Circular guard.
-    if (/^[A-Za-z_$][\w$.]*\s*\(/.test(expression)) continue;
-    if (operandShapeOf(expression, bindings) !== "non-empty-literal") continue;
-    if (referenced(name)) expressions.push(`${name} = ${expression.slice(0, 60)}`);
+  // The CASE's bindings first, then the FILE's. A fixture declared at module scope is still a value the
+  // case supplied, and it has to be NAMED either way — so the wider scope is a fallback, not a licence to
+  // scan the file for any populated literal and call it evidence.
+  for (const bindings of scopes) {
+    for (const [name, bound] of bindings) {
+      const expression = bound.trim();
+      // A binding that is a call result is the behaviour's OUTPUT, not an input. Circular guard.
+      if (/^[A-Za-z_$][\w$.]*\s*\(/.test(expression)) continue;
+      if (operandShapeOf(expression, bindings) !== "non-empty-literal") continue;
+      if (referenced(name)) expressions.push(`${name} = ${expression.slice(0, 60)}`);
+    }
   }
   // Only BINDINGS count, and only when the assertion names them. A literal written directly in an operand
   // is the assertion's EXPECTATION, not something the case supplied — counting it would make every
   // assertion with a populated expected value look like it exercised representative input.
-  return { found: expressions.length > 0, expressions: expressions.slice(0, 4) };
+  return { found: expressions.length > 0, expressions: [...new Set(expressions)].slice(0, 4) };
 }
