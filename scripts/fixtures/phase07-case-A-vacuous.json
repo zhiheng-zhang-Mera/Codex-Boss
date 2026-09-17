@@ -1,0 +1,9 @@
+{
+  "$comment": "Phase 07 Task D case A. The vacuous shape a real Phase 06 dogfood run produced: the round-trip case binds an EMPTY array and asserts a document that agrees with itself through `[]`. It passes every host check — it compiles, the suite is green, the diff is clean — and it establishes nothing about the non-empty values the objective names. Used with `--scripted` so the counterexample is reproducible on demand rather than depending on what a model happens to write. The `checks` are supplied by the live host request, not from here.",
+  "changes": [
+    {
+      "path": "tests/unit/intervention-file-properties.test.ts",
+      "content": "import { describe, expect, it } from \"vitest\";\nimport { interventionFileDocument, parseInterventionFile } from \"../../src/shared/intervention-file\";\n\ndescribe(\"intervention-file\", () => {\n  it(\"round-trips the same interventions array\", () => {\n    const interventions = [];\n    const document = interventionFileDocument(interventions);\n    const parsed = parseInterventionFile(JSON.stringify(document));\n\n    if (parsed.status !== \"ok\") {\n      throw new Error(`expected ok result, got ${parsed.status}`);\n    }\n\n    // Agrees with itself through the empty array: a genuine assertion that can fail, over an input that\n    // cannot vary. This is the vacuous green the phase exists to refuse.\n    expect(parsed.interventions).toEqual(interventions);\n    expect(interventionFileDocument(parsed.interventions)).toEqual(document);\n  });\n});\n"
+    }
+  ]
+}

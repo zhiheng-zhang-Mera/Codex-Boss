@@ -156,14 +156,12 @@ export interface AssertionShape {
    */
   referencesInput?: boolean;
   /**
-   * Whether the case feeds a NON-EMPTY value into the calls it makes.
+   * The assertion's operand TEXT, kept so a caller can ask what value actually reaches the assertion.
    *
-   * Read from the INNERMOST arguments of those calls — the actual leaf values the behaviour is handed —
-   * so a wrapper like `JSON.stringify(intermediate)` in the middle of a chain is not mistaken for the
-   * input. This is the signal the mandated regression turns on: `roundTrip([])` fails it, and no amount of
-   * assertion richness compensates.
+   * `operandShapes` records the KIND of each operand but not which binding it came from, and the judgement
+   * that matters most — "is a non-empty value being asserted about, or only a constant?" — needs the name.
    */
-  exercisesNonEmptyInput?: boolean;
+  operandNames?: string[];
 }
 
 /** The literal shape of one operand, reduced to what decides strength. */
@@ -234,14 +232,6 @@ export function assertionDiscriminates(shape: AssertionShape): { discriminating:
   if (shape.operandShapes.some((operand) => operand === "unknown")) {
     // Unreadable stays unreadable rather than being assumed strong.
     return { discriminating: false, reason: `${shape.at} has an operand that could not be read, so its strength cannot be established` };
-  }
-  if (shape.exercisesNonEmptyInput !== true) {
-    // THE core refusal. Whatever the assertion looks like, the case only ever feeds empty values into the
-    // calls it makes — so it cannot establish a property of non-empty inputs. This is the shape the real
-    // Phase 06 test had: a binding to `[]`, passed through a wrapper, compared against a constant.
-    const inputs = shape.callArguments ?? [];
-    const inputNote = inputs.length ? ` The case only calls with: ${inputs.slice(0, 3).join(", ")}.` : "";
-    return { discriminating: false, reason: `${shape.at} exercises only empty values, so it cannot establish a property of non-empty inputs.${inputNote}` };
   }
   if (shape.echoOfInput === true) {
     // The strongest shape available: the assertion says the behaviour RETURNS what it was given. Any

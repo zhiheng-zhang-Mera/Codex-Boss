@@ -160,13 +160,44 @@ function goalFilesFor(objective) {
  * ------------------------------------------------------------------ */
 
 /**
- * The worker the production loop calls: a real coder and a real reviewer.
+ * The coder the harness uses.
  *
- * `createLiveEngineeringOperations` asks this for two roles. The coder is handed the
- * `ProposalRunner` request (a JSON scope with the file contents and their expected hashes) and must
- * answer with the same superset shape; the reviewer is handed review instructions and answers with
- * findings. Both go to the provider through the production `ProviderApiClient`.
+ * Normally the provider. With `--scripted <file>`, the reply's `changes` come from that file while the
+ * rest of the pipeline stays real: the same scope, the same host checks, the same acceptance judgement.
+ * Only the PROPOSAL is fixed, which is what lets the counterexample cases be reproduced on demand — a
+ * vacuous proposal must be refused every time, not only when the model happens to write one.
+ *
+ * The scripted file provides `{ "changes": [ { "path", "content" } ] }`. The `checks` are taken from the
+ * live request, because they are the host's to choose, and an existing file's `expectedSha256` is filled
+ * from the request so a hand-written proposal cannot be rejected for a reason the case is not about.
  */
+function makeWorker(options, provider, client, evidence) {
+  const worker = makeProviderWorker(provider, client, evidence);
+  if (typeof options.scripted !== "string") return worker;
+  const scriptedPath = path.resolve(options.scripted);
+  return {
+    async ask(role, prompt) {
+      const content = fs.readFileSync(scriptedPath, "utf8");
+      let reply = content;
+      try {
+        // The request is the JSON the ProposalRunner builds; recover what the host already decided.
+        const request = JSON.parse(prompt);
+        const proposed = JSON.parse(content);
+        if (Array.isArray(proposed.changes) && Array.isArray(request.requiredChecks)) {
+          const known = new Map((request.files ?? []).map((file) => [file.path, file.expectedSha256]));
+          reply = JSON.stringify({
+            changes: proposed.changes.map((change) => ({ ...change, expectedSha256: known.get(change.path) ?? null })),
+            checks: request.requiredChecks
+          });
+        }
+      } catch { /* a full manifest is passed through untouched */ }
+      evidence.calls.push({ role, outcome: "SCRIPTED", replyChars: reply.length, source: path.basename(scriptedPath), elapsedMs: 0 });
+      return reply;
+    }
+  };
+}
+
+/** The provider-backed engineering worker. */
 function makeProviderWorker(provider, client, evidence) {
   return {
     async ask(role, prompt) {
@@ -332,7 +363,7 @@ async function main() {
 
     const journal = engineeringJournalAt(path.join(dataRoot, "engineering"));
     journal.loopStore().freezeGoal(goal);
-    const worker = makeProviderWorker(provider, client, evidence);
+    const worker = makeWorker(options, provider, client, evidence);
     const repo = createRepoEngineeringOperations({ workspace: workspace.workspace });
     const instrumented = instrumentedOperations(repo, evidence);
 
@@ -353,7 +384,21 @@ async function main() {
       // before this was noticed). It is an allowance over the test tree, not a blanket permission.
       allowPaths: ["tests/unit/", "tests/acceptance/"],
       maxScopeFiles: 12,
-      audit: (g) => instrumented.audit(g)
+      audit: (g) => instrumented.audit(g),
+      // The acceptance judgement, captured into evidence. It is the default production model
+      // (`judgeGoalAcceptance`), recorded here so the run's verdict is auditable alongside the checks it
+      // came from — `verification` says the checks passed, `acceptance` says what they establish.
+      acceptance: async (g, changedFiles) => {
+        const { judgeGoalAcceptance } = load("electron/engineering/goal-acceptance.js");
+        const verdict = judgeGoalAcceptance({ objective: g.objective, changedFiles, workspace: workspace.workspace });
+        evidence.acceptance = {
+          verdict: verdict.verdict,
+          reasons: verdict.reasons,
+          weakSignals: verdict.weakSignals,
+          claims: verdict.claims.map((claim) => ({ claimId: claim.claimId, criticality: claim.criticality, verdict: claim.verdict, reasons: claim.reasons }))
+        };
+        return verdict;
+      }
     });
 
     ledger.recordStage(goal.id, "implement", "agent");
@@ -367,6 +412,10 @@ async function main() {
       // workspace was not pristine, without that fact becoming the run's work.
       preExistingFindings: (summary.preExisting ?? []).map((finding) => ({ id: finding.id, area: finding.area, severity: finding.severity, kind: finding.kind ?? "code" })),
       verification: summary.verification ?? null,
+      // Separate from `verification` on purpose: one says the checks passed, the other says what they
+      // establish. A CONVERGED state requires both, which is Phase 07's whole change.
+      acceptanceVerdict: summary.acceptance?.verdict ?? null,
+      acceptanceReasons: summary.acceptance?.reasons ?? [],
       reviewFindings: (summary.reviewFindings ?? []).map((finding) => ({ severity: finding.severity, summary: finding.summary }))
     };
 
@@ -437,6 +486,9 @@ async function main() {
     process.stdout.write(`[dogfood] gitBase=${(evidence.gitBase ?? "").slice(0, 12)} calls=${evidence.usage?.calls ?? 0} providerInputTokens=${evidence.usage?.providerInputTokens ?? "unmeasured"}\n`);
     process.stdout.write(`[dogfood] trace=${(evidence.executedStages ?? []).join(", ") || "none"} changedFiles=${evidence.summary?.changedFiles?.length ?? 0} iterations=${evidence.summary?.iterations ?? 0}\n`);
     process.stdout.write(`[dogfood] isolation: checkoutUntouched=${evidence.isolation.checkoutUntouched}\n`);
+    // The Phase 07 line: the host's checks and the objective's satisfaction are different claims, and a
+    // reader must be able to see both.
+    process.stdout.write(`[dogfood] acceptance=${evidence.summary?.acceptanceVerdict ?? "not judged"} (checks ${evidence.summary?.verification?.passed === true ? "PASS" : "not run"})\n`);
     if (evidence.error) process.stdout.write(`[dogfood] error: ${evidence.error}\n`);
     process.stdout.write(`[dogfood] evidence: ${path.relative(ROOT, out).split(path.sep).join("/")}\n`);
   }

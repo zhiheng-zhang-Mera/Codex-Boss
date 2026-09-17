@@ -136,48 +136,7 @@ function readBindings(source: string): Map<string, string> {
 }
 
 
-/**
- * Whether the case feeds a NON-EMPTY value into the behaviour it exercises.
- *
- * ## Why this is a source scan rather than a call-graph walk
- *
- * The precise question — "is the value reaching the function under test non-empty?" — requires knowing
- * which call IS the function under test and which bindings are inputs rather than results. Four attempts
- * at that classification each produced a confident wrong answer (an internal `JSON.stringify` counted as
- * the input; the result binding counted as an input; an assertion's expected value counted as an input;
- * a named-import call mistaken for a method call). A lexical reader cannot answer it, and a wrong answer
- * here is worse than a coarse one, because it would let the vacuous case through.
- *
- * So it answers the question it CAN answer reliably, and it answers it conservatively:
- *
- *   **does the file supply any non-empty literal that is not part of an assertion's expectation?**
- *
- * A file containing only `[]`, `{}` and `""` outside its assertions exercises nothing representative — that
- * is the Phase 06 dogfood shape, and it is refused. A file containing a populated fixture is not purely
- * vacuous, and is allowed to proceed to the assertion-level judgement.
- *
- * Assertion bodies are excluded first, so `expect(result).toEqual([1, 2, 3])` — an expectation, not an
- * input — cannot be mistaken for test data.
- */
-function exercisesNonEmptyInput(source: string): boolean {
-  // Only the CASE BODIES are scanned. A suite's description (`it("round-trips a representative …")`) is a
-  // string literal that says what the author intended, not what the test supplies — reading it as input is
-  // how a test that only ever fed `[]` was classified as exercising something.
-  const body = stripAssertions(testBodies(source));
-  if (!body.trim()) return false;
-  if (/\[[^\]]*[^\s,\[\]]/.test(body)) return true;
-  if (/\{[^}]*[^\s,{}:]\s*:/.test(body)) return true;
-  if (/["'`][^"'`\n]+["'`]/.test(body)) return true;
-  return false;
-}
-
-/**
- * The bodies of every test case in the source.
- *
- * `it(name, () => { … })` — everything after the arrow's brace. A file with no recognisable case yields an
- * empty string, which the caller treats as "nothing representative was found" — the fail-closed direction.
- */
-function testBodies(source: string): string {
+function testBodies(source: string): string[] {
   const bodies: string[] = [];
   const CASE = /\b(?:it|test)\s*\(/g;
   let match: RegExpExecArray | null;
@@ -191,7 +150,7 @@ function testBodies(source: string): string {
     if (brace >= 0) bodies.push(call.slice(brace + 1));
     CASE.lastIndex = close + 1;
   }
-  return bodies.join("\n");
+  return bodies;
 }
 
 /**
@@ -352,7 +311,7 @@ export function readAssertionShapes(source: string, file: string): AssertionShap
         if (receivers.some((receiver) => receiver.trim() === trimmed)) return false; // An echo, handled above.
         return [...bindings.keys()].some((name) => new RegExp(`(^|[^\\w$.])${name.replace(/\$/g, "\\$")}(\\b|\\.|\\[)`).test(trimmed));
       });
-      shapes.push({ at, operandShapes, assertion: `${negation}${matcher[1]}`, echoOfInput: echoes, referencesInput, exercisesNonEmptyInput: exercisesNonEmptyInput(source), ...(nested.length ? { callArguments: nested } : {}) });
+      shapes.push({ at, operandShapes, operandNames: [...receivers, ...matcherOperands], assertion: `${negation}${matcher[1]}`, echoOfInput: echoes, referencesInput, ...(nested.length ? { callArguments: nested } : {}) });
       ASSERTION_CALL.lastIndex = closeIndex + 1;
       continue;
     }
@@ -386,21 +345,83 @@ export function summarizeAssertionStrength(source: string, file: string): {
   weak: Array<{ at: string; assertion: string; reason: string }>;
   inputs: { total: number; nonEmpty: number; empty: number; expressions: string[] };
 } {
-  const shapes = readAssertionShapes(source, file);
+  const cases = testCases(source);
+  const shapes: AssertionShape[] = [];
   const weak: Array<{ at: string; assertion: string; reason: string }> = [];
   let discriminating = 0;
-  for (const shape of shapes) {
-    const judgement = assertionDiscriminates(shape);
-    if (judgement.discriminating) discriminating += 1;
-    else weak.push({ at: shape.at, assertion: shape.assertion, reason: judgement.reason });
+  let nonEmptyInputs = 0;
+  let emptyInputs = 0;
+  const expressions: string[] = [];
+
+  for (const body of cases) {
+    // ATTRIBUTED PER CASE, which is the correction that matters. Judging a file as a whole let one case's
+    // non-empty fixture vouch for another case's empty one — and that is exactly how a real generated test
+    // shipped a round-trip over `[]` alongside an error case over a populated object and was accepted.
+    // A case is discriminating only when BOTH hold within that same case: an assertion that could fail,
+    // and a non-empty value supplied to it.
+    const caseShapes = readAssertionShapes(body, file);
+    const caseBindings = readBindings(body);
+    for (const shape of caseShapes) {
+      shapes.push(shape);
+      const judgement = assertionDiscriminates(shape);
+      // The value must reach the ASSERTION, not merely appear in the case. A string literal in an expected
+      // object (`{ status: "ok" }`) is not an input, and counting it made a vacuous case look representative.
+      const supplied = nonEmptyOperandIn(shape, caseBindings);
+      if (judgement.discriminating && supplied.found) {
+        discriminating += 1;
+        nonEmptyInputs += 1;
+        expressions.push(...supplied.expressions);
+      } else if (judgement.discriminating) {
+        weak.push({ at: shape.at, assertion: shape.assertion, reason: `${shape.at} ties the result to its input, but no non-empty value reaches the assertion` });
+      } else {
+        weak.push({ at: shape.at, assertion: shape.assertion, reason: judgement.reason });
+      }
+    }
+    if (!caseShapes.length) emptyInputs += 1;
   }
-  const callShapes = readCallArgumentShapes(source);
-  const nonEmpty = callShapes.shapes.filter((shape) => shape === "non-empty-literal" || shape === "variable").length;
-  const empty = callShapes.shapes.filter((shape) => shape === "empty-literal" || shape === "empty-collection").length;
+
   return {
     total: shapes.length,
     discriminating,
     weak,
-    inputs: { total: callShapes.shapes.length, nonEmpty, empty, expressions: callShapes.expressions }
+    inputs: { total: cases.length, nonEmpty: nonEmptyInputs, empty: emptyInputs, expressions }
   };
+}
+
+/** The bodies of every test case in the source, or the whole source when no case is recognisable. */
+function testCases(source: string): string[] {
+  const bodies = testBodies(source);
+  return bodies.length ? bodies : [source];
+}
+/**
+ * Whether a non-empty value REACHES this assertion, and which.
+ *
+ * The assertion's own operands, resolved one step through the case's bindings. This is the narrowest and
+ * most reliable place to ask the question: an operand resolving to a populated collection is a value the
+ * assertion is actually about, whereas scanning the whole case for literals picks up an expected object's
+ * `"ok"` and calls it input.
+ *
+ * A bare identifier resolving to a populated literal counts — that is `expect(result).toEqual(input)` with
+ * `const input = [{…}]`. A binding that is itself a CALL result does not: that is the behaviour's output,
+ * and counting it would be circular.
+ */
+function nonEmptyOperandIn(shape: AssertionShape, bindings: ReadonlyMap<string, string>): { found: boolean; expressions: string[] } {
+  const expressions: string[] = [];
+  const names = shape.operandNames ?? [];
+  // The binding's name is looked for ANYWHERE in the assertion's operand text, because a representative
+  // fixture is usually nested inside the expected value: `toEqual({ status: "ok", interventions: input })`.
+  // A word-boundary test, so `input` does not match `inputLength`.
+  const referenced = (name: string): boolean => names.some((operand) => new RegExp(`(^|[^\\w$])${name.replace(/\$/g, "\\$")}([^\\w$]|$)`).test(operand));
+
+  for (const [name, bound] of bindings) {
+    const expression = bound.trim();
+    // A binding that is a call result is the behaviour's OUTPUT, not an input. Circular guard.
+    if (/^[A-Za-z_$][\w$.]*\s*\(/.test(expression)) continue;
+    if (operandShapeOf(expression, bindings) !== "non-empty-literal") continue;
+    if (referenced(name)) expressions.push(`${name} = ${expression.slice(0, 60)}`);
+  }
+  // Only BINDINGS count, and only when the assertion names them. A literal written directly in an operand
+  // is the assertion's EXPECTATION, not something the case supplied — counting it would make every
+  // assertion with a populated expected value look like it exercised representative input.
+  return { found: expressions.length > 0, expressions: expressions.slice(0, 4) };
 }
