@@ -407,6 +407,62 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     expect(strength.inputs.nonEmpty).toBe(1);
   });
 
+  it("fails closed on another language rather than assuming its assertions discriminate", () => {
+    // Phase 08 §5, and it is a prohibition rather than a preference: `unknown syntax → assume
+    // discriminating` is forbidden, because an unreadable assertion is not evidence. The reader is a
+    // LEXICAL reader for `expect(…)` / `assert(…)` / `expectTypeOf(…)` inside `it`/`test`/`describe`, and
+    // this is the test that keeps it honest about that.
+    //
+    // It has been measured against a real external repository too (154 Python files in
+    // `zhiheng-zhang-Mera/Quant-ultra`, `scripts/qualify-assertion-reader.cjs`: 0 files judged
+    // discriminating). This fixture is the permanent guard so the property cannot silently regress.
+    //
+    // Note WHICH construct saves it, because it is narrower than "we don't parse Python": the reader
+    // requires a CALL — `assert(` with a parenthesis — and Python's assertion is the `assert x == y`
+    // statement, which never matches. `unittest`'s `self.assertEqual(a, b)` is a method call, and
+    // `pytest.raises` is a context manager, so neither is an assertion entry point either.
+    const python = [
+      "import pytest",
+      "from decimal import Decimal",
+      "",
+      "def test_round_trip(interventions):",
+      "    document = intervention_file_document(interventions)",
+      "    parsed = parse_intervention_file(json.dumps(document))",
+      "    assert parsed.status == 'ok'",
+      "    assert parsed.interventions == interventions",
+      "",
+      "class TestInterventionFile(unittest.TestCase):",
+      "    def test_rejects_unknown_schema(self):",
+      "        self.assertEqual(parse('{}').status, 'unreadable')",
+      "        self.assertIsNotNone(parse('{}').reason)",
+      "",
+      "    def test_raises_on_bad_json(self):",
+      "        with pytest.raises(ValueError):",
+      "            parse('{not json')"
+    ].join("\n");
+    const strength = summarizeAssertionStrength(python, "tests/test_intervention_file.py");
+    expect(strength.discriminating).toBe(0);
+    expect(strength.inputs.nonEmpty).toBe(0);
+    // The finding is stated positively too: the reader found no assertion SITE at all, which is why it
+    // fails closed rather than reporting a weak assertion it half-understood.
+    expect(strength.total).toBe(0);
+  });
+
+  it("does not count a Python `.py` test file as evidence at all", () => {
+    // The second half of the same boundary, at the layer above the reader: `judgeGoalAcceptance` selects
+    // evidence with `TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/`, so a Python test file is not even a
+    // candidate. A change that added only `tests/test_x.py` therefore produces no test evidence and is
+    // refused as `INSUFFICIENT_EVIDENCE` — fail-closed, and for a different reason than the reader's.
+    // Asserted here as a fact about the pattern so a future "support Python tests" change has to confront
+    // both layers rather than quietly reaching only one of them.
+    const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+    expect(TEST_FILE.test("tests/x.test.ts")).toBe(true);
+    expect(TEST_FILE.test("tests/x.spec.js")).toBe(true);
+    expect(TEST_FILE.test("tests/test_x.py")).toBe(false);
+    expect(TEST_FILE.test("tests/x_test.py")).toBe(false);
+    expect(TEST_FILE.test("tests/x_test.go")).toBe(false);
+  });
+
   it("reads a fixture bound with a TYPE ASSERTION suffixed to the literal", () => {
     // The same run, one step later: the model annotated the literal instead of the declaration —
     // `] as unknown as HumanInterventionRequest[]`. The type is not part of the VALUE, and leaving it in
