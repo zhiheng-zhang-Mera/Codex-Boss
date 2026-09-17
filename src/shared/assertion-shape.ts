@@ -125,14 +125,38 @@ function readBindings(source: string): Map<string, string> {
       const char = source[end]!;
       if (quote) { if (char === quote && source[end - 1] !== "\\") quote = null; continue; }
       if (char === '"' || char === "'" || char === "`") { quote = char; continue; }
-      if ("([{".includes(char)) depth += 1;
-      else if (")]}".includes(char)) depth -= 1;
-      else if ((char === ";" || char === "\n") && depth === 0) break;
+      if ("([{".includes(char)) { depth += 1; continue; }
+      if (")]}".includes(char)) { depth -= 1; continue; }
+      if (char === ";" && depth === 0) break;
+      // A NEWLINE ends the statement only when the expression is COMPLETE. Breaking on the first newline
+      // truncated a multi-line fixture at its opening bracket — `const interventions = [` — so a populated
+      // array read as `unknown` and a genuinely meaningful test was refused. A representative fixture is
+      // usually written across several lines, which made that the common case rather than an edge one.
+      if (char === "\n" && depth === 0 && isCompleteExpression(source.slice(start, end))) break;
     }
     const expression = source.slice(start, end).trim();
     if (expression) bindings.set(name, expression);
   }
   return bindings;
+}
+
+/** Whether a fragment is a finished expression rather than a line of one. */
+function isCompleteExpression(fragment: string): boolean {
+  const text = fragment.trim();
+  if (!text) return false;
+  // Unbalanced brackets mean the expression continues on the next line.
+  let depth = 0;
+  let quote: string | null = null;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]!;
+    if (quote) { if (char === quote && text[index - 1] !== "\\") quote = null; continue; }
+    if (char === '"' || char === "'" || char === "`") { quote = char; continue; }
+    if ("([{".includes(char)) depth += 1;
+    else if (")]}".includes(char)) depth -= 1;
+  }
+  if (depth !== 0 || quote) return false;
+  // A trailing operator, comma or dot means more is coming.
+  return !/[=+\-*/%&|?:,.<(]$/.test(text);
 }
 
 
