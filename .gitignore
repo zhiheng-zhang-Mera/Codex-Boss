@@ -55,6 +55,11 @@ credential-cache/
 # sandbox threat model, the side-effect audit and the machine-derived evidence
 # under evidence/ are the deliverable for this phase.
 !/Update-Plan/Autonomous-Evolution-Phase05/
+# The Platform Foundation phase books ARE the binding specification each phase is built
+# against, so they ship with the code they govern. Phases 01-05 were committed before the
+# blanket `/Update-Plan/*` rule existed and stayed tracked because gitignore does not apply
+# to already-tracked files; Phase 06's book is new and needs the exception explicitly.
+!/Update-Plan/Platform-Foundation/
 /research-output/
 .live-acceptance/
 
