@@ -8,6 +8,8 @@ import {
   sandboxContainerName,
   type SandboxBoundaryDescription,
   type SandboxCapability,
+  type SandboxCapabilityReason,
+  type SandboxCapabilityReasonCode,
   type SandboxGrant
 } from "./sandbox-capability";
 import {
@@ -147,6 +149,15 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
   private readonly materializations: MaterializedToolchain[] = [];
   /** The materialized executable to launch, when a machine-owned root had to be materialized. */
   private materializedExecutable?: string;
+  /**
+   * The executable the preflight materializes.
+   *
+   * Defaults to this process's own Node binary. It is settable so a test can point the preflight at a
+   * controlled path (a missing file, an unwritable cache) without having to break the real toolchain.
+   */
+  private preflightExecutable?: string;
+  /** The toolchain the preflight proved placeable, reused by `run()` for the same executable. */
+  private preflightMaterialization?: MaterializedToolchain;
 
   constructor(options: WindowsAppContainerSandboxOptions = {}) {
     this.launcherRoot = path.resolve(options.launcherRoot ?? defaultSandboxLauncherRoot());
@@ -192,41 +203,77 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
     };
   }
 
+  /** Point the preflight at a specific executable. Test seam for the preflight refusal paths. */
+  setPreflightExecutable(executable: string): void {
+    this.preflightExecutable = executable;
+    this.capability = undefined;
+  }
+
   async probe(): Promise<SandboxCapability> {
     if (this.capability) return this.capability;
-    const reasons: string[] = [];
+    const codes: SandboxCapabilityReason[] = [];
+    const add = (code: SandboxCapabilityReasonCode, detail: string): void => { codes.push({ code, detail }); };
     let compiler: string | undefined;
     let build: LauncherBuild | undefined;
     let sid: string | undefined;
     let jobObject = false;
 
-    if (process.platform !== "win32") reasons.push(`hard sandbox is implemented for win32, this host is ${process.platform}`);
-
-    if (!reasons.length) {
-      compiler = findCSharpCompiler();
-      if (!compiler) reasons.push("no .NET Framework C# compiler (csc.exe) is present, so the launcher cannot be built");
+    if (process.platform !== "win32") {
+      add("PLATFORM_UNSUPPORTED", `hard sandbox is implemented for win32, this host is ${process.platform}`);
     }
 
-    if (!reasons.length) {
+    if (!codes.length) {
+      compiler = findCSharpCompiler();
+      if (!compiler) add("LAUNCHER_COMPILER_MISSING", "no .NET Framework C# compiler (csc.exe) is present, so the launcher cannot be built");
+    }
+
+    if (!codes.length) {
       try {
         build = this.ensureLauncher(compiler!);
+        if (!fs.existsSync(build.executable)) {
+          add("LAUNCHER_UNUSABLE", `the compiled launcher is absent at ${build.executable}`);
+        }
       } catch (error) {
-        reasons.push(`launcher build failed: ${String((error as Error).message).slice(0, 300)}`);
+        add("LAUNCHER_COMPILE_FAILED", `launcher build failed: ${String((error as Error).message).slice(0, 300)}`);
       }
     }
 
-    if (build) {
+    if (build && !codes.length) {
       const probe = this.runLauncherProbe(build.executable);
       sid = probe.sid;
       jobObject = probe.jobObject;
-      if (!probe.ok) reasons.push(`AppContainer probe failed: ${probe.failure ?? "unknown"}`);
+      if (!probe.ok) add("APPCONTAINER_PROBE_FAILED", `AppContainer probe failed: ${probe.failure ?? "unknown"}`);
     }
 
+    // ENVIRONMENT-LEVEL PREFLIGHT: what `run()` needs BEFORE any workload is executed.
+    //
+    // Without this, `available: true` meant only "the AppContainer API works", and a host that cannot reach
+    // the production path — no candidate root, an unwritable cache, an unreadable materialized copy — still
+    // reported itself ready. Each check below is cheap, touches the filesystem rather than running a
+    // Candidate, and refuses with a stable code. A failure that only appears once a Candidate's own code
+    // runs is NOT reported here: that would misclassify a workload fault as an unavailable capability.
+    if (!codes.length) {
+      if (!this.candidateRoot) {
+        add("CANDIDATE_ROOT_NOT_CONFIGURED", "no candidate root is configured, so the executable cannot be materialized into a readable location");
+      } else {
+        const rootCheck = this.preflightCandidateRoot(this.candidateRoot);
+        if (rootCheck) add(rootCheck.code, rootCheck.detail);
+      }
+    }
+
+    if (!codes.length && this.candidateRoot) {
+      const toolchainCheck = this.preflightToolchain(this.candidateRoot);
+      if (toolchainCheck) add(toolchainCheck.code, toolchainCheck.detail);
+    }
+
+    const reasons = codes.map((entry) => `${entry.code}: ${entry.detail}`);
+    const available = codes.length === 0;
     this.capability = {
-      available: reasons.length === 0,
-      mechanism: reasons.length === 0 ? "windows-appcontainer" : "unavailable",
+      available,
+      mechanism: available ? "windows-appcontainer" : "unavailable",
       platform: process.platform,
       reasons,
+      reasonCodes: codes,
       details: {
         containerName: this.containerName,
         containerSid: sid,
@@ -241,6 +288,68 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
       }
     };
     return this.capability;
+  }
+
+  /**
+   * The candidate root must exist (or be creatable) and be writable by this user.
+   *
+   * This is the first precondition the fix for the `D:\Node_JS` failure depends on: materialization places a
+   * copy there, so a candidate root this process cannot write means the production path cannot be reached.
+   */
+  private preflightCandidateRoot(candidateRoot: string): SandboxCapabilityReason | undefined {
+    try {
+      fs.mkdirSync(candidateRoot, { recursive: true });
+    } catch (error) {
+      return { code: "CANDIDATE_ROOT_NOT_WRITABLE", detail: `candidate root ${candidateRoot} could not be created: ${String((error as Error).message).slice(0, 200)}` };
+    }
+    const probeFile = path.join(candidateRoot, `.sandbox-preflight-${process.pid}`);
+    try {
+      fs.writeFileSync(probeFile, "probe", "utf8");
+      fs.rmSync(probeFile, { force: true });
+    } catch (error) {
+      return { code: "CANDIDATE_ROOT_NOT_WRITABLE", detail: `candidate root ${candidateRoot} is not writable by this user: ${String((error as Error).message).slice(0, 200)}` };
+    }
+    return undefined;
+  }
+
+  /**
+   * The materialized toolchain must be placeable and readable, established without running a workload.
+   *
+   * It performs the real materialization (a copy of one executable) and reads the copy back, comparing the
+   * digest it recorded. That is the same operation `run()` performs, so a pass here means the step that
+   * previously failed cannot be the reason a run fails later. It does NOT evaluate Candidate code — that is
+   * the workload's business, not the capability's.
+   */
+  private preflightToolchain(candidateRoot: string): SandboxCapabilityReason | undefined {
+    const executable = this.preflightExecutable ?? process.execPath;
+    if (!fs.existsSync(executable)) {
+      return { code: "EXECUTABLE_MISSING", detail: `the sandbox executable ${executable} does not exist` };
+    }
+    const cacheParent = toolchainCacheRoot(candidateRoot);
+    let copy: MaterializedToolchain;
+    try {
+      copy = materializeToolchain(cacheParent, planNodeToolchain(executable));
+    } catch (error) {
+      return { code: "TOOLCHAIN_MATERIALIZATION_FAILED", detail: `could not materialize ${executable} into ${cacheParent}: ${String((error as Error).message).slice(0, 200)}` };
+    }
+    try {
+      const materialized = path.join(copy.root, path.basename(executable));
+      const stat = fs.statSync(materialized);
+      if (stat.size === 0) {
+        return { code: "TOOLCHAIN_UNREADABLE", detail: `the materialized executable ${materialized} is empty` };
+      }
+      // Integrity is checked through the materialization contract, not by re-hashing here: re-deriving the
+      // same plan REUSES the cached copy only when its recorded manifest matches the source, so a copy that
+      // was truncated or tampered with cannot be reported as reusable.
+      const recheck = materializeToolchain(cacheParent, planNodeToolchain(executable));
+      if (!recheck.reused) {
+        return { code: "TOOLCHAIN_UNREADABLE", detail: `the materialized toolchain at ${copy.root} was not reusable immediately after it was written` };
+      }
+    } catch (error) {
+      return { code: "TOOLCHAIN_UNREADABLE", detail: `the materialized toolchain at ${copy.root} could not be read back: ${String((error as Error).message).slice(0, 200)}` };
+    }
+    this.preflightMaterialization = copy;
+    return undefined;
   }
 
   async run(request: SandboxedProcessRequest, options: SandboxRunOptions = {}): Promise<SandboxedProcessResult> {

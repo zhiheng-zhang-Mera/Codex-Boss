@@ -1350,6 +1350,22 @@
       ]
     },
     {
+      "file": "tests/unit/sandbox-capability-preflight.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ],
+      "obligation": "available:true means the production sandbox path is reachable, and every refusal carries a stable reason code"
+    },
+    {
+      "file": "tests/unit/sandbox-failure-cleanup.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ],
+      "obligation": "the launcher cannot drift from its canonical C# source, and an induced failure releases its drive mapping and request artifacts"
+    },
+    {
       "file": "tests/unit/sandbox-toolchain-materialization.test.ts",
       "tier": "unit",
       "covers": [

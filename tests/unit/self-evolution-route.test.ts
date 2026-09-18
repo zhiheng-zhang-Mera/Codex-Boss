@@ -120,6 +120,8 @@ const capability: SandboxCapability = {
   mechanism: "windows-appcontainer",
   platform: "win32",
   reasons: [],
+  // `available: true` is only honest alongside an empty code list; the preflight populates both together.
+  reasonCodes: [],
   details: { containerName: "recording", containerSid: "S-1-15-2-1-2-3", jobObject: true, suspendedStart: true, childProcessBlocked: true, sanitizedEnvironment: true, networkDenied: true }
 };
 

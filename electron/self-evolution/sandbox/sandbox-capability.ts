@@ -24,10 +24,47 @@ export interface SandboxGrant {
   path: string;
   /**
    * `write` — content read+write (the Candidate workspace and its temp);
-   * `read`  — content read + execute (a read-only toolchain);
+   * `read`  — read + execute (a read-only toolchain);
    * `traverse` — metadata only (stat/traverse a path component).
    */
   access: "read" | "write" | "traverse";
+}
+
+/**
+ * Stable, machine-readable codes for why the sandbox cannot reach production readiness.
+ *
+ * `available: false` has to be actionable without parsing prose, so every refusal carries one of these.
+ * They describe a condition that can be established BEFORE any workload runs; a failure that only appears
+ * while running a Candidate's work is not a capability problem and must not be reported as one.
+ */
+export type SandboxCapabilityReasonCode =
+  /** The mechanism is only implemented for win32. */
+  | "PLATFORM_UNSUPPORTED"
+  /** No .NET Framework C# compiler is present, so the launcher cannot be built. */
+  | "LAUNCHER_COMPILER_MISSING"
+  /** The launcher could not be compiled from the embedded source. */
+  | "LAUNCHER_COMPILE_FAILED"
+  /** The compiled launcher is missing or not executable. */
+  | "LAUNCHER_UNUSABLE"
+  /** The AppContainer profile could not be created, or the launcher probe failed. */
+  | "APPCONTAINER_PROBE_FAILED"
+  /** No candidate root is configured, so the executable has nowhere to be materialized. */
+  | "CANDIDATE_ROOT_NOT_CONFIGURED"
+  /** The candidate root does not exist and could not be created, or is not writable. */
+  | "CANDIDATE_ROOT_NOT_WRITABLE"
+  /** The executable the sandbox would launch does not exist. */
+  | "EXECUTABLE_MISSING"
+  /** The executable could not be copied into the candidate tree. */
+  | "TOOLCHAIN_MATERIALIZATION_FAILED"
+  /** The materialized copy could not be read back, or its digest did not match. */
+  | "TOOLCHAIN_UNREADABLE"
+  /** The AppContainer profile could not be removed, so the host is leaking profiles. */
+  | "APPCONTAINER_PROFILE_UNREMOVABLE";
+
+/** One refusal: a stable code plus a human-readable detail. */
+export interface SandboxCapabilityReason {
+  code: SandboxCapabilityReasonCode;
+  detail: string;
 }
 
 /** The result of asking the host whether it can confine a process. */
@@ -35,8 +72,15 @@ export interface SandboxCapability {
   available: boolean;
   mechanism: SandboxMechanism;
   platform: NodeJS.Platform;
-  /** Human-readable reasons, populated when `available` is false. */
+  /**
+   * Human-readable reasons, populated when `available` is false.
+   *
+   * Kept as strings for the existing consumers that render them; `reasonCodes` carries the same refusals
+   * machine-readably. Both are populated together, so they cannot disagree.
+   */
   reasons: string[];
+  /** The same refusals as stable codes. Empty exactly when `reasons` is empty. */
+  reasonCodes: SandboxCapabilityReason[];
   /** Facts the acceptance evidence records verbatim. */
   details: {
     /** Identity/container name the OS sandbox is bound to. */
