@@ -1350,6 +1350,14 @@
       ]
     },
     {
+      "file": "tests/unit/sandbox-toolchain-materialization.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ],
+      "obligation": "the sandbox materializes the smallest readable toolchain into the user-owned candidate tree, content-addressed so a stale copy cannot mask a changed source"
+    },
+    {
       "file": "tests/unit/schema-migration.test.ts",
       "tier": "unit",
       "covers": [

@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -21,6 +21,7 @@ import {
 } from "./sandbox-backend";
 import { SANDBOX_LAUNCHER_SOURCE } from "./windows-appcontainer/launcher-source";
 import { ensureDriveMapping, removeDriveMapping, toSandboxPath, type DriveMapping } from "./sandbox-drive";
+import { materializeToolchain, planNodeToolchain, toolchainCacheRoot, type MaterializedToolchain } from "./toolchain-materialization";
 
 /**
  * Windows hard-execution sandbox (see Update-Plan/Alien-Prestart.md).
@@ -109,6 +110,16 @@ function readReport(file: string): SandboxProcessReport | undefined {
   }
 }
 
+/**
+ * Note on the fix that removed the DACL dependency.
+ *
+ * An earlier attempt at this change probed whether the process could write a DACL on a `readOnlyRoots`
+ * entry and only then decided whether to materialize. That probe was removed: any heuristic over `icacls`
+ * text guesses at ownership from a permission line, and a wrong guess reintroduces the exact failure this
+ * fix removes. The actual rule in `prepare` needs no guess — the executable's own directory is never
+ * granted, so no ACL write on a machine-owned tree is attempted at all.
+ */
+
 function readText(file: string): string {
   try {
     return fs.readFileSync(file, "utf8");
@@ -132,6 +143,10 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
   private build?: LauncherBuild;
   private capability?: SandboxCapability;
   private mapping?: DriveMapping;
+  /** Toolchains materialized for the run in flight, recorded so cleanup and diagnosis can name them. */
+  private readonly materializations: MaterializedToolchain[] = [];
+  /** The materialized executable to launch, when a machine-owned root had to be materialized. */
+  private materializedExecutable?: string;
 
   constructor(options: WindowsAppContainerSandboxOptions = {}) {
     this.launcherRoot = path.resolve(options.launcherRoot ?? defaultSandboxLauncherRoot());
@@ -246,9 +261,14 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
     }
 
     let prepared: { request: SandboxedProcessRequest; grants: SandboxGrant[] };
+    let preparedOk = false;
     try {
       prepared = this.prepare(request, options);
+      preparedOk = true;
     } catch (error) {
+      // Cleanup runs for THIS failure path too: `prepare` is where the drive mapping is created, so a
+      // refusal after that point must not leave the mapping behind.
+      this.releaseRunResources();
       return {
         sandboxed: false,
         mechanism: "unavailable",
@@ -261,50 +281,76 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
         durationMs: Date.now() - started
       };
     }
+    if (!preparedOk) throw new Error("unreachable: prepare did not produce a request");
     const { grants } = prepared;
     const controlDirectory = request.controlDirectory;
     fs.mkdirSync(controlDirectory, { recursive: true });
     const stem = `${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
     const requestFile = path.join(controlDirectory, `${stem}.request`);
     const reportFile = path.join(controlDirectory, `${stem}.report.json`);
-
-    const activeProcessLimit = options.allowHelperProcesses ? request.activeProcessLimit ?? 16 : request.activeProcessLimit ?? 1;
-    fs.writeFileSync(requestFile, this.renderRequest(prepared.request, grants, reportFile, activeProcessLimit), "utf8");
-    const launch = await new Promise<{ code: number | null; error?: string }>((resolve) => {
-      const child = spawn(this.build!.executable, [requestFile], {
-        windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { SystemRoot: process.env.SystemRoot ?? "C:\\Windows", PATH: process.env.PATH ?? "" }
-      });
-      let stderr = "";
-      child.stderr?.on("data", (chunk) => {
-        stderr += String(chunk);
-      });
-      child.on("error", (error) => resolve({ code: null, error: String(error.message) }));
-      child.on("close", (code) => resolve({ code, error: stderr.trim() || undefined }));
-    });
-
-    const report = readReport(reportFile);
-    const timedOut = report?.timedOut === true;
-    const sandboxed = report?.ok === true && report.containerSid !== null;
-    const result: SandboxedProcessResult = {
-      sandboxed,
-      mechanism: sandboxed ? "windows-appcontainer" : "unavailable",
-      exitCode: report ? report.exitCode : null,
-      timedOut,
-      refused: !report,
-      failure: report?.failure ?? launch.error,
-      report,
-      stdout: readText(request.stdoutFile),
-      stderr: readText(request.stderrFile),
-      durationMs: Date.now() - started
-    };
     try {
-      fs.rmSync(requestFile, { force: true });
-    } catch {
-      // A leftover request file is inert; never fail a sandboxed run over it.
+      const activeProcessLimit = options.allowHelperProcesses ? request.activeProcessLimit ?? 16 : request.activeProcessLimit ?? 1;
+      fs.writeFileSync(requestFile, this.renderRequest(prepared.request, grants, reportFile, activeProcessLimit), "utf8");
+      const launch = await new Promise<{ code: number | null; error?: string }>((resolve) => {
+        const child = spawn(this.build!.executable, [requestFile], {
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: { SystemRoot: process.env.SystemRoot ?? "C:\\Windows", PATH: process.env.PATH ?? "" }
+        });
+        let stderr = "";
+        child.stderr?.on("data", (chunk) => {
+          stderr += String(chunk);
+        });
+        child.on("error", (error) => resolve({ code: null, error: String(error.message) }));
+        child.on("close", (code) => resolve({ code, error: stderr.trim() || undefined }));
+      });
+
+      const report = readReport(reportFile);
+      const timedOut = report?.timedOut === true;
+      const sandboxed = report?.ok === true && report.containerSid !== null;
+      const result: SandboxedProcessResult = {
+        sandboxed,
+        mechanism: sandboxed ? "windows-appcontainer" : "unavailable",
+        exitCode: report ? report.exitCode : null,
+        timedOut,
+        refused: !report,
+        failure: report?.failure ?? launch.error,
+        report,
+        stdout: readText(request.stdoutFile),
+        stderr: readText(request.stderrFile),
+        durationMs: Date.now() - started
+      };
+      try {
+        fs.rmSync(requestFile, { force: true });
+      } catch {
+        // A leftover request file is inert; never fail a sandboxed run over it.
+      }
+      return result;
+    } finally {
+      // ONE cleanup path for every outcome: success, a launcher refusal, a spawn failure, or a report that
+      // could not be parsed. Previously the mapping was released only by an explicit `release()` that the
+      // run never called, and `subst` mappings from completed runs were still present on this host.
+      this.releaseRunResources();
     }
-    return result;
+  }
+
+  /**
+   * Release every host resource a run acquired, whatever stage it reached.
+   *
+   * Idempotent, and never throws: cleanup failure must not mask the run's own result. `removeDriveMapping`
+   * is the only mapping authority, so the mapping state this backend holds is cleared in step with it.
+   */
+  private releaseRunResources(): void {
+    if (this.mapping) {
+      try {
+        removeDriveMapping(this.mapping);
+      } catch {
+        // A mapping that cannot be removed is reported by the next `subst` check, not by an exception here.
+      }
+      this.mapping = undefined;
+    }
+    this.materializedExecutable = undefined;
+    this.materializations.length = 0;
   }
 
   /**
@@ -360,17 +406,52 @@ export class WindowsAppContainerSandbox implements EvolutionSandbox {
     }
 
     for (const grant of explicit) add(grant);
+    // THE EXECUTABLE IS MATERIALIZED, SO ITS MACHINE-OWNED DIRECTORY IS NEVER GRANTED.
+    //
+    // Granting `read` on a `readOnlyRoots` entry means persisting an ACE on it, and a non-elevated user
+    // cannot write a DACL on a machine-owned install: `D:\Node_JS` is `BUILTIN\Users:(RX)` with
+    // `Administrators:(F)`, so `SetAccessControl` failed with `UnauthorizedAccessException` before
+    // `CreateProcessW` ran — every sandboxed case reported `sandboxed: false`, with `processId: 0` and no
+    // output. `toolchain-materialization.ts` records that measurement.
+    //
+    // The replacement is STRICTLY NARROWER, not a workaround: the child runs from a user-owned copy of the
+    // executable inside the Candidate tree, and the AppContainer is granted read on that copy. The original
+    // machine tree stops being readable by the container at all. Nothing else in the request changes.
+    const cacheParent = this.candidateRoot ? toolchainCacheRoot(this.candidateRoot) : undefined;
+    const executableDir = normalizeSandboxPath(path.dirname(request.executable));
+    let materializedExecutable: string | undefined;
     for (const root of this.readOnlyRoots) {
-      if (fs.existsSync(root)) add({ path: root, access: "read" });
+      if (!fs.existsSync(root)) continue;
+      if (normalizeSandboxPath(root) !== executableDir) {
+        // A read-only root that is NOT the executable's directory is still granted directly: it is not the
+        // thing this fix is about, and silently materializing it would change semantics for callers that
+        // legitimately rely on granting their own tree.
+        add({ path: root, access: "read" });
+        continue;
+      }
+      if (!cacheParent) {
+        // No candidate root to materialize into. Granting the original would reintroduce the failure, so
+        // this refuses instead — fail-closed, with the reason named.
+        throw new Error(
+          `sandbox cannot launch ${request.executable}: its directory is machine-owned and no candidate root is configured to materialize a readable copy into`
+        );
+      }
+      const copy = materializeToolchain(cacheParent, planNodeToolchain(request.executable));
+      this.materializations.push(copy);
+      add({ path: copy.root, access: "read" });
+      materializedExecutable = path.join(copy.root, path.basename(request.executable));
     }
 
     const translate = mapping ? (value: string) => toSandboxPath(mapping, value) : (value: string) => value;
+    // Launch the materialized copy: the AppContainer can read it, and the machine-owned original is never
+    // granted. When no read-only root named the executable's directory, the request is untouched.
+    const effectiveExecutable = materializedExecutable ?? request.executable;
     return {
       grants,
       request: {
         ...request,
         cwd: translate(request.cwd),
-        executable: translate(request.executable),
+        executable: translate(effectiveExecutable),
         args: request.args.map(translate),
         grants
       }

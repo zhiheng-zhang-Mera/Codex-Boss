@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -217,9 +217,31 @@ internal static class SandboxLauncher
                 foreach (Grant grant in request.Grants)
                 {
                     long before = grantClock.ElapsedMilliseconds;
-                    ApplyGrant(new SecurityIdentifier(sidText), grant);
-                    report.grants.Add(grant.Access + ":" + grant.Path);
-                    report.phases.Add("grant:" + grant.Access + ":" + (grantClock.ElapsedMilliseconds - before) + "ms");
+                    // The grant is recorded BEFORE it is attempted, and its outcome is recorded after.
+                    // Recording only on success made a FAILED grant invisible: the report listed the grants
+                    // that came before the failure while the failing one was simply absent, so a reader could
+                    // not tell whether grant N was never requested or was refused. `grantResults` names every
+                    // requested grant and what happened to it; `grants` stays as the applied-only list.
+                    var result = new GrantResult { access = grant.Access, path = grant.Path };
+                    try
+                    {
+                        ApplyGrant(new SecurityIdentifier(sidText), grant);
+                        report.grants.Add(grant.Access + ":" + grant.Path);
+                        result.applied = true;
+                    }
+                    catch (Exception grantError)
+                    {
+                        result.applied = false;
+                        result.failure = grantError.GetType().Name + ": " + grantError.Message;
+                        Win32Exception grantWin32 = grantError as Win32Exception;
+                        if (grantWin32 != null) result.win32Error = grantWin32.NativeErrorCode;
+                        report.grantResults.Add(result);
+                        report.phases.Add("grant:" + grant.Access + ":FAILED:" + (grantClock.ElapsedMilliseconds - before) + "ms");
+                        throw;
+                    }
+                    result.durationMs = grantClock.ElapsedMilliseconds - before;
+                    report.grantResults.Add(result);
+                    report.phases.Add("grant:" + grant.Access + ":" + result.durationMs + "ms");
                 }
                 report.phases.Add("grants-total:" + grantClock.ElapsedMilliseconds + "ms");
             }
@@ -598,6 +620,16 @@ internal static class SandboxLauncher
         }
     }
 
+    private sealed class GrantResult
+    {
+        public string access;
+        public string path;
+        public bool applied;
+        public long durationMs;
+        public string failure;
+        public int win32Error;
+    }
+
     private sealed class Grant
     {
         public string Access { get; set; }
@@ -635,7 +667,30 @@ internal static class SandboxLauncher
         public int win32Error;
         public ProbeReport probe;
         public readonly List<string> grants = new List<string>();
+        public readonly List<GrantResult> grantResults = new List<GrantResult>();
         public readonly List<string> phases = new List<string>();
+
+        private string GrantResultsJson()
+        {
+            var builder = new StringBuilder();
+            builder.Append('[');
+            for (int i = 0; i < grantResults.Count; i++)
+            {
+                if (i > 0) builder.Append(',');
+                GrantResult g = grantResults[i];
+                builder.Append('{');
+                bool inner = true;
+                Json.WriteField(builder, "access", Json.String(g.access), ref inner);
+                Json.WriteField(builder, "path", Json.String(g.path), ref inner);
+                Json.WriteField(builder, "applied", Json.Bool(g.applied), ref inner);
+                Json.WriteField(builder, "durationMs", g.durationMs.ToString(CultureInfo.InvariantCulture), ref inner);
+                if (g.failure != null) Json.WriteField(builder, "failure", Json.String(g.failure), ref inner);
+                if (g.win32Error != 0) Json.WriteField(builder, "win32Error", g.win32Error.ToString(CultureInfo.InvariantCulture), ref inner);
+                builder.Append('}');
+            }
+            builder.Append(']');
+            return builder.ToString();
+        }
 
         public string ToJson()
         {
@@ -658,6 +713,7 @@ internal static class SandboxLauncher
             Json.WriteField(builder, "failure", Json.String(failure), ref first);
             Json.WriteField(builder, "win32Error", win32Error.ToString(CultureInfo.InvariantCulture), ref first);
             Json.WriteField(builder, "grants", Json.StringArray(grants), ref first);
+            Json.WriteField(builder, "grantResults", GrantResultsJson(), ref first);
             Json.WriteField(builder, "phases", Json.StringArray(phases), ref first);
             if (probe != null) Json.WriteField(builder, "probe", probe.ToJson(), ref first);
             builder.Append('}');

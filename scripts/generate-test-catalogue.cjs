@@ -88,6 +88,7 @@ const CURATED = {
   "tests/unit/platform/architecture-ratchet.test.ts": { covers: ["runtime"], obligation: "the architecture ratchet measures the real tree", alwaysRun: true },
   "tests/unit/platform/platform-health.test.ts": { covers: ["runtime"], obligation: "a missing optional capability degrades locally instead of failing the platform", alwaysRun: true },
   "tests/unit/platform/test-impact.test.ts": { covers: ["runtime"], obligation: "the impact selector picks the affected suites, fails closed, and its audit detects what it dropped", alwaysRun: true },
+  "tests/unit/sandbox-toolchain-materialization.test.ts": { covers: ["promotion"], obligation: "the sandbox materializes the smallest readable toolchain into the user-owned candidate tree, content-addressed so a stale copy cannot mask a changed source" },
   "tests/unit/platform/external-compatibility.test.ts": { covers: ["providers"], obligation: "a single external dependency degrading stays local, is classified honestly, and reroutes or refuses accordingly" },
   "tests/unit/platform/scale-synthetic.test.ts": { covers: ["state-core"], obligation: "the platform holds at 10x its capability set and at 100k durable events without inconsistency or cross-project contamination" },
   "tests/unit/platform/platform-soak.test.ts": { covers: ["state-core"], obligation: "the platform runs its whole lifecycle for the tier's duration with bounded resources and no unattended failure" },

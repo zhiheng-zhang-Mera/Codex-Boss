@@ -57,7 +57,17 @@ export interface SandboxProcessReport {
   ok: boolean;
   failure: string | null;
   win32Error: number;
+  /** Grants that were actually APPLIED. A grant that failed is absent here and present in `grantResults`. */
   grants: string[];
+  /**
+   * Every grant the launcher was asked to apply, and what happened to it.
+   *
+   * `grants` alone could not answer "did grant 3 fail, or was it never requested?" — a failed grant was
+   * simply missing from the list, so a report could show two applied grants and no indication of the third.
+   * This records the requested grant, its outcome, its phase and its error, so the evidence is attributable.
+   * Optional because a launcher built before this field existed does not emit it.
+   */
+  grantResults?: Array<{ access: string; path: string; applied: boolean; durationMs: number; failure?: string; win32Error?: number }>;
 }
 
 export interface SandboxedProcessResult {
