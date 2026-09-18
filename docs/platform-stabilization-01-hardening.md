@@ -160,30 +160,30 @@ They keep every assertion and move to the `test:platform-qualification` tier, ru
 prerequisite with its own official generator in dependency order. `test:postbuild` stays in push CI and is
 now exactly the suites whose only declared prerequisite is the build — the claim a clean runner can honour.
 
-A fourth, different case surfaced only when the acceptance chain reached its final step (run 35334147247:
-**68 of 69 steps green**). `pnpm run acceptance:autonomous-evolution` ends in `judgeSelfCertification`,
-which refuses **unconditionally** when the run's diff touches the Root Trust Surface: *"the run that
-changes the judge may never certify itself — open a new trust epoch and rebootstrap"*. `ci.yml` is itself
-Root Trust Surface (`PLAN_SECTION_3_ROOT_TRUST_PATHS` names `.github/workflows/ci.yml` and
-`tests/acceptance/**`), so **no commit that edits CI or an acceptance test can ever pass that gate**, and
-no epoch migration can change that for the same commit. Observed verbatim: `trust epoch 20 REFUSED` with
-`epoch 20 certifies 35448480… but the surface is 1ebe2141…`, plus
-`self-certification:SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION`. Requiring it on every push would
-make every CI change fail forever. It therefore runs as the final step of `Platform Qualification`, and its
-two honest outcomes are recorded there: it passes on a commit that does not touch the surface and whose
-epoch certifies it, and otherwise it is red with `BLOCKED_PENDING_TRUST_EPOCH_MIGRATION` — a new epoch and a
-rebootstrap, which is an Owner-authorised act.
+A fourth case surfaced only when the acceptance chain reached its final step (run 35334147247: **68 of 69
+steps green**). `pnpm run acceptance:autonomous-evolution` ends in `judgeSelfCertification`, and the observed
+refusal was `trust epoch 20 REFUSED` (`epoch 20 certifies 35448480… but the surface is 1ebe2141…`) plus
+`self-certification:SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION`.
 
-`tests/unit/test-layers.test.ts` enforces the boundary mechanically: every postbuild entry declares
+**This section originally recorded that refusal wrongly, and the correction is kept rather than edited
+away.** The first reading was that `judgeSelfCertification` refuses *any* run whose diff touches the Root
+Trust Surface — which `ci.yml` is — so no commit editing CI could ever pass, and the step was moved out of
+push CI on that basis. The premise is false about the **caller**: `scripts/acceptance-autonomous-evolution.cjs`
+compares the surface with itself (`assessRootTrustChange({ baseline: entries, candidate: entries })`), so
+`rootTrustTouched` is false there and the binding condition is whether the **committed trust epoch anchors
+the live Root Trust Surface**. The refusal was an unanchored epoch — exactly what the `TRUST_EPOCH_MIGRATION`
+required-action names, and what one Owner-authorised migration fixes. Moving the step away would have hidden
+it. The step is back in the acceptance chain, and `tests/unit/test-layers.test.ts` now asserts all three
+load-bearing facts: the touched-diff refusal is real, the committed epoch anchors the live surface, and the
+graduation gate runs in push CI. A Root Trust change therefore takes
+`node scripts/acceptance-evolution-bless.cjs --advance` **in the same commit** (the cadence epochs 11 and 13
+followed, per `docs/phase-status.md`), and CI is the run that certifies the new epoch.
+
+`tests/unit/test-layers.test.ts` enforces the tier boundary mechanically: every postbuild entry declares
 `requires: ["build"]` and nothing more, every qualification entry declares at least one requirement from
 `QUALIFICATION_REQUIREMENTS`, no push-CI entry may declare one of those, each qualification entry names a
-producer script that exists and is an explicit step in the qualification workflow, push CI has no step
-that runs the qualification tier, any qualification producer or the trust-epoch graduation gate, and the
-qualification workflow is dispatch-only. The graduation gate's routing is checked against the trust module
-itself: `ci.yml` must still classify as `ROOT_TRUST_SURFACE`, a real before/after assessment must still
-produce `ROOT_TRUST_CHANGE`, and the refusal must still be `SELF_CERTIFICATION_FORBIDDEN` with
-`TRUST_EPOCH_MIGRATION` — so if that premise ever stops holding, the routing is reported as stale instead
-of silently persisting.
+producer script that exists and is an explicit step in the qualification workflow, push CI has no step that
+runs the qualification tier or any qualification producer, and the qualification workflow is dispatch-only.
 
 **What `Desktop CI` green means now:** this commit typechecks, contains no tracked secret, keeps the
 architecture ratchet, builds, and passes the default, current-build and slow tiers on a clean runner. It
@@ -201,7 +201,62 @@ Two facts about the qualification lane, recorded rather than hidden:
   No binding document was found requiring these suites to be in `test:postbuild` or to run on every push;
   the audit is recorded in the receipt for this work.
 
-## 7. Non-goals
+## 7. Decision record (Owner-authorised)
+
+### Decision A — `EXECUTION_BUDGET_ADJUSTMENT` (not a threshold change)
+
+Two **execution-time budgets** changed while making CI honestly green, and the Owner classified them
+explicitly:
+
+| Change | File | Was | Now |
+| --- | --- | --- | --- |
+| per-test time budget for the 100k-event scale gate | `tests/unit/platform/scale-synthetic.test.ts` | 300 s | 600 s |
+| per-test ceiling of the qualification tier | `vitest.qualification.config.mjs` | 60 s | 120 s |
+
+Classification: **`EXECUTION_BUDGET_ADJUSTMENT`** — *not* a `QUALITY_THRESHOLD_CHANGE`, *not* an
+`EVIDENCE_THRESHOLD_CHANGE`, *not* a `GATE_SEMANTICS_CHANGE`. The grounds are that the scale gate itself
+records the time and asserts nothing about it ("Recorded, not asserted as a budget: the book's priority at
+scale is correctness"), the failure was the GitHub Windows runner's fsync/runtime behaviour rather than a
+wrong result, and the scale, inputs, assertions, correctness requirements and evidence requirements are all
+unchanged. The durability setting was deliberately **not** relaxed to flatter the number.
+
+Bound on this: **no timeout may be expanded again without new measured evidence and a fresh report to the
+Owner.** `data-lifecycle-report.test.ts` measured 63 s on a real corpus, above the postbuild tier's 60 s
+ceiling, which is a second reason it belongs in the qualification tier rather than the push-CI one.
+
+### Decision B — authorised Trust Epoch Migration (epoch 20 → 21)
+
+Owner authorisation, scoped to the change `f15794c..3f16e44` plus the minimal metadata/certificate/provenance
+needed to complete one migration. It is **not** a standing authorisation for future Root Trust changes.
+
+- **Why epoch 20 could not speak for this change.** Epoch 20 (`boss-root-trust-20`) anchors surface aggregate
+  `3544848099c2102016724783f8a63942ef8ad415d2ab69c08dafab33f7c8813e`. The authorised change edits two Root
+  Trust paths — `.github/workflows/ci.yml` and `tests/acceptance/platform-architecture-diagnostics.test.ts` —
+  so the live aggregate became `1ebe2141fc4f035bf5c69f72bfbee61017231f5b6c7df4f31c8e40f42c1b113e` and the
+  committed epoch no longer anchored the tree. A run may not certify its own Root Trust change, so the
+  transition is performed by the separate, explicit blessing step, and the commit carrying it is the one CI
+  certifies (`docs/autonomous-evolution.md`, and the same cadence as epochs 11 and 13).
+- **Which diff the Owner authorised.** `f15794c..3f16e44` on `main`, as delivered by `Desktop CI`
+  run 35349303657 (all four jobs green), plus this migration's own metadata.
+- **Which epoch it migrates from, and to.** Parent record: epoch 20, `b289815451c956efdbaedea8fa123cf94aedd25333de9ea89daf18d510fd22a5`.
+  New record: epoch 21, `boss-root-trust-21`, whose `parent_epoch_hash` is that digest — the chain is
+  machine-verifiable and history is appended to, never rewritten.
+- **What is trusted after the migration.** The tree of the migration commit (the direct child of `3f16e44`),
+  anchored by epoch 21's `root_surface_hash` over every file the policy classifies `ROOT_TRUST_SURFACE`.
+- **Which files are the authorised root-trust change.** `.github/workflows/ci.yml` and
+  `tests/acceptance/platform-architecture-diagnostics.test.ts`. No root trust path was added to or removed
+  from `ROOT_TRUST_SURFACE_PATHS`, and the classifier, `SELF_CERTIFICATION_FORBIDDEN` and every
+  acceptance/qualification assertion are untouched.
+- **Which gate semantics are unchanged.** All of them: no assertion, evidence requirement, corpus invariant,
+  fail-closed path or acceptance threshold changed in this migration. The only non-root changes are the
+  correction of a routing decision this document already records (the graduation gate returns to the
+  ordinary acceptance chain), the qualification lane's added trust-epoch `--check`, and documentation.
+- **How the authorisation enters the evidence chain.** The epoch record's parent-linked transition is the
+  machine-verifiable part (a tampered record breaks `verifyTrustEpochFile`); this decision record and the
+  commit that carries both bind the authorisation to the tree; `Desktop CI` on that commit re-certifies it.
+  There is no separate Owner-authorisation schema in this repository and none was invented.
+
+## 8. Non-goals
 
 - No Phase 09, no new platform abstraction layer.
 - No rewrite, re-tag or force-push of the Foundation chain.

@@ -73,6 +73,16 @@ jobs:
         run: |
           node scripts/qualification-corpus-provenance.cjs | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
+      # The trust epoch anchor, checked FIRST among the gates because it is cheap, independent of the corpus,
+      # and the one result a reader needs even when a later step blocks. `--check` is the mechanism's own
+      # verifier for "does the committed epoch still anchor the live Root Trust Surface?".
+      #
+      # The full graduation gate (`pnpm run acceptance:autonomous-evolution`) runs in `Desktop CI`'s
+      # acceptance chain, where it belongs: a Root Trust change advances the epoch in the SAME commit, and CI
+      # is the run that certifies it. This check is here so the qualification lane reports the trust epoch
+      # explicitly rather than only inheriting it, and so a blocked soak step cannot hide it.
+      - run: node scripts/acceptance-evolution-bless.cjs --check
+
       # Phase 01 -- architecture snapshot. Generated, never committed: `artifacts/` is gitignored.
       - run: pnpm run architecture:snapshot
 
@@ -99,20 +109,6 @@ jobs:
       # The frozen qualification gates, with every prerequisite above already on disk.
       - run: pnpm run test:platform-qualification
 
-      # The final graduation gate. It lives here rather than in push CI because of what it REFUSES: it
-      # ends in `judgeSelfCertification`, which refuses unconditionally when the run's diff touches the
-      # Root Trust Surface -- "the run that changes the judge may never certify itself - open a new trust
-      # epoch and rebootstrap". `.github/workflows/ci.yml` and `tests/acceptance/**` ARE Root Trust
-      # Surface, so every commit that edits CI or an acceptance test is refused, and no epoch migration can
-      # make such a commit certify itself (measured: run 35334147247, `trust epoch 20 REFUSED` +
-      # `SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION`, 68 prior steps green).
-      #
-      # Running it here is honest in both outcomes: on a commit that does NOT touch the surface and whose
-      # epoch certifies it, it passes and prints AUTONOMOUS_EVOLUTION_CERTIFIED; on a surface-changing
-      # commit it refuses and this workflow is red with the required action named -- a new trust epoch and
-      # a rebootstrap -- which is an Owner-authorised act, not something a workflow may fake.
-      - run: pnpm run acceptance:autonomous-evolution
-
       - name: Explain a blocked qualification
         if: failure()
         run: |
@@ -120,17 +116,12 @@ jobs:
             "",
             "## Platform Qualification did not pass",
             "",
-            "Two of these steps can refuse for a reason that is not a defect, and both name their own remedy:",
+            "The expected blocker is the Phase 04 lifecycle gate reporting a discovered corpus that is too",
+            "small. The honest status is then **BLOCKED_BY_REAL_SOAK_EVIDENCE**, not a CI defect: that gate",
+            "verifies the retention policy over a host corpus that only real, long-running activity produces,",
+            "and the corpus provenance recorded above is what this runner actually had.",
             "",
-            "1. The Phase 04 lifecycle gate, when the discovered corpus is too small. The honest status is",
-            "   **BLOCKED_BY_REAL_SOAK_EVIDENCE**: that gate verifies the retention policy over a host corpus",
-            "   that only real, long-running activity produces. The corpus provenance recorded above is what",
-            "   this runner actually had.",
-            "2. The final autonomous-evolution gate, when this commit touches the Root Trust Surface. The",
-            "   honest status is **BLOCKED_PENDING_TRUST_EPOCH_MIGRATION**: the run that changes the judge may",
-            "   never certify itself, so a new trust epoch and a rebootstrap are required, by the Owner.",
-            "",
-            "If the failure is anything else, it is a real defect in the frozen gates or in this chain, and it",
-            "must be fixed rather than routed around."
+            "Anything else - including the trust-epoch check above failing - is a real defect in the frozen",
+            "gates or in this chain, and it must be fixed rather than routed around."
           )
           $lines | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append

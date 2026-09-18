@@ -26,13 +26,11 @@ name: Desktop CI
 # (`.github/workflows/platform-qualification.yml`, `workflow_dispatch`), which generates each declared
 # prerequisite with its own official generator first. Nothing was skipped or weakened — measured on run
 # 35327676450, the Phase 04 gate found a 56-file corpus here against its own >1000-file invariant, and the
-# certificate read artifacts no step had produced. For the same reason the FINAL graduation step,
-# `pnpm run acceptance:autonomous-evolution`, is not in this file either: it refuses any run whose diff
-# touches the Root Trust Surface, and this file is Root Trust Surface. That reasoning, and the evidence for
-# it, is recorded at the end of the acceptance job below. `tests/unit/test-layers.test.ts` enforces the
-# boundary mechanically: no tier in this file may declare a qualification-only prerequisite, this file may
-# not run a qualification producer or the graduation gate, and the qualification workflow may not be
-# reachable from push.
+# certificate read artifacts no step had produced. `tests/unit/test-layers.test.ts` enforces the boundary
+# mechanically: no tier in this file may declare a qualification-only prerequisite, this file may not run a
+# qualification producer, and the qualification workflow may not be reachable from push. The graduation step
+# `pnpm run acceptance:autonomous-evolution` DOES run here — see the note above it; a Root Trust change makes
+# the committed epoch stale until `acceptance-evolution-bless.cjs --advance` runs in the same commit.
 #
 # Why the acceptance chain is ONE job rather than many: every step in it reads and
 # writes `artifacts/acceptance/**` in the same working tree — the session fixes the
@@ -325,19 +323,25 @@ jobs:
       # importing the trust modules, and the graduation command requires validator A
       # AND validator B to agree before it prints AUTONOMOUS_EVOLUTION_CERTIFIED.
       - run: pnpm run verify:certificate
-      # `pnpm run acceptance:autonomous-evolution` is deliberately NOT here, and this is a routing fact
-      # rather than a weakening. That gate ends in `judgeSelfCertification`, which refuses
-      # UNCONDITIONALLY when the run's diff touches the Root Trust Surface: "the run that changes the
-      # judge may never certify itself - open a new trust epoch and rebootstrap"
-      # (`src/shared/autonomous-evolution-trust.ts`). This file IS Root Trust Surface
-      # (`PLAN_SECTION_3_ROOT_TRUST_PATHS` names `.github/workflows/ci.yml` and `tests/acceptance/**`), so
-      # ANY commit that edits CI or an acceptance test is refused, and no epoch migration can make such a
-      # commit certify itself. Measured on run 35334147247: the step reported `trust epoch 20 REFUSED`
-      # (`epoch 20 certifies 35448480... but the surface is 1ebe2141...`) and
-      # `self-certification:SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION`, with all 68 steps before
-      # it green. Requiring it on every push would mean every CI change fails CI forever, which is the red
-      # build that hides every other signal. It runs in `Platform Qualification`, where the new epoch and
-      # rebootstrap this refusal asks for are an Owner-authorised act.
+      # §18/§19: the graduation gate. Validators A and B must agree before it prints
+      # AUTONOMOUS_EVOLUTION_CERTIFIED.
+      #
+      # It ends in `judgeSelfCertification`, whose binding condition here is the TRUST EPOCH ANCHOR: this
+      # file is Root Trust Surface (`PLAN_SECTION_3_ROOT_TRUST_PATHS` names `.github/workflows/ci.yml` and
+      # `tests/acceptance/**`), so a change to it moves the surface aggregate and requires
+      # `node scripts/acceptance-evolution-bless.cjs --advance` in the SAME commit — the cadence epochs 11
+      # and 13 followed. CI is then the run that certifies the new epoch.
+      #
+      # A previous revision of this file moved this step out of CI, reasoning from
+      # `judgeSelfCertification` alone that a commit touching the surface can NEVER pass. That was wrong
+      # about the CALLER: the acceptance gate compares the surface with ITSELF
+      # (`assessRootTrustChange({ baseline: entries, candidate: entries })`), so `rootTrustTouched` is false
+      # there and the epoch anchor is the whole condition. Measured on run 35334147247, the refusal was
+      # `trust epoch 20 REFUSED` (`epoch 20 certifies 35448480... but the surface is 1ebe2141...`) +
+      # `SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION` — an unanchored epoch, which one authorised
+      # migration fixes and which routing the step away would only have hidden. It is back in the chain, and
+      # `tests/unit/test-layers.test.ts` pins both the refusal invariant and the anchor.
+      - run: pnpm run acceptance:autonomous-evolution
       # checkpoint-2 §2.8/§11: the authority is the attestation plus this CI run, so
       # the whole evidence set is published with the run (even when it failed).
       - uses: actions/upload-artifact@v4
