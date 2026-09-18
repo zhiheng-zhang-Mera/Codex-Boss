@@ -116,6 +116,10 @@ async function main() {
   const baseUrl = (typeof options["base-url"] === "string" ? options["base-url"] : "https://api.deepseek.com/v1").replace(/\/+$/, "");
   const source = typeof options.repo === "string" ? options.repo : "";
   const objective = typeof options.objective === "string" ? options.objective : "";
+  const allowedPaths = (typeof options.allow === "string" ? options.allow.split(",") : [])
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const installDependencies = options.install === true;
   const startedAt = new Date().toISOString();
 
   if (!source.trim()) { process.stderr.write("qualify: --repo is required\n"); return 2; }
@@ -143,6 +147,73 @@ async function main() {
     evidence.repository = { origin: workspace.origin, base: workspace.base, sourceCommit: workspace.sourceCommit, workspaceMode: workspace.mode, remoteRetained: workspace.remoteRetained };
     evidence.repository.provided = describeRepo(workspace.workspace);
     evidence.ownerInterventionRequired = false;
+    evidence.authorizedPaths = allowedPaths;
+
+    // THE REPOSITORY'S OWN DEPENDENCIES, from its own lockfile, installed by its own package manager.
+    //
+    // This is not "injecting the Boss toolchain" and the distinction is the whole point: nothing of Boss's
+    // is copied in — no `node_modules`, no `tsc`, no test runner, no `tsconfig`, no fixtures. The repo
+    // resolves its own declared devDependencies and the host then runs the workspace's own compiler by
+    // absolute path, which is exactly what `command-runner.ts` requires. Skipping this would fail the audit
+    // for want of a compiler the repository legitimately declares but has not installed yet, and the
+    // resulting refusal would measure the harness rather than the platform.
+    if (installDependencies) {
+      const started = Date.now();
+      const lockfile = fs.existsSync(path.join(workspace.workspace, "package-lock.json"));
+      const command = lockfile ? ["ci", "--no-audit", "--no-fund"] : ["install", "--no-audit", "--no-fund"];
+      try {
+        const output = execFileSync("npm", command, {
+          cwd: workspace.workspace,
+          windowsHide: true,
+          encoding: "utf8",
+          timeout: 900000,
+          maxBuffer: 32 * 1024 * 1024,
+          stdio: ["ignore", "pipe", "pipe"],
+          // `npm` resolves to a `.cmd` shim on Windows, which `execFile` cannot launch without a shell.
+          // Without this the install silently failed with `spawnSync npm ENOENT`, the audit then refused
+          // for want of a compiler, and the run measured the harness's own omission rather than the
+          // platform — the exact failure mode `installToolchain` in the dogfooding harness documents.
+          shell: true
+        });
+        evidence.dependencyInstall = { command: `npm ${command.join(" ")}`, ok: true, elapsedMs: Date.now() - started, outputTail: String(output).trim().split("\n").slice(-3).join(" | ") };
+      } catch (error) {
+        evidence.dependencyInstall = {
+          command: `npm ${command.join(" ")}`,
+          ok: false,
+          elapsedMs: Date.now() - started,
+          error: String(error.stdout ?? "").slice(-600) || (error instanceof Error ? error.message : String(error))
+        };
+      }
+      evidence.repository.toolchainAfterInstall = describeRepo(workspace.workspace);
+
+      // THE REPOSITORY'S OWN BUILD OUTPUT, produced by the repository's own command.
+      //
+      // These repositories keep their tests as plain `.js` files that import COMPILED output (`lib/…`), and
+      // their `test` script is `npm run build && node --test tests/*.test.js`. The host's `test` check runs
+      // `node --test` on the compiled tree directly, so without a build the very first test fails with
+      // `ERR_MODULE_NOT_FOUND … lib/core/normalize.js` — a pre-existing failure caused by a missing build,
+      // not by anything the goal did, and one the goal loop correctly refuses to chase (Phase 06 semantics:
+      // pre-existing failures are recorded, never worked as the objective).
+      //
+      // Building is therefore SETUP for a source-only goal, exactly as `npm ci` is. It uses the repository's
+      // own declared script and nothing of Boss's, and it is recorded so a reader can see the tree the audit
+      // started from.
+      const manifestPath = path.join(workspace.workspace, "package.json");
+      let buildScript = null;
+      try { buildScript = JSON.parse(fs.readFileSync(manifestPath, "utf8")).scripts?.build ?? null; } catch { buildScript = null; }
+      if (typeof buildScript === "string" && buildScript.trim()) {
+        const started = Date.now();
+        try {
+          const output = execFileSync("npm", ["run", "build"], {
+            cwd: workspace.workspace, windowsHide: true, encoding: "utf8", timeout: 900000,
+            maxBuffer: 32 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"], shell: true
+          });
+          evidence.baselineBuild = { script: buildScript, ok: true, elapsedMs: Date.now() - started, outputTail: String(output).trim().split("\n").slice(-3).join(" | ") };
+        } catch (error) {
+          evidence.baselineBuild = { script: buildScript, ok: false, elapsedMs: Date.now() - started, error: String(error.stdout ?? "").slice(-600) || String(error.message).slice(0, 400) };
+        }
+      }
+    }
 
     if (!credential || !credential.trim()) {
       evidence.status = "NO_CREDENTIAL";
@@ -165,6 +236,20 @@ async function main() {
     const client = new ProviderApiClient(settings);
 
     const { runEngineeringGoalLoop, createGoalLoopOperations } = load("electron/engineering/engineering-goal-loop.js");
+  // TEMPORARY DIAGNOSTIC: capture the implementer's exceptions with their stack, because a refusal whose
+  // text matches neither proposed manifest cannot be attributed by reading the code path.
+  const { ProposalRunner } = load("electron/engineering/proposal-runner.js");
+  const originalRun = ProposalRunner.prototype.run;
+  ProposalRunner.prototype.run = async function diagnosticRun(...args) {
+    evidence.proposalRunArgs = evidence.proposalRunArgs ?? [];
+    evidence.proposalRunArgs.push({ authorizedPaths: args[2], checks: (args[3] ?? []).map((c) => String(c.kind ?? "?")) });
+    try {
+      return await originalRun.apply(this, args);
+    } catch (error) {
+      evidence.proposalRunErrors = [...(evidence.proposalRunErrors ?? []), { message: error instanceof Error ? error.message : String(error), stack: (error instanceof Error ? error.stack : "").slice(0, 500) }];
+      throw error;
+    }
+  };
     const { createRepoEngineeringOperations } = load("electron/engineering/repo-engineering-operations.js");
     const { TaskLedger } = load("electron/commander/task-ledger.js");
     const { engineeringJournalAt } = load("electron/engineering/engineering-journal.js");
@@ -201,6 +286,14 @@ async function main() {
           record.elapsedMs = Date.now() - started;
           record.outcome = "OK";
           record.replyChars = answer.content.length;
+          // The PROPOSAL is recorded, not just its length.
+          //
+          // A coder that replies twice and applies nothing is unattributable from a character count: the
+          // first pass at this run reported `coder:OK:8599` and an empty change set, and there was no way to
+          // tell whether the model had proposed nothing, proposed a path outside the grant, or proposed a
+          // malformed manifest. The task manifest is the platform's own artifact and contains no credentials,
+          // so it is kept verbatim (bounded) — the same reasoning as copying the judged test file.
+          record.manifest = answer.content.slice(0, 40000);
           if (answer.usage) record.usage = answer.usage;
           record.adapterVersion = answer.adapterVersion;
           return answer.content;
@@ -218,11 +311,33 @@ async function main() {
       workspace: workspace.workspace,
       coder: (prompt) => worker.ask("coder", prompt),
       reviewer: (prompt) => worker.ask("reviewer", prompt),
-      // The objective's own named paths. Deliberately NO allowPaths: an external repository gets no
-      // Boss-shaped create-grant, and the qualification must show whether the objective's own naming is
-      // enough. A refusal on that basis is a result, not a harness omission.
-      namedFiles: objective.match(/[A-Za-z0-9_./-]+\.(?:ts|tsx|cjs|mjs|js|json|md|py)/g) ?? [],
-      describe: (observation) => { evidence.scopeObservations = [...(evidence.scopeObservations ?? []), observation]; },
+      // The objective's own named paths. `--allow <path>` (repeatable, comma-separated) adds a prefix grant
+      // so a goal that must CREATE a file can do so. Without one, a goal whose deliverable is a new test
+      // file cannot be applied at all — and the Phase 08 instruction is explicit that installing the
+      // repository's OWN declared dependencies and letting it create files inside its own tree is normal
+      // external engineering, not an injected Boss toolchain.
+      namedFiles: allowedPaths.reduce(
+        (paths, candidate) => (candidate.endsWith("/") ? paths : [...paths, candidate]),
+        objective.match(/[A-Za-z0-9_./-]+\.(?:ts|tsx|cjs|mjs|js|json|md|py)/g) ?? []
+      ),
+      allowPaths: allowedPaths,
+      // NO `implement` OVERRIDE, deliberately.
+      //
+      // `createGoalLoopOperations` supplies the production implementer: it is what applies the scope, the
+      // creation grant, the mutation guard, the proposal, and the mandatory verification. `repo.implement`
+      // is a DIFFERENT seam that requires an injected editor and otherwise returns "no coding editor
+      // configured for this goal" — so overriding with it silently bypassed the entire production path and
+      // reported `NO_EDITOR` while the coder's manifest sat unused. A qualification that routes around the
+      // thing being qualified is worse than no qualification, so the loop's own implementer is used and the
+      // evidence is taken from the hooks instead.
+      describe: (observation) => {
+        evidence.scopeObservations = [...(evidence.scopeObservations ?? []), observation];
+        // Whether the run had already recorded a file it created under the grant, at the moment it computed
+        // the scope. This is the one fact that decides whether a create-then-repair goal can succeed, and it
+        // is not observable from `authorizedPaths` alone.
+        evidence.grantProbe = evidence.grantProbe ?? [];
+        evidence.grantProbe.push({ attempt: observation.attempt, scopeSize: observation.scope.length, scope: observation.scope.slice(0, 6) });
+      },
       audit: async (g) => {
         const auditStarted = Date.now();
         const findings = await repo.audit(g);
@@ -238,6 +353,8 @@ async function main() {
             evidenceChars: (finding.evidence ?? "").length
           }))
         };
+        // The tree BEFORE anything is proposed, so "was the file created by this run" is a measurement.
+        evidence.treeBeforeImplement = git(["status", "--porcelain"], workspace.workspace);
         // THE AUDIT'S OWN COMMANDS, probed separately from the audit.
         //
         // `createRepoEngineeringOperations().audit()` always runs the workspace's typecheck AND test
@@ -265,10 +382,8 @@ async function main() {
         }
         return findings;
       },
-      implement: async (goalContract, finding) => {
-        evidence.implementAttempts = [...(evidence.implementAttempts ?? []), { findingId: finding.id, area: finding.area, severity: finding.severity }];
-        return repo.implement(goalContract, finding);
-      },
+      // No `implement` here on purpose: the loop's own production implementer must run (see the note above
+      // `describe`). Overriding it with `repo.implement` bypassed the whole path being qualified.
       acceptance: async (g, changedFiles) => {
         const { judgeGoalAcceptance } = load("electron/engineering/goal-acceptance.js");
         const verdict = judgeGoalAcceptance({ objective: g.objective, changedFiles, workspace: workspace.workspace });

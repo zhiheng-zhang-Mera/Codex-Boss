@@ -327,13 +327,53 @@ export function createGoalLoopOperations(input: {
 
   const grantsCreation = (): boolean => (input.allowPaths ?? []).some(isPrefixGrant);
 
+  /**
+   * Paths this run has itself WRITTEN, so a later repair pass may edit them.
+   *
+   * Populated from the applier's own evidence (a `before` digest of `null` means the file did not exist),
+   * never from the coder's word, and populated AT THE WRITE so that a repair attempt which throws cannot
+   * erase the knowledge. It lives for the whole `createGoalLoopOperations` instance, not for one
+   * `implement()` call, because the repair pass that needs it runs INSIDE that call — a set scoped to the
+   * call was empty exactly when it mattered, which the first two attempts at this fix demonstrated.
+   */
+  const createdThisRun = new Set<string>();
+
+  /**
+   * The granted prefixes, normalized once.
+   *
+   * A file this run created under one of these is the run's own output and is editable by it; the grant
+   * already permitted bringing it into existence.
+   */
+  const grantedPrefixes = (input.allowPaths ?? []).map((prefix) => normalize(prefix)).filter((prefix) => prefix.endsWith("/"));
+
+  /** Whether this run may edit a path it created, judged against the caller's own grant. */
+  const editableByThisRun = (file: string): boolean => {
+    const normalized = normalize(file);
+    return grantedPrefixes.some((prefix) => normalized.startsWith(prefix) && normalized.length > prefix.length);
+  };
+
   return {
     audit: input.audit,
     // The production acceptance model, unless the caller supplies its own. It is never absent: the loop
     // requires a judgement, so a caller who has a different model must say so rather than inherit silence.
     acceptance: input.acceptance ?? (async (goal, changedFiles) => judgeGoalAcceptance({ objective: goal.objective, changedFiles, workspace: input.workspace })),
     async implement(goal, objective, attempt) {
-      const scope = scopeFor(goal);
+      const baseScope = scopeFor(goal);
+      // FILES THIS RUN CREATED UNDER A GRANT ARE EDITABLE BY IT.
+      //
+      // `applyScopedChanges` consults the creation grant ONLY for a file that does not exist, and requires
+      // an existing file to be authorised BY NAME. So the moment a proposal had created `tests/x.test.js`,
+      // the repair pass re-proposed it, found it existing, found the grant inapplicable, and died with
+      // "Change outside authorized scope" — measured on a real external repository as
+      // `exists: true, mayCreate: true, authorizedHas: false`. A goal that CREATES a file therefore could
+      // not be repaired after verification, which is exactly when repair is most likely to be needed, and
+      // the first proposal's work was thrown away with it.
+      //
+      // The path is authorised under the grant that already permitted CREATING it, so nothing new is
+      // granted: `mayCreate` is the caller's own predicate, unchanged, and the only difference is that a
+      // file it allowed into existence stays editable by the run that wrote it. Overwriting some OTHER
+      // pre-existing file still requires naming it.
+      const scope = [...new Set([...baseScope, ...createdThisRun])];
       // WHAT THE HOST BELIEVED ABOUT ITS OWN SCOPE, before it tried anything.
       //
       // Recorded because a refusal is otherwise unattributable: a real case-D run reported "Engineering
@@ -356,7 +396,19 @@ export function createGoalLoopOperations(input: {
         return { changedFiles: [], status: "FAIL" as const, checks: [], error: `no host check applies to the authorised scope (${checkTargets.join(", ")}), so a change to it could not be judged` };
       }
       try {
-        const proposal = await new ProposalRunner(input.coder).run(input.workspace, objective, scope, checks, { mayCreate });
+        const proposal = await new ProposalRunner(input.coder).run(input.workspace, objective, scope, checks, {
+          mayCreate,
+          // The scope is RE-ANSWERED for every proposal this attempt makes, repairs included: by then a file
+          // this run created may have landed, and the creation grant no longer covers an existing file.
+          authorizedPathsFor: () => [...new Set([...baseScope, ...createdThisRun])],
+          // Recorded at the write rather than after the call returns: a repair pass that throws must not
+          // erase the knowledge of what this run created (see the note above `scope`).
+          onApplied: (applied) => {
+            for (const change of applied) {
+              if (editableByThisRun(change.path)) createdThisRun.add(normalize(change.path));
+            }
+          }
+        });
         return {
           changedFiles: proposal.changes.map((change) => change.path),
           status: proposal.status,
