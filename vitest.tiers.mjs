@@ -96,7 +96,7 @@ export const SLOW_ACCEPTANCE_TESTS = {
   // instead. Relaxing `synchronous` would have flattered this number and broken Task F's target.
   "tests/unit/platform/scale-synthetic.test.ts": {
     kind: "in-process",
-    measured: "~94s as a file (~74s appending 100k events; 10k-band curve 0.22 → 0.88 ms/event)",
+    measured: "~94s as a file locally (~74s appending 100k events; 10k-band curve 0.22 → 0.88 ms/event); exceeded its own 300s budget on the hosted runner and was given 600s, see the note in the file",
     because: "writes 100k real events and 100k real state writes into a real database; no process is started, but the cost is the storage engine's"
   },
   // Phase 05 Task F / gate 6. Runs the whole platform lifecycle repeatedly — state transactions

@@ -269,7 +269,15 @@ describe("Phase 05 Task E / gate 5 — 100k durable events stay consistent", () 
 
     // Recorded, not asserted as a budget: the book's priority at scale is correctness.
     expect(appendMillis).toBeGreaterThan(0);
-  }, 300_000);
+    // The budget below is a TIME BUDGET, not part of the gate — which is what the line above says: the
+    // book's priority at scale is correctness. It exists only so a slow durable write path is allowed to
+    // finish instead of being killed mid-work. Measured: ~94s as a file on a developer host, whose append
+    // loop is about 74s; on the GitHub runner (`Desktop CI` run 35332380560) the same test hit the previous
+    // 300s ceiling and was killed, and the runner's fsync-bound I/O is what dominates — `synchronous=1`
+    // makes each checkpoint fsync a growing file, which is the curve Task F's soak exists to trend, so the
+    // durability setting is NOT relaxed to flatter this number. 600s is ~2x the observed overrun: enough
+    // for a slower disk, still short enough that a genuine hang fails rather than hanging for an hour.
+  }, 600_000);
 
   it("keeps a rolled-back transaction out of the journal, at scale", () => {
     // The book's gate 5 asks for no consistency error at volume. The sharpest consistency property
