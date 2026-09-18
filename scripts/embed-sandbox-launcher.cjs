@@ -67,7 +67,14 @@ function main() {
       process.exitCode = 1;
       return;
     }
-    if (fs.readFileSync(OUT, "utf8") !== serialised) {
+    // LINE TERMINATORS ARE NORMALISED BEFORE COMPARING, and only line terminators.
+    //
+    // The generated file is written with LF, while a `core.autocrlf=true` checkout leaves CRLF in the
+    // working copy of both files. Comparing raw bytes then reported drift that did not exist — the same
+    // false positive the catalogue check had, and it is the same fix: normalise, then compare exactly. A
+    // real edit to either file still changes the text and still fails, which the regression test asserts
+    // for a tampered generated file and for an unrefreshed canonical change.
+    if (canonical(fs.readFileSync(OUT, "utf8")) !== canonical(serialised)) {
       process.stderr.write(
         "the embedded sandbox launcher has drifted from launcher.cs; run `node scripts/embed-sandbox-launcher.cjs`\n"
       );
