@@ -12,6 +12,7 @@
     "test": "vitest run --config vitest.unit.config.mjs",
     "test:slow": "vitest run --config vitest.slow.config.mjs",
     "test:postbuild": "vitest run --config vitest.postbuild.config.mjs",
+    "test:platform-qualification": "vitest run --config vitest.qualification.config.mjs",
     "acceptance:workbook": "node scripts/acceptance-workbook-production.cjs",
     "acceptance:knowledge": "node scripts/acceptance-knowledge-foundation.cjs",
     "acceptance:architecture": "node scripts/acceptance-architecture.cjs",

@@ -9,14 +9,27 @@
  * crosses the default per-test ceiling. A file belongs here when it starts real
  * processes of its own, and it must earn its way back out with a measurement.
  *
- * The list lives in one place so the four configurations below cannot drift:
+ * The lists live in one place so the five configurations below cannot drift:
  *
- *   vitest.config.mjs           everything (what an explicit `vitest run <file>` and
- *                               the acceptance harnesses that name their own suite use)
- *   vitest.unit.config.mjs      the default `pnpm test` tier — everything except both
- *                               lists below
- *   vitest.slow.config.mjs      SLOW_ACCEPTANCE_TESTS only, one file at a time
- *   vitest.postbuild.config.mjs BUILD_DEPENDENT_TESTS only, after `pnpm run build`
+ *   vitest.config.mjs                 everything (what an explicit `vitest run <file>`
+ *                                     and the acceptance harnesses that name their own
+ *                                     suite use)
+ *   vitest.unit.config.mjs            the default `pnpm test` tier — everything except
+ *                                     the three declared groups below
+ *   vitest.slow.config.mjs            SLOW_ACCEPTANCE_TESTS only, one file at a time
+ *   vitest.postbuild.config.mjs       POSTBUILD_TESTS only, after `pnpm run build`
+ *   vitest.qualification.config.mjs   PLATFORM_QUALIFICATION_TESTS only, after the
+ *                                     qualification prerequisites have been generated
+ *
+ * The last two are two halves of what used to be one tier, split on a measured fact rather than on
+ * taste. A suite belongs in the POSTBUILD tier when a clean checkout that has run `pnpm run build`
+ * can satisfy it — that is what `Desktop CI` runs on every push. It belongs in the QUALIFICATION tier
+ * when it additionally needs evidence that only a qualification run produces: generated phase
+ * artifacts, a real full-suite pairing record, or a host corpus accumulated over long runs. Two of the
+ * qualification suites were failing on the hosted runner for exactly that reason while passing on a
+ * developer machine, which is the signature of a tier that was asking a clean runner for history it
+ * cannot have. `tests/unit/test-layers.test.ts` checks the split mechanically, including that no
+ * push-CI tier entry declares a qualification-only prerequisite.
  *
  * A file left in the default tier must earn it: it has to be fast enough to be part
  * of the signal a developer waits for, and it has to run from the sources alone.
@@ -211,12 +224,13 @@ export const LAYER_VOCABULARY = [
 export const TEST_TIERS = {
   unit: { layers: ["unit", "acceptance", "desktop", "integration", "migration", "recovery", "adversarial"], describe: "pnpm test — the signal a developer waits for." },
   slow: { layers: ["integration", "acceptance"], describe: "pnpm run test:slow — suites that compile and execute real projects." },
-  postbuild: { layers: ["acceptance", "integration"], describe: "pnpm run test:postbuild — suites that read the real build output." }
+  postbuild: { layers: ["acceptance", "integration"], describe: "pnpm run test:postbuild — suites that read the real build output and need nothing else, so a clean push runner satisfies them." },
+  qualification: { layers: ["acceptance", "integration", "soak"], describe: "pnpm run test:platform-qualification — frozen Foundation gates that additionally need generated phase artifacts, a real full-suite pairing record, or a host corpus accumulated by real soak runs. Run by the Platform Qualification workflow, never by push CI." }
 };
 
 /**
- * The build-dependent tier (Phase N): files that read the REAL `dist/` and
- * `dist-electron/` output, so they cannot run until something has built the app.
+ * The build-dependent tier: files that read the REAL `dist/` and `dist-electron/`
+ * output, so they cannot run until something has built the app.
  *
  * Measured, not assumed. With `dist/` and `dist-electron/` renamed away, `pnpm test`
  * failed 2 tests and 2 suites — `A-05`, `EV-15` and two closure-harness cases — while
@@ -227,45 +241,138 @@ export const TEST_TIERS = {
  * `pnpm run test:postbuild` step after the build, and the acceptance ones are also
  * run by the gate scripts that name them directly through the complete
  * `vitest.config.mjs`.
+ *
+ * Declared as a RECORD rather than a list, for the same reason the slow tier is: `requires` is the
+ * part that rots. Every entry here declares `-- requires: ["build"]` and nothing else, which is the
+ * whole claim this tier makes and the claim a push runner can honour. An entry that needs generated
+ * phase artifacts, a full-suite pairing record or an accumulated host corpus does NOT belong here;
+ * it belongs in PLATFORM_QUALIFICATION_TESTS below. The generator entries (`state-migration-report`,
+ * `permission-surface-report`, `platform-soak-report`) do run here, because each performs its own
+ * work in a temporary root and needs the build alone.
  */
-export const BUILD_DEPENDENT_TESTS = [
+export const POSTBUILD_TESTS = {
   // A-05 reads the compiled application's own architecture evidence out of the build.
-  "tests/acceptance/architecture-discovery.test.ts",
+  "tests/acceptance/architecture-discovery.test.ts": {
+    requires: ["build"],
+    because: "reads the compiled application's own architecture evidence out of the build"
+  },
   // EV-15 walks the real dist/ + dist-electron/ pair to verify the build manifest
   // against the artifacts it describes.
-  "tests/acceptance/autonomous-evolution-identity.test.ts",
+  "tests/acceptance/autonomous-evolution-identity.test.ts": {
+    requires: ["build"],
+    because: "walks the real dist/ + dist-electron/ pair to verify the build manifest against the artifacts it describes"
+  },
   // Spawns the closure acceptance harnesses, which `require` compiled modules.
-  "tests/unit/closure-terminal-logic.test.ts",
+  "tests/unit/closure-terminal-logic.test.ts": {
+    requires: ["build"],
+    because: "spawns the closure acceptance harnesses, which require compiled modules"
+  },
   // Phase 02: spawns a real child process that loads the compiled state core out of
   // dist-electron and then dies mid-work. It cannot run before a build, and unlike the
   // others it MUST NOT be skipped silently — the whole point is that a hard kill does
   // not lose committed work, so it fails loudly rather than passing vacuously.
-  "tests/acceptance/state-core-crash.test.ts",
+  "tests/acceptance/state-core-crash.test.ts": {
+    requires: ["build"],
+    because: "spawns a real child that loads the compiled state core out of dist-electron and dies mid-work"
+  },
   // Phase 02 gate 7: runs the migration-report generator, which loads the compiled
   // decision-ledger pilot out of dist-electron and performs the migration for real in a
   // temporary data root before writing the artifact.
-  "tests/acceptance/state-migration-report.test.ts",
+  "tests/acceptance/state-migration-report.test.ts": {
+    requires: ["build"],
+    because: "runs the migration-report generator against the compiled decision-ledger pilot in a temporary data root"
+  },
   // Phase 03 gate 7: runs the permission-surface generator, which loads the compiled
   // capability layer, executes the escape battery against a real broker and forks a real
   // plugin under Node's permission model before writing the artifact.
-  "tests/acceptance/permission-surface-report.test.ts",
+  "tests/acceptance/permission-surface-report.test.ts": {
+    requires: ["build"],
+    because: "runs the permission-surface generator, which executes the escape battery against a real broker"
+  },
+  // Phase 05 gate 6: runs the soak-report generator with a short duration, which exercises the real
+  // measurement path AND the real failure path — a short run is all warmup, so its trend genuinely
+  // exceeds the published allowance and the generator must refuse to certify it.
+  "tests/acceptance/platform-soak-report.test.ts": {
+    requires: ["build"],
+    because: "runs the soak-report generator short, so its trend genuinely exceeds the published allowance"
+  }
+};
+
+/** The suite paths in the build-dependent tier, for the configs that need a list. */
+export const BUILD_DEPENDENT_TESTS = Object.keys(POSTBUILD_TESTS);
+
+/**
+ * The prerequisite vocabulary. Each name is a thing a suite needs BEYOND the build, and each one is a
+ * property of the RUN rather than of the code, so it cannot be conjured by a clean checkout:
+ *
+ *   - `phase-artifact`             a generated Phase 01-04 artifact under `artifacts/platform-foundation`
+ *   - `full-suite-record`          a per-file record of a REAL full unit-tier run, plus the selector pairing
+ *   - `accumulated-host-corpus`    a state corpus that only real, long-running host activity produces
+ *
+ * `PUSH_CI_FORBIDDEN_REQUIREMENTS` is the point of the exercise: none of these may appear in a tier that
+ * push CI runs, because a hosted runner has no honest way to satisfy them. Keeping the list here rather
+ * than in a comment is what lets `tests/unit/test-layers.test.ts` check it.
+ */
+export const QUALIFICATION_REQUIREMENTS = ["phase-artifact", "full-suite-record", "accumulated-host-corpus"];
+
+/** Requirements that disqualify a suite from any tier `Desktop CI` runs on a clean push runner. */
+export const PUSH_CI_FORBIDDEN_REQUIREMENTS = QUALIFICATION_REQUIREMENTS;
+
+/**
+ * The platform-qualification tier (Phase 01-05 frozen gates).
+ *
+ * These are the suites that were failing on the hosted runner while passing on the machine they were
+ * written on. The causes were all the same shape — the suite needed history or evidence that a clean
+ * checkout does not have — and the honest response is to say so in one place instead of asking a push
+ * runner for it:
+ *
+ *   - Phase 04 gate 7 walks the real state roots and requires the discovered corpus to exceed 1000
+ *     files, because the retention policy it verifies is a policy about accumulation. Measured: a
+ *     hosted runner sees 56 files, a developer host sees ~71367, of which ~65125 are `artifacts/host-soak`
+ *     soak residue. The invariant is NOT lowered, NOT made conditional on `CI`, and no filler corpus is
+ *     manufactured; the gate simply runs where a real corpus exists.
+ *   - Phase 05 gate 9 (the certificate) cross-checks the Phase 01-04 artifacts. It used to consume them
+ *     from sibling tests in the same parallel tier, which is a dependency on another suite's side effect
+ *     and is a race, not a prerequisite. Each artifact now has its own official generator, invoked as an
+ *     explicit step in the qualification workflow before this tier starts, in real dependency order.
+ *   - Phase 05 gate 2 compares the selector against a REAL full-suite run, which `pnpm run verify:targeted`
+ *     produces by executing the whole unit tier. That is minutes of work and a record that must exist
+ *     before the suite runs, so it is a prerequisite of the qualification chain rather than something
+ *     every push silently re-derives.
+ *
+ * `producer` names the official generator, and it is checked twice: the script must exist, and it must be
+ * invoked by the qualification workflow. `tests/unit/test-layers.test.ts` asserts both, and asserts that
+ * push CI runs none of these files.
+ */
+export const PLATFORM_QUALIFICATION_TESTS = {
   // Phase 04 gate 7: runs the data-lifecycle generator, which loads the compiled retention and
   // retrieval modules, walks the real state roots and executes a plan through a recording
   // deleter. It also removes a protection marker from the compiled module to prove the
   // generator fails rather than reporting an invariant it did not observe.
-  "tests/acceptance/data-lifecycle-report.test.ts",
+  "tests/acceptance/data-lifecycle-report.test.ts": {
+    requires: ["accumulated-host-corpus"],
+    producer: "scripts/data-lifecycle-report.cjs",
+    because: "walks the real state roots and requires a discovered corpus over 1000 files, which only accumulated host activity produces"
+  },
   // Phase 05 gate 9: runs the platform-certificate generator, which loads the compiled platform
   // (registry, ratchet, permission validator, retention and compatibility models) and re-derives
   // every section rather than transcribing the phase artifacts. It also points the generator at
   // COPIES of the artifacts with a cross-check deliberately broken, to prove it fails closed.
-  "tests/acceptance/platform-certificate.test.ts",
-  // Phase 05 gate 6: runs the soak-report generator with a short duration, which exercises the real
-  // measurement path AND the real failure path — a short run is all warmup, so its trend genuinely
-  // exceeds the published allowance and the generator must refuse to certify it.
-  "tests/acceptance/platform-soak-report.test.ts",
+  "tests/acceptance/platform-certificate.test.ts": {
+    requires: ["phase-artifact"],
+    producer: "scripts/platform-certificate.cjs",
+    because: "cross-checks the generated Phase 01-04 artifacts, each of which must be produced by its own generator first"
+  },
   // Phase 05 gate 2: runs the pairing generator, which loads the compiled selector and compares a
   // selection against a REAL full-suite run recorded per file. It also exercises the refusal paths
   // with synthetic run records, so a generator that agreed on top of a failing or phantom-pointing
   // run would fail this suite.
-  "tests/acceptance/targeted-vs-full.test.ts"
-];
+  "tests/acceptance/targeted-vs-full.test.ts": {
+    requires: ["full-suite-record"],
+    producer: "scripts/verify-targeted-vs-full.cjs",
+    because: "needs the per-file record of a real full unit-tier run, which the pairing generator produces by running that tier"
+  }
+};
+
+/** The suite paths in the platform-qualification tier, for the config that needs a list. */
+export const PLATFORM_QUALIFICATION_TEST_FILES = Object.keys(PLATFORM_QUALIFICATION_TESTS);

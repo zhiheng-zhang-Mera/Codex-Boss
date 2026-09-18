@@ -6,9 +6,29 @@ name: Desktop CI
 # be able to re-run one layer by hand. Three of the four jobs are independent:
 #
 #   quality    typecheck + secret scan       (no build, no artifacts)
-#   unit       build + the two test tiers    (needs quality)
+#   unit       build + the three test tiers  (needs quality)
 #   package    portable build + smoke        (needs unit)
 #   acceptance the whole attested chain      (needs unit)
+#
+# WHAT `GREEN` HERE MEANS, AND WHAT IT DOES NOT.
+#
+# This workflow runs on a clean hosted Windows runner on every push, so it may only contain verification
+# a clean checkout can satisfy by itself. Green means: this commit typechecks, contains no tracked secret,
+# keeps the architecture ratchet, builds, and passes the tiers whose declared prerequisites this runner can
+# meet — the default tier (sources only), the current-build tier (`requires: ["build"]`) and the slow tier.
+# It does NOT mean the platform's Phase 01-05 qualification gates were re-run, and it must not be read
+# that way: those gates need generated phase artifacts, a real full-suite pairing record and a host corpus
+# accumulated by real soak runs, none of which a fresh runner has.
+#
+# That is why three frozen gates are not in this file. `tests/acceptance/data-lifecycle-report.test.ts`,
+# `tests/acceptance/platform-certificate.test.ts` and `tests/acceptance/targeted-vs-full.test.ts` are in
+# the `test:platform-qualification` tier and run in `Platform Qualification`
+# (`.github/workflows/platform-qualification.yml`, `workflow_dispatch`), which generates each declared
+# prerequisite with its own official generator first. Nothing was skipped or weakened — measured on run
+# 35327676450, the Phase 04 gate found a 56-file corpus here against its own >1000-file invariant, and the
+# certificate read artifacts no step had produced. `tests/unit/test-layers.test.ts` enforces the boundary
+# mechanically: no tier in this file may declare a qualification-only prerequisite, this file may not run
+# a qualification producer, and the qualification workflow may not be reachable from push.
 #
 # Why the acceptance chain is ONE job rather than many: every step in it reads and
 # writes `artifacts/acceptance/**` in the same working tree — the session fixes the

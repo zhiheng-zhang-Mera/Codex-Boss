@@ -138,7 +138,52 @@ Nothing below is started in this phase. The order is recorded so work is not tak
 - `platform-foundation-v1` and Phases 01–08 history are byte-identical to their certified state.
 - Any newly discovered architectural issue has been reported and **not** resolved in-flight.
 
-## 6. Non-goals
+## 6. CI topology: push CI versus platform qualification
+
+This section was added while making the certified head green on real CI. It records a **routing** change,
+not a gate change: no assertion, threshold, corpus invariant or fail-closed path was touched.
+
+The measured starting point: `Desktop CI` had never been green (fifteen consecutive failing runs). The
+default tier was fixed first (218 files / 2544 tests green in run 35327676450), which exposed the next
+tier for the first time — `test:postbuild` had always been skipped behind it. Running it on the hosted
+runner showed three of its ten suites failing for one shared reason: they need evidence a clean checkout
+does not have.
+
+| Suite | Needs | Evidence |
+| --- | --- | --- |
+| `data-lifecycle-report.test.ts` | accumulated host corpus | hosted runner: 56 files; a real host: ~71 367, of which ~65 125 is `artifacts/host-soak` soak residue. The gate's own invariant is `>1000` files |
+| `platform-certificate.test.ts` | Phase 01–04 generated artifacts | the artifacts were read from a sibling test's side effect inside a parallel tier — a race, not a prerequisite |
+| `targeted-vs-full.test.ts` | a real full-suite pairing record | `pnpm run verify:targeted` executes the whole unit tier before it can write one |
+
+They keep every assertion and move to the `test:platform-qualification` tier, run by
+`.github/workflows/platform-qualification.yml` (`workflow_dispatch`), which generates each declared
+prerequisite with its own official generator in dependency order. `test:postbuild` stays in push CI and is
+now exactly the suites whose only declared prerequisite is the build — the claim a clean runner can honour.
+
+`tests/unit/test-layers.test.ts` enforces the boundary mechanically: every postbuild entry declares
+`requires: ["build"]` and nothing more, every qualification entry declares at least one requirement from
+`QUALIFICATION_REQUIREMENTS`, no push-CI entry may declare one of those, each qualification entry names a
+producer script that exists and is an explicit step in the qualification workflow, push CI has no step
+that runs the qualification tier or any qualification producer, and the qualification workflow is
+dispatch-only.
+
+**What `Desktop CI` green means now:** this commit typechecks, contains no tracked secret, keeps the
+architecture ratchet, builds, and passes the default, current-build and slow tiers on a clean runner. It
+does **not** mean Phase 01–05 qualification was re-run. **What `Platform Qualification` green means:**
+the frozen qualification gates passed with their real prerequisites present. Conflating the two is the
+misreading this split exists to prevent.
+
+Two facts about the qualification lane, recorded rather than hidden:
+
+- **It is expected to be red on a hosted runner until a real corpus exists there.** The honest status is
+  `BLOCKED_BY_REAL_SOAK_EVIDENCE`, and the workflow records the corpus provenance in the job summary
+  before anything depends on it. No filler corpus, no lowered invariant and no `process.env.CI` branch was
+  introduced to change that; a fake green would be worse than a blocked qualification.
+- **This is a routing change, so Foundation gate semantics are unchanged** (`FOUNDATION_GATE_SEMANTICS_UNCHANGED`).
+  No binding document was found requiring these suites to be in `test:postbuild` or to run on every push;
+  the audit is recorded in the receipt for this work.
+
+## 7. Non-goals
 
 - No Phase 09, no new platform abstraction layer.
 - No rewrite, re-tag or force-push of the Foundation chain.

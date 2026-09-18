@@ -180,12 +180,24 @@ Standalone smoke verification uses an isolated data directory:
   36 轮 fresh-clone 全链 soak、Owner 看板读模型与 UI。
   每轮证据见 `Update-Plan/owner-result/evidence/round-N/`；DS-Hns autonomy 模块在
   `owner-result-autonomy` 分支（92/92 测试绿）。Owner 决策次数=0，盲等=0。
-- GitHub CI runs typecheck / tests / build / benchmark / portable-package / portable smoke / restart
-  smoke on every push (previously green on `9-7` / `9-8`; the 2026-09-09 merge made `main` the
-  consolidated trunk). The repo also ships a seeded-bug autonomous repair acceptance runner
-  (`pnpm run test:seeded` → `scripts/acceptance-seeded-engineering.cjs`).
+- CI is two workflows, and they mean different things. **`Desktop CI`** (`.github/workflows/ci.yml`,
+  push + pull_request) runs on a clean hosted Windows runner and covers only what such a runner can
+  honestly satisfy by itself: typecheck, secret scan, the architecture ratchet, the build, the default
+  tier (`pnpm test`), the current-build tier (`pnpm run test:postbuild`) and the slow tier
+  (`pnpm run test:slow`), plus the portable package and the attested acceptance chain. Green there means
+  "this commit typechecks, builds and passes the tiers that need nothing but the checkout".
+  **`Platform Qualification`** (`.github/workflows/platform-qualification.yml`, `workflow_dispatch`) runs
+  the frozen Phase 01-05 gates that need MORE than a clean checkout — generated phase artifacts, a real
+  full-suite pairing record, and a host corpus accumulated by real soak runs. It generates each
+  prerequisite with its own official generator first (`architecture:snapshot` → `state:migration-report`
+  → `capability:surface` → `data:lifecycle-report` → `platform:certificate` → `verify:targeted`) and then
+  runs `pnpm run test:platform-qualification`. Those gates are never skipped, and no threshold was lowered
+  for CI: if the corpus cannot be produced honestly the qualification run is red and says so.
   GitHub CI 在每个 push 上运行 typecheck / 测试 / build / benchmark / portable 打包 / portable 冒烟 /
   restart 冒烟（此前 `9-7`、`9-8` 全绿；2026-09-09 合并后 `main` 成为收口主干）。
+  平台 Foundation 的 Phase 01–05 资格门需要 clean checkout 无法诚实提供的证据（生成的 phase artifact、
+  真实 full-suite pairing 记录、长期 soak 累积的宿主 corpus），因此它们属于 `Platform Qualification`
+  工作流（`workflow_dispatch`），不是 push CI 的一部分；这些门的断言、阈值与 fail-closed 行为均未改动。
   仓库同时提供 seeded-bug 自主修复验收脚本（`pnpm run test:seeded`）。
 - Branch consolidation: `9-3` through `9-8-overcomplete` were merged into `main` in development
   order on 2026-09-09 (see [Update-Log](Update-Log.md)); older date branches stay on the remote as

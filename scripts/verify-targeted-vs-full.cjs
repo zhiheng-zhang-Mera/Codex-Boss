@@ -62,24 +62,35 @@ function git(args) {
 }
 
 /**
- * Every test file the build-dependent and slow tiers own, so a full-run miss is visible.
+ * Every test file the build-dependent, slow and platform-qualification tiers own, so a full-run miss
+ * is visible.
  *
  * Scoped to the ACTUAL tier declarations rather than to every quoted test path in the file: an earlier
  * version matched any `"tests/..."` string and so counted the desktop black-box contract — which is
  * claimed by its own primary layer and does run in the unit tier — as an other-tier suite, and then
- * reported it as a defect. The tier arrays are extracted by name instead.
+ * reported it as a defect. The tier declarations are extracted by name instead.
+ *
+ * The four declarations are RECORDS now (`POSTBUILD_TESTS`, `PLATFORM_QUALIFICATION_TESTS`) or a record
+ * (`SLOW_ACCEPTANCE_TESTS`), so a block ends at `};` as well as at `];`, and the paths are the quoted
+ * keys of the record. Reading them by name rather than by position keeps the pairing honest: a suite
+ * that moved to another tier is reported as covered elsewhere, and a suite that is in NO tier still
+ * fails the gate.
  */
 function tierFiles() {
   const text = fs.readFileSync(path.join(ROOT, "vitest.tiers.mjs"), "utf8");
   const blockFor = (name) => {
-    const start = text.indexOf(`export const ${name}`);
+    const start = text.indexOf(`export const ${name} `);
     if (start < 0) return "";
-    const end = text.indexOf("\n];", start);
-    return end < 0 ? text.slice(start) : text.slice(start, end);
+    const rest = text.slice(start);
+    const ends = ["\n];", "\n};"].map((marker) => rest.indexOf(marker)).filter((index) => index >= 0);
+    return ends.length ? rest.slice(0, Math.min(...ends)) : rest;
   };
-  const slow = [...blockFor("SLOW_ACCEPTANCE_TESTS").matchAll(/"(tests\/[^"]+\.test\.tsx?)":/g)].map((match) => match[1]);
-  const postbuild = [...blockFor("BUILD_DEPENDENT_TESTS").matchAll(/"(tests\/[^"]+\.test\.tsx?)"/g)].map((match) => match[1]);
-  return { slow: [...new Set(slow)].sort(), postbuild: [...new Set(postbuild)].sort() };
+  const pathsOf = (name) => [...blockFor(name).matchAll(/"(tests\/[^"]+\.test\.tsx?)"/g)].map((match) => match[1]);
+  return {
+    slow: [...new Set(pathsOf("SLOW_ACCEPTANCE_TESTS"))].sort(),
+    postbuild: [...new Set(pathsOf("POSTBUILD_TESTS"))].sort(),
+    qualification: [...new Set(pathsOf("PLATFORM_QUALIFICATION_TESTS"))].sort()
+  };
 }
 
 function runFullSuite() {
@@ -147,12 +158,15 @@ function main() {
   /**
    * Suites that live in another tier.
    *
-   * The pairing is against the UNIT tier as recorded, and seven catalogued suites deliberately run
-   * elsewhere (`test:slow` and `test:postbuild`). Treating them as phantom was the first version's
-   * mistake: the selector is right to choose them, and this run was never going to contain them. They
-   * are reported as covered-by-another-tier instead, so the exclusion is visible rather than silent.
+   * The pairing is against the UNIT tier as recorded, and a number of catalogued suites deliberately run
+   * elsewhere (`test:slow`, `test:postbuild`, and the frozen Phase 01-05 gates in
+   * `test:platform-qualification`). Treating them as phantom was the first version's mistake: the selector
+   * is right to choose them, and this run was never going to contain them. They are reported as
+   * covered-by-another-tier instead, so the exclusion is visible rather than silent — and the tier split is
+   * still checked as a real partition below, so "it runs in another tier" cannot become an excuse for a
+   * suite that runs nowhere.
    */
-  const outsideThisTier = new Set([...tiers.slow, ...tiers.postbuild]);
+  const outsideThisTier = new Set([...tiers.slow, ...tiers.postbuild, ...tiers.qualification]);
 
   // The pairing.
   const failedFiles = [...ran.entries()].filter(([, entry]) => entry.status !== "passed").map(([file]) => file).sort();
@@ -207,7 +221,7 @@ function main() {
     pairing: {
       skippedThatFailed,
       chosenThatDidNotRun,
-      /** Chosen and catalogued, but run by `test:slow` or `test:postbuild` rather than in this tier. */
+      /** Chosen and catalogued, but run by `test:slow`, `test:postbuild` or `test:platform-qualification` rather than in this tier. */
       chosenInAnotherTier,
       ranOutsideCatalogue,
       skippedThatRan,

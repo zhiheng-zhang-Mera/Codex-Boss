@@ -5,6 +5,11 @@ import {
   BUILD_DEPENDENT_TESTS,
   LAYER_RULES,
   LAYER_VOCABULARY,
+  PLATFORM_QUALIFICATION_TESTS,
+  PLATFORM_QUALIFICATION_TEST_FILES,
+  POSTBUILD_TESTS,
+  PUSH_CI_FORBIDDEN_REQUIREMENTS,
+  QUALIFICATION_REQUIREMENTS,
   SLOW_ACCEPTANCE_TESTS,
   SLOW_ACCEPTANCE_TEST_FILES,
   TEST_TIERS
@@ -68,6 +73,39 @@ const SPAWN_MARKERS = /node:child_process|process\/process-gateway|git\/git-gate
 
 /** The slow tier's suite paths, in declaration order, for the config-agreement checks. */
 const slowFiles = (): string[] => SLOW_ACCEPTANCE_TEST_FILES;
+
+/** Every suite the push-CI tiers own: what `Desktop CI` is allowed to run on a clean push runner. */
+const pushCiFiles = (): string[] => [...slowFiles(), ...BUILD_DEPENDENT_TESTS];
+
+/** The workflow that is allowed to run the qualification tier, and the one that is not. */
+const QUALIFICATION_WORKFLOW = ".github/workflows/platform-qualification.yml";
+const PUSH_CI_WORKFLOW = ".github/workflows/ci.yml";
+
+/**
+ * The package script that runs a given file, or `undefined`.
+ *
+ * Used to check a workflow step by the name a reader would use (`pnpm run verify:targeted`) instead of
+ * by the script path it happens to expand to, so the assertion survives either being edited.
+ */
+function scriptFor(file: string): string | undefined {
+  const pkg = JSON.parse(fs.readFileSync(path.join(PROJECT, "package.json"), "utf8")) as { scripts?: Record<string, string> };
+  return Object.entries(pkg.scripts ?? {}).find(([, command]) => command.includes(file))?.[0];
+}
+
+/**
+ * What a workflow actually EXECUTES: every non-comment line, joined.
+ *
+ * A guard that searched the raw file would accept a command that appears only in an explanatory comment,
+ * and would fail on a command that is correctly absent but correctly described. Comments are how this
+ * repository records why a step exists, so they must not be able to satisfy — or break — an assertion
+ * about what runs.
+ */
+function steps(workflow: string): string {
+  return workflow
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n");
+}
 
 function primaryLayerOf(file: string): string[] {
   return Object.entries(LAYER_RULES)
@@ -153,7 +191,9 @@ describe("Phase N — the declared test layers", () => {
   it("names drivers that exist and that something actually runs", () => {
     const wiring = [
       fs.readFileSync(path.join(PROJECT, "package.json"), "utf8"),
-      fs.readFileSync(path.join(PROJECT, ".github/workflows/ci.yml"), "utf8")
+      fs.readFileSync(path.join(PROJECT, PUSH_CI_WORKFLOW), "utf8"),
+      // Both workflows are wiring: a driver that only the qualification lane runs is still run.
+      fs.existsSync(path.join(PROJECT, QUALIFICATION_WORKFLOW)) ? fs.readFileSync(path.join(PROJECT, QUALIFICATION_WORKFLOW), "utf8") : ""
     ].join("\n");
     const drivers = Object.entries(LAYER_RULES).flatMap(([layer, rule]) => (rule.drivers ?? []).map((driver: string) => ({ layer, driver })));
     expect(drivers.length).toBeGreaterThan(0);
@@ -164,7 +204,7 @@ describe("Phase N — the declared test layers", () => {
   });
 
   it("classifies every suite in a declared tier, and states why the tier exists", () => {
-    for (const file of [...slowFiles(), ...BUILD_DEPENDENT_TESTS]) {
+    for (const file of [...pushCiFiles(), ...PLATFORM_QUALIFICATION_TEST_FILES]) {
       expect(fs.existsSync(path.join(PROJECT, file)), `tier names a missing file: ${file}`).toBe(true);
       expect(primaryLayerOf(file).length, `${file} is in a tier but unclassified`).toBe(1);
     }
@@ -197,19 +237,123 @@ describe("Phase N — the declared test layers", () => {
     for (const file of BUILD_DEPENDENT_TESTS) {
       expect(/dist|scripts[/\\]/.test(fs.readFileSync(path.join(PROJECT, file), "utf8")), `${file} is postbuild-tier but never reaches the build`).toBe(true);
     }
+    // A qualification suite must reach its generator, for the same reason: the dependency has to be
+    // visible in the file rather than asserted in a comment.
+    for (const file of PLATFORM_QUALIFICATION_TEST_FILES) {
+      expect(/dist|scripts[/\\]/.test(fs.readFileSync(path.join(PROJECT, file), "utf8")), `${file} is qualification-tier but never reaches a generator or the build`).toBe(true);
+    }
+  });
+
+  /**
+   * The split between push CI and qualification is only worth anything if it is machine-checkable.
+   *
+   * A comment saying "these need a host corpus" rots the moment someone adds a suite to the postbuild
+   * list for convenience. So every entry in both tiers declares `requires`, and the two rules that make
+   * the boundary real are asserted: a push-CI entry may require the BUILD and nothing else, and a
+   * qualification entry must declare at least one requirement from the vocabulary — which is exactly a
+   * requirement a clean runner cannot satisfy.
+   */
+  it("keeps qualification-only prerequisites out of every push-CI tier", () => {
+    expect(PUSH_CI_FORBIDDEN_REQUIREMENTS.length).toBeGreaterThan(0);
+    for (const requirement of PUSH_CI_FORBIDDEN_REQUIREMENTS) {
+      expect(QUALIFICATION_REQUIREMENTS, `${requirement} is forbidden in push CI but is not a declared requirement`).toContain(requirement);
+    }
+
+    // No push-CI tier entry declares a requirement a clean runner cannot meet.
+    for (const file of pushCiFiles()) {
+      const declaration = (POSTBUILD_TESTS as Record<string, { requires?: string[]; because?: string }>)[file];
+      // The slow tier is a record of a different shape (kind/measured) and declares no `requires`; its
+      // contract is its measured cost, checked above.
+      if (!declaration) continue;
+      const requires = declaration.requires ?? [];
+      expect(requires, `${file} is push-CI tier without a declared prerequisite`).toEqual(["build"]);
+      for (const requirement of requires) {
+        expect(PUSH_CI_FORBIDDEN_REQUIREMENTS, `${file} is in a push-CI tier but requires ${requirement}`).not.toContain(requirement);
+      }
+      expect(declaration.because, `${file} is push-CI tier without a stated reason`).toBeTruthy();
+    }
+
+    // Every qualification entry declares why it cannot be in push CI, and names its official producer.
+    for (const [file, declaration] of Object.entries(PLATFORM_QUALIFICATION_TESTS)) {
+      const entry = declaration as { requires?: string[]; because?: string; producer?: string };
+      expect(entry.because, `${file} is qualification-tier without a stated reason`).toBeTruthy();
+      expect(Array.isArray(entry.requires), `${file} is qualification-tier without declared requirements`).toBe(true);
+      const requires = entry.requires ?? [];
+      expect(requires.length, `${file} declares no requirement, so it has no reason to be here`).toBeGreaterThan(0);
+      for (const requirement of requires) {
+        expect(QUALIFICATION_REQUIREMENTS, `${file} declares an unknown requirement: ${requirement}`).toContain(requirement);
+      }
+      // At least one declared requirement must be one a clean push runner cannot satisfy; otherwise the
+      // suite belongs in the build-dependent tier and this tier is being used as a parking space.
+      expect(requires.filter((requirement) => PUSH_CI_FORBIDDEN_REQUIREMENTS.includes(requirement)).length,
+        `${file} declares no qualification-only requirement`).toBeGreaterThan(0);
+      // The producer is the official generator, and the suite must actually name it.
+      const producer = entry.producer;
+      expect(producer, `${file} names no producer for its prerequisite`).toBeTruthy();
+      expect(fs.existsSync(path.join(PROJECT, producer as string)), `${file} names a missing producer: ${producer}`).toBe(true);
+      expect(fs.readFileSync(path.join(PROJECT, file), "utf8").includes(path.basename(producer as string)),
+        `${file} does not name its declared producer ${producer}`).toBe(true);
+    }
+
+    // The two push-CI-tier sets and the qualification set are disjoint, so no suite is claimed twice.
+    const overlap = PLATFORM_QUALIFICATION_TEST_FILES.filter((file) => pushCiFiles().includes(file));
+    expect(overlap, `a suite is in both push CI and the qualification tier: ${overlap.join(", ")}`).toEqual([]);
+  });
+
+  /**
+   * The workflow boundary: qualification runs from its own explicitly triggered workflow, and push CI
+   * must not run it. Asserted rather than documented, because "we will not call it from CI" is exactly
+   * the kind of promise a later convenience edit breaks.
+   */
+  it("runs the qualification tier from its own workflow and never from push CI", () => {
+    expect(fs.existsSync(path.join(PROJECT, QUALIFICATION_WORKFLOW)), `${QUALIFICATION_WORKFLOW} is missing`).toBe(true);
+    const qualification = fs.readFileSync(path.join(PROJECT, QUALIFICATION_WORKFLOW), "utf8");
+    const push = fs.readFileSync(path.join(PROJECT, PUSH_CI_WORKFLOW), "utf8");
+    // It is explicitly triggered, not run on every push.
+    expect(/workflow_dispatch:/.test(qualification), "the qualification workflow is not dispatchable").toBe(true);
+    expect(/^ {2}push:/m.test(qualification), "the qualification workflow triggers on every push").toBe(false);
+    // It runs the qualification tier, and it generates each declared prerequisite with its own producer.
+    // The assertions are made against STEP lines rather than against the whole file: a command named only
+    // in a comment is documentation, and treating prose as evidence is exactly the failure this guard
+    // exists to prevent (the first version of this check matched its own explanatory comment).
+    expect(steps(qualification).includes("test:platform-qualification"), "the qualification workflow has no step that runs the qualification tier").toBe(true);
+    for (const [file, declaration] of Object.entries(PLATFORM_QUALIFICATION_TESTS)) {
+      const producer = (declaration as { producer: string }).producer;
+      const script = scriptFor(producer);
+      expect(script, `${producer} is wired to no package script`).toBeTruthy();
+      expect(steps(qualification).includes(script as string), `${file}'s prerequisite ${producer} is not an explicit step in the qualification workflow (expected a step running \`${script}\`)`).toBe(true);
+    }
+    // Push CI runs neither the tier nor its producers.
+    expect(steps(push).includes("test:platform-qualification"), "push CI has a step that runs the qualification tier").toBe(false);
+    for (const declaration of Object.values(PLATFORM_QUALIFICATION_TESTS)) {
+      const producer = (declaration as { producer: string }).producer;
+      expect(steps(push).includes(producer), `push CI has a step that runs a qualification prerequisite: ${producer}`).toBe(false);
+    }
+    // And push CI still runs the tiers it is responsible for, as STEPS.
+    for (const step of ["pnpm test", "pnpm run test:postbuild", "pnpm run test:slow"]) {
+      expect(steps(push).includes(step), `push CI has no step running: ${step}`).toBe(true);
+    }
   });
 
   it("keeps the tier configurations in agreement with the declaration", async () => {
     const unit = (await import("../../vitest.unit.config.mjs")).default;
     const slow = (await import("../../vitest.slow.config.mjs")).default;
     const postbuild = (await import("../../vitest.postbuild.config.mjs")).default;
+    const qualification = (await import("../../vitest.qualification.config.mjs")).default;
     expect(slow.test?.include).toEqual(slowFiles());
     expect(postbuild.test?.include).toEqual(BUILD_DEPENDENT_TESTS);
-    // The default tier is "everything except the two declared groups", and its
+    // The qualification tier has its own configuration, and it must carry exactly the declared suites:
+    // a suite that fell out of both tiers would run nowhere, which is the failure this whole split risks.
+    expect(qualification.test?.include).toEqual(PLATFORM_QUALIFICATION_TEST_FILES);
+    expect(PLATFORM_QUALIFICATION_TEST_FILES.length).toBeGreaterThan(0);
+    // The default tier is "everything except the declared groups", and its
     // include has to still cover every suite the layers describe.
     expect(unit.test?.include).toEqual(["tests/**/*.test.ts"]);
-    for (const file of [...slowFiles(), ...BUILD_DEPENDENT_TESTS]) {
+    for (const file of [...pushCiFiles(), ...PLATFORM_QUALIFICATION_TEST_FILES]) {
       expect(unit.test?.exclude, `${file} is not excluded from the default tier`).toContain(file);
     }
+    // The three declared groups partition cleanly: no suite is in two of them.
+    const all = [...slowFiles(), ...BUILD_DEPENDENT_TESTS, ...PLATFORM_QUALIFICATION_TEST_FILES];
+    expect(new Set(all).size, "a suite is declared in more than one tier").toBe(all.length);
   });
 });

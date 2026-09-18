@@ -14,6 +14,12 @@ import { BUILD_DEPENDENT_TESTS } from "./vitest.tiers.mjs";
  * when the build is missing — would turn "we verified the build identity" into "we
  * did not look", which is exactly the kind of quiet pass this repository forbids.
  * So they run here instead, as their own step immediately after `pnpm run build`.
+ *
+ * Every entry declares `requires: ["build"]` and nothing more, which is the claim this tier makes and
+ * the claim a clean push runner can honour. Suites that need MORE than the build — generated phase
+ * artifacts, a real full-suite pairing record, an accumulated host corpus — are not here; they are in
+ * `PLATFORM_QUALIFICATION_TESTS` and run under `Platform Qualification`. `tests/unit/test-layers.test.ts`
+ * checks that a push-CI tier entry never declares such a requirement, so the boundary cannot drift back.
  */
 export default defineConfig({
   test: {
