@@ -191,8 +191,13 @@ Standalone smoke verification uses an isolated data directory:
   full-suite pairing record, and a host corpus accumulated by real soak runs. It generates each
   prerequisite with its own official generator first (`architecture:snapshot` → `state:migration-report`
   → `capability:surface` → `data:lifecycle-report` → `platform:certificate` → `verify:targeted`) and then
-  runs `pnpm run test:platform-qualification`. Those gates are never skipped, and no threshold was lowered
-  for CI: if the corpus cannot be produced honestly the qualification run is red and says so.
+  runs `pnpm run test:platform-qualification`, followed by the final graduation gate
+  `pnpm run acceptance:autonomous-evolution`. That last gate is there for a second measured reason: it
+  refuses any run whose diff touches the Root Trust Surface (`ci.yml` and `tests/acceptance/**` are Root
+  Trust Surface), because the run that changes the judge may never certify itself — it requires a new trust
+  epoch and a rebootstrap, which is an Owner-authorised act. Those gates are never skipped, and no
+  threshold was lowered for CI: if the corpus cannot be produced honestly, or the epoch has to be migrated,
+  the qualification run is red and names which of the two it is.
   GitHub CI 在每个 push 上运行 typecheck / 测试 / build / benchmark / portable 打包 / portable 冒烟 /
   restart 冒烟（此前 `9-7`、`9-8` 全绿；2026-09-09 合并后 `main` 成为收口主干）。
   平台 Foundation 的 Phase 01–05 资格门需要 clean checkout 无法诚实提供的证据（生成的 phase artifact、

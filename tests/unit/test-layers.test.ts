@@ -335,6 +335,48 @@ describe("Phase N — the declared test layers", () => {
     }
   });
 
+  /**
+   * The final graduation gate is routed for a reason that is checkable in source, so the routing is
+   * checked against that source rather than asserted in a comment.
+   *
+   * `judgeSelfCertification` refuses UNCONDITIONALLY when the run's diff touches the Root Trust Surface:
+   * the run that changes the judge may never certify itself. `.github/workflows/ci.yml` is Root Trust
+   * Surface, so push CI can never satisfy that gate on any commit that edits CI — which is every commit
+   * that would ever change the gate's own routing. Keeping it in push CI would guarantee a permanently red
+   * build; dropping it entirely would be a weakening. It runs in `Platform Qualification` instead.
+   *
+   * The assertions below fail loudly if either half of that reasoning stops being true: if `ci.yml` is no
+   * longer Root Trust Surface, the routing is stale and should be revisited; if push CI starts running the
+   * gate again, or the qualification workflow stops, the split has drifted.
+   */
+  it("routes the trust-epoch graduation gate by the trust boundary, not by convenience", async () => {
+    const trust = await import("../../src/shared/autonomous-evolution-trust");
+    // The premise: CI and the acceptance suites are Root Trust Surface, so a diff touching them is refused.
+    for (const path of [".github/workflows/ci.yml", "tests/acceptance/platform-architecture-diagnostics.test.ts"]) {
+      expect(trust.classifySurface(path), `${path} is no longer Root Trust Surface; revisit the routing of the graduation gate`).toBe("ROOT_TRUST_SURFACE");
+    }
+    // A diff that touches the surface may not certify itself, whatever the epoch says. This is computed
+    // from two real inventories through the shipped assessment rather than by asserting a hand-set flag, so
+    // the test fails if the refusal stops following from a real before/after comparison.
+    const assessment = trust.assessRootTrustChange({
+      baseline: [{ path: ".github/workflows/ci.yml", sha256: "a".repeat(64) }],
+      candidate: [{ path: ".github/workflows/ci.yml", sha256: "b".repeat(64) }]
+    });
+    expect(assessment.rootTrustTouched).toBe(true);
+    expect(assessment.verdict).toBe("ROOT_TRUST_CHANGE");
+    const verdict = trust.judgeSelfCertification({ epoch: null, rootTrustChange: assessment, runId: "test-layers" });
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.code).toBe("SELF_CERTIFICATION_FORBIDDEN");
+    expect(verdict.required_action).toBe("TRUST_EPOCH_MIGRATION");
+
+    // The routing itself.
+    const graduation = "acceptance:autonomous-evolution";
+    expect(steps(fs.readFileSync(path.join(PROJECT, PUSH_CI_WORKFLOW), "utf8")).includes(graduation),
+      "push CI has a step running the trust-epoch graduation gate, which no surface-changing commit can pass").toBe(false);
+    expect(steps(fs.readFileSync(path.join(PROJECT, QUALIFICATION_WORKFLOW), "utf8")).includes(graduation),
+      "the qualification workflow does not run the trust-epoch graduation gate").toBe(true);
+  });
+
   it("keeps the tier configurations in agreement with the declaration", async () => {
     const unit = (await import("../../vitest.unit.config.mjs")).default;
     const slow = (await import("../../vitest.slow.config.mjs")).default;

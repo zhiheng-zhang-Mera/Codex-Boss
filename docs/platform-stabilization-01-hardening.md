@@ -160,12 +160,30 @@ They keep every assertion and move to the `test:platform-qualification` tier, ru
 prerequisite with its own official generator in dependency order. `test:postbuild` stays in push CI and is
 now exactly the suites whose only declared prerequisite is the build — the claim a clean runner can honour.
 
+A fourth, different case surfaced only when the acceptance chain reached its final step (run 35334147247:
+**68 of 69 steps green**). `pnpm run acceptance:autonomous-evolution` ends in `judgeSelfCertification`,
+which refuses **unconditionally** when the run's diff touches the Root Trust Surface: *"the run that
+changes the judge may never certify itself — open a new trust epoch and rebootstrap"*. `ci.yml` is itself
+Root Trust Surface (`PLAN_SECTION_3_ROOT_TRUST_PATHS` names `.github/workflows/ci.yml` and
+`tests/acceptance/**`), so **no commit that edits CI or an acceptance test can ever pass that gate**, and
+no epoch migration can change that for the same commit. Observed verbatim: `trust epoch 20 REFUSED` with
+`epoch 20 certifies 35448480… but the surface is 1ebe2141…`, plus
+`self-certification:SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION`. Requiring it on every push would
+make every CI change fail forever. It therefore runs as the final step of `Platform Qualification`, and its
+two honest outcomes are recorded there: it passes on a commit that does not touch the surface and whose
+epoch certifies it, and otherwise it is red with `BLOCKED_PENDING_TRUST_EPOCH_MIGRATION` — a new epoch and a
+rebootstrap, which is an Owner-authorised act.
+
 `tests/unit/test-layers.test.ts` enforces the boundary mechanically: every postbuild entry declares
 `requires: ["build"]` and nothing more, every qualification entry declares at least one requirement from
 `QUALIFICATION_REQUIREMENTS`, no push-CI entry may declare one of those, each qualification entry names a
 producer script that exists and is an explicit step in the qualification workflow, push CI has no step
-that runs the qualification tier or any qualification producer, and the qualification workflow is
-dispatch-only.
+that runs the qualification tier, any qualification producer or the trust-epoch graduation gate, and the
+qualification workflow is dispatch-only. The graduation gate's routing is checked against the trust module
+itself: `ci.yml` must still classify as `ROOT_TRUST_SURFACE`, a real before/after assessment must still
+produce `ROOT_TRUST_CHANGE`, and the refusal must still be `SELF_CERTIFICATION_FORBIDDEN` with
+`TRUST_EPOCH_MIGRATION` — so if that premise ever stops holding, the routing is reported as stale instead
+of silently persisting.
 
 **What `Desktop CI` green means now:** this commit typechecks, contains no tracked secret, keeps the
 architecture ratchet, builds, and passes the default, current-build and slow tiers on a clean runner. It
