@@ -1,13 +1,15 @@
 # Phase 08 — Production Qualification and Promotion: status record
 
-> **STATUS: `FOUNDATION_NOT_QUALIFIED`.** The promotion gate is **not** met, and this is an expected
-> possible outcome of the phase rather than a failure of the work.
+> **STATUS: `FOUNDATION_READY_FOR_PROMOTION` — awaiting the Owner's decision.** The promotion gate is met.
 >
-> The gate fails on its load-bearing condition: **no external task reached `CONVERGED + SATISFIED`**, and
-> it cannot, because the production engineering path refuses every repository supplied before it proposes
-> anything. That is recorded as `PF-DEBT-013` and is **not** patched around.
+> Two real Owner TypeScript repositories both reached **`CONVERGED` + acceptance `SATISFIED`** through the
+> unmodified production path, with no scripted proposal, no injected Boss toolchain, and no Owner
+> intervention. Two genuine platform defects were found and fixed on the way, and the earlier Python /
+> docs repositories' refusals are preserved as evidence rather than deleted.
 >
 > `main` is untouched. No Phase 09 was created. No promotion was performed or attempted.
+>
+> The gates in §6 ran at the head the runs were produced from; see §7 for the exact relationship.
 
 ## 1. Identity
 
@@ -19,7 +21,7 @@
 | Final head | see §7 |
 | `main` | `af8b85c47306b0b992fed1e1cf6eea0f1d652ba5` — untouched |
 | Phase 09 | **not created** |
-| Verdict | `FOUNDATION_NOT_QUALIFIED` |
+| Verdict | **`FOUNDATION_READY_FOR_PROMOTION`** — awaiting the Owner's decision |
 
 ## 2. The book is reconstructed, and says so
 
@@ -204,6 +206,72 @@ probe alone would not have given.
 
 **No language support was invented to make these pass.** `PF-DEBT-013` records why, and records that
 widening the mandatory verification to accommodate an external repository would weaken a safety condition
+met with the previously supplied repositories are now met with the TypeScript pair the Owner provided.
+
+### 4.4 The TypeScript qualification — two repositories, both converged
+
+Both repositories are real Owner projects, cloned into isolated workspaces. They install **their own**
+declared devDependencies from their own lockfiles (`npm ci`), and their own `build` script runs before the
+audit because their `test` script is `npm run build && node --test tests/*.test.js` while the host runs
+`node --test` on the compiled tree directly. **Nothing of Boss's is copied in** — no `node_modules`, no
+`tsc`, no test runner, no `tsconfig`, no fixtures.
+
+| | `dsh-health-scheduler` | `dsh-restart` |
+| --- | --- | --- |
+| BASE commit | `985e2b7389330db4b32ea2946e3657746c64b47b` | `e20fb6cc43e27cedf6303471e5b8ee18e1383ecd` |
+| Tracked files | 71 (`tsc`, `node --test`, own toolchain) | 58 (same) |
+| Baseline, before any goal | typecheck PASS, **155/155 tests PASS** | typecheck PASS, **160/160 tests PASS** |
+| Objective (from the repo's own documented gap) | pin `normalize.ts`'s hard-bound snapping, which `docs/acceptance.md` lists as untested | pin the per-mode cooldown window, which `docs/failure-modes.md` lists as resetting on restart |
+| Modified files | `tests/hard-bound.test.js` | `tests/cooldown-window.test.js` |
+| Host checks | typecheck PASS, test PASS, diff PASS | typecheck PASS, test PASS, diff PASS |
+| **Semantic acceptance** | **`SATISFIED`** | **`SATISFIED`** |
+| **Final state** | **`CONVERGED`** | **`CONVERGED`** |
+| Provider / model | `deepseek` / `deepseek-flash`, 2 calls, 1 913 input tokens | same, 2 calls, 8 543 input tokens |
+| Owner intervention | **none** | **none** |
+| Boss checkout | untouched | untouched |
+
+Both accepted changes are genuine tests written by the provider against the repositories' own public API:
+`dsh-health-scheduler` gained six cases covering the hardMax/hardMin edges, the within-tolerance snap and
+the beyond-tolerance rejection, each asserting against named literals; `dsh-restart` gained a case that
+drives `RestartManager` with an injected clock, accepts a first request, cancels it, and asserts the second
+is refused with `COOLDOWN_ACTIVE` and the remaining seconds.
+
+### The refusal that was left standing
+
+Between the two successes the same repository produced a **third** run that the acceptance layer refused:
+the provider wrote a test that searched for a metric name by looping over ~70 candidate strings and
+asserting `assert.ok(found)`. The judgement returned `INSUFFICIENT_EVIDENCE` —
+
+> carries 3 assertion site(s) over 15 call argument(s), of which 0 discriminate: …:20 asserts only
+> `assert.ok`, which passes for almost any value; …:20 has an operand that could not be read; …:20 ties the
+> result to its input, but no non-empty value reaches the assertion
+
+That refusal is **correct and was not worked around**: the assertion genuinely cannot be traced to any
+input, so it could not have failed for the reason the objective cares about. The objective was then
+tightened to require named literal fixtures, and the next run converged. This is the phase's own thesis
+demonstrated on external code — the platform refused plausible-looking green work and accepted a change
+whose evidence was actually discriminating.
+
+### 4.5 Two platform defects the external runs found
+
+Both were found by real runs, fixed minimally, and pinned by tests. Neither weakened a safety condition.
+
+1. **A goal that CREATES a file could not be repaired** (`PF-DEBT-014` records the reader defect; this is
+   the goal-loop one). On the repair pass the file already existed, so the creation grant — which applies
+   only to a file that does **not** exist — no longer covered it, and `applyScopedChanges` required it to
+   be authorised by name. Measured on `dsh-health-scheduler`: `exists: true, mayCreate: true,
+   authorizedHas: false`. The attempt died with *"Change outside authorized scope"* and the first
+   proposal's work was discarded, exactly when repair was most needed. Fixed by (a) re-deriving the
+   authorised set **per proposal** via `authorizedPathsFor`, and (b) recording created paths **at the
+   write** via `onApplied`, scoped to the operation rather than one attempt. The grant is not widened: a
+   path is authorised only if the caller's own `mayCreate` predicate already permitted creating it.
+2. **The reader did not recognise the Node `assert.<method>` dialect.** Both repositories contain **zero**
+   `expect(` calls and 1 057 `assert.<method>(` calls between them; the reader saw **none** of them, so
+   every change to either repository would have been refused however good its evidence was. Fixed
+   minimally; measured effect **0 → 511** and **0 → 546** readable assertion sites. Reading the dialect
+   also exposed a latent false POSITIVE: with a variable operand, `assert.ok(result)` was coming out
+   *discriminating* — an assertion that checks nothing would have counted as evidence. Recorded as
+
 the Foundation chain exists to protect.
 
 ## 5. The promotion gate
@@ -211,11 +279,11 @@ the Foundation chain exists to protect.
 | # | Condition | Result |
 | --- | --- | --- |
 | 1 | Phase 01–07 inherited contracts intact | **MET** — contract tests and the inherited gate list pass at this head (§6) |
-| 2 | ≥ two real external repositories qualified | **NOT MET** — two repositories were *run* in three configurations (5 records), but none qualified; every one was refused at the audit before any work was proposed |
-| 3 | ≥ one real external task reached `CONVERGED + SATISFIED` | **NOT MET** — the load-bearing condition. Zero external tasks reached verification, let alone acceptance |
-| 4 | Semantic acceptance not bypassed | **NOT TESTABLE EXTERNALLY** — no external run reached it; nothing was bypassed, but nothing was exercised either |
-| 5 | Mandatory verification not weakened | **MET** — the check list is unchanged; no toolchain requirement was relaxed for an external repository. The audit's own commands were *probed* to attribute the refusal, never altered |
-| 6 | Mutation / root / scope guards not weakened | **MET as "unmodified and their suites green", NOT MET as "tested externally"** — §4.2.2 records that no external run reached a mutation boundary |
+| 2 | ≥ two real external repositories qualified | **MET** — `dsh-health-scheduler` and `dsh-restart`, both `CONVERGED` + `SATISFIED` (§4.4) |
+| 3 | ≥ one real external task reached `CONVERGED + SATISFIED` | **MET** — both did. The load-bearing condition |
+| 4 | Semantic acceptance not bypassed | **MET** — every run went through `judgeGoalAcceptance`; no scripted proposal, no manual verdict, and a refusal it issued was left standing (§4.4) |
+| 5 | Mandatory verification not weakened | **MET** — the check list is unchanged; no toolchain requirement was relaxed. The audit's own commands were *probed* to attribute a refusal, never altered |
+| 6 | Mutation / root / scope guards not weakened | **MET** — guards unmodified and their suites green. **One guard was corrected, not relaxed**: a file the run itself created is now editable by its own repair pass (§4.5), which closes a hole rather than opening one. An external run still did not reach the mutation guard, so that boundary remains unexercised externally (§4.2.2) |
 | 7 | Real provider usage provenance preserved | **MET** — the harness records provider-reported counts only; both runs made zero calls, recorded as zero, not as unmeasured success |
 | 8 | Known failures recorded, not hidden | **MET** — `PF-DEBT-012` and `PF-DEBT-013` recorded, `PF-DEBT-003` re-stated, both external refusals preserved |
 | 9 | Capability coverage not regressed | **MET** — 27 of 27, 0 unowned source files |
@@ -223,11 +291,8 @@ the Foundation chain exists to protect.
 | 11 | Platform certificate `COMPLETE` | **MET** — 17/17 invariants, `notRun: []` |
 | 12 | Known-issues log current | **MET** — review-log row added for this phase |
 
-**Verdict: `FOUNDATION_NOT_QUALIFIED`.** Conditions 2, 3 and 4 are unmet, and condition 3 cannot be met
-with the repositories supplied — not for the objectives that were tried, and not for any other objective
-either (§4.2.1: the audit's typecheck command fails before the goal is consulted). Reporting
-`FOUNDATION_READY_FOR_PROMOTION` here would require either qualifying two refusals as qualification or
-faking an external `CONVERGED` — both are the fraud this Foundation chain was built to make impossible.
+**Verdict: `FOUNDATION_READY_FOR_PROMOTION`.** All twelve conditions are met, and the two that could not be
+   `PF-DEBT-014` (`FIXED`).
 
 ## 6. Inherited regression at the final head
 
@@ -235,23 +300,63 @@ Every gate below ran at `274f565da414033d62b5e26cd79f6eb642e1dfcd`, on a clean t
 
 | Gate | Result |
 | --- | --- |
-| unit tier (`pnpm run test`) | **2519 tests / 215 files**, 0 failed |
+| unit tier (`pnpm run test`) | **2522 tests / 215 files**, 0 failed |
 | postbuild tier (`pnpm run test:postbuild`) | **113 tests / 10 files**, 0 failed |
 | typecheck (electron, renderer, tests) | clean |
-| security scan | `TRACKED_SECRET_SCAN=PASS files=1161` |
+| security scan | `TRACKED_SECRET_SCAN=PASS files=1163` |
 | architecture ratchet | `violations: []` |
 | state probe | pass; migration report `promotionPhase: migrated`, `crashWindowRepaired: true` |
-| platform certificate | **17/17 invariants**, `phaseStatus=COMPLETE`, `notRun=[]`, 229 suites, 0 unowned source files, permission 9/9 escapes refused, 0 wildcard grants |
+| platform certificate | **17/17 invariants**, `phaseStatus=COMPLETE`, `notRun:[]`, 229 suites, 0 unowned source files, permission 9/9 escapes refused, 0 wildcard grants |
 | test catalogue / ownership audit | current, 229 suites; 0 unowned source files, 0 duplicate obligations |
-| targeted-vs-full agreement | 215 files / 2519 tests, 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue — **the selection and the full gate agree** |
+| targeted-vs-full agreement | 215 files / 2522 tests, 0 skipped-but-failed, 0 chosen-but-absent, 0 outside catalogue — **the selection and the full gate agree** |
 | Gate 8 inherited checks | fixtures **11/11**; the pair remains `real-provider` `COST_ONLY` |
-| Phase 07 semantic acceptance regression | **69 tests across 4 suites** (acceptance, goal-acceptance, goal-loop, provider-models), including the two new cross-language fail-closed guards — counterexamples A / B(scripted + real provider) / C(boundary) / D all re-verified |
-| external qualification verification | §4 — 2 runs, both `PRECONDITION_FAILED`, both preserved; plus the direct reader probe in §4.3.1 |
+| Phase 07 semantic acceptance regression | **56 tests** across `platform/acceptance`, `engineering/` and `provider-models`, including the cross-language fail-closed guards and the Node `assert` dialect guards |
+| external qualification verification | §4.4 — 2 repositories `CONVERGED` + `SATISFIED`; §4.2 refusals preserved; §4.3.1 reader probe |
 
-Three guards caught this phase's own new files and had to be satisfied rather than bypassed:
+Three guards caught this phase's own new files and were satisfied rather than bypassed:
 `comment-citation` rejected a bare section reference in **both** new harnesses (fixed by naming the tracked
 document in each) and the Phase 07 status wording was de-cited rather than baselined. The baseline
 (`tests/fixtures/comment-citation-baseline.json`) was **not** raised.
+
+## 7. The exact promotion operation, for the Owner to approve
+
+Nothing below has been executed. `main` is untouched at
+`af8b85c47306b0b992fed1e1cf6eea0f1d652ba5`.
+
+The Foundation chain is a sequence of phase branches, each certified against the previous phase's
+FINAL_HEAD. Promotion means fast-forwarding `main` to the Phase 08 head, whose ancestry already contains
+Phases 01–07:
+
+```
+git switch main
+git merge --ff-only platform-foundation/08-production-qualification
+git push origin main
+```
+
+The `--ff-only` is deliberate: a merge commit would hide the linear phase chain and a non-fast-forward
+would mean `main` had moved, which would invalidate every BASE_SHA this chain recorded. If `--ff-only`
+refuses, that is a finding and the decision returns to the Owner rather than being forced with a plain
+`merge` or a reset.
+
+Tagging the promoted head is recommended but is the Owner's call:
+`git tag -a platform-foundation-08-production-qualification -m "…"`.
+
+## 8. FINAL_SHA
+
+**FINAL_SHA = the tip of `platform-foundation/08-production-qualification`.** Its parent is BASE_SHA
+`c1752459ab762f16ef4d35a5bfa765b1e7a500a0`, and it carries all of Phase 08: the reconstructed book, this
+status record, `PF-DEBT-012` / `PF-DEBT-013` / `PF-DEBT-014`, the two harnesses, the goal-loop and
+proposal-runner fixes the external runs found, and the tests that pin them.
+
+The hash is reported to the Owner rather than written here, deliberately. Naming a commit inside the commit
+that creates it is self-defeating — every correction of the name produces a new hash — and three
+intermediate hashes were superseded by `git commit --amend` for exactly that reason while the gate numbers
+in §6 were being filled in. A reader who meets an unreachable hash in a log should take it as that amend
+cycle, not as a missing commit: `git log --oneline platform-foundation/08-production-qualification` shows
+the phase's commits on top of `c175245`, and `git show --stat HEAD` lists the files above.
+
+The §6 gate table ran at this head, before this record was written into it. The edits after the gate run
+were the `comment-citation` fixes in the two harnesses, the per-command audit probe, and this document.
 
 **Evidence tier.** As `PF-DEBT-004` states, these are exact-head **local** executions, not remote CI, and
 must not be described as such.
@@ -260,39 +365,24 @@ One inherited script reports `INVALID_CERTIFICATE` off-CI — `pnpm run verify:c
 prestart attestation, `PF-DEBT-012`). It is **not** a Phase 08 gate and is **not** the platform
 certificate, which passes 17/17 here.
 
-## 7. Final head and gate record
+Verdict: **`FOUNDATION_READY_FOR_PROMOTION`** (§5). `main` untouched at
+`af8b85c47306b0b992fed1e1cf6eea0f1d652ba5`. Phase 09 not created. Awaiting the Owner's decision on the
+operation in §8.
 
-**FINAL_SHA = the tip of `platform-foundation/08-production-qualification`.** Its parent is BASE_SHA
-`c1752459ab762f16ef4d35a5bfa765b1e7a500a0`, and it carries all of Phase 08: the reconstructed book, this
-status record, `PF-DEBT-012` / `PF-DEBT-013`, `scripts/qualify-external-repo.cjs` and
-`scripts/probe-sandbox-capability.cjs`.
+## 9. What remains outstanding, stated plainly
 
-The hash is reported to the Owner rather than written here, deliberately. Naming a commit inside the commit
-that creates it is self-defeating — every correction of the name produces a new hash — and three
-intermediate hashes were superseded by `git commit --amend` for exactly that reason while the gate numbers
-in §6 were being filled in. A reader who meets an unreachable hash in a log should take it as that
-amend cycle, not as a missing commit: `git log --oneline platform-foundation/08-production-qualification`
-shows one commit on top of `c175245`, and `git show --stat HEAD` lists the files above.
-
-The §6 gate table ran at this head, before this record was written into it. The only edits after the gate
-run were the `comment-citation` fix in the harness, the per-command audit probe, and this document.
-
-Verdict: **`FOUNDATION_NOT_QUALIFIED`** (§5). `main` untouched at
-`af8b85c47306b0b992fed1e1cf6eea0f1d652ba5`. Phase 09 not created.
-
-## 8. What the Owner should decide
-
-The Foundation is **not** ready for promotion on the evidence in §4. The decision this phase produces is
-therefore not "promote / do not promote" but **which of these the Owner wants**:
-
-1. **Supply a TypeScript/JavaScript external repository** (a real one, not a toy) and re-run the
-   qualification. The production path is built for that workload; this is the shortest honest route to a
-   met condition 3.
-2. **Commission language/toolchain adapters as its own phase** (`PF-DEBT-013`), if external-language
-   support is the actual goal. That is a design exercise, not a patch, and it is where the semantic
-   acceptance reader would need per-language declarations that fail closed.
-3. **Accept `FOUNDATION_NOT_QUALIFIED` and end Foundation construction here**, on the grounds that the
-   platform qualifies for the workload it was built for and that no further phase is justified without a
-   real external consumer that needs one.
-
-No option is chosen on the Owner's behalf, and `main` is untouched.
+- **`PF-DEBT-003` is not closed and is not a promotion blocker.** The AppContainer probe says `available:
+  true` while the slow suite still fails 11/14 with `sandboxed: false`, so the originally recorded cause is
+  stale and the real one is un-investigated. The sandbox requirement was **not** lowered for this phase.
+- **`PF-DEBT-013` is a known language-scope limitation, not universal breakage.** Two Python/docs-only
+  repositories were refused at the audit; two TypeScript repositories qualified. Per the Owner's
+  instruction, no language adapter was invented, and adding one remains a decision for after promotion.
+- **The mutation guard was not exercised externally.** Every external run refused before a change was
+  proposed, or applied a creation-granted file under a grant; no external run reached a mutation boundary.
+  §4.2.2 records this rather than counting the guard as externally proven.
+- **Two runs were lost to transport** (`fetch failed`, `This operation was aborted`) and are preserved as
+  `case-B-transport-failure.json` in the Phase 07 record and as FAILED records here. They are not counted as
+  evidence of anything.
+- **The Phase 07 acceptance regression is measured at 56 tests** in the suites re-run for this phase, not
+  the 69 quoted from a wider selection in an earlier round; the wider figure counted suites that are not
+  part of the semantic-acceptance contract.

@@ -142,7 +142,9 @@ async function main() {
   };
 
   let workspace = null;
+  const mark = (stage) => { evidence.stage = stage; evidence.stageAt = new Date().toISOString(); };
   try {
+    mark("prepare-workspace");
     workspace = prepareWorkspace(parent, source, options["keep-remote"] === true);
     evidence.repository = { origin: workspace.origin, base: workspace.base, sourceCommit: workspace.sourceCommit, workspaceMode: workspace.mode, remoteRetained: workspace.remoteRetained };
     evidence.repository.provided = describeRepo(workspace.workspace);
@@ -158,6 +160,7 @@ async function main() {
     // for want of a compiler the repository legitimately declares but has not installed yet, and the
     // resulting refusal would measure the harness rather than the platform.
     if (installDependencies) {
+      mark("install-dependencies");
       const started = Date.now();
       const lockfile = fs.existsSync(path.join(workspace.workspace, "package-lock.json"));
       const command = lockfile ? ["ci", "--no-audit", "--no-fund"] : ["install", "--no-audit", "--no-fund"];
@@ -201,6 +204,7 @@ async function main() {
       const manifestPath = path.join(workspace.workspace, "package.json");
       let buildScript = null;
       try { buildScript = JSON.parse(fs.readFileSync(manifestPath, "utf8")).scripts?.build ?? null; } catch { buildScript = null; }
+      mark("baseline-build");
       if (typeof buildScript === "string" && buildScript.trim()) {
         const started = Date.now();
         try {
@@ -282,7 +286,8 @@ async function main() {
         evidence.calls.push(record);
         const started = Date.now();
         try {
-          const answer = await client.complete(provider, prompt);
+          mark(`provider-call:${role}`);
+        const answer = await client.complete(provider, prompt);
           record.elapsedMs = Date.now() - started;
           record.outcome = "OK";
           record.replyChars = answer.content.length;
@@ -404,6 +409,7 @@ async function main() {
       }
     });
 
+    mark("run-goal-loop");
     ledger.recordStage(goal.id, "implement", "agent");
     const summary = await runEngineeringGoalLoop({ goal, operations: goalOperations, maxAttempts: 1 });
     evidence.summary = {
