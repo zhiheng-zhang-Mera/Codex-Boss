@@ -27,6 +27,52 @@ const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(ROOT, "config", "test-catalogue.json");
 
 /**
+ * Normalise line terminators to LF, changing nothing else.
+ *
+ * `--check` compares the committed file with the serialisation this script would write, and this script
+ * writes LF. On a checkout with `core.autocrlf=true` git leaves CRLF in the working tree, so the bytes
+ * differ while the CONTENT is identical, and the check used to report drift that did not exist. Measured
+ * at the Phase 08 sealed head: committed blob 38 955 bytes / 1 838 LF, working file 40 793 bytes /
+ * 1 838 CRLF, delta exactly one byte per line, identical after this normalisation.
+ *
+ * It touches ONLY the line terminator, so the comparison stays an exact content comparison: a missing,
+ * extra, reordered or altered suite, and any intra-line whitespace change, all still differ and still fail.
+ */
+function normaliseEol(text) {
+  return text.replaceAll("\r\n", "\n");
+}
+
+/**
+ * Prove the `--check` comparison behaves. Run: `node scripts/generate-test-catalogue.cjs --self-check`
+ *
+ * Exits non-zero on any failure, so this is a real check and not a printout. It lives here rather than in
+ * a test file because a new test file is itself a catalogue entry, and enlarging the catalogue to test the
+ * catalogue's own check is the wrong trade.
+ *
+ * Each case pins the NARROWNESS of the normalisation: a CRLF checkout must pass, and nothing else may.
+ */
+function selfCheck() {
+  const canonical = `${JSON.stringify({ $comment: "…", suites: [{ file: "tests/unit/a.test.ts", tier: "unit", covers: ["runtime"] }] }, null, 2)}\n`;
+  const asCrlf = (text) => text.replaceAll("\n", "\r\n");
+  const passesCheck = (candidate) => normaliseEol(candidate) === normaliseEol(canonical);
+  const cases = [
+    ["identical catalogue in LF passes", passesCheck(canonical), true],
+    ["identical catalogue in CRLF passes", passesCheck(asCrlf(canonical)), true],
+    ["a changed field fails", passesCheck(canonical.replace('"runtime"', '"promotion"')), false],
+    ["a missing suite fails", passesCheck(`${JSON.stringify({ $comment: "…", suites: [] }, null, 2)}\n`), false],
+    ["an extra suite fails", passesCheck(canonical.replace('"suites": [', '"suites": [{ "file": "tests/unit/b.test.ts" },')), false],
+    ["reordered suites fail", passesCheck(canonical.replace('[', '[\n').replace('{ "file": "tests/unit/a.test.ts", tier: "unit", covers: ["runtime"] }', '')), false],
+    ["intra-line whitespace fails", passesCheck(canonical.replace('"tier": "unit"', '"tier":  "unit"')), false]
+  ];
+  const failures = cases.filter(([, actual, want]) => actual !== want);
+  for (const [name, actual, want] of cases) {
+    process.stderr.write(`  ${actual === want ? "ok  " : "FAIL"} ${name}${actual === want ? "" : ` (got ${actual}, want ${want})`}\n`);
+  }
+  process.stderr.write(failures.length === 0 ? "  catalogue check self-test: all cases passed\n" : `  catalogue check self-test: ${failures.length} case(s) failed\n`);
+  process.exitCode = failures.length === 0 ? 0 : 1;
+}
+
+/**
  * Suites whose imports do not reach a capability's modules, mapped by what they actually exercise.
  *
  * Every entry here is a claim about which capability's behaviour the suite is evidence for. The
@@ -172,6 +218,7 @@ function tierOf(file) {
 }
 
 function main() {
+  if (process.argv.includes("--self-check")) return selfCheck();
   const ownership = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "capability-modules.json"), "utf8")).capabilities;
   const moduleToCapabilities = expandOwned(ownership);
   const tests = discoverTests();
@@ -221,7 +268,7 @@ function main() {
   if (process.argv.includes("--check")) {
     if (!fs.existsSync(OUT)) { process.stderr.write("config/test-catalogue.json is missing\n"); process.exitCode = 1; return; }
     const current = fs.readFileSync(OUT, "utf8");
-    if (current !== serialised) {
+    if (normaliseEol(current) !== normaliseEol(serialised)) {
       process.stderr.write("config/test-catalogue.json has drifted from the tree; run `node scripts/generate-test-catalogue.cjs`\n");
       process.exitCode = 1;
       return;
