@@ -463,6 +463,60 @@ describe("Phase 07 — assertion shapes are read from the source, deterministica
     expect(TEST_FILE.test("tests/x_test.go")).toBe(false);
   });
 
+  it("reads the namespaced `assert.<method>` dialect that real external repositories use", () => {
+    // The Phase 08 external exposure, and the third over-fitting this reader has had to shed. Two real
+    // Owner repositories (`dsh-health-scheduler`, `dsh-restart`) assert with Node's built-in `assert` module
+    // and contain **zero** `expect(` calls: measured, 798 `assert.<method>(` calls between them
+    // (`scripts/measure-assertion-dialect.cjs`). The reader recognised NONE of them, so every change to
+    // those repositories was judged `INSUFFICIENT_EVIDENCE` however good its evidence was.
+    //
+    // The subtlety worth pinning: the entry point is the IDENTIFIER, not `identifier(`, because a method
+    // sits between the namespace and the parenthesis. A pattern requiring `(` right after `assert` cannot
+    // match `assert.equal(a, b)` at all — the first attempt at this fix matched nothing and the branch
+    // written to handle the form never ran, which looked exactly like "the fix did not work".
+    const source = [
+      'import assert from "node:assert/strict";',
+      'import { describe, it } from "node:test";',
+      'describe("intervention-file", () => {',
+      '  it("round-trips a populated interventions array", () => {',
+      '    const interventions = [{ id: "a", taskId: "t" }, { id: "b", taskId: "t" }];',
+      "    const parsed = parseInterventionFile(JSON.stringify(interventionFileDocument(interventions)));",
+      '    assert.equal(parsed.status, "ok");',
+      "    assert.deepEqual(parsed.interventions, interventions);",
+      "  });",
+      "});"
+    ].join("\n");
+    const shapes = readAssertionShapes(source, "tests/x.test.js");
+    expect(shapes.map((shape) => shape.assertion)).toEqual(["assert.equal", "assert.deepEqual"]);
+    // The equality against the input is the discriminating one; the status comparison is correctly weak on
+    // its own. Same verdict the Vitest spelling of this test gets — the dialect must not change the answer.
+    const strength = summarizeAssertionStrength(source, "tests/x.test.js");
+    expect(strength.discriminating).toBe(1);
+    expect(strength.inputs.nonEmpty).toBe(1);
+  });
+
+  it("refuses `assert.ok` by name, exactly as it refuses `toBeTruthy`", () => {
+    // `assert.ok(x)` is `toBeTruthy` under another name, so it goes through the SAME list rather than a
+    // second rule that could drift from it.
+    const shapes = readAssertionShapes('assert.ok(cases);\nassert.equal(a, b);', "t.js");
+    expect(shapes.map((shape) => shape.assertion)).toEqual(["assert.ok", "assert.equal"]);
+    expect(assertionDiscriminates({ ...shapes[0]!, operandShapes: ["variable", "non-empty-literal"], referencesInput: true, echoOfInput: true }).discriminating).toBe(false);
+  });
+
+  it("does not mistake a bare identifier for an assertion call", () => {
+    // The guard on widening the entry point to the identifier: `assert` used as a name — a parameter, an
+    // import, a property — must not produce an assertion site out of nothing.
+    const source = [
+      'import assert from "node:assert/strict";',
+      "function check(assert) { return assert; }",
+      "const value = assert;",
+      "assert(true);"
+    ].join("\n");
+    const shapes = readAssertionShapes(source, "t.js");
+    // Only the real call site is an assertion; the import, the parameter and the reference are not.
+    expect(shapes.map((shape) => shape.assertion)).toEqual(["assert"]);
+  });
+
   it("reads a fixture bound with a TYPE ASSERTION suffixed to the literal", () => {
     // The same run, one step later: the model annotated the literal instead of the declaration —
     // `] as unknown as HumanInterventionRequest[]`. The type is not part of the VALUE, and leaving it in

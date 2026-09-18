@@ -19,8 +19,33 @@
 
 import { assertionDiscriminates, type AssertionShape, type OperandShape } from "./acceptance";
 
-/** Assertion entry points across the test styles this repository uses. */
-const ASSERTION_CALL = /\b(expect|assert|expectTypeOf)\s*\(/g;
+/**
+ * Assertion entry points across the test styles this repository uses, and the ones real external
+ * repositories were measured to use.
+ *
+ * ONE capture group holding the entry-point NAME, in both forms — `expect(`/`expectTypeOf(` (name captured)
+ * and `assert(` (bare). The `assert` alternative must capture too: as an uncaptured branch it left
+ * `match[1]` undefined and the whole namespaced-assertion path dead, which is exactly the kind of silent
+ * no-op that looks like "the fix did not work" rather than "the fix never ran".
+ */
+const ASSERTION_CALL = /\b(expect|expectTypeOf|assert)\b/g;
+
+/**
+ * The method form of a namespaced assertion library: `assert.equal(a, b)`, `assert.deepEqual(a, b)`.
+ *
+ * This exists because of a REAL external exposure, not a guess. Two Owner repositories in the Phase 08
+ * qualification use Node's built-in `assert` module exclusively — measured by
+ * `scripts/measure-assertion-dialect.cjs`: **0** `expect(` calls, and 798 `assert.<method>(` calls between
+ * them (`equal`, `ok`, `deepEqual`, `match`, `throws`, `rejects`, `notEqual`). The reader recognised none
+ * of them, so every change to those repositories was judged `INSUFFICIENT_EVIDENCE` no matter how good its
+ * evidence was. That is over-fitting to Vitest, and it is exactly the false-negative class the Phase 07
+ * work already had to fix twice.
+ *
+ * `assert.ok(x)` is included rather than filtered out here: it is `toBeTruthy` under another name, and
+ * `assertionDiscriminates` already refuses that family by name. Refusing it in one place instead of two
+ * keeps the "which assertions cannot fail" rule in a single list.
+ */
+const ASSERTION_METHOD = /^\s*\.\s*([A-Za-z_$][\w$]*)\s*\(/;
 
 /** Matcher names that follow a receiver, e.g. `expect(x).toEqual(y)`. */
 const MATCHER_AFTER_RECEIVER = /^\s*(?:\.\s*(?:not|resolves|rejects)\s*)?\.\s*([A-Za-z_$][\w$]*)\s*\(/;
@@ -418,13 +443,63 @@ export function readAssertionShapes(source: string, file: string, offset = 0, ou
   ASSERTION_CALL.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = ASSERTION_CALL.exec(source)) !== null) {
-    const openIndex = match.index + match[0].length - 1;
+    const receiver = match[1]!;
+    // THE ENTRY POINT IS THE IDENTIFIER, NOT `identifier(`. A namespaced assertion library puts a method
+    // between them — `assert.equal(a, b)` — so a pattern requiring `(` immediately after the namespace can
+    // never match one. That is what made the first attempt at this fix a silent no-op: the regex matched
+    // nothing, so the branch written to handle the form never ran. Measured, after the fact, with
+    // `node scripts/probe-regex-min.cjs`.
+    const afterName = match.index + match[0].length;
+    const at = atLine(file, source, match.index, offset);
+
+    // Form 1 — `assert.equal(…)` / `assert.deepEqual(…)`. The method IS the matcher and its arguments ARE
+    // the operands. This is the form two real external Owner repositories use exclusively.
+    const method = ASSERTION_METHOD.exec(source.slice(afterName));
+    if (method) {
+      const methodOpen = afterName + method[0].length - 1;
+      const methodClose = matchParen(source, methodOpen);
+      if (methodClose < 0) continue; // Unbalanced: unreadable, so contribute nothing.
+      const operands = splitArguments(source.slice(methodOpen + 1, methodClose));
+      const operandShapes: OperandShape[] = operands.map((operand) => operandShapeOf(operand, bindings));
+      // `assert.equal(result, input)` is the same shape as `expect(result).toEqual(input)`, so it gets the
+      // same echo and reference reasoning rather than a weaker rule of its own. Both operands must be BARE
+      // identifiers (and distinct) for the echo reading: a literal on either side is not an input.
+      const echoes = receiver === "assert" && operands.length === 2
+        && operands[0]!.trim() !== operands[1]!.trim()
+        && /^[A-Za-z_$][\w$.]*$/.test(operands[0]!.trim())
+        && /^[A-Za-z_$][\w$.]*$/.test(operands[1]!.trim());
+      const referencesInput = operands.some((operand) => [...bindings.keys()].some((name) => new RegExp(`(^|[^\\w$.])${name.replace(/\$/g, "\\$")}(\\b|\\.|\\[)`).test(operand.trim())));
+      const nested = operands.flatMap((operand) => readCallArgumentShapes(operand).expressions);
+      shapes.push({
+        at,
+        operandShapes,
+        operandNames: operands,
+        assertion: `${receiver}.${method[1]}`,
+        echoOfInput: echoes,
+        referencesInput,
+        ...(nested.length ? { callArguments: nested } : {})
+      });
+      ASSERTION_CALL.lastIndex = methodClose + 1;
+      continue;
+    }
+
+    // Form 2 — `expect(x)` / `expectTypeOf(x)` / a bare `assert(cond)`, each possibly followed by a matcher
+    // chain or, for `expect`, by its own method form.
+    const openIndex = afterName;
+    if (source[openIndex] !== "(") continue; // The identifier appears without a call: not an assertion.
     const closeIndex = matchParen(source, openIndex);
     if (closeIndex < 0) continue; // Unbalanced: unreadable, so contribute nothing.
     const receivers = splitArguments(source.slice(openIndex + 1, closeIndex));
     const after = source.slice(closeIndex + 1);
+
+    if (receiver === "assert") {
+      // A bare `assert(cond)`: the name is the assertion and its arguments are the operands.
+      shapes.push({ at, operandShapes: receivers.map((argument) => operandShapeOf(argument, bindings)), operandNames: receivers, assertion: "assert" });
+      ASSERTION_CALL.lastIndex = closeIndex + 1;
+      continue;
+    }
+
     const matcher = MATCHER_AFTER_RECEIVER.exec(after);
-    const at = atLine(file, source, match.index, offset);
     const operandShapes: OperandShape[] = receivers.map((receiver) => operandShapeOf(receiver, bindings));
 
     if (matcher) {

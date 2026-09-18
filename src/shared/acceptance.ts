@@ -202,10 +202,18 @@ export interface SatisfactionResult {
  * `toBeDefined`/`toBeTruthy`/`not.toBeNull` are the classic shape of a test that passes without checking
  * anything a reader would call the behaviour. They are only weak when they are ALL a case has, which is
  * why this is consulted per-case rather than per-file.
+ *
+ * `ok` and `notOk` are here for their own reason: they are Node's `assert` spellings of `toBeTruthy` and
+ * `not.toBeTruthy`, and a namespaced library names the same refusal differently. `assertionDiscriminates`
+ * strips the `assert.` namespace before consulting this list, so the two dialects share one rule instead of
+ * two that can drift apart — which is exactly what happened: `assert.ok(x)` was reaching the operand
+ * reasoning, and with a variable operand it came out discriminating, i.e. `assert.ok(result)` would have
+ * counted as evidence.
  */
 const NON_DISCRIMINATING_ASSERTIONS = new Set([
   "toBeDefined", "toBeTruthy", "toBeNull", "toBeUndefined", "toBeInstanceOf",
-  "not.toBeNull", "not.toBeUndefined", "not.toBeDefined", "not.toBeFalsy"
+  "not.toBeNull", "not.toBeUndefined", "not.toBeDefined", "not.toBeFalsy",
+  "ok", "notOk"
 ]);
 
 /**
@@ -223,7 +231,11 @@ const NON_DISCRIMINATING_ASSERTIONS = new Set([
  * signals exist and why this is deliberately strict.
  */
 export function assertionDiscriminates(shape: AssertionShape): { discriminating: boolean; reason: string } {
-  if (NON_DISCRIMINATING_ASSERTIONS.has(shape.assertion)) {
+  // A namespaced assertion library names the same refusal differently: `assert.ok(x)` is `toBeTruthy(x)`.
+  // The list below is the single place that decides which assertions cannot fail, so the namespace is
+  // stripped HERE rather than duplicated as a second `assert.`-prefixed list that could drift from it.
+  const name = shape.assertion.startsWith("assert.") ? shape.assertion.slice("assert.".length) : shape.assertion;
+  if (NON_DISCRIMINATING_ASSERTIONS.has(name) || NON_DISCRIMINATING_ASSERTIONS.has(shape.assertion)) {
     return { discriminating: false, reason: `${shape.at} asserts only \`${shape.assertion}\`, which passes for almost any value` };
   }
   if (shape.operandShapes.length === 0) {
