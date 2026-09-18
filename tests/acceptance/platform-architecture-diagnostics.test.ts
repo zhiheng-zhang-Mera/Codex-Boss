@@ -194,11 +194,20 @@ describe("Phase 01 — the phase artifact", () => {
     // command twice must produce the same content apart from the timestamp.
     const file = path.join(PROJECT, ...ARCHITECTURE_SNAPSHOT_PATH.split("/"));
     const before = JSON.parse(fs.readFileSync(file, "utf8"));
+    // The recorded value is fed back through the SAME input the generator read it from, or the second run
+    // is not the same run. `BOSS_BASELINE_SHA` is what the generator records, and it distinguishes two
+    // inputs that `String(x ?? "")` collapsed into one: unset records `null`, empty records `""`. Collapsing
+    // them meant a freshly generated artifact (baselineCommit null) failed this case on its FIRST run and
+    // only passed on the second — after the failure had already rewritten the file with `""`. That is a
+    // test that repairs its own evidence, so it is fixed here rather than by pre-seeding the environment.
+    const env = { ...process.env };
+    if (before.baselineCommit === null || before.baselineCommit === undefined) delete env.BOSS_BASELINE_SHA;
+    else env.BOSS_BASELINE_SHA = String(before.baselineCommit);
     execFileSync(process.execPath, [CLI, "snapshot"], {
       cwd: PROJECT,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, BOSS_BASELINE_SHA: String(before.baselineCommit ?? "") }
+      env
     });
     const after = JSON.parse(fs.readFileSync(file, "utf8"));
     expect({ ...after, generatedAt: null }).toEqual({ ...before, generatedAt: null });

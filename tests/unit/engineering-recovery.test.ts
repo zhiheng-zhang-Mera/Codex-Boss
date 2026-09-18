@@ -464,18 +464,48 @@ describe("§9 one rule: CONVERGED preserves, everything else rolls back", () => 
 
 describe("recovery ledger", () => {
   it("is bounded and survives corrupt content", () => {
+    // The cap is injected rather than exercised at its production value. `append` rewrites the whole file,
+    // so appending cap+10 events is O(cap²) file I/O: at the production cap of 200 that is 210 rewrites,
+    // which took 85 s on a CI runner and exceeded vitest's 60 s per-test timeout while passing in ~18 s
+    // locally. The rule being asserted is "the newest N are kept", not that N is 200, so a small cap proves
+    // the same thing without the cost. The production constant is covered by the default below.
+    const retention = 15;
     const dir = root();
     const file = path.join(dir, "engineering-recovery.json");
-    const ledger = new EngineeringRecoveryLedger(file);
+    const ledger = new EngineeringRecoveryLedger(file, retention);
     const recovery = { attempted: false as const, code: "CHECKPOINT_UNAVAILABLE" as const, reason: "x" };
-    for (let index = 0; index < 210; index++) ledger.append({ at: new Date().toISOString(), goalId: "g", code: `C${index}`, reason: "r", recovery });
+    const appended = retention + 10;
+    for (let index = 0; index < appended; index++) ledger.append({ at: new Date().toISOString(), goalId: "g", code: `C${index}`, reason: "r", recovery });
+
     const events = ledger.list();
-    expect(events.length).toBe(200);
-    expect(events[events.length - 1]!.code).toBe("C209");
+    // Bounded: exactly the cap, not everything that was appended.
+    expect(events.length).toBe(retention);
+    expect(appended).toBeGreaterThan(retention);
+    // And it is the NEWEST window: the oldest were dropped, the last is the last appended.
+    expect(events[0]!.code).toBe(`C${appended - retention}`);
+    expect(events[events.length - 1]!.code).toBe(`C${appended - 1}`);
 
     fs.writeFileSync(file, "{ not json");
     expect(new EngineeringRecoveryLedger(file).list()).toEqual([]);
     fs.writeFileSync(file, JSON.stringify({ schemaVersion: 2, events: [] }));
     expect(new EngineeringRecoveryLedger(file).list()).toEqual([]);
+  });
+
+  it("defaults to the production retention cap", () => {
+    // The constant itself is still asserted, so a test that injects a small cap cannot hide a change to it.
+    const file = path.join(root(), "engineering-recovery.json");
+    const ledger = new EngineeringRecoveryLedger(file);
+    const recovery = { attempted: false as const, code: "CHECKPOINT_UNAVAILABLE" as const, reason: "x" };
+    // One past what the production ledger should keep, written straight to the file so the default path is
+    // read without paying 200 appends.
+    const events = Array.from({ length: 260 }, (_value, index) => ({ at: new Date().toISOString(), goalId: "g", code: `C${index}`, reason: "r", recovery }));
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, events }));
+    ledger.append({ at: new Date().toISOString(), goalId: "g", code: "LAST", reason: "r", recovery });
+    const kept = ledger.list();
+    expect(kept.length).toBe(200);
+    expect(kept[kept.length - 1]!.code).toBe("LAST");
+    // 261 events after the append, keeping the newest 200 drops the oldest 61, so the window starts at C61.
+    expect(kept[0]!.code).toBe("C61");
   });
 });

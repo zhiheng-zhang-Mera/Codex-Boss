@@ -82,8 +82,25 @@ jobs:
       # "Cannot find module '../dist-electron/...'" and exited 1 instead of its
       # documented exit code, failing two tests on every run.
       - run: pnpm run build
-      # The default tier: fast, deterministic, and — since Phase N — needs nothing but
-      # the sources, so it passes on a clean checkout. See vitest.tiers.mjs.
+      # The Phase 01 architecture snapshot, which the default tier READS.
+      #
+      # `tests/acceptance/platform-architecture-diagnostics.test.ts` requires the artifact at
+      # `artifacts/platform-foundation/phase-01/architecture-snapshot.json`: one case asserts it exists and
+      # holds the expected counts, and a second regenerates it and requires the result to match apart from
+      # its own `generatedAt` stamp. `artifacts/` is gitignored (0 tracked files), so on a clean checkout the
+      # file is absent and the suite failed on every run with "the phase artifact is missing" — the tier did
+      # NOT in fact need only the sources, which is what the note below used to claim.
+      #
+      # Generating it first is the fix, and it is honest: the file is derived from the sources by this
+      # repository's own script (no network; the only non-source field is `generatedAt`, which the comparison
+      # above ignores). It costs well under a second.
+      #
+      # It is NOT needed by `architecture:ratchet` in the job above: the ratchet reads the committed
+      # `config/architecture-baseline.json`, and the snapshot path appears in that script only as a write
+      # target.
+      - run: pnpm run architecture:snapshot
+      # The default tier: fast, deterministic, and — with the snapshot step above — needs nothing on a clean
+      # checkout that the workflow does not produce. See vitest.tiers.mjs.
       - run: pnpm test
       # The build-dependent tier: the suites that read the real dist/ + dist-electron/
       # output. They must follow the build, which is the ordering this job has always

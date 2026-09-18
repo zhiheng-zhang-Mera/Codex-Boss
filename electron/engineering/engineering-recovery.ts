@@ -127,13 +127,20 @@ const RECOVERY_EVENT_RETENTION = 200;
  * ended on), and it must survive a goal replacement.
  */
 export class EngineeringRecoveryLedger {
-  constructor(private readonly file: string) {}
+  /**
+   * `retention` defaults to the production cap and exists only so a test can exercise the BOUNDEDNESS rule
+   * without paying for it. `append` is a read-modify-write of the whole file, so proving "the ledger keeps
+   * the newest N" by appending N+10 events costs O(N²) file I/O: at the production cap of 200 that is 210
+   * full rewrites, which took 85 s on a CI runner and tripped vitest's 60 s per-test timeout while passing
+   * in ~18 s locally. The rule under test is the cap, not the constant, so the test injects a small one.
+   */
+  constructor(private readonly file: string, private readonly retention: number = RECOVERY_EVENT_RETENTION) {}
 
   append(event: EngineeringRecoveryEvent): void {
     // A new event is appended to whatever is readable. An unreadable ledger is
     // reported by `read()` but must not block recording the event that is
     // happening now, which would lose the newest evidence to protect the oldest.
-    const events = [...this.read().events, event].slice(-RECOVERY_EVENT_RETENTION);
+    const events = [...this.read().events, event].slice(-this.retention);
     writeJson(this.file, { schemaVersion: 1, events } satisfies EngineeringRecoveryFile);
   }
 

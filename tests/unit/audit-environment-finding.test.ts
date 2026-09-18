@@ -103,13 +103,13 @@ describe("Phase 06 — an unbuildable workspace is reported as an environment fa
 describe("Phase 06 — a real compiler diagnostic still produces a scoped code finding", () => {
   it("keeps a genuine type failure a code finding once the workspace is buildable", async () => {
     // The direction that must not regress. This is the ONLY way to prove it end to end: the audit runs
-    // the workspace's own tooling, so the workspace has to actually have it. The install is offline
-    // from the local store (~4 s) and is the same precondition the dogfooding harness establishes.
+    // the workspace's own tooling, so the workspace has to actually have it. The install is the same
+    // precondition the dogfooding harness establishes.
     const workspace = path.join(dir, "broken");
     fs.mkdirSync(path.join(workspace, "src", "shared"), { recursive: true });
     fs.writeFileSync(path.join(workspace, "src", "shared", "broken.ts"), "export const value: number = \"not a number\";\n", "utf8");
     fs.writeFileSync(path.join(workspace, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true, noEmit: true }, include: ["src"] }), "utf8");
-    // The workspace declares the tool the audit will run, so the offline install actually produces it.
+    // The workspace declares the tool the audit will run, so the install actually produces it.
     // Versioned from this repository's own devDependencies rather than hardcoded, so the test cannot
     // silently install something the project does not use.
     const repoPackage = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as { devDependencies?: Record<string, string> };
@@ -120,17 +120,32 @@ describe("Phase 06 — a real compiler diagnostic still produces a scoped code f
       devDependencies: { typescript: typescriptVersion }
     }), "utf8");
 
+    // Two install routes, and the SAME assertion either way. A warm local store is the fast route (~4 s);
+    // when there is no usable store the network is the route. Neither is a precondition this test may
+    // demand.
+    //
+    // It previously demanded the warm route: it passed `--offline` whenever `D:\.pnpm-store` merely
+    // EXISTED, and failed on the CI runner because that directory exists there but is not a usable pnpm
+    // store — so the install died and took the test with it, for a reason with nothing to do with the
+    // audit. "That directory exists" is not the same question as "that store is usable", and
+    // `--offline` turns the wrong answer into a hard failure instead of a slow one.
+    const install = (flags: string): void => {
+      execFileSync("powershell", ["-NoProfile", "-Command", `corepack pnpm install --ignore-scripts${flags}`], {
+        cwd: workspace,
+        windowsHide: true,
+        timeout: 600_000,
+        stdio: ["ignore", "ignore", "ignore"]
+      });
+    };
     const storeDir = process.env.BOSS_PNPM_STORE ?? "D:\\.pnpm-store";
-    const offline = fs.existsSync(storeDir) ? ` --offline "--store-dir=${storeDir}"` : "";
-    execFileSync("powershell", ["-NoProfile", "-Command", `corepack pnpm install --ignore-scripts${offline}`], {
-      cwd: workspace,
-      windowsHide: true,
-      timeout: 900000,
-      stdio: ["ignore", "ignore", "ignore"]
-    });
-    // A workspace that could not get a toolchain cannot answer this question at all, so the test says
-    // so rather than passing vacuously on an assertion it never reached.
     const tsc = path.join(workspace, "node_modules", "typescript", "bin", "tsc");
+    try {
+      install(` --offline "--store-dir=${storeDir}"`);
+    } catch {
+      install("");
+    }
+    // A workspace that could not get a toolchain cannot answer this question at all, so this stays a hard
+    // failure rather than a skip: the test must not pass on a compiler it never reached.
     expect(fs.existsSync(tsc), `the isolated workspace must have a compiler to audit with (${tsc})`).toBe(true);
 
     const findings = await createRepoEngineeringOperations({ workspace }).audit(goal(workspace));
