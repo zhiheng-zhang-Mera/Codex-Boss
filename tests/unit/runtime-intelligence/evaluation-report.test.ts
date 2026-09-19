@@ -19,8 +19,8 @@ import {
   type PlaneStorageStats
 } from "../../../src/shared/runtime-intelligence/evaluation-report";
 import { RuntimeIntelligenceService, type EvaluationBundle, type EvaluationBundleInput } from "../../../electron/runtime-intelligence/runtime-intelligence-service";
-import { benchmarkScheduler } from "../../../src/shared/runtime-intelligence/scheduler-benchmark";
-import { benchmarkContinuation } from "../../../src/shared/runtime-intelligence/continuation-benchmark";
+import { benchmarkScheduler as benchmarkSchedulerRaw, type ReplayCase } from "../../../src/shared/runtime-intelligence/scheduler-benchmark";
+import { benchmarkContinuation as benchmarkContinuationRaw, type ContinuationReplayStep } from "../../../src/shared/runtime-intelligence/continuation-benchmark";
 import { replaySkillLoadout, replaySkillLoadouts } from "../../../src/shared/runtime-intelligence/skill-replay";
 import { createObservation } from "../../../src/shared/runtime-intelligence/telemetry";
 import type { ContinuationAssessment, RuntimeObservation, SchedulingRecommendation, SkillCard, TaskProfile } from "../../../src/shared/runtime-intelligence/contracts";
@@ -32,6 +32,26 @@ import type { ContinuationAssessment, RuntimeObservation, SchedulingRecommendati
  */
 
 const AT = "2026-01-01T00:00:00.000Z";
+
+/**
+ * Cases in this suite declare what their advice saw, because the temporal guard refuses to score
+ * an undeclared case. Declaring is the default here so each test states only what it is about.
+ */
+const DECLARED_INPUT = { fields: ["stepIndex", "unresolvedCount", "provider", "runtimeId"], label: "the test advice" } as const;
+
+function benchmarkScheduler(cases: readonly ReplayCase[], options?: { minimum?: number }) {
+  return benchmarkSchedulerRaw(
+    cases.map((entry) => (entry.inputDeclaration === undefined ? { ...entry, inputDeclaration: DECLARED_INPUT } : entry)),
+    options
+  );
+}
+
+function benchmarkContinuation(steps: readonly ContinuationReplayStep[], options?: { minimum?: number }) {
+  return benchmarkContinuationRaw(
+    steps.map((entry) => (entry.inputDeclaration === undefined ? { ...entry, inputDeclaration: DECLARED_INPUT } : entry)),
+    options
+  );
+}
 
 const boundary: EvaluationInput["boundary"] = {
   rootTrustTouched: false,

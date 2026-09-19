@@ -29,8 +29,9 @@ import {
   type SchedulingRecommendation
 } from "./contracts";
 import { calibrate, type CalibrationReport, type CalibrationSample } from "./calibration";
+import { checkReplayInput, type ReplayInputDeclaration } from "./temporal-guard";
 
-export const BENCHMARK_VERDICTS = ["SUPPORTED", "CONTRADICTED", "INCONCLUSIVE", "NOT_FOLLOWED"] as const;
+export const BENCHMARK_VERDICTS = ["SUPPORTED", "CONTRADICTED", "INCONCLUSIVE", "NOT_FOLLOWED", "INVALID_REPLAY_CASE"] as const;
 export type BenchmarkVerdict = (typeof BENCHMARK_VERDICTS)[number];
 
 /** Cases needed before the aggregate is called evidence. */
@@ -44,6 +45,12 @@ export interface ReplayCase {
   /** The recommendation recorded before the run, when one was. */
   recommendation?: SchedulingRecommendation;
   observation: RuntimeObservation;
+  /**
+   * What the advice was allowed to see. A case that declares — or carries — a post-decision
+   * field is INVALID_REPLAY_CASE rather than SUPPORTED, because a case that can see the outcome
+   * cannot be said to have predicted it.
+   */
+  inputDeclaration?: ReplayInputDeclaration;
 }
 
 export interface EstimateError {
@@ -96,6 +103,30 @@ export function judgeReplayCase(input: ReplayCase): ReplayCaseVerdict {
   const reasons: string[] = [];
   const domain = observation.execution.failureDomain;
   const outcome = observation.execution.outcome;
+
+  /**
+   * The temporal guard runs FIRST, before any comparison.
+   *
+   * A case whose declared input reaches a post-decision field is not a weak case, it is not a
+   * case at all: scoring it either way would put a number in the report that nothing measured.
+   */
+  const leak = checkReplayInput(input.inputDeclaration);
+  if (leak.verdict === "INVALID_REPLAY_CASE") {
+    return {
+      taskId: input.taskId,
+      observationId: observation.observationId,
+      verdict: "INVALID_REPLAY_CASE",
+      modelAgreement: false,
+      nodeAgreement: false,
+      usedFallback: false,
+      skillLoadoutAgreement: false,
+      confidence: recommendation?.confidence,
+      observedSuccess: undefined,
+      attributedToModel: false,
+      reasons: leak.reasons
+    };
+  }
+
   const observedSuccess = outcome === "SUCCESS" ? true : outcome === "FAILED" ? false : undefined;
   // Attributable means "this failure is the model's responsibility". A failure with no recorded
   // domain is treated as attributable rather than escaping judgement; a success has nothing to
@@ -179,6 +210,8 @@ export interface SchedulerBenchmarkMetrics {
   cases: number;
   /** Cases where an outcome was observed, which are the only ones a metric may use. */
   casesWithOutcome: number;
+  /** Cases refused for temporal leakage. Excluded from every rate. */
+  invalidCases: number;
   verdicts: Record<BenchmarkVerdict, number>;
   modelAgreementRate: number | undefined;
   nodeAgreementRate: number | undefined;
@@ -213,19 +246,22 @@ export interface SchedulerBenchmarkMetrics {
  */
 export function benchmarkScheduler(cases: readonly ReplayCase[], options: { minimum?: number } = {}): SchedulerBenchmarkMetrics {
   const minimum = options.minimum ?? MIN_BENCHMARK_CASES;
-  const verdicts: Record<BenchmarkVerdict, number> = { SUPPORTED: 0, CONTRADICTED: 0, INCONCLUSIVE: 0, NOT_FOLLOWED: 0 };
+  const verdicts: Record<BenchmarkVerdict, number> = { SUPPORTED: 0, CONTRADICTED: 0, INCONCLUSIVE: 0, NOT_FOLLOWED: 0, INVALID_REPLAY_CASE: 0 };
   const judged = cases.map((entry) => judgeReplayCase(entry));
   for (const verdict of judged) verdicts[verdict.verdict] += 1;
 
-  const withOutcome = judged.filter((verdict) => verdict.observedSuccess !== undefined);
-  const modelAgreementSamples = judged.filter((verdict) => verdict.modelAgreement !== undefined && verdict.confidence !== undefined);
+  // An invalid case is excluded from EVERY rate, so a leaked case cannot inflate a success rate
+  // or a sample count. It is reported in `verdicts` and in the notes instead.
+  const scored = judged.filter((verdict) => verdict.verdict !== "INVALID_REPLAY_CASE");
+  const withOutcome = scored.filter((verdict) => verdict.observedSuccess !== undefined);
+  const modelAgreementSamples = scored.filter((verdict) => verdict.modelAgreement !== undefined && verdict.confidence !== undefined);
   const rate = (numerator: number, denominator: number): number | undefined => (denominator === 0 ? undefined : Math.round((numerator / denominator) * 10000) / 10000);
 
   const followed = withOutcome.filter((verdict) => verdict.verdict === "SUPPORTED" || verdict.verdict === "CONTRADICTED");
   const modelAgreementCount = modelAgreementSamples.filter((verdict) => verdict.modelAgreement).length;
-  const nodeAgreementCount = cases.filter((entry, index) => entry.recommendation?.preferredNode !== undefined && judged[index].nodeAgreement).length;
-  const nodeAgreementDenominator = cases.filter((entry) => entry.recommendation?.preferredNode !== undefined).length;
-  const skillAgreementCount = judged.filter((verdict) => verdict.skillLoadoutAgreement).length;
+  const nodeAgreementCount = scored.filter((verdict) => verdict.nodeAgreement).length;
+  const nodeAgreementDenominator = cases.filter((entry, index) => entry.recommendation?.preferredNode !== undefined && judged[index].verdict !== "INVALID_REPLAY_CASE").length;
+  const skillAgreementCount = scored.filter((verdict) => verdict.skillLoadoutAgreement).length;
 
   const confidentFollowed = followed.filter((verdict) => (verdict.confidence ?? 0) >= CONFIDENT_THRESHOLD);
   const successPrecision = rate(confidentFollowed.filter((verdict) => verdict.observedSuccess).length, confidentFollowed.length);
@@ -247,7 +283,7 @@ export function benchmarkScheduler(cases: readonly ReplayCase[], options: { mini
   const agreementLiftOverMajority =
     modelAgreementSamples.length === 0 || majorityAgreementRate === undefined ? undefined : Math.round((modelAgreementCount / modelAgreementSamples.length - majorityAgreementRate) * 10000) / 10000;
 
-  const fallbackCases = judged.filter((verdict) => verdict.usedFallback);
+  const fallbackCases = scored.filter((verdict) => verdict.usedFallback);
   const fallbackSucceeded = fallbackCases.filter((verdict) => verdict.observedSuccess).length;
 
   /**
@@ -263,6 +299,7 @@ export function benchmarkScheduler(cases: readonly ReplayCase[], options: { mini
     .map((verdict) => ({ predicted: verdict.confidence ?? 0, observed: verdict.observedSuccess === true, source: "scheduler" }));
 
   const notes: string[] = [];
+  if (verdicts.INVALID_REPLAY_CASE > 0) notes.push(`${verdicts.INVALID_REPLAY_CASE} case(s) were INVALID_REPLAY_CASE for temporal leakage and are excluded from every rate`);
   if (withOutcome.length < minimum) notes.push(`${withOutcome.length} case(s) with an observed outcome is below the ${minimum} needed for a benchmark verdict`);
   if (cases.length > withOutcome.length) notes.push(`${cases.length - withOutcome.length} case(s) had no observed outcome and are excluded from every rate`);
   if (verdicts.NOT_FOLLOWED > 0) notes.push(`${verdicts.NOT_FOLLOWED} case(s) did not follow the advice, so they measure the loop rather than the advisor`);
@@ -271,6 +308,7 @@ export function benchmarkScheduler(cases: readonly ReplayCase[], options: { mini
   return {
     cases: cases.length,
     casesWithOutcome: withOutcome.length,
+    invalidCases: verdicts.INVALID_REPLAY_CASE,
     verdicts,
     modelAgreementRate: rate(modelAgreementCount, modelAgreementSamples.length),
     nodeAgreementRate: rate(nodeAgreementCount, nodeAgreementDenominator),

@@ -3,8 +3,8 @@ import {
   BENCHMARK_VERDICTS,
   CONFIDENT_THRESHOLD,
   MIN_BENCHMARK_CASES,
-  benchmarkScheduler,
-  judgeReplayCase,
+  benchmarkScheduler as benchmarkSchedulerRaw,
+  judgeReplayCase as judgeReplayCaseRaw,
   recommendationFactors,
   type BenchmarkVerdict,
   type EstimateError,
@@ -13,6 +13,22 @@ import {
   type ReplayCaseVerdict,
   type SchedulerBenchmarkMetrics
 } from "../../../src/shared/runtime-intelligence/scheduler-benchmark";
+import { checkReplayInput } from "../../../src/shared/runtime-intelligence/temporal-guard";
+
+/**
+ * Every case below declares what its advice was allowed to see, because the temporal guard
+ * refuses to score a case whose inputs cannot be shown to be at-decision-time. Declaring is the
+ * default here so each test states only what it is about; the guard itself is exercised by
+ * passing a dishonest declaration explicitly.
+ */
+const DECLARED_INPUT = { fields: ["stepIndex", "unresolvedCount", "completedCount", "provider", "runtimeId", "mountedSkills", "usedSkills", "contextInjected", "tokensConsumed", "elapsedMs"], label: "the test advice" } as const;
+
+function withDeclaration(entry: ReplayCase): ReplayCase {
+  return entry.inputDeclaration === undefined ? { ...entry, inputDeclaration: DECLARED_INPUT } : entry;
+}
+
+const benchmarkScheduler = (cases: readonly ReplayCase[], options?: { minimum?: number }): SchedulerBenchmarkMetrics => benchmarkSchedulerRaw(cases.map(withDeclaration), options);
+const judgeReplayCase = (entry: ReplayCase): ReplayCaseVerdict => judgeReplayCaseRaw(withDeclaration(entry));
 import { createObservation } from "../../../src/shared/runtime-intelligence/telemetry";
 import { adviseScheduling } from "../../../src/shared/runtime-intelligence/scheduling-advisor";
 import { applyModelOutcome, createModelRecord } from "../../../src/shared/runtime-intelligence/model-ledger";
@@ -131,8 +147,7 @@ describe("a single case is judged against its advice", () => {
     expect(verdict.reasons.join(" ")).toContain("fallback");
   });
 
-  it("is INCONCLUSIVE with no recorded advice, and with no observed outcome", () => {
-    const noAdvice = judgeReplayCase({ taskId: "t", observation: observation({ taskId: "t", modelKey: "m", outcome: "SUCCESS" }) });
+  it("is INCONCLUSIVE with no recorded advice, and with no observed outcome", () => {    const noAdvice = judgeReplayCase({ taskId: "t", observation: observation({ taskId: "t", modelKey: "m", outcome: "SUCCESS" }) });
     expect(noAdvice.verdict).toBe("INCONCLUSIVE");
     expect(noAdvice.confidence).toBeUndefined();
     const noOutcome = judgeReplayCase({ taskId: "t", recommendation: recommendation({ taskId: "t", modelKey: "m" }), observation: observation({ taskId: "t", modelKey: "m", outcome: "UNKNOWN" }) });

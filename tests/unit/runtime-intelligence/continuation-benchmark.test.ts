@@ -3,14 +3,27 @@ import {
   CONTINUATION_OBSERVED,
   CONTINUATION_PENALTIES,
   MIN_CONTINUATION_STEPS,
-  benchmarkContinuation,
+  benchmarkContinuation as benchmarkContinuationRaw,
   compareContinuationPenalty,
-  judgeContinuationStep,
+  judgeContinuationStep as judgeContinuationStepRaw,
   type ContinuationBenchmarkMetrics,
   type ContinuationObserved,
   type ContinuationReplayStep,
   type ContinuationStepVerdict
 } from "../../../src/shared/runtime-intelligence/continuation-benchmark";
+
+/**
+ * Every step below declares what its shadow assessment was allowed to see, because the temporal
+ * guard refuses to judge a step whose advice cannot be shown to be at-decision-time.
+ */
+const DECLARED_INPUT = { fields: ["stepIndex", "unresolvedCount", "completedCount", "tokensConsumed", "elapsedMs"], label: "the shadow advice" } as const;
+
+function withDeclaration(entry: ContinuationReplayStep): ContinuationReplayStep {
+  return entry.inputDeclaration === undefined ? { ...entry, inputDeclaration: DECLARED_INPUT } : entry;
+}
+
+const judgeContinuationStep = (entry: ContinuationReplayStep): ContinuationStepVerdict => judgeContinuationStepRaw(withDeclaration(entry));
+const benchmarkContinuation = (steps: readonly ContinuationReplayStep[], options?: { minimum?: number }): ContinuationBenchmarkMetrics => benchmarkContinuationRaw(steps.map(withDeclaration), options);
 import { evaluateContinuation } from "../../../src/shared/runtime-intelligence/continuation-evaluator";
 import type { ContinuationAssessment, ContinuationDecision, ContinuationSignals } from "../../../src/shared/runtime-intelligence/contracts";
 
@@ -47,6 +60,7 @@ function step(overrides: Partial<ContinuationReplayStep> & { decision: Continuat
     assessment: assessment(overrides.decision),
     observed: "CONTINUED",
     taskComplete: false,
+    inputDeclaration: DECLARED_INPUT,
     ...overrides
   };
 }

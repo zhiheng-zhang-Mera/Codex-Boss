@@ -393,13 +393,21 @@ export type ContinuationDecision = (typeof CONTINUATION_DECISIONS)[number];
 
 export type ToolProgress = "PROGRESSING" | "STALLED" | "UNKNOWN";
 
+/**
+ * The signals available to a continuation judgement.
+ *
+ * Most are optional because real data does not always carry them: an application that never
+ * recorded output novelty cannot answer a question about it, and the honest input is `undefined`
+ * rather than `0`. An absent signal neither triggers nor vetoes a rule, and the assessment lists
+ * it so a reader can see which rules could not apply.
+ */
 export interface ContinuationSignals {
   taskId: string;
   modelKey: string;
-  /** 0..1 self-reported or measured completion of the objective. */
-  progress: number;
-  /** 0..1 — how much of the latest output was not present in earlier outputs. */
-  outputNovelty: number;
+  /** 0..1 self-reported or measured completion of the objective. Absent = not measurable. */
+  progress?: number;
+  /** 0..1 — how much of the latest output was not present in earlier outputs. Absent = not measured. */
+  outputNovelty?: number;
   /** 0..1 — the model's own or the observer's uncertainty. Absent = not measured. */
   uncertainty?: number;
   unresolvedItems: number;
@@ -407,11 +415,11 @@ export interface ContinuationSignals {
   tokensConsumed: number;
   tokenBudget?: number;
   elapsedMs: number;
-  /** 0..1 — share of the latest output that repeats earlier output. */
-  repeatRate: number;
-  selfContradictions: number;
-  reviewerDisagreements: number;
-  reviewerReviews: number;
+  /** 0..1 — share of the latest output that repeats earlier output. Absent = not measured. */
+  repeatRate?: number;
+  selfContradictions?: number;
+  reviewerDisagreements?: number;
+  reviewerReviews?: number;
   toolProgress: ToolProgress;
   stepsCompleted: number;
   expectedSteps?: number;

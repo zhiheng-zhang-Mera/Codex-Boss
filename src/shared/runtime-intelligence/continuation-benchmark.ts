@@ -19,6 +19,7 @@
  */
 
 import type { ContinuationAssessment, ContinuationDecision } from "./contracts";
+import { checkReplayInput, type ReplayInputDeclaration } from "./temporal-guard";
 
 export const CONTINUATION_OBSERVED = ["CONTINUED", "STOPPED", "SWITCHED", "UNKNOWN"] as const;
 export type ContinuationObserved = (typeof CONTINUATION_OBSERVED)[number];
@@ -55,6 +56,12 @@ export interface ContinuationReplayStep {
   taskSucceeded?: boolean;
   /** Whether the loop decomposed the task after this step. */
   decomposed?: boolean;
+  /**
+   * What the shadow assessment was allowed to see. A step whose advice could see the outcome is
+   * NOT_FUTURE_INFORMATION's opposite: it is not judged at all, because an evaluator that knew
+   * the answer would score perfectly for the wrong reason.
+   */
+  inputDeclaration?: ReplayInputDeclaration;
 }
 
 export interface ContinuationStepVerdict {
@@ -63,6 +70,8 @@ export interface ContinuationStepVerdict {
   decision: ContinuationDecision;
   observed: ContinuationObserved;
   judged: boolean;
+  /** True when the step was refused for temporal leakage rather than judged. */
+  invalidReplayCase: boolean;
   /** The plan's named error: the advice said STOP while work remained. */
   falseStop: boolean;
   falseContinue: boolean;
@@ -86,8 +95,15 @@ export function judgeContinuationStep(input: ContinuationReplayStep): Continuati
   const decision = input.assessment.decision;
   const base = { taskId: input.taskId, step: input.step, decision, observed: input.observed, falseStop: false, falseContinue: false, unnecessarySwitch: false, missedDecomposition: false, unnecessaryReview: false, savedCalls: 0, penalty: 0 };
 
+  // The temporal guard runs first: a step whose advice could see the outcome is not judged at
+  // all, so it cannot be counted as the advice being right.
+  const leak = checkReplayInput(input.inputDeclaration);
+  if (leak.verdict === "INVALID_REPLAY_CASE") {
+    return { ...base, judged: false, invalidReplayCase: true, note: `INVALID_REPLAY_CASE: ${leak.reasons.join("; ")}` };
+  }
+
   if (input.observed === "UNKNOWN") {
-    return { ...base, judged: false, note: "the loop's behaviour after this step was not recorded, so the advice is not judged" };
+    return { ...base, judged: false, invalidReplayCase: false, note: "the loop's behaviour after this step was not recorded, so the advice is not judged" };
   }
 
   const falseStop = decision === "STOP" && !input.taskComplete;
@@ -118,12 +134,14 @@ export function judgeContinuationStep(input: ContinuationReplayStep): Continuati
               ? "the advice was to stop a finished task, which is where the saving comes from"
               : "the advice agreed with what the loop did";
 
-  return { ...base, judged: true, falseStop, falseContinue, unnecessarySwitch, missedDecomposition, unnecessaryReview, savedCalls, penalty, note };
+  return { ...base, judged: true, invalidReplayCase: false, falseStop, falseContinue, unnecessarySwitch, missedDecomposition, unnecessaryReview, savedCalls, penalty, note };
 }
 
 export interface ContinuationBenchmarkMetrics {
   steps: number;
   judgedSteps: number;
+  /** Steps refused for temporal leakage. Excluded from every rate. */
+  invalidCases: number;
   decisions: Record<ContinuationDecision, number>;
   /** Steps where the shadow advice was STOP. The denominator of the false-stop rate. */
   stopsAdvised: number;
@@ -172,10 +190,12 @@ export function benchmarkContinuation(steps: readonly ContinuationReplayStep[], 
   let weightedPenalty = 0;
   let estimatedCallsSaved = 0;
   let switchesAdvised = 0;
+  let invalidCases = 0;
 
   for (const step of steps) {
     decisions[step.assessment.decision] += 1;
     const verdict = judgeContinuationStep(step);
+    if (verdict.invalidReplayCase) invalidCases += 1;
     if (!verdict.judged) continue;
     judgedSteps += 1;
     weightedPenalty += verdict.penalty;
@@ -206,6 +226,7 @@ export function benchmarkContinuation(steps: readonly ContinuationReplayStep[], 
 
   const rate = (numerator: number, denominator: number): number | undefined => (denominator === 0 ? undefined : Math.round((numerator / denominator) * 10000) / 10000);
   const notes: string[] = [];
+  if (invalidCases > 0) notes.push(`${invalidCases} step(s) were INVALID_REPLAY_CASE for temporal leakage and are excluded from every rate`);
   if (judgedSteps < minimum) notes.push(`${judgedSteps} judged step(s) is below the ${minimum} needed for a benchmark verdict`);
   if (steps.length > judgedSteps) notes.push(`${steps.length - judgedSteps} step(s) had no recorded behaviour and are excluded`);
   if (stopsAdvised === 0 && steps.length > 0) notes.push("the shadow advice never said STOP in this corpus, so no false-stop rate exists");
@@ -214,6 +235,7 @@ export function benchmarkContinuation(steps: readonly ContinuationReplayStep[], 
   return {
     steps: steps.length,
     judgedSteps,
+    invalidCases,
     decisions,
     stopsAdvised,
     falseStopCount,

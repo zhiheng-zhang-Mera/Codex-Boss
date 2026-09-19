@@ -58,6 +58,36 @@ function round(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
+/**
+ * Formats a signal that may not have been measured.
+ *
+ * `detail` runs for every rule, including the ones that did not fire, so a signal real data does
+ * not carry must render as "not measured" rather than crashing the assessment.
+ */
+function signalText(value: number | undefined): string {
+  return value === undefined ? "not measured" : value.toFixed(2);
+}
+
+/**
+ * Comparisons over possibly-absent signals.
+ *
+ * An absent signal makes every comparison FALSE, which is the module's stated rule: an
+ * unmeasured signal neither triggers nor vetoes a rule. Writing it as a helper rather than a
+ * `?? 0` default is the point — a default of zero would silently assert "no repetition
+ * observed" about data nobody observed.
+ */
+function atLeast(value: number | undefined, threshold: number): boolean {
+  return value !== undefined && value >= threshold;
+}
+
+function atMost(value: number | undefined, threshold: number): boolean {
+  return value !== undefined && value <= threshold;
+}
+
+function below(value: number | undefined, threshold: number): boolean {
+  return value !== undefined && value < threshold;
+}
+
 interface Rule {
   decision: ContinuationDecision;
   confidence: number;
@@ -80,8 +110,8 @@ const RULES: readonly Rule[] = [
     decision: "STOP",
     confidence: 0.9,
     factor: "continuation.objective-complete",
-    matches: (signals) => signals.unresolvedItems === 0 && signals.progress >= CONTINUATION_THRESHOLDS.completeProgress,
-    detail: (signals) => `progress ${signals.progress.toFixed(2)} with 0 unresolved items`,
+    matches: (signals) => signals.unresolvedItems === 0 && atLeast(signals.progress, CONTINUATION_THRESHOLDS.completeProgress),
+    detail: (signals) => `progress ${signalText(signals.progress)} with 0 unresolved items`,
   },
   {
     decision: "STOP",
@@ -94,23 +124,23 @@ const RULES: readonly Rule[] = [
     decision: "SWITCH_MODEL",
     confidence: 0.75,
     factor: "continuation.repetition",
-    matches: (signals) => signals.repeatRate >= CONTINUATION_THRESHOLDS.repetitionRate && signals.outputNovelty <= CONTINUATION_THRESHOLDS.stalledNovelty,
-    detail: (signals) => `repeat rate ${signals.repeatRate.toFixed(2)} with output novelty ${signals.outputNovelty.toFixed(2)}`,
+    matches: (signals) => atLeast(signals.repeatRate, CONTINUATION_THRESHOLDS.repetitionRate) && atMost(signals.outputNovelty, CONTINUATION_THRESHOLDS.stalledNovelty),
+    detail: (signals) => `repeat rate ${signalText(signals.repeatRate)} with output novelty ${signalText(signals.outputNovelty)}`,
   },
   {
     decision: "ASK_REVIEWER",
     confidence: 0.7,
     factor: "continuation.self-contradiction",
-    matches: (signals) => signals.selfContradictions >= CONTINUATION_THRESHOLDS.selfContradictionsForReview,
-    detail: (signals) => `${signals.selfContradictions} self-contradiction(s) observed`,
+    matches: (signals) => atLeast(signals.selfContradictions, CONTINUATION_THRESHOLDS.selfContradictionsForReview),
+    detail: (signals) => `${signals.selfContradictions ?? "not measured"} self-contradiction(s) observed`,
   },
   {
     decision: "ASK_REVIEWER",
     confidence: 0.7,
     factor: "continuation.reviewer-disagreement",
     matches: (signals) =>
-      signals.reviewerReviews > 0 && signals.reviewerDisagreements / signals.reviewerReviews >= CONTINUATION_THRESHOLDS.reviewerDisagreementRate,
-    detail: (signals) => `${signals.reviewerDisagreements} disagreement(s) across ${signals.reviewerReviews} review(s)`,
+      signals.reviewerReviews !== undefined && signals.reviewerReviews > 0 && atLeast((signals.reviewerDisagreements ?? 0) / signals.reviewerReviews, CONTINUATION_THRESHOLDS.reviewerDisagreementRate),
+    detail: (signals) => `${signals.reviewerDisagreements ?? "not measured"} disagreement(s) across ${signals.reviewerReviews ?? "not measured"} review(s)`,
   },
   {
     decision: "RETRY_WITH_CONTEXT",
@@ -132,11 +162,11 @@ const RULES: readonly Rule[] = [
     confidence: 0.6,
     factor: "continuation.no-progress",
     matches: (signals) =>
-      signals.progress < CONTINUATION_THRESHOLDS.decomposeProgress &&
+      below(signals.progress, CONTINUATION_THRESHOLDS.decomposeProgress) &&
       signals.stepsCompleted >= CONTINUATION_THRESHOLDS.decomposeAfterSteps &&
-      signals.outputNovelty <= CONTINUATION_THRESHOLDS.decomposeNovelty &&
+      atMost(signals.outputNovelty, CONTINUATION_THRESHOLDS.decomposeNovelty) &&
       signals.unresolvedItems > 0,
-    detail: (signals) => `${signals.stepsCompleted} step(s) produced progress ${signals.progress.toFixed(2)} and novelty ${signals.outputNovelty.toFixed(2)}`,
+    detail: (signals) => `${signals.stepsCompleted} step(s) produced progress ${signalText(signals.progress)} and novelty ${signalText(signals.outputNovelty)}`,
   },
   {
     decision: "ASK_REVIEWER",
@@ -144,7 +174,7 @@ const RULES: readonly Rule[] = [
     factor: "continuation.high-uncertainty",
     matches: (signals) =>
       signals.uncertainty !== undefined && signals.uncertainty >= CONTINUATION_THRESHOLDS.uncertaintyForReview && signals.unresolvedItems > 0,
-    detail: (signals) => `uncertainty ${(signals.uncertainty ?? 0).toFixed(2)} with ${signals.unresolvedItems} item(s) unresolved`,
+    detail: (signals) => `uncertainty ${signalText(signals.uncertainty)} with ${signals.unresolvedItems} item(s) unresolved`,
   },
   {
     decision: "CONTINUE",
