@@ -219,7 +219,11 @@ const EXTRA = {
     // SelfObservationSource interface, ranks candidate causes and proposes advisory treatments.
     // It owns none of the sources it reads and cannot execute what it proposes.
     "src/shared/self-diagnosis",
-    "electron/self-diagnosis"
+    "electron/self-diagnosis",
+    // Case Record: what happened, what was thought, what was done and how it turned out, as an
+    // append-only timeline. It records; it does not diagnose, repair or define the self model.
+    "src/shared/self-case-record",
+    "electron/self-case-record"
   ],
   security: [
     "electron/github",

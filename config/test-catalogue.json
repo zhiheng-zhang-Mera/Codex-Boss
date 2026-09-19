@@ -1391,6 +1391,20 @@
       ]
     },
     {
+      "file": "tests/unit/self-case-record/boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-case-record/case.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/self-cognition/boundary.test.ts",
       "tier": "unit",
       "covers": [
