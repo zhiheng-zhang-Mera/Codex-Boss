@@ -226,7 +226,13 @@ describe("Phase C self-evlo §2/§3/§4/§14/§28–§34/§49–§52/§75/§77/�
       // The new boundary refines the existing Owner-review guard where they overlap.
       item.check("the host guard already protects scripts/acceptance-*.cjs", true, isProtectedPath("scripts/acceptance-attest.cjs"));
       item.check("and .github/workflows", true, isProtectedPath(".github/workflows/ci.yml"));
-      item.check("while trust-policy data is new ground for it", 0, assessProtectedPaths(["trust-policy/trust-epoch.json"]).hits.length);
+      // This line used to record the GAP: `trust-policy/` data was "new ground" for the host guard (0
+      // hits) and was protected only by the epoch mechanism itself — which meant the record could be forged
+      // without the Owner gate firing, because the mechanism that would notice (the graduation gate) only
+      // runs after the change is already in the tree. The Root Trust Authority Lockdown closed it: the
+      // review boundary now covers `trust-policy/` as well, so a change there is REQUIRE_OWNER for a
+      // candidate. The check is kept, inverted, so the closure cannot silently re-open.
+      item.check("and trust-policy data is no longer new ground for it", 1, assessProtectedPaths(["trust-policy/trust-epoch.json"]).hits.length);
       item.cite("ROOT_TRUST_SURFACE_PATHS");
     });
   });
