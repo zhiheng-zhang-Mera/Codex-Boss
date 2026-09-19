@@ -281,6 +281,39 @@ describe("Phase 02 Task B — the durable event journal", () => {
     expect(journal.stats().events).toBe(1);
   });
 
+  it("returns the ORIGINAL durable row on a replay, never the id or timestamp the replay supplied", () => {
+    // The append hot path writes with
+    // `INSERT ... ON CONFLICT(producer, idempotency_key) DO NOTHING RETURNING *` and reads the durable row
+    // back on conflict. That design invites one specific failure — returning the values THIS call generated
+    // (its fresh `randomUUID()`, its `createdAt`, its payload) instead of the stored event — so it is pinned
+    // with a replay that deliberately supplies different ones of every field.
+    const handle = openTestDatabase(tempRoot());
+    const journal = createEventJournal(handle);
+    const first = journal.append({
+      type: "TASK_CREATED", aggregateId: "t", payload: { a: 1 }, producer: "p", idempotencyKey: "same",
+      id: "original-id", createdAt: "2026-01-01T00:00:00.000Z"
+    });
+    expect(first.event.id).toBe("original-id");
+    expect(first.duplicate).toBe(false);
+
+    const replay = journal.append({
+      type: "TASK_COMPLETED", aggregateId: "different-aggregate", payload: { a: 2 }, producer: "p",
+      idempotencyKey: "same", id: "replay-id", createdAt: "2026-09-09T09:09:09.000Z"
+    });
+
+    expect(replay.duplicate).toBe(true);
+    expect(replay.event.id).toBe("original-id");
+    expect(replay.event.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(replay.event.type).toBe("TASK_CREATED");
+    expect(replay.event.aggregateId).toBe("t");
+    expect(replay.event.payload).toEqual({ a: 1 });
+    expect(replay.event.sequence).toBe(first.event.sequence);
+    // Nothing was written under the id the replay supplied, and the journal still holds one row.
+    expect(journal.byId("replay-id"), "the replay wrote its own row").toBeUndefined();
+    expect(journal.stats().events).toBe(1);
+    expect(journal.head()).toBe(first.event.sequence);
+  });
+
   it("requires an idempotency key, because a replayable event needs one", () => {
     const handle = openTestDatabase(tempRoot());
     const journal = createEventJournal(handle);

@@ -162,6 +162,31 @@ export function createEventJournal(handle: DatabaseHandle): EventJournal {
       .run(String(row.id ?? `seq-${row.sequence}`), Number(row.sequence ?? 0), String(row.type ?? "unknown"), JSON.stringify(row), reason, nowIso());
   }
 
+  /**
+   * Hot-path statements, prepared ONCE per journal.
+   *
+   * They used to be prepared inside `append`, i.e. three `sqlite3_prepare_v2` compilations per event —
+   * 300 000 of them for the 100k scale case, measured as the dominant cost of the append loop. A journal is
+   * bound to exactly one `DatabaseHandle`, so a statement prepared here shares that lifetime and can never
+   * cross handles; `node:sqlite` statements hold no per-call state, so re-running one binds fresh parameters
+   * and returns fresh rows.
+   *
+   * The insert is `ON CONFLICT(producer, idempotency_key) DO NOTHING RETURNING *`, which uses the
+   * `event_journal_idempotency` UNIQUE index the schema already declares. That removes the pre-existing
+   * SELECT from the common path: an empty result means the constraint refused the row, and the durable event
+   * is then read back, so a replay still returns the ORIGINAL row rather than the id or timestamp this call
+   * generated.
+   */
+  const insertEvent = handle.raw.prepare(
+    `INSERT INTO event_journal(id, type, aggregate_id, payload, created_at, schema_version, idempotency_key, producer)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(producer, idempotency_key) DO NOTHING
+     RETURNING *`
+  );
+  const selectByIdempotency = handle.raw.prepare(
+    "SELECT * FROM event_journal WHERE producer = ? AND idempotency_key = ?"
+  );
+
   const journal: EventJournal = {
     append<T>(input: JournalEventInput<T>, now = nowIso()): AppendResult<T> {
       const id = input.id ?? randomUUID();
@@ -175,20 +200,16 @@ export function createEventJournal(handle: DatabaseHandle): EventJournal {
       if (typeof input.idempotencyKey !== "string" || input.idempotencyKey.trim() === "") throw new Error("event idempotencyKey is required (a replayable event needs one)");
 
       return withTransaction(handle, () => {
-        const existing = handle.raw
-          .prepare("SELECT * FROM event_journal WHERE producer = ? AND idempotency_key = ?")
-          .get(input.producer, input.idempotencyKey) as unknown as EventRow | undefined;
-        if (existing) return { event: decode<T>(existing), duplicate: true, quarantined: 0 };
+        const inserted = insertEvent.get(id, input.type, input.aggregateId, payload, createdAt, schemaVersion, input.idempotencyKey, input.producer) as unknown as EventRow | undefined;
+        if (inserted) return { event: decode<T>(inserted), duplicate: false, quarantined: 0 };
 
-        handle.raw
-          .prepare(
-            `INSERT INTO event_journal(id, type, aggregate_id, payload, created_at, schema_version, idempotency_key, producer)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .run(id, input.type, input.aggregateId, payload, createdAt, schemaVersion, input.idempotencyKey, input.producer);
-
-        const row = handle.raw.prepare("SELECT * FROM event_journal WHERE id = ?").get(id) as unknown as EventRow;
-        return { event: decode<T>(row), duplicate: false, quarantined: 0 };
+        const existing = selectByIdempotency.get(input.producer, input.idempotencyKey) as unknown as EventRow | undefined;
+        if (!existing) {
+          // Unreachable while the UNIQUE index exists; a throw here keeps a schema drift loud rather than
+          // returning a fabricated duplicate.
+          throw new Error(`event ${input.producer}/${input.idempotencyKey} was refused as a duplicate but is not readable`);
+        }
+        return { event: decode<T>(existing), duplicate: true, quarantined: 0 };
       }, { label: `append ${input.type}` });
     },
 
