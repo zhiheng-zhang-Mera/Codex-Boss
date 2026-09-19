@@ -337,10 +337,50 @@ export function summariseReplayCorpus(corpus: ReplayCorpus): ReplayCorpusSummary
   };
 }
 
-/** Convenience: a corpus builder uses the plane's measurement constructors directly. */
+export interface CorpusSplit {
+  dev: ReplayCorpusRecord[];
+  holdout: ReplayCorpusRecord[];
+  devTaskIds: string[];
+  holdoutTaskIds: string[];
+  strategy: "BY_TASK" | "SINGLE_TASK_ONLY";
+  note: string;
+}
 
 /**
- * A task-level view of a corpus, in the shape a report presents.
+ * Splits a corpus into a development and a holdout subset, BY TASK.
+ *
+ * By task and not by step: the steps of one task are correlated, so a step-level split would put
+ * the same task's behaviour on both sides and the holdout would not be held out at all. The task
+ * ids are sorted before splitting, so the split is deterministic and reproducible.
+ */
+export function splitCorpusRecords(records: readonly ReplayCorpusRecord[], options: { devTaskCount?: number } = {}): CorpusSplit {
+  const taskIds = [...new Set(records.map((record) => record.taskId))].sort();
+  if (taskIds.length <= 1) {
+    return {
+      dev: [...records],
+      holdout: [],
+      devTaskIds: taskIds,
+      holdoutTaskIds: [],
+      strategy: "SINGLE_TASK_ONLY",
+      note: taskIds.length === 0 ? "the corpus holds no records, so there is nothing to split" : "the corpus holds one task, so the whole corpus is the development set and there is no holdout"
+    };
+  }
+  const requested = options.devTaskCount ?? Math.max(1, Math.ceil(taskIds.length * 0.6));
+  const devCount = Math.min(taskIds.length - 1, Math.max(1, requested));
+  const devTaskIds = taskIds.slice(0, devCount);
+  const holdoutTaskIds = taskIds.slice(devCount);
+  const devSet = new Set(devTaskIds);
+  return {
+    dev: records.filter((record) => devSet.has(record.taskId)),
+    holdout: records.filter((record) => !devSet.has(record.taskId)),
+    devTaskIds,
+    holdoutTaskIds,
+    strategy: "BY_TASK",
+    note: `split by task: ${devTaskIds.length} development task(s) and ${holdoutTaskIds.length} holdout task(s); the holdout outcomes were not read while choosing the candidate policy`
+  };
+}
+
+/** A task-level view of a corpus, in the shape a report presents.
  *
  * The corpus is STORED as a flat, appendable sequence of step records — one record per step,
  * each with its own input/target split — because that is what makes appending cheap and the

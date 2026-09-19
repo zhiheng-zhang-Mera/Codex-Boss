@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import * as continuation from "../../../src/shared/runtime-intelligence/continuation-evaluator";
 import {
   CONTINUATION_MODE,
+  CONTINUATION_POLICIES,
+  CONTINUATION_POLICY_FALLBACK,
   CONTINUATION_THRESHOLDS,
+  DEFAULT_CONTINUATION_POLICY,
   compareContinuationShadow,
+  continuationPolicyHash,
   evaluateContinuation,
   keepsCurrentModel,
   type ContinuationShadowComparison
@@ -84,9 +88,53 @@ describe("unfinished work is not reported as complete", () => {
   });
 
   it("advises STOP only when the objective is complete and nothing is unresolved", () => {
-    const assessment = assess({ progress: 1, unresolvedItems: 0 });
+    const assessment = assess({ progress: 1, unresolvedItems: 0, taskComplete: true });
     expect(assessment.decision).toBe("STOP");
     expect(assessment.confidence).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it("does NOT stop on progress alone, because progress is not completion evidence", () => {
+    // This is the measured defect: `progress === 1` with nothing unresolved was satisfied by a
+    // step whose work list did not exist yet, and the policy stopped a task with work left.
+    const assessment = assess({ progress: 1, unresolvedItems: 0, taskComplete: false });
+    expect(assessment.decision).toBe("CONTINUE");
+    expect(assessment.factors.find((factor) => factor.factor === "continuation.no-positive-evidence")?.detail).toContain("STOP requires positive evidence");
+  });
+
+  it("does not stop when the loop did not say whether the task is complete", () => {
+    const assessment = assess({ progress: 1, unresolvedItems: 0 });
+    expect(assessment.decision).toBe("CONTINUE");
+    const factor = assessment.factors.find((entry) => entry.factor === "continuation.objective-complete");
+    expect(factor?.detail).toContain("taskComplete not measured");
+  });
+
+  it("defaults to CONTINUE with low confidence when no rule fires, and says why", () => {
+    const assessment = assess({ progress: 0.5, unresolvedItems: 0 });
+    expect(assessment.decision).toBe("CONTINUE");
+    expect(assessment.confidence).toBeLessThan(0.5);
+    expect(assessment.counterfactual).toContain("STOP was not justified");
+    expect(assessment.factors.map((factor) => factor.factor)).toContain("continuation.no-positive-evidence");
+  });
+
+  it("keeps the baseline policy's STOP fallback runnable, so the defect can be re-measured", () => {
+    const baseline = evaluateContinuation({ signals: signals({ progress: 0.5, unresolvedItems: 0 }), at: AT, policy: "continuation-policy-v0" });
+    const candidate = evaluateContinuation({ signals: signals({ progress: 0.5, unresolvedItems: 0 }), at: AT });
+    expect(baseline.decision).toBe("STOP");
+    expect(candidate.decision).toBe("CONTINUE");
+    expect(baseline.policyId).toBe("continuation-policy-v0");
+    expect(candidate.policyId).toBe("continuation-policy-v1");
+    expect(baseline.policyHash).not.toBe(candidate.policyHash);
+    expect(DEFAULT_CONTINUATION_POLICY).toBe("continuation-policy-v1");
+    expect(CONTINUATION_POLICY_FALLBACK["continuation-policy-v0"]).toBe("STOP");
+    expect(CONTINUATION_POLICY_FALLBACK["continuation-policy-v1"]).toBe("CONTINUE");
+  });
+
+  it("names its policy and a stable hash on every assessment", () => {
+    const assessment = assess({ unresolvedItems: 2 });
+    expect(CONTINUATION_POLICIES).toContain(assessment.policyId);
+    expect(assessment.policyHash).toHaveLength(64);
+    expect(continuationPolicyHash("continuation-policy-v1")).toBe(assessment.policyHash);
+    expect(continuationPolicyHash("continuation-policy-v0")).not.toBe(assessment.policyHash);
   });
 
   it("stops on an exhausted budget even with work left, and says which rule fired", () => {
@@ -95,11 +143,13 @@ describe("unfinished work is not reported as complete", () => {
     expect(assessment.factors.find((factor) => factor.factor === "continuation.budget-exhausted")?.weight).toBeGreaterThan(0);
   });
 
-  it("defaults to STOP with low confidence when nothing is unresolved and no rule supports continuing", () => {
-    const assessment = assess({ progress: 0.5, unresolvedItems: 0 });
-    expect(assessment.decision).toBe("STOP");
-    expect(assessment.confidence).toBeLessThan(0.5);
-    expect(assessment.counterfactual).toContain("nothing was unresolved");
+  it("documents the replaced behaviour: the baseline policy stopped with nothing unresolved", () => {
+    // Kept as a policy-parameterised case rather than deleted, because this IS the defect the
+    // real corpus measured and the comparison needs it reproducible.
+    const baseline = evaluateContinuation({ signals: signals({ progress: 0.5, unresolvedItems: 0 }), at: AT, policy: "continuation-policy-v0" });
+    expect(baseline.decision).toBe("STOP");
+    expect(baseline.confidence).toBeLessThan(0.5);
+    expect(baseline.counterfactual).toContain("no completion evidence");
   });
 });
 

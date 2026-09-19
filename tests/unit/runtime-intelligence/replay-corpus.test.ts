@@ -7,10 +7,12 @@ import {
   REPLAY_CORPUS_SCHEMA_VERSION,
   appendReplayRecords,
   createReplayCorpus,
+  splitCorpusRecords,
   summariseReplayCorpus,
   validateReplayCorpus,
   type AfterDecision,
   type AtDecisionTime,
+  type CorpusSplit,
   type ReplayCorpus,
   type ReplayCorpusRecord,
   type ReplayCorpusSummary,
@@ -280,6 +282,54 @@ describe("the temporal guard catches leakage three ways", () => {
   it("does not treat a measured allowance as leakage: unresolvedCount is known at decision time", () => {
     const fact: Measurement<number> = measured(2, "checkpoint", AT);
     expect(checkInputForFutureInformation({ unresolvedCount: fact }).verdict).toBe("NO_FUTURE_INFORMATION");
+  });
+});
+
+describe("the corpus splits by task, not by step", () => {
+  function multiTaskCorpus(taskCount: number, stepsPerTask: number): ReplayCorpus {
+    const records: ReplayCorpusRecord[] = [];
+    for (let task = 1; task <= taskCount; task += 1) {
+      for (let step = 1; step <= stepsPerTask; step += 1) {
+        records.push(record({ recordId: `t${task}:rev${step}`, taskId: `task-${task}`, atDecisionTime: { ...atDecisionTime({ stepIndex: step }) } }));
+      }
+    }
+    return appendReplayRecords(createReplayCorpus({ corpusId: "c", createdAt: AT, provenance }), records).corpus;
+  }
+
+  it("keeps whole tasks together, so no task is on both sides", () => {
+    const split: CorpusSplit = splitCorpusRecords(multiTaskCorpus(5, 4).records, { devTaskCount: 3 });
+    expect(split.strategy).toBe("BY_TASK");
+    expect(split.devTaskIds).toEqual(["task-1", "task-2", "task-3"]);
+    expect(split.holdoutTaskIds).toEqual(["task-4", "task-5"]);
+    const devTasks = new Set(split.dev.map((entry) => entry.taskId));
+    const holdoutTasks = new Set(split.holdout.map((entry) => entry.taskId));
+    for (const taskId of devTasks) expect(holdoutTasks.has(taskId)).toBe(false);
+    expect(split.note).toContain("holdout outcomes were not read");
+  });
+
+  it("is deterministic and splits by default at about sixty per cent", () => {
+    const records = multiTaskCorpus(10, 2).records;
+    const first = splitCorpusRecords(records);
+    const second = splitCorpusRecords(records);
+    expect(first.devTaskIds).toEqual(second.devTaskIds);
+    expect(first.devTaskIds).toHaveLength(6);
+    expect(first.holdoutTaskIds).toHaveLength(4);
+  });
+
+  it("always leaves at least one task in the holdout, and one in development", () => {
+    const split = splitCorpusRecords(multiTaskCorpus(3, 1).records, { devTaskCount: 99 });
+    expect(split.devTaskIds).toHaveLength(2);
+    expect(split.holdoutTaskIds).toHaveLength(1);
+  });
+
+  it("says so when a corpus is too small to hold anything out", () => {
+    const single = splitCorpusRecords(multiTaskCorpus(1, 3).records);
+    expect(single.strategy).toBe("SINGLE_TASK_ONLY");
+    expect(single.holdout).toEqual([]);
+    expect(single.note).toContain("one task");
+    const empty = splitCorpusRecords([]);
+    expect(empty.strategy).toBe("SINGLE_TASK_ONLY");
+    expect(empty.note).toContain("no records");
   });
 });
 

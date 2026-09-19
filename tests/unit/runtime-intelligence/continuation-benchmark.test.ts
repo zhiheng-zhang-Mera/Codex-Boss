@@ -11,6 +11,7 @@ import {
   type ContinuationReplayStep,
   type ContinuationStepVerdict
 } from "../../../src/shared/runtime-intelligence/continuation-benchmark";
+import { DEFAULT_CONTINUATION_POLICY, continuationPolicyHash } from "../../../src/shared/runtime-intelligence/continuation-evaluator";
 
 /**
  * Every step below declares what its shadow assessment was allowed to see, because the temporal
@@ -48,9 +49,16 @@ function assessment(decision: ContinuationDecision, overrides: Partial<Continuat
     factors: [],
     wouldActAtStep: 3,
     counterfactual: "shadow only",
+    policyId: DEFAULT_CONTINUATION_POLICY,
+    policyHash: continuationPolicyHash(DEFAULT_CONTINUATION_POLICY),
     createdAt: AT,
     ...overrides
   };
+}
+
+/** An assessment produced by the BASELINE policy, for the false-stop controls. */
+function baselineAssessment(decision: ContinuationDecision): ContinuationAssessment {
+  return assessment(decision, { policyId: "continuation-policy-v0", policyHash: continuationPolicyHash("continuation-policy-v0") });
 }
 
 function step(overrides: Partial<ContinuationReplayStep> & { decision: ContinuationDecision }): ContinuationReplayStep {
@@ -246,11 +254,23 @@ describe("the benchmark scores the real evaluator's own output", () => {
   });
 
   it("prices a real STOP on an unfinished task as the expensive error", () => {
-    const real = evaluateContinuation({ signals: signals({ progress: 1, unresolvedItems: 0 }), at: AT });
+    // Produced by the BASELINE policy, which stopped when it had no evidence — the measured
+    // defect. The candidate policy would not stop here at all, which is the correction.
+    const real = evaluateContinuation({ signals: signals({ progress: 1, unresolvedItems: 0 }), at: AT, policy: "continuation-policy-v0" });
     expect(real.decision).toBe("STOP");
+    expect(real.policyId).toBe("continuation-policy-v0");
     const verdict = judgeContinuationStep({ taskId: "task-1", step: 6, assessment: real, observed: "CONTINUED", taskComplete: false });
     expect(verdict.falseStop).toBe(true);
     expect(verdict.penalty).toBe(CONTINUATION_PENALTIES.falseStop);
+  });
+
+  it("does not produce that false stop under the candidate policy", () => {
+    const candidate = evaluateContinuation({ signals: signals({ progress: 1, unresolvedItems: 0 }), at: AT });
+    expect(candidate.decision).toBe("CONTINUE");
+    expect(candidate.policyId).toBe(DEFAULT_CONTINUATION_POLICY);
+    const verdict = judgeContinuationStep({ taskId: "task-1", step: 6, assessment: candidate, observed: "CONTINUED", taskComplete: false });
+    expect(verdict.falseStop).toBe(false);
+    expect(verdict.penalty).toBe(0);
   });
 
   it("compares two policies over the same corpus and reports the difference", () => {

@@ -19,7 +19,7 @@
  */
 
 import { AT_DECISION_TIME_FIELDS, type ReplayCorpus, type ReplayCorpusRecord } from "../../src/shared/runtime-intelligence/replay-corpus";
-import { evaluateContinuation } from "../../src/shared/runtime-intelligence/continuation-evaluator";
+import { DEFAULT_CONTINUATION_POLICY, continuationPolicyHash, evaluateContinuation, type ContinuationPolicyId } from "../../src/shared/runtime-intelligence/continuation-evaluator";
 import { adviseScheduling } from "../../src/shared/runtime-intelligence/scheduling-advisor";
 import { applyModelOutcome, createModelRecord } from "../../src/shared/runtime-intelligence/model-ledger";
 import { createObservation } from "../../src/shared/runtime-intelligence/telemetry";
@@ -65,6 +65,9 @@ export interface ContinuationStepsFromCorpus {
   skipped: Array<{ recordId: string; reason: string }>;
   /** Signals the corpus does not carry, counted so a report can say which rules could not apply. */
   unavailableSignals: string[];
+  /** Which policy produced these assessments. */
+  policyId: string;
+  policyHash: string;
 }
 
 /**
@@ -72,12 +75,15 @@ export interface ContinuationStepsFromCorpus {
  *
  * The observed behaviour comes from the target section — `continuedAfterStep` is positional
  * evidence that the loop took another step — and `taskComplete` from the loop's own
- * `pendingSteps`/`completedSteps` state.
+ * `pendingSteps`/`completedSteps` state, which is the positive completion evidence the candidate
+ * policy requires before it may say STOP. `policy` selects which version runs, so the baseline
+ * and the candidate can be replayed over the SAME corpus.
  */
-export function continuationStepsFromCorpus(corpus: ReplayCorpus): ContinuationStepsFromCorpus {
+export function continuationStepsFromCorpus(corpus: ReplayCorpus, options: { policy?: ContinuationPolicyId } = {}): ContinuationStepsFromCorpus {
   const steps: ContinuationReplayStep[] = [];
   const skipped: Array<{ recordId: string; reason: string }> = [];
   const unavailableSignals = ["outputNovelty", "repeatRate", "selfContradictions", "reviewerDisagreements", "reviewerReviews", "uncertainty"];
+  const policy = options.policy ?? DEFAULT_CONTINUATION_POLICY;
 
   for (const record of corpus.records) {
     const unresolved = record.atDecisionTime.unresolvedCount;
@@ -98,9 +104,12 @@ export function continuationStepsFromCorpus(corpus: ReplayCorpus): ContinuationS
       tokensConsumed: record.atDecisionTime.tokensConsumed,
       elapsedMs: record.atDecisionTime.elapsedMs,
       toolProgress: "UNKNOWN" as const,
-      stepsCompleted: record.atDecisionTime.stepIndex
+      stepsCompleted: record.atDecisionTime.stepIndex,
+      // The loop's own completion statement, which is what a STOP must rest on.
+      taskComplete: record.afterDecision.taskComplete,
+      pendingWork: (unresolved === 0 ? "NONE" : unresolved > 0 ? "WORK" : "UNKNOWN") as "NONE" | "WORK" | "UNKNOWN"
     };
-    const assessment = evaluateContinuation({ signals, at: record.sourceTimestamp, sequence: record.atDecisionTime.stepIndex });
+    const assessment = evaluateContinuation({ signals, at: record.sourceTimestamp, sequence: record.atDecisionTime.stepIndex, policy });
     steps.push({
       taskId: record.taskId,
       step: record.atDecisionTime.stepIndex,
@@ -112,7 +121,7 @@ export function continuationStepsFromCorpus(corpus: ReplayCorpus): ContinuationS
     });
   }
 
-  return { steps, skipped, unavailableSignals };
+  return { steps, skipped, unavailableSignals, policyId: policy, policyHash: continuationPolicyHash(policy) };
 }
 
 export interface SchedulerCasesFromCorpus {

@@ -104,7 +104,7 @@ function task(taskId: string): TaskProfile {
 }
 
 function assessment(decision: ContinuationAssessment["decision"]): ContinuationAssessment {
-  return { schemaVersion: 1, kind: "CONTINUATION_ASSESSMENT", assessmentId: "c", taskId: "task-1", modelKey: "m", mode: "SHADOW_ONLY", decision, confidence: 0.6, factors: [], wouldActAtStep: 1, counterfactual: "shadow", createdAt: AT };
+  return { schemaVersion: 1, kind: "CONTINUATION_ASSESSMENT", assessmentId: "c", taskId: "task-1", modelKey: "m", mode: "SHADOW_ONLY", decision, confidence: 0.6, factors: [], wouldActAtStep: 1, counterfactual: "shadow", policyId: "continuation-policy-v1", policyHash: "0".repeat(64), createdAt: AT };
 }
 
 /** A corpus good enough to clear every gate. */

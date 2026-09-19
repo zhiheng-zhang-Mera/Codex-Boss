@@ -296,9 +296,16 @@ describe("every record can be built from its declared fields", () => {
       factors: [],
       wouldActAtStep: 4,
       counterfactual: "following this advice would have continued",
+      policyId: "continuation-policy-v1",
+      policyHash: "a".repeat(64),
       createdAt: AT
     };
     expect(assessment.mode).toBe("SHADOW_ONLY");
+    expect(assessment.policyId).toBe("continuation-policy-v1");
+    // The completion signal is optional and absent here, which is exactly the state that must
+    // not be read as "the task is finished".
+    expect(signals.taskComplete).toBeUndefined();
+    expect(signals.pendingWork).toBeUndefined();
   });
 
   it("builds a context lifecycle plan that deletes nothing", () => {

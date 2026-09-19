@@ -228,6 +228,35 @@ if (options) {
         const scheduler = corpus === undefined ? undefined : casesModule.schedulerCasesFromCorpus(corpus);
         const continuationMetrics = continuation === undefined ? undefined : continuationModule.benchmarkContinuation(continuation.steps);
         const schedulerMetrics = scheduler === undefined ? undefined : schedulerModule.benchmarkScheduler(scheduler.cases);
+
+        // Baseline and candidate over the SAME corpus, then the same comparison on a task-level
+        // holdout the candidate policy was not chosen against.
+        let policyComparison;
+        if (corpus !== undefined) {
+          const measure = (records, policy) => {
+            const view = { ...corpus, records };
+            const steps = casesModule.continuationStepsFromCorpus(view, { policy });
+            const metrics = continuationModule.benchmarkContinuation(steps.steps);
+            return {
+              policyId: view.provenance ? steps.policyId : steps.policyId,
+              policyHash: steps.policyHash,
+              steps: metrics.judgedSteps,
+              falseStopCount: metrics.falseStopCount,
+              falseStopRate: metrics.falseStopRate,
+              unnecessaryContinueRate: metrics.unnecessaryContinueRate,
+              weightedPenalty: metrics.weightedPenalty,
+              estimatedCallsSaved: metrics.estimatedCallsSaved,
+              reason: metrics.reason
+            };
+          };
+          const split = corpusModule.splitCorpusRecords(corpus.records);
+          policyComparison = {
+            split: { strategy: split.strategy, devTasks: split.devTaskIds.length, holdoutTasks: split.holdoutTaskIds.length, note: split.note, devRecords: split.dev.length, holdoutRecords: split.holdout.length },
+            full: { baseline: measure(corpus.records, "continuation-policy-v0"), candidate: measure(corpus.records, "continuation-policy-v1") },
+            dev: { baseline: measure(split.dev, "continuation-policy-v0"), candidate: measure(split.dev, "continuation-policy-v1") },
+            holdout: split.holdout.length === 0 ? undefined : { baseline: measure(split.holdout, "continuation-policy-v0"), candidate: measure(split.holdout, "continuation-policy-v1") }
+          };
+        }
         const snapshotSeries = nodeLog.snapshots();
         const coverageByNode = [...new Set(snapshotSeries.map((snapshot) => snapshot.nodeId))].map((nodeId) => {
           const latest = nodeLog.snapshots(nodeId).at(-1);
@@ -263,8 +292,9 @@ if (options) {
           summary: corpus === undefined ? undefined : corpusModule.summariseReplayCorpus(corpus),
           tasks: taskViews.length,
           completionObservations: completion.length,
-          continuation: continuation === undefined ? undefined : { steps: continuation.steps.length, skipped: continuation.skipped, unavailableSignals: continuation.unavailableSignals },
+          continuation: continuation === undefined ? undefined : { steps: continuation.steps.length, skipped: continuation.skipped, unavailableSignals: continuation.unavailableSignals, policyId: continuation.policyId, policyHash: continuation.policyHash },
           scheduler: scheduler === undefined ? undefined : { cases: scheduler.cases.length, ledger: scheduler.ledger.length, notes: scheduler.notes },
+          policyComparison,
           benchmarks: {
             continuation: continuationMetrics,
             scheduler: schedulerMetrics

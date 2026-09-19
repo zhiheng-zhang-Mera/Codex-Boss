@@ -26,9 +26,49 @@ import {
   type ContinuationSignals,
   type ReasoningFactor
 } from "./contracts";
+import { sha256Hex } from "../hash";
+
 
 /** The only mode this evaluator has. */
 export const CONTINUATION_MODE = "SHADOW_ONLY" as const;
+
+/**
+ * The continuation policies, so a result can be attributed to a version.
+ *
+ * `v0` is the policy the first real replay measured: STOP is what happens when no rule fires.
+ * `v1` is the correction — STOP requires positive evidence and the no-signal fallback is
+ * CONTINUE. Both are kept runnable because the comparison between them on the SAME corpus is
+ * the evidence that the correction helped, and a baseline that can only be remembered cannot
+ * be re-measured.
+ */
+export const CONTINUATION_POLICIES = ["continuation-policy-v0", "continuation-policy-v1"] as const;
+export type ContinuationPolicyId = (typeof CONTINUATION_POLICIES)[number];
+
+/** The policy a caller gets when it does not name one. */
+export const DEFAULT_CONTINUATION_POLICY: ContinuationPolicyId = "continuation-policy-v1";
+
+/**
+ * What each policy decides when no rule fires.
+ *
+ * v0: STOP — the defect. The most expensive decision available was the default, so a state the
+ * evaluator could not see produced it.
+ * v1: CONTINUE — an absent signal is not a completion signal. `UNKNOWN != COMPLETE` and
+ * `NO_SIGNAL != STOP`, and the measured penalty asymmetry (5 against 1) makes continuing the
+ * cheaper error to be wrong about.
+ */
+export const CONTINUATION_POLICY_FALLBACK: Readonly<Record<ContinuationPolicyId, ContinuationDecision>> = {
+  "continuation-policy-v0": "STOP",
+  "continuation-policy-v1": "CONTINUE"
+};
+
+/** What each policy requires before it may say STOP. */
+export const CONTINUATION_POLICY_STOP_EVIDENCE: Readonly<Record<ContinuationPolicyId, "PROGRESS_OR_UNRESOLVED" | "TASK_COMPLETE">> = {
+  // v0 stopped on "nothing unresolved and progress at 1", which a step with an empty work list
+  // satisfies trivially.
+  "continuation-policy-v0": "PROGRESS_OR_UNRESOLVED",
+  // v1 requires the loop to say the objective is finished.
+  "continuation-policy-v1": "TASK_COMPLETE"
+};
 
 /** Thresholds the rules are stated in. Exported so a report can quote the rule it applied. */
 export const CONTINUATION_THRESHOLDS = {
@@ -92,7 +132,7 @@ interface Rule {
   decision: ContinuationDecision;
   confidence: number;
   /** Whether the rule's own precondition was met. `false` puts the reason in the factors as considered-and-not-fired. */
-  matches: (signals: ContinuationSignals) => boolean;
+  matches: (signals: ContinuationSignals, policy: ContinuationPolicyId) => boolean;
   detail: (signals: ContinuationSignals) => string;
   factor: string;
 }
@@ -110,8 +150,17 @@ const RULES: readonly Rule[] = [
     decision: "STOP",
     confidence: 0.9,
     factor: "continuation.objective-complete",
-    matches: (signals) => signals.unresolvedItems === 0 && atLeast(signals.progress, CONTINUATION_THRESHOLDS.completeProgress),
-    detail: (signals) => `progress ${signalText(signals.progress)} with 0 unresolved items`,
+    /**
+     * The rule that decides whether a STOP is allowed, and it is policy-dependent.
+     *
+     * v1 requires `taskComplete === true`: the loop's own statement that the objective is done.
+     * v0 accepted "nothing unresolved and progress at 1", which a step whose work list does not
+     * exist yet satisfies — the measured cause of five false stops.
+     */
+    matches: (signals, policy) =>
+      signals.unresolvedItems === 0 &&
+      (CONTINUATION_POLICY_STOP_EVIDENCE[policy] === "TASK_COMPLETE" ? signals.taskComplete === true : atLeast(signals.progress, CONTINUATION_THRESHOLDS.completeProgress)),
+    detail: (signals) => `progress ${signalText(signals.progress)} with 0 unresolved items and taskComplete ${signals.taskComplete === undefined ? "not measured" : String(signals.taskComplete)}`,
   },
   {
     decision: "STOP",
@@ -193,10 +242,11 @@ const RULES: readonly Rule[] = [
  * reason and a low confidence, rather than a `CONTINUE` that would spend more tokens on a
  * task with nothing left to do.
  */
-export function evaluateContinuation(input: { signals: ContinuationSignals; at: string; sequence?: number }): ContinuationAssessment {
+export function evaluateContinuation(input: { signals: ContinuationSignals; at: string; sequence?: number; policy?: ContinuationPolicyId }): ContinuationAssessment {
   const { signals } = input;
+  const policy: ContinuationPolicyId = input.policy ?? DEFAULT_CONTINUATION_POLICY;
   const factors: ReasoningFactor[] = [];
-  const fired = RULES.find((rule) => rule.matches(signals));
+  const fired = RULES.find((rule) => rule.matches(signals, policy));
 
   for (const rule of RULES) {
     const matched = rule === fired;
@@ -241,18 +291,32 @@ export function evaluateContinuation(input: { signals: ContinuationSignals; at: 
     });
   }
 
-  const decision: ContinuationDecision = fired?.decision ?? "STOP";
+  const decision: ContinuationDecision = fired?.decision ?? CONTINUATION_POLICY_FALLBACK[policy];
   const confidence = round(clamp01(fired?.confidence ?? 0.3));
   const remainingSteps = signals.expectedSteps === undefined ? undefined : signals.expectedSteps - signals.stepsCompleted;
 
+  if (fired === undefined) {
+    factors.push({
+      factor: "continuation.no-positive-evidence",
+      weight: CONTINUATION_POLICY_FALLBACK[policy] === decision ? 0.3 : 0,
+      detail:
+        CONTINUATION_POLICY_FALLBACK[policy] === "STOP"
+          ? "no rule fired, and this policy stops when it has no evidence"
+          : "no rule fired and no completion evidence was observed, so this policy continues rather than stopping: STOP requires positive evidence",
+      evidence: [`policy:${policy}`]
+    });
+  }
+
   const counterfactual = fired
     ? `following this advice would have applied ${decision} at step ${signals.stepsCompleted} with ${signals.unresolvedItems} item(s) unresolved and ${signals.tokensConsumed} tokens spent`
-    : `following this advice would have stopped at step ${signals.stepsCompleted} because nothing was unresolved and no signal supported continuing${remainingSteps === undefined ? "" : ` (${remainingSteps} planned step(s) unused)`}`;
+    : decision === "STOP"
+      ? `following this advice would have stopped at step ${signals.stepsCompleted} with no completion evidence, which is what this policy does when no rule fires${remainingSteps === undefined ? "" : ` (${remainingSteps} planned step(s) unused)`}`
+      : `following this advice would have continued at step ${signals.stepsCompleted}: nothing was unresolved but no completion evidence was observed either, so STOP was not justified${remainingSteps === undefined ? "" : ` (${remainingSteps} planned step(s) unused)`}`;
 
   return {
     schemaVersion: RUNTIME_INTELLIGENCE_SCHEMA_VERSION,
     kind: "CONTINUATION_ASSESSMENT",
-    assessmentId: stableId("cont", [signals.taskId, signals.modelKey, signals.stepsCompleted, input.sequence ?? 0]),
+    assessmentId: stableId("cont", [signals.taskId, signals.modelKey, signals.stepsCompleted, input.sequence ?? 0, policy]),
     taskId: signals.taskId,
     modelKey: signals.modelKey,
     mode: CONTINUATION_MODE,
@@ -261,8 +325,30 @@ export function evaluateContinuation(input: { signals: ContinuationSignals; at: 
     factors,
     wouldActAtStep: signals.stepsCompleted,
     counterfactual,
+    policyId: policy,
+    policyHash: continuationPolicyHash(policy),
     createdAt: input.at
   };
+}
+
+/**
+ * A stable fingerprint of a policy's identity: its id, its fallback decision and its STOP
+ * evidence rule, plus the thresholds those rules read.
+ *
+ * A result is only comparable with another if both name the policy that produced them, and a
+ * hash over the rule identity is what makes "the policy changed" detectable rather than
+ * remembered.
+ */
+export function continuationPolicyHash(policy: ContinuationPolicyId): string {
+  const text = [
+    "continuation-policy-1",
+    policy,
+    `fallback:${CONTINUATION_POLICY_FALLBACK[policy]}`,
+    `stop-evidence:${CONTINUATION_POLICY_STOP_EVIDENCE[policy]}`,
+    ...Object.entries(CONTINUATION_THRESHOLDS).map(([key, value]) => `${key}=${value}`),
+    ...RULES.map((rule) => `${rule.factor}:${rule.decision}:${rule.confidence}`)
+  ].join("\n");
+  return sha256Hex(text);
 }
 
 /** Whether the assessment would leave the current model in place. */

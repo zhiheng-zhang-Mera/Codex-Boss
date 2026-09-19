@@ -423,6 +423,17 @@ export interface ContinuationSignals {
   toolProgress: ToolProgress;
   stepsCompleted: number;
   expectedSteps?: number;
+  /**
+   * The loop's own statement that the objective is finished — the one signal a STOP may rest on.
+   *
+   * Absent means no completion evidence was observed, which is NOT the same as incomplete work:
+   * a step whose work list does not exist yet reports zero pending items and nothing else, and
+   * treating that absence as completion is the measured defect that produced a 0.5 false-stop
+   * rate on real data.
+   */
+  taskComplete?: boolean;
+  /** What kind of work is still outstanding, when the loop said. `UNKNOWN` is not `NONE`. */
+  pendingWork?: "NONE" | "TOOL" | "REVIEW" | "WORK" | "UNKNOWN";
 }
 
 /**
@@ -444,6 +455,10 @@ export interface ContinuationAssessment {
   wouldActAtStep: number;
   /** What the shadow run believes the effect of following the advice would have been. */
   counterfactual: string;
+  /** Which policy produced this assessment, so results can be attributed to a version. */
+  policyId: string;
+  /** A stable fingerprint of that policy's rules and thresholds. */
+  policyHash: string;
   createdAt: string;
 }
 
