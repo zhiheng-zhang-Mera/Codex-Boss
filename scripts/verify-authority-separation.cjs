@@ -126,8 +126,33 @@ function gh(args, token) {
 function platformReport({ requireSelfHostedSafe }) {
   const repo = probe(() => execFileSync("gh", ["api", "repos/{owner}/{repo}"], { cwd: ROOT, encoding: "utf8", windowsHide: true }));
   if (!repo.ok) {
-    console.error(`[platform] cannot read the repository: ${repo.out.split(/\r?\n/)[0] ?? ""}`);
-    return 1;
+    // CANNOT MEASURE IS NOT SAFE. A GitHub Actions runner has no `GH_TOKEN` in the environment by default,
+    // and a report that shrugged there would turn "we did not look" into "nothing to see" — the failure mode
+    // this repository keeps having to correct. The verdict is therefore fail-closed and says why, the report
+    // mode still exits 0 (it reported something true), and the guard mode exits 1.
+    const reason = (repo.out.split(/\r?\n/).find((line) => line.trim()) ?? "the repository could not be read").trim();
+    const unreadable = {
+      $comment: "Phase B3 platform authority report: the platform could not be read from this environment.",
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      repository: null,
+      ruleset: null,
+      environments: [],
+      verdict: {
+        selfHostedRunnerSafe: false,
+        selfHostedRunnerReason: "the platform facts could not be read, so safety cannot be established",
+        findings: ["PLATFORM_FACTS_UNREADABLE"]
+      },
+      unreadableReason: reason
+    };
+    if (process.argv.includes("--json")) process.stdout.write(`${JSON.stringify(unreadable, null, 2)}\n`);
+    process.stderr.write(`[platform] PLATFORM_FACTS_UNREADABLE: ${reason}\n`);
+    process.stderr.write("[platform] self-hosted runner safe: false (cannot measure is not safe)\n");
+    if (requireSelfHostedSafe) {
+      process.stderr.write("[platform] REFUSING: the platform facts could not be read\n");
+      return 1;
+    }
+    return 0;
   }
   const info = JSON.parse(repo.out);
   const visibility = info.visibility ?? (info.private ? "private" : "public");

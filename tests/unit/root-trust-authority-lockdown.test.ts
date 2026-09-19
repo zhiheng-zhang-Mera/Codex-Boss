@@ -390,20 +390,29 @@ describe("Root Trust Authority Lockdown — the qualification lane cannot be rea
     const platform = spawnSync(process.execPath, [path.join(PROJECT, "scripts/verify-authority-separation.cjs"), "--platform", "--json"], { cwd: PROJECT, encoding: "utf8" });
     expect(platform.status, `${platform.stdout}${platform.stderr}`).toBe(0);
     const report = JSON.parse(platform.stdout.slice(platform.stdout.indexOf("{")));
-    expect(report.verdict.selfHostedRunnerSafe).toBe(report.repository.private);
-    if (!report.repository.private) {
-      expect(report.verdict.findings).toContain("PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER");
-      // …and the fail-closed mode must refuse, which is exactly what the workflow step relies on.
-      const refused = spawnSync(process.execPath, [path.join(PROJECT, "scripts/verify-authority-separation.cjs"), "--platform", "--require-self-hosted-safe"], { cwd: PROJECT, encoding: "utf8" });
-      expect(refused.status, "a public repository must refuse to host a self-hosted runner").toBe(1);
-    }
-    // The repository has exactly one always-bypass actor, and it is a User (the Owner): that is the fact the
-    // whole separation rests on, so it is asserted rather than described.
-    if (report.ruleset) {
-      expect(report.ruleset.bypassActors.length).toBe(1);
-      expect(report.ruleset.bypassActors[0].mode).toBe("always");
-      expect(report.ruleset.bypassActors[0].type).toBe("User");
-      expect(report.environments.some((entry: { name: string; rules: string[] }) => entry.name === "boss-root-trust-owner" && entry.rules.includes("required_reviewers"))).toBe(true);
+    const refused = spawnSync(process.execPath, [path.join(PROJECT, "scripts/verify-authority-separation.cjs"), "--platform", "--require-self-hosted-safe"], { cwd: PROJECT, encoding: "utf8" });
+
+    if (report.verdict.findings.includes("PLATFORM_FACTS_UNREADABLE")) {
+      // A CI runner has no GH_TOKEN, so the platform cannot be read there. Both halves of the honest answer
+      // are asserted rather than skipped: the verdict is fail-closed, and the guard refuses.
+      expect(report.verdict.selfHostedRunnerSafe, "an unreadable platform must never be reported as safe").toBe(false);
+      expect(report.verdict.selfHostedRunnerReason).toBeTruthy();
+      expect(refused.status, "the guard must fail closed when it cannot measure").toBe(1);
+    } else {
+      expect(report.verdict.selfHostedRunnerSafe).toBe(report.repository.private);
+      if (!report.repository.private) {
+        expect(report.verdict.findings).toContain("PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER");
+        // …and the fail-closed mode must refuse, which is exactly what the workflow step relies on.
+        expect(refused.status, "a public repository must refuse to host a self-hosted runner").toBe(1);
+      }
+      // The repository has exactly one always-bypass actor, and it is a User (the Owner): that is the fact
+      // the whole separation rests on, so it is asserted rather than described.
+      if (report.ruleset) {
+        expect(report.ruleset.bypassActors.length).toBe(1);
+        expect(report.ruleset.bypassActors[0].mode).toBe("always");
+        expect(report.ruleset.bypassActors[0].type).toBe("User");
+        expect(report.environments.some((entry: { name: string; rules: string[] }) => entry.name === "boss-root-trust-owner" && entry.rules.includes("required_reviewers"))).toBe(true);
+      }
     }
   });
 
