@@ -1361,6 +1361,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/calibration.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/context-lifecycle.test.ts",
       "tier": "unit",
       "covers": [
@@ -1433,6 +1440,13 @@
     },
     {
       "file": "tests/unit/runtime-intelligence/skill-loadout.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/skill-replay.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
