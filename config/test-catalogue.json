@@ -1420,6 +1420,20 @@
       ]
     },
     {
+      "file": "tests/unit/self-diagnosis/diagnosis.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-diagnosis/observations.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/self-elevation.test.ts",
       "tier": "unit",
       "covers": [

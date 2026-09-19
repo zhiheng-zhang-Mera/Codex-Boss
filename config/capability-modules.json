@@ -220,6 +220,7 @@
       "electron/evidence-engine.ts",
       "electron/repro-snapshot.ts",
       "electron/self-cognition",
+      "electron/self-diagnosis",
       "electron/telemetry",
       "src/shared/acceptance-contracts.ts",
       "src/shared/acceptance-evidence.ts",
@@ -236,6 +237,7 @@
       "src/shared/owner-intervention.ts",
       "src/shared/owner-result.ts",
       "src/shared/self-cognition",
+      "src/shared/self-diagnosis",
       "src/shared/soak-harness.ts",
       "src/shared/soak.ts"
     ],

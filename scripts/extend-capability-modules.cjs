@@ -214,7 +214,12 @@ const EXTRA = {
     // Self Cognition: Boss's description of its own components, capabilities and authority
     // boundaries. It observes the anatomy; it does not diagnose it and cannot change it.
     "src/shared/self-cognition",
-    "electron/self-cognition"
+    "electron/self-cognition",
+    // Self Diagnosis: reads what the application already recorded through the generic
+    // SelfObservationSource interface, ranks candidate causes and proposes advisory treatments.
+    // It owns none of the sources it reads and cannot execute what it proposes.
+    "src/shared/self-diagnosis",
+    "electron/self-diagnosis"
   ],
   security: [
     "electron/github",
