@@ -1361,6 +1361,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/continuation-evaluator.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/contracts.test.ts",
       "tier": "unit",
       "covers": [
@@ -1390,6 +1397,13 @@
     },
     {
       "file": "tests/unit/runtime-intelligence/node-profiler.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/scheduling-advisor.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
