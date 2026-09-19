@@ -64,6 +64,7 @@ function atDecisionTime(overrides: Partial<AtDecisionTime> = {}): AtDecisionTime
     mountedSkills: [],
     usedSkills: [],
     contextInjected: [],
+    workerSessions: [],
     tokensConsumed: 15,
     toolCalls: 0,
     browserActions: 0,

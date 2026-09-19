@@ -18,6 +18,7 @@
  * could see the outcome.
  */
 
+import { attributeStep, censusAttributions, DIRECT_ATTRIBUTION_SOURCES, type AttributionCensus, type StepDispatchAttribution } from "../../src/shared/runtime-intelligence/dispatch-attribution";
 import { AT_DECISION_TIME_FIELDS, type ReplayCorpus, type ReplayCorpusRecord } from "../../src/shared/runtime-intelligence/replay-corpus";
 import { DEFAULT_CONTINUATION_POLICY, continuationPolicyHash, evaluateContinuation, type ContinuationPolicyId } from "../../src/shared/runtime-intelligence/continuation-evaluator";
 import { adviseScheduling } from "../../src/shared/runtime-intelligence/scheduling-advisor";
@@ -40,19 +41,27 @@ function taskKindOf(record: ReplayCorpusRecord): TaskKind {
 }
 
 /**
- * The one model identity a corpus record supports.
+ * The one model identity a runtime id supports.
  *
  * The application dispatches to a runtime (for example `web:chatgpt`) whose provider is
  * `chatgpt`. Both derivations must agree, or the ledger and the observation describe different
  * identities and every case reads as NOT_FOLLOWED for a reason that has nothing to do with the
  * advisor. The version stays absent, because a web transport exposes no model version.
  */
+function identityFromRuntime(runtimeId: string): { provider: string; family: string } {
+  // A runtime id is `<transport>:<provider>` — `web:chatgpt` is the chatgpt provider over the web
+  // transport — so the provider is everything after the transport, not before it.
+  const parts = runtimeId.split(":");
+  const provider = parts.length > 1 ? parts.slice(1).join(":") : runtimeId;
+  return { provider: provider.trim() === "" ? "unknown" : provider, family: runtimeId };
+}
+
 function identityFor(record: ReplayCorpusRecord): { provider: string; family: string } {
-  const provider = record.atDecisionTime.provider;
   const runtimeId = record.atDecisionTime.runtimeId;
+  if (isMeasured(runtimeId)) return identityFromRuntime(runtimeId.value);
+  const provider = record.atDecisionTime.provider;
   const providerId = isMeasured(provider) ? provider.value : "unknown";
-  const runtime = isMeasured(runtimeId) ? runtimeId.value : providerId;
-  return { provider: providerId, family: runtime };
+  return { provider: providerId, family: providerId };
 }
 
 function modelKeyOfRecord(record: ReplayCorpusRecord): string {
@@ -128,12 +137,19 @@ export interface SchedulerCasesFromCorpus {
   cases: ReplayCase[];
   /** The ledger after the walk, so a caller can see what the replay learned. */
   ledger: ModelCapabilityRecord[];
+  /** One attribution per (step, provider), with the source it came from. */
+  attributions: StepDispatchAttribution[];
+  census: AttributionCensus;
+  /** Cases whose attribution is direct, which is the only set a headline metric may use. */
+  directCases: ReplayCase[];
   notes: string[];
 }
 
-function observationFromRecord(record: ReplayCorpusRecord, modelKey: string, recommendationId: string | undefined): RuntimeObservation {
+function observationFromRecord(record: ReplayCorpusRecord, modelKey: string, recommendationId: string | undefined, runtimeId?: string): RuntimeObservation {
   const domain = record.afterDecision.failureDomain;
   const outcome = isMeasured(record.afterDecision.finalOutcome) ? record.afterDecision.finalOutcome.value : "UNKNOWN";
+  const provider = runtimeId === undefined ? (isMeasured(record.atDecisionTime.provider) ? record.atDecisionTime.provider.value : "unknown") : identityFromRuntime(runtimeId).provider;
+  const family = runtimeId ?? (isMeasured(record.atDecisionTime.runtimeId) ? record.atDecisionTime.runtimeId.value : "unknown");
   return createObservation({
     observationId: `corpus:${record.recordId}`,
     traceId: `corpus-trace:${record.taskId}`,
@@ -141,8 +157,8 @@ function observationFromRecord(record: ReplayCorpusRecord, modelKey: string, rec
     task: { taskId: record.taskId, role: "worker", taskKind: taskKindOf(record) },
     model: {
       modelKey,
-      provider: isMeasured(record.atDecisionTime.provider) ? record.atDecisionTime.provider.value : "unknown",
-      family: isMeasured(record.atDecisionTime.runtimeId) ? record.atDecisionTime.runtimeId.value : "unknown",
+      provider,
+      family,
       version: "unknown",
       basis: "RECOMMENDED",
       reasonRefs: []
@@ -175,39 +191,64 @@ export function schedulerCasesFromCorpus(corpus: ReplayCorpus, options: { sequen
   const ordered = [...corpus.records].sort((left, right) => (left.sourceTimestamp === right.sourceTimestamp ? left.recordId.localeCompare(right.recordId) : left.sourceTimestamp < right.sourceTimestamp ? -1 : 1));
   const ledger = new Map<string, ModelCapabilityRecord>();
   const cases: ReplayCase[] = [];
+  const directCases: ReplayCase[] = [];
+  const attributions: StepDispatchAttribution[] = [];
   const notes: string[] = [];
   let sequence = options.sequenceBase ?? 1000;
   let skippedNoProvider = 0;
   const domainsSeen: Record<string, number> = {};
 
+  /** Providers of the runs of one task, used only when the step itself named none. */
+  const taskProviders = (taskId: string): string[] => {
+    const seen = new Set<string>();
+    for (const entry of ordered) {
+      if (entry.taskId !== taskId) continue;
+      if (isMeasured(entry.atDecisionTime.runtimeId)) seen.add(entry.atDecisionTime.runtimeId.value);
+    }
+    return [...seen].sort();
+  };
+
   for (const record of ordered) {
-    const provider = record.atDecisionTime.provider;
-    if (!isMeasured(provider)) {
+    // One attribution PER PROVIDER this step dispatched to. A step with three worker sessions is
+    // three dispatch decisions, not one ambiguous one.
+    const stepAttributions = attributeStep({
+      recordId: record.recordId,
+      stepIndex: record.atDecisionTime.stepIndex,
+      sessionProviders: record.atDecisionTime.workerSessions,
+      taskProviders: taskProviders(record.taskId)
+    });
+    attributions.push(...stepAttributions);
+    const providers = stepAttributions.filter((attribution) => attribution.provider !== undefined);
+    if (providers.length === 0) {
       skippedNoProvider += 1;
       continue;
     }
-    const identity = identityFor(record);
-    const actualKey = modelKeyOf(identity);
-    // Candidates are the identities the walk has seen so far; a never-seen provider is
-    // warm-started rather than excluded, which is exactly the ledger's stated rule.
-    if (!ledger.has(actualKey)) ledger.set(actualKey, createModelRecord({ provider: identity.provider, family: identity.family, at: record.sourceTimestamp }));
-    const models = [...ledger.values()];
-    const task: TaskProfile = {
-      taskId: record.taskId,
-      role: "worker",
-      taskKind: taskKindOf(record),
-      requiredCapabilities: [],
-      contextScale: "small",
-      externalEffect: false,
-      risk: "low",
-      createdAt: record.sourceTimestamp
-    };
-    sequence += 1;
-    const recommendation = adviseScheduling({ task, models, nodes: [], createdAt: record.sourceTimestamp, sequence, pinnedModel: undefined });
-    const observation = observationFromRecord(record, actualKey, recommendation.recommendationId);
-    cases.push({ taskId: `${record.taskId}@${record.atDecisionTime.stepIndex}`, recommendation, observation, inputDeclaration: declarationFor("the scheduler advice") });
 
-    // Walk forward: fold this record's outcome in only AFTER its own advice was produced.
+    for (const attribution of providers) {
+      const runtimeId = attribution.provider!;
+      const identity = identityFromRuntime(runtimeId);
+      const actualKey = modelKeyOf(identity);
+      if (!ledger.has(actualKey)) ledger.set(actualKey, createModelRecord({ provider: identity.provider, family: identity.family, at: record.sourceTimestamp }));
+      const models = [...ledger.values()];
+      const task: TaskProfile = {
+        taskId: record.taskId,
+        role: "worker",
+        taskKind: taskKindOf(record),
+        requiredCapabilities: [],
+        contextScale: "small",
+        externalEffect: false,
+        risk: "low",
+        createdAt: record.sourceTimestamp
+      };
+      sequence += 1;
+      const recommendation = adviseScheduling({ task, models, nodes: [], createdAt: record.sourceTimestamp, sequence });
+      const observation = observationFromRecord(record, actualKey, recommendation.recommendationId, runtimeId);
+      const replayCase: ReplayCase = { taskId: `${record.taskId}@${record.atDecisionTime.stepIndex}`, recommendation, observation, inputDeclaration: declarationFor("the scheduler advice") };
+      cases.push(replayCase);
+      if (DIRECT_ATTRIBUTION_SOURCES.includes(attribution.attributionSource)) directCases.push(replayCase);
+    }
+
+    // Walk forward: fold this record's outcome in only AFTER its advice was produced.
     const outcome = record.afterDecision.finalOutcome;
     const domain = record.afterDecision.failureDomain;
     const domainValue: FailureDomain | undefined = isMeasured(domain) ? domain.value : undefined;
@@ -216,26 +257,33 @@ export function schedulerCasesFromCorpus(corpus: ReplayCorpus, options: { sequen
     const attributable = domainValue === undefined ? outcome.value === "SUCCESS" : domainValue === "MODEL" || domainValue === "SEMANTIC";
     if (!attributable && outcome.value !== "SUCCESS") continue;
     const success = outcome.value === "SUCCESS" || outcome.value === "PARTIAL_SUCCESS";
-    const current = ledger.get(actualKey)!;
-    const applied = applyModelOutcome(current, {
-      observationId: `corpus:${record.recordId}`,
-      taskId: record.taskId,
-      nodeId: "unprofiled-node",
-      role: "worker",
-      taskKind: taskKindOf(record),
-      success,
-      ...(success ? {} : { failureClass: domainValue === "SEMANTIC" ? "SEMANTIC_REFUSAL" : "MODEL_FAILURE" }),
-      attribution: domainValue === "SEMANTIC" ? "SEMANTIC" : "RUNTIME",
-      ...(isMeasured(record.afterDecision.measuredLatencyMs) ? { latencyMs: record.afterDecision.measuredLatencyMs.value } : {}),
-      at: record.sourceTimestamp
-    });
-    ledger.set(actualKey, applied.record);
+    for (const attribution of providers) {
+      const identity = identityFromRuntime(attribution.provider!);
+      const key = modelKeyOf(identity);
+      const current = ledger.get(key);
+      if (current === undefined) continue;
+      const applied = applyModelOutcome(current, {
+        observationId: `corpus:${record.recordId}:${key}`,
+        taskId: record.taskId,
+        nodeId: "unprofiled-node",
+        role: "worker",
+        taskKind: taskKindOf(record),
+        success,
+        ...(success ? {} : { failureClass: domainValue === "SEMANTIC" ? "SEMANTIC_REFUSAL" : "MODEL_FAILURE" }),
+        attribution: domainValue === "SEMANTIC" ? "SEMANTIC" : "RUNTIME",
+        ...(isMeasured(record.afterDecision.measuredLatencyMs) ? { latencyMs: record.afterDecision.measuredLatencyMs.value } : {}),
+        at: record.sourceTimestamp
+      });
+      ledger.set(key, applied.record);
+    }
   }
 
-  if (skippedNoProvider > 0) notes.push(`${skippedNoProvider} step(s) recorded no dispatched provider, so there was no dispatch decision to replay`);
+  const census = censusAttributions(attributions);
+  if (skippedNoProvider > 0) notes.push(`${skippedNoProvider} step(s) recorded no dispatched provider at all, so there was no dispatch decision to replay`);
   notes.push(`the walk processed ${ordered.length} step(s) in source-timestamp order and folded each outcome in only after advising on it`);
   notes.push(`failure domains seen: ${Object.entries(domainsSeen).map(([domain, count]) => `${domain}=${count}`).join(", ")}`);
-  return { cases, ledger: [...ledger.values()], notes };
+  notes.push(...census.notes);
+  return { cases, ledger: [...ledger.values()], attributions, census, directCases, notes };
 }
 
 /** The facets of a declaration a caller may want to reuse. */

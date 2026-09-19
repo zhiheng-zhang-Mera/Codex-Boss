@@ -207,6 +207,8 @@ interface RawCheckpoint {
   checkpointReason?: string;
   verificationState?: string;
   activeProvider?: string | null;
+  /** Worker sessions recorded at this step. Each names the provider runtime it belongs to. */
+  sessions?: Array<{ id?: string; provider?: string; checkpoint?: number; health?: string }>;
   failureHistory?: Array<{ reason?: string; code?: string; message?: string }>;
   usage?: {
     modelCalls?: number;
@@ -357,6 +359,9 @@ export function exportReplayCorpus(options: ExportOptions): ExportResult {
     derived.forEach((entry, index) => {
       const usage = checkpoints[index].usage ?? {};
       const modelCalls = usage.modelCalls ?? 0;
+      // The step's own worker sessions are the direct per-step provider evidence. They are read
+      // from the checkpoint that produced this record, not from the task.
+      const sessionProviders = [...new Set((checkpoints[index].sessions ?? []).map((session) => (typeof session.provider === "string" ? session.provider : "")).filter((provider) => provider !== ""))].sort();
       const providerFact: Measurement<string> = modelCalls > 0
         ? measured(taskRuns[0]?.providerId ?? "unknown-provider", "state.json runs[].providerId", entry.fact.capturedAt)
         : notMeasured("no provider had been dispatched to at this step, which the checkpoint records as modelCalls 0");
@@ -371,6 +376,7 @@ export function exportReplayCorpus(options: ExportOptions): ExportResult {
         mountedSkills: [],
         usedSkills: [],
         contextInjected: [],
+        workerSessions: sessionProviders,
         tokensConsumed: (usage.estimatedInputTokens ?? 0) + (usage.estimatedOutputTokens ?? 0),
         toolCalls: usage.toolCalls ?? 0,
         browserActions: usage.browserActions ?? 0,

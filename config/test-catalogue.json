@@ -1396,6 +1396,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/dispatch-attribution.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/evaluation-report.test.ts",
       "tier": "unit",
       "covers": [

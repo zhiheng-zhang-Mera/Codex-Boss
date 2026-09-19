@@ -36,6 +36,8 @@ function record(overrides: {
   continued?: boolean;
   taskSucceeded?: boolean;
   tokens?: number;
+  /** Worker-session providers recorded at this step, which is the direct attribution evidence. */
+  sessions?: string[];
 }): ReplayCorpusRecord {
   return {
     schemaVersion: 1,
@@ -55,6 +57,7 @@ function record(overrides: {
       mountedSkills: [],
       usedSkills: [],
       contextInjected: [],
+      workerSessions: overrides.sessions ?? [],
       tokensConsumed: overrides.tokens ?? 10,
       toolCalls: 0,
       browserActions: 0,
@@ -150,8 +153,7 @@ describe("the scheduler replay walks forward and derives one identity", () => {
   it("uses one identity for both the recommendation and the actual model", () => {
     const result = schedulerCasesFromCorpus(syntheticCorpus());
     const first = result.cases[0];
-    expect(first.observation.model.modelKey).toBe("chatgpt:web:chatgpt:unknown");
-    // The advisor's candidate list is keyed the same way, so agreement is a real comparison:
+    expect(first.observation.model.modelKey).toBe("chatgpt:web:chatgpt:unknown");    // The advisor's candidate list is keyed the same way, so agreement is a real comparison:
     // three of the four cases agree, and the fourth is the qwen dispatch whose run never
     // finished — it is INCONCLUSIVE rather than scored, and the disagreement is visible in the
     // agreement rate.
@@ -175,11 +177,34 @@ describe("the scheduler replay walks forward and derives one identity", () => {
     expect(forTaskB?.observation.execution.failureDomain).toBeUndefined();
   });
 
-  it("counts the steps that recorded no dispatched provider", () => {
-    const noProvider = corpusOf([record({ recordId: "a:1", step: 1, at: AT, provider: notMeasured("no provider had been dispatched to at this step") })]);
-    const result = schedulerCasesFromCorpus(noProvider);
+  it("falls back to a task-level attribution and says so, rather than dropping the step", () => {
+    const noSessions = corpusOf([record({ recordId: "a:1", step: 1, at: AT, sessions: [] })]);
+    const result = schedulerCasesFromCorpus(noSessions);
+    expect(result.cases).toHaveLength(1);
+    expect(result.attributions[0].attributionSource).toBe("TASK_FALLBACK");
+    expect(result.census.bySource.TASK_FALLBACK).toBe(1);
+    expect(result.census.directCount).toBe(0);
+    expect(result.census.notes.join(" ")).toContain("must not be reported as per-dispatch evidence");
+    expect(result.directCases).toHaveLength(0);
+  });
+
+  it("produces direct attribution from the step's own worker sessions", () => {
+    const withSessions = corpusOf([record({ recordId: "a:1", step: 1, at: AT, sessions: ["web:chatgpt", "web:qwen", "web:grok"] })]);
+    const result = schedulerCasesFromCorpus(withSessions);
+    // Three worker sessions are three dispatch decisions, not one ambiguous one.
+    expect(result.cases).toHaveLength(3);
+    expect(result.census.bySource.DIRECT_CHECKPOINT).toBe(3);
+    expect(result.census.directCount).toBe(3);
+    expect(result.census.providers).toEqual(["web:chatgpt", "web:grok", "web:qwen"]);
+    expect(result.directCases).toHaveLength(3);
+  });
+
+  it("records UNKNOWN when a step names no provider at all", () => {
+    const nothing = corpusOf([record({ recordId: "a:1", step: 1, at: AT, provider: notMeasured("no provider"), runtimeId: notMeasured("no runtime"), sessions: [] })]);
+    const result = schedulerCasesFromCorpus(nothing);
     expect(result.cases).toHaveLength(0);
-    expect(result.notes.join(" ")).toContain("no dispatched provider");
+    expect(result.census.bySource.UNKNOWN).toBe(1);
+    expect(result.notes.join(" ")).toContain("no dispatched provider at all");
   });
 
   it("processes records in source-timestamp order regardless of array order", () => {

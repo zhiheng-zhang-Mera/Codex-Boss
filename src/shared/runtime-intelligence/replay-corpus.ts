@@ -83,6 +83,12 @@ export interface AtDecisionTime {
   mountedSkills: string[];
   usedSkills: string[];
   contextInjected: string[];
+  /**
+   * The provider runtimes this step's own worker sessions named — the direct evidence a
+   * per-step dispatch attribution rests on. Empty means the step recorded no session, which is
+   * not the same as a step with no provider.
+   */
+  workerSessions: string[];
   tokensConsumed: number;
   /** Tool invocations accumulated by this step. Known at decision time, unlike the outcome. */
   toolCalls: number;
@@ -153,6 +159,7 @@ export const AT_DECISION_TIME_FIELDS: readonly string[] = [
   "mountedSkills",
   "usedSkills",
   "contextInjected",
+  "workerSessions",
   "tokensConsumed",
   "toolCalls",
   "browserActions",
@@ -240,6 +247,7 @@ export function validateReplayCorpus(value: unknown): { corpus?: ReplayCorpus; p
     if (!Array.isArray(at.mountedSkills)) problems.push(`${path}.atDecisionTime.mountedSkills must be an array`);
     if (!Array.isArray(at.usedSkills)) problems.push(`${path}.atDecisionTime.usedSkills must be an array`);
     if (!Array.isArray(at.contextInjected)) problems.push(`${path}.atDecisionTime.contextInjected must be an array`);
+    if (!Array.isArray(at.workerSessions)) problems.push(`${path}.atDecisionTime.workerSessions must be an array`);
     validateMeasurement(at.provider, `${path}.atDecisionTime.provider`, problems);
     validateMeasurement(at.runtimeId, `${path}.atDecisionTime.runtimeId`, problems);
     validateMeasurement(at.modelKey, `${path}.atDecisionTime.modelKey`, problems);

@@ -294,7 +294,19 @@ if (options) {
           completionObservations: completion.length,
           continuation: continuation === undefined ? undefined : { steps: continuation.steps.length, skipped: continuation.skipped, unavailableSignals: continuation.unavailableSignals, policyId: continuation.policyId, policyHash: continuation.policyHash },
           scheduler: scheduler === undefined ? undefined : { cases: scheduler.cases.length, ledger: scheduler.ledger.length, notes: scheduler.notes },
+          attribution: scheduler === undefined ? undefined : scheduler.census,
+          schedulerDirect: scheduler === undefined || scheduler.directCases.length === 0 ? undefined : schedulerModule.benchmarkScheduler(scheduler.directCases),
           policyComparison,
+          // What real latency and cost data the corpus actually carries.
+          measurementCoverage: corpus === undefined ? undefined : {
+            latencyCases: corpus.records.filter((entry) => entry.afterDecision.measuredLatencyMs.status === "MEASURED").length,
+            costCases: corpus.records.filter((entry) => entry.afterDecision.measuredCostUsd.status === "MEASURED").length,
+            tokenCases: corpus.records.filter((entry) => entry.atDecisionTime.tokensConsumed > 0).length,
+            workerRuntimeCases: corpus.records.filter((entry) => entry.atDecisionTime.elapsedMs > 0).length,
+            toolsCases: corpus.records.filter((entry) => entry.atDecisionTime.toolCalls > 0 || entry.atDecisionTime.browserActions > 0).length,
+            sessionAttributedSteps: corpus.records.filter((entry) => entry.atDecisionTime.workerSessions.length > 0).length,
+            note: "latency comes from the checkpoint's providerWaitMs and workerRuntimeMs; cost is recorded nowhere, so COST_CASES is 0 rather than estimated"
+          },
           benchmarks: {
             continuation: continuationMetrics,
             scheduler: schedulerMetrics
