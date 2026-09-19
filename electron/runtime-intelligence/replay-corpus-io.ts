@@ -21,6 +21,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { redactSecrets, scanSecrets } from "../../src/shared/secret-scan";
+import { runtimeRoots } from "../runtime-paths";
 import { measured, notMeasured, unknown, type Measurement } from "../../src/shared/runtime-intelligence/measurement";
 import { deriveStepCompletion, type LoopCheckpointFact } from "../../src/shared/runtime-intelligence/step-completion";
 import {
@@ -146,7 +147,9 @@ export function locateRealDataRoots(options: LocateOptions): DataRootSurvey {
     ...(options.overrides ?? []).map((entry) => ({ path: path.resolve(entry), kind: "override" as DataRootKind })),
     { path: path.join(localAppData, "CodexBoss"), kind: "application-userdata" },
     { path: path.join(appData, "CodexBoss"), kind: "application-userdata" },
-    { path: path.join(options.repositoryRoot, "runtime-data"), kind: "repository-runtime-data" }
+    // The repository's portable/standalone root comes from the one module allowed to spell it,
+    // rather than from a literal here: the directory names live in `runtime-paths.ts`.
+    { path: runtimeRoots({ installRoot: options.repositoryRoot }).appData, kind: "repository-runtime-data" }
   ];
 
   const candidates = considered.map((entry) => describeRoot({ ...entry, present: fs.existsSync(entry.path) }));
