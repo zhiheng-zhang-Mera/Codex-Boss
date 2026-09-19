@@ -29,6 +29,18 @@ export const ROOT_PROTECTED_MANIFEST: readonly string[] = [
   "/.github/CODEOWNERS",
   "/.github/workflows/",
 
+  // The authority model, and the exact path only.
+  //
+  // `docs/root-trust-authority-model.md` states that the Owner Authority plane covers "anything capable of
+  // weakening any of the above (including this document, the classifier that produces this classification,
+  // and the tests that guard it)". Until this entry existed the claim was FALSE in the shipped classifier:
+  // `classifyAuthorityPath` returned `AUTONOMOUS_MUTABLE` / class 0 / `ALLOW`, so an autonomous actor could
+  // have rewritten the document that defines the boundary — and the document was the one artifact in its own
+  // list that was not protected. `/docs/**` is deliberately NOT protected: ordinary documentation stays in
+  // the autonomous plane, and only this file is added. `tests/unit/root-trust-authority-lockdown.test.ts`
+  // pins both halves, so deleting this line turns a test red rather than quietly reopening the gap.
+  "/docs/root-trust-authority-model.md",
+
   // CI command indirection / dependency execution surface.
   "/package.json",
   "/pnpm-lock.yaml",

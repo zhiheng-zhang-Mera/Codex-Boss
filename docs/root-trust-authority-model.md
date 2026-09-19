@@ -35,6 +35,13 @@ need Owner approval · the rules deciding what Boss may modify autonomously · p
 promotion/signing authority · and **anything capable of weakening any of the above** (including this
 document, the classifier that produces this classification, and the tests that guard it).
 
+This document's own membership in that plane is enforced, not implied, and §3's convention — every claim
+names its enforcer — applies to it like any other: the exact path `/docs/root-trust-authority-model.md` is in
+`ROOT_PROTECTED_MANIFEST` (`src/shared/root-authority/protected-surface.ts`) and in `.github/CODEOWNERS`, so
+`classifyAuthorityPath` returns `OWNER_AUTHORITY` / class 3 and an autonomous change is `REQUIRE_OWNER`.
+`tests/unit/root-trust-authority-lockdown.test.ts` pins that, and pins `docs/continuation-notes.md` as the
+autonomous negative control, so neither deleting the protection nor widening it to `docs/**` can pass.
+
 ## 2. The four classes
 
 | Class | Name | Who may effect it |
@@ -116,12 +123,22 @@ describes gets forgotten:
   `AUTONOMOUS_WORKER_AUTHORITY < OWNER_TRUST_AUTHORITY` needs a dedicated Boss identity
   (`contents:write`, `pull_requests:write`, `checks:read`, no admin, no bypass) to exist and to be shown
   unable to merge a protected change.
-- **The ruleset's required status check cannot be satisfied.** `Main-Protection` requires a check named
-  `validate`, which no workflow produces. The Owner's bypass is currently the only way `main` moves; the
-  effective protections are `require_code_owner_review` plus `non_fast_forward`.
+- **The ruleset's required checks are produced — repaired, and measured.** Until the Owner-authorized repair,
+  `Main-Protection` required a check named `validate`, which no workflow produced, so the Owner's bypass was
+  the only way `main` moved. It now requires the four checks `Desktop CI` actually emits — `quality`, `unit`,
+  `acceptance`, `package`, each pinned to the GitHub Actions integration id `15368`, with
+  `strict_required_status_checks_policy = true`. The Owner bypass **remains available** (the ruleset's single
+  always-allow actor is still the Owner), but it is **no longer required merely to work around a non-produced
+  `validate` required check**. Measured: `required=[quality,unit,acceptance,package]`,
+  `produced=[acceptance,finalize,hosted-runner-status,package,quality,unit]`, no
+  `REQUIRED_CHECK_NOT_PRODUCED:*` finding (`node scripts/verify-authority-separation.cjs --platform`).
 - **The lockdown itself is promoted** (epoch 22, `main = ac3865b` at the time of writing), so this item is
   closed; it is kept in the list because it recorded the bootstrap step that had to happen before the
-  mechanism could govern its own changes.
+  mechanism could govern its own changes. That epoch-22 note is history and is left as written. **CURRENT:
+  epoch 23 / `boss-root-trust-23`**, surface `0ddb900014c924bb93b6e0998495576b8c6d72dc62afb9647f1e3363c3956a0a`,
+  `node scripts/acceptance-evolution-bless.cjs --check` → `MATCHES the live surface`. Epoch 23 anchors the
+  post-seal documentation-pointer correction; it does **not** re-certify the v1.2 production qualification,
+  which stays historical evidence at epoch 22 and qualified SHA `506e4a9631…`.
 - **Pruning is policy-only until a pruning path exists.** `decidePrune` /
   `isComponentPartOfTrustBoundary` are machine-checked and ready, but Boss has no self-pruning executor
   yet; when one is built it must call them rather than re-deciding what is protected.
@@ -146,11 +163,16 @@ Measured on this repository:
 
 ```text
 visibility=public   ruleset=Main-Protection (active)   bypass actors=[{id:229580437,User,always}]
+required checks=[quality,unit,acceptance,package]   (each pinned to integration_id 15368, strict=true)
+produced checks=[acceptance,finalize,hosted-runner-status,package,quality,unit]
 environments=[boss-root-trust-owner (required_reviewers)]
 self-hosted runner safe: false
   finding: PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER
-  finding: REQUIRED_CHECK_NOT_PRODUCED:validate
 ```
+
+Every required context is now produced by a workflow in this repository, so the ruleset is satisfiable
+without the Owner bypass whenever CI is genuinely green. The one finding above is unchanged and is the whole
+reason for the private control plane: the repository is PUBLIC, so it may not host a runner.
 
 The transport was then decided (Owner decision 1, OPTION 2) and **built as a separate private control plane**,
 so the finding above is no longer an open question — it is the reason the architecture looks the way it does:

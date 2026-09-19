@@ -29,6 +29,7 @@ import {
   verifyTrustEpochFile
 } from "../../src/shared/autonomous-evolution-trust";
 import { decidePromotion } from "../../src/shared/root-authority/promotion-state";
+import { isProtectedPath } from "../../src/shared/root-authority/protected-surface";
 
 /**
  * Root Trust Authority Lockdown — the adversarial battery (Phase A10).
@@ -87,6 +88,60 @@ describe("Root Trust Authority Lockdown — the invariant", () => {
       .toBe(CHANGE_CLASSES.OWNER_AUTHORITY_CHANGE);
     // And the derivation itself is the stricter of the set.
     expect(deriveChangeClass(["src/app/main.ts", "trust-policy/trust-epoch.json"])).toBe(CHANGE_CLASSES.OWNER_AUTHORITY_CHANGE);
+  });
+});
+
+describe("Root Trust Authority Lockdown — the authority model is inside its own boundary", () => {
+  const MODEL = "docs/root-trust-authority-model.md";
+  const ORDINARY_DOC = "docs/continuation-notes.md";
+
+  /**
+   * The document says the plane covers "anything capable of weakening any of the above (including this
+   * document, the classifier that produces this classification, and the tests that guard it)". That claim is
+   * asserted through the SHIPPED classifiers rather than by grepping the prose, because the claim is about
+   * what the machine does. Measured before this guard existed: `classifyAuthorityPath` returned
+   * `AUTONOMOUS_MUTABLE` / class 0 / `ALLOW` for the model document — the one artifact in its own list that
+   * was not protected — so an autonomous actor could have rewritten the definition of the boundary.
+   */
+  it("protects the authority model itself, through the inherited manifest", () => {
+    expect(isProtectedPath(MODEL), `${MODEL} is not in the protected surface`).toBe(true);
+    expect(isOwnerAuthorityPath(MODEL), `${MODEL} is not on the Owner Authority plane`).toBe(true);
+    expect(classifyAuthorityPath(MODEL).plane).toBe("OWNER_AUTHORITY");
+    expect(changeClassOfPath(MODEL)).toBe(CHANGE_CLASSES.OWNER_AUTHORITY_CHANGE);
+    expect(decideAuthorityAction({ actor: AUTONOMOUS, action: "change", files: [MODEL] }).decision).toBe("REQUIRE_OWNER");
+    // The Owner may still authorize it, so this is a review boundary rather than a dead end.
+    expect(decideAuthorityAction({ actor: OWNER, action: "change", files: [MODEL] }).decision).toBe("ALLOW");
+    // Inherited from ROOT_PROTECTED_MANIFEST, not maintained as a third list.
+    expect(OWNER_AUTHORITY_PATHS).toContain("/docs/root-trust-authority-model.md");
+  });
+
+  /**
+   * The negative control is half the assertion and not decoration: a "fix" that protected `docs/**` would
+   * close the gap by making ordinary documentation Owner-only, which is exactly what defeating unattended
+   * autonomous evolution looks like. Both directions are pinned, so neither deleting the protection nor
+   * widening it to the directory can pass.
+   */
+  it("keeps ordinary documentation autonomous (negative control)", () => {
+    expect(ORDINARY_DOC).not.toBe(MODEL);
+    expect(isProtectedPath(ORDINARY_DOC), "ordinary docs must stay in the autonomous plane").toBe(false);
+    expect(isOwnerAuthorityPath(ORDINARY_DOC)).toBe(false);
+    expect(classifyAuthorityPath(ORDINARY_DOC).plane).toBe("AUTONOMOUS_MUTABLE");
+    expect(changeClassOfPath(ORDINARY_DOC)).toBe(CHANGE_CLASSES.ORDINARY_AUTONOMOUS_CHANGE);
+    expect(decideAuthorityAction({ actor: AUTONOMOUS, action: "change", files: [ORDINARY_DOC] }).decision).toBe("ALLOW");
+    // The boundary is the exact path, not the directory it lives in.
+    expect(isProtectedPath("docs/platform-foundation-known-issues.md")).toBe(false);
+    expect(isProtectedPath("docs/")).toBe(false);
+  });
+
+  it("keeps the two declarations of the boundary in agreement", () => {
+    // The guard unions the compiled manifest with .github/CODEOWNERS, so the path must be in both or the
+    // claim would hold only for the host-boot path that parses CODEOWNERS.
+    const codeowners = fs.readFileSync(path.join(PROJECT, ".github/CODEOWNERS"), "utf8");
+    const line = codeowners.split(/\r?\n/).find((entry) => /^\s*\/docs\/root-trust-authority-model\.md\s/.test(entry));
+    expect(line, "CODEOWNERS no longer protects the authority model").toBeTruthy();
+    expect(line as string).toContain("@zhiheng-zhang-Mera");
+    // And no directory rule sweeps ordinary docs in.
+    expect(/^\s*\/docs\/\s/m.test(codeowners), "CODEOWNERS must not protect the whole docs/ directory").toBe(false);
   });
 });
 

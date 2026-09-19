@@ -23,12 +23,17 @@
 #       - Require pull request before merging
 #       - Required approvals = 0
 #       - Require review from Code Owners = ON
-#       - Required status check: validate
+#       - Required status checks = quality, unit, acceptance, package
+#         (all four pinned to the GitHub Actions integration id 15368)
 #       - Require branch to be up to date = ON
 #       - Block force pushes = ON
 #       - Restrict deletions = ON
 #       - Boss has NO bypass
 #       - Root Owner user is the only Always-allow bypass actor
+#
+#    The required check list used to read `validate`, which no workflow
+#    produced; it was repaired (Owner-authorized) to the four checks
+#    `Desktop CI` actually emits.
 #
 # 3. Owner credentials / private keys / PATs / emergency secrets must NEVER
 #    be committed to this repository. CODEOWNERS is a review boundary, not
@@ -52,7 +57,7 @@
 # ============================================================================
 
 # Current Desktop CI invokes pnpm scripts from package.json. Changing those
-# scripts can silently weaken "validate", so package.json is a Root surface.
+# scripts can silently weaken required CI checks, so package.json is a Root surface.
 /package.json                              @zhiheng-zhang-Mera
 
 # Dependency resolution can change executable code used by CI and packaging.
@@ -109,6 +114,17 @@
 /.codex-boss/root/                         @zhiheng-zhang-Mera
 /.codex-boss/config/root-*.json            @zhiheng-zhang-Mera
 /.codex-boss/config/root-*.schema.json     @zhiheng-zhang-Mera
+
+# The authority model document, and this exact path only.
+#
+# The document states that the Owner Authority plane covers "anything capable of weakening any of the above
+# (including this document ...)". Until this line existed that claim was FALSE in the shipped classifier:
+# `classifyAuthorityPath("docs/root-trust-authority-model.md")` returned `AUTONOMOUS_MUTABLE` / class 0 /
+# `ALLOW`, so an autonomous actor could have rewritten the model that defines the boundary. `/docs/**` is
+# deliberately NOT protected — ordinary documentation stays autonomous — and
+# `tests/unit/root-trust-authority-lockdown.test.ts` pins this path as protected and `docs/continuation-notes.md`
+# as autonomous, so removing this line turns a test red.
+/docs/root-trust-authority-model.md        @zhiheng-zhang-Mera
 
 # Root authority implementation.
 /electron/root-authority/                  @zhiheng-zhang-Mera
@@ -259,5 +275,5 @@
 #
 # Everything else remains eligible for the normal autonomous path:
 #
-#     Candidate -> PR -> validate PASS -> merge -> Stable
+#     Candidate -> PR -> quality + unit + acceptance + package PASS -> merge -> Stable
 #
