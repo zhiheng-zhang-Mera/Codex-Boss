@@ -1382,6 +1382,20 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/node-profile.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/node-profiler.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/skill-loadout.test.ts",
       "tier": "unit",
       "covers": [
