@@ -48,10 +48,30 @@ export interface ProspectiveStoreStatus {
   steps: number;
   observationsRecorded: number;
   observationsDeduplicated: number;
+  /** Rows currently in the log, which compaction keeps bounded per window. */
+  logRows: number;
   policyId: string;
   policyHash: string;
   bytes: number;
   degradedReason?: string;
+}
+
+/**
+ * How many log rows one window may accumulate before the log is rewritten compactly.
+ *
+ * Rows are full snapshots of a window, so a task with many checkpoints would otherwise leave the
+ * log growing quadratically. Compaction keeps one row per window. It is safe for the ordering
+ * evidence because that evidence is not carried by row order: every append stamps its own
+ * `capturedAt` or `observedAt`, every step says `recordKind: DECISION_TIME_RECORD`, and a closed
+ * window carries `outcome.closedAt`, which is later than every advice it scores.
+ */
+export const PROSPECTIVE_WINDOW_ROWS_PER_WINDOW = 16;
+
+interface ParsedLog {
+  /** A key that changes whenever the file does: size and modification time. */
+  key: string;
+  byId: Map<string, ProspectiveWindowRecord>;
+  rows: number;
 }
 
 export class ProspectiveWindowStore {
@@ -60,6 +80,7 @@ export class ProspectiveWindowStore {
   private degradedReason?: string;
   private recorded = 0;
   private deduplicated = 0;
+  private cache?: ParsedLog;
 
   constructor(options: ProspectiveStoreOptions) {
     this.options = options;
@@ -70,10 +91,37 @@ export class ProspectiveWindowStore {
     return path.join(this.options.rootDir, PROSPECTIVE_WINDOW_FILENAME);
   }
 
-  /** Every record, one per task, newest state last per id. */
+  /** A key for the current file state, or `absent` when there is no file yet. */
+  private keyOf(file: string): string {
+    try {
+      const stat = fs.statSync(file);
+      return `${stat.size}:${stat.mtimeMs}`;
+    } catch {
+      return "absent";
+    }
+  }
+
+  private order(byId: Map<string, ProspectiveWindowRecord>): ProspectiveWindowRecord[] {
+    return [...byId.values()].sort((left, right) => (left.openedAt < right.openedAt ? -1 : left.openedAt > right.openedAt ? 1 : 0));
+  }
+
+  /**
+   * Every record, one per task.
+   *
+   * The log is append-only, so the LAST row for a window id is its current state. The parsed
+   * result is cached against the file's size and modification time: a checkpoint observation asks
+   * for the window four times over, and re-reading the whole log for each of those would make the
+   * capture's cost grow with the log on the live path it was just attached to. An external writer
+   * (another process, a hand-edit) changes the key and is picked up on the next read.
+   */
   records(): ProspectiveWindowRecord[] {
     const file = this.file();
-    if (!fs.existsSync(file)) return [];
+    const key = this.keyOf(file);
+    if (this.cache !== undefined && this.cache.key === key) return this.order(this.cache.byId);
+    if (key === "absent") {
+      this.cache = { key, byId: new Map(), rows: 0 };
+      return [];
+    }
     let text: string;
     try {
       text = fs.readFileSync(file, "utf8");
@@ -81,10 +129,11 @@ export class ProspectiveWindowStore {
       this.degradedReason = `${PROSPECTIVE_WINDOW_FILENAME} could not be read: ${error instanceof Error ? error.message : String(error)}`;
       return [];
     }
-    // The log is append-only, so the LAST row for a window id is its current state.
     const byId = new Map<string, ProspectiveWindowRecord>();
+    let rows = 0;
     for (const line of text.split(/\r?\n/)) {
       if (line.trim() === "") continue;
+      rows += 1;
       try {
         const parsed = JSON.parse(line) as ProspectiveWindowRecord;
         if (typeof parsed.windowId !== "string") continue;
@@ -93,7 +142,8 @@ export class ProspectiveWindowStore {
         // One unparseable row costs one row, not the window.
       }
     }
-    return [...byId.values()].sort((left, right) => (left.openedAt < right.openedAt ? -1 : left.openedAt > right.openedAt ? 1 : 0));
+    this.cache = { key, byId, rows };
+    return this.order(byId);
   }
 
   record(taskId: string): ProspectiveWindowRecord | undefined {
@@ -103,6 +153,33 @@ export class ProspectiveWindowStore {
   private append(record: ProspectiveWindowRecord): void {
     fs.mkdirSync(this.options.rootDir, { recursive: true });
     fs.appendFileSync(this.file(), `${JSON.stringify(record)}\n`, "utf8");
+    if (this.cache === undefined) {
+      this.records();
+      return;
+    }
+    this.cache.byId.set(record.windowId, record);
+    this.cache.rows += 1;
+    this.cache.key = this.keyOf(this.file());
+    this.compactIfOversized();
+  }
+
+  /**
+   * Rewrites the log as one row per window when it has grown past the bound.
+   *
+   * The rewrite is atomic — a temporary file and a rename — so a crash cannot leave a half-written
+   * log, and it keeps the newest state of every window, which is what a reader folds for anyway.
+   */
+  private compactIfOversized(): void {
+    const cache = this.cache;
+    if (cache === undefined) return;
+    const limit = PROSPECTIVE_WINDOW_ROWS_PER_WINDOW * Math.max(1, cache.byId.size);
+    if (cache.rows <= limit) return;
+    const file = this.file();
+    const temporary = `${file}.compact-${process.pid}`;
+    const body = this.order(cache.byId).map((entry) => `${JSON.stringify(entry)}\n`).join("");
+    fs.writeFileSync(temporary, body, "utf8");
+    fs.renameSync(temporary, file);
+    this.cache = { key: this.keyOf(file), byId: cache.byId, rows: cache.byId.size };
   }
 
   /** Opens a window for a task, fixing the frozen policy's hash before anything else happens. */
@@ -229,6 +306,7 @@ export class ProspectiveWindowStore {
       steps: records.reduce((total, entry) => total + entry.steps.length, 0),
       observationsRecorded: this.recorded,
       observationsDeduplicated: this.deduplicated,
+      logRows: this.cache?.rows ?? 0,
       policyId: policy.policyId,
       policyHash: policy.policyHash,
       bytes,

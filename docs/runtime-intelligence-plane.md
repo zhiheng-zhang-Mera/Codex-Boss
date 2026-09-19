@@ -1096,6 +1096,17 @@ A checkpoint writes a `DECISION_TIME_RECORD` immediately; the outcome is appende
 carry `recordKind`, so the ordering a reader needs to trust the evidence is visible in the file
 rather than reconstructed afterwards.
 
+A row is a full snapshot of one window, so the log is kept bounded: the parsed window state is
+cached against the file's size and modification time — a checkpoint asks for its window four times
+over, and re-reading the whole log for each of those would make the capture's cost grow with the log
+on the live path — and once a window has accumulated more than
+`PROSPECTIVE_WINDOW_ROWS_PER_WINDOW` rows the log is rewritten atomically as one row per window.
+Compaction does not touch the ordering evidence, because that evidence is carried by the records
+themselves rather than by row order: every append stamps its own `capturedAt` or `observedAt`, every
+step says `recordKind: DECISION_TIME_RECORD`, and a closed window's `outcome.closedAt` is later than
+every advice it scores. A test drives 48 appends, asserts the log is one row, and asserts the folded
+window is unchanged.
+
 The online temporal guard runs on **the record the caller handed in** before anything else. The
 snapshot given to the advisor is built from a whitelist, so a leak could not reach it through that
 path — but a caller passing a record that carries `finalOutcome` or `taskComplete` is reading

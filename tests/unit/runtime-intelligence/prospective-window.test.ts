@@ -37,7 +37,8 @@ import {
   type ProspectiveMetrics,
   type ProspectiveWindowRecord
 } from "../../../src/shared/runtime-intelligence/prospective-window";
-import { ProspectiveWindowStore, PROSPECTIVE_WINDOW_FILENAME, type ProspectiveStoreOptions, type ProspectiveStoreStatus } from "../../../electron/runtime-intelligence/prospective-store";
+import { ProspectiveWindowStore, PROSPECTIVE_WINDOW_FILENAME, PROSPECTIVE_WINDOW_ROWS_PER_WINDOW, type ProspectiveStoreOptions, type ProspectiveStoreStatus } from "../../../electron/runtime-intelligence/prospective-store";
+import { stepObservationOf } from "../../../src/shared/runtime-intelligence/live-capture";
 import { CONTINUATION_DECISION_CLASSES } from "../../../src/shared/runtime-intelligence/continuation-evaluator";
 
 /**
@@ -364,5 +365,45 @@ describe("the store holds the ordering across restarts", () => {
     store.openTask({ taskId: "task-1" });
     fs.appendFileSync(path.join(root, "prospective-window.jsonl"), "{ torn\n", "utf8");
     expect(new ProspectiveWindowStore({ rootDir: root }).records()).toHaveLength(1);
+  });
+
+  it("keeps the log bounded per window while every record keeps its own ordering evidence", () => {
+    const root = makeRoot();
+    const store = new ProspectiveWindowStore({ rootDir: root, now: () => AFTER_FREEZE });
+    store.ensureTask({ taskId: "task-1" });
+    const stepFor = (index: number) => {
+      const built = stepObservationOf({
+        facts: { taskId: "task-1", revision: index, completedSteps: ["a"], pendingSteps: index % 2 === 0 ? [] : ["b"], nextAction: "DISPATCHING" },
+        capturedAt: AFTER_FREEZE,
+        sourceClass: "REAL_USER_TASK"
+      });
+      if (built.observation === undefined) throw new Error(built.problems.join("; "));
+      return built.observation;
+    };
+    for (let index = 1; index <= PROSPECTIVE_WINDOW_ROWS_PER_WINDOW * 3; index += 1) {
+      expect(store.appendObservation({ taskId: "task-1", observation: stepFor(index) }).ok).toBe(true);
+    }
+    // The log was rewritten rather than left to grow: one row per window, and the window itself is
+    // unchanged by the rewrite.
+    const log = fs.readFileSync(path.join(root, "prospective-window.jsonl"), "utf8").split(/\r?\n/).filter((line) => line.trim() !== "");
+    expect(log.length).toBe(1);
+    expect(store.status().logRows).toBe(1);
+    const [record] = new ProspectiveWindowStore({ rootDir: root }).records();
+    expect(record.steps).toHaveLength(PROSPECTIVE_WINDOW_ROWS_PER_WINDOW * 3);
+    expect(record.eventIds.length).toBeGreaterThan(0);
+    expect(record.steps.every((step) => step.recordKind === "DECISION_TIME_RECORD")).toBe(true);
+    // The ordering the evidence rests on is in the records themselves, not in row order.
+    expect(record.steps[record.steps.length - 1].capturedAt).toBe(AFTER_FREEZE);
+  });
+
+  it("picks up a log changed by another writer", () => {
+    const root = makeRoot();
+    const store = new ProspectiveWindowStore({ rootDir: root, now: () => AFTER_FREEZE });
+    store.ensureTask({ taskId: "task-1" });
+    expect(store.records()).toHaveLength(1);
+    // A second process opens a window: the cached read must not hide it.
+    const other = new ProspectiveWindowStore({ rootDir: root, now: () => AFTER_FREEZE });
+    other.ensureTask({ taskId: "task-2" });
+    expect(store.records().map((record) => record.taskId).sort()).toEqual(["task-1", "task-2"]);
   });
 });
