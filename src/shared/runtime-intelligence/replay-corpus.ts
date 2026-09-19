@@ -18,7 +18,7 @@
  * replay: `REPLAY_CORPUS_GUARANTEES` states what importing one may not touch.
  */
 
-import { isMeasured, type Measurement } from "./measurement";
+import { isMeasured, unknown, type Measurement } from "./measurement";
 import type { FailureDomain, TaskKind } from "./contracts";
 
 export const REPLAY_CORPUS_SCHEMA_VERSION = 1;
@@ -84,6 +84,10 @@ export interface AtDecisionTime {
   usedSkills: string[];
   contextInjected: string[];
   tokensConsumed: number;
+  /** Tool invocations accumulated by this step. Known at decision time, unlike the outcome. */
+  toolCalls: number;
+  /** Browser actions accumulated by this step. */
+  browserActions: number;
   elapsedMs: number;
   /** The confidence a prior recommendation carried, when one was recorded. */
   recommendedConfidence?: number;
@@ -150,6 +154,8 @@ export const AT_DECISION_TIME_FIELDS: readonly string[] = [
   "usedSkills",
   "contextInjected",
   "tokensConsumed",
+  "toolCalls",
+  "browserActions",
   "elapsedMs",
   "recommendedConfidence",
   "recommendedModelKey"
@@ -332,3 +338,76 @@ export function summariseReplayCorpus(corpus: ReplayCorpus): ReplayCorpusSummary
 }
 
 /** Convenience: a corpus builder uses the plane's measurement constructors directly. */
+
+/**
+ * A task-level view of a corpus, in the shape a report presents.
+ *
+ * The corpus is STORED as a flat, appendable sequence of step records — one record per step,
+ * each with its own input/target split — because that is what makes appending cheap and the
+ * temporal boundary per-step. `groupCorpusByTask` derives the per-task view with a `steps`
+ * array from that storage, so the same corpus answers "what did this task look like" without a
+ * second format to keep in sync and without rewriting a task's file to add a step.
+ */
+export interface ReplayCorpusTaskView {
+  taskId: string;
+  taskKind: TaskKind | "unknown";
+  role: Measurement<string>;
+  sourceTimestamp: string;
+  model: { provider: Measurement<string>; runtimeId: Measurement<string>; modelKey: Measurement<string> };
+  steps: Array<{ stepIndex: number; atDecisionTime: AtDecisionTime; afterDecision: AfterDecision; completionEvidence: Measurement<string> }>;
+  finalOutcome: Measurement<"SUCCESS" | "FAILURE" | "PARTIAL_SUCCESS" | "CANCELLED">;
+  reviewOutcome: Measurement<"AGREED" | "DISAGREED" | "NOT_REVIEWED" | "NOT_RUN" | "VERIFIED">;
+  skillUsage: { mounted: string[]; used: string[] };
+  toolUsage: { toolCalls: number; browserActions: number };
+  measuredLatencyMs: Measurement<number>;
+  measuredCostUsd: Measurement<number>;
+  failureDomain: Measurement<FailureDomain>;
+  completionEvidence: Measurement<string>;
+}
+
+/** The last measured value across a task's steps, or the first absence if none was measured. */
+function lastMeasured<T>(values: readonly Measurement<T>[]): Measurement<T> {
+  for (let index = values.length - 1; index >= 0; index -= 1) if (isMeasured(values[index])) return values[index];
+  return values[0] ?? unknown("this task's steps recorded nothing");
+}
+
+/** Groups a flat step corpus into the per-task view a report prints. */
+export function groupCorpusByTask(corpus: ReplayCorpus): ReplayCorpusTaskView[] {
+  const byTask = new Map<string, ReplayCorpusRecord[]>();
+  for (const record of corpus.records) byTask.set(record.taskId, [...(byTask.get(record.taskId) ?? []), record]);
+
+  return [...byTask.entries()]
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([taskId, records]) => {
+      const ordered = [...records].sort((left, right) => left.atDecisionTime.stepIndex - right.atDecisionTime.stepIndex);
+      const last = ordered[ordered.length - 1];
+      return {
+        taskId,
+        taskKind: last.taskKind,
+        role: last.role,
+        sourceTimestamp: ordered[0].sourceTimestamp,
+        model: {
+          provider: lastMeasured(ordered.map((record) => record.atDecisionTime.provider)),
+          runtimeId: lastMeasured(ordered.map((record) => record.atDecisionTime.runtimeId)),
+          modelKey: lastMeasured(ordered.map((record) => record.atDecisionTime.modelKey))
+        },
+        steps: ordered.map((record) => ({
+          stepIndex: record.atDecisionTime.stepIndex,
+          atDecisionTime: record.atDecisionTime,
+          afterDecision: record.afterDecision,
+          completionEvidence: record.completionEvidence
+        })),
+        finalOutcome: last.afterDecision.finalOutcome,
+        reviewOutcome: last.afterDecision.reviewOutcome,
+        skillUsage: { mounted: [...new Set(ordered.flatMap((record) => record.atDecisionTime.mountedSkills))], used: [...new Set(ordered.flatMap((record) => record.atDecisionTime.usedSkills))] },
+        toolUsage: {
+          toolCalls: Math.max(...ordered.map((record) => record.atDecisionTime.toolCalls)),
+          browserActions: Math.max(...ordered.map((record) => record.atDecisionTime.browserActions))
+        },
+        measuredLatencyMs: lastMeasured(ordered.map((record) => record.afterDecision.measuredLatencyMs)),
+        measuredCostUsd: lastMeasured(ordered.map((record) => record.afterDecision.measuredCostUsd)),
+        failureDomain: lastMeasured(ordered.map((record) => record.afterDecision.failureDomain)),
+        completionEvidence: last.completionEvidence
+      };
+    });
+}

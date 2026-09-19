@@ -1446,6 +1446,14 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/replay-corpus-io.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security",
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/replay-corpus.test.ts",
       "tier": "unit",
       "covers": [

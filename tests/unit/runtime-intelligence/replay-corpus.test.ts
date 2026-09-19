@@ -63,6 +63,8 @@ function atDecisionTime(overrides: Partial<AtDecisionTime> = {}): AtDecisionTime
     usedSkills: [],
     contextInjected: [],
     tokensConsumed: 15,
+    toolCalls: 0,
+    browserActions: 0,
     elapsedMs: 1000,
     ...overrides
   };
