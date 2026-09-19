@@ -8,6 +8,7 @@ import {
   CASE_STATUSES,
   TERMINAL_CASE_STATUSES,
   type CaseEvent,
+  type CaseProvenance,
   type CaseEventType,
   type CaseStatus,
   type CaseTimeline,
@@ -45,6 +46,14 @@ import type { DiagnosisHypothesis } from "../../../src/shared/self-diagnosis/hyp
 const AT = "2026-09-20T10:00:00.000Z";
 const LATER = "2026-09-20T11:00:00.000Z";
 const dirs: string[] = [];
+const PROVENANCE: CaseProvenance = {
+  selfModelVersion: "self-model-v1",
+  selfModelHash: "a".repeat(64),
+  diagnosisEngineVersion: "self-diagnosis-engine-v1",
+  diagnosisPolicyHash: "b".repeat(64),
+  source: "test fixture"
+};
+
 function makeRoot(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "boss-case-record-"));
   dirs.push(dir);
@@ -81,7 +90,7 @@ function hypothesis(componentId: string, failureMode: string, confidence: number
 
 /** A case opened, diagnosed and resolved, as the CLI would record it. */
 function resolvedCase(caseId: string, componentId: string, failureMode: string, at = AT): CaseTimeline {
-  const opened = openCase({ caseId, at, trigger: "a reading over its limit", affectedComponents: [componentId] });
+  const opened = openCase({ provenance: PROVENANCE, caseId, at, trigger: "a reading over its limit", affectedComponents: [componentId] });
   if (opened.timeline === undefined) throw new Error(opened.problems.join("; "));
   const diagnosed = appendEvent(opened.timeline, { at, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis(componentId, failureMode, 0.7)], reason: "the only candidate" } });
   if (diagnosed.timeline === undefined) throw new Error(diagnosed.problems.join("; "));
@@ -92,7 +101,7 @@ function resolvedCase(caseId: string, componentId: string, failureMode: string, 
 
 describe("a case is its timeline, folded", () => {
   it("opens with an event and folds to a status", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "a task ledger write failed", affectedComponents: ["tasks"] });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "a task ledger write failed", affectedComponents: ["tasks"] });
     expect(opened.ok).toBe(true);
     expect(opened.timeline?.events).toHaveLength(1);
     expect(opened.timeline?.events[0].type).toBe("CASE_OPENED");
@@ -110,13 +119,13 @@ describe("a case is its timeline, folded", () => {
   });
 
   it("refuses a case with no id, no trigger or an unparseable instant", () => {
-    expect(openCase({ caseId: " ", at: AT, trigger: "x" }).problems.join(" ")).toContain("a case needs an id");
-    expect(openCase({ caseId: "case-1", at: AT, trigger: "  " }).problems.join(" ")).toContain("a case needs a trigger");
-    expect(openCase({ caseId: "case-1", at: "not-a-date", trigger: "x" }).problems.join(" ")).toContain("does not parse");
+    expect(openCase({ provenance: PROVENANCE, caseId: " ", at: AT, trigger: "x" }).problems.join(" ")).toContain("a case needs an id");
+    expect(openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "  " }).problems.join(" ")).toContain("a case needs a trigger");
+    expect(openCase({ provenance: PROVENANCE, caseId: "case-1", at: "not-a-date", trigger: "x" }).problems.join(" ")).toContain("does not parse");
   });
 
   it("keeps every diagnosis revision, so a changed mind is visible", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
     const first = appendEvent(opened.timeline as CaseTimeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "PROVIDER_TIMEOUT_SPIKE", 0.7)], selectedHypothesisId: "hypothesis:providers:PROVIDER_TIMEOUT_SPIKE", reason: "the first reading" } });
     const second = appendEvent(first.timeline as CaseTimeline, { at: LATER, type: "HYPOTHESIS_REVISED", detail: { hypotheses: [hypothesis("tasks", "TASK_LEDGER_WRITE_FAILURE", 0.9)], selectedHypothesisId: "hypothesis:tasks:TASK_LEDGER_WRITE_FAILURE", reason: "the ledger evidence arrived and the provider was fine" } });
     const record = second.case as SelfDiagnosisCase;
@@ -133,7 +142,7 @@ describe("a case is its timeline, folded", () => {
   });
 
   it("refuses an event that would rewrite history", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
     const timeline = opened.timeline as CaseTimeline;
     expect(appendEvent(timeline, { at: "2026-09-19T00:00:00.000Z", type: "OBSERVATION_ADDED", detail: { detail: "backdated" } }).problems.join(" ")).toContain("a timeline only moves forward");
     const resolved = appendEvent(appendEvent(timeline, { at: AT, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED" } }).timeline as CaseTimeline, { at: LATER, type: "CASE_RESOLVED", detail: { disposition: "UNRESOLVED" } });
@@ -149,7 +158,7 @@ describe("a case is its timeline, folded", () => {
   });
 
   it("records what was performed separately from what was proposed", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
     const withProposal = appendEvent(opened.timeline as CaseTimeline, { at: AT, type: "TREATMENT_PROPOSED", detail: { proposals: [{ schemaVersion: 1, kind: "TREATMENT_PROPOSAL", proposalId: "treatment:h", treatment: "RETRY", targetComponent: "providers", hypothesisId: "h", risk: "LOW", expectedBenefit: "b", riskDetail: "r", blastRadius: 1, reversible: true, requiredAuthority: "AUTONOMOUS_CANDIDATE", executable: false, reason: "x" }] } });
     expect((withProposal.case as SelfDiagnosisCase).treatmentProposals).toHaveLength(1);
     expect((withProposal.case as SelfDiagnosisCase).treatmentActuallyPerformed).toEqual([]);
@@ -187,7 +196,7 @@ describe("recurrence is a link, and priors are about the past", () => {
     expect(link.reason).toContain("evidence about the past and says nothing about whether it is happening now");
     expect(findRecurrences({ cases, componentId: "providers", failureMode: "PROVIDER_TIMEOUT_SPIKE" })).toHaveLength(1);
     // An open case is not evidence that anything happened before.
-    const opened = openCase({ caseId: "case-3", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-3", at: AT, trigger: "x" });
     expect(findRecurrences({ cases: [opened.case as SelfDiagnosisCase], componentId: "providers", failureMode: "PROVIDER_TIMEOUT_SPIKE" })).toEqual([]);
     const first = linkRecurrence({ cases: [], componentId: "providers", failureMode: "PROVIDER_TIMEOUT_SPIKE", caseId: "case-9", at: LATER });
     expect(first.recurrent).toBe(false);
@@ -229,7 +238,7 @@ describe("a case is not knowledge", () => {
   });
 
   it("offers a candidate for a validated treatment on its own", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
     const diagnosed = appendEvent(opened.timeline as CaseTimeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "CACHE_STALE", 0.6)], selectedHypothesisId: "hypothesis:providers:CACHE_STALE" } });
     const validated = appendEvent(diagnosed.timeline as CaseTimeline, { at: AT, type: "VALIDATION_ADDED", detail: { verdict: "CONFIRMED", evidence: ["the cache was stale"], observedBy: "owner" } });
     const resolved = appendEvent(validated.timeline as CaseTimeline, { at: LATER, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "providers" } });
@@ -245,7 +254,7 @@ describe("the store appends events and folds them back", () => {
     const root = makeRoot();
     const options: CaseStoreOptions = { rootDir: root, now: () => AT };
     const store = new CaseStore(options);
-    const opened = store.openCase({ caseId: "case-1", trigger: "a reading over its limit", affectedComponents: ["providers"] });
+    const opened = store.openCase({ provenance: PROVENANCE, caseId: "case-1", trigger: "a reading over its limit", affectedComponents: ["providers"] });
     expect(opened.ok).toBe(true);
     expect(store.append({ caseId: "case-1", type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "PROVIDER_TIMEOUT_SPIKE", 0.7)], selectedHypothesisId: "hypothesis:providers:PROVIDER_TIMEOUT_SPIKE" } }).ok).toBe(true);
     expect(store.append({ caseId: "case-1", type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "providers" } }).ok).toBe(true);
@@ -269,15 +278,15 @@ describe("the store appends events and folds them back", () => {
 
   it("refuses to open the same case twice, and to append to a case it does not hold", () => {
     const store = new CaseStore({ rootDir: makeRoot(), now: () => AT });
-    store.openCase({ caseId: "case-1", trigger: "x" });
-    expect(store.openCase({ caseId: "case-1", trigger: "y" }).problems.join(" ")).toContain("never opened twice, and a recurrence is a link");
+    store.openCase({ provenance: PROVENANCE, caseId: "case-1", trigger: "x" });
+    expect(store.openCase({ provenance: PROVENANCE, caseId: "case-1", trigger: "y" }).problems.join(" ")).toContain("never opened twice, and a recurrence is a link");
     expect(store.append({ caseId: "case-2", type: "OBSERVATION_ADDED", detail: {} }).problems.join(" ")).toContain("no case case-2 is recorded");
   });
 
   it("counts a torn row instead of losing the case", () => {
     const root = makeRoot();
     const store = new CaseStore({ rootDir: root, now: () => AT });
-    store.openCase({ caseId: "case-1", trigger: "x" });
+    store.openCase({ provenance: PROVENANCE, caseId: "case-1", trigger: "x" });
     fs.appendFileSync(path.join(root, CASE_LOG_FILENAME), "{ torn\n", "utf8");
     expect(store.records()).toHaveLength(1);
     expect(store.status().unreadableRows).toBe(1);
@@ -287,7 +296,7 @@ describe("the store appends events and folds them back", () => {
     const root = makeRoot();
     const store = new CaseStore({ rootDir: root, now: () => LATER });
     for (const caseId of ["case-1", "case-2"]) {
-      store.openCase({ caseId, at: AT, trigger: "x", affectedComponents: ["providers"] });
+      store.openCase({ provenance: PROVENANCE, caseId, at: AT, trigger: "x", affectedComponents: ["providers"] });
       store.append({ caseId, at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "PROVIDER_TIMEOUT_SPIKE", 0.7)], selectedHypothesisId: "hypothesis:providers:PROVIDER_TIMEOUT_SPIKE" } });
       store.append({ caseId, at: LATER, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "providers" } });
     }

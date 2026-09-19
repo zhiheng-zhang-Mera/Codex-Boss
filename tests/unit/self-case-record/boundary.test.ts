@@ -13,6 +13,7 @@ import {
 } from "../../../src/shared/self-case-record/timeline";
 import { priorEvidenceOf } from "../../../src/shared/self-case-record/recurrence";
 import type { CaseTimeline, SelfDiagnosisCase } from "../../../src/shared/self-case-record/case";
+import type { CaseProvenance } from "../../../src/shared/self-case-record/case";
 import type { DiagnosisHypothesis } from "../../../src/shared/self-diagnosis/hypotheses";
 
 /**
@@ -28,6 +29,14 @@ const AT = "2026-09-20T10:00:00.000Z";
 const LATER = "2026-09-20T11:00:00.000Z";
 const REPO = path.resolve(__dirname, "..", "..", "..");
 const dirs: string[] = [];
+const PROVENANCE: CaseProvenance = {
+  selfModelVersion: "self-model-v1",
+  selfModelHash: "a".repeat(64),
+  diagnosisEngineVersion: "self-diagnosis-engine-v1",
+  diagnosisPolicyHash: "b".repeat(64),
+  source: "test fixture"
+};
+
 function makeRoot(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "boss-case-boundary-"));
   dirs.push(dir);
@@ -95,7 +104,7 @@ describe("the case record can record, and only record", () => {
   it("grows by one row per event and never rewrites an earlier row", () => {
     const root = makeRoot();
     const store = new CaseStore({ rootDir: root, now: () => AT });
-    store.openCase({ caseId: "case-1", trigger: "x" });
+    store.openCase({ provenance: PROVENANCE, caseId: "case-1", trigger: "x" });
     const afterFirst = fs.readFileSync(path.join(root, CASE_LOG_FILENAME), "utf8");
     store.append({ caseId: "case-1", type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "PROVIDER_TIMEOUT_SPIKE")] } });
     store.append({ caseId: "case-1", type: "CASE_RESOLVED", detail: { disposition: "RESOLVED" } });
@@ -106,7 +115,7 @@ describe("the case record can record, and only record", () => {
   });
 
   it("does not mutate the timeline it folds", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
     const timeline = opened.timeline as CaseTimeline;
     const withRevision = appendEvent(timeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "CACHE_STALE")] } }).timeline as CaseTimeline;
     const before = JSON.stringify(withRevision);
@@ -119,7 +128,7 @@ describe("the case record can record, and only record", () => {
   });
 
   it("hands out evidence about the past in a shape that is not an observation", () => {
-    const opened = openCase({ caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
     const diagnosed = appendEvent(opened.timeline as CaseTimeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "CACHE_STALE")] } }).timeline as CaseTimeline;
     const resolved = appendEvent(diagnosed, { at: LATER, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "providers" } }).timeline as CaseTimeline;
     const record = foldCase(resolved).case as SelfDiagnosisCase;

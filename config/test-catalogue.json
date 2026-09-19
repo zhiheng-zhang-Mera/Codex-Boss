@@ -1405,6 +1405,13 @@
       ]
     },
     {
+      "file": "tests/unit/self-case-record/dogfood.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/self-cognition/boundary.test.ts",
       "tier": "unit",
       "covers": [

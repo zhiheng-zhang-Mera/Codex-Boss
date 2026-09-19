@@ -15,11 +15,13 @@ import path from "node:path";
 import {
   CASE_SCHEMA_VERSION,
   type CaseEvent,
+  type CaseProvenance,
   type CaseTimeline,
   type SelfDiagnosisCase
 } from "../../src/shared/self-case-record/case";
 import { appendEvent, foldCase, openCase, type TimelineOperation } from "../../src/shared/self-case-record/timeline";
 import { lessonCandidates, priorEvidenceOf, type LessonCandidate } from "../../src/shared/self-case-record/recurrence";
+import { dogfoodMetrics, type DogfoodMetrics } from "../../src/shared/self-case-record/dogfood";
 import type { PriorEvidence } from "../../src/shared/self-diagnosis/hypotheses";
 
 export const CASE_LOG_FILENAME = "case-record.jsonl";
@@ -112,7 +114,7 @@ export class CaseStore {
   }
 
   /** Opens a case and writes its first event. */
-  openCase(input: { caseId: string; at?: string; trigger: string; affectedComponents?: readonly string[]; symptoms?: readonly import("../../src/shared/self-diagnosis/hypotheses").DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
+  openCase(input: { caseId: string; at?: string; trigger: string; provenance: CaseProvenance; affectedComponents?: readonly string[]; symptoms?: readonly import("../../src/shared/self-diagnosis/hypotheses").DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
     if (this.record(input.caseId) !== undefined) return { ok: false, problems: [`a case ${input.caseId} already exists: a case is never opened twice, and a recurrence is a link rather than a second opening`] };
     const opened = openCase({ ...input, at: input.at ?? this.now(), caseId: input.caseId });
     if (!opened.ok || opened.timeline === undefined) return opened;
@@ -138,6 +140,11 @@ export class CaseStore {
   /** The prior evidence a diagnosis may use about one component. */
   priorEvidence(input: { componentId: string; failureMode?: string }): PriorEvidence[] {
     return priorEvidenceOf({ cases: this.records().map((entry) => entry.record), ...input });
+  }
+
+  /** The dogfood metrics over the cases this store holds. */
+  dogfood(at?: string): DogfoodMetrics {
+    return dogfoodMetrics({ cases: this.records().map((entry) => entry.record), at: at ?? this.now() });
   }
 
   status(): CaseStoreStatus {

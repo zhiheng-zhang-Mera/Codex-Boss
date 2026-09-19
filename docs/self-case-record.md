@@ -70,6 +70,77 @@ validation recorded as `CONFIRMED`. Every candidate carries `isKnowledge: false`
 its own return value that it creates no knowledge: that is the review's decision, which this module
 cannot make.
 
+## Provenance: which body, and which rules
+
+Every case records, at open and never afterwards:
+
+```text
+selfModelVersion        self-model-v1
+selfModelHash           the fingerprint of the anatomy the diagnosis was looking at
+diagnosisEngineVersion  self-diagnosis-engine-v1
+diagnosisPolicyHash     the fingerprint of the rules that produced the diagnosis
+source                  who supplied the four values
+```
+
+So a later reader can tell which body, and which diagnosis rules, judged a case, rather than
+assuming they were today's. The values are computed in the host — the CLI reads the checkout and the
+diagnosis policy — and handed in as strings: the case record stores provenance and never derives it,
+which is what keeps it from depending on the modules it describes. A checkout that cannot be read
+records an explicit `UNKNOWN` with the reason; a blank is refused, because "not established" and "not
+filled in" must not look the same.
+
+## Dogfood metrics: accuracy, not activity
+
+`dogfoodMetrics` (and `scripts/self-case-record.cjs --metrics`) counts what the dogfood phase is
+actually for. Every number carries its own definition in the report, so a quoted figure cannot drift
+from what it means, and an empty denominator is reported as a note rather than as a zero that reads
+like a result.
+
+```text
+CASES_OPENED / CASES_CLOSED
+ROOT_CAUSE_CONFIRMED / _REFUTED / _INCONCLUSIVE
+TOP1_DIAGNOSIS_CONFIRMED / TOP3_CONTAINED_ROOT_CAUSE
+MISSING_EVIDENCE_CASES
+TREATMENT_PROPOSALS / TREATMENT_PROPOSALS_USED
+RECURRENT_CASES
+FALSE_HIGH_CONFIDENCE_DIAGNOSES
+UNKNOWN_CORRECTLY_PRESERVED
+```
+
+**`FALSE_HIGH_CONFIDENCE_DIAGNOSES` is the one to watch.** It counts a closed case whose leading
+candidate was at or above `HIGH_CONFIDENCE_THRESHOLD` — imported from the diagnosis policy, so the
+two cannot drift — and which was later refuted or resolved to a different root cause. Saying "the
+cause is X" and being wrong costs more than saying the evidence was not enough, and
+`UNKNOWN_CORRECTLY_PRESERVED` counts that second, better outcome: a closed case that named no root
+cause while no candidate had reached the claim threshold.
+
+## The case log is not a second state-core journal
+
+State-core already owns the authoritative durable event journal: SQLite, in the same transaction as
+`state_record`, with idempotency keys, consumer cursors and dispatch. The case log is a **diagnostic
+evidence store** and must never become a replacement for it:
+
+| | state-core journal | case record |
+|---|---|---|
+| authority | the durable source of truth for state changes | a record of what was observed and judged |
+| substrate | SQLite inside the state database | one JSONL file under the caller's root |
+| replay | consumer cursors and idempotent dispatch | none; readers fold the events |
+| wiring | a boot module with a manifest and a namespace | no boot module, no namespace, no import |
+
+The case-record modules mention no part of state-core (`state-core`, `event-journal`,
+`StateRepository`, `idempotencyKey`, `aggregateId`, `withTransaction`, `state.db`) and claim no
+journal authority (`sourceOfTruth`, `publish(`, `dispatch(`, `replay(`, `cursor(`); nothing under
+`electron/state-core/` references the case record or its file; and the log's name
+(`case-record.jsonl`) is not a state path. `tests/unit/self-case-record/dogfood.test.ts` checks all
+three.
+
+**Architectural debt, recorded rather than acted on:** the repository now holds two append-only logs
+— state-core's authoritative journal and this diagnostic one. The distinction above keeps them from
+competing, but it is a distinction a future change could erode. If a self-* module ever needs to
+change authoritative state, it must go through state-core rather than growing this log into a second
+journal. The state-core performance change at `a890314` did not touch this: the two share no import,
+no file and no namespace.
+
 ## Running it
 
 ```bash

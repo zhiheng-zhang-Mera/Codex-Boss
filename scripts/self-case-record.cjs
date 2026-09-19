@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Case Record — the case log, as a runnable answer.
+ * Case Record 鈥?the case log, as a runnable answer.
  *
  * It records and it reports. It can open a case from a self-diagnosis report, append an observation
  * or a validation, and resolve a case with a disposition. It cannot diagnose (it copies what the
@@ -37,6 +37,7 @@ function parseArgs(argv) {
     const argument = argv[index];
     if (argument === "--list") options.command = "list";
     else if (argument === "--candidates") options.command = "candidates";
+    else if (argument === "--metrics") options.command = "metrics";
     else if (argument === "--case") { options.command = "case"; options.target = argv[++index]; }
     else if (argument === "--from-diagnosis") { options.command = "from-diagnosis"; options.target = path.resolve(argv[++index] ?? ""); }
     else if (argument === "--case-id") options.caseId = argv[++index];
@@ -47,10 +48,11 @@ function parseArgs(argv) {
     else if (argument === "--verdict") options.verdict = argv[++index];
     else if (argument === "--evidence") options.evidence = argv[++index];
     else if (argument === "--root") options.root = path.resolve(argv[++index] ?? "");
+    else if (argument === "--repo-root") options.repoRoot = path.resolve(argv[++index] ?? "");
     else if (argument === "--json") options.json = true;
     else if (argument === "--out") options.out = path.resolve(argv[++index] ?? "");
     else if (argument === "--help" || argument === "-h") {
-      process.stdout.write("usage: node scripts/self-case-record.cjs [--list|--candidates|--case <id>|--from-diagnosis <file>|--resolve <id>|--validate <id>] [--root <dir>] [--json] [--out <file>]\n");
+      process.stdout.write("usage: node scripts/self-case-record.cjs [--list|--metrics|--candidates|--case <id>|--from-diagnosis <file>|--resolve <id>|--validate <id>] [--root <dir>] [--repo-root <dir>] [--json] [--out <file>]\n");
       process.exit(0);
     } else {
       process.stderr.write(`unknown argument ${argument}\n`);
@@ -66,8 +68,36 @@ if (options) {
   const storeModule = load("electron/self-case-record/case-store.js");
   const timelineModule = load("src/shared/self-case-record/timeline.js");
   const recurrenceModule = load("src/shared/self-case-record/recurrence.js");
-  if (storeModule && timelineModule && recurrenceModule) {
+  const caseModule = load("src/shared/self-case-record/case.js");
+  if (storeModule && timelineModule && recurrenceModule && caseModule) {
     const store = new storeModule.CaseStore({ rootDir: options.root });
+
+    /**
+     * Which body and which diagnosis rules this record is being written under.
+     *
+     * Provenance is computed HERE, in the host, and handed in as strings: the case record stores it
+     * and never derives it, which is what keeps the record from depending on the two modules it
+     * describes. A checkout that cannot be read yields an explicit UNKNOWN rather than a blank.
+     */
+    const provenance = (() => {
+      try {
+        const factsModule = load("electron/self-cognition/facts.js");
+        const anatomyModule = load("src/shared/self-cognition/anatomy.js");
+        const driftModule = load("src/shared/self-cognition/drift.js");
+        const policyModule = load("src/shared/self-diagnosis/policy.js");
+        const model = anatomyModule.buildSelfModel(factsModule.collectSelfFacts({ repositoryRoot: options.repoRoot ?? ROOT }));
+        return {
+          selfModelVersion: driftModule.SELF_MODEL_VERSION,
+          selfModelHash: driftModule.selfModelHash(model),
+          diagnosisEngineVersion: policyModule.SELF_DIAGNOSIS_ENGINE_VERSION,
+          diagnosisPolicyHash: policyModule.diagnosisPolicyHash(),
+          source: `self-case-record.cjs reading ${options.repoRoot ?? ROOT}`
+        };
+      } catch (error) {
+        return caseModule.unknownProvenance(`self-case-record.cjs could not read the checkout: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    })();
+
     let outcome;
     switch (options.command) {
       case "case": {
@@ -79,6 +109,9 @@ if (options) {
       }
       case "candidates":
         outcome = { candidates: store.lessonCandidates(), status: store.status() };
+        break;
+      case "metrics":
+        outcome = { metrics: store.dogfood(), status: store.status() };
         break;
       case "from-diagnosis": {
         const read = fs.existsSync(options.target ?? "") ? JSON.parse(fs.readFileSync(options.target, "utf8")) : undefined;
@@ -92,6 +125,7 @@ if (options) {
           caseId,
           at: report.at,
           trigger: `${report.symptoms?.length ?? 0} symptom(s) from a self-diagnosis run`,
+          provenance,
           affectedComponents: [...new Set((report.hypotheses ?? []).map((hypothesis) => hypothesis.suspectedComponent))],
           symptoms: report.symptoms ?? []
         });

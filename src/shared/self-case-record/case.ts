@@ -61,9 +61,39 @@ export interface DiagnosisRevision {
   reason: string;
 }
 
+/**
+ * Which body and which diagnosis rules judged this case.
+ *
+ * Provenance, not logic: the values are recorded so a later reader can tell what the diagnosis was
+ * looking at, and nothing in this module computes or interprets them. A caller that cannot
+ * establish a value records `UNKNOWN` rather than an empty string, so "not established" stays
+ * distinguishable from "not filled in".
+ */
+export interface CaseProvenance {
+  selfModelVersion: string;
+  selfModelHash: string;
+  diagnosisEngineVersion: string;
+  diagnosisPolicyHash: string;
+  /** Who supplied these values, so a copied value can be traced. */
+  source: string;
+}
+
+/** The value a caller records when it cannot establish one of the four provenance fields. */
+export const UNKNOWN_PROVENANCE = "UNKNOWN";
+
+/** The provenance a caller records when it has no self model or engine identity to hand. */
+export function unknownProvenance(source: string): CaseProvenance {
+  return {
+    selfModelVersion: UNKNOWN_PROVENANCE,
+    selfModelHash: UNKNOWN_PROVENANCE,
+    diagnosisEngineVersion: UNKNOWN_PROVENANCE,
+    diagnosisPolicyHash: UNKNOWN_PROVENANCE,
+    source
+  };
+}
+
 /** What was actually done, as opposed to what was proposed. */
-export interface TreatmentPerformed {
-  at: string;
+export interface TreatmentPerformed {  at: string;
   proposalId: string;
   treatment: string;
   /** Who performed it. This module records the answer; it never is the answer. */
@@ -95,6 +125,8 @@ export interface SelfDiagnosisCase {
   status: CaseStatus;
   /** What started the case. */
   trigger: string;
+  /** The body and the diagnosis rules this case was opened against. Fixed at open, never rewritten. */
+  provenance: CaseProvenance;
   affectedComponents: string[];
   symptoms: DiagnosticSymptom[];
   observations: string[];

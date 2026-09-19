@@ -21,6 +21,7 @@ import {
   TERMINAL_CASE_STATUSES,
   type CaseEvent,
   type CaseEventType,
+  type CaseProvenance,
   type CaseStatus,
   type CaseTimeline,
   type CaseValidation,
@@ -40,16 +41,21 @@ export interface TimelineOperation {
 }
 
 /** Opens a case. The opening event is the first thing on the timeline and is never removed. */
-export function openCase(input: { caseId: string; at: string; trigger: string; affectedComponents?: readonly string[]; symptoms?: readonly DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
+export function openCase(input: { caseId: string; at: string; trigger: string; provenance: CaseProvenance; affectedComponents?: readonly string[]; symptoms?: readonly DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
   if (input.caseId.trim() === "") return { ok: false, problems: ["a case needs an id: a record that cannot be named cannot be linked to"] };
   if (!Number.isFinite(Date.parse(input.at))) return { ok: false, problems: [`the instant ${JSON.stringify(input.at)} does not parse, so the case has no opening time`] };
   if (input.trigger.trim() === "") return { ok: false, problems: ["a case needs a trigger: what started it is the first thing a reader asks"] };
+  // Provenance is required, and a blank field is refused while `UNKNOWN` is accepted: a record must
+  // say which body and which rules judged it, and it must be able to say that it does not know.
+  const blank = Object.entries(input.provenance ?? {}).filter(([, value]) => typeof value !== "string" || value.trim() === "").map(([key]) => key);
+  if (blank.length > 0) return { ok: false, problems: [`the case names no ${blank.join(", ")}: provenance is recorded as UNKNOWN when it cannot be established, and never left blank`] };
   const timeline: CaseTimeline = { caseId: input.caseId, events: [] };
   const applied = appendEvent(timeline, {
     at: input.at,
     type: "CASE_OPENED",
     detail: {
       trigger: input.trigger,
+      provenance: input.provenance,
       affectedComponents: [...(input.affectedComponents ?? [])],
       symptoms: [...(input.symptoms ?? [])],
       relatedTasks: [...(input.relatedTasks ?? [])],
@@ -97,6 +103,13 @@ function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
 
+/** Whether a stored opening event carries a well-formed provenance rather than a partial one. */
+function isProvenance(value: unknown): value is CaseProvenance {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return ["selfModelVersion", "selfModelHash", "diagnosisEngineVersion", "diagnosisPolicyHash", "source"].every((key) => typeof candidate[key] === "string" && (candidate[key] as string).trim() !== "");
+}
+
 /**
  * Reads a timeline into a case.
  *
@@ -110,6 +123,7 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
   let closedAt: string | undefined;
   let status: CaseStatus = "OPEN";
   let trigger = "";
+  let provenance: CaseProvenance = { selfModelVersion: "", selfModelHash: "", diagnosisEngineVersion: "", diagnosisPolicyHash: "", source: "" };
   let affectedComponents: string[] = [];
   let symptoms: DiagnosticSymptom[] = [];
   let observations: string[] = [];
@@ -135,6 +149,7 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
       case "CASE_OPENED":
         opened = event;
         trigger = typeof event.detail.trigger === "string" ? event.detail.trigger : "";
+        provenance = isProvenance(event.detail.provenance) ? event.detail.provenance : provenance;
         affectedComponents = strings(event.detail.affectedComponents);
         symptoms = Array.isArray(event.detail.symptoms) ? (event.detail.symptoms as DiagnosticSymptom[]) : [];
         relatedTasks = strings(event.detail.relatedTasks);
@@ -218,6 +233,7 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
       ...(closedAt === undefined ? {} : { closedAt }),
       status,
       trigger,
+      provenance,
       affectedComponents,
       symptoms,
       observations,
