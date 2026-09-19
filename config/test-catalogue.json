@@ -1410,6 +1410,14 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/outcome-ingestion.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status",
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/scheduling-advisor.test.ts",
       "tier": "unit",
       "covers": [

@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
-import { RUNTIME_INTELLIGENCE_SCHEMA_VERSION, type ContextRecord, type ModelCapabilityRecord, type NodeCapabilitySnapshot, type RuntimeObservation, type SkillUsageTelemetry } from "../../src/shared/runtime-intelligence/contracts";
+import { RUNTIME_INTELLIGENCE_SCHEMA_VERSION, type ContextRecord, type ModelCapabilityRecord, type NodeCapabilitySnapshot, type RuntimeObservation, type SchedulingRecommendation, type SkillUsageTelemetry } from "../../src/shared/runtime-intelligence/contracts";
 
 /** How many node snapshots are kept per node, so a time series cannot grow without bound. */
 export const NODE_SNAPSHOT_HISTORY_LIMIT = 200;
@@ -33,7 +33,7 @@ export interface RuntimeIntelligenceStoreOptions {
 export interface RuntimeIntelligenceStoreStatus {
   rootDir: string;
   files: Record<string, number>;
-  counts: { observations: number; models: number; nodes: number; skillTelemetry: number; contextRecords: number };
+  counts: { observations: number; models: number; nodes: number; skillTelemetry: number; contextRecords: number; recommendations: number };
   degradedReason?: string;
   schemaVersion: number;
 }
@@ -135,6 +135,26 @@ export class RuntimeIntelligenceStore {
     return this.observations(Number.MAX_SAFE_INTEGER).find((entry) => entry.observationId === observationId);
   }
 
+  /* --------------------------------------------------------- recommendations */
+
+  /**
+   * Recommendations are logged separately from observations so a replay can join them.
+   *
+   * Without this log a stored outcome could not be compared with the advice that preceded
+   * it, which is the whole of Phase J.
+   */
+  appendRecommendation(recommendation: SchedulingRecommendation): void {
+    this.appendJsonl(this.file("recommendations.jsonl"), [recommendation]);
+  }
+
+  recommendations(): SchedulingRecommendation[] {
+    return this.readJsonl<SchedulingRecommendation>(this.file("recommendations.jsonl"));
+  }
+
+  recommendation(recommendationId: string): SchedulingRecommendation | undefined {
+    return this.recommendations().find((entry) => entry.recommendationId === recommendationId);
+  }
+
   /* ------------------------------------------------------------ model ledger */
 
   saveModels(records: readonly ModelCapabilityRecord[]): void {
@@ -216,7 +236,7 @@ export class RuntimeIntelligenceStore {
   /* ------------------------------------------------------------------- status */
 
   status(): RuntimeIntelligenceStoreStatus {
-    const files = ["observations.jsonl", "models.json", "nodes.json", "skill-telemetry.jsonl", "context-records.json"];
+    const files = ["observations.jsonl", "models.json", "nodes.json", "skill-telemetry.jsonl", "context-records.json", "recommendations.jsonl"];
     const sizes: Record<string, number> = {};
     for (const name of files) {
       const target = this.file(name);
@@ -234,7 +254,8 @@ export class RuntimeIntelligenceStore {
         models: this.loadModels().length,
         nodes: this.loadNodes().length,
         skillTelemetry: this.skillTelemetry().length,
-        contextRecords: this.loadContextRecords().length
+        contextRecords: this.loadContextRecords().length,
+        recommendations: this.recommendations().length
       },
       ...(this.degradedReason === undefined ? {} : { degradedReason: this.degradedReason }),
       schemaVersion: RUNTIME_INTELLIGENCE_SCHEMA_VERSION

@@ -37,6 +37,8 @@ import {
   type TaskProfile
 } from "../../src/shared/runtime-intelligence/contracts";
 import { applyModelOutcome, createModelRecord, type ModelOutcomeApplication, type OutcomeAttribution } from "../../src/shared/runtime-intelligence/model-ledger";
+import { outcomeKindOf, planOutcomeCharge, toModelOutcomeInput, type IngestOutcomeInput } from "../../src/shared/runtime-intelligence/outcome-ingestion";
+import { modelIdentityFor, readRealOutcomes, toIngestionSignals, type OutcomeSourceReport, type RealOutcomeReadResult, type RealOutcomeRecord } from "./outcome-source";
 import { adviseScheduling, type SchedulingInput } from "../../src/shared/runtime-intelligence/scheduling-advisor";
 import { evaluateContinuation } from "../../src/shared/runtime-intelligence/continuation-evaluator";
 import { planContextLifecycle } from "../../src/shared/runtime-intelligence/context-lifecycle";
@@ -88,6 +90,24 @@ export interface RecordedOutcome {
   observation: RuntimeObservation;
   record: ModelCapabilityRecord;
   application: ModelOutcomeApplication;
+}
+
+/** What one real-data ingestion pass actually found and did. */
+export interface IngestionSummary {
+  dataRoot: string;
+  sources: OutcomeSourceReport[];
+  /** Sources that existed but could not be read, with their reasons. */
+  degraded: string[];
+  /** Every real record the sources held. */
+  considered: number;
+  /** Records this pass folded into the plane. */
+  ingested: number;
+  /** Records whose failure was attributable to the model and moved the ledger. */
+  charged: number;
+  /** Records recorded but deliberately NOT charged to the model. */
+  refused: number;
+  /** How many records landed in each domain, so a report can show where failures came from. */
+  domains: Record<string, number>;
 }
 
 /**
@@ -199,6 +219,7 @@ export class RuntimeIntelligenceService {
     const observation = createObservation({
       observationId: observationIdFor({ taskId: input.task.taskId, modelKey, nodeId: input.nodeId ?? "unprofiled-node", sequence: this.sequence }),
       traceId: traceIdFor(input.task.taskId),
+      ...(input.recommendationId === undefined ? {} : { recommendationId: input.recommendationId }),
       task: { taskId: input.task.taskId, role: input.task.role, taskKind },
       model: {
         modelKey,
@@ -262,6 +283,134 @@ export class RuntimeIntelligenceService {
       sequence: this.sequence,
       ...overrides
     });
+  }
+
+  /**
+   * Advises AND persists the recommendation, returning it.
+   *
+   * The log is what makes Phase J possible: a replay needs the advice that preceded a real
+   * outcome, and `RuntimeObservation.recommendationId` joins the two.
+   */
+  adviseAndRecord(task: TaskProfile, overrides: Partial<Omit<SchedulingInput, "task" | "createdAt">> = {}): SchedulingRecommendation {
+    const recommendation = this.adviseFor(task, overrides);
+    this.store.appendRecommendation(recommendation);
+    return recommendation;
+  }
+
+  /* ----------------------------------------------------------------- ingestion */
+
+  /**
+   * Ingests ONE outcome: classifies it, charges the ledger only when the failure is
+   * attributable to the model, and always records the observation with its domain.
+   *
+   * The two halves matter equally. A model failure moves the dimensions the task kind
+   * exercises; an environment failure moves nothing and says so in
+   * `capabilityUpdate.reason`, so "we chose not to charge this" is visible in the record
+   * rather than looking like a missing update.
+   */
+  ingestOutcome(input: IngestOutcomeInput & { model: RecordFileInput; nodeId?: string; recommendationId?: string; modelBasis?: SelectionBasis; nodeBasis?: SelectionBasis }): RecordedOutcome & { chargeable: boolean; domain: string } {
+    const recordedAt = input.at || this.now();
+    this.sequence += 1;
+    const modelKey = modelKeyOf(input.model);
+    const before = this.ensureModel(input.model);
+    const nodeId = input.nodeId ?? "unprofiled-node";
+    const observationId = input.observationId ?? observationIdFor({ taskId: input.taskId, modelKey, nodeId, sequence: this.sequence });
+    const charge = planOutcomeCharge({ kind: input.kind, taskKind: input.taskKind, signals: input.signals });
+    const ledgerInput = toModelOutcomeInput({ ...input, at: recordedAt, observationId, nodeId });
+
+    let record = before;
+    let application: ModelOutcomeApplication;
+    if (ledgerInput === undefined) {
+      // Not chargeable: no ledger movement at all, and the reason is recorded below.
+      application = { record: before, updated: [], skipped: [], weight: 0, anomaly: false, reasons: [`not charged: ${charge.classification.reasons.join("; ")}`] };
+    } else {
+      application = applyModelOutcome(before, ledgerInput);
+      this.store.saveModels([...this.store.loadModels().filter((entry) => entry.modelKey !== modelKey), application.record]);
+      record = application.record;
+    }
+
+    const observation = createObservation({
+      observationId,
+      traceId: traceIdFor(input.taskId),
+      ...(input.recommendationId === undefined ? {} : { recommendationId: input.recommendationId }),
+      task: { taskId: input.taskId, role: input.role, taskKind: input.taskKind },
+      model: {
+        modelKey,
+        provider: input.model.provider,
+        family: input.model.family,
+        ...(input.model.version === undefined ? {} : { version: input.model.version }),
+        basis: input.modelBasis ?? (input.recommendationId === undefined ? "ACTUAL" : "RECOMMENDED"),
+        reasonRefs: []
+      },
+      node: { nodeId, basis: input.nodeBasis ?? "UNKNOWN", reasonRefs: [] },
+      execution: {
+        outcome: input.kind === "SUCCESS" || input.kind === "PARTIAL_SUCCESS" ? "SUCCESS" : input.kind === "CANCELLED" ? "CANCELLED" : "FAILED",
+        ...(charge.classification.failureClass === "" ? {} : { failureClass: charge.classification.failureClass }),
+        failureDomain: charge.classification.domain,
+        ...(input.latencyMs === undefined ? {} : { latencyMs: input.latencyMs }),
+        ...(input.costUsd === undefined ? {} : { costUsd: input.costUsd })
+      },
+      review: { agreement: input.reviewerAgreed === undefined ? "NOT_REVIEWED" : input.reviewerAgreed ? "AGREED" : "DISAGREED" },
+      capabilityUpdate: {
+        applied: ledgerInput !== undefined && application.updated.length > 0,
+        dimensions: application.updated,
+        reason:
+          ledgerInput === undefined
+            ? `the ledger was not charged: outcome domain ${charge.classification.domain} — ${charge.classification.reasons.join("; ")}`
+            : `updated ${application.updated.join(", ")} with weight ${application.weight}`
+      },
+      createdAt: recordedAt
+    });
+
+    this.store.appendObservation(observation);
+    return { observation, record, application, chargeable: charge.chargeable, domain: charge.classification.domain };
+  }
+
+  /**
+   * Ingests every outcome Boss already recorded under a data root.
+   *
+   * Read-only apart from the plane's own store, and honest about what it found: the summary
+   * counts records considered, charged, refused and per domain, so a report can say whether
+   * there was enough real data instead of implying there was.
+   */
+  ingestRealOutcomes(input: { dataRoot: string; taskKindFor?: (record: RealOutcomeRecord) => TaskKind; limit?: number }): IngestionSummary {
+    const read: RealOutcomeReadResult = readRealOutcomes({ dataRoot: input.dataRoot });
+    const records = input.limit === undefined ? read.records : read.records.slice(-input.limit);
+    const domains: Record<string, number> = {};
+    let ingested = 0;
+    let charged = 0;
+    let refused = 0;
+
+    for (const source of records) {
+      const kind = outcomeKindOf(source.rawOutcome, source.reason);
+      const taskKind: TaskKind = input.taskKindFor ? input.taskKindFor(source) : "other";
+      const role = source.role ?? "worker";
+      const result = this.ingestOutcome({
+        taskId: source.taskId,
+        role,
+        taskKind,
+        kind,
+        signals: toIngestionSignals(source),
+        ...(source.latencyMs === undefined ? {} : { latencyMs: source.latencyMs }),
+        at: source.at,
+        model: modelIdentityFor(source)
+      });
+      ingested += 1;
+      if (result.chargeable) charged += 1;
+      else refused += 1;
+      domains[result.domain] = (domains[result.domain] ?? 0) + 1;
+    }
+
+    return {
+      dataRoot: input.dataRoot,
+      sources: read.sources,
+      degraded: read.degraded,
+      considered: read.records.length,
+      ingested,
+      charged,
+      refused,
+      domains
+    };
   }
 
   /* ---------------------------------------------------------------- continuation */

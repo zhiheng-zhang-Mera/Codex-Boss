@@ -37,6 +37,7 @@ export function observationIdFor(input: { taskId: string; modelKey: string; node
 export interface ObservationInput {
   observationId: string;
   traceId: string;
+  recommendationId?: string;
   task: Pick<TaskProfile, "taskId" | "role" | "taskKind"> | TaskProfile;
   model: { modelKey: string; provider: string; family: string; version?: string; basis?: RuntimeObservation["model"]["basis"]; reasonRefs?: string[] };
   node: { nodeId: string; basis?: RuntimeObservation["node"]["basis"]; reasonRefs?: string[] };
@@ -61,6 +62,7 @@ export function createObservation(input: ObservationInput): RuntimeObservation {
     kind: "RUNTIME_OBSERVATION",
     observationId: input.observationId,
     traceId: input.traceId,
+    ...(input.recommendationId === undefined ? {} : { recommendationId: input.recommendationId }),
     task: { taskId: input.task.taskId, role: input.task.role, taskKind },
     model: {
       modelKey: input.model.modelKey,
@@ -84,6 +86,7 @@ export function createObservation(input: ObservationInput): RuntimeObservation {
     execution: {
       outcome: input.execution?.outcome ?? "UNKNOWN",
       ...(input.execution?.failureClass === undefined ? {} : { failureClass: input.execution.failureClass }),
+      ...(input.execution?.failureDomain === undefined ? {} : { failureDomain: input.execution.failureDomain }),
       ...(input.execution?.latencyMs === undefined ? {} : { latencyMs: input.execution.latencyMs }),
       ...(input.execution?.tokens === undefined ? {} : { tokens: input.execution.tokens }),
       ...(input.execution?.costUsd === undefined ? {} : { costUsd: input.execution.costUsd })

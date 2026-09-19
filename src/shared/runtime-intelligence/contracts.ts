@@ -494,6 +494,56 @@ export interface ContextLifecyclePlan {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Outcome ingestion                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Where a failure belongs.
+ *
+ * The distinction this vocabulary exists for: an environment failure must never be charged
+ * to model capability. A missing tool, an unreachable network, an unavailable host, a
+ * refused credential, a provider rate limit or a changed automation surface all produce a
+ * failed run and none of them is evidence about `reasoning`, `coding` or `stability`.
+ *
+ * `UNKNOWN` and `TRANSIENT` are deliberately non-attributable: when the evidence does not
+ * say whose fault it was, the ledger is not charged.
+ */
+export const FAILURE_DOMAINS = [
+  "MODEL",
+  "SEMANTIC",
+  "TOOL",
+  "ENVIRONMENT",
+  "NETWORK",
+  "HOST",
+  "CREDENTIAL",
+  "RATE_LIMIT",
+  "AUTOMATION_SURFACE",
+  "TASK",
+  "HUMAN",
+  "TRANSIENT",
+  "UNKNOWN"
+] as const;
+export type FailureDomain = (typeof FAILURE_DOMAINS)[number];
+
+/** A domain, or `NONE` for an outcome that did not fail. */
+export type OutcomeDomain = FailureDomain | "NONE";
+
+/** The domains whose failures MAY be charged to model capability. */
+export const ATTRIBUTABLE_FAILURE_DOMAINS: readonly FailureDomain[] = ["MODEL", "SEMANTIC"];
+
+/** The outcome kinds the ingestion layer classifies. */
+export const OUTCOME_KINDS = ["SUCCESS", "PARTIAL_SUCCESS", "FAILURE", "SEMANTIC_REFUSAL", "TIMEOUT", "CANCELLED"] as const;
+export type OutcomeKind = (typeof OUTCOME_KINDS)[number];
+
+/**
+ * The quality a partial success is recorded with when no reviewer measured one.
+ *
+ * A documented convention rather than a measurement, exported so a report can quote it and
+ * a caller can override it.
+ */
+export const PARTIAL_SUCCESS_QUALITY = 0.5;
+
+/* -------------------------------------------------------------------------- */
 /* Unified telemetry                                                           */
 /* -------------------------------------------------------------------------- */
 
@@ -505,6 +555,13 @@ export interface RuntimeObservation {
   observationId: string;
   /** Groups every observation of one task, so a multi-step task has one trace. */
   traceId: string;
+  /**
+   * The scheduling recommendation this run was supposed to follow, when one was recorded.
+   *
+   * This is the join a replay needs: without it a stored outcome cannot be compared with
+   * the advice that preceded it.
+   */
+  recommendationId?: string;
   task: {
     taskId: string;
     role: string;
@@ -537,6 +594,11 @@ export interface RuntimeObservation {
   execution: {
     outcome: "SUCCESS" | "FAILED" | "CANCELLED" | "UNKNOWN";
     failureClass?: string;
+    /**
+     * The domain the failure was attributed to, so a reader can tell a model failure from
+     * an environment failure. Absent when the run did not fail.
+     */
+    failureDomain?: OutcomeDomain;
     latencyMs?: number;
     tokens?: number;
     costUsd?: number;
