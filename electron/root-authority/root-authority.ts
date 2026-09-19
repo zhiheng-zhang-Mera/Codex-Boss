@@ -14,6 +14,7 @@ import { decideRootOperation, type RootPolicy } from "../../src/shared/root-auth
 import { isProtectedPath } from "../../src/shared/root-authority/protected-surface";
 import { loadRootPolicy, isClaimedRootOwner, type LoadedRootPolicy, type RootPolicySource } from "./root-policy-loader";
 import { ProtectedSurfaceGuard, type SurfaceAssessment, type SurfaceChange } from "./protected-surface-guard";
+import { CHANGE_CLASSES, deriveChangeClass } from "../../src/shared/root-authority/authority-planes";
 import { RootAuditLedger, RootAuditError } from "./root-audit-ledger";
 
 /**
@@ -182,7 +183,32 @@ export class RootAuthority {
       reasons.push(...pathAssessment.reasons);
     }
 
-    const decision = foldRootDecisions([operationDecision, pathAssessment?.decision ?? "ALLOW"]);
+    /**
+     * Root Trust Authority Lockdown (A3/A7): a SECOND, independent derivation of the same boundary.
+     *
+     * The guard above decides from the review boundary's compiled manifest plus CODEOWNERS. This decides
+     * from the trust model's own classifier (`classifySurface`) plus `OWNER_AUTHORITY_PATHS`, which is
+     * itself spread from that manifest. Folding both in means a path cannot be dropped from one list and
+     * remain ordinary in the other: a Root Trust change is REQUIRE_OWNER here even if someone narrows the
+     * manifest, and the Owner-Authority plane — the mechanism that decides what is protected — is Class 3
+     * by construction rather than by a list someone has to remember to update.
+     */
+    let authorityDecision: RootDecision = "ALLOW";
+    if (pathAssessed) {
+      const authorityClass = deriveChangeClass([...(input.targets ?? []), ...(input.sources ?? [])]);
+      if (authorityClass >= CHANGE_CLASSES.ROOT_TRUST_CHANGE) {
+        authorityDecision = "REQUIRE_OWNER";
+        reasons.push({
+          code: "authority-plane",
+          detail:
+            authorityClass === CHANGE_CLASSES.OWNER_AUTHORITY_CHANGE
+              ? "the change touches the Owner-Authority plane (the protection mechanism itself)"
+              : "the change touches the Root Trust Surface"
+        });
+      }
+    }
+
+    const decision = foldRootDecisions([operationDecision, pathAssessment?.decision ?? "ALLOW", authorityDecision]);
     if (input.detail) reasons.push({ code: "detail", detail: input.detail });
 
     const classification: RootClassification = {
