@@ -6,6 +6,7 @@ import { measuredObservation, statedObservation, unknownObservation } from "../.
 import {
   DIAGNOSIS_ROLES,
   PRIOR_CONFIDENCE_WEIGHT,
+  SYMPTOM_KINDS,
   assignRoles,
   hypothesesOf,
   rankHypotheses,
@@ -26,6 +27,15 @@ import {
   type TreatmentRisk
 } from "../../../src/shared/self-diagnosis/treatment";
 import { SELF_DIAGNOSIS_CAPABILITIES, SELF_DIAGNOSIS_SCHEMA_VERSION, diagnose, type DiagnosisReport } from "../../../src/shared/self-diagnosis/engine";
+import {
+  CREDIBLE_CANDIDATE_THRESHOLD,
+  HIGH_CONFIDENCE_THRESHOLD,
+  SEVERE_OUTSIDE_FACTOR,
+  SELF_DIAGNOSIS_ENGINE_VERSION,
+  SYMPTOM_PATTERN_SOURCES,
+  diagnosisPolicy,
+  diagnosisPolicyHash
+} from "../../../src/shared/self-diagnosis/policy";
 
 /**
  * The diagnosis engine.
@@ -254,6 +264,35 @@ describe("the engine reports what it can and cannot do", () => {
     expect(report.sourceFailures).toEqual([{ source: "broken", reason: "boom" }]);
     expect(report.notes.join(" ")).toContain("the observation source broken threw and was isolated");
     expect(report.observations).toBe(1);
+  });
+});
+
+describe("the engine says which rules judged a case", () => {
+  it("carries its version and a policy hash derived from those rules", () => {
+    const report = diagnose({ model: MODEL, at: AT, observations: [degrading("providers", "provider.timeout.rate", 0.9)] });
+    expect(report.engineVersion).toBe(SELF_DIAGNOSIS_ENGINE_VERSION);
+    expect(SELF_DIAGNOSIS_ENGINE_VERSION).toBe("self-diagnosis-engine-v1");
+    expect(report.policyHash).toBe(diagnosisPolicyHash());
+    expect(report.policyHash).toHaveLength(64);
+    // The hash is derived from the rules, so it is stable while they are.
+    expect(diagnosisPolicyHash()).toBe(diagnosisPolicyHash());
+    const policy = diagnosisPolicy();
+    expect(policy.engineVersion).toBe(SELF_DIAGNOSIS_ENGINE_VERSION);
+    expect(policy.highConfidenceThreshold).toBe(HIGH_CONFIDENCE_THRESHOLD);
+    expect(policy.priorConfidenceWeight).toBe(PRIOR_CONFIDENCE_WEIGHT);
+    expect(policy.severeOutsideFactor).toBe(SEVERE_OUTSIDE_FACTOR);
+    expect(policy.credibleCandidateThreshold).toBe(CREDIBLE_CANDIDATE_THRESHOLD);
+    // Every classification the policy covers is enumerated in it rather than left implicit.
+    expect(SYMPTOM_PATTERN_SOURCES).toHaveLength(SYMPTOM_KINDS.length - 1);
+    expect(SYMPTOM_PATTERN_SOURCES.every((entry) => entry.includes("->"))).toBe(true);
+  });
+
+  it("states the confidence at which a candidate becomes a claim", () => {
+    // This is the line the dogfood metric counts against: a refuted claim at or above it is a
+    // worse error than saying the evidence was not enough.
+    expect(HIGH_CONFIDENCE_THRESHOLD).toBe(0.7);
+    expect(CREDIBLE_CANDIDATE_THRESHOLD).toBe(0.3);
+    expect(HIGH_CONFIDENCE_THRESHOLD).toBeGreaterThan(CREDIBLE_CANDIDATE_THRESHOLD);
   });
 });
 

@@ -30,6 +30,7 @@ import {
   type PriorEvidence
 } from "./hypotheses";
 import { planDiagnosis, type DiagnosticPlan } from "./plan";
+import { SELF_DIAGNOSIS_ENGINE_VERSION, diagnosisPolicyHash } from "./policy";
 import { proposeTreatments, type TreatmentProposal } from "./treatment";
 import type { DiagnosticSymptom } from "./hypotheses";
 
@@ -51,6 +52,9 @@ export interface DiagnosisReport {
   sourceFailures: Array<{ source: string; reason: string }>;
   /** Literal capabilities. A consumer cannot mistake this report for an instruction. */
   authority: { canDiagnose: true; canProposeTreatment: true; canExecuteTreatment: false; mutatesAnatomy: false };
+  /** Which rules produced this report, so a case can store the identity it was judged under. */
+  engineVersion: string;
+  policyHash: string;
   notes: string[];
 }
 
@@ -119,6 +123,8 @@ export function diagnose(input: {
     unreadable,
     sourceFailures: collected.sourceFailures,
     authority: { canDiagnose: true, canProposeTreatment: true, canExecuteTreatment: false, mutatesAnatomy: false },
+    engineVersion: SELF_DIAGNOSIS_ENGINE_VERSION,
+    policyHash: diagnosisPolicyHash(),
     notes
   };
 }
