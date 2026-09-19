@@ -38,9 +38,20 @@ function parseArgs(argv) {
     if (argument === "--list") options.command = "list";
     else if (argument === "--candidates") options.command = "candidates";
     else if (argument === "--metrics") options.command = "metrics";
+    else if (argument === "--defects") options.command = "defects";
     else if (argument === "--case") { options.command = "case"; options.target = argv[++index]; }
     else if (argument === "--from-diagnosis") { options.command = "from-diagnosis"; options.target = path.resolve(argv[++index] ?? ""); }
     else if (argument === "--case-id") options.caseId = argv[++index];
+    else if (argument === "--incident-class") options.incidentClass = argv[++index];
+    else if (argument === "--observe") { options.command = "observe"; options.target = argv[++index]; }
+    else if (argument === "--revise") { options.command = "revise"; options.target = argv[++index]; }
+    else if (argument === "--in") options.inFile = path.resolve(argv[++index] ?? "");
+    else if (argument === "--performed") { options.command = "performed"; options.target = argv[++index]; }
+    else if (argument === "--by") options.by = argv[++index];
+    else if (argument === "--proposal") options.proposal = argv[++index];
+    else if (argument === "--treatment") options.treatment = argv[++index];
+    else if (argument === "--outcome") options.outcome = argv[++index];
+    else if (argument === "--detail") options.detail = argv[++index];
     else if (argument === "--resolve") { options.command = "resolve"; options.target = argv[++index]; }
     else if (argument === "--disposition") options.disposition = argv[++index];
     else if (argument === "--root-cause") options.rootCause = argv[++index];
@@ -52,7 +63,18 @@ function parseArgs(argv) {
     else if (argument === "--json") options.json = true;
     else if (argument === "--out") options.out = path.resolve(argv[++index] ?? "");
     else if (argument === "--help" || argument === "-h") {
-      process.stdout.write("usage: node scripts/self-case-record.cjs [--list|--metrics|--candidates|--case <id>|--from-diagnosis <file>|--resolve <id>|--validate <id>] [--root <dir>] [--repo-root <dir>] [--json] [--out <file>]\n");
+      process.stdout.write(
+        "usage: node scripts/self-case-record.cjs <command> [options]\n" +
+        "  T0/T1  node scripts/self-view.cjs --json --out <model.json>\n" +
+        "  T2     node scripts/self-diagnosis.cjs --data-root <dir> --json --out <diagnosis.json>\n" +
+        "  T3     --from-diagnosis <diagnosis.json> --case-id <id> --incident-class REAL_INCIDENT|RETROSPECTIVE_FIXTURE|DEVELOPMENT_TEST\n" +
+        "  T4     --observe <id> --detail \"<what was learned>\"   |   --revise <id> --from-diagnosis <revision.json>\n" +
+        "  T5     --performed <id> --proposal <proposalId> --by OWNER|HNS|EXTERNAL_SYSTEM --treatment <kind> --outcome \"<what happened>\"\n" +
+        "  T6     --validate <id> --verdict CONFIRMED|PARTIALLY_CONFIRMED|REFUTED|INCONCLUSIVE --evidence \"<what was seen>\" [--by <who>]\n" +
+        "  T7     --resolve <id> --disposition RESOLVED|UNRESOLVED [--root-cause <component>]\n" +
+        "  read   --list | --case <id> | --candidates | --metrics | --defects\n" +
+        "  other  [--root <caseLogDir>] [--repo-root <checkout>] [--json] [--out <file>]\n"
+      );
       process.exit(0);
     } else {
       process.stderr.write(`unknown argument ${argument}\n`);
@@ -113,10 +135,61 @@ if (options) {
       case "metrics":
         outcome = { metrics: store.dogfood(), status: store.status() };
         break;
+      case "defects":
+        outcome = {
+          defects: store.defectReports({ engineVersion: provenance.diagnosisEngineVersion, policyHash: provenance.diagnosisPolicyHash }),
+          metrics: store.dogfood(),
+          status: store.status()
+        };
+        break;
+      case "observe":
+        outcome = store.append({ caseId: options.target ?? "", type: "OBSERVATION_ADDED", detail: { detail: options.detail ?? "no detail recorded" } });
+        break;
+      case "revise": {
+        // T4: what the investigation learned is appended as a REVISION. The first pass stays where
+        // it is, which is the whole point of scoring the first pass.
+        const file = options.inFile;
+        if (typeof file !== "string" || !fs.existsSync(file)) {
+          outcome = { status: "REFUSED", problems: ["--revise needs --in <diagnosis.json>: the revision is a diagnosis report, copied in rather than re-derived"] };
+          break;
+        }
+        const read = JSON.parse(fs.readFileSync(file, "utf8"));
+        const report = read.report ?? read;
+        outcome = store.append({
+          caseId: options.target ?? "",
+          type: "HYPOTHESIS_REVISED",
+          detail: {
+            hypotheses: report.hypotheses ?? [],
+            ...(report.hypotheses?.[0] === undefined ? {} : { selectedHypothesisId: report.hypotheses[0].hypothesisId }),
+            reason: options.detail ?? `revised from a self-diagnosis run at ${report.at}`
+          }
+        });
+        break;
+      }
+      case "performed":
+        outcome = store.append({
+          caseId: options.target ?? "",
+          type: "TREATMENT_PERFORMED",
+          detail: {
+            proposalId: options.proposal ?? "",
+            treatment: options.treatment ?? "UNKNOWN",
+            performedBy: options.by ?? "",
+            outcome: options.outcome ?? "no outcome recorded",
+            reversible: false
+          }
+        });
+        break;
       case "from-diagnosis": {
         const read = fs.existsSync(options.target ?? "") ? JSON.parse(fs.readFileSync(options.target, "utf8")) : undefined;
         if (read === undefined) {
           outcome = { status: "UNKNOWN", reason: `no diagnosis report at ${options.target}` };
+          break;
+        }
+        // The protocol's first rule: a case says whether it is evidence about the system or about
+        // the recorder, and there is no default.
+        if (!["REAL_INCIDENT", "RETROSPECTIVE_FIXTURE", "DEVELOPMENT_TEST"].includes(options.incidentClass ?? "")) {
+          process.stderr.write("--incident-class is required: REAL_INCIDENT counts in the dogfood headline; RETROSPECTIVE_FIXTURE and DEVELOPMENT_TEST do not\n");
+          outcome = { status: "REFUSED", problems: ["--incident-class must be REAL_INCIDENT, RETROSPECTIVE_FIXTURE or DEVELOPMENT_TEST"] };
           break;
         }
         const report = read.report ?? read;
@@ -125,6 +198,7 @@ if (options) {
           caseId,
           at: report.at,
           trigger: `${report.symptoms?.length ?? 0} symptom(s) from a self-diagnosis run`,
+          incidentClass: options.incidentClass,
           provenance,
           affectedComponents: [...new Set((report.hypotheses ?? []).map((hypothesis) => hypothesis.suspectedComponent))],
           symptoms: report.symptoms ?? []

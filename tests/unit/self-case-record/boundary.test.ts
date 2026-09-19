@@ -104,7 +104,7 @@ describe("the case record can record, and only record", () => {
   it("grows by one row per event and never rewrites an earlier row", () => {
     const root = makeRoot();
     const store = new CaseStore({ rootDir: root, now: () => AT });
-    store.openCase({ provenance: PROVENANCE, caseId: "case-1", trigger: "x" });
+    store.openCase({ provenance: PROVENANCE, incidentClass: "DEVELOPMENT_TEST", caseId: "case-1", trigger: "x" });
     const afterFirst = fs.readFileSync(path.join(root, CASE_LOG_FILENAME), "utf8");
     store.append({ caseId: "case-1", type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "PROVIDER_TIMEOUT_SPIKE")] } });
     store.append({ caseId: "case-1", type: "CASE_RESOLVED", detail: { disposition: "RESOLVED" } });
@@ -115,7 +115,7 @@ describe("the case record can record, and only record", () => {
   });
 
   it("does not mutate the timeline it folds", () => {
-    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, incidentClass: "DEVELOPMENT_TEST", caseId: "case-1", at: AT, trigger: "x" });
     const timeline = opened.timeline as CaseTimeline;
     const withRevision = appendEvent(timeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "CACHE_STALE")] } }).timeline as CaseTimeline;
     const before = JSON.stringify(withRevision);
@@ -128,7 +128,7 @@ describe("the case record can record, and only record", () => {
   });
 
   it("hands out evidence about the past in a shape that is not an observation", () => {
-    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, incidentClass: "DEVELOPMENT_TEST", caseId: "case-1", at: AT, trigger: "x" });
     const diagnosed = appendEvent(opened.timeline as CaseTimeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", "CACHE_STALE")] } }).timeline as CaseTimeline;
     const resolved = appendEvent(diagnosed, { at: LATER, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "providers" } }).timeline as CaseTimeline;
     const record = foldCase(resolved).case as SelfDiagnosisCase;

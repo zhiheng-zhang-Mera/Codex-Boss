@@ -1,5 +1,5 @@
 /**
- * Case Record — the durable, append-only case log.
+ * Case Record 鈥?the durable, append-only case log.
  *
  * One JSONL file per root, one row per EVENT, never a snapshot per case. That is what makes the
  * store genuinely append-only rather than append-shaped: a case that changes writes another row,
@@ -15,13 +15,14 @@ import path from "node:path";
 import {
   CASE_SCHEMA_VERSION,
   type CaseEvent,
+  type CaseIncidentClass,
   type CaseProvenance,
   type CaseTimeline,
   type SelfDiagnosisCase
 } from "../../src/shared/self-case-record/case";
 import { appendEvent, foldCase, openCase, type TimelineOperation } from "../../src/shared/self-case-record/timeline";
 import { lessonCandidates, priorEvidenceOf, type LessonCandidate } from "../../src/shared/self-case-record/recurrence";
-import { dogfoodMetrics, type DogfoodMetrics } from "../../src/shared/self-case-record/dogfood";
+import { dogfoodMetrics, policyDefectReports, type DogfoodMetrics, type SelfDiagnosisPolicyDefectReport } from "../../src/shared/self-case-record/dogfood";
 import type { PriorEvidence } from "../../src/shared/self-diagnosis/hypotheses";
 
 export const CASE_LOG_FILENAME = "case-record.jsonl";
@@ -114,7 +115,7 @@ export class CaseStore {
   }
 
   /** Opens a case and writes its first event. */
-  openCase(input: { caseId: string; at?: string; trigger: string; provenance: CaseProvenance; affectedComponents?: readonly string[]; symptoms?: readonly import("../../src/shared/self-diagnosis/hypotheses").DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
+  openCase(input: { caseId: string; at?: string; trigger: string; incidentClass: CaseIncidentClass; provenance: CaseProvenance; affectedComponents?: readonly string[]; symptoms?: readonly import("../../src/shared/self-diagnosis/hypotheses").DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
     if (this.record(input.caseId) !== undefined) return { ok: false, problems: [`a case ${input.caseId} already exists: a case is never opened twice, and a recurrence is a link rather than a second opening`] };
     const opened = openCase({ ...input, at: input.at ?? this.now(), caseId: input.caseId });
     if (!opened.ok || opened.timeline === undefined) return opened;
@@ -145,6 +146,25 @@ export class CaseStore {
   /** The dogfood metrics over the cases this store holds. */
   dogfood(at?: string): DogfoodMetrics {
     return dogfoodMetrics({ cases: this.records().map((entry) => entry.record), at: at ?? this.now() });
+  }
+
+  /**
+   * The policy defect reports the cases have earned.
+   *
+   * A report is written when a high-confidence claim turned out wrong, and it is only a report: the
+   * dogfood rule is to accumulate cases before changing a diagnosis rule, so this method cannot
+   * change one.
+   */
+  defectReports(input: { engineVersion: string; policyHash: string; at?: string }): SelfDiagnosisPolicyDefectReport[] {
+    const eventsByCase: Record<string, readonly { type: string }[]> = {};
+    for (const timeline of this.timelines()) eventsByCase[timeline.caseId] = timeline.events;
+    return policyDefectReports({
+      cases: this.records().map((entry) => entry.record),
+      at: input.at ?? this.now(),
+      engineVersion: input.engineVersion,
+      policyHash: input.policyHash,
+      eventsByCase
+    });
   }
 
   status(): CaseStoreStatus {

@@ -35,6 +35,47 @@ export type CaseStatus = (typeof CASE_STATUSES)[number];
 /** The statuses that mean no further observation is expected. */
 export const TERMINAL_CASE_STATUSES: readonly CaseStatus[] = ["RESOLVED", "UNRESOLVED"];
 
+/**
+ * What produced a case.
+ *
+ * Only `REAL_INCIDENT` counts towards the dogfood headline. A fixture or a test proves the record
+ * works and proves nothing about whether a diagnosis was right, so the distinction is part of the
+ * case rather than a convention in a report — the same rule the prospective window applies to
+ * tasks. A caller must state which it is: there is no default, because a default would be wrong
+ * half the time and would be the half nobody checks.
+ */
+export const CASE_INCIDENT_CLASSES = ["REAL_INCIDENT", "RETROSPECTIVE_FIXTURE", "DEVELOPMENT_TEST"] as const;
+export type CaseIncidentClass = (typeof CASE_INCIDENT_CLASSES)[number];
+
+/**
+ * Who performed a treatment.
+ *
+ * `SELF_DIAGNOSIS` is not in this vocabulary and never will be: this plane may propose a treatment
+ * and may record one, and it may not perform one. The list is short on purpose, because who did it
+ * is the fact that decides whether a case is evidence about the diagnosis or about a person.
+ */
+export const TREATMENT_SOURCES = ["OWNER", "HNS", "EXTERNAL_SYSTEM"] as const;
+export type TreatmentSource = (typeof TREATMENT_SOURCES)[number];
+
+/** How a validation turned out. The vocabulary is closed, so an unknown word cannot be stored. */
+export const CASE_VALIDATION_VERDICTS = ["CONFIRMED", "PARTIALLY_CONFIRMED", "REFUTED", "INCONCLUSIVE"] as const;
+export type CaseValidationVerdict = (typeof CASE_VALIDATION_VERDICTS)[number];
+
+/**
+ * The first diagnosis, kept apart from every later revision.
+ *
+ * The first pass is the one that counts: it is made before anyone investigates, so it is the only
+ * one that can be scored against the root cause found afterwards. `firstPass` is set by the first
+ * revision and never rewritten, which is what makes `TOP1_DIAGNOSIS_CONFIRMED`,
+ * `TOP3_CONTAINED_ROOT_CAUSE` and `FALSE_HIGH_CONFIDENCE_DIAGNOSES` mean something.
+ */
+export interface CaseFirstPass {
+  at: string;
+  revision: number;
+  hypotheses: DiagnosisHypothesis[];
+  reason: string;
+}
+
 /** What can happen to a case. Every one of them is an event on the timeline. */
 export const CASE_EVENT_TYPES = [
   "CASE_OPENED",
@@ -97,7 +138,7 @@ export interface TreatmentPerformed {  at: string;
   proposalId: string;
   treatment: string;
   /** Who performed it. This module records the answer; it never is the answer. */
-  performedBy: string;
+  performedBy: TreatmentSource;
   outcome: string;
   reversible: boolean;
 }
@@ -105,7 +146,7 @@ export interface TreatmentPerformed {  at: string;
 export interface CaseValidation {
   at: string;
   /** Whether the treatment worked, as observed later. */
-  verdict: "CONFIRMED" | "PARTIALLY_CONFIRMED" | "REFUTED" | "INCONCLUSIVE";
+  verdict: CaseValidationVerdict;
   evidence: string[];
   observedBy: string;
 }
@@ -125,6 +166,8 @@ export interface SelfDiagnosisCase {
   status: CaseStatus;
   /** What started the case. */
   trigger: string;
+  /** A real incident, a fixture or a test. Fixed at open; only a real incident counts in the headline. */
+  incidentClass: CaseIncidentClass;
   /** The body and the diagnosis rules this case was opened against. Fixed at open, never rewritten. */
   provenance: CaseProvenance;
   affectedComponents: string[];
@@ -132,6 +175,8 @@ export interface SelfDiagnosisCase {
   observations: string[];
   /** Every revision, oldest first. The first is never overwritten. */
   diagnosesConsidered: DiagnosisRevision[];
+  /** The first diagnosis, frozen: the only one an investigation could not have influenced. */
+  firstPass?: CaseFirstPass;
   selectedDiagnosis?: DiagnosisRevision;
   missingEvidence: string[];
   diagnosticActions: DiagnosticPlanStep[];

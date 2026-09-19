@@ -8,13 +8,25 @@ import {
 } from "../../../electron/self-case-record/case-store";
 import {
   UNKNOWN_PROVENANCE,
+  TREATMENT_SOURCES,
+  CASE_INCIDENT_CLASSES,
+  type CaseIncidentClass,
   type CaseProvenance,
   type CaseTimeline,
   type SelfDiagnosisCase,
   unknownProvenance
 } from "../../../src/shared/self-case-record/case";
 import { appendEvent, foldCase, openCase } from "../../../src/shared/self-case-record/timeline";
-import { DOGFOOD_METRICS_SCHEMA_VERSION, dogfoodMetrics, type DogfoodMetrics } from "../../../src/shared/self-case-record/dogfood";
+import {
+  DOGFOOD_METRICS_SCHEMA_VERSION,
+  HEADLINE_INCIDENT_CLASS,
+  dogfoodMetrics,
+  policyDefectReports,
+  protocolViolationsOf,
+  type CaseProtocolViolation,
+  type DogfoodMetrics,
+  type SelfDiagnosisPolicyDefectReport
+} from "../../../src/shared/self-case-record/dogfood";
 import { HIGH_CONFIDENCE_THRESHOLD } from "../../../src/shared/self-diagnosis/policy";
 import type { DiagnosisHypothesis } from "../../../src/shared/self-diagnosis/hypotheses";
 import type { TreatmentProposal } from "../../../src/shared/self-diagnosis/treatment";
@@ -95,12 +107,12 @@ const PROPOSAL: TreatmentProposal = {
 
 /** A case walked to a disposition, as the CLI would record it. */
 function caseTo(input: { caseId: string; hypotheses: DiagnosisHypothesis[]; validation?: "CONFIRMED" | "REFUTED" | "INCONCLUSIVE"; rootCause?: string; disposition?: string; proposalUsed?: boolean }): SelfDiagnosisCase {
-  const opened = openCase({ provenance: PROVENANCE, caseId: input.caseId, at: AT, trigger: "a reading over its limit", affectedComponents: ["providers"] });
+  const opened = openCase({ provenance: PROVENANCE, incidentClass: "REAL_INCIDENT", caseId: input.caseId, at: AT, trigger: "a reading over its limit", affectedComponents: ["providers"] });
   let timeline = opened.timeline as CaseTimeline;
   timeline = appendEvent(timeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: input.hypotheses, selectedHypothesisId: input.hypotheses[0]?.hypothesisId, reason: "the candidates as ranked" } }).timeline as CaseTimeline;
   timeline = appendEvent(timeline, { at: AT, type: "TREATMENT_PROPOSED", detail: { proposals: [PROPOSAL] } }).timeline as CaseTimeline;
   if (input.proposalUsed === true) {
-    timeline = appendEvent(timeline, { at: LATER, type: "TREATMENT_PERFORMED", detail: { proposalId: PROPOSAL.proposalId, treatment: "RETRY", performedBy: "an owner", outcome: "the run succeeded", reversible: true } }).timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: LATER, type: "TREATMENT_PERFORMED", detail: { proposalId: PROPOSAL.proposalId, treatment: "RETRY", performedBy: "OWNER", outcome: "the run succeeded", reversible: true } }).timeline as CaseTimeline;
   }
   if (input.validation !== undefined) {
     timeline = appendEvent(timeline, { at: LATER, type: "VALIDATION_ADDED", detail: { verdict: input.validation, evidence: ["observed for a day"], observedBy: "an owner" } }).timeline as CaseTimeline;
@@ -113,7 +125,7 @@ function caseTo(input: { caseId: string; hypotheses: DiagnosisHypothesis[]; vali
 
 describe("a case says which body and which rules judged it", () => {
   it("records provenance at open and keeps it through the fold", () => {
-    const opened = openCase({ provenance: PROVENANCE, caseId: "case-1", at: AT, trigger: "x" });
+    const opened = openCase({ provenance: PROVENANCE, incidentClass: "REAL_INCIDENT", caseId: "case-1", at: AT, trigger: "x" });
     const record = opened.case as SelfDiagnosisCase;
     expect(record.provenance).toEqual(PROVENANCE);
     expect(record.provenance.selfModelHash).toHaveLength(64);
@@ -126,8 +138,8 @@ describe("a case says which body and which rules judged it", () => {
   it("accepts an explicit UNKNOWN and refuses a blank", () => {
     const unknown = unknownProvenance("self-diagnosis.cjs with no checkout to read");
     expect(unknown.selfModelHash).toBe(UNKNOWN_PROVENANCE);
-    expect(openCase({ provenance: unknown, caseId: "case-2", at: AT, trigger: "x" }).ok).toBe(true);
-    const blank = openCase({ provenance: { ...PROVENANCE, selfModelHash: "  " }, caseId: "case-3", at: AT, trigger: "x" });
+    expect(openCase({ provenance: unknown, incidentClass: "REAL_INCIDENT", caseId: "case-2", at: AT, trigger: "x" }).ok).toBe(true);
+    const blank = openCase({ provenance: { ...PROVENANCE, selfModelHash: "  " }, incidentClass: "REAL_INCIDENT", caseId: "case-3", at: AT, trigger: "x" });
     expect(blank.ok).toBe(false);
     expect(blank.problems.join(" ")).toContain("names no selfModelHash");
     expect(blank.problems.join(" ")).toContain("never left blank");
@@ -164,7 +176,7 @@ describe("the dogfood metrics count accuracy, not activity", () => {
     const metrics = dogfoodMetrics({ cases: [], at: LATER });
     expect(metrics.casesOpened).toBe(0);
     expect(metrics.falseHighConfidenceDiagnoses).toBe(0);
-    expect(metrics.notes.join(" ")).toContain("no case has been closed yet, so no accuracy metric has a denominator and none of them is reported as zero");
+    expect(metrics.notes.join(" ")).toContain("no real incident has been closed yet, so no accuracy metric has a denominator and none of them is reported as zero");
     expect(metrics.notes.join(" ")).toContain("no treatment has been proposed yet");
   });
 
@@ -179,7 +191,7 @@ describe("the dogfood metrics count accuracy, not activity", () => {
   it("counts a recurrence and reads the metrics off the store", () => {
     const store = new CaseStore({ rootDir: makeRoot(), now: () => LATER });
     for (const caseId of ["case-1", "case-2"]) {
-      store.openCase({ provenance: PROVENANCE, caseId, at: AT, trigger: "x", affectedComponents: ["providers"] });
+      store.openCase({ provenance: PROVENANCE, incidentClass: "REAL_INCIDENT", caseId, at: AT, trigger: "x", affectedComponents: ["providers"] });
       store.append({ caseId, at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", 0.9)], selectedHypothesisId: "hypothesis:providers" } });
       store.append({ caseId, at: LATER, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "providers" } });
     }
@@ -189,6 +201,96 @@ describe("the dogfood metrics count accuracy, not activity", () => {
     expect(metrics.casesOpened).toBe(2);
     expect(metrics.falseHighConfidenceDiagnoses).toBe(0);
     expect(metrics.rootCause.inconclusive).toBe(2);
+  });
+});
+
+describe("the dogfood protocol: real incidents only, first pass frozen, nothing tuned", () => {
+  it("counts only real incidents in the headline and names the rest", () => {
+    const real = caseTo({ caseId: "real-1", hypotheses: [hypothesis("providers", 0.9)], validation: "CONFIRMED", rootCause: "providers" });
+    const fixture = caseTo({ caseId: "fixture-1", hypotheses: [hypothesis("providers", 0.9)], validation: "REFUTED", rootCause: "tasks" });
+    const fixtureAsRetrospective: SelfDiagnosisCase = { ...fixture, caseId: "fixture-2", incidentClass: "RETROSPECTIVE_FIXTURE" };
+    const metrics = dogfoodMetrics({ cases: [real, { ...fixture, incidentClass: "DEVELOPMENT_TEST" }, fixtureAsRetrospective], at: LATER });
+    expect(metrics.casesOpened).toBe(1);
+    expect(metrics.casesClosed).toBe(1);
+    expect(metrics.excludedByIncidentClass).toEqual({ DEVELOPMENT_TEST: 1, RETROSPECTIVE_FIXTURE: 1 });
+    expect(metrics.notes.join(" ")).toContain("2 case(s) are fixtures or tests and are excluded from every headline figure");
+    // The excluded refuted claim does not reach the safety metric.
+    expect(metrics.falseHighConfidenceDiagnoses).toBe(0);
+    expect(HEADLINE_INCIDENT_CLASS).toBe("REAL_INCIDENT");
+    expect(CASE_INCIDENT_CLASSES).toEqual(["REAL_INCIDENT", "RETROSPECTIVE_FIXTURE", "DEVELOPMENT_TEST"]);
+    expect(TREATMENT_SOURCES).toEqual(["OWNER", "HNS", "EXTERNAL_SYSTEM"]);
+  });
+
+  it("scores the FIRST PASS, so a later revision cannot make a wrong claim look right", () => {
+    // The first pass named providers at 0.9; the investigation later found tasks. Scoring the
+    // latest revision would award top-1 to a diagnosis that had already seen the answer.
+    const opened = openCase({ provenance: PROVENANCE, incidentClass: "REAL_INCIDENT", caseId: "case-1", at: AT, trigger: "a reading over its limit" });
+    let timeline = opened.timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: AT, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", 0.9)], selectedHypothesisId: "hypothesis:providers", reason: "FIRST_PASS: before any investigation" } }).timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: LATER, type: "HYPOTHESIS_REVISED", detail: { hypotheses: [hypothesis("tasks", 0.95)], selectedHypothesisId: "hypothesis:tasks", reason: "the ledger evidence arrived" } }).timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: LATER, type: "VALIDATION_ADDED", detail: { verdict: "CONFIRMED", evidence: ["the ledger was the cause"], observedBy: "HNS" } }).timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: LATER, type: "CASE_RESOLVED", detail: { disposition: "RESOLVED", rootCause: "tasks" } }).timeline as CaseTimeline;
+    const folded = foldCase(timeline);
+    expect(folded.ok).toBe(true);
+    const record = folded.case as SelfDiagnosisCase;
+    expect(record.firstPass?.hypotheses[0].suspectedComponent).toBe("providers");
+    expect(record.firstPass?.reason).toContain("FIRST_PASS");
+    expect(record.diagnosesConsidered).toHaveLength(2);
+    const metrics = dogfoodMetrics({ cases: [record], at: LATER });
+    expect(metrics.casesClosed).toBe(1);
+    expect(metrics.rootCause.confirmed).toBe(1);
+    // The first pass was wrong, and both numbers say so.
+    expect(metrics.top1DiagnosisConfirmed).toBe(0);
+    expect(metrics.top3ContainedRootCause).toBe(0);
+    expect(metrics.falseHighConfidenceDiagnoses).toBe(1);
+  });
+
+  it("flags a first pass that arrived after the investigation", () => {
+    const opened = openCase({ provenance: PROVENANCE, incidentClass: "REAL_INCIDENT", caseId: "case-late", at: AT, trigger: "x" });
+    let timeline = opened.timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: AT, type: "VALIDATION_ADDED", detail: { verdict: "CONFIRMED", evidence: ["we already knew"], observedBy: "HNS" } }).timeline as CaseTimeline;
+    timeline = appendEvent(timeline, { at: LATER, type: "HYPOTHESIS_ADDED", detail: { hypotheses: [hypothesis("providers", 0.9)], selectedHypothesisId: "hypothesis:providers" } }).timeline as CaseTimeline;
+    const record = foldCase(timeline).case as SelfDiagnosisCase;
+    const violations: CaseProtocolViolation[] = protocolViolationsOf(record, timeline.events);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].violation).toBe("FIRST_PASS_AFTER_INVESTIGATION");
+    expect(violations[0].detail).toContain("could have seen the answer");
+    const metrics = dogfoodMetrics({ cases: [record], at: LATER, eventsByCase: { "case-late": timeline.events } });
+    expect(metrics.protocolViolations).toHaveLength(1);
+    expect(metrics.notes.join(" ")).toContain("protocol violation(s)");
+    // A case with no revision at all is a violation too, rather than an empty pass.
+    const bare = openCase({ provenance: PROVENANCE, incidentClass: "REAL_INCIDENT", caseId: "case-bare", at: AT, trigger: "x" }).case as SelfDiagnosisCase;
+    expect(protocolViolationsOf(bare)[0].violation).toBe("FIRST_PASS_MISSING");
+  });
+
+  it("writes a defect report for a refuted claim and tunes nothing", () => {
+    const refuted = caseTo({ caseId: "case-1", hypotheses: [hypothesis("providers", 0.9)], validation: "REFUTED", rootCause: "tasks" });
+    const confirmed = caseTo({ caseId: "case-2", hypotheses: [hypothesis("providers", 0.85)], validation: "CONFIRMED", rootCause: "providers" });
+    const fixture = { ...caseTo({ caseId: "case-3", hypotheses: [hypothesis("providers", 0.9)], validation: "REFUTED", rootCause: "tasks" }), incidentClass: "DEVELOPMENT_TEST" as const };
+    const reports: SelfDiagnosisPolicyDefectReport[] = policyDefectReports({ cases: [refuted, confirmed, fixture], at: LATER, engineVersion: "self-diagnosis-engine-v1", policyHash: "e".repeat(64) });
+    expect(reports).toHaveLength(1);
+    const report = reports[0];
+    expect(report.kind).toBe("SELF_DIAGNOSIS_POLICY_DEFECT_REPORT");
+    expect(report.failureMode).toBe("FALSE_HIGH_CONFIDENCE_DIAGNOSIS");
+    expect(report.caseIds).toEqual(["case-1"]);
+    expect(report.claimedComponents).toEqual(["providers"]);
+    expect(report.actualRootCauses).toEqual(["tasks"]);
+    expect(report.highConfidenceThreshold).toBe(HIGH_CONFIDENCE_THRESHOLD);
+    expect(report.evidence[0]).toContain("the first pass named providers at confidence 0.9 and the case settled on tasks");
+    expect(report.candidateHypothesis).toContain("over-weighting");
+    expect(report.expectedTradeoff).toContain("only worth making from several cases rather than one");
+    // A report proposes: it cannot mutate a policy and it goes to an owner.
+    expect(report.mutatesPolicy).toBe(false);
+    expect(report.requiresOwnerReview).toBe(true);
+    expect(report.note).toContain("recorded, not acted on");
+    expect(report.engineVersion).toBe("self-diagnosis-engine-v1");
+    expect(report.policyHash).toBe("e".repeat(64));
+    // Two cases about the same component make the defect severe rather than one-off.
+    const repeated = policyDefectReports({ cases: [refuted, { ...caseTo({ caseId: "case-4", hypotheses: [hypothesis("providers", 0.8)], validation: "REFUTED", rootCause: "tasks" }) }], at: LATER, engineVersion: "self-diagnosis-engine-v1", policyHash: "e".repeat(64) });
+    expect(repeated[0].severity).toBe("HIGH");
+    expect(repeated[0].caseIds).toEqual(["case-1", "case-4"]);
+    // Nothing to report when the claim held.
+    expect(policyDefectReports({ cases: [confirmed], at: LATER, engineVersion: "v", policyHash: "h" })).toEqual([]);
   });
 });
 

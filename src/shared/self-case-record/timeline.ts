@@ -17,17 +17,24 @@
 
 import {
   CASE_EVENT_TYPES,
+  CASE_INCIDENT_CLASSES,
   CASE_SCHEMA_VERSION,
+  CASE_VALIDATION_VERDICTS,
   TERMINAL_CASE_STATUSES,
+  TREATMENT_SOURCES,
   type CaseEvent,
   type CaseEventType,
+  type CaseFirstPass,
+  type CaseIncidentClass,
   type CaseProvenance,
   type CaseStatus,
   type CaseTimeline,
   type CaseValidation,
+  type CaseValidationVerdict,
   type DiagnosisRevision,
   type SelfDiagnosisCase,
-  type TreatmentPerformed
+  type TreatmentPerformed,
+  type TreatmentSource
 } from "./case";
 import type { DiagnosisHypothesis, DiagnosticSymptom } from "../self-diagnosis/hypotheses";
 import type { DiagnosticPlanStep } from "../self-diagnosis/plan";
@@ -41,10 +48,16 @@ export interface TimelineOperation {
 }
 
 /** Opens a case. The opening event is the first thing on the timeline and is never removed. */
-export function openCase(input: { caseId: string; at: string; trigger: string; provenance: CaseProvenance; affectedComponents?: readonly string[]; symptoms?: readonly DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
+export function openCase(input: { caseId: string; at: string; trigger: string; incidentClass: CaseIncidentClass; provenance: CaseProvenance; affectedComponents?: readonly string[]; symptoms?: readonly DiagnosticSymptom[]; relatedTasks?: readonly string[]; relatedCommits?: readonly string[]; relatedRuntimeEvents?: readonly string[] }): TimelineOperation {
   if (input.caseId.trim() === "") return { ok: false, problems: ["a case needs an id: a record that cannot be named cannot be linked to"] };
   if (!Number.isFinite(Date.parse(input.at))) return { ok: false, problems: [`the instant ${JSON.stringify(input.at)} does not parse, so the case has no opening time`] };
   if (input.trigger.trim() === "") return { ok: false, problems: ["a case needs a trigger: what started it is the first thing a reader asks"] };
+  // A case must say whether it is evidence about the system or about the recorder. There is no
+  // default: a fixture recorded as a real incident would enter the dogfood headline, and that is the
+  // mistake this field exists to prevent.
+  if (!CASE_INCIDENT_CLASSES.includes(input.incidentClass)) {
+    return { ok: false, problems: [`${JSON.stringify(input.incidentClass)} is not an incident class: a case is a REAL_INCIDENT, a RETROSPECTIVE_FIXTURE or a DEVELOPMENT_TEST, and only the first counts`] };
+  }
   // Provenance is required, and a blank field is refused while `UNKNOWN` is accepted: a record must
   // say which body and which rules judged it, and it must be able to say that it does not know.
   const blank = Object.entries(input.provenance ?? {}).filter(([, value]) => typeof value !== "string" || value.trim() === "").map(([key]) => key);
@@ -55,6 +68,7 @@ export function openCase(input: { caseId: string; at: string; trigger: string; p
     type: "CASE_OPENED",
     detail: {
       trigger: input.trigger,
+      incidentClass: input.incidentClass,
       provenance: input.provenance,
       affectedComponents: [...(input.affectedComponents ?? [])],
       symptoms: [...(input.symptoms ?? [])],
@@ -92,6 +106,19 @@ export function appendEvent(timeline: CaseTimeline, input: { at: string; type: C
   if (input.type !== "CASE_OPENED" && timeline.events.length === 0) {
     return { ok: false, problems: ["the case has not been opened, so there is nothing to append to"] };
   }
+  // A treatment is performed by a person or another system, never by this plane, so a record that
+  // cannot name one of those is refused rather than stored with a source nobody can act on.
+  if (input.type === "TREATMENT_PERFORMED") {
+    const source = input.detail.performedBy;
+    if (!TREATMENT_SOURCES.includes(source as TreatmentSource)) {
+      return { ok: false, problems: [`a treatment was performed by ${JSON.stringify(source)}: the source must be one of ${TREATMENT_SOURCES.join(", ")}, and SELF_DIAGNOSIS is never one of them because this plane cannot treat`] };
+    }
+  }
+  // A validation verdict is the fact a case is adjudicated on, so an unknown word is refused rather
+  // than quietly stored as INCONCLUSIVE.
+  if (input.type === "VALIDATION_ADDED" && !CASE_VALIDATION_VERDICTS.includes(input.detail.verdict as CaseValidationVerdict)) {
+    return { ok: false, problems: [`${JSON.stringify(input.detail.verdict)} is not a validation verdict: it must be one of ${CASE_VALIDATION_VERDICTS.join(", ")}`] };
+  }
   const event: CaseEvent = { schemaVersion: CASE_SCHEMA_VERSION, sequence: timeline.events.length + 1, at: input.at, type: input.type, detail: input.detail };
   const next: CaseTimeline = { caseId: timeline.caseId, events: [...timeline.events, event] };
   const folded = foldCase(next);
@@ -123,11 +150,13 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
   let closedAt: string | undefined;
   let status: CaseStatus = "OPEN";
   let trigger = "";
+  let incidentClass: CaseIncidentClass = "DEVELOPMENT_TEST";
   let provenance: CaseProvenance = { selfModelVersion: "", selfModelHash: "", diagnosisEngineVersion: "", diagnosisPolicyHash: "", source: "" };
   let affectedComponents: string[] = [];
   let symptoms: DiagnosticSymptom[] = [];
   let observations: string[] = [];
   const diagnosesConsidered: DiagnosisRevision[] = [];
+  let firstPass: CaseFirstPass | undefined;
   let missingEvidence: string[] = [];
   let diagnosticActions: DiagnosticPlanStep[] = [];
   let treatmentProposals: TreatmentProposal[] = [];
@@ -149,6 +178,7 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
       case "CASE_OPENED":
         opened = event;
         trigger = typeof event.detail.trigger === "string" ? event.detail.trigger : "";
+        incidentClass = CASE_INCIDENT_CLASSES.includes(event.detail.incidentClass as CaseIncidentClass) ? (event.detail.incidentClass as CaseIncidentClass) : "DEVELOPMENT_TEST";
         provenance = isProvenance(event.detail.provenance) ? event.detail.provenance : provenance;
         affectedComponents = strings(event.detail.affectedComponents);
         symptoms = Array.isArray(event.detail.symptoms) ? (event.detail.symptoms as DiagnosticSymptom[]) : [];
@@ -174,6 +204,11 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
           reason: typeof event.detail.reason === "string" ? event.detail.reason : "no reason recorded"
         };
         diagnosesConsidered.push(revision);
+        // The FIRST revision is the first pass, and it is copied here rather than referenced so a
+        // later revision cannot change it. This is the diagnosis the dogfood metrics score.
+        if (firstPass === undefined) {
+          firstPass = { at: revision.at, revision: revision.revision, hypotheses: revision.hypotheses, reason: revision.reason };
+        }
         status = revision.selectedHypothesisId === undefined ? "DIAGNOSING" : "WAITING_FOR_EVIDENCE";
         break;
       }
@@ -186,7 +221,9 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
           at: event.at,
           proposalId: typeof event.detail.proposalId === "string" ? event.detail.proposalId : "",
           treatment: typeof event.detail.treatment === "string" ? event.detail.treatment : "",
-          performedBy: typeof event.detail.performedBy === "string" ? event.detail.performedBy : "unknown",
+          // A record that named no source folds to EXTERNAL_SYSTEM and is reported as a protocol
+          // violation, rather than being attributed to this plane or to a person by default.
+          performedBy: TREATMENT_SOURCES.includes(event.detail.performedBy as TreatmentSource) ? (event.detail.performedBy as TreatmentSource) : "EXTERNAL_SYSTEM",
           outcome: typeof event.detail.outcome === "string" ? event.detail.outcome : "unknown",
           reversible: event.detail.reversible === true
         });
@@ -195,7 +232,7 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
       case "VALIDATION_ADDED":
         validations.push({
           at: event.at,
-          verdict: event.detail.verdict === "CONFIRMED" || event.detail.verdict === "PARTIALLY_CONFIRMED" || event.detail.verdict === "REFUTED" ? event.detail.verdict : "INCONCLUSIVE",
+          verdict: CASE_VALIDATION_VERDICTS.includes(event.detail.verdict as CaseValidationVerdict) ? (event.detail.verdict as CaseValidationVerdict) : "INCONCLUSIVE",
           evidence: strings(event.detail.evidence),
           observedBy: typeof event.detail.observedBy === "string" ? event.detail.observedBy : "unknown"
         });
@@ -233,12 +270,14 @@ export function foldCase(timeline: CaseTimeline): TimelineOperation {
       ...(closedAt === undefined ? {} : { closedAt }),
       status,
       trigger,
+      incidentClass,
       provenance,
       affectedComponents,
       symptoms,
       observations,
       diagnosesConsidered,
       ...(diagnosesConsidered.length === 0 ? {} : { selectedDiagnosis: diagnosesConsidered[diagnosesConsidered.length - 1] }),
+      ...(firstPass === undefined ? {} : { firstPass }),
       missingEvidence,
       diagnosticActions,
       treatmentProposals,
