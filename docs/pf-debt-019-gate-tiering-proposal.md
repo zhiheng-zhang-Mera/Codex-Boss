@@ -10,17 +10,20 @@ The authorized investigation ran. The cost was measured, the append path was mad
 touching a single guarantee, and the entry still cannot be closed honestly, because **the closure bar is a
 hosted margin and the hosted margin is still ~9%**.
 
-| Hosted observation (same candidate SHA `a890314…`, code identical, fix in place) | Event | 100k case | Share of the 600 s budget |
+| Hosted observation (fix in place, code identical; the 4th carries only docs on top) | Event | 100k case | Share of the 600 s budget |
 | --- | --- | --- | --- |
-| run 35442171945 attempt 1 | push | **543 823 ms** | 90.6% |
-| run 35442182999 attempt 1 | pull_request | **548 153 ms** | 91.4% |
-| run 35442171945 attempt 2 | push (rerun) | **442 269 ms** | 73.7% |
-| run 35442182999 attempt 2 | pull_request (rerun) | *no data* — `unit` aborted earlier in `test:postbuild` on the unrelated `PF-DEBT-017` flake | — |
+| run 35442171945 attempt 1 (`a890314…`) | push | **543 823 ms** | 90.6% |
+| run 35442182999 attempt 1 (`a890314…`) | pull_request | **548 153 ms** | 91.4% |
+| run 35442171945 attempt 2 (`a890314…`) | push (rerun) | **442 269 ms** | 73.7% |
+| run 35444575454 (`dc50f46…`, fix + docs) | push | **326 718 ms** | 54.5% |
+| run 35442182999 attempt 2 (`a890314…`) | pull_request (rerun) | *no data* — `unit` aborted earlier in `test:postbuild` on the unrelated `PF-DEBT-017` flake | — |
 
-Three executions, zero timeouts, and a 1.24× spread (442 → 548 s) **between runs of identical code**. The
-slowest sits in the 450–590 s band that the closure criteria call "not stably closed", and a runner ~10%
-slower than the slowest observation times out. Closing on this evidence would be exactly the "looks green"
-outcome the round was told to avoid.
+Four executions, zero timeouts, and a **1.68× spread** (326 718 → 548 153 ms) between runs of **identical code**.
+The decisive number is not the maximum on its own, it is the comparison of two ratios: the machine varies by
+**1.68×**, while the budget leaves only **1.09×** of headroom on the slowest observation. A budget that is
+inside the machine's own variance cannot be defended by making the code faster — the fastest run finished in
+54.5% of the budget and the slowest in 91.4% of the same budget, on the same code. Closing PF-DEBT-019 on
+this evidence would be exactly the "looks green" outcome the round was told to avoid.
 
 ## 2. What the fix already bought (landed, measured)
 
@@ -51,21 +54,21 @@ Keep the 100k-event case exactly where it is, with the budget raised from data r
 
 | Field | Value |
 | --- | --- |
-| observed max (fixed, n=3) | **548 153 ms** |
-| observed p50 (fixed, n=3) | 543 823 ms |
-| observed min (fixed, n=3) | 442 269 ms |
-| observed spread, identical code | **1.24×** |
-| proposed budget | **1 100 000 ms** (~18 min) — max observed × 2.0 |
-| resulting minimum headroom | 2.0× against the slowest observation, 2.5× against the median |
+| observed max (fixed, n=4) | **548 153 ms** |
+| observed p50 (fixed, n=4) | 493 046 ms |
+| observed min (fixed, n=4) | 326 718 ms |
+| observed spread, identical code | **1.68×** |
+| proposed budget | **1 100 000 ms** (~18 min) — max observed × 2.0, i.e. the first budget that also clears the observed spread by a real factor |
+| resulting headroom | 2.0× against the slowest observation, 3.4× against the fastest |
 | cost | the `unit` job's slow tier grows to roughly 20–25 min on the hosted runner, on **every** push and PR |
 
 **What it keeps:** every push and PR proves "100 000 durable appends complete on a clean hosted runner within
 one budget", which is the strongest form of the claim and needs no tier move.
 
-**What it risks:** the sample is three runs. Runner variance alone is 1.24× within the sample and the unfixed
-distribution already contained runs slower than the previous 600 s ceiling, so a 2.0× factor is an engineering
-judgement over a thin sample, not a bound. Raising the ceiling also makes a genuine hang take 18 minutes to
-surface instead of 10.
+**What it risks:** four runs is still a small sample, and the observed spread of 1.68× must be read as a
+*lower* bound on the machine's variance — the unfixed distribution already contained runs slower than the old
+600 s ceiling. A 2.0× factor is an engineering judgement over a thin sample, not a bound. Raising the ceiling
+also makes a genuine hang take 18 minutes to surface instead of 10.
 
 **What it does not change:** the workload (still 100 000), the assertions, the tier, the durability settings.
 
