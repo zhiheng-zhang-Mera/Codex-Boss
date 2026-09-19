@@ -16,15 +16,20 @@ import { frozenContinuationPolicy } from "../../src/shared/runtime-intelligence/
 import {
   PROSPECTIVE_WINDOW_SCHEMA_VERSION,
   appendProspectiveAdvisory,
+  appendProspectiveObservation,
+  appendProviderEvent as appendProviderEventToRecord,
   closeProspectiveRecord,
+  markCaptureEvent,
   openProspectiveRecord,
   prospectiveMetrics,
+  type CaptureSourceClass,
   type ProspectiveAdvisory,
   type ProspectiveMetrics,
   type ProspectiveStepOutcome,
   type ProspectiveWindowRecord,
   type WindowOperation
 } from "../../src/shared/runtime-intelligence/prospective-window";
+import type { LiveStepObservation, ProspectiveProviderEvent } from "../../src/shared/runtime-intelligence/live-capture";
 
 export const PROSPECTIVE_WINDOW_FILENAME = "prospective-window.jsonl";
 
@@ -40,6 +45,9 @@ export interface ProspectiveStoreStatus {
   records: number;
   open: number;
   closed: number;
+  steps: number;
+  observationsRecorded: number;
+  observationsDeduplicated: number;
   policyId: string;
   policyHash: string;
   bytes: number;
@@ -50,6 +58,8 @@ export class ProspectiveWindowStore {
   private readonly options: ProspectiveStoreOptions;
   private readonly now: () => string;
   private degradedReason?: string;
+  private recorded = 0;
+  private deduplicated = 0;
 
   constructor(options: ProspectiveStoreOptions) {
     this.options = options;
@@ -96,14 +106,29 @@ export class ProspectiveWindowStore {
   }
 
   /** Opens a window for a task, fixing the frozen policy's hash before anything else happens. */
-  openTask(input: { taskId: string; openedAt?: string }): WindowOperation {
+  openTask(input: { taskId: string; openedAt?: string; sourceClass?: CaptureSourceClass }): WindowOperation {
     if (this.record(input.taskId) !== undefined) {
       return { ok: false, problems: [`a window already exists for ${input.taskId}`] };
     }
-    const opened = openProspectiveRecord({ taskId: input.taskId, openedAt: input.openedAt ?? this.now() });
+    const opened = openProspectiveRecord({ taskId: input.taskId, openedAt: input.openedAt ?? this.now(), ...(input.sourceClass === undefined ? {} : { sourceClass: input.sourceClass }) });
     if (!opened.ok || opened.record === undefined) return opened;
     this.append(opened.record);
     return opened;
+  }
+
+  /**
+   * Opens the window unless the task already has one.
+   *
+   * This is the restart path. Boss may be closed and reopened while a task is running, and the
+   * same task must not become a second prospective task on the next start: the existing record —
+   * with the policy identity it opened under — is returned unchanged, and `opened` says which of
+   * the two happened so a caller can count restarts apart from new tasks.
+   */
+  ensureTask(input: { taskId: string; openedAt?: string; sourceClass?: CaptureSourceClass }): WindowOperation & { opened: boolean } {
+    const existing = this.record(input.taskId);
+    if (existing !== undefined) return { ok: true, record: existing, problems: [], opened: false };
+    const result = this.openTask(input);
+    return { ...result, opened: result.ok };
   }
 
   /** Appends a shadow advisory, refusing a closed window. */
@@ -116,11 +141,65 @@ export class ProspectiveWindowStore {
     return result;
   }
 
-  /** Closes a window with its outcome, refusing a policy that changed mid-window. */
-  closeTask(input: { taskId: string; finalOutcome: string; steps: readonly ProspectiveStepOutcome[]; closedAt?: string }): WindowOperation {
+  /**
+   * Appends one decision-time observation, idempotently.
+   *
+   * A repeated checkpoint is recognised by its identity and leaves the log alone, which is what
+   * makes a replayed event or a second observation pass harmless.
+   */
+  appendObservation(input: { taskId: string; observation: LiveStepObservation }): WindowOperation {
     const existing = this.record(input.taskId);
     if (existing === undefined) return { ok: false, problems: [`no window is open for ${input.taskId}`] };
-    const result = closeProspectiveRecord(existing, { finalOutcome: input.finalOutcome, steps: [...input.steps], closedAt: input.closedAt ?? this.now() });
+    const result = appendProspectiveObservation(existing, input.observation);
+    if (!result.ok || result.record === undefined) return result;
+    if (result.deduplicated === true) {
+      this.deduplicated += 1;
+      return result;
+    }
+    this.append(result.record);
+    this.recorded += 1;
+    return result;
+  }
+
+  /** Records a bus-side event identity without a checkpoint payload, idempotently. */
+  markEvent(input: { taskId: string; eventId: string }): { ok: boolean; deduplicated: boolean; problems: string[] } {
+    const existing = this.record(input.taskId);
+    if (existing === undefined) return { ok: false, deduplicated: false, problems: [`no window is open for ${input.taskId}`] };
+    const marked = markCaptureEvent(existing, input.eventId);
+    if (marked.deduplicated) {
+      this.deduplicated += 1;
+      return { ok: true, deduplicated: true, problems: [] };
+    }
+    this.append(marked.record);
+    this.recorded += 1;
+    return { ok: true, deduplicated: false, problems: [] };
+  }
+
+  /** Appends a provider run outcome, idempotently. A run outcome never closes a window. */
+  appendProviderEvent(input: { taskId: string; event: ProspectiveProviderEvent }): { ok: boolean; deduplicated: boolean; problems: string[] } {
+    const existing = this.record(input.taskId);
+    if (existing === undefined) return { ok: false, deduplicated: false, problems: [`no window is open for ${input.taskId}`] };
+    const appended = appendProviderEventToRecord(existing, input.event);
+    if (!appended.ok) return { ok: false, deduplicated: false, problems: appended.problems };
+    if (appended.deduplicated) {
+      this.deduplicated += 1;
+      return { ok: true, deduplicated: true, problems: [] };
+    }
+    this.append(appended.record);
+    this.recorded += 1;
+    return { ok: true, deduplicated: false, problems: [] };
+  }
+
+  /** Closes a window with its outcome, refusing a policy that changed mid-window. */
+  closeTask(input: { taskId: string; finalOutcome: string; steps?: readonly ProspectiveStepOutcome[]; closedAt?: string; taskStatus?: string }): WindowOperation {
+    const existing = this.record(input.taskId);
+    if (existing === undefined) return { ok: false, problems: [`no window is open for ${input.taskId}`] };
+    const result = closeProspectiveRecord(existing, {
+      finalOutcome: input.finalOutcome,
+      ...(input.steps === undefined ? {} : { steps: [...input.steps] }),
+      ...(input.taskStatus === undefined ? {} : { taskStatus: input.taskStatus }),
+      closedAt: input.closedAt ?? this.now()
+    });
     if (!result.ok || result.record === undefined) return result;
     this.append(result.record);
     return result;
@@ -147,6 +226,9 @@ export class ProspectiveWindowStore {
       records: records.length,
       open: records.filter((entry) => entry.outcome === undefined).length,
       closed: records.filter((entry) => entry.outcome !== undefined).length,
+      steps: records.reduce((total, entry) => total + entry.steps.length, 0),
+      observationsRecorded: this.recorded,
+      observationsDeduplicated: this.deduplicated,
       policyId: policy.policyId,
       policyHash: policy.policyHash,
       bytes,

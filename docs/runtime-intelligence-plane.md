@@ -86,11 +86,11 @@ which makes the decision visible in review.
 | `intelligence-store.ts` | durable storage: atomic JSON for derived state, append-only JSONL for logs |
 | `runtime-intelligence-service.ts` | `RuntimeIntelligenceService`, the facade that runs the loop |
 
-The two tables above are the round-1 module map and are not a complete list: rounds 3–5 added
+The two tables above are the round-1 module map and are not a complete list: rounds 3–6 added
 `replay-corpus.ts`, `temporal-guard.ts`, `step-completion.ts`, `context-contribution.ts`,
-`dispatch-attribution.ts`, `evaluation-report.ts`, `policy-registry.ts`, `prospective-window.ts` and
-their host counterparts (`replay-corpus-io.ts`, `replay-cases.ts`, `prospective-store.ts`). See
-§25–§27 for what each of those owns.
+`dispatch-attribution.ts`, `evaluation-report.ts`, `policy-registry.ts`, `prospective-window.ts`,
+`live-capture.ts` and their host counterparts (`replay-corpus-io.ts`, `replay-cases.ts`,
+`prospective-store.ts`). See §25–§28 for what each of those owns.
 
 ### Runnable report — `scripts/runtime-intelligence-report.cjs`
 
@@ -1014,6 +1014,157 @@ interrupts, switches, routes, removes or deletes, `productionRoutingAuthority` a
 Milestones A–D of the standing instruction are all unreached: there is no new task data, no new
 severe false-stop pattern, no authority topology change, and no capture requirement that needs Root
 Trust.
+
+## 28. Live shadow capture (round 6, `RUNTIME_INTELLIGENCE_LIVE_SHADOW_CAPTURE`)
+
+Round 5 built the prospective window and reported the reason it was empty: the window had no
+producer, because nothing in the running application called the plane. This round attaches the
+producer — `LIVE_CAPTURE_ATTACHED = YES` — and changes nothing about what the plane decides.
+
+### A. Where it is attached, and why there
+
+Two seams the application already had. Neither is modified; both are handed a wrapper.
+
+| seam | mechanism | what it captures |
+|---|---|---|
+| `electron/bootstrap/persistence.ts` | the task ledger's single write path, wrapped | task opened, step observed, provider dispatch and identity, usage, latency, continuation advice, scheduler advice, final outcome |
+| `electron/bootstrap/automation.ts` | the existing domain event bus, as a fourth observer | provider run outcomes (`WORKER_COMPLETED`, `WORKER_FAILED`) |
+
+`TaskLedger.save()` is the **only** write path — `create`, `update`, `recordStage`,
+`markVerification` and `markReviewFindings` all call it — so one override observes every
+checkpoint. `CaptureObservingTaskLedger.save` calls `super.save()` first and reports afterwards, so
+the value the caller receives is the superclass's own record and the checkpoint is already durable
+before the capture sees it. The bus was already built for observers: a throwing handler is recorded
+on the bus (`handlerFailures()`) and never blocks the publisher.
+
+These two facts are declared as data in `LIVE_CAPTURE_ATTACHMENTS` and checked against the files by
+`tests/unit/runtime-intelligence/live-capture.test.ts`, so "the producer is attached" is verifiable
+rather than asserted. No boot module, capability, manifest or namespace was added: the ratchet's
+`bootModuleCount 25` and `capabilityCount 27` are untouched.
+
+### B. `CAPTURE_FAILS` and `EXECUTION_CONTINUES` are one test
+
+The capture is broken on purpose in the test suite and the assertion is that **the ledger still
+wrote its checkpoint**:
+
+- the prospective root is replaced by a *file*, so every create/write into it fails — `mkdir` throws
+  `EEXIST` on every observation, the capture reports `captureHealthy: false` with the message, and
+  `00000001.json` and `00000002.json` are both on disk with the right contents;
+- a model-ledger resolver that throws is reported and counted, and the observation is lost without
+  reaching the caller;
+- a snapshot carrying `finalOutcome` or `taskComplete` is refused, and a later clean observation for
+  the same task is still recorded;
+- a torn line appended to the log costs one row, not the window;
+- a broken capture behind a bus subscription does not stop the other subscribers, and the bus's own
+  `handlerFailures()` stays empty.
+
+A refusal and a store failure are both counted in `recordsRejected`; `lastRejection` and `failures`
+say which one it was. Nothing in this plane gates Boss: `captureHealthy: false` is a report.
+
+### C. Observe only, and structurally so
+
+`RuntimeIntelligenceCapture` has no `stopTask`, `switchModel`, `routeTask`, `restartTask`,
+`modifyTask`, `cancelTask`, `retryTask`, `pauseTask`, `resumeTask`, `deleteSkill`, `dispatch` or
+`execute`, and a test walks its prototype chain to prove no such method exists. Its entire surface is
+"here is something that happened" and "here is what happened so far" — `observeCheckpoint`,
+`observeProviderEvent`, `records`, `headline`, `coverage`, `status`. `status().executionAuthority` is
+a literal `false`. The subscribed event types are exactly the two run outcomes, asserted by name.
+
+`EXECUTION_PATH_CHANGED = NO`: the ledger returns what it always returned, the store writes what it
+always wrote, and no code path reads a capture result in order to decide anything.
+
+### D. Identity fixed at open, and one task across a restart
+
+`ensureTask` opens a window only when the task has none, and returns the existing record unchanged
+otherwise. That is the restart path: the same `taskId` after a crash is the same prospective task,
+with the policy identity it opened at, and the adapter counts it as `restartsRecognised` rather than
+`tasksObserved`. A test opens a window with one adapter, reads it with a second, and asserts one
+window, one `openedAt`, one policy hash and two steps.
+
+Every window records all four policy identities at open — continuation, scheduler, skill-loadout and
+confidence — not only the pair the metrics read, so a later question about which rules a task was
+observed under does not have to be answered from whatever the registry holds by then. Nothing
+rewrites them: `closeProspectiveRecord` still refuses a record whose policy hash moved.
+
+Deduplication is by identity, never by timestamp: `taskId` + the kind of observation + the
+checkpoint or event identity. A repeated checkpoint returns `deduplicated: true` and leaves the log
+alone; a repeated `WORKER_COMPLETED` for the same job is one record.
+
+### E. Decision records and outcome records are separable in the log
+
+A checkpoint writes a `DECISION_TIME_RECORD` immediately; the outcome is appended later and the rows
+carry `recordKind`, so the ordering a reader needs to trust the evidence is visible in the file
+rather than reconstructed afterwards.
+
+The online temporal guard runs on **the record the caller handed in** before anything else. The
+snapshot given to the advisor is built from a whitelist, so a leak could not reach it through that
+path — but a caller passing a record that carries `finalOutcome` or `taskComplete` is reading
+outcome data somewhere, and the observation is refused with the field named instead of being
+silently filtered and reported clean. A separate assertion pins the two facts that make the advice
+trustworthy: `derivedFrom` never contains a post-decision name, and `temporalVerdict` is
+`NO_FUTURE_INFORMATION`.
+
+`taskComplete` is **derived** from the at-decision-time counts and the compile markers, and recorded
+as `objectiveComplete`; the corpus's outcome-side name never appears in a decision record. The
+closure rule is `deriveStepCompletion`'s own, the same function the replay corpus uses, so a live
+window and a replayed one cannot disagree about whether a step finished.
+
+### F. Only the application's own status closes a window
+
+A run that failed is not a task that failed. `WORKER_COMPLETED` and `WORKER_FAILED` are recorded as
+provider OUTCOME records whose `closesWindow` is a literal `false`, and a window closes only when
+the store's `tasks[].status` reaches a terminal word. The final outcome carries its source
+(`state.json tasks[].status`) and its reason; a window with no terminal status stays open and is
+reported as open, because a window closed on a guess is worse than one left open.
+
+### G. What is measured, and what is still absent
+
+```text
+dispatch      DIRECT_CHECKPOINT from the checkpoint's own sessions[] and jobs[]; a session with no
+              job, and a job with no start time, are reported as different findings
+latency       a job's startedAt -> completedAt for the provider runtime, and this capture time
+              minus the previous one for the step; a zero-length interval is NOT_MEASURED
+tokens        provider-reported input/output/total kept apart from the platform's character-count
+              estimate, which is named as an estimate
+tools         a counter of 0 is NOT_MEASURED ("the counter's initial value"), not evidence that
+              nothing was used
+cost          NOT_MEASURED always: no transport reports a cost and a price table is not a
+              measurement
+skills        NO_SKILL_RUNTIME_SIGNAL, with the names it searched; a skill-shaped field would be
+              named rather than interpreted
+```
+
+### H. The headline counts real user tasks only
+
+Every observation carries `REAL_USER_TASK`, `DEVELOPMENT_SMOKE` or `TEST_FIXTURE`, and both
+`prospectiveHeadline` and `headlineCaptureMetrics` count only the first, naming how many records
+they excluded. The smoke walk exists for exactly this reason: it drives a real task ledger and the
+real event bus on a temporary root, and its records can never become the plane's first published
+number.
+
+```text
+smoke walk: 3 checkpoints -> 3 step observations, 2 dispatches, 1 provider event
+            advice CONTINUE, CONTINUE, STOP; window closed SUCCESS with its source
+            headline tasks 0 (excluded as DEVELOPMENT_SMOKE); captureHealthy true
+window on the plane's own root: 0 records — no real task has run since the capture was attached
+```
+
+### I. The freeze is now a test
+
+`tests/unit/runtime-intelligence/policy-freeze.test.ts` records the five policy hashes as literals
+read from the frozen commit `c24d8c1`, before this round attached anything, and fails with
+`POLICY_FREEZE_BROKEN` if any of them moves. It additionally pins the continuation fallbacks, the
+STOP-evidence rules and every threshold, so a semantic change is caught even by a reader who does
+not recompute a hash. All five hashes are unchanged and `POLICY_CHANGED = NO`.
+
+### Authority
+
+Unchanged at **LEVEL 2 — SHADOW COUNTERFACTUAL**. This round adds observation only: no new advisor,
+scorer, optimiser or policy subsystem, no policy edited, no routing, no interruption, no skill
+removed, no task state mutated. `READY_FOR_PROSPECTIVE_OBSERVATION = YES` — which means construction
+stops here and the plane goes to passive observation, waiting for real Boss tasks to accumulate
+against the milestone of 20 real tasks and 100 prospective continuation steps.
+
 
 
 

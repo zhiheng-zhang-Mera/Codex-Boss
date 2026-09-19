@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Runtime Intelligence Plane â€” report CLI.
+ * Runtime Intelligence Plane â€?report CLI.
  *
  * Runs the real plane against this machine and prints what it found:
  *
@@ -32,7 +32,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const options = { root: path.join(ROOT, "runtime-data"), dataRoot: undefined, task: undefined, advise: false, evaluate: false, realData: false, prospective: false, snapshot: false, samples: 0, out: undefined, skillCards: undefined, continuationCorpus: undefined, base: "origin/main" };
+  const options = { root: path.join(ROOT, "runtime-data"), dataRoot: undefined, task: undefined, advise: false, evaluate: false, realData: false, prospective: false, liveCapture: false, snapshot: false, samples: 0, out: undefined, skillCards: undefined, continuationCorpus: undefined, base: "origin/main" };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--root") options.root = path.resolve(argv[++index] ?? "");
@@ -46,10 +46,11 @@ function parseArgs(argv) {
     else if (argument === "--evaluate") options.evaluate = true;
     else if (argument === "--real-data") options.realData = true;
     else if (argument === "--prospective") options.prospective = true;
+    else if (argument === "--live-capture") options.liveCapture = true;
     else if (argument === "--snapshot") options.snapshot = true;
     else if (argument === "--out") options.out = path.resolve(argv[++index] ?? "");
     else if (argument === "--help" || argument === "-h") {
-      process.stdout.write("usage: node scripts/runtime-intelligence-report.cjs [--snapshot] [--advise] [--task <taskId>] [--sample <n>] [--evaluate] [--real-data] [--prospective] [--root <dataRoot>] [--data-root <dir>] [--skill-cards <file>] [--continuation-corpus <file>] [--base <ref>] [--out <file>]\n");
+      process.stdout.write("usage: node scripts/runtime-intelligence-report.cjs [--snapshot] [--advise] [--task <taskId>] [--sample <n>] [--evaluate] [--real-data] [--prospective] [--live-capture] [--root <dataRoot>] [--data-root <dir>] [--skill-cards <file>] [--continuation-corpus <file>] [--base <ref>] [--out <file>]\n");
       process.exit(0);
     } else {
       fail(`unknown argument ${argument}`);
@@ -204,7 +205,7 @@ if (options) {
     }
 
     if (options.realData) {
-      // Locate, export, sanitize, import, then replay â€” in that order, and read-only until the
+      // Locate, export, sanitize, import, then replay â€?in that order, and read-only until the
       // plane's own replay area is written.
       const io = load("electron/runtime-intelligence/replay-corpus-io.js");
       const casesModule = load("electron/runtime-intelligence/replay-cases.js");
@@ -364,7 +365,7 @@ if (options) {
     if (options.prospective) {
       // The prospective question, answered from data rather than from intent: which real tasks
       // opened after the freeze, what the frozen policy would have advised on them, and whether
-      // that is enough to say anything. The window is materialised in memory â€” the report must not
+      // that is enough to say anything. The window is materialised in memory â€?the report must not
       // write window records, because a record the reporter wrote is not a record a task produced.
       const registryModule = load("src/shared/runtime-intelligence/policy-registry.js");
       const windowModule = load("src/shared/runtime-intelligence/prospective-window.js");
@@ -463,6 +464,59 @@ if (options) {
           "SKILL_USAGE: the real checkpoints carry no skill-shaped field at all, so no skill selection, mount or invocation is recorded anywhere the plane can read; SKILL_USAGE_CASES is 0 because the application does not capture it",
           "COST: a web transport reports no cost and no field records one, so COST_CASES is 0 rather than estimated",
           "PROSPECTIVE_CAPTURE: the frozen policy is observed only through replay of tasks that opened BEFORE the freeze, which classifies every one of them as RETROSPECTIVE_EVIDENCE"
+        ]
+      };
+    }
+
+    if (options.liveCapture) {
+      // The producer's own state, the seams it is attached at, and a real smoke walk on a
+      // temporary root. The smoke root is created and removed here so nothing in the user's own
+      // data root is written, and every record it produces says DEVELOPMENT_SMOKE.
+      const captureModule = load("electron/runtime-intelligence/live-capture.js");
+      const registryModule = load("src/shared/runtime-intelligence/policy-registry.js");
+      const planeRoot = serviceModule.runtimeIntelligenceRoot(options.root);
+      const store = captureModule.openProspectiveWindow(options.root);
+      const smokeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "boss-live-capture-smoke-"));
+      let smoke;
+      try {
+        smoke = captureModule.runLiveCaptureSmoke({ dataRoot: smokeRoot });
+      } finally {
+        try {
+          fs.rmSync(smokeRoot, { recursive: true, force: true });
+        } catch {
+          /* best effort */
+        }
+      }
+      report.liveCapture = {
+        mode: "LIVE_SHADOW_CAPTURE",
+        executionAuthority: false,
+        attachmentPoint: captureModule.LIVE_CAPTURE_ATTACHMENTS,
+        capturedEventTypes: captureModule.CAPTURED_EVENT_TYPES,
+        // The window on the plane's own root: what real tasks have actually been captured.
+        window: store.status(),
+        policyRegistry: registryModule.policyRegistry().map((entry) => ({ policyId: entry.policyId, policyHash: entry.policyHash, status: entry.status })),
+        smoke: {
+          status: smoke.status,
+          window: smoke.window === undefined ? null : {
+            taskId: smoke.window.taskId,
+            sourceClass: smoke.window.sourceClass,
+            evidenceClass: smoke.window.evidenceClass,
+            steps: smoke.window.steps.length,
+            providerEvents: smoke.window.providerEvents.length,
+            dispatches: smoke.window.steps.reduce((total, step) => total + step.dispatches.length, 0),
+            continuationDecisions: smoke.window.steps.map((step) => step.continuationAdvice.decision),
+            policyIdentity: smoke.window.policyIdentity,
+            outcome: smoke.window.outcome === undefined ? null : { finalOutcome: smoke.window.outcome.finalOutcome, finalOutcomeSource: smoke.window.outcome.finalOutcomeSource, steps: smoke.window.outcome.steps.length }
+          },
+          checkpointFiles: smoke.checkpointFiles,
+          headlineTasks: smoke.headlineTasks,
+          problems: smoke.problems
+        },
+        // What the smoke proves and what it does not.
+        notes: [
+          "the smoke walk drives a real task ledger and the real event bus on a temporary root; its records are DEVELOPMENT_SMOKE and are excluded from every headline figure",
+          smoke.status.captureHealthy ? "the capture reported no failure during the smoke walk" : `the capture reported a failure during the smoke walk: ${smoke.status.lastError ?? "unknown"}`,
+          "the window on the plane's real root is the only place a real user task can appear, and no real task has run since the capture was attached"
         ]
       };
     }

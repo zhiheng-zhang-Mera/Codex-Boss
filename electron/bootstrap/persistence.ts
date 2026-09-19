@@ -21,6 +21,7 @@ import { durableFileFor } from "../workspace/durable-roots";
 import { PermissionManifestStore } from "../security/permission-manifest";
 import { ProjectStateStore } from "../project/project-state";
 import { ExperienceStore } from "../experience/experience-store";
+import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
 /**
@@ -79,6 +80,8 @@ interface PersistenceService {
   history: HistoryRepository;
   /** The one task ledger the store and the commander share. */
   tasks: TaskLedger;
+  /** The live shadow capture observing the ledger's write path. Observe-only; see the module. */
+  capture: RuntimeIntelligenceCapture;
   /** The application state document. */
   store: StateStore;
   attachments: AttachmentStore;
@@ -115,7 +118,17 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   };
 
   const history = open("history", () => new HistoryRepository(historyRoot));
-  const tasks = open("tasks", () => new TaskLedger(boss("tasks")));
+  // The runtime-intelligence capture observes the task ledger's write path. It is a pure bypass:
+  // it is handed the record that was already written and returns nothing the ledger reads, and
+  // every one of its own methods catches everything, so a capture failure cannot fail a task.
+  // The two resolvers read the store's own task record, which is what decides whether a task is
+  // prospective evidence and when a window may close — neither answer is guessed here.
+  const capture = new RuntimeIntelligenceCapture({
+    dataRoot,
+    openedAt: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.createdAt,
+    taskStatus: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.status
+  });
+  const tasks = open("tasks", () => createCaptureObservingLedger({ root: boss("tasks"), capture }));
   const store = open("state", () => new StateStore(path.join(dataRoot, "state.json"), history, tasks));
   const attachments = open("attachments", () => new AttachmentStore(boss("attachments")));
   const capabilities = open("provider-capabilities", () => new ProviderCapabilityRegistry(boss("provider-capabilities.json")));
@@ -155,7 +168,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   let disposed = false;
   return {
     service: {
-      history, tasks, store, attachments, capabilities, github, apiSettings,
+      history, tasks, store, capture, attachments, capabilities, github, apiSettings,
       sessionLifecycle, nodeRegistry, externalSessions, budget, guidance, decisions,
       workspaces, workspaceSelection, permissionManifests, projectStates, experiences,
       resources, contexts,

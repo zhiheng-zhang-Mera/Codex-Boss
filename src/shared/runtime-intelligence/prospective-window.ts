@@ -20,15 +20,26 @@
  */
 
 import { CONTINUATION_DECISION_CLASSES } from "./continuation-evaluator";
-import { EVIDENCE_CLASSES, classifyEvidence, frozenContinuationPolicy, type EvidenceClass } from "./policy-registry";
+import { completionAgreesWithStatus, deriveStepCompletion } from "./step-completion";
+import { EVIDENCE_CLASSES, classifyEvidence, frozenContinuationPolicy, policyIdentity, type EvidenceClass } from "./policy-registry";
+import { CAPTURE_SOURCE_CLASSES, finalOutcomeOf, type CaptureSourceClass, type LiveStepObservation, type ProspectiveProviderEvent } from "./live-capture";
 
-export const PROSPECTIVE_WINDOW_SCHEMA_VERSION = 1;
+export const PROSPECTIVE_WINDOW_SCHEMA_VERSION = 2;
 
 /** STOP advisories needed before a false-stop rate may be called a safety result. */
 export const STOP_SUPPORT_MINIMUM = 20;
 
 /** Tasks and steps the phase brief asks for before the window is considered informative. */
 export const PROSPECTIVE_TARGETS = { tasks: 20, continuationSteps: 100 } as const;
+
+/**
+ * How many observation identities one window remembers for deduplication.
+ *
+ * A task's checkpoints are already bounded by the ledger's own retention, so this only bounds the
+ * bus-side events; when it is reached the oldest identity is dropped and counted, because silently
+ * forgetting an identity would let a replayed event append twice.
+ */
+export const CAPTURE_EVENT_ID_LIMIT = 256;
 
 export interface ProspectiveAdvisory {
   stepIndex: number;
@@ -43,6 +54,24 @@ export interface ProspectiveStepOutcome {
   continuedAfterStep: boolean;
 }
 
+/**
+ * Every policy identity a task opened under, fixed at open time.
+ *
+ * All four are recorded, not only the continuation pair, because a later reader asking "which
+ * rules was this task observed under?" must not have to reconstruct the answer from whatever the
+ * registry happens to hold by then.
+ */
+export interface ProspectivePolicyIdentity {
+  continuationPolicyId: string;
+  continuationPolicyHash: string;
+  schedulerPolicyId: string;
+  schedulerPolicyHash: string;
+  skillLoadoutPolicyId: string;
+  skillLoadoutPolicyHash: string;
+  confidencePolicyId: string;
+  confidencePolicyHash: string;
+}
+
 export interface ProspectiveWindowRecord {
   schemaVersion: number;
   windowId: string;
@@ -51,12 +80,27 @@ export interface ProspectiveWindowRecord {
   /** Fixed at open time, before any outcome exists. */
   policyId: string;
   policyHash: string;
+  /** The full four-policy identity the task opened under. Never rewritten. */
+  policyIdentity: ProspectivePolicyIdentity;
+  /** What produced this task: a real user task, a smoke run or a fixture. */
+  sourceClass: CaptureSourceClass;
   evidenceClass: EvidenceClass;
   advisories: ProspectiveAdvisory[];
+  /** The decision-time observations, appended as each checkpoint was written. */
+  steps: LiveStepObservation[];
+  /** Provider run outcomes seen on the domain event bus, appended as they happened. */
+  providerEvents: ProspectiveProviderEvent[];
+  /** Observation identities already appended, so a replayed event appends once. */
+  eventIds: string[];
   outcome?: {
     closedAt: string;
     finalOutcome: string;
     steps: ProspectiveStepOutcome[];
+    /** Where the final outcome came from, so a SUCCESS is never asserted without a source. */
+    finalOutcomeSource?: string;
+    finalOutcomeReason?: string;
+    /** Disagreements between the derived step completion and the task's own status. */
+    completionProblems?: Array<{ taskId: string; kind: string; detail: string }>;
   };
 }
 
@@ -64,15 +108,42 @@ export interface WindowOperation {
   ok: boolean;
   record?: ProspectiveWindowRecord;
   problems: string[];
+  /** True when the operation was a no-op because the identity was already recorded. */
+  deduplicated?: boolean;
+}
+
+/** The four-policy identity as the registry holds it right now. */
+export function prospectivePolicyIdentity(): ProspectivePolicyIdentity {
+  const identityOf = (policyId: string): { policyId: string; policyHash: string } => {
+    const identity = policyIdentity(policyId);
+    if (identity === undefined) throw new Error(`the policy registry is missing ${policyId}`);
+    return { policyId: identity.policyId, policyHash: identity.policyHash };
+  };
+  const continuation = identityOf("continuation-policy-v1");
+  const scheduler = identityOf("scheduler-policy-v0");
+  const skills = identityOf("skill-loadout-policy-v0");
+  const confidence = identityOf("confidence-policy-v0");
+  return {
+    continuationPolicyId: continuation.policyId,
+    continuationPolicyHash: continuation.policyHash,
+    schedulerPolicyId: scheduler.policyId,
+    schedulerPolicyHash: scheduler.policyHash,
+    skillLoadoutPolicyId: skills.policyId,
+    skillLoadoutPolicyHash: skills.policyHash,
+    confidencePolicyId: confidence.policyId,
+    confidencePolicyHash: confidence.policyHash
+  };
 }
 
 /** Opens a record, fixing the policy identity before the task does anything. */
-export function openProspectiveRecord(input: { taskId: string; openedAt: string; policyId?: string }): WindowOperation {
+export function openProspectiveRecord(input: { taskId: string; openedAt: string; policyId?: string; sourceClass?: CaptureSourceClass }): WindowOperation {
   const policy = input.policyId === undefined ? frozenContinuationPolicy() : frozenContinuationPolicy();
   if (input.policyId !== undefined && input.policyId !== policy.policyId) {
     return { ok: false, problems: [`the window observes ${policy.policyId}; ${input.policyId} is not the frozen policy, and a candidate must be evaluated under its own window`] };
   }
   if (input.taskId.trim() === "") return { ok: false, problems: ["a window record needs a task id"] };
+  const sourceClass = input.sourceClass ?? "REAL_USER_TASK";
+  if (!CAPTURE_SOURCE_CLASSES.includes(sourceClass)) return { ok: false, problems: [`${sourceClass} is not a capture source class, so the record cannot be attributed`] };
   const record: ProspectiveWindowRecord = {
     schemaVersion: PROSPECTIVE_WINDOW_SCHEMA_VERSION,
     windowId: `${policy.policyId}:${input.taskId}`,
@@ -80,8 +151,13 @@ export function openProspectiveRecord(input: { taskId: string; openedAt: string;
     openedAt: input.openedAt,
     policyId: policy.policyId,
     policyHash: policy.policyHash,
+    policyIdentity: prospectivePolicyIdentity(),
+    sourceClass,
     evidenceClass: classifyEvidence({ openedAt: input.openedAt, policyId: policy.policyId, claim: "PROSPECTIVE_EVIDENCE" }),
-    advisories: []
+    advisories: [],
+    steps: [],
+    providerEvents: [],
+    eventIds: []
   };
   return { ok: true, record, problems: [] };
 }
@@ -102,12 +178,122 @@ export function appendProspectiveAdvisory(record: ProspectiveWindowRecord, advis
 }
 
 /**
- * Closes a record with its outcome.
+ * Appends one decision-time observation and the advice it carried.
  *
- * Refuses a record whose policy hash no longer matches the registry — that is a policy change
- * mid-window, which would make the window's evidence a mixture of two policies.
+ * Three refusals, each of which would otherwise be a silent corruption:
+ *
+ *   - a record that is already closed: an observation that arrives after the outcome is not
+ *     evidence about a decision made before it;
+ *   - an observation for a different task, or one whose continuation policy hash does not match
+ *     the identity the window opened under — a policy changed mid-window is not attributable to
+ *     either version;
+ *   - a repeat of an identity already recorded, which is reported as `deduplicated` rather than
+ *     appended, so a replayed checkpoint leaves one record rather than two.
  */
-export function closeProspectiveRecord(record: ProspectiveWindowRecord, outcome: Omit<NonNullable<ProspectiveWindowRecord["outcome"]>, "closedAt"> & { closedAt: string }): WindowOperation {
+export function appendProspectiveObservation(record: ProspectiveWindowRecord, observation: LiveStepObservation): WindowOperation {
+  if (record.outcome !== undefined) {
+    return { ok: false, problems: [`the window for ${record.taskId} closed at ${record.outcome.closedAt}; an observation captured afterwards cannot be evidence about a decision made before it`] };
+  }
+  if (observation.taskId !== record.taskId) {
+    return { ok: false, problems: [`the observation is for task ${observation.taskId} but the window is for ${record.taskId}`] };
+  }
+  if (observation.continuationAdvice.policyHash !== record.policyHash) {
+    return { ok: false, problems: [`the window opened under policy hash ${record.policyHash} but the observation was made under ${observation.continuationAdvice.policyHash}: a policy changed mid-window`] };
+  }
+  const eventId = `STEP_OBSERVED:${observation.stepIndex}`;
+  if (record.eventIds.includes(eventId)) {
+    return { ok: true, record, problems: [], deduplicated: true };
+  }
+  const advisory: ProspectiveAdvisory = {
+    stepIndex: observation.stepIndex,
+    decision: observation.continuationAdvice.decision,
+    confidence: observation.continuationAdvice.confidence,
+    capturedAt: observation.capturedAt
+  };
+  const existing = record.advisories.find((entry) => entry.stepIndex === advisory.stepIndex);
+  const advisories = existing === undefined ? [...record.advisories, advisory].sort((left, right) => left.stepIndex - right.stepIndex) : record.advisories.map((entry) => (entry.stepIndex === advisory.stepIndex ? advisory : entry));
+  const steps = [...record.steps.filter((entry) => entry.stepIndex !== observation.stepIndex), observation].sort((left, right) => left.stepIndex - right.stepIndex);
+  const eventIds = [...record.eventIds, eventId];
+  return {
+    ok: true,
+    problems: [],
+    record: { ...record, advisories, steps, eventIds: eventIds.length > CAPTURE_EVENT_ID_LIMIT ? eventIds.slice(eventIds.length - CAPTURE_EVENT_ID_LIMIT) : eventIds }
+  };
+}
+
+/**
+ * Records that an identity was seen without appending an observation.
+ *
+ * Used for the bus-side events whose payload is a run outcome rather than a checkpoint, so a
+ * replayed `WORKER_COMPLETED` is recognised as one event and counted once.
+ */
+export function markCaptureEvent(record: ProspectiveWindowRecord, eventId: string): { record: ProspectiveWindowRecord; deduplicated: boolean } {
+  if (record.eventIds.includes(eventId)) return { record, deduplicated: true };
+  const eventIds = [...record.eventIds, eventId];
+  return { record: { ...record, eventIds: eventIds.length > CAPTURE_EVENT_ID_LIMIT ? eventIds.slice(eventIds.length - CAPTURE_EVENT_ID_LIMIT) : eventIds }, deduplicated: false };
+}
+
+/**
+ * Appends a provider run outcome, idempotently and without closing anything.
+ *
+ * A run result is not a task result: this appends an OUTCOME record about the run and leaves the
+ * window open, because only the task's own terminal status may close it.
+ */
+export function appendProviderEvent(record: ProspectiveWindowRecord, event: ProspectiveProviderEvent): { ok: boolean; record: ProspectiveWindowRecord; deduplicated: boolean; problems: string[] } {
+  if (event.taskId !== record.taskId) {
+    return { ok: false, record, deduplicated: false, problems: [`the event is for task ${event.taskId} but the window is for ${record.taskId}`] };
+  }
+  if (record.eventIds.includes(event.eventId)) return { ok: true, record, deduplicated: true, problems: [] };
+  const eventIds = [...record.eventIds, event.eventId];
+  return {
+    ok: true,
+    deduplicated: false,
+    problems: [],
+    record: {
+      ...record,
+      providerEvents: [...record.providerEvents, event],
+      eventIds: eventIds.length > CAPTURE_EVENT_ID_LIMIT ? eventIds.slice(eventIds.length - CAPTURE_EVENT_ID_LIMIT) : eventIds
+    }
+  };
+}
+
+/**
+ * Derives every step's outcome from the observations the window holds.
+ *
+ * The completion rule is `deriveStepCompletion`'s, the same one the replay corpus used, so a live
+ * window and a replayed one cannot disagree about whether a step finished. `continuedAfterStep`
+ * is positional — a later checkpoint exists, so the loop took another step — which is why this
+ * can only be computed once the task is over.
+ */
+export function deriveWindowOutcome(record: ProspectiveWindowRecord, input: { closedAt: string; taskStatus: string | undefined }): Pick<NonNullable<ProspectiveWindowRecord["outcome"]>, "steps" | "completionProblems"> {
+  const facts = record.steps.map((step) => ({
+    revision: step.stepIndex,
+    capturedAt: step.capturedAt,
+    completedCount: step.completedCount,
+    pendingCount: step.pendingCount,
+    nextAction: step.nextAction,
+    checkpointReason: step.checkpointReason
+  }));
+  const derived = deriveStepCompletion({ facts, taskStatus: input.taskStatus });
+  return {
+    steps: derived.map((entry) => ({ stepIndex: entry.observation.stepIndex, taskComplete: entry.observation.taskComplete, continuedAfterStep: entry.observation.continuedAfterStep })),
+    // The consistency check is the existing one, not a second implementation: a window and the
+    // replay corpus must not be able to disagree about whether a task finished.
+    completionProblems: completionAgreesWithStatus({ taskId: record.taskId, taskStatus: input.taskStatus, observations: derived.map((entry) => entry.observation) })
+  };
+}
+
+/**
+ * Closes a record with what the window observed.
+ *
+ * When `steps` are not given they are derived from the observations, so a caller does not have to
+ * restate what the window already holds. The final outcome carries its own source: an outcome
+ * with no source is refused rather than recorded as an assertion.
+ */
+export function closeProspectiveRecord(
+  record: ProspectiveWindowRecord,
+  outcome: { closedAt: string; finalOutcome: string; steps?: ProspectiveStepOutcome[]; finalOutcomeSource?: string; finalOutcomeReason?: string; taskStatus?: string }
+): WindowOperation {
   if (record.outcome !== undefined) return { ok: false, problems: [`the window for ${record.taskId} is already closed`] };
   const policy = frozenContinuationPolicy();
   if (record.policyHash !== policy.policyHash) {
@@ -116,7 +302,45 @@ export function closeProspectiveRecord(record: ProspectiveWindowRecord, outcome:
       problems: [`the window opened under policy hash ${record.policyHash} but the frozen policy now hashes to ${policy.policyHash}: a policy changed mid-window, so this record cannot be attributed to either version`]
     };
   }
-  return { ok: true, record: { ...record, outcome: { closedAt: outcome.closedAt, finalOutcome: outcome.finalOutcome, steps: [...outcome.steps].sort((left, right) => left.stepIndex - right.stepIndex) } }, problems: [] };
+  const evidence = finalOutcomeOf({ taskStatus: outcome.taskStatus });
+  const finalOutcome = outcome.finalOutcome === "UNKNOWN" || outcome.finalOutcome === "" ? evidence.finalOutcome : outcome.finalOutcome;
+  if (finalOutcome === "UNKNOWN") {
+    return { ok: false, problems: [`the window for ${record.taskId} cannot be closed: ${outcome.finalOutcomeReason ?? evidence.reason}`] };
+  }
+  const source = outcome.finalOutcomeSource ?? evidence.source;
+  if (source === "") return { ok: false, problems: [`the outcome for ${record.taskId} names no source, so it would be an assertion rather than evidence`] };
+  if (outcome.steps !== undefined) {
+    return {
+      ok: true,
+      problems: [],
+      record: {
+        ...record,
+        outcome: {
+          closedAt: outcome.closedAt,
+          finalOutcome,
+          steps: [...outcome.steps].sort((left, right) => left.stepIndex - right.stepIndex),
+          finalOutcomeSource: source,
+          finalOutcomeReason: outcome.finalOutcomeReason ?? evidence.reason
+        }
+      }
+    };
+  }
+  const derived = deriveWindowOutcome(record, { closedAt: outcome.closedAt, taskStatus: outcome.taskStatus });
+  return {
+    ok: true,
+    problems: [],
+    record: {
+      ...record,
+      outcome: {
+        closedAt: outcome.closedAt,
+        finalOutcome,
+        steps: derived.steps,
+        finalOutcomeSource: source,
+        finalOutcomeReason: outcome.finalOutcomeReason ?? evidence.reason,
+        completionProblems: derived.completionProblems
+      }
+    }
+  };
 }
 
 /**
@@ -310,3 +534,32 @@ export function buildPolicyDefectReport(input: PolicyDefectReportInput & { creat
 
 /** The four evidence identities, re-exported so a report and the registry cannot drift apart. */
 export const PROSPECTIVE_EVIDENCE_CLASSES: readonly EvidenceClass[] = EVIDENCE_CLASSES;
+
+/** What produced a task, re-exported so a store or report does not import the capture module for a type. */
+export type { CaptureSourceClass };
+
+/**
+ * The prospective metrics a report may present as a result.
+ *
+ * Only real user tasks count. A smoke run and a fixture prove the capture path works; letting
+ * either into the headline would make the first number this plane publishes a number no user's
+ * work produced, so they are counted separately and named.
+ */
+export function prospectiveHeadline(records: readonly ProspectiveWindowRecord[]): ProspectiveMetrics & { excludedBySourceClass: Record<string, number> } {
+  const real = records.filter((record) => record.sourceClass === "REAL_USER_TASK");
+  const excludedBySourceClass: Record<string, number> = {};
+  for (const record of records) {
+    if (record.sourceClass === "REAL_USER_TASK") continue;
+    excludedBySourceClass[record.sourceClass] = (excludedBySourceClass[record.sourceClass] ?? 0) + 1;
+  }
+  const metrics = prospectiveMetrics(real);
+  const excluded = records.length - real.length;
+  return {
+    ...metrics,
+    notes: [
+      ...metrics.notes,
+      ...(excluded === 0 ? [] : [`${excluded} window(s) are smoke or fixture records and are excluded from every headline figure`])
+    ],
+    excludedBySourceClass
+  };
+}
