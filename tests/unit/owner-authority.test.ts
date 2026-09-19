@@ -118,6 +118,47 @@ describe("The boundary does not swallow ordinary product code (§17)", () => {
     expect(authority.classify({ operation: "candidate.workspace.read", targets: [".github/CODEOWNERS"] }).decision).toBe("ALLOW");
     expect(authority.classify({ operation: "candidate.workspace.write", targets: [".github/CODEOWNERS"] }).decision).toBe("REQUIRE_OWNER");
   });
+
+  /**
+   * Root Trust Authority Lockdown: the two boundaries must be the SAME boundary.
+   *
+   * The trust model already classified a set of files as Root Trust Surface
+   * (`autonomous-evolution-trust.ts`), and this guard already had its own compiled manifest. They did not
+   * agree, and the direction of the disagreement was the dangerous one: `trust-policy/trust-epoch.json`,
+   * `src/shared/autonomous-evolution-trust.ts` and `tests/acceptance/**` were assessed as ORDINARY, so a
+   * change set made only of those paths returned ALLOW and the Promotion Gate could reach PROMOTABLE
+   * without the Owner step — while the bless tooling that writes the epoch was protected, which protects
+   * nothing when the record it writes can be forged directly.
+   *
+   * This test walks the trust module's OWN inventory (the same collector the blessing step uses) and
+   * requires every file in it to be protected here. Adding a Root Trust path to the trust model without
+   * protecting it in the review boundary now fails in the default tier, not in an incident report.
+   */
+  it("protects every file the trust model classifies as Root Trust Surface, so the two boundaries cannot drift", async () => {
+    const project = process.cwd();
+    const [{ collectRootSurfaceEntries }, { classifySurface }] = await Promise.all([
+      import("../../electron/engineering/autonomous-evolution-surface"),
+      import("../../src/shared/autonomous-evolution-trust")
+    ]);
+    const inventory = collectRootSurfaceEntries(project).map((entry) => entry.path);
+    expect(inventory.length, "the trust inventory came back empty, so this check would pass vacuously").toBeGreaterThan(30);
+
+    const guard = new ProtectedSurfaceGuard({ root: project });
+    const unprotected = inventory
+      .filter((file) => classifySurface(file) === "ROOT_TRUST_SURFACE")
+      .filter((file) => guard.assessChangeSet([file]).decision !== "REQUIRE_OWNER");
+    expect(unprotected, `Root Trust Surface paths the promotion gate would treat as ordinary: ${unprotected.join(", ")}`).toEqual([]);
+
+    // The specific paths that were measured as ordinary before the lockdown, named so a regression is
+    // legible rather than merely counted.
+    for (const surface of ["trust-policy/trust-epoch.json", "src/shared/autonomous-evolution-trust.ts", "tests/acceptance/platform-certificate.test.ts", "vitest.tiers.mjs"]) {
+      expect(guard.assessChangeSet([surface]).decision, surface).toBe("REQUIRE_OWNER");
+    }
+    // And the boundary is still narrow: ordinary product code is not Owner-gated.
+    for (const ordinary of ["src/app/main.ts", "electron/knowledge/deep/new-file.ts", "tests/unit/theme-capability.test.ts"]) {
+      expect(guard.assessChangeSet([ordinary]).decision, ordinary).toBe("ALLOW");
+    }
+  });
 });
 
 describe("Root policy provenance is always visible", () => {

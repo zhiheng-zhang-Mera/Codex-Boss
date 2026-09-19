@@ -106,7 +106,65 @@ export const ROOT_PROTECTED_MANIFEST: readonly string[] = [
   "/tests/**/promotion-gate*.test.*",
   "/tests/**/stable-candidate*.test.*",
   "/tests/**/emergency-control*.test.*",
-  "/tests/**/root-recovery*.test.*"
+  "/tests/**/root-recovery*.test.*",
+
+  // ---------------------------------------------------------------------
+  // The Trust / Owner-Authority plane (added by the Root Trust Authority
+  // Lockdown). Everything here was ALREADY Root Trust Surface by the trust
+  // model's own classifier (`autonomous-evolution-trust.ts`), but it was NOT
+  // in this manifest, so a change set containing only these paths assessed as
+  // ordinary and the promotion gate could reach PROMOTABLE without the Owner
+  // step. Measured before this section existed: the guard returned ALLOW for
+  // `trust-policy/trust-epoch.json`, `src/shared/autonomous-evolution-trust.ts`
+  // and `tests/acceptance/**`, while `.github/workflows/` and `package.json`
+  // correctly returned REQUIRE_OWNER.
+  //
+  // The two surfaces are now kept in agreement by a test that walks the trust
+  // module's own inventory (`collectRootSurfaceEntries`) and requires every one
+  // of those files to be protected here.
+  // ---------------------------------------------------------------------
+
+  // The epoch itself and the machine-generated surface declaration. The bless
+  // tooling was already protected via `/scripts/acceptance-*.cjs`, which is
+  // exactly why the DATA had to be protected too: a tool nobody may rewrite is
+  // no defence when the record it writes can be forged directly.
+  "/trust-policy/",
+
+  // The trust verifier, classifier, self-certification judge and the evidence
+  // helpers they trust.
+  "/src/shared/autonomous-evolution-*.ts",
+  "/src/shared/trust-problems.ts",
+  "/src/shared/acceptance-*.ts",
+  "/src/shared/bootstrap-audit.ts",
+  "/src/shared/owner-intervention.ts",
+
+  // Host-side session / bootstrap / intervention / surface plumbing that the
+  // gates audit.
+  "/electron/engineering/acceptance-session.ts",
+  "/electron/engineering/bootstrap-completion.ts",
+  "/electron/engineering/owner-intervention-ledger.ts",
+  "/electron/engineering/autonomous-evolution-*.ts",
+
+  // The attested acceptance gates and the helpers that build their evidence:
+  // a gate that can be edited by the run it judges is not a gate.
+  "/tests/acceptance/",
+  "/tests/helpers/acceptance-report.ts",
+  "/tests/helpers/trusted-evidence.ts",
+
+  // The trust model's extension globs are BARE (`autonomous-evolution-*.ts`,
+  // `acceptance-evolution-*.cjs`), so they classify a matching file anywhere in
+  // the tree — including a unit test that measures the identity/trust plumbing.
+  // Measured after the section above was added: exactly one file was still
+  // unprotected, `tests/unit/autonomous-evolution-identity-unreadable.test.ts`.
+  "/tests/**/autonomous-evolution*.test.*",
+  "/tests/**/acceptance-evolution*.test.*",
+
+  // The tier declarations and configurations decide WHICH gates run at all, so
+  // they are part of the boundary even though no test lives in them.
+  "/vitest.tiers.mjs",
+  "/vitest.*.config.mjs",
+  "/scripts/verify-targeted-vs-full.cjs",
+  "/scripts/qualification-*.cjs"
 ];
 
 export interface ProtectedSurfaceOptions {

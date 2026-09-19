@@ -188,6 +188,56 @@
 
 
 # ============================================================================
+# 10. The Trust / Owner-Authority plane (Root Trust Authority Lockdown)
+# ============================================================================
+#
+# Everything below was already Root Trust Surface by the trust model's own
+# classifier (src/shared/autonomous-evolution-trust.ts, PLAN_SECTION_3_ROOT_TRUST_PATHS
+# and ROOT_TRUST_SURFACE_EXTENSIONS) but was missing from this review boundary and
+# from the compiled manifest, so the Promotion Gate assessed a change set made only
+# of these paths as ordinary and could reach PROMOTABLE without Owner approval.
+#
+# The tool was already protected (`/scripts/acceptance-*.cjs`) while the RECORD it
+# writes was not, which is no protection at all: the epoch could be forged directly.
+#
+# `tests/unit/owner-authority.test.ts` now walks the trust module's own inventory and
+# requires every Root Trust Surface file to be protected here, so the two lists cannot
+# drift apart again.
+
+# The epoch record and the machine-generated surface declaration.
+/trust-policy/                             @zhiheng-zhang-Mera
+
+# The trust verifier, classifier, self-certification judge and their evidence helpers.
+/src/shared/autonomous-evolution-*.ts      @zhiheng-zhang-Mera
+/src/shared/trust-problems.ts              @zhiheng-zhang-Mera
+/src/shared/acceptance-*.ts                @zhiheng-zhang-Mera
+/src/shared/bootstrap-audit.ts             @zhiheng-zhang-Mera
+/src/shared/owner-intervention.ts          @zhiheng-zhang-Mera
+
+# Host-side session / bootstrap / intervention / surface plumbing the gates audit.
+/electron/engineering/acceptance-session.ts          @zhiheng-zhang-Mera
+/electron/engineering/bootstrap-completion.ts        @zhiheng-zhang-Mera
+/electron/engineering/owner-intervention-ledger.ts   @zhiheng-zhang-Mera
+/electron/engineering/autonomous-evolution-*.ts      @zhiheng-zhang-Mera
+
+# The attested acceptance gates, and the helpers that produce their evidence.
+/tests/acceptance/                         @zhiheng-zhang-Mera
+/tests/helpers/acceptance-report.ts        @zhiheng-zhang-Mera
+/tests/helpers/trusted-evidence.ts         @zhiheng-zhang-Mera
+
+# The trust model's extension globs are bare, so a matching file is Root Trust
+# wherever it lives — including a unit test that measures the identity plumbing.
+/tests/**/autonomous-evolution*.test.*     @zhiheng-zhang-Mera
+/tests/**/acceptance-evolution*.test.*     @zhiheng-zhang-Mera
+
+# The tier declarations decide WHICH gates run, so they are boundary too.
+/vitest.tiers.mjs                          @zhiheng-zhang-Mera
+/vitest.*.config.mjs                       @zhiheng-zhang-Mera
+/scripts/verify-targeted-vs-full.cjs       @zhiheng-zhang-Mera
+/scripts/qualification-*.cjs               @zhiheng-zhang-Mera
+
+
+# ============================================================================
 # Root invariant
 # ============================================================================
 #
