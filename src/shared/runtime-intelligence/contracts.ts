@@ -83,6 +83,8 @@ export type ModelCapabilityDimension = (typeof MODEL_CAPABILITY_DIMENSIONS)[numb
 export interface CapabilityEstimate {
   /** 0..1 for quality dimensions, 0..1 normalised for latency/cost (1 = cheapest/fastest). */
   score: number;
+  /** The score the injected prior contributed. Constant over time; `score` moves away from it. */
+  priorScore: number;
   /** 0..1. `confidenceFor` derives this from `samples`. */
   confidence: number;
   /** Real outcomes folded into this dimension. */
@@ -543,6 +545,18 @@ export interface RuntimeObservation {
     agreement: "AGREED" | "DISAGREED" | "NOT_REVIEWED";
     reviewerId?: string;
     notes?: string;
+  };
+  /**
+   * The shadow continuation opinion recorded with this run, when one was taken.
+   *
+   * `executed` is the literal `false`: the opinion is recorded so it can be compared with
+   * what the loop did, never so it can be mistaken for the loop's own decision.
+   */
+  continuation?: {
+    assessmentId: string;
+    decision: ContinuationDecision;
+    confidence: number;
+    executed: false;
   };
   capabilityUpdate: {
     applied: boolean;

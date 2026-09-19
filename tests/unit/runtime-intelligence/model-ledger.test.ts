@@ -196,6 +196,25 @@ describe("observed history progressively overrides the prior", () => {
     expect(estimate!.score).toBeLessThan(1);
     expect(estimate!.observedWeight).toBe(4);
   });
+
+  it("keeps the prior score and the observed score as separate, readable facts", () => {
+    const fresh = newRecord({ family: "gpt" });
+    const prior = fresh.scores.coding.priorScore;
+    expect(prior).toBe(DEFAULT_FAMILY_PRIORS.gpt?.coding);
+    expect(fresh.scores.coding.score).toBe(prior);
+    // Observations all at 1.0: the observed mean is 1.0, the prior stays where it was,
+    // and the blended score sits between them.
+    const trained = applyMany(fresh, 6).record;
+    const estimate = capabilityEstimate(trained, "coding")!;
+    expect(estimate.priorScore).toBe(prior);
+    expect(observedMean(estimate)).toBe(1);
+    expect(estimate.score).toBeGreaterThan(prior);
+    expect(estimate.score).toBeLessThan(1);
+    // Failures pull the observed mean down without rewriting the prior.
+    const failing = applyMany(fresh, 6, { success: false, failureClass: "TIMEOUT" }).record;
+    expect(failing.scores.coding.priorScore).toBe(prior);
+    expect(observedMean(failing.scores.coding)).toBe(0);
+  });
 });
 
 describe("an anomalous failure is down-weighted, not fatal", () => {

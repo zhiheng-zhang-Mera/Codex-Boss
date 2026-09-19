@@ -168,6 +168,7 @@ export function warmStartScores(input: WarmStartInput): { scores: ModelCapabilit
     sources.add(source);
     scores[dimension] = {
       score,
+      priorScore: score,
       confidence: 0,
       samples: 0,
       priorWeight: priorStrength,
@@ -334,6 +335,8 @@ export function applyModelOutcome(record: ModelCapabilityRecord, input: ModelOut
     const score = clamp01((decayedPrior * current.score + observedWeightedValue) / denominator);
     scores[dimension] = {
       score,
+      // The prior's own value never changes; only its weight does.
+      priorScore: current.priorScore,
       confidence: confidenceFor(samples),
       samples,
       priorWeight: decayedPrior,

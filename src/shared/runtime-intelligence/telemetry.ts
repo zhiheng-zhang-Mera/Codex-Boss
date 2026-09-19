@@ -44,6 +44,7 @@ export interface ObservationInput {
   context?: Partial<RuntimeObservation["context"]>;
   execution?: Partial<RuntimeObservation["execution"]>;
   review?: Partial<RuntimeObservation["review"]>;
+  continuation?: RuntimeObservation["continuation"];
   capabilityUpdate?: Partial<RuntimeObservation["capabilityUpdate"]>;
   createdAt: string;
 }
@@ -92,6 +93,7 @@ export function createObservation(input: ObservationInput): RuntimeObservation {
       ...(input.review?.reviewerId === undefined ? {} : { reviewerId: input.review.reviewerId }),
       ...(input.review?.notes === undefined ? {} : { notes: input.review.notes })
     },
+    ...(input.continuation === undefined ? {} : { continuation: input.continuation }),
     capabilityUpdate: {
       applied: input.capabilityUpdate?.applied ?? false,
       dimensions: [...(input.capabilityUpdate?.dimensions ?? [])],
@@ -191,7 +193,9 @@ export function explainObservation(input: ExplanationInput): ObservationExplanat
 
   const continuationAdvice = continuation
     ? `shadow advice was ${continuation.decision} at step ${continuation.wouldActAtStep} (confidence ${continuation.confidence.toFixed(2)}); it was not executed`
-    : "no shadow continuation opinion was recorded";
+    : observation.continuation
+      ? `shadow advice was ${observation.continuation.decision} (confidence ${observation.continuation.confidence.toFixed(2)}) as recorded on this observation; it was not executed`
+      : "no shadow continuation opinion was recorded";
 
   if (factorText) evidence.push(`recommendation factors: ${factorText}`);
   if (recommendation) evidence.push(`recommendation ${recommendation.recommendationId}; confidence ${recommendation.confidence.toFixed(2)}`);
