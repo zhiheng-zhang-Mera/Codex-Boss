@@ -354,6 +354,21 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **What would close it** | An Owner-authorised decision on the field: (a) drop `labels` from the record; or (b) populate it from the registration file the control plane already trusts, and state that source in the record itself. Either way the redacted record's `schemaVersion` moves, so the change belongs to the qualification workstream rather than to repository hygiene. |
 | **Last reviewed SHA** | `8a8d12a8a2f4df4f216587f70a27e47e7f44f51c` |
 
+## PF-DEBT-019 — the 100k-event scale case sits at the edge of its execution budget on a hosted runner
+
+| Field | Value |
+| --- | --- |
+| **ID** | `PF-DEBT-019` |
+| **Title** | `HOSTED_RUNNER_SCALE_SYNTHETIC_TIMING_EDGE`: `tests/unit/platform/scale-synthetic.test.ts`'s 100k-event case can exceed its 600 s budget on a loaded GitHub-hosted runner, turning the now-required `unit` check red for a reason that is timing, not correctness |
+| **Discovered phase** | Stabilization Phase 01 (ruleset repair validation: the temporary pull request opened to observe the repaired `Main-Protection` rule on a `pull_request` event) |
+| **Status** | `OPEN_OBSERVE_ONLY` — recorded by Owner authorisation, deliberately NOT fixed. No timeout, budget, retry, skip or workload change was made, and none is authorised yet. |
+| **Severity** | `MEDIUM` — before the ruleset repair a flaky check was masked by the Owner bypass; now that `unit` is a REQUIRED check, a timing edge can block a legitimate merge without any code being wrong |
+| **Affected capability** | `runtime` (test execution budget / CI merge contract) |
+| **Evidence / source** | Same commit, two runs, two outcomes — which is what makes this timing rather than a defect. **Pull-request run [35431500466](https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35431500466) FAILED**: `scale-synthetic.test.ts` → *"appends 100k events with monotone sequences, no duplicates and no loss"* → `Test timed out in 600000ms` (that case alone ran 696 564 ms; the file reported `4 tests | 1 failed`). **Push run 35431489261 on the identical SHA was green 4/4 including `unit`.** The approved budget is the 600 s `test:slow` ceiling raised under `EXECUTION_BUDGET_ADJUSTMENT`; in green run 35428430102 the whole slow tier finished in 601.83 s, i.e. this single case consumes essentially the entire tier budget. |
+| **Why it is not fixed here** | Raising the ceiling, adding a retry, skipping the case or shrinking the workload are all forbidden in this round, and each would be a real change to a gate rather than a record. This is **not** `PF-DEBT-017`: that entry is the Phase 05 soak report's short-run premise (`platform-soak-report.test.ts`, `test:postbuild`); this one is a timeout in `test:slow` on a hosted runner. They are different tests, different tiers and different failure signatures. |
+| **What would close it** | An Owner-authorised decision among: (a) justify and raise this case's ceiling from a measurement of the worst observed run; (b) move the 100k-event case to the qualification tier, where a real host with a real budget runs it and a loaded shared runner cannot decide the outcome; (c) make the case's cost observable (record the measured duration in the evidence) so a future budget decision rests on data rather than on one timeout. Any of these is a gate-design change and belongs to an authorised round. |
+| **Last reviewed SHA** | `b999339e4a87ce9841a90342b9d62576bce5059b` |
+
 ## Review log
 
 | Reviewed at SHA | Phase | Entries added | Entries closed |
@@ -369,6 +384,7 @@ before being recorded. They are in scope for Phase 06 Task B.
 | Phase 08 qualification | 08 (production qualification) | `PF-DEBT-012` (the evolution prestart attestation is absent on this workstation — the two certificates are different artifacts), `PF-DEBT-013` (the production path cannot qualify a non-TypeScript repository; fail-closed at `audit`, provider never called), `PF-DEBT-014` (the reader recognised **no** assertion in a Node-`assert` repository; fixed, and the fix exposed that `assert.ok(x)` had been coming out discriminating) | none. `PF-DEBT-003` re-checked: the AppContainer prerequisite is now **present** on this host (`WindowsAppContainerSandbox.probe()` → `available: true`, `containerSid S-1-15-2-…`, job object, network denied), so its `ENVIRONMENT-BLOCKED` wording is stale and is re-stated in the entry rather than silently left claiming a blocker that no longer applies. `PF-DEBT-011` unchanged (`FIXED`, but on Boss/Vitest + real-provider evidence only — see `PF-DEBT-013`) |
 | Phase 08 TS qualification | 08 (production qualification, second pair) | none | `PF-DEBT-014` — fixed after two real Owner TS repositories exposed it; `PF-DEBT-013` re-classified from "the Foundation is universally broken" to a **known language-scope limitation**, per the Owner's instruction that the TS workload be qualified on its own terms first |
 | `8a8d12a8a2f4df4f216587f70a27e47e7f44f51c` | 01 (v1.2 seal, post-seal hygiene) | `PF-DEBT-018` (the corpus provenance record's runner labels were never a measurement) | none — `PF-DEBT-016` stays `FIXED`, `PF-DEBT-017` stays `DEFERRED_PENDING_REAL_HOST_EVIDENCE` by Owner decision 3 |
+| `b999339e4a87ce9841a90342b9d62576bce5059b` | 01 (control-plane truth + ruleset repair) | `PF-DEBT-019` (`HOSTED_RUNNER_SCALE_SYNTHETIC_TIMING_EDGE`: the 100k-event case timed out at 600 000 ms on one hosted runner while the identical SHA passed on another) | none — `PF-DEBT-017` and `PF-DEBT-018` both stay open and untouched; the `REQUIRED_CHECK_NOT_PRODUCED:validate` governance gap is closed by the ruleset repair rather than by a debt entry |
 
 **How to update an entry.** Change its `Status`, append the closing commit to `What would close it`, and
 add a row to the review log. Do not delete an entry when it closes — set `FIXED` and keep the record, so a
