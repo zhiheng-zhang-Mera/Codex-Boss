@@ -287,16 +287,29 @@ describe("the benchmark refuses to score what it cannot see", () => {
     expect(metrics.fallback).toEqual({ used: 2, succeeded: 1, rate: 0.5 });
   });
 
-  it("feeds the same cases to the calibration report", () => {
+  it("feeds only FOLLOWED cases to the calibration report", () => {
     const metrics = benchmarkScheduler(goodCorpus());
-    // 20 cases at confidence 0.8 with a 70% observed success rate: a bias of +0.10, which sits
-    // exactly on the threshold and is therefore well calibrated rather than overconfident.
-    expect(metrics.calibration.samples).toBe(20);
+    // Fourteen followed cases at confidence 0.8, all of which succeeded: the advice held up
+    // more often than it claimed, so the bias is negative. The six ignored cases are excluded,
+    // because the advice was never exercised on them.
+    expect(metrics.calibration.samples).toBe(14);
     expect(metrics.calibration.meanPredicted).toBeCloseTo(0.8, 4);
-    expect(metrics.calibration.observedSupportRate).toBeCloseTo(0.7, 4);
-    expect(metrics.calibration.bias).toBeCloseTo(0.1, 4);
-    expect(metrics.calibration.verdict).toBe("WELL_CALIBRATED");
-    expect(metrics.calibration.bySource.scheduler.samples).toBe(20);
+    expect(metrics.calibration.observedSupportRate).toBe(1);
+    expect(metrics.calibration.bias).toBeCloseTo(-0.2, 4);
+    // Fourteen is below the calibration minimum, so the numbers are reported and the verdict
+    // is withheld rather than asserted from too little.
+    expect(metrics.calibration.verdict).toBe("INSUFFICIENT_EVIDENCE");
+    expect(metrics.calibration.reasons.join(" ")).toContain("below the 20");
+    expect(metrics.calibration.bySource.scheduler.samples).toBe(14);
+  });
+
+  it("does not let ignored advice make the advisor look overconfident", () => {
+    // The same 20 observations, but the advisor named a model the loop never used, so its
+    // confidence was never tested. No calibration sample exists.
+    const ignored = goodCorpus().map((entry) => ({ ...entry, recommendation: recommendation({ taskId: entry.taskId, modelKey: "m-elsewhere", confidence: 0.99 }) }));
+    const metrics = benchmarkScheduler(ignored);
+    expect(metrics.calibration.samples).toBe(0);
+    expect(metrics.calibration.verdict).toBe("INSUFFICIENT_EVIDENCE");
   });
 
   it("reports underconfidence when the advice is right far more often than it claims", () => {

@@ -6,6 +6,32 @@ It observes, measures, models and recommends. **It does not decide.**
 This document is the operator-facing description of the plane: what exists, where it
 lives, what it is allowed to do, how to run it, and what it deliberately does not do yet.
 
+**Round 2 (`RUNTIME_INTELLIGENCE_DOGFOOD_AND_REPLAY`)** added the measurement layer that
+asks whether the recommendations are any good: real outcome ingestion with failure-domain
+attribution (Phase G), skill loadout replay (Phase H), node telemetry dogfooding with
+growth control (Phases I and M), the scheduler and continuation replay benchmarks (Phases
+J and K), confidence calibration (Phase L) and the evaluation report. Those are in
+sections 15–24.
+
+---
+
+## Authority ladder
+
+The plane's authority is graded, and this branch may only reach level 2.
+
+| level | name | what it may do |
+|---|---|---|
+| 0 | `OBSERVE` | read and record |
+| 1 | `ADVISE` | say what it would do |
+| 2 | `SHADOW COUNTERFACTUAL` | record what would have happened, including at which step, **without acting** |
+| 3 | `ASSISTED EXECUTION` | apply a recommendation with a human in the loop |
+| 4 | `AUTONOMOUS EXECUTION` | apply it alone |
+
+**This branch is level 2.** Levels 3 and 4 are forbidden here and require a separate
+review. Concretely, nothing in this plane interrupts a model, switches a model, routes a
+task, routes a node, removes a skill, deletes knowledge or prunes a capability. It records
+"had you listened, I would have stopped here", and the real loop keeps its own rules.
+
 ---
 
 ## 1. Position in the architecture
@@ -371,8 +397,21 @@ node scripts/generate-test-catalogue.cjs && pnpm run test:catalogue:check
 pnpm test
 ```
 
-The plane's own suites live in `tests/unit/runtime-intelligence/` (twelve files). The
+The plane's own suites live in `tests/unit/runtime-intelligence/` (twenty files). The
 authority-boundary suite is the mandatory diff guard for every change to this layer.
+
+### The evaluation report, on real data
+
+```bash
+pnpm run build:electron
+node scripts/runtime-intelligence-report.cjs --sample 6 --evaluate --out artifacts/runtime-intelligence/evaluation.json
+```
+
+`--sample n` takes n real node samples through the telemetry log; `--evaluate` assembles
+the report from everything the plane recorded, ingests any real Boss data it is pointed at
+with `--data-root`, and states the boundary facts by calling the same guard the diff guard
+uses. `--skill-cards <file>` and `--continuation-corpus <file>` supply the corpora those
+two benchmarks need.
 
 ### The branch-wide diff guard
 
@@ -406,3 +445,225 @@ ownerReviewPaths                 []
 escapes                          []
 verdict                          ORDINARY_AUTONOMOUS_CHANGE
 ```
+
+---
+
+## 15. Phase G — real outcome ingestion and failure attribution
+
+`src/shared/runtime-intelligence/outcome-ingestion.ts` and
+`electron/runtime-intelligence/outcome-source.ts`.
+
+The rule the phase exists for: **an environment failure is never charged to model
+capability.** A network outage, a missing tool, an unavailable host, a refused credential,
+a provider rate limit and a changed automation surface all produce a failed run, and none
+of them is evidence about `reasoning`, `coding` or `stability`.
+
+- `attributable` is true only for the `MODEL` and `SEMANTIC` domains. `chargeable` is a
+  separate, wider fact: a success and a partial success are chargeable too, because they are
+  positive evidence. A non-attributable failure is neither, so `toModelOutcomeInput` returns
+  `undefined` and there is literally nothing to fold into the ledger. The observation is
+  still recorded, with its domain and the reason it was not charged.
+- Real Boss vocabularies are classified directly — `RuntimeResult.status` (`AUTH_REQUIRED` →
+  `CREDENTIAL`, `RATE_LIMITED` → `RATE_LIMIT`, `PAGE_CHANGED` → `AUTOMATION_SURFACE`, …) and
+  `SemanticOutcome` (refusals → `SEMANTIC`, quality failures → `MODEL`) — so no text
+  guessing is needed for the cases the runtime already names.
+- The marker table is consulted in a declared **precedence order** with the transport
+  domains ahead of the prose ones. This is not cosmetic: `ECONNREFUSED` contains the word
+  "refused", and a semantic marker checked first would classify a socket error as a model
+  refusal and charge it to the model. A test asserts the ordering.
+- Fail-closed both ways: an unrecognised failure with no judged output is `UNKNOWN`, and a
+  bare timeout is `TRANSIENT`. Neither is charged.
+- Ingestion reads the two durable sources that already exist, through their **real**
+  readers: `TelemetryStore` over `<dataRoot>/.boss/telemetry.json` and `EpisodeStore` over
+  `<dataRoot>/.boss/learning/episodes.jsonl`. Both throw on an invalid file, so each read is
+  wrapped: a damaged source degrades to zero records with the reader's own reason, and the
+  healthy source still contributes.
+- Model identity is derived honestly: provider from the episode, family from the runtime id,
+  and **no version**, so `modelKeyOf` spells it `unknown`. A runtime id is not a model
+  version.
+
+## 16. Phase H — historical skill loadout replay
+
+`src/shared/runtime-intelligence/skill-replay.ts`. Nothing here changes a real loadout.
+
+The safety property is structural: the recommended set is the advisor's choice **unioned
+with every skill the task actually invoked**, so a skill that did work cannot be dropped by
+construction. A test injects a dropped invoked skill to prove the aggregate would catch a
+defect anyway, and an invoked skill with no card is preserved and reported as uncosted — a
+saving computed by discarding something we cannot describe is not a saving.
+
+The honesty property is separate: a task with no usage telemetry cannot prove anything was
+wasted. Its saving goes to `unprovenContextSaved` (reported, never quoted), its risk is
+`UNKNOWN` rather than `LOW`, and only usage-observed replays feed `estimatedTokenSaved`,
+`loadReduction` and the `OK` verdict.
+
+## 17. Phase I — node telemetry dogfooding
+
+`electron/runtime-intelligence/node-telemetry-log.ts` and
+`src/shared/runtime-intelligence/snapshot-retention.ts`.
+
+Alienware-2 is the first node this samples, and nothing in the code knows that: the node id
+is whatever the profiler observed, it is data, and no branch compares it to a literal. A
+second machine needs no code change, and a test proves it by profiling an injected id.
+
+Growth is controlled at both ends:
+
+- **at write time**, `append` refuses a snapshot whose substance is identical to the last
+  one *within* the sampling interval and counts the suppression in a persisted index.
+  Outside the interval an identical sample **is** stored, because periodic evidence that the
+  node is still there with the same capabilities is worth a row;
+- **at compaction time**, consecutive duplicates collapse into a representative that counts
+  them and the overflow beyond `maxPerNode` is archived, not deleted. The plan carries
+  `deletesNothing: true`.
+
+A snapshot's substance is every measured fact except `capturedAt` and the node identity, so
+a timestamp difference is never mistaken for a capability change and an `UNKNOWN(no probe)`
+is part of the substance rather than a blank.
+
+**A real interaction the tests surfaced:** because the digest covers every measured fact on
+purpose, a volatile metric such as free disk makes consecutive real samples distinct. On a
+live host the retention limit and the archive — not digest collapse — are therefore the
+binding growth control. Collapse bounds a quiet node; retention bounds a busy one.
+
+## 18. Phase J — scheduler replay benchmark
+
+`src/shared/runtime-intelligence/scheduler-benchmark.ts`. The first of the two instruments.
+
+- Per-case verdicts `SUPPORTED` / `CONTRADICTED` / `INCONCLUSIVE` / `NOT_FOLLOWED`, with
+  model and node agreement, fallback use, loadout agreement, both estimation errors and the
+  reasons.
+- A failure only **contradicts** the advice when it is attributable to the model. A run that
+  died on a network outage is `INCONCLUSIVE`, because the choice had nothing to do with it.
+- The headline metric is a **lift over a stated baseline**, never a bare percentage:
+  `successLiftOverOverall` compares followed recommendations with every observed run, so an
+  all-success corpus cannot flatter the advisor, and `agreementLiftOverMajority` scores
+  agreement against always naming the most common model. The tests demonstrate why: a wrong
+  advisor that always names the model which then failed agrees with reality on every one of
+  those cases, and only the lift separates it from a good one.
+- Calibration is measured over **followed cases only**. The confidence is a claim about the
+  advised choice, so only a run that took the advice can test it; including ignored advice
+  would punish the advisor for an outcome it never influenced.
+
+## 19. Phase K — continuation replay benchmark
+
+`src/shared/runtime-intelligence/continuation-benchmark.ts`.
+
+- Per-step flags: `falseStop`, `falseContinue`, `unnecessarySwitch`, `missedDecomposition`,
+  `unnecessaryReview`, plus the calls a correct `STOP` would have saved.
+- `FALSE_STOP_RATE` is reported as the plan names it, and is `undefined` when the advice
+  never said `STOP`: no stops is not a perfect record, it is no record.
+- The plan's asymmetry is data. `CONTINUATION_PENALTIES.falseStop` is **5** against
+  `unnecessaryContinue` **1**; a test asserts both the ordering and the 5× ratio, and the
+  per-kind penalty breakdown is reported so the weighting is visible in the output.
+- A step whose observed behaviour was `UNKNOWN` is left unjudged, fires no flag and
+  contributes to no rate, so an unrecorded step can never be counted as the advice being
+  right.
+
+## 20. Phase L — confidence calibration
+
+`src/shared/runtime-intelligence/calibration.ts`. A reliability table (ten buckets), a
+Brier score, an expected and a maximum calibration error, and a verdict:
+`WELL_CALIBRATED`, `OVERCONFIDENT`, `UNDERCONFIDENT` or `INSUFFICIENT_EVIDENCE`.
+
+- An empty bucket has **no** support rate — `undefined`, never `0`. A bucket nobody landed
+  in is not evidence of anything, and a zero would read as "always wrong". Empty buckets also
+  contribute nothing to the expected calibration error and are not counted, so an advisor
+  that only ever predicts one value is not flattered by nine empty buckets.
+- A verdict needs `MIN_SAMPLES_FOR_CALIBRATION` samples. Below it the table and the bias are
+  still reported and the verdict is withheld, because a bias computed from ten outcomes is a
+  rumour. The comparison carries an epsilon, so a bias arithmetically equal to the threshold
+  does not flip on floating-point rounding.
+- A per-source breakdown answers "which advisor's confidence has no meaning".
+
+## 21. Phase M — telemetry growth control
+
+The same two mechanisms as Phase I, applied to the plane's own store, plus the classification
+the plan asks for: raw observation, derived evaluation and aggregate summary are distinct
+kinds, and compaction moves and collapses rather than removes. `deletesNothing` is a literal
+on the retention plan, so a caller cannot mistake it for a deletion, and nothing in this
+round deletes a record at all — a collapsed duplicate keeps its count, which is the
+information that mattered.
+
+## 22. The evaluation report
+
+`src/shared/runtime-intelligence/evaluation-report.ts`, produced by
+`node scripts/runtime-intelligence-report.cjs --evaluate`.
+
+It answers nine questions — is the model scoring calibrated, how often are the scheduler's
+recommendations successful, which skills are mounted but unused, which context is injected
+without contributing, how many calls the continuation evaluator would save, how many false
+stops it produces, which advice is confident but often wrong, which nodes are often
+`UNKNOWN`, and whether there is enough data for the next stage.
+
+Two rules shape it. **Evidence and readiness are separated**: the report states what was
+measured and then, separately, whether that is enough to propose level 3. It carries
+`grantsExecutionAuthority: false` as a literal, so reading it can never be mistaken for a
+permission. And **it never invents a number**: every metric is either measured or the string
+`NOT_MEASURED`, and a question whose data does not exist says so with the specific reason.
+
+It emits the round's required metric names in one place (`EVALUATION_METRIC_KEYS`), so none
+can be dropped silently:
+
+```text
+MODEL_OUTCOMES_INGESTED   TASKS_REPLAYED
+SCHEDULER_SUPPORTED       SCHEDULER_CONTRADICTED   SCHEDULER_INCONCLUSIVE
+CONTINUATION_DECISIONS_REPLAYED   FALSE_STOP_COUNT   FALSE_STOP_RATE
+UNNECESSARY_CONTINUE_RATE SWITCH_MODEL_ERROR_RATE
+SKILL_LOADOUT_REPLAYS     ESTIMATED_SKILL_OVERHEAD_REDUCTION
+NODE_SNAPSHOTS_RAW        NODE_SNAPSHOTS_AFTER_COMPACTION
+CONFIDENCE_CALIBRATION_ERROR   TELEMETRY_STORAGE_GROWTH
+ROOT_TRUST_TOUCHED        QUALIFICATION_TOUCHED    OWNER_REVIEW_PATHS
+```
+
+Readiness is `READY_FOR_ASSISTED_EXECUTION_PROPOSAL` only when all four gates pass on
+measured data — the scheduler beats a stated baseline, the false-stop rate is at or below
+`MAX_FALSE_STOP_RATE_FOR_ASSISTED` (2%), the ledger is `WELL_CALIBRATED`, and no replay would
+have dropped an invoked skill. Anything less, including "the data does not exist", is
+`INSUFFICIENT_EVIDENCE`. The report never returns a "probably fine".
+
+## 23. What this host actually measured
+
+```text
+node samples            6 requested, 5 stored, 1 suppressed inside the interval
+node coverage           55% of metrics observed on this machine
+not measured            cpu.physicalCores, cpu.loadPercent, gpu.devices, gpu.vram,
+                        network.*, load.currentTasks, localModels, plugins
+ingested outcomes       0    (no Boss application data root exists on this host)
+scheduler replay        0 cases
+continuation replay     0 judged steps
+skill loadout replays   0
+calibration samples     0
+readiness               INSUFFICIENT_EVIDENCE
+```
+
+This is the honest result, not a failure of the pipeline: the pipelines are exercised by
+their own tests and by the corpus-driven CLI, and the instrument itself is validated by
+controls (a deliberately correct and a deliberately wrong policy must be told apart). What
+is missing is real task data, which this host has never produced.
+
+Two specific findings worth carrying forward:
+
+- **a real continuation replay is not possible from what the plane records.** The shadow
+  decision *is* recorded (`RuntimeObservation.continuation`), but the loop's per-step
+  completion state is not, so `taskComplete` at step N cannot be derived and a false-stop
+  rate cannot be computed. Recording that per-step state is the prerequisite for Phase K on
+  real data;
+- **per-record context contribution does not exist yet.** Injection is recorded; attributing
+  an outcome back to an individual context record needs a later phase, and the report says
+  so rather than estimating it.
+
+## 24. Boundary notes for this round
+
+- `PF-DEBT-018` (the qualification corpus provenance record's runner labels) and the
+  qualification topology are **not touched**: the retired public real-host lane is not
+  restored, and no qualification generator, workflow or tier declaration is modified. The
+  evaluation report simply records `QUALIFICATION_TOUCHED` from the guard's own assessment.
+- `PF-DEBT-003` (the AppContainer suites) remains `ENVIRONMENT-BLOCKED` and untouched. The
+  unit tier's sandbox suites fail identically on an unmodified baseline, the known-issues log
+  explicitly forbids lowering, mocking or skipping them, and the failure signature on this
+  host — `APPCONTAINER_PROBE_FAILED` masking every specific refusal code including the
+  suite's own control case — is the documented stale-profile accumulation, verified by
+  counting 16 leftover `codexbossevolution-*` profiles.
+- The capability-manifest and composition-root blockers from the previous round are
+  unchanged and still recorded in section 12.
+

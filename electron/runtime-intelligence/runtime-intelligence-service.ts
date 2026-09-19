@@ -32,6 +32,7 @@ import {
   type RuntimeObservation,
   type SchedulingRecommendation,
   type SelectionBasis,
+  type SkillCard,
   type SkillUsageTelemetry,
   type TaskKind,
   type TaskProfile
@@ -43,6 +44,10 @@ import { adviseScheduling, type SchedulingInput } from "../../src/shared/runtime
 import { evaluateContinuation } from "../../src/shared/runtime-intelligence/continuation-evaluator";
 import { planContextLifecycle } from "../../src/shared/runtime-intelligence/context-lifecycle";
 import { createObservation, explainObservation, observationIdFor, traceIdFor, type ObservationExplanation } from "../../src/shared/runtime-intelligence/telemetry";
+import { benchmarkContinuation, type ContinuationBenchmarkMetrics, type ContinuationReplayStep } from "../../src/shared/runtime-intelligence/continuation-benchmark";
+import { benchmarkScheduler, type ReplayCase, type SchedulerBenchmarkMetrics } from "../../src/shared/runtime-intelligence/scheduler-benchmark";
+import { replaySkillLoadout, replaySkillLoadouts, type SkillReplayAggregate } from "../../src/shared/runtime-intelligence/skill-replay";
+import { buildEvaluationReport, type BoundaryFacts, type EvaluationReport, type NodeTelemetryStats } from "../../src/shared/runtime-intelligence/evaluation-report";
 
 export interface RuntimeIntelligenceServiceOptions {
   /** The plane's own data root. Supplied by the caller; never rebuilt from an install path here. */
@@ -108,6 +113,26 @@ export interface IngestionSummary {
   refused: number;
   /** How many records landed in each domain, so a report can show where failures came from. */
   domains: Record<string, number>;
+}
+
+/** What one evaluation pass produced, so a caller can report or drill into any part of it. */
+export interface EvaluationBundle {
+  report: EvaluationReport;
+  scheduler: SchedulerBenchmarkMetrics;
+  skillReplay: SkillReplayAggregate;
+  ingestion?: IngestionSummary;
+  continuation?: ContinuationBenchmarkMetrics;
+}
+
+export interface EvaluationBundleInput {
+  /** Where real Boss data lives, when the caller wants it ingested first. */
+  dataRoot?: string;
+  /** Skill cards, so a replay can cost what it would drop. Without them nothing can be costed. */
+  skillCards?: readonly SkillCard[];
+  /** A recorded continuation replay corpus. Absent means the benchmark cannot be computed. */
+  continuationCorpus?: readonly ContinuationReplayStep[];
+  nodeTelemetry?: NodeTelemetryStats;
+  boundary: BoundaryFacts;
 }
 
 /**
@@ -459,6 +484,90 @@ export class RuntimeIntelligenceService {
   /** The most recent observation for a task, so a report can explain a task by id. */
   latestObservationFor(taskId: string): RuntimeObservation | undefined {
     return this.store.observations(Number.MAX_SAFE_INTEGER).filter((entry) => entry.task.taskId === taskId).at(-1);
+  }
+
+  /* ---------------------------------------------------------------- evaluation */
+
+  /**
+   * Assembles the evaluation report from what this plane actually recorded.
+   *
+   * The joins are the whole point: an observation is paired with the recommendation its
+   * `recommendationId` names (falling back to the latest recommendation for the same task),
+   * and the skill replay is built from the loadout the observation says was mounted against the
+   * one it says was invoked. Nothing is synthesised to fill a gap — a missing recommendation
+   * makes its case INCONCLUSIVE, and a corpus that was never recorded makes its benchmark
+   * `INSUFFICIENT_EVIDENCE`.
+   */
+  evaluate(input: EvaluationBundleInput): EvaluationBundle {
+    const ingestion = input.dataRoot === undefined ? undefined : this.ingestRealOutcomes({ dataRoot: input.dataRoot });
+
+    const recommendations = this.store.recommendations();
+    const byId = new Map(recommendations.map((entry) => [entry.recommendationId, entry]));
+    const observations = this.store.observations(Number.MAX_SAFE_INTEGER);
+    const cases: ReplayCase[] = observations.map((observation) => {
+      const explicit = observation.recommendationId === undefined ? undefined : byId.get(observation.recommendationId);
+      const fallback = explicit ?? [...recommendations].reverse().find((entry) => entry.taskId === observation.task.taskId);
+      return fallback === undefined ? { taskId: observation.task.taskId, observation } : { taskId: observation.task.taskId, recommendation: fallback, observation };
+    });
+    const scheduler = benchmarkScheduler(cases);
+
+    const cards = input.skillCards ?? [];
+    const skillReplay = replaySkillLoadouts(
+      observations.map((observation) =>
+        replaySkillLoadout({
+          task: {
+            taskId: observation.task.taskId,
+            role: observation.task.role,
+            taskKind: observation.task.taskKind,
+            requiredCapabilities: [],
+            contextScale: "small",
+            externalEffect: false,
+            risk: "low",
+            createdAt: observation.createdAt
+          },
+          originalSkillIds: observation.skills.actual,
+          usedSkillIds: observation.skills.used,
+          cards
+        })
+      )
+    );
+
+    const continuationSteps = input.continuationCorpus ?? [];
+    const continuation = continuationSteps.length === 0 ? undefined : benchmarkContinuation(continuationSteps);
+    const status = this.store.status();
+
+    const report = buildEvaluationReport({
+      generatedAt: this.now(),
+      ...(ingestion === undefined
+        ? {}
+        : {
+            ingestion: {
+              considered: ingestion.considered,
+              ingested: ingestion.ingested,
+              charged: ingestion.charged,
+              refused: ingestion.refused,
+              domains: ingestion.domains,
+              degraded: ingestion.degraded,
+              sources: ingestion.sources.map((source) => ({ name: source.name, present: source.present, records: source.records, ...(source.degradedReason === undefined ? {} : { degradedReason: source.degradedReason }) }))
+            }
+          }),
+      scheduler,
+      ...(continuation === undefined ? {} : { continuation }),
+      skillReplay,
+      ...(input.nodeTelemetry === undefined ? {} : { nodeTelemetry: input.nodeTelemetry }),
+      storage: {
+        observations: status.counts.observations,
+        recommendations: status.counts.recommendations,
+        models: status.counts.models,
+        contextRecords: status.counts.contextRecords,
+        skillTelemetry: status.counts.skillTelemetry,
+        bytes: { ...status.files }
+      },
+      continuationReplayPossible: continuationSteps.length > 0,
+      boundary: input.boundary
+    });
+
+    return { report, scheduler, skillReplay, ...(ingestion === undefined ? {} : { ingestion }), ...(continuation === undefined ? {} : { continuation }) };
   }
 
   status(): RuntimeIntelligenceStoreStatus & { authority: "ADVISORY_ONLY"; schemaVersion: number } {

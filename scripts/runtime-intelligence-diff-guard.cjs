@@ -25,13 +25,20 @@ function load(relative) {
   return require(path.join(ROOT, "dist-electron", ...relative.split("/")));
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  const baseIndex = args.indexOf("--base");
-  const base = baseIndex >= 0 ? args[baseIndex + 1] : "origin/main";
-  const changed = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { cwd: ROOT, encoding: "utf8" })
+function changedFilesSince(base) {
+  return execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { cwd: ROOT, encoding: "utf8" })
     .split(/\r?\n/)
     .filter((line) => line.trim() !== "");
+}
+
+/**
+ * Assesses a branch's change set with the repository's own boundaries.
+ *
+ * Exported so the evaluation report can state its boundary facts from the SAME assessment the
+ * guard enforces, rather than restating the rule in a second place.
+ */
+function assessBranchBoundary(base = "origin/main") {
+  const changed = changedFilesSince(base);
 
   const { assessProtectedPaths } = load("src/shared/root-authority/protected-surface.js");
   const { CHANGE_CLASSES, decideAuthorityAction, deriveChangeClass } = load("src/shared/root-authority/authority-planes.js");
@@ -65,7 +72,7 @@ function main() {
     ...(rootTrustPaths.length > 0 ? [`Root Trust Surface paths changed: ${rootTrustPaths.map((entry) => entry.file).join(", ")}`] : [])
   ];
 
-  const report = {
+  return {
     base,
     changedFiles: changed.length,
     protectedSurfaceDecision: guard.assessChangeSet(changed).decision,
@@ -82,13 +89,30 @@ function main() {
       reasons: authority.reasons
     },
     rootTrustSurfacePathsChanged: rootTrustPaths.map((entry) => entry.file),
+    qualificationPathsTouched: changed.filter((file) => QUALIFICATION_SURFACE_PATHS.includes(file)),
     verificationSurfacePaths: surfaces.filter((entry) => entry.surface === "VERIFICATION_SURFACE").map((entry) => entry.file),
     verdict: problems.length === 0 ? "ORDINARY_AUTONOMOUS_CHANGE" : "BLOCKED_BY_ROOT_TRUST_BOUNDARY",
     problems
   };
-
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  process.exitCode = problems.length === 0 ? 0 : 1;
 }
 
-main();
+/**
+ * The files that DECIDE qualification semantics: the qualification workflow, the tier
+ * declarations that name which suites the qualification tier is, and the qualification vitest
+ * config. A change to any of them changes what qualification means, which is the question the
+ * report has to answer honestly. This is a definition, not a heuristic list.
+ */
+const QUALIFICATION_SURFACE_PATHS = [".github/workflows/platform-qualification.yml", "vitest.tiers.mjs", "vitest.qualification.config.mjs"];
+
+module.exports = { assessBranchBoundary, QUALIFICATION_SURFACE_PATHS };
+
+function main() {
+  const args = process.argv.slice(2);
+  const baseIndex = args.indexOf("--base");
+  const base = baseIndex >= 0 ? args[baseIndex + 1] : "origin/main";
+  const report = assessBranchBoundary(base);
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  process.exitCode = report.verdict === "ORDINARY_AUTONOMOUS_CHANGE" ? 0 : 1;
+}
+
+if (require.main === module) main();

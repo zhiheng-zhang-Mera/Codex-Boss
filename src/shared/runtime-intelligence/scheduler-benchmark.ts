@@ -250,8 +250,16 @@ export function benchmarkScheduler(cases: readonly ReplayCase[], options: { mini
   const fallbackCases = judged.filter((verdict) => verdict.usedFallback);
   const fallbackSucceeded = fallbackCases.filter((verdict) => verdict.observedSuccess).length;
 
-  const calibrationSamples: CalibrationSample[] = judged
-    .filter((verdict) => verdict.confidence !== undefined && verdict.observedSuccess !== undefined)
+  /**
+   * Calibration is measured over FOLLOWED cases only.
+   *
+   * The confidence is a claim about the advised choice, so only a run that actually took the
+   * advice can test it. Including runs that ignored the recommendation would punish the
+   * advisor for an outcome it did not influence, and would let a corpus of ignored advice
+   * report the advisor as overconfident.
+   */
+  const calibrationSamples: CalibrationSample[] = followed
+    .filter((verdict) => verdict.confidence !== undefined)
     .map((verdict) => ({ predicted: verdict.confidence ?? 0, observed: verdict.observedSuccess === true, source: "scheduler" }));
 
   const notes: string[] = [];

@@ -156,6 +156,10 @@ export interface SkillReplayAggregate {
   unusedOriginalSkillCount: number;
   droppedUsedSkillCount: number;
   riskCounts: Record<UnderLoadingRisk, number>;
+  /** Per skill, how often it was mounted and never invoked. The answer to "what is wasted". */
+  unusedSkillCounts: Record<string, number>;
+  /** Per skill, how often its own telemetry marked it redundant. */
+  suspectedRedundantCounts: Record<string, number>;
   /** Savings summed over tasks whose usage was observed. These are the quotable numbers. */
   estimatedContextSaved: number;
   estimatedTokenSaved: number;
@@ -188,10 +192,14 @@ export function replaySkillLoadouts(results: readonly SkillReplayResult[]): Skil
   let provenLatency = 0;
   let unprovenContext = 0;
   let proven = 0;
+  const unusedSkillCounts: Record<string, number> = {};
+  const suspectedRedundantCounts: Record<string, number> = {};
 
   for (const result of results) {
     riskCounts[result.riskOfUnderLoading] += 1;
     droppedUsedSkillCount += result.droppedUsedSkillIds.length;
+    for (const skillId of result.unusedOriginalSkillIds) unusedSkillCounts[skillId] = (unusedSkillCounts[skillId] ?? 0) + 1;
+    for (const skillId of result.suspectedRedundantSkillIds) suspectedRedundantCounts[skillId] = (suspectedRedundantCounts[skillId] ?? 0) + 1;
     if (result.usageObserved) {
       proven += 1;
       originalSkillCount += result.originalSkillIds.length;
@@ -220,6 +228,8 @@ export function replaySkillLoadouts(results: readonly SkillReplayResult[]): Skil
     unusedOriginalSkillCount,
     droppedUsedSkillCount,
     riskCounts,
+    unusedSkillCounts,
+    suspectedRedundantCounts,
     estimatedContextSaved: provenContext,
     estimatedTokenSaved: provenContext,
     estimatedLatencySaved: provenLatency,
