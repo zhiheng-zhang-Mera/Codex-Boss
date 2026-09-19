@@ -4,18 +4,37 @@
 > every change goes through, the hazards that have actually cost incidents, and
 > what is left in plan order. The authoritative per-phase record is
 > `docs/phase-status.md`; this file is the handoff, not a second ledger.
+>
+> **Re-measured 2026-09-19 on `main` at `9d698c05659c92b9d9c1eed1be7321ff610bf780` (Root Trust epoch 23).**
+> Every number in this file was re-derived from this tree with the tool named beside it, or is marked
+> `NEEDS_REMEASUREMENT` where the repository cannot prove it. The previous snapshot was **not** copied
+> forward: it recorded branch `Prestart-checkpoint-5`, epoch 20 / 54 surface files, 24 boot modules, 2748
+> exports and 182 files / 1932 tests, and every one of those had moved.
 
 ## Where this stands
 
-- Branch `Prestart-checkpoint-5` (branches follow `Prestart-checkpoint-N`; 1–4 are
-  the earlier checkpoints), remote `origin` = `zhiheng-zhang-Mera/Codex-Boss`.
-- Root Trust Surface epoch **20** (`boss-root-trust-20`), 54 files; `node scripts/acceptance-evolution-bless.cjs --check` says whether the committed epoch still anchors the live surface.
-- Local gate sequence: **70/70 steps** (`node .cache/run-gates.cjs`, which mirrors
-  `.github/workflows/ci.yml` step order and writes transcripts to
-  `artifacts/gate-run/<stamp>/`). Cloud CI: four jobs — `quality`, `unit`,
-  `acceptance`, `package`.
-- `pnpm` is not on PATH: use `corepack pnpm …`. Node v24.14.1, Electron 44,
-  Windows 10.0.26200.
+- **Canonical branch `main`**, remote `origin` = `zhiheng-zhang-Mera/Codex-Boss`, HEAD `9d698c05…`. The old
+  `Prestart-checkpoint-N` branch convention is historical; nothing in the current workflow depends on it.
+- **Root Trust: epoch 23 (`boss-root-trust-23`), 63 files on the surface, matching the live tree.**
+  `node scripts/acceptance-evolution-bless.cjs --check` prints `epoch 23 (boss-root-trust-23) MATCHES the live
+  surface`, aggregate `0ddb900014c924bb93b6e0998495576b8c6d72dc62afb9647f1e3363c3956a0a`. A Root Trust
+  Surface change still requires `--advance` **in the same commit**; the migration writes
+  `trust-policy/trust-epoch.json` and rewrites `trust-policy/root-trust-surface.json` byte-identically.
+- **Cloud CI is four jobs** — `quality`, `unit`, `acceptance`, `package` (`.github/workflows/ci.yml`, and
+  observed as real check contexts). Current green reference: run **35428430102** on `9d698c0` — quality 13/13
+  steps, unit 15/15, acceptance 74/74 with **0 skipped**, package 13/13, attempt 1, no re-run.
+- **`Main-Protection` requires exactly those four checks.** Two lanes are deliberately *not* required, because
+  they are not part of the per-push merge contract: `finalize` (`trust-epoch-finalization.yml`,
+  dispatch-only behind the `boss-root-trust-owner` protected environment) and `hosted-runner-status`
+  (`platform-qualification.yml`, the hosted diagnostic that states it cannot qualify a real host). The real
+  Phase 01–05 qualification runs on the real soak host, driven by the separate private
+  `Boss-Qualification-Control` repository.
+- **The old local gate runner no longer exists.** The previous note's `node .cache/run-gates.cjs` → `70/70
+  steps` cannot be re-run or verified: `.cache/` is gitignored and holds no such runner in this tree. The
+  replacement is `corepack pnpm run verify:targeted`, which executes the whole unit tier and then checks the
+  selector against the run it just performed.
+- `pnpm` is not on PATH: use `corepack pnpm …`. Node **v24.14.0** (`node -v`), Electron **44.0.0**
+  (`package.json`), Windows **10.0.26200** (runner OS recorded by the qualification run).
 
 ## The ritual for every change (in this order)
 
@@ -26,14 +45,17 @@
 2. `corepack pnpm test` (unit tier) → `corepack pnpm run build` →
    `corepack pnpm run test:postbuild` → `corepack pnpm run test:slow`.
    `test:postbuild` genuinely needs the build; the unit tier genuinely does not.
+   `corepack pnpm run test:platform-qualification` is the frozen Phase 01–05 tier: it needs generated phase
+   artifacts, a real full-suite pairing record and an accumulated host corpus, so it runs on the real soak
+   host under the private control plane — never in this repository's CI.
 3. `corepack pnpm exec node scripts/acceptance-evolution-bless.cjs --check`.
    If any Root Trust Surface file changed, run `--advance` **in the same commit**
    and say so in the message.
 4. Commit (one phase per commit, with the reasoning and the measurements in the
    body — the messages are part of the record).
-5. `node .cache/run-gates.cjs` → expect `70/70 steps passed`.
+5. `corepack pnpm run verify:targeted` → expect `the targeted selection and the full gate agree`.
 6. Push **by explicit refspec** and confirm the remote ref equals HEAD:
-   `git push origin HEAD:refs/heads/<branch>`, then `git ls-remote origin refs/heads/<branch>`.
+   `git push origin HEAD:refs/heads/main`, then `git ls-remote origin refs/heads/main`.
 7. Poll cloud CI until all four jobs are green:
    `gh api repos/zhiheng-zhang-Mera/Codex-Boss/actions/runs/<id>` and `…/jobs`.
 
@@ -114,52 +136,63 @@
   The 400 MB `artifacts/Codex-Boss-1.0.0-*` package output is regenerable and is
   what accumulates: keep the newest one or two.
 
-## What is left, in plan order
+## What is left — a status, not a promise
 
-1. **F is complete for every plan-named group.** `providers` (API side, pool policies
-   and pool objects), `research` and `engineering` are all extracted; what is left in
-   `electron/main.ts` is the composition of them plus the acceptance entry points
-   (the smoke block and the headless research run), which are entry points rather than
-   groups. The next F-shaped work, if it is wanted, is deciding whether those entry
-   points should become their own module — and that is a decision about how the
-   acceptance harness names things, not about `main.ts`.
-2. **F — `engineering`** and **F — `research`**: the remaining plan-named groups.
-3. **M — the supervising process runners**: `host/process-runner`,
-   `research/runtime/process-runner`, `remote-relay`, `host/soak-harness`,
-   `self-evolution-coordinator`, the Codex agent process, the UIA/OCR bridges and
-   the two sandbox modules. They stream over the operation's life or must signal
-   the child later, so they need a supervision surface, not the capture-and-return
-   gateway.
-4. **H — four audit items**: `main.ts` headless preflight (`updateRun`/`setTaskStatus`),
-   `evaluation-store` golden, `autonomous-evolution-surface/identity` unreadable
-   files, `self-evolution-coordinator` evidence persist (the policy is right, the
-   silence is not). Seven sites are already closed; the pattern that worked is:
-   keep the fail-safe decision, record the reason, expose it, correct any comment
-   that claimed a distinction the code did not make.
-5. **I** multi-writer durable state (`.boss/project-state.json` has two
-   `ProjectStateStore`s; theme tree; `.boss/research/**` layout split).
-6. **J** the remaining `MIGRATE` items, **P** a real clean-clone run, **Q** the
-   repo-wide comment sweep. **K is closed**: the "213 unused exports / 886 unused
-   types" item was a name-import count, and re-measuring it through the import graph
-   and the whole tracked tree showed **zero** unreferenced exports — 1080 of them
-   simply did not need the keyword (3828 → 2748 exports, 337 files, each verified as
-   an `export`-only diff plus a clean `typecheck`). `tests/unit/export-surface.test.ts`
-   now fails when a new export is neither reachable nor mentioned anywhere, so the
-   surface cannot silently rot again.
+**Read this section as measurement, not as a plan.** The plan documents that name the groups below are not
+tracked in this repository — the comment-citation guard exists precisely because 1308 comments cite documents
+that are absent here — so a group letter's completion cannot be re-derived from the tree. Where the repository
+can prove something it is stated with the number that proves it; where it cannot, the item says
+`NEEDS_REMEASUREMENT` instead of guessing.
 
-## Snapshots (as of the checkpoint)
+Measured now:
 
-- `electron/main.ts`: **1314 lines** (from 1884), literal-channel `ipcMain.handle("…"`
-  registrations 51 → **0** (the 16 remaining `ipcMain.handle(` occurrences are the
-  registrar handed to the 16 IPC modules); **24** boot modules in
-  `electron/bootstrap/` (16 IPC + 8 service/domain).
-- Exports under `electron/**`/`src/**`: **2748**, all of them referenced; the surface
-  is enforced by `tests/unit/export-surface.test.ts`.
-- Comments citing a section number: **1452**, of which 1308 name no document that
-  exists here — frozen by `tests/unit/comment-citation.test.ts`, and meant to fall.
-- Tests: **182 files / 1932 tests** in the default tier, 62 postbuild, 25 slow;
-  eight layers declared in `vitest.tiers.mjs` and enforced by
-  `tests/unit/test-layers.test.ts`.
-- Gates: **0 files spawning git directly** (git gateway, empty debt list);
-  **8** process call sites on `electron/process/process-gateway.ts` and **10**
-  declared supervising runners.
+1. **K — closed, and re-measured rather than remembered.** The export surface under `electron/**` + `src/**` is
+   **3077 exports, 0 unreachable**, and `tests/fixtures/export-surface-exceptions.json` is **empty**
+   (`tests/helpers/export-surface-scan.ts`). The previous note's "2748, all referenced" was the same claim one
+   round earlier: the number grew, the invariant did not move.
+2. **J — no `MIGRATE` marker survives**: 0 hits across 547 source files under `electron/**` + `src/**`. That
+   is not proof the phase finished — only that nothing is left marked.
+3. **Q — the citation debt is unchanged, not falling.** 1458 section citations in comments (665 files, 9782
+   comments scanned), **1308** of which name no tracked document, against a baseline of exactly 1308 in
+   `tests/fixtures/comment-citation-baseline.json`. The guard permits the number to fall and forbids it to
+   rise, so this is the number to lower next time `docs/` grows.
+4. **I — the "two `ProjectStateStore`s" symptom no longer matches the code**: there is now a single
+   construction site, `electron/bootstrap/persistence.ts:147`, behind an `open(…)` factory. The rest of the
+   item (theme tree; `.boss/research/**` layout split) is `NEEDS_REMEASUREMENT` — `.boss/research/<id>.json`
+   is still the documented layout, but no current instrument asserts the split.
+
+`NEEDS_REMEASUREMENT` — the repository cannot currently prove these:
+
+- **F — the `main.ts` extraction groups** (`providers`, `research`, `engineering`) and whether the remaining
+  acceptance entry points should become their own modules. The previous note contradicted itself here — its
+  item 1 said F was complete while item 2 listed F as remaining — and nothing in the tree settles it. Measured
+  input for whoever does: `electron/main.ts` is **1448 lines** with **0** literal-channel
+  `ipcMain.handle("…")` registrations and **16** `ipcMain.handle(` calls (the registrar handed to the IPC
+  modules), and `electron/bootstrap/` holds **26** modules.
+- **M — the supervising process runners.** The old "8 process call sites / 10 declared supervising runners"
+  figures came from an audit list that is not tracked here. Measured substitutes, with the method stated:
+  **10** files import `electron/process/process-gateway.ts`, **23** import `electron/git/git-gateway.ts`, and
+  **11** import `node:child_process` — of which exactly **one** (`electron/git/git-gateway.ts`, the gateway
+  itself) invokes git.
+- **H — the four audit items** (`main.ts` headless preflight (`updateRun`/`setTaskStatus`), `evaluation-store`
+  golden, `autonomous-evolution-surface/identity` unreadable files, `self-evolution-coordinator` evidence
+  persist). The decisions live in the code; the item status does not.
+- **P — a real clean-clone run.**
+
+## Snapshots (re-measured 2026-09-19 at `9d698c05`, epoch 23)
+
+| Fact | Value | How it was measured |
+| --- | --- | --- |
+| Root Trust epoch / surface files | `23` / `boss-root-trust-23`, **63** files | `acceptance-evolution-bless.cjs --check` |
+| `electron/main.ts` | **1448** lines | line count of the tracked file |
+| literal-channel `ipcMain.handle("…")` | **0** | regex over `electron/main.ts`; **16** `ipcMain.handle(` calls remain (the registrar) |
+| `electron/bootstrap/` modules | **26** | tracked `.ts` files in that directory |
+| exports under `electron/**` + `src/**` | **3077**, all referenced; exceptions list empty | `tests/helpers/export-surface-scan.ts` |
+| comments citing a section number | **1458** citations, **1308** naming no tracked document | `tests/helpers/comment-citations.ts` |
+| tests, unit tier (`pnpm test`) | **218 files / 2548 tests** | Desktop CI run 35428430102, `unit` job log |
+| tests, `test:postbuild` | **8 files / 115 tests** | same run |
+| tests, `test:slow` | **4 files / 36 tests** | same run |
+| tests, `test:platform-qualification` | **3 files / 25 tests** | local run at `9d698c0` (real host corpus); tier declared in `vitest.tiers.mjs` |
+| declared layers | **8** | `LAYER_RULES` in `vitest.tiers.mjs`, enforced by `tests/unit/test-layers.test.ts` |
+| git spawning | confined to `electron/git/git-gateway.ts` (1 file imports `node:child_process` **and** invokes git; 23 files reach git through it) | import-graph scan of all 547 TS files under `electron/**` + `src/**` |
+| process / child-process surface | 10 files import `process/process-gateway`, 11 import `node:child_process` | same scan |
