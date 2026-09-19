@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSelfModel, type SelfAuthorityFact, type SelfFacts } from "../../../src/shared/self-cognition/anatomy";
-import { SELF_MODEL_VERSION, selfModelDrift, selfModelHash, type SelfModelDriftReport } from "../../../src/shared/self-cognition/drift";
+import { SELF_MODEL_VERSION, selfModelDrift, selfModelHash, type ComponentChange, type SelfModelDriftReport } from "../../../src/shared/self-cognition/drift";
 import { describeSelf } from "../../../src/shared/self-cognition/describe";
 
 /**
@@ -102,7 +102,8 @@ describe("the drift report says what changed", () => {
       authority: [authority("src/shared/alpha.ts", "ROOT_TRUST_SURFACE", "REQUIRE_OWNER"), authority("src/shared/beta.ts", "PRODUCT_SURFACE"), authority("electron/boot/alpha.ts", "PRODUCT_SURFACE")]
     }));
     const report = selfModelDrift(before, after, "2026-10-01T00:00:00.000Z");
-    expect(report.components.authorityChanged).toContainEqual({ id: "alpha", before: "PRODUCT_SURFACE", after: "ROOT_TRUST_SURFACE" });
+    const authorityMove: ComponentChange | undefined = report.components.authorityChanged.find((entry) => entry.id === "alpha");
+    expect(authorityMove).toEqual({ id: "alpha", before: "PRODUCT_SURFACE", after: "ROOT_TRUST_SURFACE" });
     expect(report.components.ownerReviewChanged).toContainEqual({ id: "alpha", before: "ALLOW", after: "REQUIRE_OWNER" });
     expect(report.capabilities.authorityChanged).toContainEqual({ id: "alpha", before: "PRODUCT_SURFACE", after: "ROOT_TRUST_SURFACE" });
     expect(report.components.healthSignalsChanged).toContainEqual({ id: "beta", added: [], removed: ["beta.critical"] });
