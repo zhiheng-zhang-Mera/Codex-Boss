@@ -1424,6 +1424,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/node-telemetry-log.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/outcome-ingestion.test.ts",
       "tier": "unit",
       "covers": [
@@ -1461,6 +1468,13 @@
     },
     {
       "file": "tests/unit/runtime-intelligence/skill-replay.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/snapshot-retention.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
