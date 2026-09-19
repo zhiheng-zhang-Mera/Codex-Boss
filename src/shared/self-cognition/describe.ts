@@ -22,6 +22,7 @@ import {
   type BossSelfModel,
   type OwnerReviewDecision
 } from "./contracts";
+import { SELF_MODEL_VERSION, selfModelHash } from "./drift";
 
 /** What a component is, or an honest absence when no component carries that id. */
 export function describeComponent(model: BossSelfModel, id: string): Availability<BossComponentDescriptor> {
@@ -46,6 +47,9 @@ export interface SelfDescription {
   kind: "BOSS_SELF_DESCRIPTION";
   capturedAt: string;
   repositoryRoot: string;
+  /** The body's own identity: two descriptions with the same hash describe the same anatomy. */
+  selfModelVersion: string;
+  selfModelHash: string;
   componentCount: number;
   componentKinds: Record<string, number>;
   capabilities: number;
@@ -83,6 +87,8 @@ export function describeSelf(model: BossSelfModel): SelfDescription {
     kind: "BOSS_SELF_DESCRIPTION",
     capturedAt: model.capturedAt,
     repositoryRoot: model.repositoryRoot,
+    selfModelVersion: SELF_MODEL_VERSION,
+    selfModelHash: selfModelHash(model),
     componentCount: model.components.length,
     componentKinds: kinds,
     capabilities: model.capabilities.length,

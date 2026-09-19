@@ -65,6 +65,31 @@ authorityOf(id)           the tier, the owner-review verdict, and the paths behi
 `authorityOf` reports a verdict and nothing else: the answer has three fields, there is no grant
 field, and `CAN_DESCRIBE_SELF != CAN_AUTHORIZE_SELF`.
 
+## The body's identity, and drift
+
+A self view is only comparable with another if both say which body they describe.
+
+`selfModelHash(model)` is a fingerprint over the **anatomy** — component ids, kinds, paths,
+dependencies, owned state, authority verdicts, health signals, unreadable facts, capability
+providers/consumers/requirements/availability, and data flows — and deliberately **not** over
+`capturedAt` or `repositoryRoot`. Two observations of the same body therefore hash the same, and a
+hash that moves means the body moved. `describeSelf` carries `selfModelVersion` (`self-model-v1`)
+and `selfModelHash`, so a stored self view identifies itself.
+
+`selfModelDrift(previous, next, at)` returns a `SELF_MODEL_DRIFT_REPORT`: components added and
+removed, dependencies, authority, owner-review verdicts, health signals and source paths that
+changed, capability availability and authority that changed, data flows whose readers changed, and
+facts that stopped or started being readable.
+
+```bash
+node scripts/self-view.cjs --json --out artifacts/self-view.json     # carry the hash
+node scripts/self-view.cjs --drift artifacts/self-view.json          # what moved since
+```
+
+A drift report describes the body and **modifies nothing** — least of all a case record. A case
+keeps the self model version and hash it was opened against, so a later reader can tell which body
+a diagnosis was made from.
+
 ## Running it
 
 ```bash

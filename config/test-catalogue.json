@@ -1406,6 +1406,13 @@
       ]
     },
     {
+      "file": "tests/unit/self-cognition/drift.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/self-cognition/self-model.test.ts",
       "tier": "unit",
       "covers": [

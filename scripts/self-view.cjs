@@ -41,11 +41,12 @@ function parseArgs(argv) {
     else if (argument === "--affected") { options.command = "affected"; options.target = argv[++index]; }
     else if (argument === "--authority") { options.command = "authority"; options.target = argv[++index]; }
     else if (argument === "--path") { options.command = "path"; options.target = argv[++index]; options.to = argv[++index]; }
+    else if (argument === "--drift") { options.command = "drift"; options.previous = path.resolve(argv[++index] ?? ""); }
     else if (argument === "--root") options.root = path.resolve(argv[++index] ?? "");
     else if (argument === "--json") options.json = true;
     else if (argument === "--out") options.out = path.resolve(argv[++index] ?? "");
     else if (argument === "--help" || argument === "-h") {
-      process.stdout.write("usage: node scripts/self-view.cjs [--component <id>|--capability <id>|--path <from> <to>|--affected <id>|--authority <id>] [--root <dir>] [--json] [--out <file>]\n");
+      process.stdout.write("usage: node scripts/self-view.cjs [--component <id>|--capability <id>|--path <from> <to>|--affected <id>|--authority <id>|--drift <previous.json>] [--root <dir>] [--json] [--out <file>]\n");
       process.exit(0);
     } else {
       process.stderr.write(`unknown argument ${argument}\n`);
@@ -61,9 +62,29 @@ if (options) {
   const factsModule = load("electron/self-cognition/facts.js");
   const anatomyModule = load("src/shared/self-cognition/anatomy.js");
   const describeModule = load("src/shared/self-cognition/describe.js");
-  if (factsModule && anatomyModule && describeModule) {
+  const driftModule = load("src/shared/self-cognition/drift.js");
+  if (factsModule && anatomyModule && describeModule && driftModule) {
     const facts = factsModule.collectSelfFacts({ repositoryRoot: options.root ?? ROOT });
     const model = anatomyModule.buildSelfModel(facts);
+    if (options.command === "drift") {
+      // A drift report compares the body now against the body a stored self view recorded. It
+      // changes nothing, and a past case keeps the model hash it was opened against.
+      if (!fs.existsSync(options.previous ?? "")) {
+        process.stderr.write(`no previous self view at ${options.previous}; write one with --json --out and pass it here\n`);
+        process.exitCode = 2;
+      } else {
+        const previous = JSON.parse(fs.readFileSync(options.previous, "utf8"));
+        const previousModel = previous.selfModel ?? previous;
+        const report = driftModule.selfModelDrift(previousModel, model, new Date().toISOString());
+        const text = `${JSON.stringify(report, null, 2)}\n`;
+        process.stdout.write(text);
+        if (options.out) {
+          fs.mkdirSync(path.dirname(options.out), { recursive: true });
+          fs.writeFileSync(options.out, text, "utf8");
+        }
+      }
+      process.exit(process.exitCode ?? 0);
+    }
     const answer = (() => {
       switch (options.command) {
         case "component": return describeModule.describeComponent(model, options.target ?? "");
