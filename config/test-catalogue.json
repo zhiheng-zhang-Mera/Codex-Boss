@@ -991,6 +991,7 @@
       "file": "tests/unit/owner-authority.test.ts",
       "tier": "unit",
       "covers": [
+        "engineering",
         "promotion",
         "security"
       ]
@@ -1341,6 +1342,15 @@
       "covers": [
         "security"
       ]
+    },
+    {
+      "file": "tests/unit/root-trust-authority-lockdown.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "an autonomous actor may prepare a trust migration but can never authorize, self-sign or finalize one, while ordinary self-evolution stays autonomous",
+      "alwaysRun": true
     },
     {
       "file": "tests/unit/runtime-paths.test.ts",

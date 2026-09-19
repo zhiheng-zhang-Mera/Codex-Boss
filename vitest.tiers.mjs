@@ -295,6 +295,14 @@ export const POSTBUILD_TESTS = {
   "tests/acceptance/platform-soak-report.test.ts": {
     requires: ["build"],
     because: "runs the soak-report generator short, so its trend genuinely exceeds the published allowance"
+  },
+  // Root Trust Authority Lockdown: attacks the authority boundary — and two of its cases run the real
+  // blessing and proposal CLIs (which load the compiled trust module out of dist-electron) and assert the
+  // observed exit codes, because "Boss cannot run `--advance`" is only a fact if the refusal is observed
+  // rather than described.
+  "tests/unit/root-trust-authority-lockdown.test.ts": {
+    requires: ["build"],
+    because: "spawns the blessing and proposal CLIs, which load the compiled trust module out of dist-electron"
   }
 };
 

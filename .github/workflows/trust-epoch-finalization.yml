@@ -1,0 +1,176 @@
+name: Trust Epoch Finalization
+
+# STAGE B of a trust migration: the EXTERNAL OWNER AUTHORIZATION, and the only place a trust epoch is
+# advanced.
+#
+# WHY THIS IS A SEPARATE, PROTECTED WORKFLOW
+#
+# `scripts/acceptance-evolution-bless.cjs --advance` used to be a manual command with no machine gate: any
+# shell on the host could run it, and the epoch was committed together with the change it anchors. That is
+# DOCUMENTATION_ONLY enforcement — the record could be written by whoever was editing the tree. This
+# workflow is the machine form of "AUTHORITY IS EXTERNAL":
+#
+#   - `workflow_dispatch` only. No push, no pull_request, no schedule, so no pull request or fork can reach
+#     it and no autonomous actor can trigger it by landing code.
+#   - `refs/heads/main` only, asserted in the job (not merely implied), failing closed with
+#     `TRUST_EPOCH_FINALIZATION_REQUIRES_MAIN`.
+#   - the job targets the `boss-root-trust-owner` ENVIRONMENT, whose required reviewer is the Root Owner and
+#     whose `can_admins_bypass` is FALSE. GitHub holds the job before it starts until that user approves it.
+#     Boss's autonomous credential cannot approve an environment deployment; a credential that cannot
+#     approve cannot finalize.
+#   - the reason for the migration is a required dispatch input and is recorded in the proposal, the commit
+#     message and the uploaded evidence.
+#   - the only write is `trust-policy/trust-epoch.json`, produced by the blessing step from the measured
+#     live surface. The step is followed by `--check`, so a migration that did not anchor the surface cannot
+#     be reported as one that did.
+#
+# WHAT IT DELIBERATELY DOES NOT DO
+#
+# It does not push the epoch to `main` with a stored owner credential. It creates the epoch commit on a
+# branch and opens a pull request, so the final act is the Owner's merge under the repository ruleset
+# (`require_code_owner_review`, with the Owner as the only always-bypass actor). A workflow that held a
+# bypass PAT would be a second Owner credential in a runner, which Phase A4/A6 forbid.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this trust epoch migration is authorised (recorded in the proposal, the commit and the evidence)."
+        required: true
+        type: string
+      risk:
+        description: "Known risk of this migration (recorded verbatim)."
+        required: true
+        type: string
+      rollback:
+        description: "Rollback path if the migration is wrong (recorded verbatim)."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  finalize:
+    # The external Owner gate. A job that targets an environment with required reviewers does not start
+    # until the named reviewer approves the deployment.
+    environment: boss-root-trust-owner
+    runs-on: windows-latest
+    steps:
+      - name: Refuse anything that is not main
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -ne "refs/heads/main") {
+            Write-Error "TRUST_EPOCH_FINALIZATION_REQUIRES_MAIN: this workflow may only run on refs/heads/main, got ${{ github.ref }}"
+            exit 1
+          }
+          Write-Host "ref is refs/heads/main"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run install:electron
+
+      - run: pnpm run build
+
+      # STAGE A runs first and is the same script any autonomous actor may run: it measures and proposes,
+      # and it never writes the epoch.
+      - name: Stage A — the autonomous proposal
+        shell: pwsh
+        run: |
+          node scripts/trust-migration-proposal.cjs --out artifacts/platform-foundation/trust/trust-migration-proposal.json --reason "${{ inputs.reason }}" --risk "${{ inputs.risk }}" --rollback "${{ inputs.rollback }}"
+          $proposal = Get-Content artifacts/platform-foundation/trust/trust-migration-proposal.json -Raw | ConvertFrom-Json
+          "NEEDS_MIGRATION=$($proposal.needsMigration.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CURRENT_EPOCH=$($proposal.currentEpoch.trust_epoch)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CANDIDATE_EPOCH=$($proposal.candidateEpoch.trust_epoch)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # STAGE B. Only reached when the committed epoch genuinely does not anchor the live surface, which the
+      # proposal measured rather than assumed.
+      - name: Stage B — advance the epoch (Owner-authorised)
+        if: env.NEEDS_MIGRATION == 'true'
+        shell: pwsh
+        run: |
+          node scripts/acceptance-evolution-bless.cjs --advance
+          node scripts/acceptance-evolution-bless.cjs --check
+          $diff = git status --porcelain
+          Write-Host "working tree after advance:`n$diff"
+          if (-not ($diff -match "trust-policy/trust-epoch.json")) {
+            Write-Error "TRUST_EPOCH_FINALIZATION_NO_CHANGE: --advance did not produce an epoch change, so there is nothing to authorise"
+            exit 1
+          }
+
+      - name: Stage B — the migration must have been needed
+        if: env.NEEDS_MIGRATION != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "The committed epoch already anchors the live Root Trust Surface; nothing to finalize."
+          Write-Host "No epoch was advanced and no commit was created. This is a successful no-op."
+
+      - name: Stage B — commit the epoch on an Owner-reviewed branch
+        if: env.NEEDS_MIGRATION == 'true'
+        shell: pwsh
+        run: |
+          $branch = "trust-epoch/boss-root-trust-$env:CANDIDATE_EPOCH"
+          git config user.name "Codex-Boss Trust Epoch Finalization"
+          git config user.email "trust-epoch@users.noreply.github.com"
+          git checkout -b $branch
+          git add trust-policy/trust-epoch.json artifacts/platform-foundation/trust/trust-migration-proposal.json
+          $message = @"
+          chore(trust): finalize epoch $env:CANDIDATE_EPOCH under Owner authorisation
+
+          Authorised through the boss-root-trust-owner protected environment (run ${{ github.run_id }}).
+
+          reason: ${{ inputs.reason }}
+          risk: ${{ inputs.risk }}
+          rollback: ${{ inputs.rollback }}
+          "@
+          $message | Out-File -FilePath commit-message.txt -Encoding utf8
+          git commit -F commit-message.txt
+          git push --set-upstream origin $branch
+          "EPOCH_BRANCH=$branch" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Stage B — open the pull request for the Owner's merge
+        if: env.NEEDS_MIGRATION == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $body = @(
+            "Trust epoch finalization, authorised through the ``boss-root-trust-owner`` protected environment.",
+            "",
+            "| field | value |",
+            "| --- | --- |",
+            "| current epoch | $env:CURRENT_EPOCH |",
+            "| candidate epoch | $env:CANDIDATE_EPOCH |",
+            "| authorised by | ${{ github.actor }} (environment approval) |",
+            "| reason | ${{ inputs.reason }} |",
+            "| risk | ${{ inputs.risk }} |",
+            "| rollback | ${{ inputs.rollback }} |",
+            "| run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |",
+            "",
+            "The epoch was produced by ``scripts/acceptance-evolution-bless.cjs --advance`` over the measured live",
+            "surface and verified with ``--check`` in this run. Merging this pull request is the final Owner act:",
+            "the workflow deliberately holds no bypass credential."
+          ) -join "`n"
+          $body | Out-File -FilePath pr-body.md -Encoding utf8
+          gh pr create --base main --head $env:EPOCH_BRANCH --title "chore(trust): finalize epoch $env:CANDIDATE_EPOCH" --body-file pr-body.md
+
+      - name: Record the finalization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trust-epoch-finalization-${{ github.run_id }}
+          path: artifacts/platform-foundation/trust/trust-migration-proposal.json
+          if-no-files-found: warn

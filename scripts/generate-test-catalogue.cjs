@@ -116,6 +116,7 @@ const CURATED = {
   "tests/unit/repository-boundary-guards.test.ts": { covers: ["runtime"], obligation: "the renderer, the Electron side and src/shared do not import across their boundaries", alwaysRun: true },
   "tests/unit/process-gateway.test.ts": { covers: ["runtime"], obligation: "only the declared gateways import child_process", alwaysRun: true },
   "tests/unit/comment-citation.test.ts": { covers: ["runtime"], obligation: "comments citing a requirement cite one that exists", alwaysRun: true },
+  "tests/unit/root-trust-authority-lockdown.test.ts": { covers: ["runtime"], obligation: "an autonomous actor may prepare a trust migration but can never authorize, self-sign or finalize one, while ordinary self-evolution stays autonomous", alwaysRun: true },
   // --- capability security (Phase 03)
   "tests/unit/capability/permission-contract.test.ts": { covers: ["security"] },
   "tests/unit/capability/boundary-integration.test.ts": { covers: ["security"] },
