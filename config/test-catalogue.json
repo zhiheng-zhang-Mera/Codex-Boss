@@ -1495,6 +1495,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/step-completion.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/telemetry.test.ts",
       "tier": "unit",
       "covers": [
