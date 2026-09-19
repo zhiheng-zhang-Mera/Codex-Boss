@@ -373,3 +373,36 @@ pnpm test
 
 The plane's own suites live in `tests/unit/runtime-intelligence/` (twelve files). The
 authority-boundary suite is the mandatory diff guard for every change to this layer.
+
+### The branch-wide diff guard
+
+`scripts/runtime-intelligence-diff-guard.cjs` runs the same check over a whole branch's
+change set, using the compiled modules, so it can be run before a commit:
+
+```bash
+pnpm run build && node scripts/runtime-intelligence-diff-guard.cjs [--base origin/main]
+```
+
+It calls the repository's real boundaries — `ProtectedSurfaceGuard`, `assessProtectedPaths`,
+`deriveChangeClass` and `decideAuthorityAction` — and exits non-zero unless every one of
+them agrees. Its verdict is the **authoritative decision**, not a private opinion:
+`decideAuthorityAction({ actor: "autonomous", action: "change" })` is asked directly, and
+its rule is that a change is autonomous below `ROOT_TRUST_CHANGE`.
+
+A note on reading the output: test files classify as `VERIFICATION_SURFACE` and the change
+class is `PRIVILEGED_NON_ROOT_CHANGE (1)`, not `ORDINARY_AUTONOMOUS_CHANGE (0)`, because the
+trust model's tier list includes `tests/**`. That is expected for any commit that adds a
+test, and the decision function answers `ALLOW` with the reason `change class 1 is
+autonomous`. What must be empty is `rootTrustSurfacePathsChanged`, `ownerReviewPaths`,
+`deniedPaths` and `escapes`.
+
+```text
+base                             origin/main
+changedFiles                     28
+protectedSurfaceDecision         ALLOW
+authority.decision               ALLOW  ("change class 1 is autonomous")
+rootTrustSurfacePathsChanged     []
+ownerReviewPaths                 []
+escapes                          []
+verdict                          ORDINARY_AUTONOMOUS_CHANGE
+```
