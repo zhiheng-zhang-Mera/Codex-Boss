@@ -155,10 +155,14 @@ does not have.
 | `platform-certificate.test.ts` | Phase 01–04 generated artifacts | the artifacts were read from a sibling test's side effect inside a parallel tier — a race, not a prerequisite |
 | `targeted-vs-full.test.ts` | a real full-suite pairing record | `pnpm run verify:targeted` executes the whole unit tier before it can write one |
 
-They keep every assertion and move to the `test:platform-qualification` tier, run by
-`.github/workflows/platform-qualification.yml` (`workflow_dispatch`), which generates each declared
-prerequisite with its own official generator in dependency order. `test:postbuild` stays in push CI and is
-now exactly the suites whose only declared prerequisite is the build — the claim a clean runner can honour.
+They keep every assertion and move to the `test:platform-qualification` tier, run on the real soak host by the
+qualification workflow in the separate **private** control repository
+(`zhiheng-zhang-Mera/Boss-Qualification-Control`, `workflow_dispatch`, main-only), which generates each declared
+prerequisite with its own official generator in dependency order. **No workflow in this repository runs the
+tier** — `.github/workflows/platform-qualification.yml` is the public hosted DIAGNOSTIC lane, and
+`tests/unit/test-layers.test.ts` asserts the negative over the whole workflow directory rather than over push
+CI alone. `test:postbuild` stays in push CI and is now exactly the suites whose only declared prerequisite is
+the build — the claim a clean runner can honour.
 
 A fourth case surfaced only when the acceptance chain reached its final step (run 35334147247: **68 of 69
 steps green**). `pnpm run acceptance:autonomous-evolution` ends in `judgeSelfCertification`, and the observed
@@ -181,22 +185,27 @@ followed, per `docs/phase-status.md`), and CI is the run that certifies the new 
 
 `tests/unit/test-layers.test.ts` enforces the tier boundary mechanically: every postbuild entry declares
 `requires: ["build"]` and nothing more, every qualification entry declares at least one requirement from
-`QUALIFICATION_REQUIREMENTS`, no push-CI entry may declare one of those, each qualification entry names a
-producer script that exists and is an explicit step in the qualification workflow, push CI has no step that
-runs the qualification tier or any qualification producer, and the qualification workflow is dispatch-only.
+`QUALIFICATION_REQUIREMENTS` and names a producer script that exists, no push-CI entry may declare one of
+those, **no workflow in this repository runs the qualification tier or any qualification producer**, and the
+public qualification lane is dispatch-only. A lane here that runs a producer must state
+`HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST`, so a public lane cannot generate the prerequisites of a
+qualification it cannot perform and read as one that performed it.
 
 **What `Desktop CI` green means now:** this commit typechecks, contains no tracked secret, keeps the
 architecture ratchet, builds, and passes the default, current-build and slow tiers on a clean runner. It
-does **not** mean Phase 01–05 qualification was re-run. **What `Platform Qualification` green means:**
-the frozen qualification gates passed with their real prerequisites present. Conflating the two is the
-misreading this split exists to prevent.
+does **not** mean Phase 01–05 qualification was re-run. **What a green real-host qualification run means:**
+the frozen qualification gates passed with their real prerequisites present, on the dedicated host in the
+private control plane. Conflating the two is the misreading this split exists to prevent. The public
+`Platform Qualification (hosted status)` lane is a DIAGNOSTIC: green there means the hosted runner has no
+accumulated corpus, which is the topology, not a qualification.
 
 Two facts about the qualification lane, recorded rather than hidden:
 
-- **It is expected to be red on a hosted runner until a real corpus exists there.** The honest status is
-  `BLOCKED_BY_REAL_SOAK_EVIDENCE`, and the workflow records the corpus provenance in the job summary
-  before anything depends on it. No filler corpus, no lowered invariant and no `process.env.CI` branch was
-  introduced to change that; a fake green would be worse than a blocked qualification.
+- **It cannot pass the Phase 04 gate on a hosted runner, and says so instead of pretending.** The honest
+  status is `BLOCKED_BY_REAL_SOAK_EVIDENCE`, the workflow records the corpus provenance in the job summary
+  before anything depends on it, runs the Phase 04 generator to SHOW the refusal, and warns loudly if that
+  gate ever passes on a hosted runner. No filler corpus, no lowered invariant and no `process.env.CI` branch
+  was introduced to change that; a fake green would be worse than a blocked qualification.
 - **This is a routing change, so Foundation gate semantics are unchanged** (`FOUNDATION_GATE_SEMANTICS_UNCHANGED`).
   No binding document was found requiring these suites to be in `test:postbuild` or to run on every push;
   the audit is recorded in the receipt for this work.

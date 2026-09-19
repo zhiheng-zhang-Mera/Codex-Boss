@@ -22,13 +22,16 @@ name: Desktop CI
 #
 # That is why three frozen gates are not in this file. `tests/acceptance/data-lifecycle-report.test.ts`,
 # `tests/acceptance/platform-certificate.test.ts` and `tests/acceptance/targeted-vs-full.test.ts` are in
-# the `test:platform-qualification` tier and run in `Platform Qualification`
-# (`.github/workflows/platform-qualification.yml`, `workflow_dispatch`), which generates each declared
-# prerequisite with its own official generator first. Nothing was skipped or weakened — measured on run
+# the `test:platform-qualification` tier and run on the real soak host, by the qualification workflow in the
+# separate PRIVATE control repository `Boss-Qualification-Control` (`workflow_dispatch`, main-only), which
+# generates each declared prerequisite with its own official generator first. No workflow in this repository
+# runs the tier: `.github/workflows/platform-qualification.yml` is a hosted DIAGNOSTIC lane that states
+# `HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST` instead of claiming a qualification. Nothing was skipped or
+# weakened — measured on run
 # 35327676450, the Phase 04 gate found a 56-file corpus here against its own >1000-file invariant, and the
 # certificate read artifacts no step had produced. `tests/unit/test-layers.test.ts` enforces the boundary
 # mechanically: no tier in this file may declare a qualification-only prerequisite, this file may not run a
-# qualification producer, and the qualification workflow may not be reachable from push. The graduation step
+# qualification producer, and no workflow in this repository may run the qualification tier. The graduation step
 # `pnpm run acceptance:autonomous-evolution` DOES run here — see the note above it; a Root Trust change makes
 # the committed epoch stale until `acceptance-evolution-bless.cjs --advance` runs in the same commit.
 #

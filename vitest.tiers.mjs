@@ -225,7 +225,7 @@ export const TEST_TIERS = {
   unit: { layers: ["unit", "acceptance", "desktop", "integration", "migration", "recovery", "adversarial"], describe: "pnpm test — the signal a developer waits for." },
   slow: { layers: ["integration", "acceptance"], describe: "pnpm run test:slow — suites that compile and execute real projects." },
   postbuild: { layers: ["acceptance", "integration"], describe: "pnpm run test:postbuild — suites that read the real build output and need nothing else, so a clean push runner satisfies them." },
-  qualification: { layers: ["acceptance", "integration", "soak"], describe: "pnpm run test:platform-qualification — frozen Foundation gates that additionally need generated phase artifacts, a real full-suite pairing record, or a host corpus accumulated by real soak runs. Run by the Platform Qualification workflow, never by push CI." }
+  qualification: { layers: ["acceptance", "integration", "soak"], describe: "pnpm run test:platform-qualification — frozen Foundation gates that additionally need generated phase artifacts, a real full-suite pairing record, or a host corpus accumulated by real soak runs. Run on the real soak host by the qualification workflow in the separate private control repository (Boss-Qualification-Control), never by push CI and never by any workflow in this repository." }
 };
 
 /**
