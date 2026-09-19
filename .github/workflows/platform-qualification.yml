@@ -47,6 +47,16 @@ jobs:
     # repository names these labels, so untrusted code cannot be routed to the Owner's host.
     runs-on: [self-hosted, windows, boss-real-soak, boss-qualification]
     steps:
+      # B3, enforced rather than remembered: a self-hosted runner must not exist on a public repository,
+      # because a runner is registered for the whole repository and no workflow guard can bind it to one
+      # workflow. This step reads the platform facts and refuses; when the repository becomes private the
+      # verdict flips by itself, with no edit to this file.
+      - name: Refuse to run where a self-hosted runner is unsafe (B3)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-authority-separation.cjs --platform --require-self-hosted-safe
+
       - name: Fail closed unless this is the real soak host on main
         shell: pwsh
         run: |

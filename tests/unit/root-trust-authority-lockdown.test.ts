@@ -381,6 +381,30 @@ describe("Root Trust Authority Lockdown — the qualification lane cannot be rea
 
     // The evidence itself is produced in redacted mode.
     expect(executed.includes("--redacted"), "the provenance written for upload must be redacted").toBe(true);
+
+    // B3 is enforced at run time, not remembered: the lane refuses to run where a self-hosted runner is
+    // unsafe (a public repository), by measuring the platform rather than trusting whoever installed it.
+    expect(executed.includes("--require-self-hosted-safe"), "the real-host lane no longer refuses an unsafe platform").toBe(true);
+
+    // And the platform verdict itself is a measured fact.
+    const platform = spawnSync(process.execPath, [path.join(PROJECT, "scripts/verify-authority-separation.cjs"), "--platform", "--json"], { cwd: PROJECT, encoding: "utf8" });
+    expect(platform.status, `${platform.stdout}${platform.stderr}`).toBe(0);
+    const report = JSON.parse(platform.stdout.slice(platform.stdout.indexOf("{")));
+    expect(report.verdict.selfHostedRunnerSafe).toBe(report.repository.private);
+    if (!report.repository.private) {
+      expect(report.verdict.findings).toContain("PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER");
+      // …and the fail-closed mode must refuse, which is exactly what the workflow step relies on.
+      const refused = spawnSync(process.execPath, [path.join(PROJECT, "scripts/verify-authority-separation.cjs"), "--platform", "--require-self-hosted-safe"], { cwd: PROJECT, encoding: "utf8" });
+      expect(refused.status, "a public repository must refuse to host a self-hosted runner").toBe(1);
+    }
+    // The repository has exactly one always-bypass actor, and it is a User (the Owner): that is the fact the
+    // whole separation rests on, so it is asserted rather than described.
+    if (report.ruleset) {
+      expect(report.ruleset.bypassActors.length).toBe(1);
+      expect(report.ruleset.bypassActors[0].mode).toBe("always");
+      expect(report.ruleset.bypassActors[0].type).toBe("User");
+      expect(report.environments.some((entry: { name: string; rules: string[] }) => entry.name === "boss-root-trust-owner" && entry.rules.includes("required_reviewers"))).toBe(true);
+    }
   });
 
   it("never emits a manifest in redacted mode, and offers a digest for quiescence", () => {

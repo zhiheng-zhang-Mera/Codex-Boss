@@ -119,9 +119,52 @@ describes gets forgotten:
 - **The ruleset's required status check cannot be satisfied.** `Main-Protection` requires a check named
   `validate`, which no workflow produces. The Owner's bypass is currently the only way `main` moves; the
   effective protections are `require_code_owner_review` plus `non_fast_forward`.
-- **The lockdown itself is not promoted.** The change that installed this boundary is an ordinary branch
-  commit, because it is the change that *creates* the mechanism; promoting it is the Owner's act, and it
-  is the first change that should go through the new path.
+- **The lockdown itself is promoted** (epoch 22, `main = ac3865b` at the time of writing), so this item is
+  closed; it is kept in the list because it recorded the bootstrap step that had to happen before the
+  mechanism could govern its own changes.
 - **Pruning is policy-only until a pruning path exists.** `decidePrune` /
   `isComponentPartOfTrustBoundary` are machine-checked and ready, but Boss has no self-pruning executor
   yet; when one is built it must call them rather than re-deciding what is protected.
+
+## 8. Where a self-hosted runner may exist (Phase B3), and the production path (B10)
+
+### B3 — enforced by measurement, not by memory
+
+`node scripts/verify-authority-separation.cjs --platform` reads the platform and reports what the **host**
+can enforce: repository visibility, the `Main-Protection` ruleset with its rules and bypass actors, the
+environments and their protection rules, the required check contexts, and **which check contexts this
+repository's workflows actually produce**.
+
+Its verdict includes `selfHostedRunnerSafe`, and `--require-self-hosted-safe` turns that into a fail-closed
+guard. The real-host qualification job runs it as its **first** step, so the lane refuses to start on a
+repository where a runner is reachable by untrusted workflow files — which is any PUBLIC repository, because
+a runner is registered for the whole repository and no workflow-level guard can bind it to a single workflow.
+This is enforced at run time and flips by itself when the repository becomes private; nobody has to remember.
+
+Measured on this repository at the time of writing:
+
+```text
+visibility=public   ruleset=Main-Protection (active)   bypass actors=[{id:229580437,User,always}]
+environments=[boss-root-trust-owner (required_reviewers)]
+required checks=["validate"] produced=[acceptance,finalize,hosted-runner-status,package,quality,real-host-qualification,unit]
+self-hosted runner safe: false
+  finding: PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER
+  finding: REQUIRED_CHECK_NOT_PRODUCED:validate
+```
+
+So the real-host qualification lane is **built and refuses to run**: the qualification cannot be performed
+until the Owner decides how to transport it (make the repository private; use a separate private repository;
+or run it as an Owner-run local procedure, which the prohibitions explicitly say may NOT be presented as a
+formal workflow attestation).
+
+### B10 — the production path
+
+```text
+Boss autonomous development → Desktop CI → acceptance → Root Trust verification
+  → Real Host Qualification → OWNER PRODUCTION PROMOTION
+```
+
+Boss may drive work to `QUALIFIED_CANDIDATE`. It may not create a production tag, declare a promotion, or
+change the production authority policy: those stay behind the Owner gate, and a Root Trust / Owner Authority
+promotion is never automated by default. A future low-risk automated promotion path would have to be designed
+as its own policy, separately from this boundary.

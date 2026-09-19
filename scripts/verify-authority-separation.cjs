@@ -34,6 +34,7 @@
 
 "use strict";
 const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -109,8 +110,144 @@ function gh(args, token) {
   }
 }
 
+/**
+ * Phase B3 — is this repository a place where a self-hosted runner may exist AT ALL?
+ *
+ * Independent of whether a Boss credential exists: a self-hosted runner on a PUBLIC repository is
+ * reachable by workflow files that untrusted code can propose, and no workflow-level guard can bind a
+ * runner to one workflow, because a runner is registered for the whole repository. GitHub's own guidance is
+ * not to do it, and Phase B3 says the same in the Owner's words ("禁止不受信任代码自动落到此 runner").
+ *
+ * Measured, not remembered: `--platform` reads the repository visibility, its rulesets and bypass actors,
+ * and its environments; `--require-self-hosted-safe` turns the verdict into a fail-closed guard the
+ * qualification job runs before anything else. When the repository becomes private the verdict flips by
+ * itself; until then the real-host lane refuses to run rather than trusting whoever installed it.
+ */
+function platformReport({ requireSelfHostedSafe }) {
+  const repo = probe(() => execFileSync("gh", ["api", "repos/{owner}/{repo}"], { cwd: ROOT, encoding: "utf8", windowsHide: true }));
+  if (!repo.ok) {
+    console.error(`[platform] cannot read the repository: ${repo.out.split(/\r?\n/)[0] ?? ""}`);
+    return 1;
+  }
+  const info = JSON.parse(repo.out);
+  const visibility = info.visibility ?? (info.private ? "private" : "public");
+
+  const rulesets = probe(() => execFileSync("gh", ["api", "repos/{owner}/{repo}/rulesets"], { cwd: ROOT, encoding: "utf8", windowsHide: true }));
+  const mainRuleset = rulesets.ok ? (JSON.parse(rulesets.out) || []).find((entry) => entry.name === "Main-Protection") : undefined;
+  const detail = mainRuleset
+    ? probe(() => execFileSync("gh", ["api", `repos/{owner}/{repo}/rulesets/${mainRuleset.id}`], { cwd: ROOT, encoding: "utf8", windowsHide: true }))
+    : undefined;
+  const parsed = detail && detail.ok ? JSON.parse(detail.out) : undefined;
+  const rules = parsed ? (parsed.rules ?? []).map((rule) => rule.type) : [];
+  const bypassActors = parsed ? (parsed.bypass_actors ?? []).map((actor) => ({ id: actor.actor_id, type: actor.actor_type, mode: actor.bypass_mode })) : [];
+
+  const environments = probe(() => execFileSync("gh", ["api", "repos/{owner}/{repo}/environments"], { cwd: ROOT, encoding: "utf8", windowsHide: true }));
+  const environmentList = environments.ok
+    ? (JSON.parse(environments.out).environments ?? []).map((entry) => ({ name: entry.name, rules: (entry.protection_rules ?? []).map((rule) => rule.type) }))
+    : [];
+
+  // Which check contexts do this repository's workflows actually produce? A required context that nothing
+  // produces makes the ruleset's check gate decorative, which is worth reporting rather than discovering.
+  // The job names are read with the YAML parser: a regex over indent levels reported nested keys (`inputs`,
+  // `steps`) as if they were jobs, which is exactly the kind of measurement error this report exists to avoid.
+  const workflowDir = path.join(ROOT, ".github", "workflows");
+  const produced = [];
+  let yaml;
+  try {
+    yaml = require("yaml");
+  } catch {
+    yaml = undefined;
+  }
+  for (const file of fs.readdirSync(workflowDir).filter((name) => name.endsWith(".yml"))) {
+    const text = fs.readFileSync(path.join(workflowDir, file), "utf8");
+    if (!yaml) continue;
+    try {
+      const document = yaml.parse(text);
+      for (const name of Object.keys(document?.jobs ?? {})) produced.push(name);
+    } catch {
+      // An unparsable workflow is reported by the workflow itself; the report simply cannot count it.
+    }
+  }
+  const requiredChecks = parsed
+    ? (parsed.rules ?? []).filter((rule) => rule.type === "required_status_checks").flatMap((rule) => (rule.parameters?.required_status_checks ?? []).map((check) => check.context))
+    : [];
+  const unsatisfiableChecks = requiredChecks.filter((context) => !produced.includes(context));
+
+  const selfHostedRunnerSafe = visibility === "private";
+  const findings = [];
+  if (!selfHostedRunnerSafe) findings.push("PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER");
+  if (unsatisfiableChecks.length) findings.push(`REQUIRED_CHECK_NOT_PRODUCED:${unsatisfiableChecks.join(",")}`);
+  if (!parsed) findings.push("RULESET_NOT_READABLE_WITH_THIS_CREDENTIAL");
+  if (bypassActors.length !== 1 || bypassActors[0]?.mode !== "always") findings.push(`BYPASS_ACTORS:${JSON.stringify(bypassActors)}`);
+  const ownerEnvironment = environmentList.find((entry) => entry.name === "boss-root-trust-owner");
+  if (!ownerEnvironment || !ownerEnvironment.rules.includes("required_reviewers")) findings.push("OWNER_ENVIRONMENT_NOT_PROTECTED");
+
+  const report = {
+    $comment: "Phase B3 platform authority report: what the HOST can enforce, measured rather than assumed.",
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    repository: { visibility, private: info.private === true, defaultBranch: info.default_branch },
+    ruleset: parsed
+      ? { name: parsed.name, enforcement: parsed.enforcement, rules, bypassActors, requiredChecks, producedCheckContexts: [...new Set(produced)].sort(), unsatisfiableChecks }
+      : null,
+    environments: environmentList,
+    verdict: {
+      selfHostedRunnerSafe,
+      selfHostedRunnerReason: selfHostedRunnerSafe
+        ? "the repository is private, so a runner is not reachable by untrusted workflow files"
+        : "the repository is PUBLIC: a self-hosted runner would be registered for the whole repository and no workflow guard can bind it to one workflow (Phase B3 forbids this)",
+      findings
+    }
+  };
+
+  const jsonMode = process.argv.includes("--json");
+  const human = [
+    `[platform] visibility=${visibility} default=${report.repository.defaultBranch}`,
+    `[platform] ruleset=${parsed ? `${parsed.name} enforcement=${parsed.enforcement} rules=${rules.join(",")}` : "unreadable"}`,
+    `[platform] bypass actors=${JSON.stringify(bypassActors)}`,
+    `[platform] required checks=${JSON.stringify(requiredChecks)} produced=${JSON.stringify(report.ruleset?.producedCheckContexts ?? [])}`,
+    `[platform] environments=${JSON.stringify(environmentList)}`,
+    `[platform] self-hosted runner safe: ${selfHostedRunnerSafe}`,
+    ...findings.map((finding) => `[platform]   finding: ${finding}`)
+  ];
+  // In JSON mode stdout carries the JSON ALONE, so a caller can parse it; the human lines go to stderr.
+  for (const line of human) {
+    if (jsonMode) process.stderr.write(`${line}\n`);
+    else process.stdout.write(`${line}\n`);
+  }
+
+  if (jsonMode) {
+    const outIndex = process.argv.indexOf("--out");
+    const text = `${JSON.stringify(report, null, 2)}\n`;
+    if (outIndex >= 0 && process.argv[outIndex + 1]) {
+      const target = path.resolve(process.argv[outIndex + 1]);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, text, "utf8");
+      process.stderr.write(`[platform] wrote ${target}\n`);
+    } else {
+      process.stdout.write(text);
+    }
+  }
+
+  if (requireSelfHostedSafe && !selfHostedRunnerSafe) {
+    console.error(`[platform] REFUSING: ${report.verdict.selfHostedRunnerReason}`);
+    return 1;
+  }
+  return 0;
+}
+
+/** Run a probe that may fail; never throw out of the report. */
+function probe(attempt) {
+  try {
+    return { ok: true, out: attempt() };
+  } catch (error) {
+    return { ok: false, out: `${error.stdout ?? ""}${error.stderr ?? ""}` };
+  }
+}
+
 function main() {
   if (process.argv.includes("--self-check")) return selfCheck();
+  if (process.argv.includes("--platform")) return platformReport({ requireSelfHostedSafe: process.argv.includes("--require-self-hosted-safe") });
 
   const variable = BOSS_CREDENTIAL_VARIABLES.find((name) => process.env[name]);
   const token = variable ? process.env[variable] : undefined;
