@@ -32,7 +32,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const options = { root: path.join(ROOT, "runtime-data"), dataRoot: undefined, task: undefined, advise: false, evaluate: false, snapshot: false, samples: 0, out: undefined, skillCards: undefined, continuationCorpus: undefined, base: "origin/main" };
+  const options = { root: path.join(ROOT, "runtime-data"), dataRoot: undefined, task: undefined, advise: false, evaluate: false, realData: false, snapshot: false, samples: 0, out: undefined, skillCards: undefined, continuationCorpus: undefined, base: "origin/main" };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--root") options.root = path.resolve(argv[++index] ?? "");
@@ -44,10 +44,11 @@ function parseArgs(argv) {
     else if (argument === "--base") options.base = argv[++index] ?? "origin/main";
     else if (argument === "--advise") options.advise = true;
     else if (argument === "--evaluate") options.evaluate = true;
+    else if (argument === "--real-data") options.realData = true;
     else if (argument === "--snapshot") options.snapshot = true;
     else if (argument === "--out") options.out = path.resolve(argv[++index] ?? "");
     else if (argument === "--help" || argument === "-h") {
-      process.stdout.write("usage: node scripts/runtime-intelligence-report.cjs [--snapshot] [--advise] [--task <taskId>] [--sample <n>] [--evaluate] [--root <dataRoot>] [--data-root <dir>] [--skill-cards <file>] [--continuation-corpus <file>] [--base <ref>] [--out <file>]\n");
+      process.stdout.write("usage: node scripts/runtime-intelligence-report.cjs [--snapshot] [--advise] [--task <taskId>] [--sample <n>] [--evaluate] [--real-data] [--root <dataRoot>] [--data-root <dir>] [--skill-cards <file>] [--continuation-corpus <file>] [--base <ref>] [--out <file>]\n");
       process.exit(0);
     } else {
       fail(`unknown argument ${argument}`);
@@ -199,6 +200,104 @@ if (options) {
       });
       report.evaluation = bundle.report;
       report.boundaryAssessment = boundaryAssessment;
+    }
+
+    if (options.realData) {
+      // Locate, export, sanitize, import, then replay — in that order, and read-only until the
+      // plane's own replay area is written.
+      const io = load("electron/runtime-intelligence/replay-corpus-io.js");
+      const casesModule = load("electron/runtime-intelligence/replay-cases.js");
+      const corpusModule = load("src/shared/runtime-intelligence/replay-corpus.js");
+      const schedulerModule = load("src/shared/runtime-intelligence/scheduler-benchmark.js");
+      const continuationModule = load("src/shared/runtime-intelligence/continuation-benchmark.js");
+      const stepModule = load("src/shared/runtime-intelligence/step-completion.js");
+      const reportModule = load("src/shared/runtime-intelligence/evaluation-report.js");
+      const boundaryAssessment = require("./runtime-intelligence-diff-guard.cjs").assessBranchBoundary(options.base);
+      const planeRoot = serviceModule.runtimeIntelligenceRoot(options.root);
+
+      const survey = io.locateRealDataRoots({ repositoryRoot: ROOT });
+      const dataRoot = options.dataRoot ?? survey.recommended?.path;
+      if (dataRoot === undefined) {
+        report.realData = { survey, exported: false, note: "no real Boss data root was found on this host, so no corpus could be exported" };
+      } else {
+        const exported = io.exportReplayCorpus({ dataRoot, exportedAt: new Date().toISOString() });
+        const written = io.writeReplayCorpus(planeRoot, exported.corpus);
+        const imported = io.importReplayCorpus(written.file);
+        const corpus = imported.corpus;
+        const continuation = corpus === undefined ? undefined : casesModule.continuationStepsFromCorpus(corpus);
+        const scheduler = corpus === undefined ? undefined : casesModule.schedulerCasesFromCorpus(corpus);
+        const continuationMetrics = continuation === undefined ? undefined : continuationModule.benchmarkContinuation(continuation.steps);
+        const schedulerMetrics = scheduler === undefined ? undefined : schedulerModule.benchmarkScheduler(scheduler.cases);
+        const snapshotSeries = nodeLog.snapshots();
+        const coverageByNode = [...new Set(snapshotSeries.map((snapshot) => snapshot.nodeId))].map((nodeId) => {
+          const latest = nodeLog.snapshots(nodeId).at(-1);
+          const coverage = profileModule.nodeCoverage(latest);
+          return { nodeId, coverage: coverage.coverage, absentKeys: coverage.absentKeys };
+        });
+        const taskViews = corpus === undefined ? [] : corpusModule.groupCorpusByTask(corpus);
+        const completion = taskViews.flatMap((view) => {
+          const facts = view.steps.map((step) => ({
+            revision: step.stepIndex,
+            capturedAt: step.completionEvidence.status === "MEASURED" ? step.completionEvidence.value : view.sourceTimestamp,
+            completedCount: step.atDecisionTime.completedCount,
+            pendingCount: step.atDecisionTime.unresolvedCount,
+            nextAction: step.afterDecision.continuedAfterStep ? "CONTINUED" : "STOPPED",
+            checkpointReason: "task/run transition"
+          }));
+          return stepModule.deriveStepCompletion({ facts, taskStatus: view.finalOutcome.status === "MEASURED" && view.finalOutcome.value === "SUCCESS" ? "completed" : "running" });
+        });
+
+        report.realData = {
+          survey,
+          dataRoot,
+          exported: {
+            source: exported.source,
+            records: exported.records.length,
+            skipped: exported.skipped,
+            problems: exported.problems,
+            redactedFields: exported.redactedFields
+          },
+          corpusFile: written.file,
+          corpusBytes: written.bytes,
+          imported: { imported: imported.imported, problems: imported.problems, invalidRecords: imported.invalidRecords },
+          summary: corpus === undefined ? undefined : corpusModule.summariseReplayCorpus(corpus),
+          tasks: taskViews.length,
+          completionObservations: completion.length,
+          continuation: continuation === undefined ? undefined : { steps: continuation.steps.length, skipped: continuation.skipped, unavailableSignals: continuation.unavailableSignals },
+          scheduler: scheduler === undefined ? undefined : { cases: scheduler.cases.length, ledger: scheduler.ledger.length, notes: scheduler.notes },
+          benchmarks: {
+            continuation: continuationMetrics,
+            scheduler: schedulerMetrics
+          }
+        };
+
+        // The report is rebuilt with the real benchmarks substituted in, so its readiness gates
+        // and metrics rest on the real corpus rather than on the plane's own empty store.
+        const rebuilt = reportModule.buildEvaluationReport({
+          generatedAt: new Date().toISOString(),
+          ...(options.dataRoot === undefined ? {} : { ingestion: undefined }),
+          scheduler: schedulerMetrics,
+          ...(continuationMetrics === undefined ? {} : { continuation: continuationMetrics }),
+          nodeTelemetry: {
+            rawSamples: nodeLog.status().storedSamples,
+            afterCompaction: nodeLog.status().afterCompaction,
+            suppressedSamples: nodeLog.status().suppressedSamples,
+            archivedEntries: nodeLog.status().archivedEntries,
+            bytes: nodeLog.status().bytes,
+            nodes: nodeLog.status().nodes,
+            coverageByNode
+          },
+          continuationReplayPossible: continuationMetrics !== undefined,
+          boundary: {
+            rootTrustTouched: boundaryAssessment.rootTrustSurfacePathsChanged.length > 0,
+            qualificationTouched: boundaryAssessment.qualificationPathsTouched.length > 0,
+            ownerReviewPaths: boundaryAssessment.ownerReviewPaths,
+            authorityDecision: boundaryAssessment.authority.decision,
+            changeClass: boundaryAssessment.authority.changeClass
+          }
+        });
+        report.evaluationFromRealData = rebuilt;
+      }
     }
 
     const text = `${JSON.stringify(report, null, 2)}\n`;
