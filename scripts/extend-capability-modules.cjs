@@ -210,7 +210,11 @@ const EXTRA = {
     "src/shared/acceptance-hub.ts",
     "src/shared/acceptance-record.ts",
     "src/shared/desktop-black-box-contract.ts",
-    "src/shared/contracts.ts"
+    "src/shared/contracts.ts",
+    // Self Cognition: Boss's description of its own components, capabilities and authority
+    // boundaries. It observes the anatomy; it does not diagnose it and cannot change it.
+    "src/shared/self-cognition",
+    "electron/self-cognition"
   ],
   security: [
     "electron/github",

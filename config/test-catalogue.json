@@ -1391,6 +1391,28 @@
       ]
     },
     {
+      "file": "tests/unit/self-cognition/boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security",
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/describe.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/self-model.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/self-elevation.test.ts",
       "tier": "unit",
       "covers": [
