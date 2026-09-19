@@ -1453,6 +1453,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/prospective-window.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/replay-cases.test.ts",
       "tier": "unit",
       "covers": [

@@ -32,7 +32,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const options = { root: path.join(ROOT, "runtime-data"), dataRoot: undefined, task: undefined, advise: false, evaluate: false, realData: false, snapshot: false, samples: 0, out: undefined, skillCards: undefined, continuationCorpus: undefined, base: "origin/main" };
+  const options = { root: path.join(ROOT, "runtime-data"), dataRoot: undefined, task: undefined, advise: false, evaluate: false, realData: false, prospective: false, snapshot: false, samples: 0, out: undefined, skillCards: undefined, continuationCorpus: undefined, base: "origin/main" };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--root") options.root = path.resolve(argv[++index] ?? "");
@@ -45,10 +45,11 @@ function parseArgs(argv) {
     else if (argument === "--advise") options.advise = true;
     else if (argument === "--evaluate") options.evaluate = true;
     else if (argument === "--real-data") options.realData = true;
+    else if (argument === "--prospective") options.prospective = true;
     else if (argument === "--snapshot") options.snapshot = true;
     else if (argument === "--out") options.out = path.resolve(argv[++index] ?? "");
     else if (argument === "--help" || argument === "-h") {
-      process.stdout.write("usage: node scripts/runtime-intelligence-report.cjs [--snapshot] [--advise] [--task <taskId>] [--sample <n>] [--evaluate] [--real-data] [--root <dataRoot>] [--data-root <dir>] [--skill-cards <file>] [--continuation-corpus <file>] [--base <ref>] [--out <file>]\n");
+      process.stdout.write("usage: node scripts/runtime-intelligence-report.cjs [--snapshot] [--advise] [--task <taskId>] [--sample <n>] [--evaluate] [--real-data] [--prospective] [--root <dataRoot>] [--data-root <dir>] [--skill-cards <file>] [--continuation-corpus <file>] [--base <ref>] [--out <file>]\n");
       process.exit(0);
     } else {
       fail(`unknown argument ${argument}`);
@@ -305,7 +306,7 @@ if (options) {
             workerRuntimeCases: corpus.records.filter((entry) => entry.atDecisionTime.elapsedMs > 0).length,
             toolsCases: corpus.records.filter((entry) => entry.atDecisionTime.toolCalls > 0 || entry.atDecisionTime.browserActions > 0).length,
             sessionAttributedSteps: corpus.records.filter((entry) => entry.atDecisionTime.workerSessions.length > 0).length,
-            note: "latency comes from the checkpoint's providerWaitMs and workerRuntimeMs; cost is recorded nowhere, so COST_CASES is 0 rather than estimated"
+            note: "latency is the checkpoint's own providerWaitMs when it is positive, and otherwise the createdAt->updatedAt interval of the single run that spans the step; a step spanned by several runs is refused rather than guessed, which is why LATENCY_CASES is smaller than the step count. cost is recorded by nothing, so COST_CASES is 0 rather than estimated"
           },
           benchmarks: {
             continuation: continuationMetrics,
@@ -358,6 +359,112 @@ if (options) {
         });
         report.evaluationFromRealData = rebuilt;
       }
+    }
+
+    if (options.prospective) {
+      // The prospective question, answered from data rather than from intent: which real tasks
+      // opened after the freeze, what the frozen policy would have advised on them, and whether
+      // that is enough to say anything. The window is materialised in memory — the report must not
+      // write window records, because a record the reporter wrote is not a record a task produced.
+      const registryModule = load("src/shared/runtime-intelligence/policy-registry.js");
+      const windowModule = load("src/shared/runtime-intelligence/prospective-window.js");
+      const io = load("electron/runtime-intelligence/replay-corpus-io.js");
+      const casesModule = load("electron/runtime-intelligence/replay-cases.js");
+      const storeModule = load("electron/runtime-intelligence/prospective-store.js");
+      const frozen = registryModule.frozenContinuationPolicy();
+      const planeRoot = serviceModule.runtimeIntelligenceRoot(options.root);
+      const store = new storeModule.ProspectiveWindowStore({ rootDir: path.join(planeRoot, "prospective") });
+
+      const survey = io.locateRealDataRoots({ repositoryRoot: ROOT });
+      const dataRoot = options.dataRoot ?? survey.recommended?.path;
+      const realTasks = dataRoot === undefined ? undefined : io.tasksOpenedSince(dataRoot, frozen.frozenAt ?? registryModule.CONTINUATION_V1_FROZEN_AT);
+
+      // Every real task's window, whether or not it qualifies, so the exclusion is counted rather
+      // than left implicit.
+      const records = [];
+      const rejected = [];
+      if (dataRoot !== undefined) {
+        const timestamps = io.realTaskTimestamps(dataRoot);
+        const exported = io.exportReplayCorpus({ dataRoot, exportedAt: new Date().toISOString() });
+        const replay = casesModule.continuationStepsFromCorpus(exported.corpus, { policy: frozen.policyId });
+        for (const task of timestamps.tasks) {
+          const steps = replay.steps.filter((step) => step.taskId === task.taskId);
+          if (steps.length === 0) {
+            rejected.push({ taskId: task.taskId, reason: "the task contributed no replayed step, so it has no advice to observe" });
+            continue;
+          }
+          const openResult = windowModule.openProspectiveRecord({ taskId: task.taskId, openedAt: task.createdAt });
+          if (!openResult.ok || openResult.record === undefined) {
+            rejected.push({ taskId: task.taskId, reason: openResult.problems.join("; ") });
+            continue;
+          }
+          let record = openResult.record;
+          let refused = false;
+          for (const step of steps) {
+            const appended = windowModule.appendProspectiveAdvisory(record, {
+              stepIndex: step.step,
+              decision: step.assessment.decision,
+              confidence: step.assessment.confidence,
+              capturedAt: task.createdAt
+            });
+            if (!appended.ok || appended.record === undefined) {
+              rejected.push({ taskId: task.taskId, reason: appended.problems.join("; ") });
+              refused = true;
+              break;
+            }
+            record = appended.record;
+          }
+          if (refused) continue;
+          const closed = windowModule.closeProspectiveRecord(record, {
+            closedAt: exported.corpus.provenance.exportedAt,
+            finalOutcome: steps[0].taskSucceeded === true ? "SUCCESS" : steps[0].taskSucceeded === false ? "FAILURE" : "UNKNOWN",
+            steps: steps.map((step) => ({ stepIndex: step.step, taskComplete: step.taskComplete, continuedAfterStep: step.observed === "CONTINUED" }))
+          });
+          if (!closed.ok || closed.record === undefined) {
+            rejected.push({ taskId: task.taskId, reason: closed.problems.join("; ") });
+            continue;
+          }
+          records.push(closed.record);
+        }
+      }
+
+      const metrics = windowModule.prospectiveMetrics(records);
+      const byClass = {};
+      for (const record of records) byClass[record.evidenceClass] = (byClass[record.evidenceClass] ?? 0) + 1;
+
+      report.prospective = {
+        policyRegistry: registryModule.policyRegistry().map((entry) => ({
+          policyId: entry.policyId,
+          policyHash: entry.policyHash,
+          policyArea: entry.policyArea,
+          status: entry.status,
+          frozenAtCommit: entry.frozenAtCommit ?? null,
+          frozenAtCorpusVersion: entry.frozenAtCorpusVersion ?? null
+        })),
+        frozenPolicy: { policyId: frozen.policyId, policyHash: frozen.policyHash, frozenAt: frozen.frozenAt ?? registryModule.CONTINUATION_V1_FROZEN_AT, frozenAtCommit: frozen.frozenAtCommit },
+        retrospectiveCorpusVersion: registryModule.RETROSPECTIVE_CORPUS_VERSION,
+        dataRoot: dataRoot ?? null,
+        realTasks,
+        // The window's own verdict, including the records it refused to count.
+        window: {
+          records: records.length,
+          byEvidenceClass: byClass,
+          rejected,
+          tasks: records.map((record) => ({ taskId: record.taskId, openedAt: record.openedAt, evidenceClass: record.evidenceClass, advisories: record.advisories.length })),
+          metrics
+        },
+        // The durable window the live path writes, which no task has written to yet.
+        liveWindowStore: store.status(),
+        capturePathAttached: false,
+        capturePathNote: "no runtime component constructs a ProspectiveWindowStore: the live task loop does not call the plane, so the durable window is instrumented and unit-tested but has no producer. Every prospective number in this report is therefore zero by absence of capture, not by absence of need.",
+        targets: windowModule.PROSPECTIVE_TARGETS,
+        stopSupportMinimum: windowModule.STOP_SUPPORT_MINIMUM,
+        blockers: [
+          "SKILL_USAGE: the real checkpoints carry no skill-shaped field at all, so no skill selection, mount or invocation is recorded anywhere the plane can read; SKILL_USAGE_CASES is 0 because the application does not capture it",
+          "COST: a web transport reports no cost and no field records one, so COST_CASES is 0 rather than estimated",
+          "PROSPECTIVE_CAPTURE: the frozen policy is observed only through replay of tasks that opened BEFORE the freeze, which classifies every one of them as RETROSPECTIVE_EVIDENCE"
+        ]
+      };
     }
 
     const text = `${JSON.stringify(report, null, 2)}\n`;

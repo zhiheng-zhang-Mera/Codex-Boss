@@ -165,6 +165,74 @@ export function locateRealDataRoots(options: LocateOptions): DataRootSurvey {
   return { candidates, ...(recommended === undefined ? {} : { recommended }), missing, explanation };
 }
 
+export interface RealTaskWindow {
+  dataRoot: string;
+  /** Whether `state.json` could be read at all. False means the counts below mean nothing. */
+  read: boolean;
+  totalTasks: number;
+  /** Tasks whose own `createdAt` is at or after the instant. This is the prospective count. */
+  openedSince: number;
+  taskIds: string[];
+  earliestOpenedAt: string | undefined;
+  latestOpenedAt: string | undefined;
+  reason?: string;
+}
+
+/**
+ * Every real task's own `createdAt`, as the application recorded it.
+ *
+ * A task with no parseable timestamp is counted in `undated` and left out of `tasks`, because a
+ * task that cannot be placed in time cannot be placed relative to a policy freeze either.
+ */
+export function realTaskTimestamps(dataRoot: string): { read: boolean; tasks: Array<{ taskId: string; createdAt: string }>; totalTasks: number; undated: number; reason?: string } {
+  const state = readJson<{ tasks?: Array<{ id?: string; createdAt?: string }> }>(path.join(dataRoot, "state.json"));
+  if (state === undefined) {
+    return { read: false, tasks: [], totalTasks: 0, undated: 0, reason: `state.json could not be read under ${dataRoot}, so the task timestamps are UNREADABLE rather than zero` };
+  }
+  const tasks = state.tasks ?? [];
+  const dated: Array<{ taskId: string; createdAt: string }> = [];
+  let undated = 0;
+  for (const task of tasks) {
+    const taskId = typeof task.id === "string" ? task.id : "";
+    const createdAt = typeof task.createdAt === "string" ? task.createdAt : "";
+    if (taskId === "" || !Number.isFinite(Date.parse(createdAt))) {
+      undated += 1;
+      continue;
+    }
+    dated.push({ taskId, createdAt });
+  }
+  return { read: true, tasks: dated, totalTasks: tasks.length, undated, ...(undated === 0 ? {} : { reason: `${undated} task(s) carry no parseable createdAt, so they cannot be placed in time` }) };
+}
+
+/**
+ * Counts the real tasks on this host that opened at or after an instant.
+ *
+ * The prospective question — "has any new real task run under the frozen policy?" — is answered
+ * from the application's own task timestamps rather than from the calendar or from an assumption
+ * that nothing new happened. A task whose timestamp is missing or unparseable is not counted as
+ * prospective: it cannot be shown to have opened after the freeze, and a task that cannot be
+ * placed in time cannot be evidence about a policy frozen at a known time.
+ */
+export function tasksOpenedSince(dataRoot: string, instant: string): RealTaskWindow {
+  const at = Date.parse(instant);
+  const empty = { dataRoot, read: false, totalTasks: 0, openedSince: 0, taskIds: [] as string[], earliestOpenedAt: undefined, latestOpenedAt: undefined };
+  if (!Number.isFinite(at)) return { ...empty, reason: `the instant ${JSON.stringify(instant)} does not parse, so no task can be placed relative to it` };
+  const survey = realTaskTimestamps(dataRoot);
+  if (!survey.read) return { ...empty, reason: survey.reason };
+  const times = survey.tasks.map((task) => task.createdAt).sort();
+  const qualifying = survey.tasks.filter((task) => Date.parse(task.createdAt) >= at);
+  return {
+    dataRoot,
+    read: true,
+    totalTasks: survey.totalTasks,
+    openedSince: qualifying.length,
+    taskIds: qualifying.map((task) => task.taskId).sort(),
+    earliestOpenedAt: times[0],
+    latestOpenedAt: times.at(-1),
+    ...(survey.reason === undefined ? {} : { reason: survey.reason })
+  };
+}
+
 /* ------------------------------------------------------------------ export */
 
 interface RawTask {
@@ -174,7 +242,8 @@ interface RawTask {
   mode?: string;
 }
 
-interface RawRun {
+/** A run as the application's `state.json` records it. Exported so a test can pin the mapping. */
+export interface RawRun {
   id: string;
   taskId: string;
   providerId: string;
@@ -239,6 +308,42 @@ export interface ExportResult {
   source: { tasks: number; runs: number; dispatchCheckpoints: number; checkpoints: number; bundles: number };
   redactedFields: string[];
   problems: string[];
+}
+
+/**
+ * The step's duration, from the two sources that actually recorded one.
+ *
+ * `usage.providerWaitMs` is the checkpoint's own figure and is preferred when it is a positive
+ * number. On this host's real corpus it is written as `0` at every checkpoint — the field exists
+ * but carries no measurement — so a positive requirement is what stops a `0` from being promoted
+ * into a measured duration of zero milliseconds.
+ *
+ * The fallback is the run interval: the application writes `createdAt` and `updatedAt` on every
+ * run, so a step whose captured time falls inside exactly one run's interval has a real duration
+ * derivable from the application's own clock. Both timestamps are read, both must parse, and the
+ * interval must be positive; a step covered by no interval, or by several, is `NOT_MEASURED` with
+ * the reason, because guessing which run produced it would be a fabricated attribution.
+ */
+export function stepLatencyOf(input: { capturedAt: string; providerWaitMs?: number; runs: readonly RawRun[] }): Measurement<number> {
+  if (input.providerWaitMs !== undefined && Number.isFinite(input.providerWaitMs) && input.providerWaitMs > 0) {
+    return measured(input.providerWaitMs, "checkpoint usage.providerWaitMs", input.capturedAt);
+  }
+  const at = Date.parse(input.capturedAt);
+  if (!Number.isFinite(at)) return notMeasured("the step's captured time does not parse, so no run interval can be matched to it");
+  const covering: Array<{ run: RawRun; durationMs: number }> = [];
+  for (const run of input.runs) {
+    const from = Date.parse(run.createdAt);
+    const to = Date.parse(run.updatedAt);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
+    if (at >= from && at <= to) covering.push({ run, durationMs: to - from });
+  }
+  if (covering.length === 1) {
+    return measured(covering[0].durationMs, `state.json runs[].createdAt->updatedAt (run ${covering[0].run.id} spans this step)`, input.capturedAt);
+  }
+  if (covering.length === 0) {
+    return notMeasured("the checkpoint recorded no positive provider wait time and no run interval on this task spans the step's captured time, so no duration was recorded");
+  }
+  return notMeasured(`${covering.length} run intervals span this step, so which run produced its duration cannot be decided`);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -388,7 +493,7 @@ export function exportReplayCorpus(options: ExportOptions): ExportResult {
         taskComplete: entry.observation.taskComplete,
         continuedAfterStep: entry.observation.continuedAfterStep,
         taskSucceeded: finalOutcome.status === "MEASURED" ? finalOutcome.value === "SUCCESS" : undefined,
-        measuredLatencyMs: (usage.providerWaitMs ?? 0) > 0 ? measured(usage.providerWaitMs as number, "checkpoint usage.providerWaitMs", entry.fact.capturedAt) : notMeasured("the checkpoint recorded no provider wait time for this step"),
+        measuredLatencyMs: stepLatencyOf({ capturedAt: entry.fact.capturedAt, ...(usage.providerWaitMs === undefined ? {} : { providerWaitMs: usage.providerWaitMs }), runs: taskRuns }),
         measuredCostUsd: notMeasured("a web transport exposes no cost, and the application does not record one"),
         failureDomain
       };

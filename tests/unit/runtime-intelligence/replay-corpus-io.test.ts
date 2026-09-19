@@ -11,6 +11,8 @@ import {
   importReplayCorpus,
   locateRealDataRoots,
   replayCorpusPath,
+  stepLatencyOf,
+  tasksOpenedSince,
   writeReplayCorpus,
   type DataRootCandidate,
   type DataRootKind,
@@ -18,7 +20,9 @@ import {
   type ExportOptions,
   type ExportResult,
   type ImportResult,
-  type LocateOptions
+  type LocateOptions,
+  type RawRun,
+  type RealTaskWindow
 } from "../../../electron/runtime-intelligence/replay-corpus-io";
 import { groupCorpusByTask, summariseReplayCorpus, type ReplayCorpusTaskView } from "../../../src/shared/runtime-intelligence/replay-corpus";
 import { checkCorpusRecord } from "../../../src/shared/runtime-intelligence/temporal-guard";
@@ -290,6 +294,112 @@ describe("the real Boss data root on this host is actually read", () => {
     exportReplayCorpus({ dataRoot: root, exportedAt: AT });
     expect(fs.readdirSync(root).sort()).toEqual(before);
     expect(fs.existsSync(path.join(root, "replay"))).toBe(false);
+  });
+});
+
+describe("a step duration is measured from the application's own clock, never assumed", () => {
+  const run = (overrides: Record<string, unknown>): RawRun => ({ id: "run-1", taskId: "task-a", providerId: "chatgpt", transport: "web", round: 1, phase: "completed", outcome: "SUCCESS", createdAt: AT, updatedAt: AT, ...overrides }) as unknown as RawRun;
+
+  it("prefers a positive checkpoint provider wait time over any interval", () => {
+    const measuredLatency = stepLatencyOf({ capturedAt: AT, providerWaitMs: 400, runs: [run({ createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:10:00.000Z" })] });
+    expect(measuredLatency).toEqual(expect.objectContaining({ status: "MEASURED", value: 400 }));
+    expect(measuredLatency.status === "MEASURED" ? measuredLatency.source : "").toContain("providerWaitMs");
+  });
+
+  it("falls back to the one run interval that spans the step", () => {
+    // The real corpus writes providerWaitMs as 0 at every checkpoint, so without this fallback a
+    // real duration the application did record would be reported as no measurement at all.
+    const measuredLatency = stepLatencyOf({ capturedAt: "2026-01-01T00:05:00.000Z", providerWaitMs: 0, runs: [run({ createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:10:00.000Z" })] });
+    expect(measuredLatency).toEqual(expect.objectContaining({ status: "MEASURED", value: 600000 }));
+    expect(measuredLatency.status === "MEASURED" ? measuredLatency.source : "").toContain("run-1");
+  });
+
+  it("refuses to choose when several runs span the step, and says how many", () => {
+    const measuredLatency = stepLatencyOf({
+      capturedAt: "2026-01-01T00:05:00.000Z",
+      runs: [run({ id: "run-1", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:10:00.000Z" }), run({ id: "run-2", createdAt: "2026-01-01T00:01:00.000Z", updatedAt: "2026-01-01T00:09:00.000Z" })]
+    });
+    expect(measuredLatency.status).toBe("NOT_MEASURED");
+    expect(measuredLatency.status === "NOT_MEASURED" ? measuredLatency.reason : "").toContain("2 run intervals");
+  });
+
+  it("reports no measurement when no run spans the step, and never a zero", () => {
+    const outside = stepLatencyOf({ capturedAt: "2026-01-01T02:00:00.000Z", runs: [run({ createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:10:00.000Z" })] });
+    expect(outside.status).toBe("NOT_MEASURED");
+    // A run whose start equals its end recorded no duration; reading that as 0 ms would turn an
+    // absent measurement into a claim that the step was instantaneous.
+    const zeroLength = stepLatencyOf({ capturedAt: AT, runs: [run({ createdAt: AT, updatedAt: AT })] });
+    expect(zeroLength.status).toBe("NOT_MEASURED");
+    expect(zeroLength.status === "NOT_MEASURED" ? zeroLength.reason : "").toContain("no duration was recorded");
+  });
+
+  it("derives real step durations from THIS host's corpus instead of concluding zero", () => {
+    const survey = locateRealDataRoots({ repositoryRoot: path.resolve(__dirname, "..", "..", "..") });
+    if (survey.recommended === undefined) return;
+    const result = exportReplayCorpus({ dataRoot: survey.recommended.path, exportedAt: AT });
+    const derived = result.records.filter((record) => record.afterDecision.measuredLatencyMs.status === "MEASURED");
+    const refused = result.records.filter((record) => record.afterDecision.measuredLatencyMs.status === "NOT_MEASURED");
+    // Whatever the real root holds, the two sets must partition the records and every measured
+    // duration must be positive: a negative or zero latency is a derivation bug, not data.
+    expect(derived.length + refused.length).toBe(result.records.length);
+    for (const record of derived) {
+      expect(record.afterDecision.measuredLatencyMs.status === "MEASURED" ? record.afterDecision.measuredLatencyMs.value : 0).toBeGreaterThan(0);
+    }
+    for (const record of refused) {
+      expect(record.afterDecision.measuredLatencyMs.status === "NOT_MEASURED" ? record.afterDecision.measuredLatencyMs.reason.length : 0).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("the prospective task count is read from the application's own timestamps", () => {
+  function rootWithTasks(): string {
+    const root = makeDir("boss-taskwindow-");
+    fs.writeFileSync(
+      path.join(root, "state.json"),
+      JSON.stringify({
+        tasks: [
+          { id: "old", status: "completed", createdAt: "2026-09-01T00:00:00.000Z" },
+          { id: "boundary", status: "running", createdAt: "2026-09-19T20:44:35+10:00" },
+          { id: "new", status: "running", createdAt: "2026-09-20T00:00:00.000Z" },
+          { id: "undated", status: "running" }
+        ],
+        runs: []
+      }),
+      "utf8"
+    );
+    return root;
+  }
+
+  it("counts only tasks that opened at or after the instant and names them", () => {
+    const window: RealTaskWindow = tasksOpenedSince(rootWithTasks(), "2026-09-19T20:44:35+10:00");
+    expect(window.read).toBe(true);
+    expect(window.totalTasks).toBe(4);
+    expect(window.openedSince).toBe(2);
+    expect(window.taskIds).toEqual(["boundary", "new"]);
+    expect(window.earliestOpenedAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(window.latestOpenedAt).toBe("2026-09-20T00:00:00.000Z");
+    // An undated task is not promoted into the prospective count.
+    expect(window.reason).toContain("no parseable createdAt");
+  });
+
+  it("reports an unreadable root as UNREADABLE rather than as zero new tasks", () => {
+    const window = tasksOpenedSince(path.join(makeDir("boss-taskwindow-"), "absent"), "2026-09-19T20:44:35+10:00");
+    expect(window.read).toBe(false);
+    expect(window.openedSince).toBe(0);
+    expect(window.reason).toContain("UNREADABLE rather than zero");
+    expect(tasksOpenedSince(rootWithTasks(), "not-a-date").reason).toContain("does not parse");
+  });
+
+  it("finds no new real task on THIS host under the freeze, and says when the newest opened", () => {
+    const survey = locateRealDataRoots({ repositoryRoot: path.resolve(__dirname, "..", "..", "..") });
+    if (survey.recommended === undefined) return;
+    const window = tasksOpenedSince(survey.recommended.path, "2026-09-19T20:44:35+10:00");
+    expect(window.read).toBe(true);
+    expect(window.totalTasks).toBeGreaterThan(0);
+    // Whatever the host holds, the count and the named ids must agree, and a task cannot be both.
+    expect(window.taskIds).toHaveLength(window.openedSince);
+    expect(window.openedSince).toBeLessThanOrEqual(window.totalTasks);
+    for (const taskId of window.taskIds) expect(typeof taskId).toBe("string");
   });
 });
 

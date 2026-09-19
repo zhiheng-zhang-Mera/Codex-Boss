@@ -86,6 +86,12 @@ which makes the decision visible in review.
 | `intelligence-store.ts` | durable storage: atomic JSON for derived state, append-only JSONL for logs |
 | `runtime-intelligence-service.ts` | `RuntimeIntelligenceService`, the facade that runs the loop |
 
+The two tables above are the round-1 module map and are not a complete list: rounds 3–5 added
+`replay-corpus.ts`, `temporal-guard.ts`, `step-completion.ts`, `context-contribution.ts`,
+`dispatch-attribution.ts`, `evaluation-report.ts`, `policy-registry.ts`, `prospective-window.ts` and
+their host counterparts (`replay-corpus-io.ts`, `replay-cases.ts`, `prospective-store.ts`). See
+§25–§27 for what each of those owns.
+
 ### Runnable report — `scripts/runtime-intelligence-report.cjs`
 
 `package.json` is a Root surface (CODEOWNERS owns it), so adding a `pnpm` script for this
@@ -327,6 +333,7 @@ Under `<dataRoot>/.boss/runtime-intelligence/` (see `runtimeIntelligenceRoot`):
 | `models.json` | atomic whole-file JSON, the capability ledger |
 | `nodes.json` | atomic whole-file JSON, bounded to `NODE_SNAPSHOT_HISTORY_LIMIT` snapshots per node |
 | `context-records.json` | atomic whole-file JSON, the context records |
+| `prospective-window.jsonl` | append-only, one `ProspectiveWindowRecord` per line; the last line for a window id is its current state |
 
 Nothing here is authoritative for anything else in Boss; every file is rebuildable from
 observed runs.
@@ -875,6 +882,139 @@ Unchanged at **LEVEL 2 — SHADOW COUNTERFACTUAL**. The correction changes what 
 says, not who acts on it: nothing interrupts a model, switches a model, routes a task, removes a
 skill or deletes knowledge, `READY_FOR_ASSISTED_EXECUTION_PROPOSAL` is still
 `INSUFFICIENT_EVIDENCE`, and the five-task corpus is far too small to justify more.
+
+## 27. Prospective validation (round 5, `RUNTIME_INTELLIGENCE_PROSPECTIVE_VALIDATION`)
+
+Round 4 improved the false-stop rate from 0.5 to 0.0 on the corpus that produced the fix. That is a
+retrospective result and can always be improved by looking again. This round answers the only
+question that can validate it — does it generalise to tasks the policy was never fitted to? — and
+answers it from data rather than by continuing to edit the policy.
+
+### A. The policy is frozen, with an identity
+
+`policy-registry.ts` gives every policy an id, a hash, a status and the commit and corpus version it
+was frozen against, so "which version performed how, on which data" is answerable later:
+
+```text
+continuation-policy-v0   RETIRED                             ee438080…d82a49
+continuation-policy-v1   FROZEN_FOR_PROSPECTIVE_VALIDATION  24aa8833…3cf053
+scheduler-policy-v0      FROZEN_FOR_PROSPECTIVE_VALIDATION  c6488ce4…e49a65
+skill-loadout-policy-v0  FROZEN_FOR_PROSPECTIVE_VALIDATION  78d8a1f7…266fe9
+confidence-policy-v0     FROZEN_FOR_PROSPECTIVE_VALIDATION  f05ac0e5…f3c23c
+frozen at commit 8b25f6a113f250d17bb90f67c585c9604db6efc2, 2026-09-19T20:44:35+10:00
+retrospective corpus version: retrospective-corpus-v1
+```
+
+The continuation hashes come from `continuationPolicyHash`, so the registry cannot disagree with the
+code that decides; the other three are fingerprinted from the constants that define them. A record
+whose hash does not match the registry is **refused rather than relabelled** — it was produced by
+different rules, and attributing it to this policy would be a false attribution.
+
+Four evidence identities are kept apart: `FROZEN_POLICY`, `CANDIDATE_POLICY`, `PROSPECTIVE_EVIDENCE`
+and `RETROSPECTIVE_EVIDENCE`. `classifyEvidence` decides from the clock, not from the label: a task
+that opened before the freeze is retrospective **whatever it claims**, and the retired baseline is
+never prospective evidence about the frozen policy.
+
+### B. The window, and three rules that make it evidence
+
+`prospective-window.ts` requires the ordering that makes prospective evidence worth anything:
+
+1. the policy hash is fixed when the task **opens**, before any outcome exists;
+2. an advisory is captured **before** the outcome — one appended afterwards is refused, because an
+   evaluator that can see the answer would score perfectly for the wrong reason;
+3. the outcome is appended once, and `closeProspectiveRecord` refuses a record whose stored hash no
+   longer matches the frozen policy — that is a policy changed mid-window, and such a record cannot
+   be attributed to either version (`NO_RETROACTIVE_POLICY_SELECTION`).
+
+`prospectiveMetrics` counts **only** `PROSPECTIVE_EVIDENCE` and says how many records it excluded.
+This matters: the real corpus is five tasks that all opened before the freeze, so scoring the frozen
+policy on them would have restated the retrospective result under a prospective heading and looked
+like validation.
+
+The frozen store `electron/runtime-intelligence/prospective-store.ts` keeps those rules across
+restarts as an append-only JSONL log.
+
+### C. What the data says about new tasks
+
+Read from the application's own timestamps, not assumed:
+
+```text
+data root            C:\Users\15601\AppData\Local\CodexBoss
+real tasks           5          earliest 2026-09-03T07:23:41.200Z
+new since the freeze 0          latest   2026-09-04T04:42:48.917Z
+window records       5          all RETROSPECTIVE_EVIDENCE
+window advisories    58         (one per real task-ledger checkpoint)
+window prospective   0 tasks, 0 steps, 0 STOP advisories
+```
+
+`NEW_REAL_TASKS = 0`, `NEW_CONTINUATION_STEPS = 0`, `PROSPECTIVE_RESULT = INSUFFICIENT_EVIDENCE`,
+`POLICY_CHANGED_DURING_WINDOW = NO`. The window's own note states the reason in words rather than
+leaving a reader to interpret a zero:
+
+> 5 record(s) in the window are not prospective evidence: their tasks opened before the freeze, so
+> they measure the policy's own corpus and are excluded from every figure below.
+
+No task was fabricated to fill the window, and the metric is reported as absent rather than as 1.0
+or 0.0. `READY_FOR_ASSISTED_EXECUTION_PROPOSAL = INSUFFICIENT_EVIDENCE`.
+
+### D. Latency: 0 → 15 real measurements, without inventing one
+
+Round 4 recorded `LATENCY_CASES = 0` because every checkpoint writes `usage.providerWaitMs` and
+`usage.workerRuntimeMs` as **zero**. The application nevertheless records `createdAt` and
+`updatedAt` on every run, so `stepLatencyOf` now derives a step's duration from the one run interval
+that spans it:
+
+- a **positive** `providerWaitMs` is preferred and named as the source;
+- otherwise the `createdAt → updatedAt` interval of the **single** run that spans the step is used;
+- a step spanned by **several** runs (27 of them) is refused, because choosing one would be a
+  fabricated attribution;
+- a step spanned by **none** (16) is `NOT_MEASURED` with the reason;
+- a run whose start equals its end recorded no duration, so it yields `NOT_MEASURED` and never a
+  `0 ms` claim that the step was instantaneous.
+
+```text
+58 steps: 15 MEASURED from a run interval · 27 refused as ambiguous · 16 with no covering run
+tokens 31 · tools 31 · session-attributed steps 53 · cost 0 (recorded by nothing)
+```
+
+The 15 are real measured durations from the application's own clock. The other 43 are still
+`NOT_MEASURED`, and the reason each one is absent is recorded beside it.
+
+### E. Skill usage remains structurally uncaptured
+
+Round 4 reported `SKILL_USAGE_CASES = 0` and left open whether that was a reader gap or a recording
+gap. It is a recording gap: **no real checkpoint carries any skill-shaped field at all** — no
+`skill`, no `mountedSkills`, no `usedSkills`, at the checkpoint level or inside `jobs`/`sessions`.
+The loadout evaluator therefore cannot be scored on real data, and `skill-loadout-policy-v0` is
+frozen with the algorithm untouched. `PRUNE_CANDIDATE != DELETE` still holds.
+
+### F. The capture path, stated as the blocker it is
+
+No runtime component constructs a `ProspectiveWindowStore`: the live task loop does not call the
+plane, so the durable window is instrumented and unit-tested but has no producer on this host. Every
+prospective number here is zero by **absence of capture**, not by absence of need, and that is the
+single change that would move this round forward. Per the phase brief's build-discipline rule, this
+round adds instrumentation, capture and tests rather than a new subsystem.
+
+### G. What was deliberately not done
+
+- No policy was edited. Not the continuation fallback, not a threshold, not the scheduler ranking —
+  all four policies are byte-identical to round 4 and their hashes prove it.
+- No calibration transform was fitted to five tasks. `confidence-policy-v0` is frozen unchanged.
+- No new task was invented, replayed as if new, or backdated to fall inside the window.
+- `decisionClassSupport` now derives the expected classes from the evaluator's own rule table
+  instead of a hand-written list of four, which had let a support statement read as complete while
+  ignoring `ASK_REVIEWER` and `RETRY_WITH_CONTEXT`.
+
+### Authority
+
+Unchanged at **LEVEL 2 — SHADOW COUNTERFACTUAL**. The window observes; it does not act. Nothing
+interrupts, switches, routes, removes or deletes, `productionRoutingAuthority` and
+`qualificationHostSelection` remain literal `false`, and `grantsExecutionAuthority` remains `false`.
+Milestones A–D of the standing instruction are all unreached: there is no new task data, no new
+severe false-stop pattern, no authority topology change, and no capture requirement that needs Root
+Trust.
+
 
 
 

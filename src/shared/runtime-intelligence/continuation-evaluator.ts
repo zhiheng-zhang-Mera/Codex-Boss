@@ -235,12 +235,24 @@ const RULES: readonly Rule[] = [
 ];
 
 /**
+ * Every decision the rules can emit, plus the fallback each policy falls back to.
+ *
+ * Derived from the rule table rather than hand-listed, so a rule added or removed changes the set
+ * a caller's class-support statement is measured against. A hand-written list of four decisions
+ * understated the classes this policy can produce, which would have let a support statement read
+ * as complete while ignoring two of them.
+ */
+export const CONTINUATION_DECISION_CLASSES: readonly string[] = [
+  ...new Set<string>([...RULES.map((rule) => rule.decision), ...Object.values(CONTINUATION_POLICY_FALLBACK)])
+].sort();
+
+/**
  * Evaluates continuation and returns a shadow assessment.
  *
- * When no rule fires — nothing unresolved, but the objective does not report complete
- * either — the advice is `STOP` with an explicit "the signals do not support continuing"
- * reason and a low confidence, rather than a `CONTINUE` that would spend more tokens on a
- * task with nothing left to do.
+ * When no rule fires the advice is the policy's own fallback: `continuation-policy-v0` fell back
+ * to STOP, `continuation-policy-v1` falls back to CONTINUE. The fallback is a decision like any
+ * other and carries its own reason, so an assessment that no rule decided is visible as such
+ * rather than looking like a rule that fired with low confidence.
  */
 export function evaluateContinuation(input: { signals: ContinuationSignals; at: string; sequence?: number; policy?: ContinuationPolicyId }): ContinuationAssessment {
   const { signals } = input;
