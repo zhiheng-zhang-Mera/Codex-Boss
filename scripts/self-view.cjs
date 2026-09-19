@@ -75,12 +75,19 @@ if (options) {
       } else {
         const previous = JSON.parse(fs.readFileSync(options.previous, "utf8"));
         const previousModel = previous.selfModel ?? previous;
-        const report = driftModule.selfModelDrift(previousModel, model, new Date().toISOString());
-        const text = `${JSON.stringify(report, null, 2)}\n`;
-        process.stdout.write(text);
-        if (options.out) {
-          fs.mkdirSync(path.dirname(options.out), { recursive: true });
-          fs.writeFileSync(options.out, text, "utf8");
+        // A stored SELF DESCRIPTION has counts, not the model: comparing against it would report
+        // every component as added, which is a wrong answer rather than a missing one.
+        if (!Array.isArray(previousModel.components) || !Array.isArray(previousModel.capabilities)) {
+          process.stderr.write(`${options.previous} is a self description, not a self model: write a model with --json --out and pass that\n`);
+          process.exitCode = 2;
+        } else {
+          const report = driftModule.selfModelDrift(previousModel, model, new Date().toISOString());
+          const text = `${JSON.stringify(report, null, 2)}\n`;
+          process.stdout.write(text);
+          if (options.out) {
+            fs.mkdirSync(path.dirname(options.out), { recursive: true });
+            fs.writeFileSync(options.out, text, "utf8");
+          }
         }
       }
       process.exit(process.exitCode ?? 0);
