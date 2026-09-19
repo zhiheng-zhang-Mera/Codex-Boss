@@ -102,6 +102,35 @@ export interface BoundaryFacts {
   changeClass: string;
 }
 
+/** One policy's measured outcome on one corpus subset. */
+export interface PolicyMeasurement {
+  policyId: string;
+  policyHash: string;
+  steps: number;
+  falseStopCount: number;
+  falseStopRate: number | undefined;
+  unnecessaryContinueRate: number | undefined;
+  weightedPenalty: number;
+  estimatedCallsSaved: number;
+}
+
+/**
+ * The baseline-versus-candidate comparison, kept apart from any claim about the future.
+ *
+ * `RETROSPECTIVE_IMPROVEMENT` and `PROSPECTIVE_VALIDATION` are different questions and this
+ * record refuses to merge them. An improvement measured on the corpus the policy was chosen
+ * against — even with a holdout carved out of it — is retrospective. Only new tasks the
+ * candidate was never fitted to can validate it prospectively, and those do not exist yet.
+ */
+export interface PolicyImprovementEvidence {
+  baseline: PolicyMeasurement;
+  candidate: PolicyMeasurement;
+  holdout?: { baseline: PolicyMeasurement; candidate: PolicyMeasurement; tasks: number; note: string };
+  retrospectiveImprovement: "YES" | "NO" | "INCONCLUSIVE";
+  prospectiveValidation: "YES" | "NO" | "INSUFFICIENT_EVIDENCE";
+  notes: string[];
+}
+
 export interface EvaluationInput {
   generatedAt: string;
   ingestion?: IngestionStats;
@@ -111,6 +140,7 @@ export interface EvaluationInput {
   calibration?: CalibrationReport;
   nodeTelemetry?: NodeTelemetryStats;
   storage?: PlaneStorageStats;
+  policyImprovement?: PolicyImprovementEvidence;
   /**
    * False when the recorded data cannot support a continuation replay — the loop's per-step
    * completion state is not recorded, so a false-stop rate cannot be computed from it.
@@ -144,6 +174,8 @@ export interface EvaluationReport {
   metrics: Record<EvaluationMetricKey, MetricValue>;
   questions: EvaluationQuestion[];
   gates: EvaluationGateResult[];
+  /** Baseline versus candidate, when a policy comparison was run. */
+  policyImprovement?: PolicyImprovementEvidence;
   notes: string[];
 }
 
@@ -376,6 +408,11 @@ export function buildEvaluationReport(input: EvaluationInput): EvaluationReport 
   const gates = evaluateGates(input);
   const notes: string[] = [];
   for (const gate of gates) if (!gate.passed) notes.push(`gate not met: ${gate.gate} (${gate.detail})`);
+  if (input.policyImprovement !== undefined) {
+    notes.push(`continuation policy comparison: ${input.policyImprovement.baseline.policyId} false-stop ${metric(input.policyImprovement.baseline.falseStopRate)} -> ${input.policyImprovement.candidate.policyId} ${metric(input.policyImprovement.candidate.falseStopRate)}`);
+    notes.push(`retrospective improvement is ${input.policyImprovement.retrospectiveImprovement}; prospective validation is ${input.policyImprovement.prospectiveValidation}`);
+    notes.push(...input.policyImprovement.notes);
+  }
   if (input.continuationReplayPossible === false) {
     notes.push("a real continuation replay is not possible from the recorded data: the loop's per-step completion state is not recorded, so a false-stop rate cannot be computed from it");
   }
@@ -402,6 +439,7 @@ export function buildEvaluationReport(input: EvaluationInput): EvaluationReport 
     metrics,
     questions: answeredQuestions(input),
     gates,
+    ...(input.policyImprovement === undefined ? {} : { policyImprovement: input.policyImprovement }),
     notes
   };
 }

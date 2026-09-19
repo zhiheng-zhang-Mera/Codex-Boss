@@ -780,4 +780,101 @@ The branch remains at level 2.
 - The five tasks are a chat/work corpus from one day in September; nothing here is a
   representative sample of Boss usage, and the report says so instead of implying otherwise.
 
+---
+
+## 26. Evidence-driven correction (round 4, `RUNTIME_INTELLIGENCE_EVIDENCE_DRIVEN_CORRECTION`)
+
+Round 3 measured a false-stop rate of 0.5 and refused to fix it, on the grounds that changing the
+fallback then would erase the measurement that proved it wrong. This round makes the change, and
+re-measures on the same corpus.
+
+### A. Why the evaluator stopped wrongly
+
+`evaluateContinuation` fell back to **STOP** when no rule fired, so a state the evaluator could
+not see produced its most expensive decision. The five errors were the five COMPILE checkpoints:
+`pendingSteps` is empty because the work list does not exist yet, every other signal is
+unmeasured, no rule fired — and the policy said STOP about a task with all its work still to do.
+
+### The correction, as semantics rather than cases
+
+- **STOP requires positive evidence.** `continuation.objective-complete` now needs
+  `taskComplete === true` — the loop's own statement that the objective is finished — instead of
+  "nothing unresolved and progress at 1", which an empty work list satisfies trivially.
+  `ContinuationSignals` gains `taskComplete` and `pendingWork`, with `UNKNOWN` deliberately
+  distinct from `NONE`.
+- **The no-rule fallback is CONTINUE.** `UNKNOWN != COMPLETE`, `NO_SIGNAL != STOP`, and the
+  evaluator's own measured asymmetry — a false stop costs 5, an unnecessary continue 1 — makes
+  continuing the cheaper error to be wrong about. The assessment records
+  `continuation.no-positive-evidence` with that reason.
+- **No rule mentions a phase, a task id or COMPILE.** The change is to absence and completion
+  semantics, which is what the anti-overfit requirement asks for.
+
+### Policy versioning, so the baseline stays re-measurable
+
+The old behaviour is kept runnable as `continuation-policy-v0`; the correction is
+`continuation-policy-v1` and is the default. `CONTINUATION_POLICY_FALLBACK` and
+`CONTINUATION_POLICY_STOP_EVIDENCE` state the difference as data, every assessment carries
+`policyId` and a `policyHash` over its rules and thresholds, and tests keep both policies pinned.
+A baseline that can only be remembered cannot be compared against.
+
+### Re-measured on the same corpus, with a task-level holdout
+
+```text
+                       baseline v0          candidate v1
+full corpus (58 steps) rate 0.5  pen 25     rate 0.0  pen 0
+dev   (3 tasks, 22)    rate 0.5  pen 15     rate 0.0  pen 0
+holdout (2 tasks, 36)  rate 0.5  pen 10     rate 0.0  pen 0
+unnecessary continue   0 in both            calls saved 5 in both
+```
+
+The split is **BY TASK**, not by step: the steps of one task are correlated, so a step-level
+split would put the same task on both sides and hold nothing out. The holdout's outcomes were
+not read while choosing the policy, and the improvement holds there. That makes it
+`RETROSPECTIVE_IMPROVEMENT = YES` and `PROSPECTIVE_VALIDATION = INSUFFICIENT_EVIDENCE` — only new
+tasks the candidate was not chosen against can validate it prospectively, and none exist yet.
+
+The `false-stop-rate-low` gate (≤ 2%) now **passes**; it was the decisive failure in round 3. The
+candidate still advises STOP on the genuinely finished steps and saves the same five calls, so
+the fix removed the errors without removing the value.
+
+### B. Which provider did each step actually use?
+
+The first version used the task's first run provider for every step and reported 31 of those as
+31 dispatch decisions. The real data already had the answer: each checkpoint records its worker
+`sessions[]`, and each session names the provider runtime it belongs to. A step with three
+sessions is three dispatch decisions, not one ambiguity.
+
+`dispatch-attribution.ts` orders five sources from direct evidence to a stated fallback —
+`DIRECT_CHECKPOINT` (1), `RUN_MATCH` (0.8), `SESSION_MATCH` (0.6), `TASK_FALLBACK` (0.2),
+`UNKNOWN` (0) — and the census states that a fallback must not be reported as per-dispatch
+evidence and that a corpus with no direct attribution cannot support a per-dispatch benchmark.
+
+```text
+134 attributions: 129 DIRECT_CHECKPOINT · 2 TASK_FALLBACK · 3 UNKNOWN
+6 providers:      chatgpt, qwen, gemini, grok, kimi, doubao
+scheduler cases:  131 (129 direct)   — was 31 task-level approximations
+SCHEDULER_LIFT_DIRECT = 0
+```
+
+The lift is still 0, and now for a stated reason rather than an attribution artefact: every
+dispatched run in this corpus succeeded, so the followed and overall success rates are both 1.0
+and there is no variance for the advisor to beat a baseline on. That is an honest
+`INSUFFICIENT_EVIDENCE` about discrimination — **and it is not a licence to tune the ranking**,
+which this round does not do.
+
+### C. Latency and cost: a recording blocker, not an estimation problem
+
+The checkpoint schema carries `usage.providerWaitMs` and `usage.workerRuntimeMs`, and every real
+checkpoint has both at **zero**; cost is recorded nowhere at all. So `LATENCY_CASES = 0` and
+`COST_CASES = 0`, documented as a blocker against the application's recording path.
+`tokenCases = 31` and `toolsCases = 31` do exist. Nothing is estimated to fill the gap.
+
+### Authority
+
+Unchanged at **LEVEL 2 — SHADOW COUNTERFACTUAL**. The correction changes what the shadow advice
+says, not who acts on it: nothing interrupts a model, switches a model, routes a task, removes a
+skill or deletes knowledge, `READY_FOR_ASSISTED_EXECUTION_PROPOSAL` is still
+`INSUFFICIENT_EVIDENCE`, and the five-task corpus is far too small to justify more.
+
+
 

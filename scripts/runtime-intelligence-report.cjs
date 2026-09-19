@@ -315,11 +315,29 @@ if (options) {
 
         // The report is rebuilt with the real benchmarks substituted in, so its readiness gates
         // and metrics rest on the real corpus rather than on the plane's own empty store.
+        const measureSummary = (entry) => ({ policyId: entry.policyId, policyHash: entry.policyHash, steps: entry.steps, falseStopCount: entry.falseStopCount, falseStopRate: entry.falseStopRate, unnecessaryContinueRate: entry.unnecessaryContinueRate, weightedPenalty: entry.weightedPenalty, estimatedCallsSaved: entry.estimatedCallsSaved });
+        const improvement = policyComparison === undefined ? undefined : {
+          baseline: measureSummary(policyComparison.full.baseline),
+          candidate: measureSummary(policyComparison.full.candidate),
+          ...(policyComparison.holdout === undefined ? {} : { holdout: { baseline: measureSummary(policyComparison.holdout.baseline), candidate: measureSummary(policyComparison.holdout.candidate), tasks: policyComparison.split.holdoutTasks, note: policyComparison.split.note } }),
+          retrospectiveImprovement: (() => {
+            const before = policyComparison.full.baseline.falseStopRate;
+            const after = policyComparison.full.candidate.falseStopRate;
+            if (before === undefined || after === undefined) return "INCONCLUSIVE";
+            if (after < before) return "YES";
+            return after === before ? "NO" : "NO";
+          })(),
+          prospectiveValidation: "INSUFFICIENT_EVIDENCE",
+          notes: [
+            "the candidate was chosen from the defect the corpus measured and re-run on the SAME corpus, so the improvement is retrospective",
+            "prospective validation needs new tasks the candidate was not chosen against, and none exist yet"
+          ]
+        };
         const rebuilt = reportModule.buildEvaluationReport({
           generatedAt: new Date().toISOString(),
-          ...(options.dataRoot === undefined ? {} : { ingestion: undefined }),
           scheduler: schedulerMetrics,
           ...(continuationMetrics === undefined ? {} : { continuation: continuationMetrics }),
+          ...(improvement === undefined ? {} : { policyImprovement: improvement }),
           nodeTelemetry: {
             rawSamples: nodeLog.status().storedSamples,
             afterCompaction: nodeLog.status().afterCompaction,

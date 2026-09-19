@@ -16,7 +16,9 @@ import {
   type EvaluationReport,
   type IngestionStats,
   type MetricValue,
-  type PlaneStorageStats
+  type PlaneStorageStats,
+  type PolicyImprovementEvidence,
+  type PolicyMeasurement
 } from "../../../src/shared/runtime-intelligence/evaluation-report";
 import { RuntimeIntelligenceService, type EvaluationBundle, type EvaluationBundleInput } from "../../../electron/runtime-intelligence/runtime-intelligence-service";
 import { benchmarkScheduler as benchmarkSchedulerRaw, type ReplayCase } from "../../../src/shared/runtime-intelligence/scheduler-benchmark";
@@ -334,5 +336,26 @@ describe("the required metrics are all present and honest", () => {
     input.ingestion = { considered: 10, ingested: 5, charged: 2, refused: 3, domains: { MODEL: 2 }, degraded: ["telemetry could not be read: bad row"], sources: [{ name: "telemetry", present: true, records: 5, degradedReason: "bad row" }] };
     const report = buildEvaluationReport(input);
     expect(report.notes.join(" ")).toContain("ingestion was degraded");
+  });
+
+  it("separates a retrospective improvement from a prospective validation", () => {
+    const baseline: PolicyMeasurement = { policyId: "continuation-policy-v0", policyHash: "b".repeat(64), steps: 58, falseStopCount: 5, falseStopRate: 0.5, unnecessaryContinueRate: 0, weightedPenalty: 25, estimatedCallsSaved: 5 };
+    const candidate: PolicyMeasurement = { policyId: "continuation-policy-v1", policyHash: "c".repeat(64), steps: 58, falseStopCount: 0, falseStopRate: 0, unnecessaryContinueRate: 0, weightedPenalty: 0, estimatedCallsSaved: 5 };
+    const improvement: PolicyImprovementEvidence = {
+      baseline,
+      candidate,
+      holdout: { baseline: { ...baseline, steps: 36 }, candidate: { ...candidate, steps: 36 }, tasks: 2, note: "split by task" },
+      retrospectiveImprovement: "YES",
+      prospectiveValidation: "INSUFFICIENT_EVIDENCE",
+      notes: ["only new tasks can validate the candidate prospectively"]
+    };
+    const report = buildEvaluationReport({ generatedAt: AT, boundary, policyImprovement: improvement });
+    expect(report.policyImprovement?.retrospectiveImprovement).toBe("YES");
+    expect(report.policyImprovement?.prospectiveValidation).toBe("INSUFFICIENT_EVIDENCE");
+    expect(report.policyImprovement?.holdout?.tasks).toBe(2);
+    expect(report.notes.join(" ")).toContain("false-stop 0.5 -> continuation-policy-v1 0");
+    expect(report.notes.join(" ")).toContain("only new tasks can validate");
+    // A report with no comparison omits the section rather than inventing one.
+    expect(buildEvaluationReport({ generatedAt: AT, boundary }).policyImprovement).toBeUndefined();
   });
 });
