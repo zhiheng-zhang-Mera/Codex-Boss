@@ -304,6 +304,39 @@ before being recorded. They are in scope for Phase 06 Task B.
 | **Target / revisit phase** | Phase 08 (external qualification). Re-open only if a real external change with genuinely self-contained evidence is refused. |
 | **Last reviewed SHA** | `a9f788a29d2d042062a6d70f31f3e673924e610f` |
 
+## PF-DEBT-016 — the real-host qualification cannot be transported while the repository is public
+
+| Field | Value |
+| --- | --- |
+| **ID** | `PF-DEBT-016` |
+| **Title** | Phase B2/B3: a self-hosted qualification runner cannot be attached to this repository, because it is PUBLIC |
+| **Discovered phase** | Stabilization Phase 01 (Root Trust Authority Lockdown / Real Host Qualification, Part B) |
+| **Status** | `ENVIRONMENT-BLOCKED` |
+| **Severity** | `HIGH` for the qualification goal (the platform cannot be qualified while it stands), `NONE` for the product — nothing is bypassed and nothing is faked |
+| **Affected capability** | `runtime` (platform qualification) |
+| **Evidence / source** | `node scripts/verify-authority-separation.cjs --platform`: `visibility=public`, and the verdict `selfHostedRunnerSafe: false` with findings `PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER` and `REQUIRED_CHECK_NOT_PRODUCED:validate`. Measured corpus on the real host: **71 380 files / 550.0 MiB** (`.codex-boss` 7, `artifacts` 69 165, `runtime-data` 2 118, `history` 90), commitment digest `e2eaba810e659f90dfb120a766260ed0fd4ea721168bcf907d2dbbc3d865c29c`; a GitHub-hosted runner sees a handful of files against the Phase 04 invariant of over 1000. |
+| **Why it is blocked rather than deferred** | A self-hosted runner is registered for the WHOLE repository, and no workflow-level guard can bind it to a single workflow. On a public repository, untrusted workflow files can name its labels, which is exactly what Phase B3 forbids ("禁止不受信任代码自动落到此 runner"). With 0 forks and one collaborator the risk today is small; "small" is not the Owner's threshold, and attaching a runner that processes real host data is not a thing to do quietly to keep a task moving. |
+| **What is already built and refusing** | The real-host lane exists (`runs-on: [self-hosted, windows, boss-real-soak, boss-qualification]`), fails closed on the wrong ref, the wrong runner class and a HEAD that is not `origin/main`, measures corpus quiescence either side of the Phase 04 gate, uploads only a REDACTED aggregate from `${{ runner.temp }}`, and now runs `--platform --require-self-hosted-safe` as its FIRST step — so it refuses to start on an unsafe platform and would flip by itself if the repository became private. `tests/unit/root-trust-authority-lockdown.test.ts` asserts all of that. |
+| **What would close it** | An Owner decision on transport: (1) make the repository private; (2) host the runner in a separate PRIVATE repository that checks this one out read-only; (3) keep qualification as an Owner-run local procedure, which — per the prohibition on substituting local runs for formal workflow attestation — may NOT be presented as `BOSS_PLATFORM_QUALIFIED` evidence. |
+| **Pinned by** | The `--platform` guard step in `.github/workflows/platform-qualification.yml`, the four lane guards and the platform verdict assertions in `tests/unit/root-trust-authority-lockdown.test.ts`, and `--platform --require-self-hosted-safe` exiting 1 on a public repository (verified locally with and without `gh` on PATH). |
+| **Last reviewed SHA** | `e4ca3e39593289288b610e27f7c6f235d1b252a7` |
+
+## PF-DEBT-017 — the Phase 05 soak gate's short-run premise depends on runner state
+
+| Field | Value |
+| --- | --- |
+| **ID** | `PF-DEBT-017` |
+| **Title** | `platform-soak-report.test.ts` requires a short soak's trend to EXCEED the long-run allowance, which is a property of the machine rather than of the gate |
+| **Discovered phase** | Stabilization Phase 01 (CI work, promoted-main verification) |
+| **Status** | `OPEN` |
+| **Severity** | `MEDIUM` — a flaky frozen gate turns `main` red for no real reason, and a red build hides every other signal |
+| **Affected capability** | `runtime` (Phase 05 gate 6) |
+| **Evidence / source** | `Desktop CI` run 35417327632 (`main`, `test:postbuild`) failed with `AssertionError: expected true to be false` at `tests/acceptance/platform-soak-report.test.ts:111` — `report.bounds.trendWithinLongRunAllowance` expected `false`, observed `true`. The SAME commit was green in run 35415974897 minutes earlier, and green again on re-run (35417327632 → success). Not caused by the CI restructuring, which was green on that commit. |
+| **Why it happens** | The test asserts the generator REFUSES to certify a short run, on the stated premise that "a short run is all warmup, so its trend genuinely exceeds the published allowance". That premise is a measurement of the host: on a quieter or faster runner the sampled RSS/heap trend can land inside the allowance, at which point the gate's refusal path is never exercised and the assertion fails although the generator behaved correctly. |
+| **Why it is not fixed here** | `tests/acceptance/**` is Root Trust Surface (`PLAN_SECTION_3_ROOT_TRUST_PATHS`), so any change to it is a Class 2/3 change requiring Owner authorisation and an epoch migration. Changing a frozen Phase 05 gate to chase a green run is precisely what the lockdown forbids doing unilaterally. |
+| **What would close it** | An Owner choice among: (a) make the premise GUARANTEED rather than observed (run long enough, or induce a measurable load) so the refusal path is always exercised; (b) assert the refusal against a synthetic over-allowance input while keeping a separate, non-flaky assertion that the real measurement path runs; (c) an explicit bounded retry with the flake recorded. (a) and (b) are gate-design changes and must go through the Owner-authorised path in `docs/root-trust-authority-model.md` §4. |
+| **Last reviewed SHA** | `e4ca3e39593289288b610e27f7c6f235d1b252a7` |
+
 ## Review log
 
 | Reviewed at SHA | Phase | Entries added | Entries closed |
