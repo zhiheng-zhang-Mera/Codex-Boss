@@ -186,99 +186,17 @@ describe("Phase 05 Task E — the platform accepts 10× its own capability set",
 });
 
 // ---------------------------------------------------------------------------------------------------
-// Task E / gate 5: 100k+ durable events
+// Task E / gate 5: transaction atomicity at volume
+//
+// The 100k durable-event scale case used to live in this file. It was EXTRACTED — unchanged — to
+// `tests/unit/platform/durable-event-real-host-scale.test.ts`, which runs under the `REAL_HOST_SCALE`
+// execution tier, because the cost of 100k durable appends is a property of the machine's storage stack
+// rather than of the product (PF-DEBT-019, `docs/pf-debt-019-gate-tiering-proposal.md`). What stays here
+// is the atomicity evidence a shared hosted runner can decide deterministically; the contract itself is
+// shared with the scale case through `tests/helpers/durable-event-contract.ts`, so the two cannot drift.
 // ---------------------------------------------------------------------------------------------------
 
-const EVENTS = 100_000;
-
-describe("Phase 05 Task E / gate 5 — 100k durable events stay consistent", () => {
-  it("appends 100k events with monotone sequences, no duplicates and no loss", () => {
-    const handle = open(tempRoot("boss-scale-journal-"));
-    const journal = createEventJournal(handle);
-    const AGGREGATES = 500;
-
-    const startedAt = Date.now();
-    for (let index = 0; index < EVENTS; index++) {
-      const result = journal.append({
-        type: index % 5 === 0 ? "TASK_STATE_CHANGED" : "WORKER_COMPLETED",
-        aggregateId: `task-${index % AGGREGATES}`,
-        producer: "scale-test",
-        idempotencyKey: `k-${index}`,
-        payload: { index, bucket: index % 97 },
-        createdAt: AT
-      });
-      // No duplicate and nothing quarantined: the append path must not start refusing under volume.
-      if (result.duplicate) throw new Error(`event ${index} was reported as a duplicate on first write`);
-    }
-    const appendMillis = Date.now() - startedAt;
-
-    const stats = journal.stats();
-    expect(stats.events).toBe(EVENTS);
-    expect(stats.maxSequence).toBe(EVENTS);
-    expect(stats.quarantined, "an event was quarantined during a clean write sequence").toBe(0);
-    expect(journal.head()).toBe(EVENTS);
-
-    // Sequence monotonicity across the whole journal, and a durable id on every row.
-    const seenIds = new Set<string>();
-    let previousSequence = 0;
-    let read = 0;
-    for (;;) {
-      const batch = journal.read(previousSequence, 5000);
-      if (batch.length === 0) break;
-      for (const event of batch) {
-        expect(event.sequence).toBeGreaterThan(previousSequence);
-        previousSequence = event.sequence;
-        expect(seenIds.has(event.id), `durable id ${event.id} appears twice`).toBe(false);
-        seenIds.add(event.id);
-        read++;
-      }
-    }
-    expect(read).toBe(EVENTS);
-    expect(seenIds.size).toBe(EVENTS);
-
-    // Per-aggregate ordering is ascending, which is what a replay depends on.
-    const aggregateEvents = journal.forAggregate("task-0");
-    expect(aggregateEvents.length).toBe(EVENTS / AGGREGATES);
-    for (let index = 1; index < aggregateEvents.length; index++) {
-      expect(aggregateEvents[index].sequence).toBeGreaterThan(aggregateEvents[index - 1].sequence);
-    }
-
-    // Idempotency holds at scale: replaying a sample re-uses the row rather than adding one.
-    for (const index of [0, 1, 12_345, 50_000, EVENTS - 1]) {
-      const replay = journal.append({
-        type: "WORKER_COMPLETED", aggregateId: `task-${index % AGGREGATES}`, producer: "scale-test",
-        idempotencyKey: `k-${index}`, payload: { index, bucket: index % 97 }, createdAt: AT
-      });
-      expect(replay.duplicate, `event ${index} was appended twice on replay`).toBe(true);
-      expect(replay.event.sequence).toBe(index + 1);
-    }
-    expect(journal.stats().events).toBe(EVENTS);
-
-    // Durability: the counts survive a close and reopen of the same database file. This is the
-    // property a soak depends on — 100k events accepted into WAL but never committed would look
-    // identical to 100k events durably stored until the process that could tell them apart exits.
-    const root = dbRoots.get(handle);
-    expect(root, "the test lost track of the database root").toBeTruthy();
-    handle.close();
-    handles.splice(handles.indexOf(handle), 1);
-    const reopened = open(root as string);
-    const reopenedJournal = createEventJournal(reopened);
-    expect(reopenedJournal.stats().events).toBe(EVENTS);
-    expect(reopenedJournal.head()).toBe(EVENTS);
-    expect(reopenedJournal.bySequence(EVENTS)?.idempotencyKey).toBe(`k-${EVENTS - 1}`);
-
-    // Recorded, not asserted as a budget: the book's priority at scale is correctness.
-    expect(appendMillis).toBeGreaterThan(0);
-    // The budget below is a TIME BUDGET, not part of the gate — which is what the line above says: the
-    // book's priority at scale is correctness. It exists only so a slow durable write path is allowed to
-    // finish instead of being killed mid-work. Measured: ~94s as a file on a developer host, whose append
-    // loop is about 74s; on the GitHub runner (`Desktop CI` run 35332380560) the same test hit the previous
-    // 300s ceiling and was killed, and the runner's fsync-bound I/O is what dominates — `synchronous=1`
-    // makes each checkpoint fsync a growing file, which is the curve Task F's soak exists to trend, so the
-    // durability setting is NOT relaxed to flatter this number. 600s is ~2x the observed overrun: enough
-    // for a slower disk, still short enough that a genuine hang fails rather than hanging for an hour.
-  }, 600_000);
-
+describe("Phase 05 Task E / gate 5 — a failed transaction leaves nothing behind, at volume", () => {
   it("keeps a rolled-back transaction out of the journal, at scale", () => {
     // The book's gate 5 asks for no consistency error at volume. The sharpest consistency property
     // the state core offers is that a failed transaction leaves the journal untouched: if a rollback

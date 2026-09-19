@@ -1073,6 +1073,22 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/platform/durable-event-correctness.test.ts",
+      "tier": "unit",
+      "covers": [
+        "state-core"
+      ],
+      "obligation": "the durable-event contract — durability across close/reopen, strictly monotone sequence, no loss or repeat across a paged readback, per-aggregate ordering, the UNIQUE(producer, idempotency_key) contract returning the ORIGINAL durable row, stats/head and rollback atomicity — holds at a bounded volume a shared hosted runner can decide, which is correctness evidence and explicitly NOT the 100k scale claim"
+    },
+    {
+      "file": "tests/unit/platform/durable-event-real-host-scale.test.ts",
+      "tier": "unit",
+      "covers": [
+        "state-core"
+      ],
+      "obligation": "100 000 durable events appended one commit at a time into a real database file, verified across a close and reopen: the scale claim, owned by the REAL_HOST_SCALE execution tier and executed by the private real-host control plane rather than by any workflow in this public repository"
+    },
+    {
       "file": "tests/unit/platform/external-compatibility.test.ts",
       "tier": "unit",
       "covers": [
@@ -1134,7 +1150,7 @@
       "covers": [
         "state-core"
       ],
-      "obligation": "the platform holds at 10x its capability set and at 100k durable events without inconsistency or cross-project contamination"
+      "obligation": "the platform holds at 10x its capability set without inconsistency or cross-project contamination, and a failed transaction at volume leaves the journal untouched"
     },
     {
       "file": "tests/unit/platform/state-ownership.test.ts",

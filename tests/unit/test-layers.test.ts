@@ -10,6 +10,8 @@ import {
   POSTBUILD_TESTS,
   PUSH_CI_FORBIDDEN_REQUIREMENTS,
   QUALIFICATION_REQUIREMENTS,
+  REAL_HOST_SCALE_TESTS,
+  REAL_HOST_SCALE_TEST_FILES,
   SLOW_ACCEPTANCE_TESTS,
   SLOW_ACCEPTANCE_TEST_FILES,
   TEST_TIERS
@@ -438,20 +440,96 @@ describe("Phase N — the declared test layers", () => {
     const slow = (await import("../../vitest.slow.config.mjs")).default;
     const postbuild = (await import("../../vitest.postbuild.config.mjs")).default;
     const qualification = (await import("../../vitest.qualification.config.mjs")).default;
+    const realHostScale = (await import("../../vitest.real-host-scale.config.mjs")).default;
     expect(slow.test?.include).toEqual(slowFiles());
     expect(postbuild.test?.include).toEqual(BUILD_DEPENDENT_TESTS);
     // The qualification tier has its own configuration, and it must carry exactly the declared suites:
     // a suite that fell out of both tiers would run nowhere, which is the failure this whole split risks.
     expect(qualification.test?.include).toEqual(PLATFORM_QUALIFICATION_TEST_FILES);
     expect(PLATFORM_QUALIFICATION_TEST_FILES.length).toBeGreaterThan(0);
+    // The REAL_HOST_SCALE execution tier has its own configuration for the same reason, and `maxWorkers: 1`
+    // is part of it: a scale measurement taken under parallel load is not the measurement it claims to be.
+    expect(realHostScale.test?.include).toEqual(REAL_HOST_SCALE_TEST_FILES);
+    expect(REAL_HOST_SCALE_TEST_FILES.length).toBeGreaterThan(0);
+    expect(realHostScale.test?.maxWorkers).toBe(1);
+    expect(realHostScale.test?.fileParallelism).toBe(false);
     // The default tier is "everything except the declared groups", and its
     // include has to still cover every suite the layers describe.
     expect(unit.test?.include).toEqual(["tests/**/*.test.ts"]);
-    for (const file of [...pushCiFiles(), ...PLATFORM_QUALIFICATION_TEST_FILES]) {
+    for (const file of [...pushCiFiles(), ...PLATFORM_QUALIFICATION_TEST_FILES, ...REAL_HOST_SCALE_TEST_FILES]) {
       expect(unit.test?.exclude, `${file} is not excluded from the default tier`).toContain(file);
     }
-    // The three declared groups partition cleanly: no suite is in two of them.
-    const all = [...slowFiles(), ...BUILD_DEPENDENT_TESTS, ...PLATFORM_QUALIFICATION_TEST_FILES];
+    // The declared groups partition cleanly: no suite is in two of them.
+    const all = [...slowFiles(), ...BUILD_DEPENDENT_TESTS, ...PLATFORM_QUALIFICATION_TEST_FILES, ...REAL_HOST_SCALE_TEST_FILES];
     expect(new Set(all).size, "a suite is declared in more than one tier").toBe(all.length);
+  });
+
+  /**
+   * PF-DEBT-019: `REAL_HOST_SCALE` is an EXECUTION tier, and it is a different thing from the qualification
+   * tier. Both are run by the private real-host control plane; they prove different evidence and must not be
+   * merged into one list to save a declaration.
+   *
+   * The qualification tier's meaning is machine-enforced in the tier test above: a qualification suite must
+   * genuinely depend on qualification-generated evidence (a phase artifact, a full-suite pairing record, an
+   * accumulated host corpus). The real-host scale case requires NONE of that — it needs a machine whose
+   * storage is controlled — so putting it in `PLATFORM_QUALIFICATION_TESTS` would have been a lie, and adding
+   * a fake producer reference to force it through would have been a worse one. This test pins the distinction
+   * in both directions, and pins the public repository's inability to run the tier at all.
+   */
+  it("keeps the real-host-scale tier distinct from qualification, and unreachable from every public workflow", () => {
+    // 1. It names real files, and every entry says why it exists, how much work it does and where it runs.
+    expect(REAL_HOST_SCALE_TEST_FILES.length).toBeGreaterThan(0);
+    for (const file of REAL_HOST_SCALE_TEST_FILES) {
+      expect(fs.existsSync(path.join(PROJECT, file)), `real-host-scale names a missing suite: ${file}`).toBe(true);
+    }
+    for (const [file, declaration] of Object.entries(REAL_HOST_SCALE_TESTS)) {
+      const entry = declaration as { because?: string; events?: number; budgetMs?: number; runsOn?: string } & Record<string, unknown>;
+      expect(entry.because, `${file} declares no reason to be in this tier`).toBeTruthy();
+      expect(entry.events, `${file} declares no scale volume`).toBeGreaterThan(0);
+      expect(entry.budgetMs, `${file} declares no budget`).toBeGreaterThan(0);
+      expect(entry.runsOn, `${file} does not say where it is allowed to run`).toBeTruthy();
+      // It must NOT wear qualification clothing: no declared qualification prerequisite, no producer.
+      expect("requires" in entry, `${file} declares qualification requirements while sitting in the real-host-scale tier`).toBe(false);
+      expect("producer" in entry, `${file} names a qualification producer while sitting in the real-host-scale tier`).toBe(false);
+    }
+
+    // 2. It is in no other execution group, and no other group claims it. This is the half that makes the
+    //    tier boundary real rather than decorative: a file duplicated into the slow tier would still be run
+    //    by hosted CI, and PF-DEBT-019 would be back.
+    for (const file of REAL_HOST_SCALE_TEST_FILES) {
+      expect(slowFiles(), `${file} is also declared in the slow tier`).not.toContain(file);
+      expect(BUILD_DEPENDENT_TESTS, `${file} is also declared in the postbuild tier`).not.toContain(file);
+      expect(PLATFORM_QUALIFICATION_TEST_FILES, `${file} is falsely classified as a qualification suite`).not.toContain(file);
+    }
+
+    // 3. The scale claim is still made, at the volume and budget PF-DEBT-019 is about — and both are declared
+    //    here, so shrinking either is a visible edit rather than a quiet one.
+    expect(REAL_HOST_SCALE_TEST_FILES).toContain("tests/unit/platform/durable-event-real-host-scale.test.ts");
+    const scale = REAL_HOST_SCALE_TESTS["tests/unit/platform/durable-event-real-host-scale.test.ts" as keyof typeof REAL_HOST_SCALE_TESTS];
+    expect(scale.events).toBe(100_000);
+    expect(scale.budgetMs).toBe(600_000);
+    const scaleSource = fs.readFileSync(path.join(PROJECT, "tests/unit/platform/durable-event-real-host-scale.test.ts"), "utf8");
+    expect(scaleSource, "the real-host scale case no longer appends 100k events").toContain("const EVENTS = 100_000;");
+    expect(scaleSource, "the real-host scale budget moved; PF-DEBT-019 was closed by moving the case, not by raising it").toContain("}, 600_000);");
+
+    // 4. The hosted required CI keeps the CONTRACT at a bounded volume, and says plainly which claim it is not.
+    const correctnessSource = fs.readFileSync(path.join(PROJECT, "tests/unit/platform/durable-event-correctness.test.ts"), "utf8");
+    expect(correctnessSource, "the hosted contract case no longer names the tier that owns the 100k claim")
+      .toContain("The 100k claim is owned by `REAL_HOST_SCALE`");
+    expect(correctnessSource, "the bounded hosted case must not append 100k events").toContain("const EVENTS = 10_000;");
+    expect(/100_000\s*;/.test(correctnessSource), "the bounded hosted case declares the scale volume").toBe(false);
+
+    // 5. NO workflow in this PUBLIC repository may run the tier, asserted against step lines over every
+    //    workflow file. Same rule as the qualification tier, for the same reason: the public repository
+    //    cannot schedule evidence that belongs to the controlled host.
+    const workflows = workflowNames();
+    expect(workflows.length).toBeGreaterThan(0);
+    for (const name of workflows) {
+      const executed = steps(fs.readFileSync(path.join(PROJECT, WORKFLOW_DIR, name), "utf8"));
+      expect(executed.includes("test:real-host-scale"),
+        `${name} executes the real-host-scale tier, which belongs to the private control plane`).toBe(false);
+      expect(executed.includes("vitest.real-host-scale.config.mjs"),
+        `${name} names the real-host-scale config directly, which is the same thing by another route`).toBe(false);
+    }
   });
 });

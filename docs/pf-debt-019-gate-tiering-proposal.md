@@ -99,3 +99,39 @@ It is not a proposal to raise the timeout *instead of* fixing the code — the c
 round, before anyone reached for the budget. It is not a licence to weaken the case. And it is not a decision:
 `PF-DEBT-019` stays `OPEN` until the Owner chooses, or until enough hosted observations accumulate that the
 slowest one carries a real margin.
+
+## 6. OWNER DECISION (recorded after the fact, not retro-fitted)
+
+```text
+OWNER DECISION
+
+OPTION_A = REJECTED
+OPTION_B_AS_WRITTEN = NOT_AUTHORIZED
+OWNER_SELECTED = OPTION_B_PRIME_REAL_HOST_SCALE_TIER
+```
+
+**Why A was rejected.** The four observations recorded in §1 are of materially identical code, so the
+remaining variance is the shared host's durable filesystem/WAL behaviour rather than product signal. Making
+every push and pull request wait up to ~18 minutes for that environment was judged the wrong merge contract —
+and the proposed budget would still have been an engineering judgement over a 1.68× spread, not a bound.
+
+**Why B as written was not authorized.** B's architectural direction was accepted — the 100k host-scale
+evidence must leave the hosted required merge gate and run on the controlled real host — but implementing it
+by inserting the suite into `PLATFORM_QUALIFICATION_TESTS` was rejected, because that tier has a narrower,
+machine-enforced meaning: a qualification suite must genuinely depend on qualification-generated evidence
+(phase artifacts, a real full-suite pairing record, an accumulated host corpus). The 100k durable-event case
+requires none of those. It is host-scale evidence, and a different evidence class deserves its own declaration
+rather than a borrowed one — including the temptation to add a fake producer reference to force it through the
+qualification tier's classifier.
+
+**Selected: B′ — a distinct `REAL_HOST_SCALE` execution tier.** Declared in `vitest.tiers.mjs` as
+`REAL_HOST_SCALE_TESTS` / `REAL_HOST_SCALE_TEST_FILES`, run by `vitest.real-host-scale.config.mjs` through
+`pnpm run test:real-host-scale`, and executed by the same private real-host control plane as the qualification
+tier while remaining a SEPARATE evidence class. It is an EXECUTION tier, not a ninth layer: `LAYER_VOCABULARY`
+stays the book's eight names and a suite in this tier still belongs to its normal primary/nature taxonomy. The
+hosted required CI keeps a bounded correctness case for the same contract
+(`tests/unit/platform/durable-event-correctness.test.ts`), and no workflow in this public repository may run
+the scale tier — asserted by `tests/unit/test-layers.test.ts` rather than trusted.
+
+Sections 1–5 are left exactly as they were proposed. B′ is not one of them, and this section does not pretend
+it was.

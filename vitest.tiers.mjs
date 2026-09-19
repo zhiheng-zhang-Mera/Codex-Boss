@@ -96,8 +96,8 @@ export const SLOW_ACCEPTANCE_TESTS = {
   // instead. Relaxing `synchronous` would have flattered this number and broken Task F's target.
   "tests/unit/platform/scale-synthetic.test.ts": {
     kind: "in-process",
-    measured: "~94s as a file locally (~74s appending 100k events; 10k-band curve 0.22 → 0.88 ms/event); exceeded its own 300s budget on the hosted runner and was given 600s, see the note in the file",
-    because: "writes 100k real events and 100k real state writes into a real database; no process is started, but the cost is the storage engine's"
+    measured: "1.33s as a file (3 tests) now that the 100k durable-event case has been extracted to the REAL_HOST_SCALE tier; it was ~94s as a file (~74s of it appending 100k events) while that case lived here, and it stays declared in this tier rather than being moved for neatness",
+    because: "still writes real events and real state writes into a real database — rollback atomicity at 2 000 writes and four coexisting projects — so no process is started, but the cost is the storage engine's"
   },
   // Phase 05 Task F / gate 6. Runs the whole platform lifecycle repeatedly — state transactions
   // including a deliberate failure and its unattended recovery, event append and cursor replay,
@@ -225,7 +225,8 @@ export const TEST_TIERS = {
   unit: { layers: ["unit", "acceptance", "desktop", "integration", "migration", "recovery", "adversarial"], describe: "pnpm test — the signal a developer waits for." },
   slow: { layers: ["integration", "acceptance"], describe: "pnpm run test:slow — suites that compile and execute real projects." },
   postbuild: { layers: ["acceptance", "integration"], describe: "pnpm run test:postbuild — suites that read the real build output and need nothing else, so a clean push runner satisfies them." },
-  qualification: { layers: ["acceptance", "integration", "soak"], describe: "pnpm run test:platform-qualification — frozen Foundation gates that additionally need generated phase artifacts, a real full-suite pairing record, or a host corpus accumulated by real soak runs. Run on the real soak host by the qualification workflow in the separate private control repository (Boss-Qualification-Control), never by push CI and never by any workflow in this repository." }
+  qualification: { layers: ["acceptance", "integration", "soak"], describe: "pnpm run test:platform-qualification — frozen Foundation gates that additionally need generated phase artifacts, a real full-suite pairing record, or a host corpus accumulated by real soak runs. Run on the real soak host by the qualification workflow in the separate private control repository (Boss-Qualification-Control), never by push CI and never by any workflow in this repository." },
+  "real-host-scale": { layers: ["unit"], describe: "pnpm run test:real-host-scale — the REAL_HOST_SCALE execution tier: suites whose contract is deterministic but whose required SCALE makes their cost depend on host-local storage, so a shared hosted runner cannot decide them honestly. Run on the real soak host by the private control-plane workflow, as a SEPARATE evidence class from the platform-qualification tier; never by push CI and never by any workflow in this repository." }
 };
 
 /**
@@ -384,3 +385,45 @@ export const PLATFORM_QUALIFICATION_TESTS = {
 
 /** The suite paths in the platform-qualification tier, for the config that needs a list. */
 export const PLATFORM_QUALIFICATION_TEST_FILES = Object.keys(PLATFORM_QUALIFICATION_TESTS);
+
+/**
+ * The REAL_HOST_SCALE execution tier (PF-DEBT-019).
+ *
+ * An EXECUTION tier, not a layer: a suite here still belongs to its normal primary/nature taxonomy
+ * (`tests/unit/**` is the `unit` primary layer), and `LAYER_VOCABULARY` stays the book's eight names. What
+ * this tier declares is a different question — WHERE the suite's cost can honestly be paid:
+ *
+ *   tests whose correctness contract is deterministic,
+ *   but whose required SCALE makes their execution cost
+ *   materially dependent on host-local storage / hardware
+ *   and therefore unsuitable as a shared hosted-runner merge gate.
+ *
+ * This is NOT the platform-qualification tier, and the distinction is machine-enforced by
+ * `tests/unit/test-layers.test.ts` in both directions: a qualification suite must genuinely depend on
+ * qualification-generated evidence (phase artifacts, a full-suite pairing record, an accumulated real-host
+ * corpus), and the suite below requires NONE of those. It also must not be smuggled into that tier by adding
+ * a fake producer reference, which is why it is declared here instead.
+ *
+ * Measured, not assumed: the 100k durable-event case took 326 718 / 442 269 / 543 823 / 548 153 ms on four
+ * GitHub-hosted runners with IDENTICAL code — a 1.68x spread against a 600 s budget. The contract is
+ * deterministic; the cost is the machine's storage stack. The public repository therefore does NOT execute
+ * this tier at all: no workflow in `.github/workflows/` may run `test:real-host-scale`, which
+ * `tests/unit/test-layers.test.ts` asserts across every workflow file. The private real-host control plane
+ * runs it, together with the qualification tier, as a SEPARATE evidence class.
+ *
+ * The same contract machinery is exercised on every push by
+ * `tests/unit/platform/durable-event-correctness.test.ts` at a bounded volume, so the merge gate keeps the
+ * correctness evidence while the scale claim moves to a machine whose storage is controlled.
+ */
+export const REAL_HOST_SCALE_TESTS = {
+  "tests/unit/platform/durable-event-real-host-scale.test.ts": {
+    events: 100_000,
+    budgetMs: 600_000,
+    because:
+      "appends 100 000 durable events one commit at a time into a real database file and verifies them across a close and reopen; the contract is deterministic but the cost is the storage stack's, measured at a 1.68x spread across four hosted runners against a 600 s budget",
+    runsOn: "the private real-host control plane (test:real-host-scale), never a hosted runner and never a workflow in this public repository"
+  }
+};
+
+/** The suite paths in the real-host-scale execution tier, for the config that needs a list. */
+export const REAL_HOST_SCALE_TEST_FILES = Object.keys(REAL_HOST_SCALE_TESTS);
