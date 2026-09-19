@@ -83,12 +83,19 @@ export type ModelCapabilityDimension = (typeof MODEL_CAPABILITY_DIMENSIONS)[numb
 export interface CapabilityEstimate {
   /** 0..1 for quality dimensions, 0..1 normalised for latency/cost (1 = cheapest/fastest). */
   score: number;
-  /** 0..1. `confidenceFor` derives this from `samples + priorWeight`. */
+  /** 0..1. `confidenceFor` derives this from `samples`. */
   confidence: number;
   /** Real outcomes folded into this dimension. */
   samples: number;
   /** Remaining prior pseudo-samples. Falls to 0 as `samples` grows. */
   priorWeight: number;
+  /**
+   * Sum of the weights actually folded in. Below `samples` whenever an outcome was
+   * down-weighted as anomalous, which is what keeps one outlier from dominating.
+   */
+  observedWeight: number;
+  /** Numerator of the observed mean: the sum of `weight * observedValue`. */
+  observedWeightedValue: number;
   updatedAt: string;
 }
 
@@ -151,7 +158,12 @@ export interface ModelCapabilityRecord {
   lastSeen: string;
   declaredCapabilities: string[];
   warmStartSources: WarmStartSource[];
-  /** True until real outcomes outnumber the injected prior. */
+  /**
+   * True while at least one dimension's estimate is still dominated by its prior.
+   *
+   * A model that has been measured hard on `coding` is still warm-started on `latency`
+   * if latency was never observed, which is exactly the distinction this flag keeps.
+   */
   warmStarted: boolean;
   scores: ModelCapabilityScores;
   taskTypePerformance: Record<string, ModelTaskTypePerformance>;

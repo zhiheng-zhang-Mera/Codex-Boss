@@ -115,7 +115,7 @@ describe("identity helpers", () => {
 });
 
 describe("every record can be built from its declared fields", () => {
-  const estimate: CapabilityEstimate = { score: 0.7, confidence: 0.4, samples: 3, priorWeight: 2, updatedAt: AT };
+  const estimate: CapabilityEstimate = { score: 0.7, confidence: 0.4, samples: 3, priorWeight: 2, observedWeight: 3, observedWeightedValue: 2.1, updatedAt: AT };
   const scores = Object.fromEntries(MODEL_CAPABILITY_DIMENSIONS.map((dimension) => [dimension, estimate])) as ModelCapabilityScores;
   const dimension: ModelCapabilityDimension = "coding";
   const warmStart: WarmStartSource = "FAMILY_PRIOR";

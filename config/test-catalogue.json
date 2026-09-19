@@ -1375,6 +1375,20 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/model-ledger.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/skill-loadout.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/telemetry.test.ts",
       "tier": "unit",
       "covers": [
