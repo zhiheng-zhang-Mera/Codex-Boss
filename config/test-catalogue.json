@@ -1446,6 +1446,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/replay-corpus.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/scheduler-benchmark.test.ts",
       "tier": "unit",
       "covers": [
