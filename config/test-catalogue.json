@@ -1353,6 +1353,35 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/runtime-intelligence/authority-boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion",
+        "security"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/contracts.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/measurement.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/telemetry.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-paths.test.ts",
       "tier": "unit",
       "covers": [
