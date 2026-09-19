@@ -236,6 +236,11 @@
 /scripts/verify-targeted-vs-full.cjs       @zhiheng-zhang-Mera
 /scripts/qualification-*.cjs               @zhiheng-zhang-Mera
 
+# The lockdown's own tooling: the Stage A proposal generator, and the harness that measures whether the
+# Boss credential is really weaker than the Owner's.
+/scripts/trust-migration-proposal.cjs      @zhiheng-zhang-Mera
+/scripts/verify-authority-separation.cjs   @zhiheng-zhang-Mera
+
 
 # ============================================================================
 # Root invariant

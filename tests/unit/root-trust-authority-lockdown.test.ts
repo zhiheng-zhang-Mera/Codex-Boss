@@ -351,3 +351,24 @@ describe("Root Trust Authority Lockdown — break-glass stays external (A11)", (
     expect(decideAuthorityAction({ actor: AUTONOMOUS, action: "authorize-owner-authority" }).decision).toBe("DENY");
   });
 });
+
+describe("Root Trust Authority Lockdown — the separation harness is itself verified (A4)", () => {
+  it("proves the four verdicts offline, and reports UNPROVEN rather than a fake pass without a credential", () => {
+    const script = path.join(PROJECT, "scripts/verify-authority-separation.cjs");
+    // The instrument that measures `worker authority < owner authority` must be part of the boundary…
+    expect(isComponentPartOfTrustBoundary("scripts/verify-authority-separation.cjs")).toBe(true);
+    expect(decideAuthorityAction({ actor: AUTONOMOUS, action: "change", files: ["scripts/verify-authority-separation.cjs"] }).decision).toBe("REQUIRE_OWNER");
+
+    // …and its own classification table must be exercised, or "proven" would be a word rather than a result.
+    const selfCheck = spawnSync(process.execPath, [script, "--self-check"], { cwd: PROJECT, encoding: "utf8" });
+    expect(selfCheck.status, `${selfCheck.stdout}${selfCheck.stderr}`).toBe(0);
+    expect(selfCheck.stdout).toContain("self-check passed");
+
+    // Live mode with no Boss credential configured: a safe STATUS, exit 0 — never a fake PROVEN, and never
+    // a spurious failure. This is the state the repository is actually in today.
+    const live = spawnSync(process.execPath, [script], { cwd: PROJECT, encoding: "utf8", env: { ...process.env, CODEX_BOSS_GITHUB_TOKEN: "", BOSS_GITHUB_TOKEN: "" } });
+    expect(live.status).toBe(0);
+    expect(live.stdout).toContain("UNPROVEN_NO_CREDENTIAL");
+    expect(live.stdout).not.toContain("AUTHORITY_SEPARATION_PROVEN");
+  });
+});

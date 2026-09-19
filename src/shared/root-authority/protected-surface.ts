@@ -164,7 +164,13 @@ export const ROOT_PROTECTED_MANIFEST: readonly string[] = [
   "/vitest.tiers.mjs",
   "/vitest.*.config.mjs",
   "/scripts/verify-targeted-vs-full.cjs",
-  "/scripts/qualification-*.cjs"
+  "/scripts/qualification-*.cjs",
+
+  // The lockdown's own tooling: the Stage A proposal generator and the harness that measures whether
+  // the Boss credential is really weaker than the Owner's. A protection whose measuring instrument is
+  // editable by the actor it measures is not a protection.
+  "/scripts/trust-migration-proposal.cjs",
+  "/scripts/verify-authority-separation.cjs"
 ];
 
 export interface ProtectedSurfaceOptions {
