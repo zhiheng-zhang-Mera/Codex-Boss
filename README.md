@@ -186,22 +186,35 @@ Standalone smoke verification uses an isolated data directory:
   tier (`pnpm test`), the current-build tier (`pnpm run test:postbuild`) and the slow tier
   (`pnpm run test:slow`), plus the portable package and the attested acceptance chain. Green there means
   "this commit typechecks, builds and passes the tiers that need nothing but the checkout".
-  **`Platform Qualification`** (`.github/workflows/platform-qualification.yml`, `workflow_dispatch`) runs
-  the frozen Phase 01-05 gates that need MORE than a clean checkout — generated phase artifacts, a real
-  full-suite pairing record, and a host corpus accumulated by real soak runs. It generates each
-  prerequisite with its own official generator first (`architecture:snapshot` → `state:migration-report`
-  → `capability:surface` → `data:lifecycle-report` → `platform:certificate` → `verify:targeted`) and then
-  runs `pnpm run test:platform-qualification`. It also checks the trust epoch anchor explicitly
-  (`node scripts/acceptance-evolution-bless.cjs --check`), so a blocked soak step cannot hide it. The full
-  graduation gate (`pnpm run acceptance:autonomous-evolution`) runs in `Desktop CI`'s acceptance chain,
-  because a Root Trust change advances the epoch in the SAME commit and CI is the run that certifies it.
-  Those gates are never skipped, and no threshold was lowered for CI: if the corpus cannot be produced
-  honestly the qualification run is red and says so.
+  **`Platform Qualification (hosted status)`** (`.github/workflows/platform-qualification.yml`,
+  `workflow_dispatch`) is the public HOSTED DIAGNOSTIC lane. It does not run the frozen Phase 01-05 gates and
+  cannot: those gates need MORE than a clean checkout — generated phase artifacts, a real full-suite pairing
+  record, and a host corpus accumulated by real soak runs. The lane reports that honestly in its step summary
+  (`HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST` / `BLOCKED_BY_REAL_SOAK_EVIDENCE`), running the Phase 04 generator
+  to SHOW its refusal rather than hiding it, and it deliberately contains no `runs-on: [self-hosted, …]` job:
+  a dead lane does not fail, it waits.
+  The real qualification runs on the real soak host, whose runner is registered to the independent **private**
+  repository `zhiheng-zhang-Mera/Boss-Qualification-Control`. That repository holds the qualification
+  workflow: `workflow_dispatch`-only, main-only, resolving the candidate as a 40-hex SHA that must equal this
+  repository's `origin/main`, checking it out detached, snapshotting the real corpus read-only, then generating
+  each declared prerequisite with its own official generator (`architecture:snapshot` →
+  `state:migration-report` → `capability:surface` → `data:lifecycle-report` → `platform:certificate` →
+  `verify:targeted`) before running `pnpm run test:platform-qualification`. It also checks the trust epoch
+  anchor explicitly (`node scripts/acceptance-evolution-bless.cjs --check`), so a blocked soak step cannot hide
+  it. This repository holds **zero** self-hosted runners (`gh api repos/…/Codex-Boss/actions/runners` → 0):
+  a runner is registered for a whole repository, and on a PUBLIC repository untrusted workflow files could
+  name its labels.
+  The full graduation gate (`pnpm run acceptance:autonomous-evolution`) runs in `Desktop CI`'s acceptance
+  chain, because a Root Trust change advances the epoch in the SAME commit and CI is the run that certifies
+  it. Those gates are never skipped, and no threshold was lowered: if the corpus cannot be produced honestly
+  the qualification run is red and says so.
   GitHub CI 在每个 push 上运行 typecheck / 测试 / build / benchmark / portable 打包 / portable 冒烟 /
   restart 冒烟（此前 `9-7`、`9-8` 全绿；2026-09-09 合并后 `main` 成为收口主干）。
   平台 Foundation 的 Phase 01–05 资格门需要 clean checkout 无法诚实提供的证据（生成的 phase artifact、
-  真实 full-suite pairing 记录、长期 soak 累积的宿主 corpus），因此它们属于 `Platform Qualification`
-  工作流（`workflow_dispatch`），不是 push CI 的一部分；这些门的断言、阈值与 fail-closed 行为均未改动。
+  真实 full-suite pairing 记录、长期 soak 累积的宿主 corpus），因此它们只在私有控制仓库
+  `Boss-Qualification-Control` 的真实 soak 宿主上运行（`workflow_dispatch`，候选必须是本仓库
+  `origin/main` 的精确 SHA，detached checkout），不再由本仓库的公开工作流承载，也不属于 push CI；
+  这些门的断言、阈值与 fail-closed 行为均未改动。
   仓库同时提供 seeded-bug 自主修复验收脚本（`pnpm run test:seeded`）。
 - Branch consolidation: `9-3` through `9-8-overcomplete` were merged into `main` in development
   order on 2026-09-09 (see [Update-Log](Update-Log.md)); older date branches stay on the remote as

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
 import {
   AUTHORITY_MODEL,
@@ -356,35 +357,69 @@ describe("Root Trust Authority Lockdown — the qualification lane cannot be rea
   const WORKFLOW_DIR = path.join(PROJECT, ".github/workflows");
   const workflows = fs.readdirSync(WORKFLOW_DIR).filter((name) => name.endsWith(".yml"));
 
-  it("routes the real-soak labels from exactly one workflow, and uploads no corpus", () => {
-    const usingRealSoak = workflows.filter((name) => fs.readFileSync(path.join(WORKFLOW_DIR, name), "utf8").includes("boss-real-soak"));
-    expect(usingRealSoak, `only the qualification workflow may target the Owner's host, found: ${usingRealSoak.join(", ")}`).toEqual(["platform-qualification.yml"]);
-
-    const workflow = fs.readFileSync(path.join(WORKFLOW_DIR, "platform-qualification.yml"), "utf8");
-    const executed = workflow.split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join("\n");
-
-    // The real-host job fails closed on the wrong ref, the wrong runner class, and the wrong commit.
-    for (const guard of ["refs/heads/main", "QUALIFICATION_REQUIRES_REAL_SOAK_HOST", "QUALIFICATION_REQUIRES_MAIN_HEAD", "QUALIFICATION_REQUIRES_LABEL"]) {
-      expect(executed.includes(guard), `the real-host lane no longer fails closed on ${guard}`).toBe(true);
+  it("holds no public real-host dispatch surface, and uploads no corpus", () => {
+    // This repository is PUBLIC and holds NO runner. No job here may be schedulable on the real soak host:
+    // the runner is registered to the private control plane, and a lane left behind would not fail — it would
+    // wait, which is worse. The check is structural (`runs-on`), because labels also appear legitimately in
+    // the documentation that points at the control plane.
+    for (const name of workflows) {
+      const text = fs.readFileSync(path.join(WORKFLOW_DIR, name), "utf8");
+      const document = parseYaml(text) as { jobs?: Record<string, Record<string, unknown>>; on?: Record<string, unknown> } | null;
+      for (const [jobId, job] of Object.entries(document?.jobs ?? {})) {
+        const runsOn = job["runs-on"];
+        const labels = Array.isArray(runsOn) ? runsOn.map(String) : [String(runsOn)];
+        for (const label of labels) {
+          expect(label, `${name}#${jobId} is schedulable on a self-hosted runner`).not.toBe("self-hosted");
+          expect(["boss-real-soak", "boss-qualification"], `${name}#${jobId} names a real-soak runner label`).not.toContain(label);
+        }
+        // No input may exist that could become a shell channel or an arbitrary ref.
+        const dispatch = (document?.on ?? {}) as Record<string, unknown>;
+        const inputs = ((dispatch.workflow_dispatch ?? {}) as { inputs?: Record<string, unknown> }).inputs ?? {};
+        for (const input of Object.keys(inputs)) {
+          expect(["command", "script", "args", "shell", "checkout_url", "url", "ref", "runner"], `${name} accepts a dangerous dispatch input: ${input}`).not.toContain(input);
+        }
+      }
+      // Untrusted triggers stay out of the QUALIFICATION lanes. `Desktop CI` deliberately runs on push and
+      // pull_request on GitHub-hosted runners with `contents: read`; that is ordinary CI, not a lane that can
+      // reach the Owner's host.
+      if (name !== "ci.yml") {
+        const executed = text.split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join("\n");
+        expect(/^ {2}pull_request(_target)?:/m.test(executed), `${name} runs on pull requests`).toBe(false);
+        expect(/^ {2}push:/m.test(executed), `${name} runs on push`).toBe(false);
+      }
     }
-    // Untrusted triggers stay out: no push, no pull_request in an executed line.
-    expect(/^\s{2}pull_request:/m.test(executed), "the qualification workflow must not run on pull requests").toBe(false);
-    expect(/^\s{2}push:/m.test(executed), "the qualification workflow must not run on push").toBe(false);
 
-    // The upload may only take the redacted evidence directory, which lives OUTSIDE every corpus root.
-    const uploadBlock = executed.slice(executed.indexOf("upload-artifact"));
-    expect(uploadBlock.includes("runner.temp"), "the upload must come from the runner temp directory").toBe(true);
-    const uploadPaths = uploadBlock.split(/\r?\n/).filter((line) => /path:/.test(line) || /runner\.temp/.test(line)).join("\n");
-    for (const corpusRoot of ["artifacts/", "runtime-data", "history/", ".codex-boss"]) {
-      expect(uploadPaths.includes(corpusRoot), `the upload path block mentions the corpus root ${corpusRoot}`).toBe(false);
+    // The hosted lane keeps stating the truth rather than claiming a qualification it cannot perform, and it
+    // points at the architecture that can.
+    const hosted = fs.readFileSync(path.join(WORKFLOW_DIR, "platform-qualification.yml"), "utf8");
+    for (const marker of ["HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST", "BLOCKED_BY_REAL_SOAK_EVIDENCE", "Boss-Qualification-Control"]) {
+      expect(hosted.includes(marker), `the hosted lane no longer states ${marker}`).toBe(true);
     }
 
-    // The evidence itself is produced in redacted mode.
-    expect(executed.includes("--redacted"), "the provenance written for upload must be redacted").toBe(true);
+    // Nothing in this repository uploads a corpus root, or everything beneath one. A narrow generated
+    // evidence file is fine (the trust-migration proposal lives under artifacts/platform-foundation/trust/);
+    // a corpus root is not, because that is the Owner's real host state.
+    const CORPUS_ROOTS = ["artifacts", "runtime-data", "history", ".codex-boss"];
+    for (const name of workflows) {
+      const document = parseYaml(fs.readFileSync(path.join(WORKFLOW_DIR, name), "utf8")) as { jobs?: Record<string, { steps?: Array<{ with?: Record<string, unknown> }> }> } | null;
+      for (const [jobId, job] of Object.entries(document?.jobs ?? {})) {
+        for (const step of job.steps ?? []) {
+          const pathValue = step.with?.path;
+          if (typeof pathValue !== "string") continue;
+          for (const entry of pathValue.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)) {
+            const normalized = entry.replace(/\\/g, "/").replace(/\$\{\{[^}]*\}\}\/?/g, "").replace(/^\.\//, "");
+            for (const root of CORPUS_ROOTS) {
+              const uploadsCorpusRoot = normalized === root || normalized === `${root}/` || normalized.startsWith(`${root}/**`);
+              expect(uploadsCorpusRoot, `${name}#${jobId} uploads the corpus root ${root}: ${entry}`).toBe(false);
+            }
+          }
+        }
+      }
+    }
 
-    // B3 is enforced at run time, not remembered: the lane refuses to run where a self-hosted runner is
-    // unsafe (a public repository), by measuring the platform rather than trusting whoever installed it.
-    expect(executed.includes("--require-self-hosted-safe"), "the real-host lane no longer refuses an unsafe platform").toBe(true);
+    // The platform guard remains the instrument that proves the public repository must not host a runner,
+    // and it is asserted below against the real platform.
+    expect(fs.existsSync(path.join(PROJECT, "scripts/verify-authority-separation.cjs"))).toBe(true);
 
     // And the platform verdict itself is a measured fact.
     const platform = spawnSync(process.execPath, [path.join(PROJECT, "scripts/verify-authority-separation.cjs"), "--platform", "--json"], { cwd: PROJECT, encoding: "utf8" });

@@ -18,7 +18,9 @@ import { BUILD_DEPENDENT_TESTS } from "./vitest.tiers.mjs";
  * Every entry declares `requires: ["build"]` and nothing more, which is the claim this tier makes and
  * the claim a clean push runner can honour. Suites that need MORE than the build — generated phase
  * artifacts, a real full-suite pairing record, an accumulated host corpus — are not here; they are in
- * `PLATFORM_QUALIFICATION_TESTS` and run under `Platform Qualification`. `tests/unit/test-layers.test.ts`
+ * `PLATFORM_QUALIFICATION_TESTS` and run on the real soak host by the qualification workflow in the separate
+ * private control repository (never by any workflow in this repository).
+ * `tests/unit/test-layers.test.ts`
  * checks that a push-CI tier entry never declares such a requirement, so the boundary cannot drift back.
  */
 export default defineConfig({

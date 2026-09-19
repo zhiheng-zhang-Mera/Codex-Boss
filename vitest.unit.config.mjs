@@ -15,7 +15,8 @@ import { BUILD_DEPENDENT_TESTS, PLATFORM_QUALIFICATION_TEST_FILES, SLOW_ACCEPTAN
  * The third group is the platform-qualification tier: the frozen Phase 01-05 gates that additionally
  * need generated phase artifacts, a real full-suite pairing record, or a host corpus accumulated by
  * real soak runs. They are excluded here because a clean checkout cannot satisfy them honestly, and
- * they are NOT skipped — `Platform Qualification` runs them after generating their declared
+ * they are NOT skipped — the real soak host runs them, under the qualification workflow in the separate
+ * private control repository, after generating their declared
  * prerequisites. Each suite's requirement is declared in `PLATFORM_QUALIFICATION_TESTS`.
  */
 export default defineConfig({

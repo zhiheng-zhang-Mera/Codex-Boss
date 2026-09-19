@@ -136,26 +136,44 @@ environments and their protection rules, the required check contexts, and **whic
 repository's workflows actually produce**.
 
 Its verdict includes `selfHostedRunnerSafe`, and `--require-self-hosted-safe` turns that into a fail-closed
-guard. The real-host qualification job runs it as its **first** step, so the lane refuses to start on a
+guard. The real-host qualification job — the one in the private control plane — runs it as its **first**
+step, so the lane refuses to start on a
 repository where a runner is reachable by untrusted workflow files — which is any PUBLIC repository, because
 a runner is registered for the whole repository and no workflow-level guard can bind it to a single workflow.
 This is enforced at run time and flips by itself when the repository becomes private; nobody has to remember.
 
-Measured on this repository at the time of writing:
+Measured on this repository:
 
 ```text
 visibility=public   ruleset=Main-Protection (active)   bypass actors=[{id:229580437,User,always}]
 environments=[boss-root-trust-owner (required_reviewers)]
-required checks=["validate"] produced=[acceptance,finalize,hosted-runner-status,package,quality,real-host-qualification,unit]
 self-hosted runner safe: false
   finding: PUBLIC_REPOSITORY_CANNOT_HOST_A_SELF_HOSTED_RUNNER
   finding: REQUIRED_CHECK_NOT_PRODUCED:validate
 ```
 
-So the real-host qualification lane is **built and refuses to run**: the qualification cannot be performed
-until the Owner decides how to transport it (make the repository private; use a separate private repository;
-or run it as an Owner-run local procedure, which the prohibitions explicitly say may NOT be presented as a
-formal workflow attestation).
+The transport was then decided (Owner decision 1, OPTION 2) and **built as a separate private control plane**,
+so the finding above is no longer an open question — it is the reason the architecture looks the way it does:
+
+```text
+PUBLIC  zhiheng-zhang-Mera/Codex-Boss
+        self-hosted runners = 0            <- this repository cannot schedule the real-soak runner
+        .github/workflows/platform-qualification.yml = HOSTED DIAGNOSTIC ONLY
+                    |
+                    | immutable commit SHA (detached checkout)
+                    v
+PRIVATE zhiheng-zhang-Mera/Boss-Qualification-Control
+        owns the only real-soak runner: self-hosted, windows, boss-real-soak, boss-qualification
+        workflow_dispatch only, main only, exact-SHA verification, read-only corpus snapshot,
+        redacted aggregate evidence
+```
+
+There is deliberately **no `runs-on: [self-hosted, …]` job in this repository**. A lane left behind after the
+runner moved would not fail — it would wait — so the public workflow keeps only what a hosted runner can
+honestly do, and states `HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST` instead of claiming a qualification. The
+Phase 04 corpus invariant is unchanged: a hosted runner has no accumulated host history, which is topology
+rather than regression. `scripts/verify-authority-separation.cjs --platform` remains the instrument that
+measures the facts (`selfHostedRunnerSafe`, bypass actors, environments, produced check contexts).
 
 ### B10 — the production path
 

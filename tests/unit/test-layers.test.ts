@@ -77,9 +77,25 @@ const slowFiles = (): string[] => SLOW_ACCEPTANCE_TEST_FILES;
 /** Every suite the push-CI tiers own: what `Desktop CI` is allowed to run on a clean push runner. */
 const pushCiFiles = (): string[] => [...slowFiles(), ...BUILD_DEPENDENT_TESTS];
 
-/** The workflow that is allowed to run the qualification tier, and the one that is not. */
+/**
+ * The workflow that carries the qualification tier's public face, and the one that may never run it.
+ *
+ * The tier itself is executed on the real soak host, whose runner is registered to the separate private
+ * control repository (`Boss-Qualification-Control`) — see the workflow-boundary test below.
+ */
 const QUALIFICATION_WORKFLOW = ".github/workflows/platform-qualification.yml";
 const PUSH_CI_WORKFLOW = ".github/workflows/ci.yml";
+
+/**
+ * Every workflow this repository ships, enumerated rather than listed.
+ *
+ * The boundary is a statement about the whole set, so a hard-coded pair would let a new file slip past it.
+ */
+const WORKFLOW_DIR = ".github/workflows";
+
+function workflowNames(): string[] {
+  return fs.readdirSync(path.join(PROJECT, WORKFLOW_DIR)).filter((name) => /\.ya?ml$/.test(name)).sort();
+}
 
 /**
  * The package script that runs a given file, or `undefined`.
@@ -301,33 +317,66 @@ describe("Phase N — the declared test layers", () => {
   });
 
   /**
-   * The workflow boundary: qualification runs from its own explicitly triggered workflow, and push CI
-   * must not run it. Asserted rather than documented, because "we will not call it from CI" is exactly
-   * the kind of promise a later convenience edit breaks.
+   * The workflow boundary: the qualification tier runs on the dedicated real host and from NO workflow this
+   * repository ships, and push CI must not run it either.
+   *
+   * The tier's declared prerequisite is `accumulated-host-corpus` — a property of the Owner's real machine.
+   * That is why the runner serving it is registered to the separate private control repository and not here,
+   * and why this guard is a universal NEGATIVE over the workflows in this repository. That is STRONGER than
+   * the check it replaces, which asserted that exactly one named public workflow ran the tier; it now
+   * asserts that none does. What it gives up is the mirror-image positive (that some workflow generates each
+   * prerequisite before the tier runs): that workflow lives in the private control repository, where a
+   * public-repository test cannot read it, so a public assertion about it would be prose rather than
+   * evidence. `tests/unit/root-trust-authority-lockdown.test.ts` pins the pointer and the platform facts.
+   *
+   * A PRODUCER is not the tier, and the difference is the whole point: a hosted lane may run a generator to
+   * REPORT the topology fact — which is exactly what the hosted diagnostic does with the Phase 04 generator,
+   * because a refusal that is hidden is worse than one that is shown. But a lane that runs one must state
+   * that it is not a qualification host, or a public lane could generate the prerequisites of a
+   * qualification it cannot perform and read as one that performed it.
+   *
+   * Asserted rather than documented, because "we will not call it from CI" is exactly the kind of promise a
+   * later convenience edit breaks.
    */
-  it("runs the qualification tier from its own workflow and never from push CI", () => {
+  it("runs the qualification tier from no workflow in this repository, and never from push CI", () => {
     expect(fs.existsSync(path.join(PROJECT, QUALIFICATION_WORKFLOW)), `${QUALIFICATION_WORKFLOW} is missing`).toBe(true);
     const qualification = fs.readFileSync(path.join(PROJECT, QUALIFICATION_WORKFLOW), "utf8");
     const push = fs.readFileSync(path.join(PROJECT, PUSH_CI_WORKFLOW), "utf8");
-    // It is explicitly triggered, not run on every push.
-    expect(/workflow_dispatch:/.test(qualification), "the qualification workflow is not dispatchable").toBe(true);
-    expect(/^ {2}push:/m.test(qualification), "the qualification workflow triggers on every push").toBe(false);
-    // It runs the qualification tier, and it generates each declared prerequisite with its own producer.
-    // The assertions are made against STEP lines rather than against the whole file: a command named only
-    // in a comment is documentation, and treating prose as evidence is exactly the failure this guard
-    // exists to prevent (the first version of this check matched its own explanatory comment).
-    expect(steps(qualification).includes("test:platform-qualification"), "the qualification workflow has no step that runs the qualification tier").toBe(true);
+    // Every declared producer is still wired to a package script. The qualification run in the control plane
+    // invokes these by name, so a producer that lost its script would be a prerequisite nobody can generate.
     for (const [file, declaration] of Object.entries(PLATFORM_QUALIFICATION_TESTS)) {
       const producer = (declaration as { producer: string }).producer;
-      const script = scriptFor(producer);
-      expect(script, `${producer} is wired to no package script`).toBeTruthy();
-      expect(steps(qualification).includes(script as string), `${file}'s prerequisite ${producer} is not an explicit step in the qualification workflow (expected a step running \`${script}\`)`).toBe(true);
+      expect(scriptFor(producer), `${file} declares the prerequisite ${producer}, which is wired to no package script`).toBeTruthy();
     }
-    // Push CI runs neither the tier nor its producers.
+    // The public qualification lane is explicitly triggered, not run on every push.
+    expect(/workflow_dispatch:/.test(qualification), "the qualification workflow is not dispatchable").toBe(true);
+    expect(/^ {2}push:/m.test(qualification), "the qualification workflow triggers on every push").toBe(false);
+    // No workflow in this repository runs the tier. Its prerequisite is a real host corpus, so a lane here
+    // claiming to run the tier would be claiming a qualification it cannot honestly perform.
+    const workflows = workflowNames();
+    expect(workflows.length, "no workflows to check").toBeGreaterThan(0);
+    for (const name of workflows) {
+      const executed = steps(fs.readFileSync(path.join(PROJECT, WORKFLOW_DIR, name), "utf8"));
+      // The assertion is against STEP lines rather than against the whole file: a command named only in a
+      // comment is documentation, and treating prose as evidence is exactly the failure this guard exists to
+      // prevent (the first version of this check matched its own explanatory comment).
+      expect(executed.includes("test:platform-qualification"), `${name} has a step that runs the qualification tier`).toBe(false);
+      for (const [file, declaration] of Object.entries(PLATFORM_QUALIFICATION_TESTS)) {
+        const producer = (declaration as { producer: string }).producer;
+        const script = scriptFor(producer) as string;
+        if (!executed.includes(script) && !executed.includes(producer)) continue;
+        expect(executed.includes("HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST"),
+          `${name} runs ${file}'s prerequisite ${producer} without stating that it is not a qualification host`).toBe(true);
+      }
+    }
+    // Push CI in particular runs neither the tier nor its producers. `Desktop CI` is the only workflow
+    // reachable from an untrusted push, so this is the half that must never regress.
     expect(steps(push).includes("test:platform-qualification"), "push CI has a step that runs the qualification tier").toBe(false);
     for (const declaration of Object.values(PLATFORM_QUALIFICATION_TESTS)) {
       const producer = (declaration as { producer: string }).producer;
+      const script = scriptFor(producer) as string;
       expect(steps(push).includes(producer), `push CI has a step that runs a qualification prerequisite: ${producer}`).toBe(false);
+      expect(steps(push).includes(script), `push CI has a step that runs a qualification prerequisite: ${script}`).toBe(false);
     }
     // And push CI still runs the tiers it is responsible for, as STEPS.
     for (const step of ["pnpm test", "pnpm run test:postbuild", "pnpm run test:slow"]) {
