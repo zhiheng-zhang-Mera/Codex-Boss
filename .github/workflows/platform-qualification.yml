@@ -1,56 +1,88 @@
 name: Platform Qualification
 
-# The frozen Phase 01-05 qualification gates, run where their evidence can honestly exist.
+# Two lanes, and they mean different things.
 #
-# WHY THIS IS NOT PART OF `Desktop CI`
+#   real-host-qualification  the REAL soak host, registered as a self-hosted runner. This is the only lane
+#                            that can declare a qualification, because it is the only one with an accumulated
+#                            corpus. Full chain, no required stage skipped.
+#   hosted-runner-status     a GitHub-hosted runner. It reports the topology fact and the numbers, and
+#                            explicitly does NOT qualify anything: measured on a clean hosted runner the
+#                            Phase 04 gate sees a handful of files against its own >1000-file invariant, and
+#                            no threshold was lowered to change that.
 #
-# `Desktop CI` runs on a clean hosted Windows runner on every push, so it may only contain verification
-# that a clean checkout can satisfy by itself: typecheck, secret scan, the architecture ratchet, the
-# build, the default tier, the current-build tier and the slow tier. Three of the frozen gates cannot be
-# satisfied that way, and that was measured rather than assumed — on run 35327676450 the Phase 04
-# lifecycle gate found a 56-file corpus against its own >1000-file invariant (`artifacts/host-soak` alone
-# holds ~65125 files on a host that has really been soaked), and the Phase 05 certificate read Phase
-# 02/03/04 artifacts that no step had produced. Asking a push runner for accumulated history is not a
-# strong gate, it is a red build that hides every other signal.
+# WHY THE CORPUS IS NOT UPLOADED (B4)
 #
-# So those gates keep every assertion, every threshold and every fail-closed path, and move here. Nothing
-# in this workflow lowers a bar: the corpus invariant is untouched, no filler corpus is manufactured, no
-# `process.env.CI` branch exists in any suite, no suite is skipped, and no generated artifact is committed
-# to git. If the corpus cannot be produced honestly, this workflow is RED and says so in the job summary —
-# a fake green would be worse than a blocked qualification.
+# The corpus is the Owner's real host state: sessions, prompts, project contents, paths. It never leaves the
+# host. What is uploaded is a REDACTED aggregate record — per-root counts and byte totals plus a commitment
+# digest over the full (path,size) manifest, which a holder of the corpus can recompute and which reveals no
+# path. `--redacted` is the only mode the upload step is given, from `$RUNNER_TEMP`, never from a corpus root.
 #
-# The prerequisite order below is the order the gates' own dependencies require, each artifact produced by
-# its own official generator, so no suite ever reads a sibling test's side effect:
+# WHY QUIESCENCE IS MEASURED RATHER THAN ASSUMED (B5)
 #
-#   build
-#     -> architecture:snapshot        (Phase 01 artifact; also required by the unit tier's own diagnostics)
-#     -> state:migration-report       (Phase 02 artifact)
-#     -> capability:surface           (Phase 03 artifact)
-#     -> data:lifecycle-report        (Phase 04 artifact; needs an accumulated corpus)
-#     -> platform:certificate         (Phase 05 certificate; consumes the four artifacts above)
-#     -> verify:targeted              (runs the REAL full unit tier, then records the selector pairing)
-#     -> test:platform-qualification  (the frozen gates themselves)
+# The lifecycle generator only reads, and it walks the roots directly, so the honest way to show it read a
+# stable view without touching a frozen Phase 04 gate is to take the commitment digest immediately before
+# and after that gate. The gates themselves legitimately write their own phase artifacts into `artifacts/`,
+# so the expected delta is exactly those artifacts; the record names the delta instead of pretending it is
+# zero.
 #
-# Each arrow is a real dependency read out of the code, not a copy of a wish list: the certificate
-# cross-checks the Phase 01-04 artifacts, the pairing generator executes the unit tier (which itself reads
-# the Phase 01 snapshot), and the qualification gates read what the steps above produced.
-#
-# TRIGGERING. `workflow_dispatch` only, deliberately: this is the lane for release/promotion evidence and
-# for an Owner-run qualification. It is not wired to push, and nothing in it may depend on a previous
-# workflow run's state — a restored corpus would have to be restored explicitly, with provenance, and the
-# provenance step below is what would record it.
+# TRIGGERING. `workflow_dispatch` only, `refs/heads/main` only, asserted in the job. The self-hosted runner
+# is registered with dedicated labels that no push or pull-request workflow uses, so untrusted code cannot
+# reach the host: a pull request cannot dispatch this workflow at all, and no other workflow in this
+# repository names these labels.
 
 on:
   workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this qualification run is being performed (recorded in the evidence)."
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  qualification:
-    runs-on: windows-latest
+  real-host-qualification:
+    # Dedicated labels. A GitHub-hosted runner never has `boss-real-soak`, and no other workflow in this
+    # repository names these labels, so untrusted code cannot be routed to the Owner's host.
+    runs-on: [self-hosted, windows, boss-real-soak, boss-qualification]
     steps:
+      - name: Fail closed unless this is the real soak host on main
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -ne "refs/heads/main") {
+            Write-Error "QUALIFICATION_REQUIRES_MAIN: got ${{ github.ref }}"
+            exit 1
+          }
+          if ($env:RUNNER_ENVIRONMENT -ne "self-hosted") {
+            Write-Error "QUALIFICATION_REQUIRES_REAL_SOAK_HOST: runner environment is '$env:RUNNER_ENVIRONMENT'"
+            exit 1
+          }
+          Write-Host "runner=$env:RUNNER_NAME labels=$env:RUNNER_LABELS environment=$env:RUNNER_ENVIRONMENT"
+          $labels = "$env:RUNNER_LABELS".Split(",") | ForEach-Object { $_.Trim() }
+          foreach ($required in @("boss-real-soak", "boss-qualification")) {
+            if ($labels -notcontains $required) {
+              Write-Error "QUALIFICATION_REQUIRES_LABEL: this job must run on a runner labelled '$required'"
+              exit 1
+            }
+          }
+
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fail closed unless the checkout is exactly origin/main
+        shell: pwsh
+        run: |
+          git fetch origin main --depth=1
+          $head = git rev-parse HEAD
+          $remote = git rev-parse origin/main
+          if ($head -ne $remote) {
+            Write-Error "QUALIFICATION_REQUIRES_MAIN_HEAD: HEAD $head is not origin/main $remote"
+            exit 1
+          }
+          Write-Host "qualifying main at $head"
 
       - uses: pnpm/action-setup@v4
 
@@ -63,65 +95,139 @@ jobs:
 
       - run: pnpm run install:electron
 
-      # Every generator below loads the compiled platform out of dist-electron.
       - run: pnpm run build
 
-      # The corpus provenance, recorded BEFORE anything depends on it, so a failure at the Phase 04 gate is
-      # always accompanied by the numbers that explain it. Read-only: it reports, it does not gate.
-      - name: Record the accumulated-corpus provenance
-        if: always()
-        run: |
-          node scripts/qualification-corpus-provenance.cjs | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+      # Root Trust comes first: a qualification on an epoch that does not anchor the tree is worthless.
+      - name: Root Trust check
+        run: node scripts/acceptance-evolution-bless.cjs --check
 
-      # The trust epoch anchor, checked FIRST among the gates because it is cheap, independent of the corpus,
-      # and the one result a reader needs even when a later step blocks. `--check` is the mechanism's own
-      # verifier for "does the committed epoch still anchor the live Root Trust Surface?".
-      #
-      # The full graduation gate (`pnpm run acceptance:autonomous-evolution`) runs in `Desktop CI`'s
-      # acceptance chain, where it belongs: a Root Trust change advances the epoch in the SAME commit, and CI
-      # is the run that certifies it. This check is here so the qualification lane reports the trust epoch
-      # explicitly rather than only inheriting it, and so a blocked soak step cannot hide it.
-      - run: node scripts/acceptance-evolution-bless.cjs --check
-
-      # Phase 01 -- architecture snapshot. Generated, never committed: `artifacts/` is gitignored.
+      # Prerequisites for the certificate. They run before the corpus gate so the corpus gate sees the
+      # corpus as it was, plus at most these phase artifacts.
       - run: pnpm run architecture:snapshot
-
-      # Phase 02 -- state migration report.
       - run: pnpm run state:migration-report
-
-      # Phase 03 -- permission surface report.
       - run: pnpm run capability:surface
 
-      # Phase 04 -- data lifecycle report. This is the gate that needs a real accumulated corpus; on a
-      # hosted runner with no soak history it FAILS its own invariant, loudly, and this workflow is red.
+      - name: Corpus provenance BEFORE the lifecycle gate (B5)
+        shell: pwsh
+        run: |
+          $digest = node scripts/qualification-corpus-provenance.cjs --digest
+          $digest | Out-File -FilePath "$env:RUNNER_TEMP\corpus-before.txt" -Encoding utf8
+          "CORPUS_BEFORE=$digest" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "corpus commitment before: $digest"
+
+      # Phase 04: the gate that needs a real accumulated corpus. On a hosted runner this is where a
+      # qualification stops, with BLOCKED_BY_REAL_SOAK_EVIDENCE and no threshold change.
       - run: pnpm run data:lifecycle-report
 
-      # Phase 05 gate 9 -- the platform certificate, generated by its own generator after the four phase
-      # artifacts it cross-checks exist. The qualification tier below re-runs the generator in its test;
-      # this step is what makes the artifact an explicit PREREQUISITE rather than a sibling's side effect.
+      - name: Corpus provenance AFTER the lifecycle gate, and the quiescence verdict (B5)
+        shell: pwsh
+        run: |
+          $after = node scripts/qualification-corpus-provenance.cjs --digest
+          "CORPUS_AFTER=$after" | Out-File -FilePath $env:GITHUB_ENV -Append
+          if ($after -eq "$env:CORPUS_BEFORE") {
+            $verdict = "QUIESCENT"
+          } else {
+            $verdict = "CHANGED_DURING_RUN"
+          }
+          "QUIESCENCE=$verdict" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "corpus commitment after:  $after"
+          Write-Host "quiescence: $verdict"
+          if ($verdict -eq "CHANGED_DURING_RUN") {
+            Write-Host "::warning::the corpus changed while the lifecycle gate ran; the gate's input was not a frozen view (the run's own phase artifacts are the expected cause)"
+          }
+
       - run: pnpm run platform:certificate
-
-      # Phase 05 gate 2 prerequisite -- a REAL full-suite run plus the selector pairing. It executes the
-      # whole unit tier, which is also the full verification this chain is supposed to carry: a pairing
-      # against a failing run proves nothing, and the generator refuses to write one.
       - run: pnpm run verify:targeted
-
-      # The frozen qualification gates, with every prerequisite above already on disk.
       - run: pnpm run test:platform-qualification
 
-      - name: Explain a blocked qualification
-        if: failure()
+      - name: Aggregate provenance and the qualification summary (B6/B9)
+        if: always()
+        shell: pwsh
         run: |
+          $evidence = "$env:RUNNER_TEMP\boss-qualification"
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          node scripts/qualification-corpus-provenance.cjs --json --redacted --out "$evidence\corpus-provenance.json"
+          $record = Get-Content "$evidence\corpus-provenance.json" -Raw | ConvertFrom-Json
+          $summary = [ordered]@{
+            workflowRun  = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            commit       = "${{ github.sha }}"
+            trustEpoch   = $record.trustEpoch
+            runnerName   = $env:RUNNER_NAME
+            runnerLabels = $env:RUNNER_LABELS
+            runnerClass  = $env:RUNNER_ENVIRONMENT
+            os           = $record.runner.os
+            corpusFiles  = $record.corpus.totalFiles
+            corpusBytes  = $record.corpus.totalBytes
+            perRoot      = $record.corpus.perRoot
+            commitment   = $record.corpus.commitmentDigest
+            quiescence   = $env:QUIESCENCE
+            certificate  = "artifacts/platform-foundation/phase-05/platform-certificate.json"
+            reason       = "${{ inputs.reason }}"
+            redacted     = $true
+          }
+          $summary | ConvertTo-Json -Depth 6 | Out-File -FilePath "$evidence\qualification-summary.json" -Encoding utf8
+          $summary | ConvertTo-Json -Depth 6 | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Upload the REDACTED aggregate only (never the corpus)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-qualification-${{ github.run_id }}
+          # $RUNNER_TEMP only: nothing from artifacts/, runtime-data/, history/ or .codex-boss/ is uploaded.
+          path: |
+            ${{ runner.temp }}/boss-qualification/corpus-provenance.json
+            ${{ runner.temp }}/boss-qualification/qualification-summary.json
+          if-no-files-found: error
+
+  hosted-runner-status:
+    # The hosted lane keeps saying what it can and cannot establish. It is deliberately NOT a qualification
+    # and deliberately NOT red: "a clean hosted runner has no accumulated host history" is a topology fact,
+    # not a regression, and a permanently red build would hide every other signal.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run install:electron
+      - run: pnpm run build
+      - run: node scripts/acceptance-evolution-bless.cjs --check
+      - run: pnpm run architecture:snapshot
+      - run: pnpm run state:migration-report
+      - run: pnpm run capability:surface
+      - name: Corpus provenance
+        shell: pwsh
+        run: |
+          node scripts/qualification-corpus-provenance.cjs | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+      - name: The Phase 04 gate, reported rather than hidden
+        shell: pwsh
+        run: |
+          $before = node scripts/qualification-corpus-provenance.cjs --digest
+          node scripts/data-lifecycle-report.cjs
+          $code = $LASTEXITCODE
+          $after = node scripts/qualification-corpus-provenance.cjs --digest
           $lines = @(
             "",
-            "## Platform Qualification did not pass",
+            "## Hosted runner status",
             "",
-            "The expected blocker is the Phase 04 lifecycle gate reporting a discovered corpus that is too",
-            "small. The honest status is then **BLOCKED_BY_REAL_SOAK_EVIDENCE**, not a CI defect: that gate",
-            "verifies the retention policy over a host corpus that only real, long-running activity produces,",
-            "and the corpus provenance recorded above is what this runner actually had.",
+            "| field | value |",
+            "| --- | --- |",
+            "| classification | **HOSTED_RUNNER_NOT_A_QUALIFICATION_HOST** |",
+            "| phase 04 exit | $code |",
+            "| corpus before | $before |",
+            "| corpus after | $after |",
             "",
-            "Anything else - including the trust-epoch check above failing - is a real defect in the frozen",
-            "gates or in this chain, and it must be fixed rather than routed around."
+            "A GitHub-hosted runner has no accumulated host history, so the Phase 04 lifecycle gate cannot be",
+            "satisfied here: its invariant is a corpus over 1000 files and this runner has a handful. The",
+            "threshold was NOT lowered, no filler corpus was created and the gate was NOT skipped - the real",
+            "qualification runs in the real-host-qualification job on the self-hosted soak host.",
+            "The honest status of THIS runner is BLOCKED_BY_REAL_SOAK_EVIDENCE.",
+            "This distinction is topology, not regression."
           )
           $lines | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          if ($code -eq 0) {
+            Write-Host "::warning::the Phase 04 gate unexpectedly passed on a hosted runner; investigate rather than celebrate"
+          }

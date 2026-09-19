@@ -352,6 +352,54 @@ describe("Root Trust Authority Lockdown — break-glass stays external (A11)", (
   });
 });
 
+describe("Root Trust Authority Lockdown — the qualification lane cannot be reached by untrusted code", () => {
+  const WORKFLOW_DIR = path.join(PROJECT, ".github/workflows");
+  const workflows = fs.readdirSync(WORKFLOW_DIR).filter((name) => name.endsWith(".yml"));
+
+  it("routes the real-soak labels from exactly one workflow, and uploads no corpus", () => {
+    const usingRealSoak = workflows.filter((name) => fs.readFileSync(path.join(WORKFLOW_DIR, name), "utf8").includes("boss-real-soak"));
+    expect(usingRealSoak, `only the qualification workflow may target the Owner's host, found: ${usingRealSoak.join(", ")}`).toEqual(["platform-qualification.yml"]);
+
+    const workflow = fs.readFileSync(path.join(WORKFLOW_DIR, "platform-qualification.yml"), "utf8");
+    const executed = workflow.split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join("\n");
+
+    // The real-host job fails closed on the wrong ref, the wrong runner class, and the wrong commit.
+    for (const guard of ["refs/heads/main", "QUALIFICATION_REQUIRES_REAL_SOAK_HOST", "QUALIFICATION_REQUIRES_MAIN_HEAD", "QUALIFICATION_REQUIRES_LABEL"]) {
+      expect(executed.includes(guard), `the real-host lane no longer fails closed on ${guard}`).toBe(true);
+    }
+    // Untrusted triggers stay out: no push, no pull_request in an executed line.
+    expect(/^\s{2}pull_request:/m.test(executed), "the qualification workflow must not run on pull requests").toBe(false);
+    expect(/^\s{2}push:/m.test(executed), "the qualification workflow must not run on push").toBe(false);
+
+    // The upload may only take the redacted evidence directory, which lives OUTSIDE every corpus root.
+    const uploadBlock = executed.slice(executed.indexOf("upload-artifact"));
+    expect(uploadBlock.includes("runner.temp"), "the upload must come from the runner temp directory").toBe(true);
+    const uploadPaths = uploadBlock.split(/\r?\n/).filter((line) => /path:/.test(line) || /runner\.temp/.test(line)).join("\n");
+    for (const corpusRoot of ["artifacts/", "runtime-data", "history/", ".codex-boss"]) {
+      expect(uploadPaths.includes(corpusRoot), `the upload path block mentions the corpus root ${corpusRoot}`).toBe(false);
+    }
+
+    // The evidence itself is produced in redacted mode.
+    expect(executed.includes("--redacted"), "the provenance written for upload must be redacted").toBe(true);
+  });
+
+  it("never emits a manifest in redacted mode, and offers a digest for quiescence", () => {
+    const out = path.join(os.tmpdir(), `prov-redacted-${Date.now()}.json`);
+    const run = spawnSync(process.execPath, [path.join(PROJECT, "scripts/qualification-corpus-provenance.cjs"), "--json", "--redacted", "--out", out], { cwd: PROJECT, encoding: "utf8" });
+    expect(run.status, `${run.stdout}${run.stderr}`).toBe(0);
+    const record = JSON.parse(fs.readFileSync(out, "utf8"));
+    expect(record.redacted).toBe(true);
+    expect(record.manifest, "a redacted record must not carry the full manifest").toBeUndefined();
+    expect(record.corpus.commitmentDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(record.corpus.totalFiles).toBeGreaterThan(0);
+    expect(record.corpus.perRoot.every((root: { files: number }) => typeof root.files === "number")).toBe(true);
+    const digest = spawnSync(process.execPath, [path.join(PROJECT, "scripts/qualification-corpus-provenance.cjs"), "--digest"], { cwd: PROJECT, encoding: "utf8" });
+    expect(digest.status).toBe(0);
+    expect(digest.stdout.trim()).toMatch(/^[0-9a-f]{64}$/);
+    fs.rmSync(out, { force: true });
+  });
+});
+
 describe("Root Trust Authority Lockdown — the separation harness is itself verified (A4)", () => {
   it("proves the four verdicts offline, and reports UNPROVEN rather than a fake pass without a credential", () => {
     const script = path.join(PROJECT, "scripts/verify-authority-separation.cjs");
