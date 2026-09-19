@@ -1375,6 +1375,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/continuation-benchmark.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/continuation-evaluator.test.ts",
       "tier": "unit",
       "covers": [
@@ -1421,6 +1428,13 @@
       "tier": "unit",
       "covers": [
         "status",
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/scheduler-benchmark.test.ts",
+      "tier": "unit",
+      "covers": [
         "tenx"
       ]
     },

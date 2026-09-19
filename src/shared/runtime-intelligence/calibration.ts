@@ -31,6 +31,13 @@ export const MIN_SAMPLES_FOR_CALIBRATION = 20;
 /** The absolute mean bias above which a source is called over- or under-confident. */
 export const CALIBRATION_BIAS_THRESHOLD = 0.1;
 
+/**
+ * A bias is a difference of two floating-point means, so a bias that is arithmetically equal
+ * to the threshold can land a few ulps above it. The tolerance keeps the verdict stable at the
+ * boundary instead of depending on rounding.
+ */
+const BIAS_EPSILON = 1e-9;
+
 export interface CalibrationSample {
   /** The predicted confidence, 0..1. Values outside the range are clamped; NaN is discarded. */
   predicted: number;
@@ -172,8 +179,8 @@ export interface CalibrationReport {
 
 function verdictFor(samples: number, bias: number | undefined, minimum: number): CalibrationVerdict {
   if (samples < minimum || bias === undefined) return "INSUFFICIENT_EVIDENCE";
-  if (bias > CALIBRATION_BIAS_THRESHOLD) return "OVERCONFIDENT";
-  if (bias < -CALIBRATION_BIAS_THRESHOLD) return "UNDERCONFIDENT";
+  if (bias > CALIBRATION_BIAS_THRESHOLD + BIAS_EPSILON) return "OVERCONFIDENT";
+  if (bias < -CALIBRATION_BIAS_THRESHOLD - BIAS_EPSILON) return "UNDERCONFIDENT";
   return "WELL_CALIBRATED";
 }
 
