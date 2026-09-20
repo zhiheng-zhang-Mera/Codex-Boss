@@ -797,6 +797,9 @@ if (ownsInstance) app.whenReady().then(() => {
     dataRoot: app.getPath("userData"),
     store,
     experiences,
+    // The capture the persistence module installed on the task ledger. Handing the SAME instance
+    // in means checkpoint evidence and bus evidence land in one window with one set of counters.
+    capture: persistence.service.capture,
     publish
   });
   bootModules.push(automationModule);

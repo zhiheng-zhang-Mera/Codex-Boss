@@ -5,6 +5,19 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DomainEventBus } from "../../../electron/commander/event-bus";
 import { TaskLedger } from "../../../electron/commander/task-ledger";
 import {
+  CAPTURE_FAILURE_RETENTION,
+  CAPTURED_EVENT_TYPES,
+  LIVE_CAPTURE_ATTACHMENTS,
+  RuntimeIntelligenceCapture,
+  attachRuntimeIntelligenceCapture,
+  createCaptureObservingLedger,
+  openProspectiveWindow,
+  runLiveCaptureSmoke,
+  type LiveCaptureFailure,
+  type LiveCaptureOptions,
+  type LiveCaptureStatus
+} from "../../../electron/runtime-intelligence/live-capture";
+import {
   EVIDENCE_RECORD_KINDS,
   LIVE_CAPTURE_SCHEMA_VERSION,
   LIVE_FUTURE_FIELD_CHECK,
@@ -111,15 +124,6 @@ function build(overrides: Partial<LiveLedgerFacts> = {}, extra: { capturedAt?: s
   if (result.observation === undefined) throw new Error(`the observation was refused: ${result.problems.join("; ")}`);
   return result.observation;
 }
-
-
-/**
- * RI-03: the prospective vocabulary, on real-shaped facts.
- *
- * This is the pure-module half of the capture suite. The host half — the ledger wrapper, the bus
- * attachment, the failure injection and the smoke walk — belongs to the capture layer and is added
- * by RI-04, which carries the reference branch's file verbatim.
- */
 
 describe("a live decision record carries only what the loop knew at the time", () => {
   it("derives the completion statement from the counts rather than receiving it", () => {
@@ -277,5 +281,519 @@ describe("closure and the bus event vocabulary", () => {
     expect(advice.reason).toContain("no candidate to rank");
     expect(advice.policyId).toBe("scheduler-policy-v0");
     expect(advice.policyHash.length).toBe(64);
+  });
+});
+
+describe("the headline counts real user tasks only", () => {
+  it("excludes smoke and fixture observations and says how many", () => {
+    const real = build();
+    const smoke: LiveStepObservation = { ...build(), sourceClass: "DEVELOPMENT_SMOKE", taskId: "smoke-1" };
+    const metrics = headlineCaptureMetrics([real, smoke]);
+    expect(metrics.headline.tasks).toBe(1);
+    expect(metrics.headline.steps).toBe(1);
+    expect(metrics.headline.dispatchRecords).toBe(1);
+    expect(metrics.headline.tokensMeasured).toBe(1);
+    expect(metrics.headline.latencyMeasured).toBe(1);
+    expect(metrics.headline.costMeasured).toBe(0);
+    expect(metrics.headline.skillSignalPresent).toBe(0);
+    expect(metrics.excluded).toEqual({ DEVELOPMENT_SMOKE: 1 });
+    expect(metrics.notes.join(" ")).toContain("excluded from every headline figure");
+    const empty = headlineCaptureMetrics([smoke]);
+    expect(empty.headline.tasks).toBe(0);
+    expect(empty.notes.join(" ")).toContain("headline is empty rather than zero-valued");
+  });
+
+  it("applies the same exclusion to the window metrics", () => {
+    const capture = new RuntimeIntelligenceCapture({ dataRoot: makeRoot(), now: () => AFTER_FREEZE, openedAt: () => AFTER_FREEZE, sourceClass: "DEVELOPMENT_SMOKE" });
+    expect(capture.observeCheckpoint({ taskId: "smoke-1", facts: ledgerFacts({ taskId: "smoke-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    const headline = capture.headline();
+    expect(headline.tasks).toBe(0);
+    expect(headline.excludedBySourceClass).toEqual({ DEVELOPMENT_SMOKE: 1 });
+    expect(headline.notes.join(" ")).toContain("smoke or fixture records");
+  });
+});
+
+/* ------------------------------------------------------------------ live */
+
+/** A capture wired to a temporary data root, with the two resolvers a real boot would supply. */
+function liveCapture(input: { dataRoot: string; openedAt?: string; taskStatus?: () => string | undefined; now?: () => string }): RuntimeIntelligenceCapture {
+  return new RuntimeIntelligenceCapture({
+    dataRoot: input.dataRoot,
+    now: input.now ?? (() => AFTER_FREEZE),
+    openedAt: () => input.openedAt ?? AFTER_FREEZE,
+    taskStatus: input.taskStatus ?? (() => "running")
+  });
+}
+
+describe("the adapter observes the ledger's own write path", () => {
+  it("captures task open, step, dispatch and advice from a real ledger save", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot });
+    const ledger = createCaptureObservingLedger({ root: path.join(dataRoot, ".boss", "tasks"), capture, now: () => AFTER_FREEZE });
+    ledger.create("task-1", "a real objective");
+    const after = ledger.update("task-1", "task/run transition", (record) => {
+      record.completedSteps = ["step-a"];
+      record.pendingSteps = ["step-b"];
+      record.nextAction = "DISPATCHING";
+      record.sessions = [{ id: "run-1", provider: "web:chatgpt", taskId: "task-1", checkpoint: 2, health: "RUNNING", resumeStrategy: "RECONSTRUCT" }];
+    });
+
+    const status: LiveCaptureStatus = capture.status();
+    expect(status.captureHealthy).toBe(true);
+    expect(status.tasksObserved).toBe(1);
+    expect(status.stepsObserved).toBe(2);
+    expect(status.executionAuthority).toBe(false);
+    expect(status.mode).toBe("LIVE_SHADOW_CAPTURE");
+    expect(status.lastCaptureAt).toBe(AFTER_FREEZE);
+
+    const [record] = capture.records();
+    expect(record.taskId).toBe("task-1");
+    expect(record.openedAt).toBe(AFTER_FREEZE);
+    expect(record.evidenceClass).toBe("PROSPECTIVE_EVIDENCE");
+    expect(record.policyIdentity.continuationPolicyHash).toBe(frozenContinuationPolicy().policyHash);
+    expect(record.policyIdentity.schedulerPolicyHash.length).toBe(64);
+    expect(record.policyIdentity.skillLoadoutPolicyHash.length).toBe(64);
+    expect(record.policyIdentity.confidencePolicyHash.length).toBe(64);
+    expect(record.steps).toHaveLength(2);
+    expect(record.steps[1].dispatches[0].provider).toEqual(expect.objectContaining({ value: "web:chatgpt" }));
+    expect(record.steps[1].continuationAdvice.decision).toBe("CONTINUE");
+    expect(record.advisories).toHaveLength(2);
+    expect(after.revision).toBe(2);
+  });
+
+  it("classifies a pre-freeze task as retrospective evidence rather than prospective", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot, openedAt: BEFORE_FREEZE });
+    expect(capture.observeCheckpoint({ taskId: "old-1", facts: ledgerFacts({ taskId: "old-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    const [record] = capture.records();
+    expect(record.evidenceClass).toBe("RETROSPECTIVE_EVIDENCE");
+    // The headline refuses it, which is the whole point of deciding the class from the clock.
+    expect(capture.headline().tasks).toBe(0);
+  });
+
+  it("refuses to open a window when the store cannot say when the task was created", () => {
+    const capture = new RuntimeIntelligenceCapture({ dataRoot: makeRoot(), now: () => AFTER_FREEZE, openedAt: () => undefined });
+    const result = capture.observeCheckpoint({ taskId: "unknown-1", facts: ledgerFacts({ taskId: "unknown-1" }), at: AFTER_FREEZE });
+    expect(result.ok).toBe(false);
+    expect(result.problems.join(" ")).toContain("cannot be decided");
+    expect(capture.status().recordsRejected).toBe(1);
+    expect(capture.status().windows).toBe(0);
+    expect(capture.status().lastRejection).toContain("observeCheckpoint");
+  });
+
+  it("appends a repeated checkpoint once and counts the duplicate", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot });
+    const facts = ledgerFacts({ taskId: "task-1" });
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts, at: AFTER_FREEZE }).ok).toBe(true);
+    const again = capture.observeCheckpoint({ taskId: "task-1", facts, at: AFTER_FREEZE });
+    expect(again.ok).toBe(true);
+    expect(again.deduplicated).toBe(true);
+    const [record] = capture.records();
+    expect(record.steps).toHaveLength(1);
+    expect(record.advisories).toHaveLength(1);
+    expect(capture.status().recordsDeduplicated).toBe(1);
+  });
+
+  it("treats a task seen across a restart as one prospective task", () => {
+    const dataRoot = makeRoot();
+    const first = liveCapture({ dataRoot });
+    expect(first.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    const opened = first.records()[0].openedAt;
+    const policyHash = first.records()[0].policyHash;
+
+    // A second process: the same root, a fresh adapter, the same task.
+    const restarted = liveCapture({ dataRoot });
+    expect(restarted.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1", revision: 4 }), at: "2026-09-20T01:00:00.000Z" }).ok).toBe(true);
+    const status = restarted.status();
+    expect(status.windows).toBe(1);
+    expect(status.tasksObserved).toBe(0);
+    expect(status.restartsRecognised).toBe(1);
+    const record = restarted.records()[0];
+    expect(record.openedAt).toBe(opened);
+    expect(record.policyHash).toBe(policyHash);
+    expect(record.steps).toHaveLength(2);
+  });
+
+  it("closes a window on a terminal status and leaves it open otherwise", () => {
+    const dataRoot = makeRoot();
+    let status = "running";
+    const capture = liveCapture({ dataRoot, taskStatus: () => status });
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    expect(capture.records()[0].outcome).toBeUndefined();
+
+    status = "completed";
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1", revision: 4, completedSteps: ["a"], pendingSteps: [] }), at: "2026-09-20T02:00:00.000Z" }).ok).toBe(true);
+    const closed = capture.records()[0];
+    expect(closed.outcome?.finalOutcome).toBe("SUCCESS");
+    expect(closed.outcome?.finalOutcomeSource).toBe("state.json tasks[].status");
+    expect(closed.outcome?.steps.map((step) => step.stepIndex)).toEqual([3, 4]);
+    expect(capture.status().windowsClosed).toBe(1);
+    // The window is closed, so its metrics are no longer waiting on an outcome.
+    expect(capture.headline().tasksClosed).toBe(1);
+  });
+
+  it("never closes a window on a run outcome, only on the task's own status", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot });
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    expect(capture.observeProviderEvent({ type: "WORKER_FAILED", taskId: "task-1", runtimeId: "web:chatgpt", jobId: "job-1", at: AFTER_FREEZE }).ok).toBe(true);
+    const [record] = capture.records();
+    expect(record.outcome).toBeUndefined();
+    expect(record.providerEvents).toHaveLength(1);
+    expect(record.providerEvents[0].outcome).toEqual(expect.objectContaining({ value: "FAILURE" }));
+    expect(capture.status().providerEventsObserved).toBe(1);
+    // The same event twice is one record.
+    expect(capture.observeProviderEvent({ type: "WORKER_FAILED", taskId: "task-1", runtimeId: "web:chatgpt", jobId: "job-1", at: AFTER_FREEZE }).deduplicated).toBe(true);
+    expect(capture.records()[0].providerEvents).toHaveLength(1);
+  });
+
+  it("refuses a bus event for a task whose open time is unknown, and one with no task", () => {
+    const capture = new RuntimeIntelligenceCapture({ dataRoot: makeRoot(), now: () => AFTER_FREEZE, openedAt: () => undefined });
+    expect(capture.observeProviderEvent({ type: "WORKER_COMPLETED", taskId: "t", at: AFTER_FREEZE }).problems.join(" ")).toContain("cannot be decided");
+    const known = liveCapture({ dataRoot: makeRoot() });
+    expect(known.observeProviderEvent({ type: "WORKER_COMPLETED", at: AFTER_FREEZE }).problems.join(" ")).toContain("named no task");
+  });
+
+  it("reports a window root that has no log and still names the frozen policy", () => {
+    const store = openProspectiveWindow(makeRoot());
+    expect(store.records()).toEqual([]);
+    expect(store.status().policyId).toBe("continuation-policy-v1");
+    expect(store.status().file.endsWith("prospective-window.jsonl")).toBe(true);
+  });
+});
+
+describe("CAPTURE_FAILS and EXECUTION_CONTINUES are the same test", () => {
+  /** A data root whose prospective path is a FILE, so every write into it must fail. */
+  function brokenCapture(): { capture: RuntimeIntelligenceCapture; dataRoot: string } {
+    const dataRoot = makeRoot("boss-capture-broken-");
+    fs.mkdirSync(path.join(dataRoot, ".boss", "runtime-intelligence"), { recursive: true });
+    fs.writeFileSync(path.join(dataRoot, ".boss", "runtime-intelligence", "prospective"), "not a directory", "utf8");
+    return { capture: liveCapture({ dataRoot }), dataRoot };
+  }
+
+  it("keeps the ledger writing its checkpoint when the capture cannot write at all", () => {
+    const { capture, dataRoot } = brokenCapture();
+    const ledgerDir = path.join(dataRoot, ".boss", "tasks");
+    const ledger = createCaptureObservingLedger({ root: ledgerDir, capture, now: () => AFTER_FREEZE });
+    const created = ledger.create("task-1", "an objective that must not be lost");
+    const updated = ledger.update("task-1", "task/run transition", (record) => {
+      record.nextAction = "DISPATCHING";
+    });
+
+    // EXECUTION_CONTINUES: the checkpoint is on disk and the ledger's own return value is intact.
+    expect(updated.revision).toBe(2);
+    expect(created.revision).toBe(1);
+    const files = fs.readdirSync(path.join(ledgerDir, "task-1", "checkpoints"));
+    expect(files).toHaveLength(2);
+    expect(JSON.parse(fs.readFileSync(path.join(ledgerDir, "task-1", "checkpoints", "00000002.json"), "utf8")).nextAction).toBe("DISPATCHING");
+
+    // CAPTURE_FAILS: and it says so, without having thrown into the write path.
+    const status = capture.status();
+    expect(status.captureHealthy).toBe(false);
+    expect(status.lastError).toBeDefined();
+    expect(status.recordsRejected).toBeGreaterThan(0);
+    expect(status.failures.length).toBeGreaterThan(0);
+    expect(status.executionAuthority).toBe(false);
+  });
+
+  it("keeps the ledger writing when the policy registry itself is unavailable", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot });
+    const ledger = createCaptureObservingLedger({ root: path.join(dataRoot, ".boss", "tasks"), capture, now: () => AFTER_FREEZE });
+    ledger.create("task-1", "objective");
+    // A capture whose model ledger resolver throws is a capture whose scheduler advice cannot be
+    // computed. It is reported, counted, and the observation still arrives without it.
+    const wounded = new RuntimeIntelligenceCapture({
+      dataRoot: makeRoot(),
+      now: () => AFTER_FREEZE,
+      openedAt: () => AFTER_FREEZE,
+      models: () => {
+        throw new Error("the model ledger is unreadable");
+      }
+    });
+    const result = wounded.observeCheckpoint({ taskId: "task-2", facts: ledgerFacts({ taskId: "task-2" }), at: AFTER_FREEZE });
+    expect(result.ok).toBe(false);
+    expect(wounded.status().captureHealthy).toBe(false);
+    expect(wounded.status().lastError).toContain("the model ledger is unreadable");
+    expect(wounded.status().executionAuthority).toBe(false);
+  });
+
+  it("survives a torn log line and an unreadable root without throwing", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot });
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    fs.appendFileSync(path.join(dataRoot, ".boss", "runtime-intelligence", "prospective", "prospective-window.jsonl"), "{ torn\n", "utf8");
+    expect(capture.records()).toHaveLength(1);
+    expect(capture.status().windows).toBe(1);
+    expect(() => capture.status()).not.toThrow();
+  });
+
+  it("still records an intended observation after a refused one", () => {
+    const dataRoot = makeRoot();
+    const capture = liveCapture({ dataRoot });
+    const tainted = { ...ledgerFacts({ taskId: "task-1" }), reviewOutcome: "AGREED" } as unknown as LiveLedgerFacts;
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: tainted, at: AFTER_FREEZE }).ok).toBe(false);
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    expect(capture.status().recordsRejected).toBe(1);
+    expect(capture.records()[0].steps).toHaveLength(1);
+  });
+});
+
+describe("the capture layer has no execution authority", () => {
+  it("exposes no action API and cannot be given one by accident", () => {
+    const capture = new RuntimeIntelligenceCapture({ dataRoot: makeRoot(), now: () => AFTER_FREEZE, openedAt: () => AFTER_FREEZE });
+    const forbidden = ["stopTask", "switchModel", "routeTask", "restartTask", "modifyTask", "deleteSkill", "cancelTask", "retryTask", "pauseTask", "resumeTask", "dispatch", "execute"];
+    const names = new Set<string>();
+    let prototype: object | null = Object.getPrototypeOf(capture) as object | null;
+    while (prototype !== null && prototype !== Object.prototype) {
+      for (const name of Object.getOwnPropertyNames(prototype)) names.add(name);
+      prototype = Object.getPrototypeOf(prototype) as object | null;
+    }
+    for (const name of forbidden) expect([...names], `${name} would be an action API`).not.toContain(name);
+    // What it does expose: observations in, status and readings out.
+    for (const name of ["observeCheckpoint", "observeProviderEvent", "status", "records", "headline", "coverage", "markAttached"]) expect([...names]).toContain(name);
+    expect(capture.status().executionAuthority).toBe(false);
+    expect(capture.status().mode).toBe("LIVE_SHADOW_CAPTURE");
+  });
+
+  it("subscribes to run outcomes only, and leaves the bus's own publishing intact", () => {
+    const seen: string[] = [];
+    const events = new DomainEventBus();
+    const capture = liveCapture({ dataRoot: makeRoot() });
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    const attachment = attachRuntimeIntelligenceCapture(events, { capture });
+    let otherDelivered = 0;
+    events.subscribe("WORKER_COMPLETED", (event) => {
+      otherDelivered += 1;
+      seen.push(`other:${event.type}`);
+    });
+
+    expect(attachment.eventTypes).toEqual([...CAPTURED_EVENT_TYPES]);
+    expect(CAPTURED_EVENT_TYPES).toEqual(["WORKER_COMPLETED", "WORKER_FAILED"]);
+    events.publish({ type: "WORKER_COMPLETED", taskId: "task-1", runtimeId: "web:chatgpt", jobId: "job-1" });
+    events.publish({ type: "THEME_ACTIVATED", taskId: "task-1" });
+    expect(seen).toEqual(["other:WORKER_COMPLETED"]);
+    expect(otherDelivered).toBe(1);
+    expect(capture.records()[0].providerEvents).toHaveLength(1);
+    expect(capture.status().captureAttached).toBe(true);
+
+    attachment.detach();
+    attachment.detach();
+    events.publish({ type: "WORKER_COMPLETED", taskId: "task-1", runtimeId: "web:chatgpt", jobId: "job-2" });
+    expect(capture.records()[0].providerEvents).toHaveLength(1);
+  });
+
+  it("cannot fail a publish even when the capture behind it is broken", () => {
+    const dataRoot = makeRoot("boss-capture-broken-");
+    fs.mkdirSync(path.join(dataRoot, ".boss", "runtime-intelligence"), { recursive: true });
+    fs.writeFileSync(path.join(dataRoot, ".boss", "runtime-intelligence", "prospective"), "not a directory", "utf8");
+    const events = new DomainEventBus();
+    const capture = liveCapture({ dataRoot });
+    attachRuntimeIntelligenceCapture(events, { capture });
+    let delivered = 0;
+    events.subscribe("WORKER_FAILED", () => {
+      delivered += 1;
+    });
+    expect(() => events.publish({ type: "WORKER_FAILED", taskId: "task-1", runtimeId: "web:qwen", jobId: "job-1" })).not.toThrow();
+    expect(delivered).toBe(1);
+    expect(events.handlerFailures()).toEqual([]);
+    expect(capture.status().captureHealthy).toBe(false);
+  });
+});
+
+describe("the capture vocabulary is exactly what it claims to be", () => {
+  it("names its record kinds, its schema version and the rule it applies to a snapshot", () => {
+    // Imported and asserted rather than described, so the vocabulary cannot be renamed away from
+    // the modules that use it without this test noticing.
+    expect(LIVE_CAPTURE_SCHEMA_VERSION).toBe(1);
+    expect(EVIDENCE_RECORD_KINDS).toEqual(["DECISION_TIME_RECORD", "OUTCOME_RECORD"]);
+    const kind: EvidenceRecordKind = "DECISION_TIME_RECORD";
+    expect(kind).toBe("DECISION_TIME_RECORD");
+    expect(LIVE_FUTURE_FIELD_CHECK).toContain("decision-time snapshot");
+    const dispatch: LiveDispatchRecord = build().dispatches[0];
+    const usage: LiveUsageRecord = build().usage;
+    const latency: LiveLatencyRecord = build().latency;
+    const skills: LiveSkillRecord = build().skills;
+    const continuation: ContinuationAdviceCapture = build().continuationAdvice;
+    const scheduler: SchedulerAdviceCapture = build().schedulerAdvice;
+    const headline: HeadlineCaptureMetrics = headlineCaptureMetrics([build()]);
+    const outcome: FinalOutcomeEvidence = finalOutcomeOf({ taskStatus: "completed" });
+    const event: ProspectiveProviderEvent = providerEventOf({ eventType: "WORKER_COMPLETED", taskId: "task-1", jobId: "job-1", at: AT });
+    const facts: LiveLedgerFacts = ledgerFacts();
+    const built: StepObservationResult = stepObservationOf({ facts, capturedAt: AT, sourceClass: "REAL_USER_TASK" });
+    expect(built.ok).toBe(true);
+    expect([dispatch.attribution, usage.reportedCostUsd.status, latency.totalStepMs.status, skills.signal, continuation.temporalVerdict, scheduler.status, headline.headline.tasks, outcome.finalOutcome, event.closesWindow]).toEqual([
+      "DIRECT_CHECKPOINT",
+      "NOT_MEASURED",
+      "NOT_MEASURED",
+      NO_SKILL_RUNTIME_SIGNAL,
+      "NO_FUTURE_INFO" + "RMATION",
+      "UNAVAILABLE",
+      1,
+      "SUCCESS",
+      false
+    ]);
+    // The two pure entry points the adapter does not call directly are still part of the surface.
+    expect(continuationAdviceOf({ facts, snapshot: { stepIndex: 1 }, objectiveComplete: false, at: AT }).decision).toBe("CONTINUE");
+  });
+
+  it("declares the retention and failure types a reader of the producer's status needs", () => {
+    expect(CAPTURE_FAILURE_RETENTION).toBe(50);
+    const options: LiveCaptureOptions = { dataRoot: makeRoot(), now: () => AFTER_FREEZE, openedAt: () => AFTER_FREEZE };
+    const capture = new RuntimeIntelligenceCapture(options);
+    expect(capture.observeCheckpoint({ taskId: "task-1", facts: ledgerFacts({ taskId: "task-1" }), at: AFTER_FREEZE }).ok).toBe(true);
+    const failure: LiveCaptureFailure = { at: AFTER_FREEZE, operation: "observeCheckpoint", message: "an injected failure" };
+    expect(failure.operation).toBe("observeCheckpoint");
+    // A failure is bounded: the oldest are dropped, so a long-running process cannot grow it.
+    expect(capture.status().failures.length).toBeLessThanOrEqual(CAPTURE_FAILURE_RETENTION);
+  });
+
+  it("exposes the window operations the adapter appends through", () => {
+    const capture = liveCapture({ dataRoot: makeRoot() });
+    const observation = build({ taskId: "task-2" });
+    const opened = openProspectiveRecord({ taskId: "task-2", openedAt: AFTER_FREEZE });
+    expect(opened.record?.schemaVersion).toBe(PROSPECTIVE_WINDOW_SCHEMA_VERSION);
+    const identity: ProspectivePolicyIdentity = prospectivePolicyIdentity();
+    expect(identity).toEqual(opened.record?.policyIdentity);
+    expect(CAPTURE_EVENT_ID_LIMIT).toBe(256);
+
+    const first = appendProspectiveObservation(opened.record!, observation);
+    expect(first.ok).toBe(true);
+    expect(appendProspectiveObservation(first.record!, observation).deduplicated).toBe(true);
+    const marked = markCaptureEvent(first.record!, "PROVIDER_OUTCOME:job-1");
+    expect(marked.deduplicated).toBe(false);
+    expect(markCaptureEvent(marked.record, "PROVIDER_OUTCOME:job-1").deduplicated).toBe(true);
+    const withEvent = appendProviderEvent(marked.record, providerEventOf({ eventType: "WORKER_COMPLETED", taskId: "task-2", jobId: "job-1", at: AT }));
+    expect(withEvent.ok).toBe(true);
+    expect(withEvent.record.providerEvents).toHaveLength(1);
+    expect(appendProviderEvent(opened.record!, providerEventOf({ eventType: "WORKER_COMPLETED", taskId: "other", jobId: "j", at: AT })).ok).toBe(false);
+
+    const derived = deriveWindowOutcome(withEvent.record, { closedAt: AT, taskStatus: "running" });
+    expect(derived.steps).toHaveLength(1);
+    expect(derived.completionProblems).toEqual([]);
+    // A terminal status whose last step still has open work is a disagreement, and it is reported
+    // rather than smoothed over: the window and the store must not quietly contradict each other.
+    const contradicts = deriveWindowOutcome(withEvent.record, { closedAt: AT, taskStatus: "completed" });
+    expect(contradicts.completionProblems?.[0].kind).toBe("TERMINAL_BUT_NOT_COMPLETE");
+    expect(identity.confidencePolicyHash).toHaveLength(64);
+    expect(identity.confidencePolicyHash).not.toBe(identity.continuationPolicyHash);
+    // The adapter's own window is still empty: the records above were built by hand.
+    expect(capture.status().windows).toBe(0);
+  });
+});
+
+describe("the attachment is in the composition root, and stays there", () => {
+  it("makes the real call at each declared seam", () => {
+    // Declared as data and checked against the files, so "the producer is attached" is a fact a
+    // reader can verify rather than a sentence in a report. Removing either call fails here.
+    const repositoryRoot = path.resolve(__dirname, "..", "..", "..");
+    expect(LIVE_CAPTURE_ATTACHMENTS).toHaveLength(2);
+    for (const attachment of LIVE_CAPTURE_ATTACHMENTS) {
+      const file = path.join(repositoryRoot, ...attachment.seam.split("/"));
+      expect(fs.existsSync(file), `${attachment.seam} must exist`).toBe(true);
+      expect(fs.readFileSync(file, "utf8"), `${attachment.seam} must call ${attachment.call}`).toContain(attachment.call);
+    }
+    // The capture reaches the ledger and the bus from the composition root, not from the plane.
+    const main = fs.readFileSync(path.join(repositoryRoot, "electron", "main.ts"), "utf8");
+    expect(main).toContain("capture: persistence.service.capture");
+  });
+
+  it("drives the whole path in the smoke walk, and keeps the smoke out of the headline", () => {
+    const dataRoot = makeRoot();
+    const smoke = runLiveCaptureSmoke({ dataRoot, now: () => AFTER_FREEZE });
+    expect(smoke.problems).toEqual([]);
+    expect(smoke.checkpointFiles).toBe(3);
+    expect(smoke.status.captureAttached).toBe(true);
+    expect(smoke.status.captureHealthy).toBe(true);
+    expect(smoke.status.tasksObserved).toBe(1);
+    expect(smoke.status.stepsObserved).toBe(3);
+    expect(smoke.status.providerEventsObserved).toBe(1);
+    expect(smoke.status.windowsClosed).toBe(1);
+    expect(smoke.status.executionAuthority).toBe(false);
+    expect(smoke.window?.sourceClass).toBe("DEVELOPMENT_SMOKE");
+    expect(smoke.window?.steps.map((step) => step.continuationAdvice.decision)).toEqual(["CONTINUE", "CONTINUE", "STOP"]);
+    expect(smoke.window?.steps.flatMap((step) => step.dispatches).every((dispatch) => dispatch.attribution === "DIRECT_CHECKPOINT")).toBe(true);
+    expect(smoke.window?.outcome?.finalOutcome).toBe("SUCCESS");
+    // The headline stays empty, which is the honest report of a smoke run.
+    expect(smoke.headlineTasks).toBe(0);
+  });
+});
+
+describe("smoke validation on a real ledger", () => {
+  it("walks task open, step, dispatch and outcome, and keeps the smoke out of the headline", () => {
+    const dataRoot = makeRoot();
+    let taskStatus: string | undefined = "running";
+    const capture = new RuntimeIntelligenceCapture({
+      dataRoot,
+      now: () => AFTER_FREEZE,
+      openedAt: () => AFTER_FREEZE,
+      taskStatus: () => taskStatus,
+      // The smoke run says what it is, so it can never be mistaken for a user's work.
+      sourceClass: "DEVELOPMENT_SMOKE"
+    });
+    const events = new DomainEventBus();
+    const attachment = attachRuntimeIntelligenceCapture(events, { capture });
+    const ledger = createCaptureObservingLedger({ root: path.join(dataRoot, ".boss", "tasks"), capture, now: () => AFTER_FREEZE });
+
+    ledger.create("smoke-1", "smoke objective");
+    events.publish({ type: "WORKER_COMPLETED", taskId: "smoke-1", runtimeId: "web:chatgpt", jobId: "job-1" });
+    ledger.update("smoke-1", "task/run transition", (record) => {
+      record.completedSteps = ["step-a"];
+      record.pendingSteps = ["step-b"];
+      record.nextAction = "DISPATCHING";
+      record.sessions = [{ id: "run-1", provider: "web:chatgpt", taskId: "smoke-1", checkpoint: 2, health: "SUCCESS", resumeStrategy: "RECONSTRUCT" }];
+    });
+    taskStatus = "completed";
+    ledger.update("smoke-1", "task/run transition", (record) => {
+      record.completedSteps = ["step-a", "step-b"];
+      record.pendingSteps = [];
+      record.nextAction = "REPORT_EVIDENCE";
+    });
+
+    const [record] = capture.records();
+    expect(record.sourceClass).toBe("DEVELOPMENT_SMOKE");
+    expect(record.steps).toHaveLength(3);
+    expect(record.providerEvents).toHaveLength(1);
+    expect(record.outcome?.finalOutcome).toBe("SUCCESS");
+    expect(record.steps[1].dispatches[0].attribution).toBe("DIRECT_CHECKPOINT");
+    expect(record.steps.every((step) => step.continuationAdvice.policyHash === frozenContinuationPolicy().policyHash)).toBe(true);
+    expect(record.outcome?.completionProblems ?? []).toEqual([]);
+
+    const status = capture.status();
+    expect(status.tasksObserved).toBe(1);
+    expect(status.stepsObserved).toBe(3);
+    expect(status.windowsClosed).toBe(1);
+    expect(status.captureHealthy).toBe(true);
+
+    // The headline is empty and says why, which is the honest result of a smoke run.
+    const headline = capture.headline();
+    expect(headline.tasks).toBe(0);
+    expect(headline.excludedBySourceClass).toEqual({ DEVELOPMENT_SMOKE: 1 });
+    expect(prospectiveHeadline([]).verdict).toBe("INSUFFICIENT_EVIDENCE");
+    attachment.detach();
+  });
+
+  it("counts a real user task in the headline and scores it against its own outcome", () => {
+    const dataRoot = makeRoot();
+    let taskStatus: string | undefined = "running";
+    const capture = new RuntimeIntelligenceCapture({ dataRoot, now: () => AFTER_FREEZE, openedAt: () => AFTER_FREEZE, taskStatus: () => taskStatus });
+    // Step one still has open work, so the advice is CONTINUE; step two is finished, so the advice
+    // is STOP. The window scores both against what the loop actually did.
+    expect(capture.observeCheckpoint({ taskId: "real-1", facts: ledgerFacts({ taskId: "real-1", completedSteps: ["a"], pendingSteps: ["b"], revision: 2, sessions: [], jobs: {} }), at: AFTER_FREEZE }).ok).toBe(true);
+    taskStatus = "completed";
+    expect(capture.observeCheckpoint({ taskId: "real-1", facts: ledgerFacts({ taskId: "real-1", completedSteps: ["a", "b"], pendingSteps: [], revision: 3, sessions: [], jobs: {} }), at: "2026-09-20T03:00:00.000Z" }).ok).toBe(true);
+
+    const records: ProspectiveWindowRecord[] = capture.records();
+    expect(records).toHaveLength(1);
+    const metrics = capture.headline();
+    expect(metrics.tasks).toBe(1);
+    expect(metrics.tasksClosed).toBe(1);
+    expect(metrics.continuationSteps).toBe(2);
+    expect(metrics.stopSupportCount).toBe(1);
+    expect(metrics.falseStops).toBe(0);
+    expect(metrics.callsSaved).toBe(1);
+    expect(metrics.notes.join(" ")).toContain("1 STOP advisory(ies)");
+    expect(capture.coverage().headline.steps).toBe(2);
   });
 });
