@@ -1137,6 +1137,14 @@
       "obligation": "real provider token usage travels the whole path to the durable ledger, and its absence stays unmeasured rather than becoming an estimate"
     },
     {
+      "file": "tests/unit/platform/qualification-provenance.test.ts",
+      "tier": "unit",
+      "covers": [
+        "state-core"
+      ],
+      "obligation": "the corpus provenance record contains only runner facts the job measured: schema 2 has no runner.labels at all, a forged RUNNER_LABELS value cannot appear anywhere in the machine record, the redacted form leaks no corpus path or content, and the corpus commitment is independent of runner metadata"
+    },
+    {
       "file": "tests/unit/platform/restart-recovery.test.ts",
       "tier": "unit",
       "covers": [

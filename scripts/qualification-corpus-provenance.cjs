@@ -32,6 +32,29 @@
  * before and after: if the commitment digest is identical either side of the run, the corpus was quiescent
  * and the gate read a stable view. A different digest does not fail the gate — it qualifies the result,
  * which is what the workflow records.
+ *
+ * WHY THE SCHEMA IS v2 (PF-DEBT-018)
+ *
+ * v1's `runner` block carried a `labels` array read from `process.env.RUNNER_LABELS`. GitHub Actions does not
+ * define that variable — its documented runner variables are `RUNNER_NAME`, `RUNNER_OS`, `RUNNER_ARCH` and
+ * `RUNNER_ENVIRONMENT` — so the field was never a measurement: on the real soak host, which is scheduled
+ * through `[self-hosted, windows, boss-real-soak, boss-qualification]`, it serialized as `[]`. A field that
+ * looks like a measurement and can only ever be empty is worse than no field, so v2 REMOVES it instead of
+ * trying to fill it.
+ *
+ * The reporter has no authoritative source for a runner's label set, and this is worth stating because the
+ * three nearby facts are easy to collapse into one:
+ *
+ *   - the in-job environment carries the runner's NAME, ENVIRONMENT and OS, and no label list at all;
+ *   - the agent's `.runner` registration file proves which ACCOUNT the runner is registered to — the private
+ *     control repository, not this public one — and says nothing about its label set;
+ *   - the labels a workflow declares in `runs-on` are a SCHEDULING REQUIREMENT: they say what the scheduler
+ *     demanded, not what the runner reported about itself.
+ *
+ * So v2 reports only what the job can observe (`class`, `name`, and an `os` measured from the running
+ * process), and the workflow's own evidence records the scheduling requirement under a name that says it is
+ * one. Historical schema-1 artifacts remain valid historical artifacts with this known limitation and are not
+ * rewritten; the commitment algorithm and the redaction boundary are unchanged by the version bump.
  */
 
 "use strict";
@@ -114,14 +137,16 @@ const record = {
   $comment:
     "Phase B4/B5/B6 corpus provenance. The redacted record is the ONLY form permitted to leave the host: " +
     "aggregate counts and a commitment digest, never paths, never file contents.",
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: new Date().toISOString(),
   redacted,
+  // Only facts this job can actually observe. v1 also carried `labels`, read from a variable GitHub Actions
+  // does not define; see the header. There is deliberately no replacement field: a declared scheduling
+  // requirement belongs in the workflow's evidence, not in a runner measurement.
   runner: {
     class: process.env.RUNNER_ENVIRONMENT ?? (process.env.CI ? "github-actions" : "local"),
     name: process.env.RUNNER_NAME ?? os.hostname(),
-    os: `${os.type()} ${os.release()} ${os.arch()}`,
-    labels: (process.env.RUNNER_LABELS ?? "").split(",").map((label) => label.trim()).filter(Boolean)
+    os: `${os.type()} ${os.release()} ${os.arch()}`
   },
   commit: process.env.GITHUB_SHA ?? null,
   trustEpoch: (() => {
