@@ -155,9 +155,15 @@ let workspaceSelection: WorkspaceSelectionStore;
 
 const overrideDataRoot = process.argv.find((arg) => arg.startsWith("--boss-data-dir="))?.slice("--boss-data-dir=".length);
 const legacyDataRoot = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "CodexBoss") : undefined;
+// A packaged build must never own user data inside its own install directory: the
+// installer replaces that directory on upgrade and removes it on uninstall, and the
+// browser profile it would take with it holds the provider logins. The per-user
+// location is the one that outlives both. A development run passes nothing here and
+// keeps writing beside its checkout.
+const packagedUserRoot = app.isPackaged ? path.join(process.env.LOCALAPPDATA ?? app.getPath("appData"), "Codex-Boss") : undefined;
 // One root model for the whole process; no subsystem joins its own directory
 // onto the install path (electron/runtime-paths.ts).
-const roots = runtimeRoots({ installRoot: app.getAppPath(), ...(overrideDataRoot ? { dataRootOverride: overrideDataRoot } : {}) });
+const roots = runtimeRoots({ installRoot: app.getAppPath(), ...(packagedUserRoot ? { userDataRoot: packagedUserRoot } : {}), ...(overrideDataRoot ? { dataRootOverride: overrideDataRoot } : {}) });
 const dataRoot = roots.appData;
 app.setPath("userData", dataRoot);
 app.setPath("sessionData", path.join(dataRoot, "Session Data"));
@@ -216,12 +222,16 @@ if (!ownsInstance) {
 }
 if (ownsInstance) {
   fs.mkdirSync(dataRoot, { recursive: true });
-  if (!overrideDataRoot && legacyDataRoot) {
+  // Never migrate a root onto itself: a packaged build resolves its per-user root and
+  // the pre-v1 location is a different directory, but a future configuration could
+  // name the same one, and a self-copy would be a data-loss bug rather than a no-op.
+  const legacyIsCurrentRoot = legacyDataRoot !== undefined && path.resolve(legacyDataRoot) === path.resolve(dataRoot);
+  if (!overrideDataRoot && legacyDataRoot && !legacyIsCurrentRoot) {
     migrateLegacyPersistentData(legacyDataRoot, dataRoot, roots.history);
   }
   const cacheRoot = roots.cache;
   const sessionRoot = path.join(cacheRoot, "browser-profile");
-  const oldSessionRoot = !overrideDataRoot && legacyDataRoot ? path.join(legacyDataRoot, "Session Data") : app.getPath("sessionData");
+  const oldSessionRoot = !overrideDataRoot && legacyDataRoot && !legacyIsCurrentRoot ? path.join(legacyDataRoot, "Session Data") : app.getPath("sessionData");
   // Migrate only after acquiring the instance lock, before any browser starts.
   migrateBrowserProfile(oldSessionRoot, sessionRoot);
   for (const name of ["tmp", "crash-dumps"]) fs.mkdirSync(path.join(cacheRoot, name), { recursive: true });

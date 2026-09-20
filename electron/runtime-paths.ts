@@ -81,7 +81,8 @@ function artifactsUnder(root: string): string {
  *
  * All of them except `installRoot` live under `dataRootOverride` when one was
  * given (`--boss-data-dir=…`), which is what isolates one acceptance run from the
- * developer's own state.
+ * developer's own state. A packaged build passes `userDataRoot` instead, so that
+ * nothing durable is written inside the directory the installer owns.
  */
 export interface RuntimeRoots {
   installRoot: string;
@@ -93,11 +94,17 @@ export interface RuntimeRoots {
   temp: string;
 }
 
-export function runtimeRoots(input: { installRoot: string; dataRootOverride?: string }): RuntimeRoots {
+export function runtimeRoots(input: { installRoot: string; dataRootOverride?: string; userDataRoot?: string }): RuntimeRoots {
   const installRoot = path.resolve(input.installRoot);
   const override = input.dataRootOverride ? path.resolve(input.dataRootOverride) : undefined;
-  const beside = override ?? installRoot;
-  const appData = override ?? appDataUnder(installRoot);
+  // A packaged build owns nothing inside the directory it was installed into: an
+  // upgrade replaces that directory and an uninstall removes it, so durable state,
+  // the browser profile and exported history would go with the binaries. The
+  // per-user root outlives both. A development run keeps writing beside its
+  // checkout, which is why this is an input rather than a hard-coded location.
+  const userRoot = input.userDataRoot ? path.resolve(input.userDataRoot) : undefined;
+  const beside = override ?? userRoot ?? installRoot;
+  const appData = override ?? (userRoot ? appDataUnder(userRoot) : appDataUnder(installRoot));
   const cache = cacheUnder(beside);
   return {
     installRoot,
