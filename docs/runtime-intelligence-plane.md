@@ -675,3 +675,210 @@ Two specific findings worth carrying forward:
   unchanged and still recorded in section 12.
 
 ---
+
+## 25. Real data acquisition (round 3, `RUNTIME_INTELLIGENCE_REAL_DATA_ACQUISITION`)
+
+The previous round ended with `REAL_DATA_SAMPLE_COUNTS task-level = 0` and concluded that no
+Boss data root existed on this host. **That conclusion was wrong**, and the correction is the
+first result of this round.
+
+### What was actually there
+
+```text
+root      C:\Users\15601\AppData\Local\CodexBoss   (the application's userData)
+          426 files, from 2026-09-03/04
+holds     state.json   5 tasks · 13 runs · 18 dispatch checkpoints · 4 artifacts
+                       2 evidence bundles · 12 runtime statuses · 200 events
+          .boss/tasks/<id>/checkpoints/*.json     58 task-ledger checkpoints
+also      %LOCALAPPDATA%\CodexBossSandbox         the sandbox launcher stamp (PF-DEBT-003)
+absent    <repo>/runtime-data, <repo>/history, telemetry.json, learning/episodes.jsonl
+```
+
+Two causes compounded. The plane's reader defaulted to the repository's `runtime-data/`, which
+this application never writes; and the reconnaissance that "confirmed" absence had a PowerShell
+operator-precedence bug — `@($a + "x", $b + "x")` concatenated the two candidate roots into one
+string, so neither was ever checked. `locateRealDataRoots` now searches the plausible roots and
+reports per root what it holds, so a zero read can no longer be mistaken for an absence.
+
+### The pipeline
+
+```bash
+pnpm run build:electron
+node scripts/runtime-intelligence-report.cjs --sample 8 --real-data --out artifacts/runtime-intelligence/report.json
+```
+
+locate → export → sanitize → import → replay → benchmark → report, and read-only until the
+plane's own `runtime-intelligence/replay/` area is written. The exporter builds each field from
+a whitelist, so objectives, prompts, messages, constraints, artifact bodies and session ids are
+never read into a record; the provenance names every redacted field, `scanSecrets` verifies the
+result, and a corpus that fails that check is discarded rather than written. A test asserts the
+production root is byte-unchanged after an export.
+
+### What the real corpus measured
+
+```text
+records                     58  (5 tasks, 58 checkpoints, 0 skipped, 0 problems)
+records with an outcome     49  (SUCCESS 49, NOT_MEASURED 9 — the 9 still-queued runs)
+review outcome              NOT_RUN 58   (the application recorded no review)
+failure domains             NOT_MEASURED 58
+continuation steps replayed 58  (all judged; 0 skipped, 0 invalid)
+scheduler cases             31
+calibration samples         31
+
+CONTINUATION_DECISIONS_REPLAYED  58
+FALSE_STOP_COUNT                  5
+FALSE_STOP_RATE                   0.5
+UNNECESSARY_CONTINUE_RATE         0
+SWITCH_MODEL_ERROR_RATE           NOT_MEASURED (no switch was advised)
+CONFIDENCE_CALIBRATION_ERROR      0.7331  (UNDERCONFIDENT, n=31)
+SCHEDULER_LIFT                    0
+SKILL_LOADOUT_REPLAYS             0
+NODE_SNAPSHOTS_RAW / AFTER        8 / 8   (25 781 bytes)
+```
+
+### The finding that matters
+
+**The continuation evaluator produced a false-stop rate of 0.5 on real data.** It advised STOP
+on 10 steps and 5 of those were wrong about the work being finished. The five are the five
+COMPILE checkpoints: at compile time `pendingSteps` is empty because the work list has not been
+created yet, every other signal is unmeasured, and the evaluator's fallback when no rule fires
+is STOP — the most expensive decision it can make. Its own asymmetric penalty (5 against 1)
+prices that at 25, and the report's `false-stop-rate-low` gate (≤ 2%) fails by a factor of 25.
+
+This is exactly what the instrument was built to find, and it is a defect in the *evaluator*,
+not in the data: a state the evaluator cannot see must not produce its most dangerous decision.
+**It was deliberately NOT fixed in this round.** Changing the fallback now would erase the
+measurement that proves it is wrong, and the round's rule is that the benchmark measures — it
+does not tune. The measurement is recorded here so the change can be made against evidence
+rather than against taste.
+
+The other gates fail for honest, non-alarming reasons. The scheduler agreement is 1.0 but so is
+the majority-model baseline, because all 31 dispatches resolved to a single runtime identity —
+there is nothing to discriminate on, and `successLiftOverOverall` is 0. `ledger-calibrated` is
+`UNDERCONFIDENT` (bias −0.73): advice given at confidence ~0.15 was right far more often than it
+claimed. Skill replay has no data because the application of 2026-09 recorded no skill usage,
+and cost/latency estimation has none because a web transport exposes neither.
+
+**Readiness is `INSUFFICIENT_EVIDENCE`, and the report still grants no execution authority.**
+The branch remains at level 2.
+
+### Two more real gaps, closed as contracts
+
+- **Step completion** (`step-completion.ts`) is now derived from the loop's own
+  `completedSteps` / `pendingSteps` / `nextAction`, so a false-stop rate is computable at all.
+  Its decisive rule came from the data rather than from reasoning: `pending === 0` is not
+  completion, because the COMPILE checkpoint reports zero pending work before any work item
+  exists.
+- **Context contribution** (`context-contribution.ts`) records only observable signals and
+  keeps the plan's line: being injected is not contribution. A record that was retrieved and
+  injected and observed nowhere else is `UNKNOWN` and reported as `injectedButUnattributed` —
+  measurable waste, and not proof the record was useless. No real context signal exists in this
+  corpus, so the report answers `NOT_MEASURED` rather than estimating.
+
+### Known limitations of this corpus
+
+- **Per-step provider attribution is unavailable.** The checkpoint records `activeProvider` as
+  null and the export uses the task's first recorded run provider for every step of that task,
+  so the 31 scheduler cases are task-level attributions, not 31 independent dispatch decisions.
+  That is why a single model identity appears. Mapping the checkpoint's worker sessions to a
+  provider is the prerequisite for a per-dispatch scheduler replay.
+- **`TASKS_REPLAYED` counts replay cases**, and each case is a task-step, so the name is looser
+  than the number.
+- The five tasks are a chat/work corpus from one day in September; nothing here is a
+  representative sample of Boss usage, and the report says so instead of implying otherwise.
+
+---
+
+## 26. Evidence-driven correction (round 4, `RUNTIME_INTELLIGENCE_EVIDENCE_DRIVEN_CORRECTION`)
+
+Round 3 measured a false-stop rate of 0.5 and refused to fix it, on the grounds that changing the
+fallback then would erase the measurement that proved it wrong. This round makes the change, and
+re-measures on the same corpus.
+
+### A. Why the evaluator stopped wrongly
+
+`evaluateContinuation` fell back to **STOP** when no rule fired, so a state the evaluator could
+not see produced its most expensive decision. The five errors were the five COMPILE checkpoints:
+`pendingSteps` is empty because the work list does not exist yet, every other signal is
+unmeasured, no rule fired — and the policy said STOP about a task with all its work still to do.
+
+### The correction, as semantics rather than cases
+
+- **STOP requires positive evidence.** `continuation.objective-complete` now needs
+  `taskComplete === true` — the loop's own statement that the objective is finished — instead of
+  "nothing unresolved and progress at 1", which an empty work list satisfies trivially.
+  `ContinuationSignals` gains `taskComplete` and `pendingWork`, with `UNKNOWN` deliberately
+  distinct from `NONE`.
+- **The no-rule fallback is CONTINUE.** `UNKNOWN != COMPLETE`, `NO_SIGNAL != STOP`, and the
+  evaluator's own measured asymmetry — a false stop costs 5, an unnecessary continue 1 — makes
+  continuing the cheaper error to be wrong about. The assessment records
+  `continuation.no-positive-evidence` with that reason.
+- **No rule mentions a phase, a task id or COMPILE.** The change is to absence and completion
+  semantics, which is what the anti-overfit requirement asks for.
+
+### Policy versioning, so the baseline stays re-measurable
+
+The old behaviour is kept runnable as `continuation-policy-v0`; the correction is
+`continuation-policy-v1` and is the default. `CONTINUATION_POLICY_FALLBACK` and
+`CONTINUATION_POLICY_STOP_EVIDENCE` state the difference as data, every assessment carries
+`policyId` and a `policyHash` over its rules and thresholds, and tests keep both policies pinned.
+A baseline that can only be remembered cannot be compared against.
+
+### Re-measured on the same corpus, with a task-level holdout
+
+```text
+                       baseline v0          candidate v1
+full corpus (58 steps) rate 0.5  pen 25     rate 0.0  pen 0
+dev   (3 tasks, 22)    rate 0.5  pen 15     rate 0.0  pen 0
+holdout (2 tasks, 36)  rate 0.5  pen 10     rate 0.0  pen 0
+unnecessary continue   0 in both            calls saved 5 in both
+```
+
+The split is **BY TASK**, not by step: the steps of one task are correlated, so a step-level
+split would put the same task on both sides and hold nothing out. The holdout's outcomes were
+not read while choosing the policy, and the improvement holds there. That makes it
+`RETROSPECTIVE_IMPROVEMENT = YES` and `PROSPECTIVE_VALIDATION = INSUFFICIENT_EVIDENCE` — only new
+tasks the candidate was not chosen against can validate it prospectively, and none exist yet.
+
+The `false-stop-rate-low` gate (≤ 2%) now **passes**; it was the decisive failure in round 3. The
+candidate still advises STOP on the genuinely finished steps and saves the same five calls, so
+the fix removed the errors without removing the value.
+
+### B. Which provider did each step actually use?
+
+The first version used the task's first run provider for every step and reported 31 of those as
+31 dispatch decisions. The real data already had the answer: each checkpoint records its worker
+`sessions[]`, and each session names the provider runtime it belongs to. A step with three
+sessions is three dispatch decisions, not one ambiguity.
+
+`dispatch-attribution.ts` orders five sources from direct evidence to a stated fallback —
+`DIRECT_CHECKPOINT` (1), `RUN_MATCH` (0.8), `SESSION_MATCH` (0.6), `TASK_FALLBACK` (0.2),
+`UNKNOWN` (0) — and the census states that a fallback must not be reported as per-dispatch
+evidence and that a corpus with no direct attribution cannot support a per-dispatch benchmark.
+
+```text
+134 attributions: 129 DIRECT_CHECKPOINT · 2 TASK_FALLBACK · 3 UNKNOWN
+6 providers:      chatgpt, qwen, gemini, grok, kimi, doubao
+scheduler cases:  131 (129 direct)   — was 31 task-level approximations
+SCHEDULER_LIFT_DIRECT = 0
+```
+
+The lift is still 0, and now for a stated reason rather than an attribution artefact: every
+dispatched run in this corpus succeeded, so the followed and overall success rates are both 1.0
+and there is no variance for the advisor to beat a baseline on. That is an honest
+`INSUFFICIENT_EVIDENCE` about discrimination — **and it is not a licence to tune the ranking**,
+which this round does not do.
+
+### C. Latency and cost: a recording blocker, not an estimation problem
+
+The checkpoint schema carries `usage.providerWaitMs` and `usage.workerRuntimeMs`, and every real
+checkpoint has both at **zero**; cost is recorded nowhere at all. So `LATENCY_CASES = 0` and
+`COST_CASES = 0`, documented as a blocker against the application's recording path.
+`tokenCases = 31` and `toolsCases = 31` do exist. Nothing is estimated to fill the gap.
+
+### Authority
+
+Unchanged at **LEVEL 2 — SHADOW COUNTERFACTUAL**. The correction changes what the shadow advice
+says, not who acts on it: nothing interrupts a model, switches a model, routes a task, removes a
+skill or deletes knowledge, `READY_FOR_ASSISTED_EXECUTION_PROPOSAL` is still
+`INSUFFICIENT_EVIDENCE`, and the five-task corpus is far too small to justify more.

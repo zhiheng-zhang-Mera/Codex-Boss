@@ -1385,7 +1385,21 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/calibration.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/context-lifecycle.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/continuation-benchmark.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
@@ -1400,6 +1414,20 @@
     },
     {
       "file": "tests/unit/runtime-intelligence/contracts.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/dispatch-attribution.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/evaluation-report.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
@@ -1448,7 +1476,51 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/outcome-ingestion.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status",
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/replay-cases.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/replay-corpus-io.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security",
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/replay-corpus.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/scheduler-benchmark.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/scheduling-advisor.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/service.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
@@ -1462,7 +1534,21 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/skill-replay.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/snapshot-retention.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/step-completion.test.ts",
       "tier": "unit",
       "covers": [
         "tenx"
