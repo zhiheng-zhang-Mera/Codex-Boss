@@ -503,6 +503,20 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
     expect(described.requiredChecksSource).toContain(".github/workflows/ci.yml");
     // …and the legacy single name is gone from the adapter entirely.
     expect(REQUIRED_PROMOTION_CHECKS).not.toContain("validate");
+
+    // Measured, not remembered: the declaration is checked against the workflow that produces the contexts, so
+    // the gate and the CI it gates cannot drift into two opinions. (The LIVE ruleset is a platform fact and is
+    // measured by `scripts/verify-authority-separation.cjs --platform`, not by a unit test.)
+    const workflow = fs.readFileSync(path.join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8").split(/\r?\n/);
+    const jobsAt = workflow.findIndex((line) => /^jobs:\s*$/.test(line));
+    expect(jobsAt, "ci.yml must declare a jobs block").toBeGreaterThanOrEqual(0);
+    const jobIds: string[] = [];
+    for (const line of workflow.slice(jobsAt + 1)) {
+      const job = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
+      if (job) jobIds.push(job[1]);
+    }
+    expect(jobIds.length, "the workflow must declare its jobs").toBeGreaterThan(0);
+    expect([...REQUIRED_PROMOTION_CHECKS].sort()).toEqual(jobIds.slice().sort());
   });
 
   it("refuses to push the protected base branch directly", async () => {

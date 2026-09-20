@@ -14,16 +14,17 @@
  * — be "fixed" by substituting one of the four names, which would make the gate look like it verified CI while
  * checking a quarter of it.
  *
- * The promotion gate reads this declaration. It is the same list the ruleset requires and the same list
- * `Desktop CI` emits, and `tests/unit/promotion-gate.test.ts` fails if any of the three drift apart, so the
- * three cannot become three opinions.
+ * The promotion gate reads this declaration. `Desktop CI` emits exactly these four job ids, and
+ * `tests/unit/promotion-gate.test.ts` reads `.github/workflows/ci.yml` and fails if the two lists stop being the
+ * same — so the gate and the pipeline it gates cannot drift into two opinions.
  *
  * ## What this file is NOT
  *
  * It is not authority. Listing a check here does not require it on the platform — the live ruleset does that,
- * and `scripts/verify-authority-separation.cjs --platform` is what measures it. This is the contract the
- * AUTONOMOUS side must satisfy before it may ask for a promotion, which is exactly why it is a constant in
- * shared code rather than a string buried in an adapter.
+ * and the ruleset is a PLATFORM fact rather than a repository one, so it is measured rather than asserted in a
+ * unit test (`scripts/verify-authority-separation.cjs --platform`). This is the contract the AUTONOMOUS side
+ * must satisfy before it may ask for a promotion, which is exactly why it is a constant in shared code rather
+ * than a string buried in an adapter.
  */
 
 /**
