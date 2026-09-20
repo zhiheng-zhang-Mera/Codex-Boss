@@ -343,10 +343,16 @@ describe("Root Trust Authority Lockdown — fake Owner controls are records, not
   });
 
   it("has no production caller that supplies an Owner approval", () => {
+    // The production promotion path is the coordinator PLUS the remote sequence it delegates to. Both are
+    // scanned, because the guard must follow the code it guards: asserting the evaluate sites are in the
+    // coordinator alone would have stopped guarding anything the moment they moved, and a guard that scans the
+    // wrong file is worse than no guard — it reports safety it never checked.
     const coordinator = fs.readFileSync(path.join(PROJECT, "electron/self-evolution/self-evolution-coordinator.ts"), "utf8");
-    const calls = coordinator.split("\n").filter((line) => line.includes("promotion.evaluate("));
+    const remote = fs.readFileSync(path.join(PROJECT, "electron/self-evolution/remote-promotion.ts"), "utf8");
+    const calls = `${coordinator}\n${remote}`.split("\n").filter((line) => line.includes("promotion.evaluate("));
     expect(calls.length).toBeGreaterThan(2);
     expect(/rootOwnerApprovedSha/.test(coordinator), "the autonomous coordinator must never pass an Owner approval").toBe(false);
+    expect(/rootOwnerApprovedSha/.test(remote), "the autonomous remote promotion must never pass an Owner approval").toBe(false);
   });
 
   it("cannot be talked into finalizing by a flag: the bless script has no force switch", () => {
