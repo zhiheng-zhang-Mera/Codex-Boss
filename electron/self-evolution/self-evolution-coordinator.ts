@@ -4,10 +4,10 @@ import path from "node:path";
 import { runGit, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import { sanitizeEnvironment } from "../credential-boundary/sanitized-environment";
 import { candidateEnvironment } from "../credential-boundary/credential-boundary";
-import { EnvironmentBossGitHubCredentialProvider, type BossGitHubCredentialProvider } from "../credential-boundary/github-credential-provider";
-import { ExactShaGate } from "../promotion-gate/exact-sha-gate";
+import { UnconfiguredBossGitHubCredentialProvider, type BossGitHubCredentialProvider } from "../credential-boundary/github-credential-provider";
 import { GitHubPromotionAdapter, type GitHubTransport } from "../promotion-gate/github-promotion-adapter";
-import { PromotionController, type PromotionRecord } from "../promotion-gate/promotion-controller";
+import { PromotionController, createRunPromotionController, type PromotionRecord } from "../promotion-gate/promotion-controller";
+import { promoteCandidateOverGitHub, type SelfEvolutionOutcome } from "./remote-promotion";
 import { RootAuthority } from "../root-authority/root-authority";
 import { EvolutionExecutionProfile } from "../root-authority/execution-profile";
 import { ProtectedSurfaceGuard, type SurfaceChange } from "../root-authority/protected-surface-guard";
@@ -72,16 +72,6 @@ import { planCandidateRuntimeIsolation, StableRuntimePointer, type StablePointer
  * `MainCommander` only hands a self-target task over; it makes no evolution
  * decision of its own.
  */
-
-type SelfEvolutionOutcome =
-  | "NOT_SELF"
-  | "EMERGENCY_STOPPED"
-  | "BLOCKED_EXTERNAL"
-  | "WAITING_FOR_ROOT_OWNER"
-  | "PROMOTED"
-  | "REJECTED"
-  | "ROLLED_BACK"
-  | "CANDIDATE_FAILED";
 
 interface SelfEvolutionTaskRequest {
   taskId: string;
@@ -472,16 +462,15 @@ export class SelfEvolutionCoordinator {
         const assessment = guard.assessChanges(surfaceChanges);
 
         // 7. the promotion controller, wired to the Root ledger and the freeze switch.
-        const exactShaGate = new ExactShaGate(layout.workspace);
-        promotion = new PromotionController({
-          storeFile: path.join(path.resolve(this.options.governanceRoot), "runs", `${runId}-promotion.json`),
-          runId,
-          authority,
-          exactShaGate,
-          emergency,
-          stableSha: baseSha
-        });
-        const credential = (this.options.credentialProvider ?? new EnvironmentBossGitHubCredentialProvider({ rootOwner: authority.rootOwner })).getAutomationCredential();
+        promotion = createRunPromotionController({ governanceRoot: this.options.governanceRoot, runId, authority, workspace: layout.workspace, ...(emergency ? { emergency } : {}), stableSha: baseSha });
+        // The credential is asked for the way the adapter will ask for it. A MINTED credential (the GitHub App
+        // installation token, which is the converged production path) can only answer asynchronously, so
+        // reading only the synchronous form here would report BLOCKED_EXTERNAL on a host whose App identity
+        // works — and the promotion would never push. Nothing is minted twice: the provider caches the token.
+        const provider: BossGitHubCredentialProvider = this.options.credentialProvider ?? new UnconfiguredBossGitHubCredentialProvider();
+        const credential = provider.getAutomationCredentialAsync
+          ? await provider.getAutomationCredentialAsync()
+          : provider.getAutomationCredential();
         const blockedReason = credential.status === "AVAILABLE" ? undefined : credential.requiredExternalAction;
         if (blockedReason) promotion.setExternalBlocker(blockedReason);
         setState("COMPLETED");
@@ -579,6 +568,11 @@ export class SelfEvolutionCoordinator {
     }
   }
 
+  /**
+   * The remote promotion. The sequence itself lives in `remote-promotion.ts` so that a live acceptance can
+   * drive the SAME code an autonomous run drives; this method only supplies the run's own context (branch,
+   * reviewer verdict, governance handles).
+   */
   private async attemptRemotePromotion(
     host: EvolutionHostOperations,
     promotion: PromotionController,
@@ -590,106 +584,17 @@ export class SelfEvolutionCoordinator {
     blockedReason?: string
   ): Promise<{ outcome: SelfEvolutionOutcome; blockedExternal?: string }> {
     const { emergency } = this.governanceHandles();
-    const branch = layout.candidateBranch;
-    const reviewerClean = summary.state === "ENGINEERING_CONVERGED" || summary.state === "OPTIONAL_IMPROVEMENTS";
-    const title = `Autonomous evolution ${request.runId ?? ""}`.trim();
-
-    // No dedicated Boss identity: the run parks in BLOCKED_EXTERNAL with the
-    // exact external action the Owner must take. Nothing is pushed.
-    if (blockedReason) {
-      const parked = await promotion.evaluate({
-        binding: { candidateHeadSha, ciValidatedSha: null, prHeadSha: null, promotionSha: candidateHeadSha },
-        requiredChecksPassed: false,
-        branchUpToDate: true,
-        reviewerClean,
-        changedFiles
-      });
-      return { outcome: mapPromotionOutcome(parked.state), blockedExternal: blockedReason };
-    }
-
-    // before PR creation
-    emergency.assertCandidateCreationAllowed();
-
-    const push = await host.execute<{ status: string; reason?: string; requiredExternalAction?: string; value?: { sha: string } }>({
-      kind: "promote.pushBranch",
-      branch,
-      sha: candidateHeadSha
+    return promoteCandidateOverGitHub({
+      host,
+      promotion,
+      emergency,
+      candidateHeadSha,
+      branch: layout.candidateBranch,
+      request: { objective: request.objective, ...(request.runId ? { runId: request.runId } : {}) },
+      changedFiles,
+      reviewerClean: summary.state === "ENGINEERING_CONVERGED" || summary.state === "OPTIONAL_IMPROVEMENTS",
+      ...(blockedReason ? { blockedReason } : {})
     });
-    if (push.status !== "OK") {
-      const reason = push.requiredExternalAction ?? push.reason ?? "push failed";
-      promotion.setExternalBlocker(reason);
-      const parked = await promotion.evaluate({
-        binding: { candidateHeadSha, ciValidatedSha: null, prHeadSha: null, promotionSha: candidateHeadSha },
-        requiredChecksPassed: false,
-        branchUpToDate: true,
-        reviewerClean,
-        changedFiles
-      });
-      return { outcome: mapPromotionOutcome(parked.state), blockedExternal: reason };
-    }
-
-    const opened = await host.execute<{ status: string; value?: { number: number; headSha: string }; reason?: string; requiredExternalAction?: string }>({
-      kind: "promote.openPullRequest",
-      head: branch,
-      title,
-      body: `Owner goal: ${request.objective}`
-    });
-    if (opened.status !== "OK" || !opened.value) {
-      const reason = opened.requiredExternalAction ?? opened.reason ?? "pull request creation failed";
-      promotion.setExternalBlocker(reason);
-      const parked = await promotion.evaluate({
-        binding: { candidateHeadSha, ciValidatedSha: null, prHeadSha: null, promotionSha: candidateHeadSha },
-        requiredChecksPassed: false,
-        branchUpToDate: true,
-        reviewerClean,
-        changedFiles
-      });
-      return { outcome: mapPromotionOutcome(parked.state), blockedExternal: reason };
-    }
-    promotion.recordPullRequest(opened.value.number, opened.value.headSha);
-
-    const check = await host.execute<{ status: string; value?: { conclusion: string | null }; reason?: string }>({ kind: "promote.readCheck", sha: opened.value.headSha });
-    const checked = check.status === "OK" && check.value?.conclusion === "success";
-    // The exact-SHA gate has the last word: a stale PASS may not promote.
-    const evaluated = await promotion.evaluate({
-      binding: { candidateHeadSha, ciValidatedSha: checked ? opened.value.headSha : null, prHeadSha: opened.value.headSha, promotionSha: candidateHeadSha },
-      requiredChecksPassed: checked,
-      branchUpToDate: true,
-      reviewerClean,
-      changedFiles
-    });
-    if (evaluated.state !== "PROMOTABLE") return { outcome: mapPromotionOutcome(evaluated.state) };
-
-    // before beginPromotion
-    emergency.assertPromotionAllowed();
-    promotion.beginPromotion();
-    // immediately before merge
-    emergency.assertPromotionAllowed();
-    const head = await host.execute<{ status: string; value?: { headSha: string }; reason?: string }>({ kind: "promote.readPullRequest", prNumber: opened.value.number });
-    if (head.status !== "OK" || head.value?.headSha !== candidateHeadSha) {
-      promotion.setExternalBlocker("PR head SHA changed after validation; the previous CI PASS is void");
-      const stale = await promotion.evaluate({
-        binding: { candidateHeadSha, ciValidatedSha: null, prHeadSha: head.value?.headSha ?? null, promotionSha: candidateHeadSha },
-        requiredChecksPassed: false,
-        branchUpToDate: true,
-        reviewerClean,
-        changedFiles
-      });
-      return { outcome: mapPromotionOutcome(stale.state) };
-    }
-    const merged = await host.execute<{ status: string; value?: { sha: string }; reason?: string; requiredExternalAction?: string }>({
-      kind: "promote.merge",
-      prNumber: opened.value.number,
-      sha: candidateHeadSha,
-      title
-    });
-    if (merged.status !== "OK") {
-      const reason = merged.requiredExternalAction ?? merged.reason ?? "merge failed";
-      promotion.markBlockedExternal(reason);
-      return { outcome: "BLOCKED_EXTERNAL", blockedExternal: reason };
-    }
-    promotion.completePromotion(candidateHeadSha);
-    return { outcome: "PROMOTED" };
   }
 
   /**
@@ -838,21 +743,6 @@ export class SelfEvolutionCoordinator {
 
   /** Evidence writes this run could not make. Cleared when a run starts. */
   private evidenceFailures: string[] = [];
-}
-
-function mapPromotionOutcome(state: PromotionState): SelfEvolutionOutcome {
-  switch (state) {
-    case "PROMOTED":
-      return "PROMOTED";
-    case "WAITING_FOR_ROOT_OWNER":
-      return "WAITING_FOR_ROOT_OWNER";
-    case "BLOCKED_EXTERNAL":
-      return "BLOCKED_EXTERNAL";
-    case "ROLLED_BACK":
-      return "ROLLED_BACK";
-    default:
-      return "REJECTED";
-  }
 }
 
 /** Host-computed argv, mirroring `command-runner`'s allow-list exactly. */

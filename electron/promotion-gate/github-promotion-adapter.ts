@@ -64,7 +64,7 @@ export const fetchGitHubTransport: GitHubTransport = {
 type AdapterResult<T> =
   | { status: "OK"; value: T }
   | { status: "BLOCKED_EXTERNAL"; reason: string; requiredExternalAction: string }
-  | { status: "FAILED"; reason: string; httpStatus?: number };
+  | { status: "FAILED"; reason: string; httpStatus?: number; pending?: string[]; missing?: string[]; notSuccessful?: string[]; foreignSha?: string[] };
 
 /** URLs the adapter may never call, whatever the caller asks for (§9.4). */
 const FORBIDDEN_API_PATTERNS: readonly RegExp[] = [
@@ -244,6 +244,9 @@ export class GitHubPromotionAdapter {
    *     even when it is green (§11.2). The binding is per-check, not just per-request.
    *   - **a pending check treated as a pass.** `conclusion` is null until a run finishes, so `status` is
    *     required to be `completed` before a `success` conclusion is trusted.
+   *
+   * A failed read names what it saw (`pending`, `missing`, `notSuccessful`, `foreignSha`) so the caller can
+   * tell "not reported yet" from "reported and failed" instead of re-parsing a sentence.
    */
   async readRequiredCheck(sha: string): Promise<AdapterResult<{
     name: string;
@@ -264,6 +267,13 @@ export class GitHubPromotionAdapter {
     const missing: string[] = [];
     const notSuccessful: string[] = [];
     const foreignSha: string[] = [];
+    /**
+     * Required checks that have not reached a terminal conclusion yet — either no run exists, or the newest
+     * run is still `queued`/`in_progress`. An unfinished check is an ABSENCE of evidence, not a failing one,
+     * and the caller distinguishes the two: a promotion may wait for a pending check, but it must never wait
+     * out a check that has already reported a non-`success` conclusion.
+     */
+    const pending: string[] = [];
     const checks: { name: string; status: string | null; conclusion: string | null; headSha: string | null }[] = [];
 
     for (const required of REQUIRED_PROMOTION_CHECKS) {
@@ -272,23 +282,28 @@ export class GitHubPromotionAdapter {
       const run = candidates[candidates.length - 1];
       if (!run) {
         missing.push(required);
+        pending.push(required);
         checks.push({ name: required, status: null, conclusion: null, headSha: null });
         continue;
       }
       const headSha = run.head_sha ?? null;
       if (headSha && headSha !== sha) foreignSha.push(`${required}@${headSha.slice(0, 12)}`);
-      if (run.status !== "completed" || run.conclusion !== "success") notSuccessful.push(`${required}=${run.status ?? "unknown"}/${run.conclusion ?? "pending"}`);
+      if (run.status !== "completed") pending.push(`${required}=${run.status ?? "unknown"}`);
+      else if (run.conclusion !== "success") notSuccessful.push(`${required}=completed/${run.conclusion ?? "none"}`);
       checks.push({ name: required, status: run.status, conclusion: run.conclusion, headSha });
     }
 
-    const allRequiredChecksSuccessful = missing.length === 0 && notSuccessful.length === 0 && foreignSha.length === 0;
+    // Every required check must be present AND finished AND green: `pending` is part of the conjunction, so
+    // reporting an unfinished check separately can never turn it into a pass.
+    const allRequiredChecksSuccessful = missing.length === 0 && pending.length === 0 && notSuccessful.length === 0 && foreignSha.length === 0;
     if (!allRequiredChecksSuccessful) {
       const reasons = [
         missing.length ? `no run reported for ${missing.join(", ")}` : "",
+        pending.length ? `not finished: ${pending.join(", ")}` : "",
         notSuccessful.length ? `not successful: ${notSuccessful.join(", ")}` : "",
         foreignSha.length ? `reported for a different sha: ${foreignSha.join(", ")}` : ""
       ].filter(Boolean).join("; ");
-      return { status: "FAILED", reason: `required checks for ${sha.slice(0, 12)} are not all green — ${reasons}` };
+      return { status: "FAILED", reason: `required checks for ${sha.slice(0, 12)} are not all green — ${reasons}`, pending, missing, notSuccessful, foreignSha };
     }
     return {
       status: "OK",

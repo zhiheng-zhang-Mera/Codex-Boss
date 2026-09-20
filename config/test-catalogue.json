@@ -832,6 +832,14 @@
       ]
     },
     {
+      "file": "tests/unit/github-app-credential-provider.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ],
+      "obligation": "the Self-Evolution promotion credential is minted by the existing GitHub App identity (source github-app-installation-token), GH_TOKEN/GITHUB_TOKEN are never consumed, a failed or disabled App yields BLOCKED_EXTERNAL with no fallback and no outbound request, and the candidate environment carries neither the App private key nor an Owner credential"
+    },
+    {
       "file": "tests/unit/github-machine-identity.test.ts",
       "tier": "unit",
       "covers": [
@@ -1246,6 +1254,14 @@
         "remote",
         "status"
       ]
+    },
+    {
+      "file": "tests/unit/remote-promotion.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ],
+      "obligation": "the remote promotion sequence waits only for a check that has not reported (a completed non-success stops it immediately), and a required-checks-green Root-Surface change set reaches WAITING_FOR_ROOT_OWNER with its pull request open and the merge handler never called"
     },
     {
       "file": "tests/unit/renderer-workspace-path-ui.test.ts",

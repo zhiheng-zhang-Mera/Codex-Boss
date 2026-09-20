@@ -476,11 +476,14 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
     expect(failed.status).toBe("FAILED");
     expect(failed.status === "FAILED" && failed.reason).toMatch(/not successful: unit/);
 
-    // …one still running (a pending check is not a pass)…
+    // …one still running (a pending check is not a pass, and it is reported as unfinished rather than as a
+    // failure, so a caller may wait for it instead of guessing)…
     checkRuns = green(SHA_A).map((run) => (run.name === "acceptance" ? { ...run, status: "in_progress", conclusion: null } : run));
     const pending = await configured.readRequiredCheck(SHA_A);
     expect(pending.status).toBe("FAILED");
-    expect(pending.status === "FAILED" && pending.reason).toMatch(/acceptance=in_progress\/pending/);
+    expect(pending.status === "FAILED" && pending.reason).toMatch(/not finished: acceptance=in_progress/);
+    expect(pending.status === "FAILED" && pending.pending).toEqual(["acceptance=in_progress"]);
+    expect(pending.status === "FAILED" && pending.notSuccessful).toEqual([]);
 
     // …and the legacy literal, alone, is not the contract.
     checkRuns = [{ name: "validate", conclusion: "success", status: "completed", head_sha: SHA_A }];

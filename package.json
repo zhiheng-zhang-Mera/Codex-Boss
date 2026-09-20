@@ -58,6 +58,7 @@
     "security:scan": "node scripts/scan-tracked-secrets.cjs",
     "acceptance:github-machine": "node scripts/acceptance-github-machine-identity.cjs",
     "acceptance:github-machine:live": "electron dist-electron/electron/github/live-acceptance.js",
+    "acceptance:promotion-identity:live": "electron dist-electron/electron/self-evolution/live-promotion-acceptance.js",
     "bootstrap:github-machine": "electron dist-electron/electron/github/bootstrap.js",
     "install:electron": "node node_modules/electron/install.js",
     "architecture:graph": "node scripts/architecture.cjs graph",

@@ -165,6 +165,11 @@ const CURATED = {
   "tests/unit/evolution-trial-surface.test.ts": { covers: ["promotion"] },
   "tests/unit/evolution-quiescence.test.ts": { covers: ["promotion"] },
   "tests/unit/self-evolution-production-defaults.test.ts": { covers: ["promotion"] },
+  // Machine-identity convergence: the promotion path acts with the EXISTING GitHub App installation identity
+  // instead of a second credential architecture, waits for CI evidence instead of reading an empty check list,
+  // and still stops a green Root-Surface change set at the Owner.
+  "tests/unit/github-app-credential-provider.test.ts": { covers: ["promotion"], obligation: "the Self-Evolution promotion credential is minted by the existing GitHub App identity (source github-app-installation-token), GH_TOKEN/GITHUB_TOKEN are never consumed, a failed or disabled App yields BLOCKED_EXTERNAL with no fallback and no outbound request, and the candidate environment carries neither the App private key nor an Owner credential" },
+  "tests/unit/remote-promotion.test.ts": { covers: ["promotion"], obligation: "the remote promotion sequence waits only for a check that has not reported (a completed non-success stops it immediately), and a required-checks-green Root-Surface change set reaches WAITING_FOR_ROOT_OWNER with its pull request open and the merge handler never called" },
   "tests/unit/self-target-resolver.test.ts": { covers: ["promotion"] },
   "tests/unit/repo-world-model.test.ts": { covers: ["workspace"] },
   "tests/unit/git-gateway.test.ts": { covers: ["persistence"] },

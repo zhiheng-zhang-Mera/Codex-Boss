@@ -1,3 +1,4 @@
+import path from "node:path";
 import { readJson, writeJson } from "../commander/durable-json";
 import { recordOwnerIntervention } from "../engineering/owner-intervention-ledger";
 import {
@@ -10,8 +11,8 @@ import {
   type PromotionOutcome,
   type PromotionState
 } from "../../src/shared/root-authority/promotion-state";
+import { ExactShaGate } from "./exact-sha-gate";
 import type { RootAuthority } from "../root-authority/root-authority";
-import type { ExactShaGate } from "./exact-sha-gate";
 import type { EmergencyControl } from "../emergency-control/emergency-control";
 
 /**
@@ -83,6 +84,35 @@ interface PromotionControllerOptions {
 
 /** Canonical forward path; `evaluate` walks it rather than jumping states. */
 const FORWARD_PATH: readonly PromotionState[] = ["CREATED", "WORKING", "VERIFYING", "REVIEWING", "READY_FOR_PR", "WAITING_FOR_CI"];
+
+/**
+ * The promotion controller for one run, wired the way a run needs it: its own durable record under the
+ * governance root (outside the Candidate), the exact-SHA gate over the Candidate workspace, the Root ledger
+ * through `authority`, and the Owner's emergency control.
+ *
+ * A factory rather than inline construction because a live acceptance must exercise the SAME controller a run
+ * would: same store layout, same gate, same governance. An acceptance that built its own controller could pass
+ * while the production one was wired differently.
+ */
+export function createRunPromotionController(options: {
+  governanceRoot: string;
+  runId: string;
+  authority: RootAuthority;
+  workspace: string;
+  emergency?: EmergencyControl;
+  stableSha?: string | null;
+  now?: () => Date;
+}): PromotionController {
+  return new PromotionController({
+    storeFile: path.join(path.resolve(options.governanceRoot), "runs", `${options.runId}-promotion.json`),
+    runId: options.runId,
+    authority: options.authority,
+    exactShaGate: new ExactShaGate(options.workspace),
+    ...(options.emergency ? { emergency: options.emergency } : {}),
+    stableSha: options.stableSha ?? null,
+    ...(options.now ? { now: options.now } : {})
+  });
+}
 
 export class PromotionController {
   private readonly storeFile: string;

@@ -33,6 +33,14 @@ interface InstallationToken {
   token: string;
   expiresAt: string;
   repositories?: string[];
+  /**
+   * The permissions GitHub says THIS installation token has, measured from the mint response rather than
+   * assumed from how the App was configured. Recorded for evidence: the App's authority ceiling is what the
+   * platform grants, and a claim about it that is not read from here is a guess.
+   */
+  permissions?: Record<string, string>;
+  /** `all` or `selected`: the repository scope the token is limited to. */
+  repositorySelection?: string;
 }
 
 function base64url(value: string | Buffer): string {
@@ -121,9 +129,21 @@ export class GitHubAppAuthProvider {
         body: "{}"
       });
       if (response.status < 200 || response.status >= 300) return classifyGitHubResponse(response, this.now());
-      const parsed = JSON.parse(response.body) as { token?: string; expires_at?: string; repositories?: Array<{ full_name?: string }> };
+      const parsed = JSON.parse(response.body) as {
+        token?: string;
+        expires_at?: string;
+        permissions?: Record<string, string>;
+        repository_selection?: string;
+        repositories?: Array<{ full_name?: string }>;
+      };
       if (!parsed.token || !parsed.expires_at) return { ok: false, code: "AUTH_INVALID", message: "GitHub returned an invalid installation-token response", retryable: false };
-      this.cached = { token: parsed.token, expiresAt: parsed.expires_at, repositories: parsed.repositories?.flatMap((item) => item.full_name ? [item.full_name.toLowerCase()] : []) };
+      this.cached = {
+        token: parsed.token,
+        expiresAt: parsed.expires_at,
+        ...(parsed.permissions ? { permissions: parsed.permissions } : {}),
+        ...(parsed.repository_selection ? { repositorySelection: parsed.repository_selection } : {}),
+        repositories: parsed.repositories?.flatMap((item) => item.full_name ? [item.full_name.toLowerCase()] : [])
+      };
       return { ok: true, value: this.cached };
     } catch (error) {
       const safe = redactSecrets(String(error));

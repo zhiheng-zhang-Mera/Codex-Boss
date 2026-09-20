@@ -91,7 +91,15 @@ export interface HostOperationHandlers {
   pushBranch(input: { workspace: string; branch: string; sha: string }): Promise<HostOperationOutcome<{ branch: string; sha: string }>>;
   openPullRequest(input: { head: string; title: string; body: string }): Promise<HostOperationOutcome<{ number: number; headSha: string }>>;
   readPullRequest(input: { prNumber: number }): Promise<HostOperationOutcome<{ number: number; headSha: string; state: string }>>;
-  readCheck(input: { sha: string }): Promise<HostOperationOutcome<{ name: string; conclusion: string | null; status: string | null }>>;
+  readCheck(input: { sha: string }): Promise<HostOperationOutcome<{
+    name: string;
+    conclusion: string | null;
+    status: string | null;
+    /** Required checks that have not reached a terminal conclusion yet (no run, or still running). */
+    pending?: string[];
+    /** Required checks with no run reported at all yet. */
+    missing?: string[];
+  }>>;
   mergePullRequest(input: { prNumber: number; sha: string; title: string }): Promise<HostOperationOutcome<{ merged: boolean; sha: string }>>;
   readBranchSha(input: { branch: string }): Promise<HostOperationOutcome<{ sha: string }>>;
   persistEvidence(input: { name: string; payload: unknown }): Promise<string>;

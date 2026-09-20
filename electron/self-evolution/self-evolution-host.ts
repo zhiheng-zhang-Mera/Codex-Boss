@@ -1,7 +1,7 @@
 import { runGitOrThrow, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import fs from "node:fs";
 import path from "node:path";
-import { EnvironmentBossGitHubCredentialProvider, type BossGitHubCredentialProvider } from "../credential-boundary/github-credential-provider";
+import { UnconfiguredBossGitHubCredentialProvider, type BossGitHubCredentialProvider } from "../credential-boundary/github-credential-provider";
 import { fetchGitHubTransport, GitHubPromotionAdapter, type GitHubTransport } from "../promotion-gate/github-promotion-adapter";
 import { EvolutionKillSwitch } from "../emergency-control/evolution-kill-switch";
 import { EmergencyControl } from "../emergency-control/emergency-control";
@@ -76,8 +76,40 @@ export function defaultEvolutionGovernanceRoot(userData: string): string {
   return path.resolve(userData, "evolution-governance");
 }
 
-/** The git-backed default host handlers (host-selected argv only). */
-function createGitHostHandlers(base: {
+/**
+ * The two governance controls a promotion is subject to: the Owner's freeze switch and the emergency control
+ * that outranks every state. Built here rather than inline so a live acceptance exercises the same objects,
+ * on the same files, that a production run does — a freeze that an acceptance bypassed would not be the
+ * Owner's freeze.
+ */
+export function createEvolutionGovernance(options: {
+  governanceRoot: string;
+  evolutionRoot: string;
+  rootOwner: string;
+}): { killSwitch: EvolutionKillSwitch; emergency: EmergencyControl } {
+  const governanceRoot = path.resolve(options.governanceRoot);
+  const killSwitch = new EvolutionKillSwitch({
+    controlFile: path.join(governanceRoot, "evolution-control.json"),
+    sentinelFile: path.join(governanceRoot, "evolution-frozen.sentinel"),
+    candidateRoots: [path.resolve(options.evolutionRoot)]
+  });
+  const emergency = new EmergencyControl({
+    killSwitch,
+    rootOwner: options.rootOwner,
+    evidenceFile: path.join(governanceRoot, "emergency-evidence.jsonl")
+  });
+  return { killSwitch, emergency };
+}
+
+/**
+ * The git-backed default host handlers (host-selected argv only).
+ *
+ * Exported because a live acceptance must drive the SAME promotion seams an autonomous run uses: a second
+ * wiring that merely resembles this one would prove nothing about production. The acceptance builds the same
+ * handlers, with the same `runGit` and the same promotion adapter, and calls the same
+ * `promoteCandidateOverGitHub` sequence the coordinator calls.
+ */
+export function createGitHostHandlers(base: {
   persistEvidence(file: string, payload: unknown): void;
   runGit(cwd: string, args: string[]): Promise<string>;
   promotion: Pick<HostOperationHandlers, "pushBranch" | "openPullRequest" | "readPullRequest" | "readCheck" | "mergePullRequest" | "readBranchSha">;
@@ -132,12 +164,7 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
   // §7.3: every production mutating seam is now guarded for this installation.
   configureMutationGuard({ stableRoot, productRepository, registry, resolver });
 
-  const killSwitch = new EvolutionKillSwitch({
-    controlFile: path.join(governanceRoot, "evolution-control.json"),
-    sentinelFile: path.join(governanceRoot, "evolution-frozen.sentinel"),
-    candidateRoots: [evolutionRoot]
-  });
-  const emergency = new EmergencyControl({ killSwitch, rootOwner: options.rootOwner, evidenceFile: path.join(governanceRoot, "emergency-evidence.jsonl") });
+  const { killSwitch, emergency } = createEvolutionGovernance({ governanceRoot, evolutionRoot, rootOwner: options.rootOwner });
 
   const sandbox =
     options.sandbox ??
@@ -153,7 +180,11 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
       readOnlyRoots: [path.join(stableRoot, "node_modules"), path.dirname(process.execPath)].filter((root) => fs.existsSync(root))
     });
 
-  const credentialProvider = options.credentialProvider ?? new EnvironmentBossGitHubCredentialProvider({ rootOwner: options.rootOwner });
+  // The default is FAIL-CLOSED, not the legacy environment token: an unattended promotion must not borrow a
+  // credential from the environment because a variable happened to be set. The composition root injects the
+  // GitHub App installation-token provider when the machine identity is configured (the production path);
+  // `EnvironmentBossGitHubCredentialProvider` remains for tests and explicit manual injection only.
+  const credentialProvider = options.credentialProvider ?? new UnconfiguredBossGitHubCredentialProvider();
   const adapter = new GitHubPromotionAdapter({
     repository: productRepository,
     baseBranch: options.baseBranch ?? "main",
