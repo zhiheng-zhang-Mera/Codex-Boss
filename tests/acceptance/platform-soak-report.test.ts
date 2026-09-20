@@ -3,24 +3,30 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import type { InvariantOutcome } from "../../src/shared/soak-harness";
 
 /**
  * Phase 05 Task F / gate 6 — the soak report generator.
  *
  * The long soak is run by `pnpm run soak:platform --minutes <n>`; this suite drives the SAME generator
- * with a short duration and asserts three things about it:
+ * with a short duration and asserts:
  *
  *   1. the report covers every dimension the book names — memory, disk growth, handles, processes,
  *      queue lag, database size, event backlog and recovery counts;
  *   2. it is honest about the dimensions this host cannot observe, listing them as unavailable with a
  *      reason rather than reporting them as zero;
- *   3. it FAILS when the run's own trend exceeds the published allowance, rather than writing a green
- *      report for a run that grew without bound.
+ *   3. the REFUSAL BRANCH works, and the real measurement path reaches it honestly. These are two
+ *      separate pieces of evidence and neither replaces the other (see the two cases below);
+ *   4. it refuses a malformed duration, and a custom `--out` never touches the long-run report.
  *
- * On the third point, and why it is tested with a deliberately short run: a short run is almost all
- * warmup, so its trend genuinely DOES exceed the per-minute allowance, and the generator says so and
- * exits non-zero. That is the failure path being exercised with real data rather than a mock — the
- * same code path a leaking long run would take.
+ * PF-DEBT-017, and what changed here. The refusal branch used to be tested by running the real generator
+ * for a quarter-minute and REQUIRING the measured trend to exceed the long-run allowance, on the premise
+ * that a short run is all warmup. That premise is a statement about the HOST, not about the policy: on a
+ * quiet or fast enough runner the same code measures a trend inside the allowance, the generator correctly
+ * accepts it, and the test failed anyway — three times in CI, twice on one SHA that was green on another
+ * runner. The generator was never wrong; the test's premise was. So the branch is now exercised
+ * deterministically against an explicitly over-limit measurement fed to the SAME production decision the
+ * generator calls, and the real run's evidence is that its own measurements reach that decision.
  *
  * Build-dependent: the generator loads the compiled soak out of `dist-electron`, so it fails rather
  * than skipping when the build is missing.
@@ -101,17 +107,117 @@ describe("Phase 05 Task F / gate 6 — the soak report covers every dimension th
     }
   }, 240_000);
 
-  it("FAILS a run whose trend exceeds the published allowance, instead of certifying it", () => {
-    // A quarter-minute run is essentially all warmup, so its per-minute trend exceeds the long-run
-    // allowance. The generator must say so and exit non-zero. This is the real failure path a leaking
-    // run would take, exercised with real measurements rather than a mock.
+  /**
+   * A. DETERMINISTIC REFUSAL-PATH EVIDENCE.
+   *
+   * This is not a mock of the generator. It is the question the old case was trying to ask — "given a
+   * measured trend X, does the real policy reject X?" — asked without requiring a real host to happen to
+   * produce such an X. Both the generator and this case call `evaluatePlatformSoakAcceptance`, so the
+   * threshold being tested is the threshold being enforced.
+   *
+   * The boundary cases pin the OPERATOR: the comparison is strict, so a trend exactly at the allowance is
+   * EXCEEDED. Changing `<` to `<=` changes what the platform accepts, and that must not be possible to do
+   * quietly.
+   */
+  it("refuses a trend above the published allowance, through the production decision the generator uses", async () => {
+    const { evaluatePlatformSoakAcceptance, longRunAllowancePerMinute } = await import("../../src/shared/soak-harness");
+    const allowance = longRunAllowancePerMinute();
+    const decide = (rssMiBPerMinute: number, heapMiBPerMinute: number) =>
+      evaluatePlatformSoakAcceptance({ invariants: [], rssMiBPerMinute, heapMiBPerMinute });
+
+    // Comfortably inside the allowance: accepted, and the trend is reported as within it.
+    expect(decide(allowance.rssMiB / 2, allowance.heapMiB / 2)).toEqual({
+      failedInvariantIds: [],
+      trendWithinLongRunAllowance: true,
+      accepted: true
+    });
+
+    // Over on either axis, or on both: refused.
+    const overLimit: Array<[number, number, string]> = [
+      [allowance.rssMiB * 2, allowance.heapMiB / 2, "rss above the allowance"],
+      [allowance.rssMiB / 2, allowance.heapMiB * 2, "heap above the allowance"],
+      [allowance.rssMiB * 2, allowance.heapMiB * 2, "both above the allowance"]
+    ];
+    for (const [rss, heap, why] of overLimit) {
+      const verdict = decide(rss, heap);
+      expect(verdict.trendWithinLongRunAllowance, why).toBe(false);
+      expect(verdict.accepted, why).toBe(false);
+    }
+
+    // EXACTLY at the allowance is EXCEEDED, not accepted: the policy is strict, and this is the assertion
+    // that notices a `<` becoming a `<=`.
+    expect(decide(allowance.rssMiB, allowance.heapMiB / 2).trendWithinLongRunAllowance, "rss exactly at the allowance").toBe(false);
+    expect(decide(allowance.rssMiB / 2, allowance.heapMiB).trendWithinLongRunAllowance, "heap exactly at the allowance").toBe(false);
+    expect(decide(allowance.rssMiB, allowance.heapMiB).accepted, "both exactly at the allowance").toBe(false);
+
+    // The other half of `accepted`: a FAILED invariant refuses the run even when the trend is fine…
+    const failing: InvariantOutcome[] = [{ id: "heap-bounded", label: "heap bounded", status: "FAIL", observed: "1 MiB/min", bound: "0.5 MiB/min" }];
+    const withFailure = evaluatePlatformSoakAcceptance({ invariants: failing, rssMiBPerMinute: 0, heapMiBPerMinute: 0 });
+    expect(withFailure.trendWithinLongRunAllowance).toBe(true);
+    expect(withFailure.failedInvariantIds).toEqual(["heap-bounded"]);
+    expect(withFailure.accepted).toBe(false);
+
+    // …and UNAVAILABLE is not a failure: a dimension this host cannot measure does not refuse a run.
+    const unavailable: InvariantOutcome[] = [{ id: "no-orphan-processes", label: "no orphan processes", status: "UNAVAILABLE", observed: "not measured here", bound: "0" }];
+    const withUnavailable = evaluatePlatformSoakAcceptance({ invariants: unavailable, rssMiBPerMinute: 0, heapMiBPerMinute: 0 });
+    expect(withUnavailable.failedInvariantIds).toEqual([]);
+    expect(withUnavailable.accepted).toBe(true);
+  });
+
+  /**
+   * B. REAL MEASUREMENT-PATH EVIDENCE.
+   *
+   * The real generator still runs here, and this case still proves the instrumentation reaches the policy —
+   * that is the half a unit test of a pure function cannot prove. What it no longer does is DEMAND a
+   * particular host measurement. A quarter-minute run is mostly warmup, so the trend usually does exceed the
+   * allowance, but on a quiet host it may not, and that is a legitimate pass rather than a failure of the
+   * platform (PF-DEBT-017).
+   *
+   * Whatever this host measures, two things are asserted: the report's verdict IS the production decision
+   * applied to the report's own numbers — so the wiring is checked, not assumed — and the exit code follows
+   * that decision in both directions. A genuinely failing invariant still fails, on this path, for real.
+   */
+  it("reaches the allowance verdict through the production decision, whichever way this host measured", async () => {
+    const { evaluatePlatformSoakAcceptance, longRunAllowancePerMinute } = await import("../../src/shared/soak-harness");
     const result = runSoak(["--minutes", "0.25", "--interval", "250"]);
     const report = result.report as Record<string, any>;
-    expect(report).toBeTruthy();
-    expect(report.bounds.trendWithinLongRunAllowance).toBe(false);
-    expect(result.status, "the generator exited zero for a run that exceeded the allowance").toBe(1);
-    expect(result.stderr).toContain("FAILED");
-    expect(result.stderr).toContain("trend exceeded");
+    expect(report, `the generator wrote no report:\n${result.stdout}\n${result.stderr}`).toBeTruthy();
+
+    // Real measurements, so the decision below is made on this host's data rather than on a constant.
+    expect(report.samples).toBeGreaterThan(3);
+    expect(Number.isFinite(report.trends.rssMiBPerMinute)).toBe(true);
+    expect(Number.isFinite(report.trends.heapMiBPerMinute)).toBe(true);
+    expect(report.bounds.longRunAllowancePerMinute.rssMiB).toBeGreaterThan(0);
+    expect(report.bounds.longRunAllowancePerMinute.heapMiB).toBeGreaterThan(0);
+
+    // The allowance the report PUBLISHES is the allowance the decision ENFORCED — one derivation, not two.
+    // This is the assertion that would notice the generator growing its own copy of the policy back.
+    expect(report.bounds.longRunAllowancePerMinute).toEqual(longRunAllowancePerMinute());
+
+    const decision = evaluatePlatformSoakAcceptance({
+      invariants: report.invariants as InvariantOutcome[],
+      rssMiBPerMinute: report.trends.rssMiBPerMinute,
+      heapMiBPerMinute: report.trends.heapMiBPerMinute
+    });
+
+    // The report must carry the PRODUCTION decision applied to its OWN measurements. If the generator ever
+    // stops consulting the shared decision, this is where it goes red.
+    expect(report.bounds.trendWithinLongRunAllowance).toBe(decision.trendWithinLongRunAllowance);
+    expect(report.acceptance.trendWithinLongRunAllowance).toBe(decision.trendWithinLongRunAllowance);
+    expect(report.acceptance.failedInvariants).toEqual(decision.failedInvariantIds);
+    expect(report.acceptance.accepted).toBe(decision.accepted);
+
+    // The exit code follows the decision, in BOTH directions. A trend inside the allowance is never a reason
+    // to fail; a refused run always fails and says which way it was refused.
+    expect(result.status, "the generator's exit code must follow its own acceptance decision").toBe(decision.accepted ? 0 : 1);
+    if (!decision.accepted) {
+      expect(result.stderr).toContain("FAILED");
+      if (decision.failedInvariantIds.length === 0) expect(result.stderr).toContain("trend exceeded");
+    }
+
+    // Recorded so the run's real measurement is auditable rather than only its verdict: this is the data the
+    // decision above was made from, which is what makes "either outcome is a pass" checkable.
+    console.log(`[soak-report] rssMiBPerMinute=${report.trends.rssMiBPerMinute} heapMiBPerMinute=${report.trends.heapMiBPerMinute} trendWithinLongRunAllowance=${decision.trendWithinLongRunAllowance} generatorStatus=${result.status} accepted=${decision.accepted} failedInvariants=${JSON.stringify(decision.failedInvariantIds)}`);
   }, 240_000);
 
   it("refuses a malformed duration rather than defaulting to something long", () => {

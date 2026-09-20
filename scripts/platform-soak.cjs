@@ -61,7 +61,7 @@ function main() {
     return 1;
   }
   const { runPlatformSoak, scaledBounds } = require(soakPath);
-  const { evaluateSoakInvariants, SOAK_BOUNDS } = require(harnessPath);
+  const { evaluateSoakInvariants, evaluatePlatformSoakAcceptance, longRunAllowancePerMinute } = require(harnessPath);
 
   const root = options.root ? path.resolve(options.root) : fs.mkdtempSync(path.join(os.tmpdir(), "boss-soak-"));
   const durationMs = Math.round(options.minutes * 60_000);
@@ -94,11 +94,16 @@ function main() {
     });
 
     // The gate's own reading, in the units a reader can argue with: growth per minute against the
-    // long-run allowance per minute. The short-run scaled bound is published alongside so the two are
-    // not confused.
-    const trendWithinLongRunAllowance =
-      trends.heapMiBPerMinute < SOAK_BOUNDS.heapGrowthMiB / 30 &&
-      trends.rssMiBPerMinute < SOAK_BOUNDS.rssGrowthMiB / 30;
+    // long-run allowance per minute. The DECISION is not made here — it is made by the production
+    // `evaluatePlatformSoakAcceptance`, so the generator and the acceptance suite cannot disagree about what
+    // the policy is, and so the refusal branch can be exercised deterministically rather than by hoping a
+    // real host happens to measure an over-limit trend (PF-DEBT-017).
+    const acceptance = evaluatePlatformSoakAcceptance({
+      invariants: outcomes,
+      rssMiBPerMinute: trends.rssMiBPerMinute,
+      heapMiBPerMinute: trends.heapMiBPerMinute
+    });
+    const trendWithinLongRunAllowance = acceptance.trendWithinLongRunAllowance;
 
     const report = {
       $comment: "Phase 05 Task F soak report. Produced by scripts/platform-soak.cjs. Every number is measured during the run; dimensions this host cannot observe are listed as unavailable with a reason rather than reported as zero.",
@@ -115,18 +120,15 @@ function main() {
       trends,
       bounds: {
         ...bounds,
-        longRunAllowancePerMinute: {
-          rssMiB: SOAK_BOUNDS.rssGrowthMiB / 30,
-          heapMiB: SOAK_BOUNDS.heapGrowthMiB / 30,
-          handles: SOAK_BOUNDS.handleGrowth / 30
-        },
+        longRunAllowancePerMinute: longRunAllowancePerMinute(),
         trendWithinLongRunAllowance
       },
       invariants: outcomes,
       unavailable: result.unavailable,
       acceptance: {
-        failedInvariants: outcomes.filter((outcome) => outcome.status === "FAIL").map((outcome) => outcome.id),
-        trendWithinLongRunAllowance,
+        failedInvariants: acceptance.failedInvariantIds,
+        trendWithinLongRunAllowance: acceptance.trendWithinLongRunAllowance,
+        accepted: acceptance.accepted,
         gcMisdeleted: result.totals.gcMisdeleted,
         recoveredTransactions: result.totals.recoveredTransactions,
         cycles: result.totals.cycles
@@ -140,12 +142,15 @@ function main() {
     process.stdout.write(`[soak] gc planned=${result.totals.gcPlanned} collected=${result.totals.gcCollected} misdeleted=${result.totals.gcMisdeleted}\n`);
     process.stdout.write(`[soak] storage: ${(result.storage.databaseBytes / 1048576).toFixed(2)} MiB, ${result.storage.journalEvents} events, backlog ${result.storage.eventBacklog}\n`);
     process.stdout.write(`[soak] trend: rss ${trends.rssMiBPerMinute.toFixed(2)} MiB/min, heap ${trends.heapMiBPerMinute.toFixed(2)} MiB/min\n`);
-    process.stdout.write(`[soak] allowance: rss < ${(SOAK_BOUNDS.rssGrowthMiB / 30).toFixed(1)} MiB/min, heap < ${(SOAK_BOUNDS.heapGrowthMiB / 30).toFixed(1)} MiB/min => ${trendWithinLongRunAllowance ? "within" : "EXCEEDED"}\n`);
+    const allowancePerMinute = longRunAllowancePerMinute();
+    process.stdout.write(`[soak] allowance: rss < ${allowancePerMinute.rssMiB.toFixed(1)} MiB/min, heap < ${allowancePerMinute.heapMiB.toFixed(1)} MiB/min => ${trendWithinLongRunAllowance ? "within" : "EXCEEDED"}\n`);
     process.stdout.write(`[soak] report: ${path.relative(ROOT, out)}\n`);
 
-    const failed = report.acceptance.failedInvariants;
-    if (failed.length > 0 || !trendWithinLongRunAllowance) {
-      process.stderr.write(`[soak] FAILED: ${failed.join(", ") || "trend exceeded"}\n`);
+    // The verdict is the production decision, not a re-derivation of it: accepted = nothing failed AND the
+    // trend is inside the allowance. A refused run still writes its report first (above), because the
+    // evidence of a refusal is the thing worth keeping.
+    if (!acceptance.accepted) {
+      process.stderr.write(`[soak] FAILED: ${acceptance.failedInvariantIds.join(", ") || "trend exceeded"}\n`);
       return 1;
     }
     process.stdout.write("[soak] platform soak PASS\n");

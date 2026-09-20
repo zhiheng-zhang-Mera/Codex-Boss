@@ -403,6 +403,60 @@ export function soakPasses(invariants: readonly InvariantOutcome[]): boolean {
 }
 
 /**
+ * The long-run allowance per minute, derived from the published bounds.
+ *
+ * One implementation, because the generator PUBLISHES these numbers and the decision below APPLIES them —
+ * two copies of `SOAK_BOUNDS.<x> / 30` are two chances for the published allowance to stop being the
+ * allowance that was enforced.
+ */
+export function longRunAllowancePerMinute(): { rssMiB: number; heapMiB: number; handles: number } {
+  return {
+    rssMiB: SOAK_BOUNDS.rssGrowthMiB / 30,
+    heapMiB: SOAK_BOUNDS.heapGrowthMiB / 30,
+    handles: SOAK_BOUNDS.handleGrowth / 30
+  };
+}
+
+/** What the gate decided about one run, and why. */
+export interface SoakAcceptance {
+  /** Invariants that FAILED. UNAVAILABLE is not a failure: it is an honest "not measured here". */
+  failedInvariantIds: string[];
+  trendWithinLongRunAllowance: boolean;
+  /** Accepted = nothing failed AND the trend is inside the long-run allowance. */
+  accepted: boolean;
+}
+
+/**
+ * The gate's acceptance decision: no failed invariant AND a memory trend inside the long-run allowance.
+ *
+ * Extracted from `scripts/platform-soak.cjs` (PF-DEBT-017) so the generator and the acceptance suite call
+ * the SAME production decision. Before the extraction the suite re-derived the comparison itself, and the
+ * two could have drifted apart silently; worse, the suite's premise was that a short run's MEASURED trend
+ * must exceed the allowance, which is a claim about the host rather than about the policy.
+ *
+ * The comparison is STRICT: a trend EXACTLY at the allowance is EXCEEDED. That is policy, not an accident of
+ * which operator was typed, so it is pinned by boundary tests rather than left to the reader.
+ */
+export function evaluatePlatformSoakAcceptance(input: {
+  invariants: readonly InvariantOutcome[];
+  rssMiBPerMinute: number;
+  heapMiBPerMinute: number;
+}): SoakAcceptance {
+  const allowance = longRunAllowancePerMinute();
+  const failedInvariantIds = input.invariants
+    .filter((invariant) => invariant.status === "FAIL")
+    .map((invariant) => invariant.id);
+  const trendWithinLongRunAllowance =
+    input.heapMiBPerMinute < allowance.heapMiB &&
+    input.rssMiBPerMinute < allowance.rssMiB;
+  return {
+    failedInvariantIds,
+    trendWithinLongRunAllowance,
+    accepted: failedInvariantIds.length === 0 && trendWithinLongRunAllowance
+  };
+}
+
+/**
  * The verdict. Order matters: a run that did not reach its duration cannot be
  * PASS no matter how healthy it looked, and a host that could not sustain the run
  * is BLOCKED_EXTERNAL rather than FAIL — but never PASS.
