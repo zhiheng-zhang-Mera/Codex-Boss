@@ -1433,6 +1433,13 @@
       ]
     },
     {
+      "file": "tests/unit/runtime-intelligence/live-capture.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-intelligence/measurement.test.ts",
       "tier": "unit",
       "covers": [
@@ -1472,6 +1479,20 @@
       "tier": "unit",
       "covers": [
         "status",
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/policy-freeze.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/prospective-window.test.ts",
+      "tier": "unit",
+      "covers": [
         "tenx"
       ]
     },
