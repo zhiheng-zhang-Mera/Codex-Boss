@@ -149,7 +149,9 @@ function buildFacts(portable) {
     confidencePolicyHash: policies["confidence-policy-v0"],
     buildTimestamp: new Date().toISOString(),
     builtBy: "scripts/package-installer.cjs",
-    payloadSource: portable
+    // The builder's own directory layout is not part of the artifact: only the name of
+    // the `package:portable` output this payload was taken from is recorded.
+    payloadSource: path.basename(portable)
   };
 }
 
@@ -243,17 +245,19 @@ function main() {
     rootTrustSurfaceHash: facts.rootTrustSurfaceHash,
     executionAuthority: facts.executionAuthority,
     generatedAt: new Date().toISOString(),
+    // File names, not the builder's absolute paths: this manifest is published with the
+    // release, and the machine layout that produced it is not part of the release.
     installLayout: {
       installerNeedsPayloadBesideIt: true,
-      payloadFile: portableZip,
-      singleFileAlternative: singleFile
+      payloadFile: path.basename(portableZip),
+      singleFileAlternative: path.join("single-file", INSTALLER_BASENAME)
     },
     artifacts: {
-      installer: { file: installer, bytes: stubBytes.length, sha256: sha256(installer) },
-      portableArchive: { file: portableZip, bytes: payloadBytes.length, sha256: sha256(portableZip) },
-      buildManifest: { file: buildManifestPath, sha256: sha256(buildManifestPath) },
-      singleFileInstaller: { file: singleFile, bytes: stubBytes.length + payloadBytes.length, sha256: sha256(singleFile) },
-      portablePackageManifest: { file: portableManifest, sha256: facts.portableManifestHash }
+      installer: { file: INSTALLER_BASENAME, bytes: stubBytes.length, sha256: sha256(installer) },
+      portableArchive: { file: PORTABLE_BASENAME, bytes: payloadBytes.length, sha256: sha256(portableZip) },
+      buildManifest: { file: "build-manifest.json", sha256: sha256(buildManifestPath) },
+      singleFileInstaller: { file: path.join("single-file", INSTALLER_BASENAME), bytes: stubBytes.length + payloadBytes.length, sha256: sha256(singleFile) },
+      portablePackageManifest: { packageDirectory: path.basename(path.dirname(portableManifest)), file: "manifest.json", sha256: facts.portableManifestHash }
     },
     portableStaging: staged,
     facts
