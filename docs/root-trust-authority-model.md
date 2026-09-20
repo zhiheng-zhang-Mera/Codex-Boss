@@ -140,6 +140,23 @@ describes gets forgotten:
      CODEOWNERS, unable to admin-merge and unable to alter the ruleset. Until that acceptance is run and
      recorded, the honest state is: **the identity is proven, the convergence toward it is prepared, and the
      promotion path's own authority has not been exercised in practice.**
+  4. **Measured while preparing that acceptance: the promotion path could not have observed a green CI at all.**
+     On `main` at `1d78ee67`, the remote sequence pushed the Candidate branch, opened the pull request and then
+     read the required checks **exactly once, synchronously, with no wait** (`promote.readCheck`, a single call,
+     no retry). A real CI cannot have reported by that instant, and the gate reads a check that has not finished
+     as not-green, so the decision was `required-checks-not-passed` — a REJECTED run, never the Root-Surface
+     ceiling that sits behind a green one. The repair (wait — bounded — only for a check that has NOT reported
+     yet, and stop the moment one reports a non-`success` conclusion or a foreign SHA; `pending` remains part of
+     the all-green conjunction so an unfinished check can never be a pass) is prepared together with the
+     App-identity convergence on branch `feat/pf020-identity-convergence` at `7d558cb`, **not landed**. The live
+     acceptance required above could not be run in this job because the machine identity is not installed in
+     this host's data root: no `.boss/github-machine-identity.json` and no `.boss/secret-vault.json`, so
+     `createGitHubMachineRuntime(...)` answers `configured: false` and
+     `corepack pnpm run acceptance:promotion-identity:live` exits `2` with
+     `PROMOTION_IDENTITY_LIVE_ACCEPTANCE=BLOCKED_EXTERNAL` (artifact:
+     `runtime-data/.boss/promotion-identity-live-acceptance.json`). The exact Owner action is
+     `corepack pnpm run bootstrap:github-machine` on this host, then that acceptance command. **No part of this
+     entry is a claim that the inequality holds.**
 - **The ruleset's required checks are produced — repaired, and measured.** Until the Owner-authorized repair,
   `Main-Protection` required a check named `validate`, which no workflow produced, so the Owner's bypass was
   the only way `main` moved. It now requires the four checks `Desktop CI` actually emits — `quality`, `unit`,
