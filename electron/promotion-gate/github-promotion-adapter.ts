@@ -1,5 +1,6 @@
 import { runGit, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import type { BossGitHubCredentialProvider, AutomationCredential } from "../credential-boundary/github-credential-provider";
+import { REQUIRED_PROMOTION_CHECKS, REQUIRED_PROMOTION_CHECKS_SOURCE } from "../../src/shared/promotion-checks";
 
 /**
  * GitHub promotion adapter (Update-Plan/Isolation-Finalization.md §9.4, §10,
@@ -96,8 +97,6 @@ interface GitHubPromotionAdapterOptions {
   transport?: GitHubTransport;
   /** REST base. Overridable so tests can point at a local stub. */
   apiBase?: string;
-  /** Pull-request state to treat as mergeable. */
-  requiredCheckName?: string;
 }
 
 interface CredentialedTransport {
@@ -111,7 +110,6 @@ export class GitHubPromotionAdapter {
   private readonly provider: BossGitHubCredentialProvider;
   private readonly transport: GitHubTransport;
   private readonly apiBase: string;
-  private readonly requiredCheckName: string;
 
   constructor(options: GitHubPromotionAdapterOptions) {
     if (!/^[^/\s]+\/[^/\s]+$/.test(options.repository)) throw new Error(`invalid repository slug: ${options.repository}`);
@@ -120,22 +118,41 @@ export class GitHubPromotionAdapter {
     this.provider = options.credentialProvider;
     this.transport = options.transport ?? fetchGitHubTransport;
     this.apiBase = (options.apiBase ?? "https://api.github.com").replace(/\/+$/, "");
-    this.requiredCheckName = options.requiredCheckName ?? "validate";
   }
 
   /** Non-secret status for evidence and the Owner dashboard. */
-  describe(): { repository: string; baseBranch: string; credential: ReturnType<BossGitHubCredentialProvider["describe"]> } {
-    return { repository: this.repository, baseBranch: this.baseBranch, credential: this.provider.describe() };
+  describe(): {
+    repository: string;
+    baseBranch: string;
+    credential: ReturnType<BossGitHubCredentialProvider["describe"]>;
+    requiredChecks: readonly string[];
+    requiredChecksSource: string;
+  } {
+    return {
+      repository: this.repository,
+      baseBranch: this.baseBranch,
+      credential: this.provider.describe(),
+      requiredChecks: REQUIRED_PROMOTION_CHECKS,
+      requiredChecksSource: REQUIRED_PROMOTION_CHECKS_SOURCE
+    };
   }
 
-  private credentialed(): AdapterResult<CredentialedTransport> {
-    const result = this.provider.getAutomationCredential();
+  /**
+   * Resolves the credential. An App-backed provider can only answer asynchronously — an installation token is
+   * minted by an HTTP call, not read from the environment — so the async answer is preferred when the provider
+   * offers one, and the synchronous answer remains the fallback for providers that are genuinely synchronous
+   * (the legacy environment provider, and the always-blocked placeholder).
+   */
+  private async credentialed(): Promise<AdapterResult<CredentialedTransport>> {
+    const result = this.provider.getAutomationCredentialAsync
+      ? await this.provider.getAutomationCredentialAsync()
+      : this.provider.getAutomationCredential();
     if (result.status !== "AVAILABLE") return result;
     return { status: "OK", value: { credential: result.credential, transport: this.transport } };
   }
 
   private async rest<T>(method: GitHubTransportRequest["method"], path: string, body?: unknown): Promise<AdapterResult<T>> {
-    const credentialed = this.credentialed();
+    const credentialed = await this.credentialed();
     if (credentialed.status !== "OK") return credentialed;
     const url = `${this.apiBase}${path}`;
     if (isForbiddenApiUrl(url)) {
@@ -166,7 +183,7 @@ export class GitHubPromotionAdapter {
    * environment variables, never argv and never a credentials file.
    */
   async pushCandidateBranch(input: { workspace: string; branch: string; sha: string }): Promise<AdapterResult<{ branch: string; sha: string }>> {
-    const credentialed = this.credentialed();
+    const credentialed = await this.credentialed();
     if (credentialed.status !== "OK") return credentialed;
     if (input.branch === this.baseBranch) {
       return { status: "FAILED", reason: `refusing to push the protected base branch ${this.baseBranch} directly` };
@@ -215,15 +232,80 @@ export class GitHubPromotionAdapter {
     return { status: "OK", value: { number: read.value.number, headSha: read.value.head?.sha ?? "", state: read.value.state, mergeableState: read.value.mergeable_state } };
   }
 
-  /** Reads the required check conclusion for one commit (the `validate` gate). */
-  async readRequiredCheck(sha: string): Promise<AdapterResult<{ name: string; conclusion: string | null; status: string | null }>> {
+  /**
+   * Reads EVERY required check for one commit and requires all of them to be `success` on THIS sha.
+   *
+   * Three failures this deliberately refuses, each of which used to be possible:
+   *
+   *   - **a subset of CI.** The gate used to read one hard-coded name (`validate`). Reading only `quality`
+   *     would be the same mistake with a different string: the candidate is eligible only when the four
+   *     contexts the ruleset requires have ALL reported success.
+   *   - **a stale check.** A check whose `head_sha` is not this candidate is not evidence for this candidate,
+   *     even when it is green (§11.2). The binding is per-check, not just per-request.
+   *   - **a pending check treated as a pass.** `conclusion` is null until a run finishes, so `status` is
+   *     required to be `completed` before a `success` conclusion is trusted.
+   */
+  async readRequiredCheck(sha: string): Promise<AdapterResult<{
+    name: string;
+    conclusion: string | null;
+    status: string | null;
+    sha: string;
+    requiredChecks: readonly string[];
+    checks: { name: string; status: string | null; conclusion: string | null; headSha: string | null }[];
+    missing: string[];
+    notSuccessful: string[];
+    foreignSha: string[];
+    allRequiredChecksSuccessful: boolean;
+  }>> {
     const read = await this.rest<{ check_runs?: { name: string; conclusion: string | null; status: string | null; head_sha: string }[] }>("GET", `/repos/${this.repository}/commits/${sha}/check-runs`);
     if (read.status !== "OK") return read;
-    const run = (read.value.check_runs ?? []).find((item) => item.name === this.requiredCheckName);
-    if (!run) return { status: "FAILED", reason: `required check ${this.requiredCheckName} has not reported for ${sha.slice(0, 12)}` };
-    // A check reported for a different SHA is not evidence for this SHA (§11.2).
-    if (run.head_sha && run.head_sha !== sha) return { status: "FAILED", reason: `check ${this.requiredCheckName} reported for ${run.head_sha.slice(0, 12)}, not ${sha.slice(0, 12)}` };
-    return { status: "OK", value: { name: run.name, conclusion: run.conclusion, status: run.status } };
+    const runs = read.value.check_runs ?? [];
+
+    const missing: string[] = [];
+    const notSuccessful: string[] = [];
+    const foreignSha: string[] = [];
+    const checks: { name: string; status: string | null; conclusion: string | null; headSha: string | null }[] = [];
+
+    for (const required of REQUIRED_PROMOTION_CHECKS) {
+      // The newest run for the name is the one that decides, so a superseded pending run cannot mask a pass.
+      const candidates = runs.filter((item) => item.name === required);
+      const run = candidates[candidates.length - 1];
+      if (!run) {
+        missing.push(required);
+        checks.push({ name: required, status: null, conclusion: null, headSha: null });
+        continue;
+      }
+      const headSha = run.head_sha ?? null;
+      if (headSha && headSha !== sha) foreignSha.push(`${required}@${headSha.slice(0, 12)}`);
+      if (run.status !== "completed" || run.conclusion !== "success") notSuccessful.push(`${required}=${run.status ?? "unknown"}/${run.conclusion ?? "pending"}`);
+      checks.push({ name: required, status: run.status, conclusion: run.conclusion, headSha });
+    }
+
+    const allRequiredChecksSuccessful = missing.length === 0 && notSuccessful.length === 0 && foreignSha.length === 0;
+    if (!allRequiredChecksSuccessful) {
+      const reasons = [
+        missing.length ? `no run reported for ${missing.join(", ")}` : "",
+        notSuccessful.length ? `not successful: ${notSuccessful.join(", ")}` : "",
+        foreignSha.length ? `reported for a different sha: ${foreignSha.join(", ")}` : ""
+      ].filter(Boolean).join("; ");
+      return { status: "FAILED", reason: `required checks for ${sha.slice(0, 12)} are not all green — ${reasons}` };
+    }
+    return {
+      status: "OK",
+      value: {
+        // The aggregate name is honest about being an aggregate: a reader must not mistake it for one check.
+        name: REQUIRED_PROMOTION_CHECKS.join("+"),
+        conclusion: "success",
+        status: "completed",
+        sha,
+        requiredChecks: REQUIRED_PROMOTION_CHECKS,
+        checks,
+        missing,
+        notSuccessful,
+        foreignSha,
+        allRequiredChecksSuccessful
+      }
+    };
   }
 
   /**

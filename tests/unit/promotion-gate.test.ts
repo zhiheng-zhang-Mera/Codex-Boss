@@ -14,6 +14,7 @@ import {
 } from "../../src/shared/root-authority/promotion-state";
 import { RootAuthority } from "../../electron/root-authority/root-authority";
 import { ExactShaGate, invalidateStaleEvidence } from "../../electron/promotion-gate/exact-sha-gate";
+import { REQUIRED_PROMOTION_CHECKS } from "../../src/shared/promotion-checks";
 import { PromotionController } from "../../electron/promotion-gate/promotion-controller";
 import {
   GitHubPromotionAdapter,
@@ -354,11 +355,17 @@ describe("PromotionController is durable and cannot be shortcut (§11, §15 FI-0
 
 describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22)", () => {
   const requests: GitHubTransportRequest[] = [];
+  /**
+   * The check-runs the fake GitHub reports. Mutable so each case can present a different CI state — the point
+   * of the anti-drift block below is that EVERY way of not having four green checks on this exact SHA refuses.
+   */
+  let checkRuns: { name: string; conclusion: string | null; status: string | null; head_sha: string }[] = [];
+  const green = (sha: string) => REQUIRED_PROMOTION_CHECKS.map((name) => ({ name, conclusion: "success", status: "completed", head_sha: sha }));
   const recordingTransport: GitHubTransport = {
     async request(request) {
       requests.push(request);
       if (request.url.includes("/pulls/") && request.method === "GET") return { status: 200, body: JSON.stringify({ number: 1, state: "open", head: { sha: SHA_A } }) };
-      if (request.url.includes("/check-runs")) return { status: 200, body: JSON.stringify({ check_runs: [{ name: "validate", conclusion: "success", status: "completed", head_sha: SHA_A }] }) };
+      if (request.url.includes("/check-runs")) return { status: 200, body: JSON.stringify({ check_runs: checkRuns }) };
       if (request.url.includes("/pulls")) return { status: 201, body: JSON.stringify({ number: 7, head: { sha: SHA_A } }) };
       if (request.url.includes("/merge")) return { status: 200, body: JSON.stringify({ merged: true, sha: SHA_A }) };
       return { status: 200, body: "{}" };
@@ -366,6 +373,7 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
   };
   function adapter(configured = true) {
     requests.length = 0;
+    checkRuns = green(SHA_A);
     return new GitHubPromotionAdapter({
       repository: "zhiheng-zhang-Mera/Codex-Boss",
       credentialProvider: configured
@@ -402,7 +410,7 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
     expect(requests).toHaveLength(0);
   });
 
-  it("creates a PR, reads its head SHA and reads only the required check for that SHA", async () => {
+  it("creates a PR, reads its head SHA and reads EVERY required check for that SHA", async () => {
     const configured = adapter();
     const created = await configured.createPullRequest({ head: "evolution/run-1", title: "Candidate", body: "body" });
     expect(created.status).toBe("OK");
@@ -414,14 +422,23 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
 
     const check = await configured.readRequiredCheck(SHA_A);
     expect(check.status).toBe("OK");
-    if (check.status === "OK") expect(check.value.conclusion).toBe("success");
+    if (check.status === "OK") {
+      expect(check.value.conclusion).toBe("success");
+      expect(check.value.allRequiredChecksSuccessful).toBe(true);
+      expect(check.value.sha).toBe(SHA_A);
+      // ALL FOUR, not one of them under a different name.
+      expect(check.value.requiredChecks).toEqual(REQUIRED_PROMOTION_CHECKS);
+      expect(check.value.checks.map((entry) => entry.name)).toEqual(REQUIRED_PROMOTION_CHECKS);
+    }
 
     // A check reported for a different SHA is not evidence for this SHA.
-    const wrongSha = await configured.readRequiredCheck(SHA_B);
+    checkRuns = green(SHA_B);
+    const wrongSha = await configured.readRequiredCheck(SHA_A);
     expect(wrongSha.status).toBe("FAILED");
-    expect(wrongSha.status === "FAILED" && wrongSha.reason).toMatch(/reported for/);
+    expect(wrongSha.status === "FAILED" && wrongSha.reason).toMatch(/different sha/);
 
     // The merge is an ordinary merge carrying the exact SHA — never an admin one.
+    checkRuns = green(SHA_A);
     const merged = await configured.mergePullRequest({ prNumber: 7, sha: SHA_A });
     expect(merged.status).toBe("OK");
     const mergeRequest = requests.find((request) => request.url.includes("/merge"));
@@ -429,6 +446,63 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
     expect(mergeRequest?.body).toMatchObject({ sha: SHA_A, merge_method: "squash" });
     expect(JSON.stringify(mergeRequest)).not.toMatch(/admin|bypass/);
     expect(JSON.stringify(requests)).not.toMatch(/ruleset|protection|secrets/);
+  });
+
+  /**
+   * The required-check contract, pinned in the direction that matters: every way of NOT having four green
+   * checks on the exact candidate refuses, and the legacy literal is not the contract.
+   *
+   * The adapter used to read ONE hard-coded name, `validate`, which no workflow has produced since the
+   * ruleset was repaired. Replacing that string with `quality` would have been the same defect with a
+   * different spelling, so these cases exist to make "ALL of them, on THIS sha" the only passing shape.
+   */
+  it("refuses promotion unless every required check is green on the exact candidate SHA", async () => {
+    const configured = adapter();
+
+    // The baseline this block measures deviations from.
+    expect((await configured.readRequiredCheck(SHA_A)).status, "four green checks must be eligible").toBe("OK");
+
+    // One missing, named one at a time.
+    for (const absent of REQUIRED_PROMOTION_CHECKS) {
+      checkRuns = green(SHA_A).filter((run) => run.name !== absent);
+      const result = await configured.readRequiredCheck(SHA_A);
+      expect(result.status, `a missing ${absent} check must refuse`).toBe("FAILED");
+      expect(result.status === "FAILED" && result.reason, `the refusal must name ${absent}`).toContain(absent);
+    }
+
+    // One failed…
+    checkRuns = green(SHA_A).map((run) => (run.name === "unit" ? { ...run, conclusion: "failure" } : run));
+    const failed = await configured.readRequiredCheck(SHA_A);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.status === "FAILED" && failed.reason).toMatch(/not successful: unit/);
+
+    // …one still running (a pending check is not a pass)…
+    checkRuns = green(SHA_A).map((run) => (run.name === "acceptance" ? { ...run, status: "in_progress", conclusion: null } : run));
+    const pending = await configured.readRequiredCheck(SHA_A);
+    expect(pending.status).toBe("FAILED");
+    expect(pending.status === "FAILED" && pending.reason).toMatch(/acceptance=in_progress\/pending/);
+
+    // …and the legacy literal, alone, is not the contract.
+    checkRuns = [{ name: "validate", conclusion: "success", status: "completed", head_sha: SHA_A }];
+    const legacy = await configured.readRequiredCheck(SHA_A);
+    expect(legacy.status, "a green `validate` must not satisfy the repaired contract").toBe("FAILED");
+    expect(legacy.status === "FAILED" && legacy.reason).toMatch(/no run reported for quality, unit, acceptance, package/);
+
+    // All four green on the exact SHA is the only eligible shape.
+    checkRuns = green(SHA_A);
+    const eligible = await configured.readRequiredCheck(SHA_A);
+    expect(eligible.status).toBe("OK");
+    if (eligible.status === "OK") expect(eligible.value.requiredChecks).toEqual(REQUIRED_PROMOTION_CHECKS);
+  });
+
+  it("declares the required checks from one source, and says where they come from", async () => {
+    const configured = adapter();
+    const described = configured.describe();
+    // The adapter does not keep its own copy: the list it reports IS the shared declaration.
+    expect(described.requiredChecks).toEqual(REQUIRED_PROMOTION_CHECKS);
+    expect(described.requiredChecksSource).toContain(".github/workflows/ci.yml");
+    // …and the legacy single name is gone from the adapter entirely.
+    expect(REQUIRED_PROMOTION_CHECKS).not.toContain("validate");
   });
 
   it("refuses to push the protected base branch directly", async () => {

@@ -117,12 +117,29 @@ rules stay in force), and it is never the normal execution path.
 Recorded here rather than implied, because a model document that overstates itself is how the gap it
 describes gets forgotten:
 
-- **Boss's credential separation is unproven in practice.** `CODEX_BOSS_GITHUB_TOKEN` /
-  `BOSS_GITHUB_TOKEN` are unset, so the promotion path is fail-closed *by absence*: Boss cannot push at
-  all. That is safe but it is not the same claim as "Boss holds a strictly weaker credential". Proving
-  `AUTONOMOUS_WORKER_AUTHORITY < OWNER_TRUST_AUTHORITY` needs a dedicated Boss identity
-  (`contents:write`, `pull_requests:write`, `checks:read`, no admin, no bypass) to exist and to be shown
-  unable to merge a protected change.
+- **Boss's credential separation: the identity exists and is proven; the PROMOTION PATH still does not consume
+  it, and that inequality is therefore not yet proven in practice.** Three separate facts, which this entry
+  previously collapsed into one:
+  1. **Existing proven fact.** The Boss GitHub App machine identity exists and passed a real read/write
+     acceptance as the actual actor `codex-boss[bot]`: branch creation, a detached commit, a non-force push, a
+     pull request, status and workflow inspection — with the private key in platform secure storage, no PEM in
+     the repository, no JWT and no installation token persisted, the repository allowlist enforced, and the
+     Guardian administration endpoints denied.
+  2. **Previously missing fact.** The Self-Evolution promotion path did **not** use that identity. It defaulted
+     to `EnvironmentBossGitHubCredentialProvider` — a long-lived token in `CODEX_BOSS_GITHUB_TOKEN` /
+     `BOSS_GITHUB_TOKEN` — which is a SECOND credential architecture for the same logical actor. On this host
+     those variables are unset, so promotion reported `BLOCKED_EXTERNAL` while a working machine identity sat
+     unused in the same process. The legacy provider's own defences (never reading `GH_TOKEN` /
+     `GITHUB_TOKEN`, never shelling to `gh auth token`, refusing a credential byte-identical to the Owner's, and
+     refusing the Root Owner's identity) remain in force and are unchanged.
+  3. **Closure fact — NOT yet earned.** `AUTONOMOUS_WORKER_AUTHORITY < OWNER_TRUST_AUTHORITY` may be written
+     `PROVEN_IN_PRACTICE` only after a live promotion-path acceptance using the EXISTING App identity has shown
+     both directions: a candidate branch pushed and a pull request opened as `codex-boss[bot]` with every
+     required check read against the exact candidate SHA, and a protected change refused with
+     `WAITING_FOR_ROOT_OWNER` — the App holding `contents:write` and `pull_requests:write` but unable to bypass
+     CODEOWNERS, unable to admin-merge and unable to alter the ruleset. Until that acceptance is run and
+     recorded, the honest state is: **the identity is proven, the convergence toward it is prepared, and the
+     promotion path's own authority has not been exercised in practice.**
 - **The ruleset's required checks are produced — repaired, and measured.** Until the Owner-authorized repair,
   `Main-Protection` required a check named `validate`, which no workflow produced, so the Owner's bypass was
   the only way `main` moved. It now requires the four checks `Desktop CI` actually emits — `quality`, `unit`,

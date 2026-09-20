@@ -41,6 +41,16 @@ type BossCredentialResult =
 export interface BossGitHubCredentialProvider {
   /** Resolves the Boss automation credential, or reports the external blocker. */
   getAutomationCredential(): BossCredentialResult;
+  /**
+   * The async form, for a provider whose credential is MINTED rather than read.
+   *
+   * A GitHub App installation token comes from an HTTP call, so such a provider cannot answer synchronously
+   * without a priming step — and a priming step would only move the race rather than remove it. Callers
+   * prefer this form when the provider offers it, and fall back to the synchronous one otherwise. The
+   * synchronous method must still be implemented and must still be honest: a minting provider answers
+   * BLOCKED_EXTERNAL there, naming the async form, rather than inventing a token.
+   */
+  getAutomationCredentialAsync?(): Promise<BossCredentialResult>;
   /** Non-secret description for evidence and the Owner dashboard. */
   describe(): { configured: boolean; identity: string | null; source: string };
 }

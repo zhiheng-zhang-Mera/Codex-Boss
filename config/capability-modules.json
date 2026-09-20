@@ -105,6 +105,7 @@
       "src/shared/behaviour-epoch.ts",
       "src/shared/candidate-gate.ts",
       "src/shared/evolution-trial-surface.ts",
+      "src/shared/promotion-checks.ts",
       "src/shared/root-authority",
       "src/shared/self-modification.ts",
       "src/shared/trust-problems.ts"
