@@ -1,0 +1,117 @@
+{
+  "schema": "pf020-test-instrument-verification/1",
+  "capturedAt": "pre-Phase-0 identity-separation preparation round",
+  "worktree": "D:\\Boss-PF020-Live-Acceptance",
+  "shas": {
+    "PF020_TEST_SHA": "add57742d882349e57f60b8de8f59b68362849c4",
+    "origin_main_sha": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "pre_city_baseline_v1_sha": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "baseline_tree_sha": "8e31f066a1b5df7f32c9db47c80aaffd02b78dd5"
+  },
+  "worktreeRulesRespected": {
+    "original_pf020_branch_modified": false,
+    "pf020_rebased": false,
+    "pf020_merged_into_main": false,
+    "root_trust_surface_modified": false,
+    "pem_searched_or_requested": false
+  },
+
+  "pf020_instrument": {
+    "module": "electron/self-evolution/live-promotion-acceptance.ts",
+    "modulePresent": true,
+    "moduleLines": 314,
+    "packageScript": "acceptance:promotion-identity:live = electron dist-electron/electron/self-evolution/live-promotion-acceptance.js",
+    "packageScriptPresent": true,
+    "requiredSupportFilesPresent": {
+      "electron/credential-boundary/github-app-credential-provider.ts": true,
+      "electron/promotion-gate/promotion-controller.ts": true,
+      "electron/self-evolution/remote-promotion.ts": true
+    },
+    "semanticVerification": [
+      {
+        "claimed": "machine identity",
+        "verified": true,
+        "evidence": "line 121 createGitHubMachineRuntime({ userData: dataRoot, crypto: platform secureStorage }); line 128 `if (!runtime.configured) blockedExternal(...)`; line 157 new GitHubAppPromotionCredentialProvider(runtime.auth). Resolves from the host data root's vault, not from the environment."
+      },
+      {
+        "claimed": "real current main",
+        "verified": true,
+        "evidence": "lines 180-183: `if (localBase !== liveBase.value.sha) fail([...refusing to build a Candidate on a base the acceptance cannot vouch for])`. The candidate base must equal the LIVE protected tip."
+      },
+      {
+        "claimed": "Root-Surface candidate",
+        "verified": true,
+        "evidence": "line 189 acceptancePath = `electron/credential-boundary/live-acceptance-${stamp}.md` — under electron/credential-boundary/, a Root-Surface-protected path. Lines 196-198 document that it is deliberately inert and NEVER merged, chosen so the promotion path stops at WAITING_FOR_ROOT_OWNER with every required check green."
+      },
+      {
+        "claimed": "real required checks",
+        "verified": true,
+        "evidence": "line 275 `await adapter.readRequiredCheck(candidateHeadSha)` — checks are read for the exact candidate SHA; line 295 fails if `checks.status !== \"OK\"`. Line 271 passes `{ ciWaitMs: 45 * 60_000 }` into promoteCandidateOverGitHub, i.e. the bounded wait that the pre-city round recorded as absent on main@1d78ee67."
+      },
+      {
+        "claimed": "WAITING_FOR_ROOT_OWNER",
+        "verified": true,
+        "evidence": "line 293 `if (result.outcome !== \"WAITING_FOR_ROOT_OWNER\") failures.push(...)`; line 294 independently requires `record.state === \"WAITING_FOR_ROOT_OWNER\"` — both the controller outcome and the durable record must agree."
+      },
+      {
+        "claimed": "PR still open",
+        "verified": true,
+        "evidence": "line 297 `if (pullRequest.value.state !== \"open\") failures.push(...)`."
+      },
+      {
+        "claimed": "main unchanged",
+        "verified": true,
+        "evidence": "lines 277 and 289: reads the base branch SHA after the run and computes `protectedBranchUnmoved`; line 298 fails if the protected branch moved."
+      },
+      {
+        "claimed": "no Root Owner approval",
+        "verified": true,
+        "evidence": "line 299 `if (record.rootOwnerApproval) failures.push(\"a Root Owner approval exists for this SHA; the acceptance may not create one\")`."
+      },
+      {
+        "claimed": "no merge",
+        "verified": true,
+        "evidence": "The module documents (lines 41-43) that it never merges, never touches a ruleset/protection/secret/tag, never reads an Owner credential and never writes a token into evidence; mergePullRequest is wired as a handler (line 229) but the change set is Root-Surface so the promotion path itself refuses. The negative outcomes above are the enforcement."
+      }
+    ],
+    "preflight": {
+      "flagPresent": true,
+      "line": 62,
+      "value": "const preflightOnly = process.argv.includes(\"--preflight\");",
+      "failClosedBeforeRemoteMutation": true,
+      "evidence": "Identity resolution and the `!runtime.configured` guard run at lines 121-144, i.e. BEFORE any candidate creation (line 187), commit (line 200), push or PR. The preflight branch at lines 254-259 reports PREFLIGHT_PASS and exits 0 with the comment 'nothing was pushed'. Therefore with no credential the process exits BLOCKED_EXTERNAL (exit 2) without any remote mutation."
+    },
+    "verdict": "PF020_INSTRUMENT_SEMANTICS_MATCH_DECLARATION",
+    "codeModifiedToMatchExpectation": false
+  },
+
+  "main_instrument_limitations": {
+    "module": "electron/github/live-acceptance.ts",
+    "onMain": true,
+    "baseBranch": {
+      "value": "feature/github-machine-identity",
+      "declaredAtLine": 10,
+      "remoteBranchExists": false,
+      "evidence": "`git ls-remote --heads origin` returns no match for feature/github-machine-identity"
+    },
+    "canProve": [
+      "authentication as the App installation",
+      "branch creation",
+      "commit creation",
+      "non-force push",
+      "pull request creation",
+      "CI/workflow inspection"
+    ],
+    "cannotProve": [
+      "Root CODEOWNER ceiling",
+      "WAITING_FOR_ROOT_OWNER promotion state",
+      "self-authorization refusal"
+    ],
+    "cannotProveEvidence": "The only promotion-related call in the module is createPullRequest (line 71). There is no reference anywhere in the file to WAITING_FOR_ROOT_OWNER, rootOwnerApproval, mergePullRequest, or readRequiredCheck.",
+    "classification": "MAIN_GITHUB_MACHINE_LIVE_ACCEPTANCE_NOT_SUITABLE_AS_CURRENT_FINAL_PROOF",
+    "classificationReason": "Its declared base branch feature/github-machine-identity does not exist on the remote, so its first step (base branch inspect, line 50, wrapped in requireOk) cannot succeed; and even if it did, it exercises PR creation only and cannot demonstrate the authority ceiling. main was NOT modified to make this legacy acceptance runnable.",
+    "historicalNote": "It DID work once: docs/github-machine-identity-acceptance.md records it creating acceptance/github-machine-identity-20260911015734 and PR #3 as actor codex-boss[bot], when that base branch existed."
+  },
+
+  "conclusion": "The PF020 live-promotion-acceptance instrument is valid and matches its declared semantics; the general main-branch machine acceptance is not a substitute for it. The credential ceremony is the only remaining external precondition."
+}

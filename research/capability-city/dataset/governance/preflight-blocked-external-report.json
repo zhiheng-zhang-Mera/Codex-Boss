@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-21T23:39:13.411Z",
+  "state": "BLOCKED_EXTERNAL",
+  "detail": "the GitHub machine identity is not installed in this host's data root, so the promotion path has no credential to act with",
+  "repository": "zhiheng-zhang-Mera/Codex-Boss",
+  "baseBranch": "main",
+  "requiredExternalAction": "Install the Codex-Boss GitHub App machine identity on this host (`corepack pnpm run bootstrap:github-machine`, Owner-run, private key kept in platform secure storage), then re-run `corepack pnpm run acceptance:promotion-identity:live`.",
+  "credentialRequiredAction": "Create a dedicated Boss GitHub identity (GitHub App or bot account) with contents:write, pull_requests:write and checks:read only, no repository administration and no ruleset bypass, then expose its token to Boss as CODEX_BOSS_GITHUB_TOKEN (and its login as CODEX_BOSS_GITHUB_IDENTITY)."
+}

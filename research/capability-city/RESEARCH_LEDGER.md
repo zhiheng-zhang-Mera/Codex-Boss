@@ -140,6 +140,29 @@ code-owner boundary exists to prevent.
 > satisfied, or whether the merge took the always-bypass path. The `pre-change evidence` above is left as
 > originally written (append-only ledger); the inference drawn from it is corrected in D-004.
 
+### Observation registered
+
+D-003 and D-004 are the decision record; the **formal platform observation** is filed as:
+
+```
+OBS-GOV-001
+OWNER_BYPASS_USED_BECAUSE_PROMOTION_ACTOR_AND_CODEOWNER_COLLIDED
+```
+
+Full structured record (PR number, candidate/merge SHA, author/CODEOWNER/merging principals, review count,
+required-check state, ruleset state, baseline content identity, whether protected content differed, whether
+independent approval existed, whether the authorization path was conforming, plus observable vs
+non-observable facts and the engineering/research consequences):
+
+```
+experiments/governance/GOV-001-pr8-observed-failure.md
+```
+
+Companion documents: `GOV-002-machine-principal-negative-control-protocol.md` (frozen protocol for
+`GOVERNANCE_NEGATIVE_AUTHORITY_TEST`), `GOV-003-content-vs-authorization-separation.md` (why
+`CONTENT_BASELINE_VALID` does not imply `PROMOTION_IDENTITY_SEPARATION_PROVEN`), and
+`TRUST_GOVERNANCE_FINDING.md`.
+
 ### Why this matters beyond this repository
 
 The finding is an instance of a general claim, and it is **`MEASURED`** for this system, not `DESIGN CLAIM`:

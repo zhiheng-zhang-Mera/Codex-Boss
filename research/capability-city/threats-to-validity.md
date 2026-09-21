@@ -148,6 +148,94 @@ evidence, and never read a green Desktop CI as a green real-host qualification.
 
 ---
 
+## 12. The governance decision path is not observable from the evidence
+
+**Threat.** The programme's strongest single result (`OBS-GOV-001`, `RESEARCH_LEDGER.md` D-003/D-004) is an
+observation about *outcomes*, not about *mechanism*. What is measured:
+
+* `require_code_owner_review` was `true`, and the ruleset's `updated_at` predates the programme;
+* the protected path (`/package.json`) was correctly matched by CODEOWNERS;
+* all four required checks were genuinely green on the exact candidate SHA;
+* the pull request merged with **zero** reviews in its record, by the same principal that authored it, which
+  is also the sole `bypass_mode: always` actor;
+* the platform refused the one action that would have created independent authorization
+  (`Review Can not approve your own pull request`).
+
+What is **not** observable, and must be labelled `NOT OBSERVABLE FROM CURRENT EVIDENCE` wherever raised:
+
+```
+whether GitHub evaluated require_code_owner_review as SATISFIED
+   (e.g. because reviewer identity and author identity are the same principal)
+or
+whether GitHub instead admitted the Root Owner through the BYPASS path
+```
+
+The PR, review and ruleset APIs expose the outcome, not the decision path, and no bypass event is recorded on
+the pull-request object. GitHub's internal evaluation order between `require_code_owner_review`,
+`current_user_can_bypass` and the merge endpoint is likewise unobservable from these APIs.
+
+**Consequence for claims.** *"GitHub definitely bypassed CODEOWNER review"* is **not supported and must not be
+made.** The supported claim is the weaker and still strong one:
+
+> Declared authority separation was insufficient until principals were separated at the GitHub identity
+> layer.
+
+with the observable result stated as *a merge with zero independent reviews, performed by the principal that
+authored the change and held the sole always-bypass authority.*
+
+**Mitigation.** A controlled probe on a throwaway protected branch, designed to expose the evaluation order
+directly, is **owed**. Until it runs, every statement about mechanism stays qualified. It must be a separate
+protocol; it may not be folded into `GOV-002`, which tests the separation now in force rather than the earlier
+decision path.
+
+**Related risk — over-generalisation from one event.** This is `n = 1`, one repository, one governance
+configuration. It establishes an existence proof and a failure *mode*, not a base rate. Claims of the form
+"code-owner gates generally fail this way" are `DESIGN CLAIM` / `UNVERIFIED`.
+
+## 13. Identity-level evidence cannot be produced without an external principal
+
+**Threat.** Resolving `OBS-GOV-001` — proving a machine principal can act but cannot self-authorize
+(`GOV-002`) — requires a **second GitHub principal** whose credentials are Root-Owner-only material (App
+private key, App ID, installation ID). They are deliberately unavailable to this programme and must never be
+sent to it. Until the Owner performs the local ceremony, the strongest governance claim available is the
+*observation* in `OBS-GOV-001`; the *experiment* stays `NOT YET MEASURED`.
+
+**Mitigation.** (a) The protocol is **frozen in advance** (`GOV-002`) so the experiment cannot be designed
+around its result. (b) The negative-control design classifies "the identity cannot write at all" as
+`INCONCLUSIVE`, **not** `PASS`, because incapacity is not separation. (c) Every field of the experiment record
+is pre-declared `PENDING`, so a PASS cannot be written before it is measured. (d) Artifacts, the ruleset and
+the PR record are content-hashed so the before-state cannot drift while the ceremony is pending.
+
+**Residual, not mitigated.** The real difficulty of provisioning a second principal is itself evidence about
+the real-world cost of actor separation — a cost that policy-only separation hides. It is reported as a
+finding, not treated as an inconvenience: the ceremony exists precisely because the separation is not free.
+
+## 14. Measuring a live credential boundary is itself a privileged act
+
+**Threat.** `GOV-002` creates a real Root-Surface pull request against the real `main` tip using a real
+machine identity. Its correct terminal state is a **deliberately unmerged** pull request. Mishandling it —
+approving it, merging it, or leaving it for a later automated actor to merge — would both violate the
+boundary under test and destroy the evidence.
+
+**Mitigation.** The lifecycle is fixed in the protocol: create → CI green → `WAITING_FOR_ROOT_OWNER` → capture
+all evidence → **close unmerged** (`DO NOT APPROVE`, `DO NOT MERGE`). Evidence is preserved before closing.
+Any deviation is a protocol violation and must be recorded as one.
+
+## 15. A retracted inference is retained, not deleted
+
+**Threat.** This programme's first governance analysis asserted that bypass was *the only executable path*
+and that promotion was *blocked*. Both were false: the merge succeeded. There is a natural temptation to
+quietly drop the earlier reasoning once corrected, which would make the programme's reasoning look cleaner
+than it was and would hide a reusable lesson about how governance mechanisms get misread.
+
+**Mitigation.** The retracted inference is kept in place with an explicit correction notice
+(`RESEARCH_LEDGER.md` D-003 + D-004, `GOV-003`). It is treated as **material**, not as embarrassment: it
+documents that a `BLOCKED` UI status was confidently read as a platform-level refusal when it is not one, and
+that an architecture-review process can arrive at a strong wrong conclusion about authority without any
+instrument catching it.
+
+---
+
 ## Standing validity rules for every claim in this program
 
 1. Every claim binds to a **measurement**, an **experiment**, or a **source-code fact**. Otherwise:

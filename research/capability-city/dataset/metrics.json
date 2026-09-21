@@ -1,0 +1,78 @@
+{
+  "schema": "capability-city-metrics/1",
+  "purpose": "Frozen metric definitions for Capability City. Definitions are fixed before construction so that a metric cannot be redefined after seeing its value.",
+  "discipline": [
+    "Every metric binds to a command, a commit and a machine.",
+    "BEFORE and AFTER must use the SAME instrument; if the instrument changes, both instruments are reported.",
+    "Absolute counts are always reported alongside ratios, so growth cannot read as improvement.",
+    "Negative and absent results are retained verbatim."
+  ],
+
+  "instruments": {
+    "legacyManifestGate": {
+      "command": "pnpm run architecture:ratchet",
+      "source": "scripts/architecture.cjs",
+      "scans": "only files named in each manifest's `modules:` array; drops edges whose target is undeclared",
+      "role": "COMPARISON ARM for RQ5. Deliberately retained unmodified (RESEARCH_LEDGER D-001). Its known blindness is part of the experiment, not a bug to fix."
+    },
+    "realSourceObservatory": {
+      "command": "PENDING — Phase 0",
+      "scans": "electron/**, src/**, scripts/**, relevant config/plugin manifests",
+      "excludes": ["dist", "dist-electron", "node_modules", "runtime-data", "artifacts", "generated", "build output", "fixtures where appropriate"],
+      "mustParse": ["ES import", "dynamic import", "require()", "known local module aliases"],
+      "mustNotDependOn": "a manifest already declaring the file",
+      "rule": "Real source is truth. Manifest is annotation. Never the reverse."
+    }
+  },
+
+  "metrics": [
+    { "id": "M-01", "name": "files_scanned", "definition": "count of production source files the instrument reads", "type": "absolute", "baseline": 25, "expectedDirection": "up to true total (594)" },
+    { "id": "M-02", "name": "owned_source_files", "definition": "count of source files owned by a declared capability", "type": "absolute", "baseline": 594 },
+    { "id": "M-03", "name": "declared_edges", "definition": "dependency edges in the declared boot-contract graph", "type": "absolute", "baseline": 3 },
+    { "id": "M-04", "name": "measured_edges", "definition": "real file-level cross-capability import edges", "type": "absolute", "baseline": 187, "expectedDirection": "reported, not optimised blindly" },
+    { "id": "M-05", "name": "kernel_to_feature_edges", "definition": "edges where a KERNEL-owned file imports a feature implementation (excluding declared boot adapters/composition root)", "type": "absolute", "baseline": 43, "expectedDirection": "down", "primaryFor": "RQ3" },
+    { "id": "M-06", "name": "lateral_bearing_edges", "definition": "capability→capability implementation edges that are not via infrastructure/event bus", "type": "absolute", "baseline": "PENDING (187 total edges, lateral subset to be classified in Phase 0)", "primaryFor": "RQ3" },
+    { "id": "M-07", "name": "structural_cycles", "definition": "cycles in the real implementation graph; also largest SCC size", "type": "absolute_pair", "baseline": { "capability_2_cycles": 43, "largest_scc": 25, "of_total": 27 }, "expectedDirection": "down", "primaryFor": "RQ3" },
+    { "id": "M-08", "name": "cross_domain_state_accesses", "definition": "places a module reads/writes another domain's private state", "type": "absolute", "baseline": 7, "expectedDirection": "down", "primaryFor": "RQ3" },
+    { "id": "M-09", "name": "unclassified_production_files", "definition": "production files that resolve to no ownership class", "type": "absolute", "baseline": "PENDING (Phase 0)", "expectedDirection": "down to 0", "note": "Must be reported, never silently ignored." },
+    { "id": "M-10", "name": "capabilities_classified", "definition": "count by class: KERNEL | INFRASTRUCTURE | CAPABILITY | COMPOUND | BUNDLE | BRIDGE | UI | BOOTSTRAP | TRUST_DOMAIN | UNCLASSIFIED", "type": "distribution", "baseline": { "declared": 27, "kernel": 4, "feature": 23, "pre_city_labels": "see artifacts/pre-city/CITY_CLASSIFICATION.md" } },
+    { "id": "M-11", "name": "removeable_capabilities", "definition": "non-kernel capabilities with a passing removal test (boots, unrelated capability works, missing surface reports NOT_INSTALLED/DEGRADED)", "type": "absolute", "baseline": 0, "expectedDirection": "up", "primaryFor": "RQ1" },
+    { "id": "M-12", "name": "replaceable_capabilities", "definition": "capabilities with a real replacement path, classified HOT / RESTART / OFFLINE / NON_REPLACEABLE_WITH_JUSTIFICATION", "type": "distribution", "baseline": { "hot": 0, "restart": 0, "offline": 0, "justified_non_replaceable": 0 }, "expectedDirection": "up", "primaryFor": "RQ2" },
+    { "id": "M-13", "name": "consumer_edits_during_replacement", "definition": "number of consumer files that had to change to replace one implementation", "type": "absolute", "baseline": "N/A (no replacement path exists)", "expectedDirection": "0", "primaryFor": "RQ2" },
+    { "id": "M-14", "name": "boot_survival_under_removal", "definition": "fraction of seeded removals after which Boss Core still boots and unrelated capabilities remain functional", "type": "ratio", "baseline": "PENDING", "primaryFor": "RQ1" },
+    { "id": "M-15", "name": "fault_isolation_score", "definition": "per fault injection (remove capability / kill provider / corrupt state / disable permission / break bridge / fail replacement): Core survived, unrelated survived, correct degraded state, no fake success, recovery path exists", "type": "structured", "baseline": "PENDING", "primaryFor": "RQ1" },
+    { "id": "M-16", "name": "architecture_violations_detected", "definition": "per detector (legacy manifest gate vs real-source observatory) against a seeded ground-truth violation set: true positives, FALSE NEGATIVES, false positives", "type": "structured", "baseline": "legacy detector M-05 blind: reports violations: [] with 43 kernel→feature edges present", "primaryFor": "RQ5" },
+    { "id": "M-17", "name": "repair_cost", "definition": "for a repair: { files_touched, dependency_edges_introduced, permissions_added, state_namespaces_added, test_scope, cleanup_steps, runtime_overhead, architecture_debt_delta }", "type": "structured", "baseline": "N/A (defines the RQ4 ablation)", "primaryFor": "RQ4" },
+    { "id": "M-18", "name": "surface_debt", "definition": "counts of { missing_surface, excess_surface, legacy_shim, temporary_bridge, orphan_provider, dead_slot, partial_migration }", "type": "distribution", "baseline": "see artifacts/pre-city/STRUCTURAL_HEALTH_BASELINE.md (31 findings)" },
+    { "id": "M-19", "name": "topology_debt", "definition": "counts of { lateral_dependencies, cycles, cross_state_access, kernel_feature_edges, hidden_coupling, bridge_overstay }", "type": "distribution", "baseline": "see artifacts/pre-city/STRUCTURAL_HEALTH_BASELINE.md" },
+    { "id": "M-20", "name": "expired_bridges", "definition": "migration bridges past their declared removalCondition / expiry milestone", "type": "absolute", "baseline": "PENDING (no bridge registry exists yet)" },
+    { "id": "M-21", "name": "startup_time_ms", "definition": "application startup duration", "type": "timing", "baseline": "PENDING", "note": "platform-bound; report machine and variance" },
+    { "id": "M-22", "name": "test_time", "definition": "wall time per tier (unit / postbuild / slow)", "type": "timing", "baseline": "PENDING", "note": "baseline test counts above; timings to be captured in Phase 0" },
+    { "id": "M-23", "name": "build_time", "definition": "wall time for pnpm run build", "type": "timing", "baseline": "PENDING" },
+    { "id": "M-24", "name": "registry_overhead", "definition": "cost of capability registry lookup/routing if introduced", "type": "timing", "baseline": 0, "note": "Expected to be non-zero after Phase 1; must be reported as a cost, not hidden." },
+    { "id": "M-25", "name": "total_code_size", "definition": "production source file count and line count", "type": "absolute", "baseline": { "owned_files": 594 }, "note": "CONFOUNDER: the city architecture may INCREASE this while reducing coupling. Must be reported alongside every coupling improvement." }
+  ],
+
+  "topologyHealthSeparation": {
+    "rule": "Report `topology cleanliness` and `surface health` as SEPARATE measures. Never merge them into one score.",
+    "permittedCombination": "surface = FLAT and topology = DIRTY is a valid, reportable state.",
+    "flatnessStates": ["FLAT", "TEMPORARILY_BRIDGED", "PARTIALLY_DEGRADED", "MIGRATION_IN_PROGRESS", "UNSAFE_GAP"]
+  },
+
+  "negativeResultSchema": {
+    "requiredFields": ["id", "metricIds", "claim", "result", "resultClass", "evidence", "why", "retained"],
+    "resultClass": ["NO_IMPROVEMENT", "REGRESSION", "MIXED_RESULT", "INCONCLUSIVE", "FAILED_HYPOTHESIS"],
+    "rules": [
+      "Negative results are retained verbatim and never deleted.",
+      "A failed experiment stays in the dataset.",
+      "Selective omission of regressions is prohibited.",
+      "Synthetic results must never be described as production results."
+    ]
+  },
+
+  "claimBindingRules": {
+    "allowedEvidence": ["measurement", "experiment", "source-code fact"],
+    "otherwise": "DESIGN CLAIM / UNVERIFIED",
+    "forbiddenConclusions": ["feels more modular", "should be safer", "looks more elegant", "tests pass therefore ready"]
+  }
+}

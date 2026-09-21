@@ -1,0 +1,119 @@
+{
+  "schema": "capability-city-baseline-metadata/1",
+  "purpose": "Frozen BEFORE-state metadata for every BEFORE/AFTER comparison in the Capability City programme. Captured before any construction. Nothing here may be recomputed as 'BEFORE' after a change.",
+  "capturedAtCommit": {
+    "repo": "zhiheng-zhang-Mera/Codex-Boss",
+    "cityBranch": "refactor/capability-city-v1",
+    "cityBranchCommit": "daf20c4"
+  },
+
+  "baselineIdentity": {
+    "pre_city_baseline_v1_tag": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "main_sha": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "baseline_tree_sha": "8e31f066a1b5df7f32c9db47c80aaffd02b78dd5",
+    "verified_rc_commit": "836b5ed60aa63f3334e6cd08b193113325505880",
+    "rc_tree_sha": "8e31f066a1b5df7f32c9db47c80aaffd02b78dd5",
+    "diff_baseline_vs_main": "EMPTY (0 lines)",
+    "content_baseline_valid": true,
+    "promotion_authorization_path_nonconforming": true,
+    "note": "A tag and a branch cannot contain their own SHA. The tag binds the promoted content; the promoted content is byte-identical to the verified RC commit."
+  },
+
+  "frozenStructuralFacts": {
+    "provenance": "Measured during the Pre-City RC and independently re-verified. MUST be re-measured, not copied, in Phase 0.",
+    "declaredDependencyEdges": 3,
+    "declaredCycles": 0,
+    "measuredFileLevelCrossCapabilityEdges": 187,
+    "measuredKernelToFeatureImplementationEdges": 43,
+    "measuredCapabilityLevel2Cycles": 43,
+    "measuredLargestSccCapabilities": 25,
+    "measuredTotalCapabilities": 27,
+    "measuredCrossDomainStateAccesses": 7,
+    "filesScannedByExistingGate": 25,
+    "ownedSourceFiles": 594,
+    "manifestsDeclaringEmptyModules": 9,
+    "declaredDurableNamespaces": 32,
+    "declaredBootModules": 25,
+    "kernelCapabilities": ["persistence", "providers", "runtime", "state-core"],
+    "featureCapabilityCount": 23,
+    "infrastructureTierExists": false,
+    "capabilitiesWithReplacementPath": 0,
+    "knownInvisibleEdge": "electron/bootstrap/persistence.ts:24 (declared KERNEL module) imports tenx ../runtime-intelligence/live-capture"
+  },
+
+  "trustState": {
+    "trustEpoch": 24,
+    "rootContractVersion": "boss-root-trust-24",
+    "rootSurfaceHash": "6eaf71e9e2c81122522be86743bc619fcbc823b3c1cff07b229f94edda40d457",
+    "rootSurfaceFiles": 63,
+    "epochHash": "33beb3028f3e7c334e9ea5441fd5397a232cbbf788eae1d0482c45fe2f66593d",
+    "parentEpochHash": "2b1a0336a39aab5e7a2f85b4752672af1c918cc484b6af3b7bbfc0c8a115324e",
+    "runState": "ROOT_TRUST_STABLE",
+    "requirementRetirements": [],
+    "requiredCheckDeclaration": {
+      "location": "src/shared/promotion-checks.ts:35",
+      "value": ["quality", "unit", "acceptance", "package"]
+    },
+    "blessCheck": "MATCHES"
+  },
+
+  "acceptanceFacts": {
+    "prestartState": "PRESTART_CERTIFIED",
+    "bootstrapState": "BOOTSTRAP_COMPLETE",
+    "gatesPassed": 16,
+    "gatesRequired": 16,
+    "desktopBlackBoxClaims": 89,
+    "desktopBlackBoxRequired": 89,
+    "capabilitiesEstablished": 13,
+    "capabilitiesRequired": 13,
+    "ownerInterventions": 0,
+    "autonomousEvolution": "AUTONOMOUS_EVOLUTION_CERTIFIED",
+    "prestartRootHash": "c009e94eaf67cdeb8b76fe0c368cf93c9e0226000a34fed38a2c6350c9dfc297",
+    "evolutionRootHash": "43afbdd60a189a9b419a700484cc7edbbff229658b1ea65346684091f20acacb",
+    "measuredAtSha": "23e15412f00355fd865432c03ec49210f91f0f33",
+    "measuredAtShaNote": "The acceptance certificate was measured at 23e1541. Every commit after it changed only PRE_CITY_FREEZE_MANIFEST.json, which no test or gate reads, so the verified tree is identical."
+  },
+
+  "ciFacts": {
+    "desktopCiRunsVerifiedGreen": [
+      { "sha": "23e15412f00355fd865432c03ec49210f91f0f33", "runId": 35596132732 },
+      { "sha": "027917d2efb64c58a49a29ccedf4cffb9dc9a360", "runId": 35599708676 },
+      { "sha": "394527095390e43d832e60501072c8ecdd5a6a97", "runId": 35601709706 },
+      { "sha": "836b5ed60aa63f3334e6cd08b193113325505880", "runId": 35603744506 },
+      { "sha": "5c06f7eced2eb32e419ad747d732a4ae46beffc1", "runId": 35594921583, "conclusion": "failure", "note": "self-inflicted artifacts-tracking failure; repaired in 23e1541" }
+    ],
+    "localTiersAtBaseline": {
+      "unit": { "files": 258, "tests": 3274, "failures": 0 },
+      "postbuild": { "files": 8, "tests": 119, "failures": 0 },
+      "slow": { "files": 4, "tests": 35, "failures": 0 },
+      "runtimeIntelligenceSpecific": { "files": 29, "tests": 607, "failures": 0 },
+      "selfSystemsSpecific": { "files": 9, "tests": 108, "failures": 0 },
+      "testCatalogueSuites": 274,
+      "testFilesInEvolutionManifest": 274,
+      "testCasesInEvolutionManifest": 3576
+    },
+    "toolchain": { "pnpm": "11.19.0", "node": "24.14.0", "electron": "44.0.0", "platform": "win32", "arch": "x64" }
+  },
+
+  "environmentBoundNotRun": {
+    "realHostQualification": "NOT_RUN",
+    "longSoak": "NOT_RUN",
+    "providerAcceptance": "NOT_RUN",
+    "installerVm": "NOT_RUN",
+    "machineIdentity": "ABSENT",
+    "policy": "Never substitute a mock for real-host evidence; never read a green Desktop CI as a green real-host qualification."
+  },
+
+  "governanceState": {
+    "observationId": "OBS-GOV-001",
+    "classification": "OWNER_BYPASS_USED_BECAUSE_PROMOTION_ACTOR_AND_CODEOWNER_COLLIDED",
+    "contentBaselineValid": true,
+    "promotionAuthorizationPathNonconforming": true,
+    "promotionIdentitySeparationProven": false,
+    "stageA": "OBSERVED",
+    "stageB": "OBSERVED (fail-closed, no credential fallback)",
+    "stageC": "NOT YET MEASURED",
+    "blocker": "PRE_CITY_PROMOTION_BLOCKED_BY_IDENTITY_SEPARATION",
+    "mechanismAtStageA": "NOT OBSERVABLE FROM CURRENT EVIDENCE"
+  }
+}
