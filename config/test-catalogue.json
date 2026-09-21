@@ -1621,6 +1621,70 @@
       ]
     },
     {
+      "file": "tests/unit/self-case-record/boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-case-record/case.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-case-record/dogfood.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security",
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/describe.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/drift.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/self-model.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-diagnosis/diagnosis.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-diagnosis/observations.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/self-elevation.test.ts",
       "tier": "unit",
       "covers": [

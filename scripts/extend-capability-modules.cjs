@@ -210,7 +210,20 @@ const EXTRA = {
     "src/shared/acceptance-hub.ts",
     "src/shared/acceptance-record.ts",
     "src/shared/desktop-black-box-contract.ts",
-    "src/shared/contracts.ts"
+    "src/shared/contracts.ts",
+    // Self Cognition: Boss's description of its own components, capabilities and authority
+    // boundaries. It observes the anatomy; it does not diagnose it and cannot change it.
+    "src/shared/self-cognition",
+    "electron/self-cognition",
+    // Self Diagnosis: reads what the application already recorded through the generic
+    // SelfObservationSource interface, ranks candidate causes and proposes advisory treatments.
+    // It owns none of the sources it reads and cannot execute what it proposes.
+    "src/shared/self-diagnosis",
+    "electron/self-diagnosis",
+    // Case Record: what happened, what was thought, what was done and how it turned out, as an
+    // append-only timeline. It records; it does not diagnose, repair or define the self model.
+    "src/shared/self-case-record",
+    "electron/self-case-record"
   ],
   security: [
     "electron/github",
