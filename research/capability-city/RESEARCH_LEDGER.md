@@ -340,6 +340,39 @@ result is recorded as evidence *for* RQ2's prior-evidence row and as a new threa
 
 ---
 
+## D-005 — Disposition: content valid, authorization path nonconforming, separation still owed
+
+| Field | Value |
+|---|---|
+| **Decision ID** | D-005 |
+| **Date / commit** | `347de00` (city branch); Owner ruling on D-004 |
+| **Problem** | D-004 established that PR #8 merged with zero code-owner reviews. The program needed a disposition that neither rewrites history nor treats the merge as legitimate evidence of actor separation. |
+| **Pre-change evidence** | D-004's measurements: PR #8 `MERGED`, `reviews=[]`, `reviewDecision=""`, merged by `zhiheng-zhang-Mera`, ruleset `require_code_owner_review=true` and unchanged since before the programme, `/package.json` correctly matched, all four required checks `success`. D-001 measured the pre-city architecture gate's blindness. |
+| **Candidate designs** | (a) Revert `main` and replay the promotion with a machine identity. (b) Treat the merge as unauthorized and invalidate the baseline. (c) Freeze the content, classify the authorization path as nonconforming, and require a separate proof of identity separation before city work. |
+| **Chosen design** | (c), per Owner ruling. |
+| **Reason** | (a) rewrites history to reproduce byte-identical content — churn with no informational gain, and it would discard the failure evidence. (b) is factually wrong: the *content* is the verified RC, tree-identical (`8e31f066…`) to the commit that passed CI and the acceptance chain, so invalidating it would mistake an authorization defect for a content defect. (c) preserves both facts distinctly and keeps the failure visible as research material, which is what makes it valuable. |
+| **Expected effect** | The baseline is usable and immutable while the governance defect remains open and recordable; city work is gated on an actual proof of separation rather than on a policy assertion. |
+| **Potential confounders** | A separate machine identity is still not provisioned, so the "two distinct principals" condition remains **experimentally unsatisfied**; every claim about what real separation would produce stays `DESIGN CLAIM` / `UNVERIFIED`. GitHub's evaluation order between `require_code_owner_review`, `current_user_can_bypass` and the merge endpoint remains unobservable from the available APIs and must be probed on a throwaway protected branch before publication. |
+| **Actual effect** | Recorded states: `CONTENT_BASELINE_VALID` = yes; `PROMOTION_AUTHORIZATION_PATH_NONCONFORMING` = yes; `PROMOTION_IDENTITY_SEPARATION_PROVEN` = no. Baseline frozen at `main = 7024203…` and tag `pre-city-baseline-v1 = 7024203…`; neither altered nor recreated. |
+| **Unexpected result** | The intended repair path already exists and already worked once: `docs/github-machine-identity-acceptance.md` records the App creating branch `acceptance/github-machine-identity-20260911015734` and [PR #3](https://github.com/zhiheng-zhang-Mera/Codex-Boss/pull/3) as actor `codex-boss[bot]`. So the defect is not a missing capability — it is that the existing capability was not used for this promotion. The gap was **process and credential presence**, not platform capability. |
+
+**Standing blocker (measured):**
+
+```
+PRE_CITY_PROMOTION_BLOCKED_BY_IDENTITY_SEPARATION
+```
+
+The App credentials are not on this host and cannot be self-provisioned; the ceremony needs material only the
+Root Owner holds. Details, acceptance criteria for closure, and the PF020 note are in
+`TRUST_GOVERNANCE_FINDING.md`.
+
+**Gate on city work.** Phase 0 does **not** start until `PROMOTION_IDENTITY_SEPARATION_PROVEN` is reached.
+This is not a formality: the finding exists precisely because a policy-level separation was treated as proof
+while the principals were converged. Starting construction under the same converged identity would reproduce
+the defect at a larger scale.
+
+---
+
 ## Research questions — frozen
 
 See `RQ.md`. The set is frozen before construction so that results cannot be reverse-fitted to questions
