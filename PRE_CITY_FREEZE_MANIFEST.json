@@ -9,10 +9,15 @@
     "pre_city_start_main_subject": "test(promotion): the required-check declaration is checked against the workflow that produces it",
     "pre_city_start_main_measured": true,
     "pre_city_start_main_note": "Re-fetched with `git fetch --all --tags --prune`. The value matched the SHA the Owner recorded, so the Owner's prior was correct at survey time and no discrepancy is reported. Recorded from the real remote, not assumed.",
-    "pre_city_rc_sha": "027917d2efb64c58a49a29ccedf4cffb9dc9a360",
-    "pre_city_rc_sha_note": "The RC branch tip, and it is itself CI-verified: real Desktop CI run 35599708676 reports quality, unit, acceptance and package ALL success at this SHA. The acceptance certificate (PRESTART_CERTIFIED, AUTONOMOUS_EVOLUTION_CERTIFIED, 0 owner interventions, 13/13 capabilities, 89/89 desktop claims) was measured at 23e15412f00355fd865432c03ec49210f91f0f33. Every commit since 23e1541 changes only this manifest file, which no test and no gate reads, so no acceptance session was re-run on them; that distinction is stated rather than glossed.",
+    "pre_city_rc_sha": "394527095390e43d832e60501072c8ecdd5a6a97",
+    "pre_city_rc_sha_note": "The last commit whose CI was verified green before this manifest was finalized: real Desktop CI run 35601709706 reports quality, unit, acceptance and package ALL success at this SHA. The branch tip is the commit that CONTAINS this manifest, which cannot name its own SHA; every commit at or after 23e15412f00355fd865432c03ec49210f91f0f33 changes ONLY this manifest file, which no test and no gate reads, so the verified tree is identical. Three RC commits were independently confirmed green: 23e1541 (run 35596132732), 027917d (run 35599708676) and 3945270 (run 35601709706).",
     "pre_city_rc_sha_acceptance_verified_at": "23e15412f00355fd865432c03ec49210f91f0f33",
     "pre_city_rc_acceptance_verified_tree_sha": "ca291874c396b5948a0a91770a8bdf62ffe61614",
+    "rc_commits_verified_green": [
+      { "sha": "23e15412f00355fd865432c03ec49210f91f0f33", "run_id": 35596132732, "acceptance_certificate_measured_here": true },
+      { "sha": "027917d2efb64c58a49a29ccedf4cffb9dc9a360", "run_id": 35599708676, "manifest_only_delta": true },
+      { "sha": "394527095390e43d832e60501072c8ecdd5a6a97", "run_id": 35601709706, "manifest_only_delta": true }
+    ],
     "final_main_sha": null,
     "final_main_sha_note": "main is UNMOVED at 4da0ed0. The RC was NOT merged to main in this round (see promotion_decision).",
     "worktree": "D:\\Boss-PreCity-RC",
