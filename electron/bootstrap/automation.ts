@@ -10,6 +10,7 @@ import { TelemetryStore } from "../telemetry/telemetry-store";
 import { attachTelemetryRecorder } from "../telemetry/telemetry-recorder";
 import { attachExperienceRecorder } from "../experience/experience-recorder";
 import { attachProgressRecorder } from "../commander/progress-recorder";
+import { attachRuntimeIntelligenceCapture, type RuntimeIntelligenceCapture, type LiveCaptureAttachment } from "../runtime-intelligence/live-capture";
 
 /**
  * The event bus, its recorders and the runtime-resilience services
@@ -41,6 +42,13 @@ export interface AutomationOptions {
   store: StateStore;
   /** The durable experience store the experience recorder writes into. */
   experiences: ExperienceStore;
+  /**
+   * The runtime-intelligence capture the persistence module installed on the ledger.
+   *
+   * Optional so a caller that has no capture (a test, a host tool) is not forced to build one;
+   * when it is absent the plane records nothing and nothing else changes.
+   */
+  capture?: RuntimeIntelligenceCapture;
   /** The composition root's snapshot fan-out, called when a recovery changes durable state. */
   publish(): void;
 }
@@ -58,6 +66,8 @@ interface AutomationService {
   softwareLeases: SoftwareLeaseRegistry;
   /** The durable trails attached to the bus, by name. */
   recorders: readonly string[];
+  /** The runtime-intelligence shadow capture, when one was handed in. */
+  capture?: LiveCaptureAttachment;
 }
 
 export function createAutomationModule(options: AutomationOptions): BootModule<AutomationService> {
@@ -72,6 +82,11 @@ export function createAutomationModule(options: AutomationOptions): BootModule<A
   recorders.push("telemetry");
   attachExperienceRecorder(events, experiences, { sourceFor: (taskId) => store.snapshot().tasks.find((task) => task.id === taskId)?.workspaceId ?? taskId });
   recorders.push("experience");
+  // The runtime-intelligence shadow capture is the fourth observer on this bus. It subscribes to
+  // run outcomes only, records them for the prospective window and never publishes, blocks or
+  // decides anything: a handler that failed would be recorded by the bus itself.
+  const capture = options.capture === undefined ? undefined : attachRuntimeIntelligenceCapture(events, { capture: options.capture });
+  if (capture !== undefined) recorders.push("runtime-intelligence-capture");
 
   const softwareLeases = new SoftwareLeaseRegistry();
   const recovery = new RecoveryScheduler(boss("recovery.json"), () => {
@@ -85,7 +100,7 @@ export function createAutomationModule(options: AutomationOptions): BootModule<A
 
   let disposed = false;
   return {
-    service: { events, progress, recovery, circuitBreaker, softwareLeases, recorders },
+    service: { events, progress, recovery, circuitBreaker, softwareLeases, recorders, ...(capture === undefined ? {} : { capture }) },
     health: () => {
       const failures = events.handlerFailures();
       const notClosed = circuitBreaker.list().filter((entry) => entry.state !== "CLOSED").length;
@@ -102,6 +117,9 @@ export function createAutomationModule(options: AutomationOptions): BootModule<A
     // services without a handle are left alone (their state is file-backed).
     dispose: () => {
       recovery.dispose();
+      // The capture only unsubscribes. It owns no timer and holds no lock, and nothing downstream
+      // reads its status in order to decide anything.
+      capture?.detach();
       disposed = true;
     }
   };

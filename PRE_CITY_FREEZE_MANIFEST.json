@@ -1,0 +1,469 @@
+{
+  "schema": "pre-city-freeze-manifest/1",
+  "generated_for": "Pre-City Integration RC — freeze of the pre-urbanisation baseline",
+  "integration_branch": "integration/pre-city-baseline",
+
+  "identity": {
+    "repository": "https://github.com/zhiheng-zhang-Mera/Codex-Boss.git",
+    "pre_city_start_main_sha": "4da0ed079c3a59362bc92b15091f7907ef064de7",
+    "pre_city_start_main_subject": "test(promotion): the required-check declaration is checked against the workflow that produces it",
+    "pre_city_start_main_measured": true,
+    "pre_city_start_main_note": "Re-fetched with `git fetch --all --tags --prune`. The value matched the SHA the Owner recorded, so the Owner's prior was correct at survey time and no discrepancy is reported. Recorded from the real remote, not assumed.",
+    "pre_city_rc_sha": "394527095390e43d832e60501072c8ecdd5a6a97",
+    "pre_city_rc_sha_note": "The last commit whose CI was verified green before this manifest was finalized: real Desktop CI run 35601709706 reports quality, unit, acceptance and package ALL success at this SHA. The branch tip is the commit that CONTAINS this manifest, which cannot name its own SHA; every commit at or after 23e15412f00355fd865432c03ec49210f91f0f33 changes ONLY this manifest file, which no test and no gate reads, so the verified tree is identical. Three RC commits were independently confirmed green: 23e1541 (run 35596132732), 027917d (run 35599708676) and 3945270 (run 35601709706).",
+    "pre_city_rc_sha_acceptance_verified_at": "23e15412f00355fd865432c03ec49210f91f0f33",
+    "pre_city_rc_acceptance_verified_tree_sha": "ca291874c396b5948a0a91770a8bdf62ffe61614",
+    "rc_commits_verified_green": [
+      { "sha": "23e15412f00355fd865432c03ec49210f91f0f33", "run_id": 35596132732, "acceptance_certificate_measured_here": true },
+      { "sha": "027917d2efb64c58a49a29ccedf4cffb9dc9a360", "run_id": 35599708676, "manifest_only_delta": true },
+      { "sha": "394527095390e43d832e60501072c8ecdd5a6a97", "run_id": 35601709706, "manifest_only_delta": true }
+    ],
+    "final_main_sha": null,
+    "final_main_sha_note": "main is UNMOVED at 4da0ed0. The RC was NOT merged to main in this round (see promotion_decision).",
+    "worktree": "D:\\Boss-PreCity-RC",
+    "worktree_note": "Fresh clone. No pre-existing working directory was modified.",
+    "rc_commits_ahead_of_main": 20,
+    "working_tree_clean": true,
+    "working_tree_clean_verified_at_sha": "c265ede783cf3d2ee4890bb96b80f7d6d4266552",
+    "final_report": {
+      "artifact": "artifacts/pre-city/PRE_CITY_FINAL_REPORT.md",
+      "tracked": false,
+      "note": "The round's file list places the final report inside artifacts/pre-city/, which is a declared RUNTIME_OWNED_PATH that must not own tracked files. Co-locating a TRACKED report there would reintroduce the exact failure repaired in 23e1541. The report therefore sits beside its seven siblings under artifacts/pre-city/ (gitignored, content-bound by deliverable_hashes), and this manifest is tracked at the repository root instead. Deliverable set is complete; only the tracked/untracked split is adjusted, and the reason is recorded rather than silently resolved.",
+      "content_bound": false,
+      "content_binding_note": "Not listed in deliverable_hashes: this manifest is a sibling that would otherwise have to hash itself. The report is verifiable on disk and is reproducible from the record above."
+    }
+  },
+
+  "included_branches": [
+    {
+      "branch": "candidate/alien2-real-work-v1",
+      "tip": "05d63b5",
+      "merge_commit": "432f859",
+      "commits_merged": 7,
+      "area": "Runtime Intelligence + RC1 installer",
+      "ci_at_tip": "success",
+      "selection_evidence": "RI subtree is object-identical to origin/dev/alien2-runtime-intelligence (33/33 blobs). Contains that branch fully, plus the installer work it lacks.",
+      "root_trust_surface_touched": false
+    },
+    {
+      "branch": "dev/self-case-record-v1",
+      "tip": "6cc84d2",
+      "merge_commit": "baf4108",
+      "commits_merged": 9,
+      "area": "Self Cognition + Self Diagnosis + Self Case Record (one stacked tip)",
+      "ci_at_tip": "success",
+      "selection_evidence": "Pure stack: rev-list --count self-case-record..self-cognition-v1 = 0 and ..self-diagnosis-v1 = 0. Both are strict ancestors, so the tip is the complete end capability.",
+      "root_trust_surface_touched": false
+    }
+  ],
+
+  "already_included_branches": {
+    "count": 24,
+    "note": "All re-measured: ahead=0 AND `git merge-base --is-ancestor origin/<b> origin/main` is true. Not re-merged; no merge commits manufactured.",
+    "branches": [
+      "Prestart", "Prestart-checkpoint-1", "Prestart-checkpoint-2", "Prestart-checkpoint-3",
+      "Prestart-checkpoint-4", "Prestart-checkpoint-5",
+      "platform-foundation/01-architecture-contracts", "platform-foundation/01-architecture-contracts-tmp",
+      "platform-foundation/02-durable-state-events", "platform-foundation/03-capability-security-plugins",
+      "platform-foundation/04-knowledge-data-lifecycle", "platform-foundation/05-scale-verification-soak",
+      "platform-foundation/06-dogfooding-closure", "platform-foundation/07-semantic-acceptance",
+      "platform-foundation/08-production-qualification", "promotion-test/platform-foundation-08",
+      "platform-stabilization/01-hardening", "chore/platform-trust-epoch-migration",
+      "chore/root-trust-authority-lockdown", "chore/qualification-real-host-lane",
+      "fix/ci-windows-sandbox-test-isolation", "perf/pf019-real-host-scale-tier",
+      "trust/pf-debt-017-epoch-24", "dev/alien2-runtime-intelligence"
+    ],
+    "duplicate_tips": [
+      { "tip": "4b623b9", "branches": ["platform-foundation/01-architecture-contracts-tmp", "Prestart-checkpoint-5"] },
+      { "tip": "601285a", "branches": ["platform-foundation/08-production-qualification", "promotion-test/platform-foundation-08"] }
+    ],
+    "stale_red_runs_on_contained_commits": [
+      { "branch": "platform-foundation/01-architecture-contracts", "tip": "426f635", "ci": "failure", "meaning": "Stale historical run from before fixes that landed on main afterwards. Content is contained; main at 4da0ed0 is green. Not re-merged and not re-run to manufacture a colour." },
+      { "branch": "platform-foundation/08-production-qualification", "tip": "601285a", "ci": "failure", "meaning": "Same: contained content, stale red run." },
+      { "branch": "platform-stabilization/01-hardening", "tip": "9093fab", "ci": "failure", "meaning": "Same: contained content, stale red run." }
+    ]
+  },
+
+  "excluded_branches": [
+    {
+      "branch": "dev/ri-01-core", "tip": "90f3c7f", "classification": "SUPERSEDED",
+      "reason": "Strict ancestor of dev/ri-04-live-capture (rev-list count 0). Contained; merging it would add duplicate history for zero content."
+    },
+    {
+      "branch": "dev/ri-02-evaluation", "tip": "02fa484", "classification": "SUPERSEDED",
+      "reason": "Strict ancestor of dev/ri-04-live-capture."
+    },
+    {
+      "branch": "dev/ri-03-prospective", "tip": "0df1487", "classification": "SUPERSEDED",
+      "reason": "Strict ancestor of dev/ri-04-live-capture."
+    },
+    {
+      "branch": "dev/ri-04-live-capture", "tip": "8929f04", "classification": "SUPERSEDED",
+      "reason": "Disjoint history rebuilding the same capability as the selected line (neither contains the other: 4 vs 7 unique commits). No installer work. The selected branch's RI tree is object-identical to the mature alien2 RI tree, so this line's capability is represented."
+    },
+    {
+      "branch": "dev/self-cognition-v1", "tip": "9d1b8b2", "classification": "SUPERSEDED (stack ancestor)",
+      "reason": "Strict ancestor of dev/self-case-record-v1."
+    },
+    {
+      "branch": "dev/self-diagnosis-v1", "tip": "32bc058", "classification": "SUPERSEDED (stack ancestor)",
+      "reason": "Strict ancestor of dev/self-case-record-v1."
+    }
+  ],
+
+  "blocked_branches": [
+    {
+      "branch": "feat/pf020-identity-convergence",
+      "tip": "add5774",
+      "classification": "BLOCKED_BY_QUALIFICATION",
+      "decision": "NOT MERGED BY DESIGN",
+      "ahead_behind": { "ahead": 2, "behind": 2, "merge_base": "1d78ee6" },
+      "ci_at_tip": "success",
+      "ci_at_previous_tip": { "sha": "7d558cb", "conclusion": "failure", "note": "add5774 is the fix for it" },
+      "surfaces_touched": [
+        "electron/credential-boundary/github-app-credential-provider.ts",
+        "electron/promotion-gate/promotion-controller.ts",
+        "electron/promotion-gate/github-promotion-adapter.ts",
+        "electron/self-evolution/live-promotion-acceptance.ts",
+        "electron/self-evolution/remote-promotion.ts",
+        "electron/self-evolution/host-operations.ts",
+        "electron/self-evolution/self-evolution-coordinator.ts",
+        "electron/self-evolution/self-evolution-host.ts",
+        "electron/github/github-app-auth.ts",
+        "tests/unit/promotion-gate.test.ts",
+        "tests/unit/root-trust-authority-lockdown.test.ts",
+        "config/test-catalogue.json",
+        "scripts/generate-test-catalogue.cjs",
+        "package.json"
+      ],
+      "external_blocker": "LIVE_CREDENTIAL_ACCEPTANCE_NOT_PROVEN",
+      "host_measurement": {
+        "measured_on": "this host, at the time of this RC",
+        ".boss/github-machine-identity.json": "ABSENT",
+        ".boss/secret-vault.json": "ABSENT",
+        "runtime-data/.boss/github-machine-identity.json": "ABSENT",
+        "%LOCALAPPDATA%/CodexBoss": "ABSENT",
+        "%LOCALAPPDATA%/Codex-Boss": "ABSENT",
+        "createGitHubMachineRuntime_configured": false,
+        "acceptance_exit_code_if_run": 2,
+        "acceptance_state": "PROMOTION_IDENTITY_LIVE_ACCEPTANCE=BLOCKED_EXTERNAL"
+      },
+      "independent_confirmation": "`acceptance:promotion-identity:live` exists in the branch's package.json and DOES NOT exist on main, so the code is genuinely unlanded rather than mislabelled. main's own docs/root-trust-authority-model.md (commit 0491125) records the repair as prepared-and-NOT-landed and states PROVEN_IN_PRACTICE is deliberately unwritten.",
+      "required_owner_action": [
+        "corepack pnpm run bootstrap:github-machine   (on a host that has the identity)",
+        "corepack pnpm run acceptance:promotion-identity:live"
+      ],
+      "branch_preserved": true,
+      "branch_deleted": false
+    }
+  ],
+
+  "branches_deleted": [],
+  "branches_modified": [],
+  "force_pushes": [],
+
+  "ci_runs": [
+    {
+      "workflow": "Desktop CI",
+      "run_id": 35596132732,
+      "head_sha": "23e15412f00355fd865432c03ec49210f91f0f33",
+      "branch": "integration/pre-city-baseline",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": {
+        "quality": "success",
+        "unit": "success",
+        "acceptance": "success",
+        "package": "success"
+      },
+      "is_the_rc_head": true
+    },
+    {
+      "workflow": "Desktop CI",
+      "run_id": 35594921583,
+      "head_sha": "5c06f7eced2eb32e419ad747d732a4ae46beffc1",
+      "branch": "integration/pre-city-baseline",
+      "status": "completed",
+      "conclusion": "failure",
+      "failed_job": "unit",
+      "failure": "tests/unit/workspace-path-ownership.test.ts §5 step 4 — `expected [ 'artifacts/' ] to deeply equal []`",
+      "root_cause": "Self-inflicted: commit 5c06f7e force-added artifacts/pre-city/** past .gitignore:23, and artifacts/ is a declared RUNTIME_OWNED_PATH that must never own a tracked file.",
+      "repair": "23e1541 untracked the artifacts and moved the evidence binding into this manifest by SHA-256. The guard was NOT relaxed; tests/** and electron/runtime-paths.ts were left untouched.",
+      "retained_for_the_record": true
+    }
+  ],
+
+  "tests": {
+    "host": "local Windows host; pnpm 11.19.0 (the version ci.yml pins); Node 24.14.0; Electron 44.0.0",
+    "at_sha": "23e15412f00355fd865432c03ec49210f91f0f33",
+    "install": { "command": "pnpm install --frozen-lockfile", "result": "PASS" },
+    "typecheck": { "command": "pnpm run typecheck", "result": "PASS", "exit": 0 },
+    "security_scan": { "command": "pnpm run security:scan", "result": "PASS", "detail": "TRACKED_SECRET_SCAN=PASS files=1287" },
+    "architecture_ratchet": { "command": "pnpm run architecture:ratchet", "result": "PASS", "detail": "violations: []", "caveat": "Measures the DECLARED boot-contract graph (3 edges), not the real graph (187 measured edges). See architecture_blind_spot." },
+    "architecture_graph": { "command": "pnpm run architecture:graph", "result": "PASS" },
+    "architecture_ownership": { "command": "pnpm run architecture:ownership", "result": "PASS", "detail": "0 ownership conflicts, 32 namespaces" },
+    "architecture_snapshot": { "command": "pnpm run architecture:snapshot", "result": "PASS" },
+    "state_probe": { "command": "pnpm run state:probe", "result": "PASS" },
+    "build": { "command": "pnpm run build", "result": "PASS", "exit": 0 },
+    "test_catalogue_check": { "command": "pnpm run test:catalogue:check", "result": "PASS", "detail": "test catalogue is current: 274 suites" },
+    "unit": { "command": "pnpm test", "result": "PASS", "files": 258, "tests": 3274, "failures": 0 },
+    "postbuild": { "command": "pnpm run test:postbuild", "result": "PASS", "files": 8, "tests": 119, "failures": 0 },
+    "slow": { "command": "pnpm run test:slow", "result": "PASS", "files": 4, "tests": 35, "failures": 0 },
+    "runtime_intelligence_specific": { "command": "vitest run tests/unit/runtime-intelligence", "result": "PASS", "files": 29, "tests": 607, "failures": 0 },
+    "self_systems_specific": { "command": "vitest run tests/unit/self-cognition tests/unit/self-diagnosis tests/unit/self-case-record", "result": "PASS", "files": 9, "tests": 108, "failures": 0 },
+    "tier_growth_accounting": "RI stage: unit 249 files / 3166 tests, catalogue 265. Self-* stage: unit 258 / 3274, catalogue 274. The deltas are exactly the 9 new self-* suites and their 108 tests. Nothing was removed, skipped or weakened to make either stage pass."
+  },
+
+  "acceptance": {
+    "session_id": "session-2026-09-21T115109512-c5fe3d9b",
+    "commit_sha": "23e15412f00355fd865432c03ec49210f91f0f33",
+    "tree_sha": "ca291874c396b5948a0a91770a8bdf62ffe61614",
+    "mode": "CERTIFICATION (working tree clean)",
+    "state": "PRESTART_CERTIFIED",
+    "bootstrap": "BOOTSTRAP_COMPLETE",
+    "gates": { "passed": 16, "required": 16 },
+    "desktop_black_box": { "contract_version": "desktop-blackbox-1", "passed": true, "verified_claims": 89, "required_claims": 89 },
+    "capabilities": { "established": 13, "required": 13 },
+    "owner_interventions": 0,
+    "provenance": { "same_commit": true, "same_session": true, "same_tree": true, "source_hashes_verified": true, "attestationHashValid": true, "reportHashValid": true },
+    "prestart_root_hash": "c009e94eaf67cdeb8b76fe0c368cf93c9e0226000a34fed38a2c6350c9dfc297",
+    "prestart_certificate_sha256": "0b96e40c1c0ef2a22f5775f83e4541f4131b8d23f70ceb9175329d61fa7fe93e",
+    "autonomous_evolution": {
+      "state": "AUTONOMOUS_EVOLUTION_CERTIFIED",
+      "self_iteration": "AUTHORIZED",
+      "run_id": "evolution-2026-09-21T120202054Z",
+      "validator_a": "PASS",
+      "validator_b": "PASS",
+      "validator_b_verdict": "VALID_CERTIFICATE",
+      "root_hash": "43afbdd60a189a9b419a700484cc7edbbff229658b1ea65346684091f20acacb",
+      "findings_total": 0,
+      "findings_unresolved": 0,
+      "adversarial_cases": 62,
+      "adversarial_refused": 62,
+      "adversarial_false_positives": 0,
+      "fuzz_cases": 1680,
+      "metamorphic_cases": 6,
+      "trial_battery": { "rounds_required": 20, "rounds_passed": 20, "live_worker_rounds": 0, "verification_profile": "ROUND_PROFILE_v1" },
+      "evidence_matrix": { "rows": 417, "unbound_requirements": 0, "orphan_tests": 228 }
+    },
+    "local_chain_result": "ALL GATES EXIT=0, ZERO FAILURES",
+    "residual_gaps": {
+      "source": "artifacts/acceptance/autonomous-evolution-attestation.json residual_gaps[]",
+      "all_non_blocking": true,
+      "items": [
+        { "section": "§24/§25/§26", "item": "owner ledger append-only ndjson + 100-writer concurrency + ledger existence commitment", "status": "NOT_IMPLEMENTED" },
+        { "section": "§53/§54", "item": "security scan of baseline AND candidate with a critical-regression gate", "status": "PARTIAL (candidate-only scan in CI)" },
+        { "section": "§55/§56/§57", "item": "destructive filesystem sandbox, process-boundary and evidence-directory ownership batteries", "status": "PARTIAL" },
+        { "section": "§58", "item": "per-stage evidence seals (build/test/gate/root-audit)", "status": "NOT_IMPLEMENTED" },
+        { "section": "§70/§71", "item": "persisted-schema migration verification and crash recovery at every stage", "status": "PARTIAL" },
+        { "section": "§92/§93", "item": "performance regression thresholds and resource-leak soak", "status": "PARTIAL (benchmark measures, no threshold gate)" },
+        { "section": "§72", "item": "trial battery change supply is a frozen deterministic catalog, not a live LLM worker (live_worker_rounds = 0)", "status": "LIMITATION" },
+        { "section": "§36", "item": "two-clone A/B cross validation requires --clone-b; this run compares within one clone (two_clone = NOT_PROVIDED)", "status": "PARTIAL" }
+      ]
+    }
+  },
+
+  "qualification_status": {
+    "real_host_qualification": "NOT_RUN",
+    "long_soak": "NOT_RUN",
+    "machine_credential": "BLOCKED_EXTERNAL",
+    "external_provider_acceptance": "NOT_RUN",
+    "promotion_identity_live": "BLOCKED_EXTERNAL",
+    "platform_phase_01_05_gates": "NOT_RUN",
+    "platform_phase_01_05_gates_note": "Per ci.yml's own header, these need generated phase artifacts, a real full-suite pairing record and a host corpus from real soak runs, none of which a hosted runner or this host has. tests/acceptance/data-lifecycle-report.test.ts, platform-certificate.test.ts and targeted-vs-full.test.ts are in the qualification tier and run only on the private Boss-Qualification-Control workflow_dispatch lane. No workflow in this repository runs that tier.",
+    "github_machine_acceptance": { "result": "MOCK_GITHUB_E2E=PASS steps=5 requests=6", "then": "REAL_CREDENTIAL_ACCEPTANCE_PENDING" },
+    "benchmark": { "result": "PASS (measured)", "realProviderRecovery": "NOT_RUN", "machinePowerLoss": "NOT_RUN", "engineeringCompletionRates": "NOT_RUN", "semanticApplicationCoverage": "NOT_RUN", "modelSavingsAgainstLiveBaseline": null },
+    "explicitly_not_claimed": "No mock was substituted for real qualification. A green Desktop CI is NOT interpreted as a green real-host qualification."
+  },
+
+  "root_trust": {
+    "trust_epoch": 24,
+    "root_contract_version": "boss-root-trust-24",
+    "root_surface_hash": "6eaf71e9e2c81122522be86743bc619fcbc823b3c1cff07b229f94edda40d457",
+    "root_surface_files": 63,
+    "epoch_hash": "33beb3028f3e7c334e9ea5441fd5397a232cbbf788eae1d0482c45fe2f66593d",
+    "parent_epoch_hash": "2b1a0336a39aab5e7a2f85b4752672af1c918cc484b6af3b7bbfc0c8a115324e",
+    "bless_check": "MATCHES — `acceptance-evolution-bless.cjs --check` reported 'epoch 24 (boss-root-trust-24) MATCHES the live surface' at 23e1541",
+    "run_state": "ROOT_TRUST_STABLE",
+    "epoch_advanced_this_round": false,
+    "blessing_performed_this_round": false,
+    "root_trust_surface_files_modified_this_round": [],
+    "verification": "Neither integration merge's cached diff contained any path matching trust-policy|.github/workflows|tests/acceptance|promotion|credential. Membership was taken from the repository's own declaration (src/shared/autonomous-evolution-trust.ts ROOT_TRUST_SURFACE_PATHS), not from a guess.",
+    "requirement_retirements": [],
+    "qualification_semantics_modified": false,
+    "required_check_declaration_modified": false,
+    "required_check_declaration": { "location": "src/shared/promotion-checks.ts:35", "value": ["quality", "unit", "acceptance", "package"] }
+  },
+
+  "capability_inventory": {
+    "artifact": "artifacts/pre-city/CAPABILITY_INVENTORY.md",
+    "sha256": "6acdeaae9c67b5446b0e9c6cf773fb932b2c9dcd05ebea4a0c0ce73bc74f881d",
+    "capabilities_documented": 27,
+    "required_fields_per_capability": 17,
+    "complete": true
+  },
+
+  "dependency_graph": {
+    "artifacts": [
+      "artifacts/pre-city/raw/architecture-graph.json",
+      "artifacts/pre-city/raw/architecture-ownership.json",
+      "artifacts/pre-city/raw/architecture-snapshot.json"
+    ],
+    "declared_edges": 3,
+    "declared_cycles": 0,
+    "measured_file_level_cross_capability_edges": 187,
+    "measured_capability_2_cycles": 43,
+    "measured_largest_scc_capabilities": 25,
+    "measured_scc_of_total": 27,
+    "measured_cross_domain_state_accesses": 7,
+    "frozen": true,
+    "caveat": "The three raw artifacts are untracked scratch output under the gitignored artifacts/. They are preceded by PowerShell stderr lines, so their SHA-256 is not byte-reproducible across shells; the digests below identify the exact bytes produced in this round."
+  },
+
+  "architecture_blind_spot": {
+    "finding": "The repository's own architecture gate cannot see the real dependency picture.",
+    "mechanism": "scripts/architecture.cjs collectImports scans only the files named in each manifest's `modules:`. 9 manifests declare `modules: []` (including tenx and learning); the other 18 declare only their electron/bootstrap factory. 25 files of 594 are scanned, and the keep-condition drops any edge whose target is not a declared module.",
+    "consequence": "pnpm run architecture:ratchet reports violations: [] while 43 kernel->feature implementation edges exist. Example invisible to the gate: electron/bootstrap/persistence.ts:24 (a DECLARED kernel module) imports tenx's ../runtime-intelligence/live-capture.",
+    "verified_independently": true,
+    "verification": "Counted 9 manifests matching `modules: []` in config/capabilities/*.yaml and read collectImports at scripts/architecture.cjs ~269-295 first-hand.",
+    "impact": "ARCHITECTURE_RATCHET=PASS must be read as 'the declared boot-contract graph has no violations', NOT as 'dependencies are clean'. Fixing the measurement is the first act of the city phase."
+  },
+
+  "deliverable_hashes": {
+    "note": "artifacts/pre-city/** is gitignored by .gitignore:23 as a declared RUNTIME_OWNED_PATH (electron/runtime-paths.ts). tests/unit/workspace-path-ownership.test.ts §5 step 4 forbids runtime paths owning tracked files, so these are bound by content here instead of by tracking. docs/capability-city-principles.md is genuine source and IS tracked.",
+    "artifacts/pre-city/BRANCH_CENSUS.md": { "sha256": "43c512eccb9476adddb41f96f0fdc6253bfeca3e5fa164647935331e25b7736e", "tracked": false },
+    "artifacts/pre-city/RUNTIME_INTELLIGENCE_INTEGRATION_REPORT.md": { "sha256": "efa5c3db1fd5f8feddaad6511d61d15d1fd4dcdb05ef77903baf57a92dcc6b1e", "tracked": false },
+    "artifacts/pre-city/SELF_SYSTEMS_INTEGRATION_REPORT.md": { "sha256": "33266e79b7a6f11c0dc6acda2c9107bd4f57344dd90d03b2c4850842ebc28b6a", "tracked": false },
+    "artifacts/pre-city/CAPABILITY_INVENTORY.md": { "sha256": "6acdeaae9c67b5446b0e9c6cf773fb932b2c9dcd05ebea4a0c0ce73bc74f881d", "tracked": false },
+    "artifacts/pre-city/CITY_CLASSIFICATION.md": { "sha256": "ff5d5c6174f705534e4c1f919f6eaf14668dc84d2dfbc3b833d5b5d29e7e369f", "tracked": false },
+    "artifacts/pre-city/DEPENDENCY_BASELINE.md": { "sha256": "421e3b5af4bc8131dd73c35d9042649d73a91d12c755df889b8f8586d6d6bae1", "tracked": false },
+    "artifacts/pre-city/STRUCTURAL_HEALTH_BASELINE.md": { "sha256": "4ad9e053f411dd8343ef97989aec0f5c08603d63cd15a451bff0e56406d51c9d", "tracked": false },
+    "artifacts/pre-city/raw/architecture-graph.json": { "sha256": "2071fd942a69e695a42d9276efe29c926b52a9bd695cda8b9721e1e4a901c8c0", "tracked": false },
+    "artifacts/pre-city/raw/architecture-ownership.json": { "sha256": "ff07db0f6d4ac45d7b623f5e64917dcdbb9c4dceed9c89de05d3fb09d3b0e2b4", "tracked": false },
+    "artifacts/pre-city/raw/architecture-snapshot.json": { "sha256": "88271c2568228ed7ead6f70cc10fe0e3c495642254230e9d30e4ae02bb7993e3", "tracked": false },
+    "docs/capability-city-principles.md": { "sha256": "20288eaa479e4aaeaaf962f8e5ba2691785888dc28977738ad592a70511e524e", "tracked": true }
+  },
+
+  "city_classification": {
+    "artifact": "artifacts/pre-city/CITY_CLASSIFICATION.md",
+    "complete": true,
+    "migration_performed": false,
+    "labels_used": ["KERNEL_CANDIDATE", "INFRASTRUCTURE_CANDIDATE", "ATOMIC_CAPABILITY", "COMPOUND_CAPABILITY", "BUNDLE", "BRIDGE_OR_SHIM", "TRUST_DOMAIN", "UNKNOWN"],
+    "systems_classified": 40,
+    "declared_capabilities_classified": 27,
+    "future_reservations": ["future Co-Learning — NOT IMPLEMENTED", "future Judgment Growth — NOT IMPLEMENTED"]
+  },
+
+  "structural_health_baseline": {
+    "artifact": "artifacts/pre-city/STRUCTURAL_HEALTH_BASELINE.md",
+    "complete": true,
+    "defect_classes": ["MISSING_SURFACE", "EXCESS_SURFACE", "TEMPORARY_SHIM", "LEGACY_BRIDGE", "PARTIAL_MIGRATION", "DIRECT_LATERAL_DEPENDENCY", "STRUCTURAL_CYCLE", "CROSS_DOMAIN_STATE_ACCESS", "OVERLARGE_CAPABILITY", "HIDDEN_COUPLING"],
+    "findings_recorded": 31,
+    "repairs_performed": 0,
+    "notable": [
+      "architecture ratchet blind to 184 of 187 measured edges",
+      "capability authorization inert in shipped wiring: electron/main.ts:910 constructs new ExecutionGate() with no authorizer; electron/capability/** has no production consumer",
+      "MODULE_SPECIFIER_COLLISION: src/shared/self-diagnosis.ts (legacy) and src/shared/self-diagnosis/ (new) share one module specifier",
+      "kernel persistence imports bundle tenx (electron/bootstrap/persistence.ts:24)",
+      "tenx is a BUNDLE of Commander + Fleet + economics + resource models + the entire RI plane",
+      "7 cross-domain private-state accesses, incl. host-status raw-parsing persistence's state.json"
+    ]
+  },
+
+  "city_principles_documented": {
+    "artifact": "docs/capability-city-principles.md",
+    "tracked": true,
+    "complete": true,
+    "sections": ["15.1 Boss position", "15.2 capability is a building", "15.3 minimum stable closure", "15.4 capability replacement", "15.5 least-sufficient repair", "15.6 flatness", "15.7 topology", "15.8 shared capability sink", "15.9 core growth ban"],
+    "machine_enforced": false,
+    "enforcement_status_table_included": true
+  },
+
+  "promotion_decision": {
+    "rc_merged_to_main": false,
+    "main_unmoved": true,
+    "pr_created": false,
+    "pr_note": "Not created. §19 permits a PR but does not require one, and merging is a protected-branch promotion act. The technical work is complete and the RC is independently green; promoting a pre-city baseline to main is an Owner decision, not an integration step.",
+    "final_status": "PRE_CITY_RC_READY_FOR_OWNER_PROMOTION",
+    "status_justification": "All INCLUDE items are integrated; all EXCLUDE/BLOCKED items are evidenced; the RC head is green on the real Desktop CI and on the full local acceptance chain; Root Trust is untouched at epoch 24; no qualification was faked. What remains is the Owner/受保护 promotion action."
+  },
+
+  "tag": {
+    "name": "pre-city-baseline-v1",
+    "status": "TAG_READY_NOT_CREATED",
+    "target_sha": "23e15412f00355fd865432c03ec49210f91f0f33",
+    "reason_not_created": "The tag name is a release-style assertion over a frozen baseline and the promotion to main is an Owner action. Creating it is safe, but it is deferred with the promotion so that a tag never points at a commit that was not promoted. Root Trust was NOT touched to make tagging easier.",
+    "exact_commands": [
+      "git tag -a pre-city-baseline-v1 23e15412f00355fd865432c03ec49210f91f0f33 -m \"PRE_CITY_BASELINE: pre-city integration RC — mature capabilities frozen, no urbanisation started\"",
+      "git push origin pre-city-baseline-v1"
+    ]
+  },
+
+  "open_external_blockers": [
+    {
+      "id": "EXT-1",
+      "blocker": "No GitHub machine identity on this host",
+      "effect": "PF020 promotion-identity live acceptance cannot run; exits 2 BLOCKED_EXTERNAL. Real credential acceptance is not proven.",
+      "owner_action": "corepack pnpm run bootstrap:github-machine on a host holding the identity, then acceptance:promotion-identity:live",
+      "status": "BLOCKED_EXTERNAL"
+    },
+    {
+      "id": "EXT-2",
+      "blocker": "No qualification host / soak corpus",
+      "effect": "Platform Phase 01-05 qualification gates and the long soak cannot be executed here or on a hosted runner.",
+      "owner_action": "Run the private Boss-Qualification-Control workflow_dispatch lane on the real soak host.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "EXT-3",
+      "blocker": "No real provider / power-loss acceptance",
+      "effect": "benchmark reports realProviderRecovery, machinePowerLoss, engineeringCompletionRates, semanticApplicationCoverage as NOT_RUN, and modelSavingsAgainstLiveBaseline as null.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "EXT-4",
+      "blocker": "RC1 installer never executed end-to-end on a clean Windows VM",
+      "effect": "Installer.cs and scripts/package-installer.cjs typecheck and build, and CI's package job smoke-tests package:portable, but no full install/upgrade/uninstall cycle has been run.",
+      "status": "NOT_RUN"
+    }
+  ],
+
+  "open_architectural_debt": {
+    "count": 31,
+    "detail_artifact": "artifacts/pre-city/STRUCTURAL_HEALTH_BASELINE.md",
+    "highest_priority": [
+      "The architecture ratchet's measurement blind spot (fix before any city refactor — otherwise the refactor is unverifiable).",
+      "Capability authorization inert in shipped wiring (ExecutionGate built with no authorizer; electron/capability/** has no consumer).",
+      "No capability has a replacement path (shadow / dual-validate / traffic-switch / drain / retire). Replaceability is absent, not partial.",
+      "tenx is a BUNDLE carrying Commander, Fleet, economics, resource models and the whole RI plane.",
+      "kernel persistence depends on bundle tenx (persistence.ts:24).",
+      "MODULE_SPECIFIER_COLLISION on src/shared/self-diagnosis.",
+      "7 cross-domain private-state accesses; knowledge-base.json has two writers from two capabilities.",
+      "The self-* plane is CLI-only and unregistered in package.json."
+    ],
+    "repair_performed_this_round": false
+  },
+
+  "owner_action_required": [
+    "Decide whether to promote integration/pre-city-baseline to main through the protected branch's real required checks (quality, unit, acceptance, package). Do not bypass.",
+    "Create and push the pre-city-baseline-v1 tag once promotion is decided (exact commands above).",
+    "Install the GitHub machine identity on a qualified host and run acceptance:promotion-identity:live, then decide PF020 separately.",
+    "Run the private real-host qualification lane for the Phase 01-05 gates and the long soak."
+  ],
+
+  "not_done_by_instruction": [
+    "Capability City / Kernelization construction — NOT STARTED",
+    "Co-Learning — DO NOT IMPLEMENT",
+    "Judgment Growth — DO NOT IMPLEMENT",
+    "Decision Ledger v2 — DO NOT BUILD",
+    "judgment model — DO NOT BEGIN",
+    "Owner model — DO NOT BEGIN",
+    "Quant integration — DO NOT CONNECT",
+    "PhD-specific capability — DO NOT ADD",
+    "branch deletion — none",
+    "force push — none",
+    "qualification threshold lowered — none",
+    "mock substituted for real-host evidence — none",
+    "Root Trust modified to make CI pass — none"
+  ]
+}

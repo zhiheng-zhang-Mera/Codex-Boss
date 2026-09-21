@@ -1377,6 +1377,212 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/runtime-intelligence/authority-boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion",
+        "security"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/calibration.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/context-lifecycle.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/continuation-benchmark.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/continuation-evaluator.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/contracts.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/dispatch-attribution.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/evaluation-report.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/intelligence-store.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/live-capture.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/measurement.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/model-ledger.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/node-profile.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/node-profiler.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/node-telemetry-log.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/outcome-ingestion.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status",
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/policy-freeze.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/prospective-window.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/replay-cases.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/replay-corpus-io.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security",
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/replay-corpus.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/scheduler-benchmark.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/scheduling-advisor.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/service.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/skill-loadout.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/skill-replay.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/snapshot-retention.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/step-completion.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/runtime-intelligence/telemetry.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/runtime-paths.test.ts",
       "tier": "unit",
       "covers": [
@@ -1412,6 +1618,70 @@
       "tier": "unit",
       "covers": [
         "tenx"
+      ]
+    },
+    {
+      "file": "tests/unit/self-case-record/boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-case-record/case.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-case-record/dogfood.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "security",
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/describe.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/drift.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-cognition/self-model.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-diagnosis/diagnosis.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
+      ]
+    },
+    {
+      "file": "tests/unit/self-diagnosis/observations.test.ts",
+      "tier": "unit",
+      "covers": [
+        "status"
       ]
     },
     {

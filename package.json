@@ -54,6 +54,7 @@
     "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json && vite build && tsc -p tsconfig.electron.json",
     "start": "electron .",
     "package:portable": "node scripts/package-portable.cjs",
+    "package:installer": "node scripts/package-installer.cjs",
     "benchmark": "node scripts/benchmark.cjs",
     "security:scan": "node scripts/scan-tracked-secrets.cjs",
     "acceptance:github-machine": "node scripts/acceptance-github-machine-identity.cjs",
