@@ -275,6 +275,7 @@
     "tenx": [
       "electron/commander",
       "electron/fleet",
+      "electron/runtime-intelligence",
       "electron/tenx",
       "src/shared/autonomy-supervisor.ts",
       "src/shared/coordination-economics.ts",
@@ -285,6 +286,7 @@
       "src/shared/node-capabilities.ts",
       "src/shared/optional-review.ts",
       "src/shared/resource-model.ts",
+      "src/shared/runtime-intelligence",
       "src/shared/tenx/artifact.ts",
       "src/shared/tenx/contracts.ts",
       "src/shared/tenx/fleet.ts",
