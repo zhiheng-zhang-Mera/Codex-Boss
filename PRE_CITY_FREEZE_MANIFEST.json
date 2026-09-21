@@ -9,15 +9,24 @@
     "pre_city_start_main_subject": "test(promotion): the required-check declaration is checked against the workflow that produces it",
     "pre_city_start_main_measured": true,
     "pre_city_start_main_note": "Re-fetched with `git fetch --all --tags --prune`. The value matched the SHA the Owner recorded, so the Owner's prior was correct at survey time and no discrepancy is reported. Recorded from the real remote, not assumed.",
-    "pre_city_rc_sha": "23e15412f00355fd865432c03ec49210f91f0f33",
-    "pre_city_rc_tree_sha": "ca291874c396b5948a0a91770a8bdf62ffe61614",
+    "pre_city_rc_sha": "c265ede783cf3d2ee4890bb96b80f7d6d4266552",
+    "pre_city_rc_sha_note": "The RC branch tip. Its parent 23e15412f00355fd865432c03ec49210f91f0f33 is the VERIFIED commit: real Desktop CI run 35596132732 (all four jobs success) and the full local acceptance chain / PRESTART_CERTIFIED / AUTONOMOUS_EVOLUTION_CERTIFIED were all measured there. c265ede adds only this manifest, which no test or gate reads, and no acceptance session was re-run on it.",
+    "pre_city_rc_sha_verified": "23e15412f00355fd865432c03ec49210f91f0f33",
+    "pre_city_rc_verified_tree_sha": "ca291874c396b5948a0a91770a8bdf62ffe61614",
     "final_main_sha": null,
     "final_main_sha_note": "main is UNMOVED at 4da0ed0. The RC was NOT merged to main in this round (see promotion_decision).",
     "worktree": "D:\\Boss-PreCity-RC",
     "worktree_note": "Fresh clone. No pre-existing working directory was modified.",
     "rc_commits_ahead_of_main": 20,
     "working_tree_clean": true,
-    "working_tree_clean_verified_at_sha": "23e15412f00355fd865432c03ec49210f91f0f33"
+    "working_tree_clean_verified_at_sha": "c265ede783cf3d2ee4890bb96b80f7d6d4266552",
+    "final_report": {
+      "artifact": "artifacts/pre-city/PRE_CITY_FINAL_REPORT.md",
+      "tracked": false,
+      "note": "The round's file list places the final report inside artifacts/pre-city/, which is a declared RUNTIME_OWNED_PATH that must not own tracked files. Co-locating a TRACKED report there would reintroduce the exact failure repaired in 23e1541. The report therefore sits beside its seven siblings under artifacts/pre-city/ (gitignored, content-bound by deliverable_hashes), and this manifest is tracked at the repository root instead. Deliverable set is complete; only the tracked/untracked split is adjusted, and the reason is recorded rather than silently resolved.",
+      "content_bound": false,
+      "content_binding_note": "Not listed in deliverable_hashes: this manifest is a sibling that would otherwise have to hash itself. The report is verifiable on disk and is reproducible from the record above."
+    }
   },
 
   "included_branches": [
