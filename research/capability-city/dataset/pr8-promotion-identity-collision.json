@@ -1,0 +1,9 @@
+﻿{"baseRefName":"main","createdAt":"2026-09-21T14:26:50Z","headRefOid":"836b5ed60aa63f3334e6cd08b193113325505880","mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":8,"reviewDecision":"","state":"OPEN","title":"promotion(pre-city): the Pre-City Baseline — mature capabilities frozen, urbanisation not started","url":"https://github.com/zhiheng-zhang-Mera/Codex-Boss/pull/8"}
+acceptance	pass	7m18s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35603744506/job/106348883620	
+acceptance	pass	6m53s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35612224184/job/106377359517	
+package	pass	56s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35603744506/job/106348883691	
+package	pass	53s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35612224184/job/106377359683	
+quality	pass	41s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35603744506/job/106345748622	
+quality	pass	41s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35612224184/job/106373921348	
+unit	pass	8m10s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35603744506/job/106345995079	
+unit	pass	8m16s	https://github.com/zhiheng-zhang-Mera/Codex-Boss/actions/runs/35612224184/job/106374203462	
