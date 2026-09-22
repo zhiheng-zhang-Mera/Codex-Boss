@@ -941,6 +941,42 @@ Unit tests exercise the engine **on this branch**. That is not hosted-gate activ
 reported as such: turning the enforcer into a required hosted gate is a separate municipal-law / Root-Trust act
 (Phase 1B) which this round neither performs nor requests.
 
+### C11 addendum — a transient hosted-runner failure, and the evidence that it was transient
+
+The first hosted attempt on the final tip (`f30f86d7061f67cfa76eec02c4417f0509494102`) **failed**. Recorded in
+full rather than re-run into silence:
+
+| Observation | Detail |
+|---|---|
+| Failing run | `35707095128`, event `pull_request`, job `unit` |
+| Failing step | `pnpm run test:postbuild` — `pnpm test` before it **succeeded** |
+| Symptom 1 | `tests/acceptance/platform-soak-report.test.ts:76` — `expected 2 to be greater than 3`: a 0.25-minute soak with a 250 ms interval produced **2 samples** where it should produce dozens |
+| Symptom 2 | two 60-second test timeouts (`closure-terminal-logic.test.ts`, `root-trust-authority-lockdown.test.ts`) in suites this phase did not touch |
+| Commit delta on that SHA | **two markdown documents** — the ledger and the acceptance record |
+
+**Evidence that it was the runner, not the change**, gathered before any remedy was applied:
+
+1. **The same SHA passed on another runner.** Run `35707090892`, event `push`, same commit, same workflow:
+   `quality`, `unit`, `package`, `acceptance` all `success`.
+2. **The failing tier passed locally twice**, 8 files / 119 tests / 0 failures, in ~59 s.
+3. **The two previous tips passed the same tier in CI** (`35703938755`, `35705467524`).
+4. **The failure signature is throughput**, not correctness: samples starved and per-test ceilings crossed,
+   which is what a throttled hosted runner produces and what a code change does not.
+
+**Remedy and outcome.** The failed job was re-run once (`--failed`) as the standard remedy for a transient runner
+failure — not an approval, not a merge, not a protection change, and not a weakened check. Attempt 2 completed
+**success**: `quality`, `unit`, `acceptance`, `package` all green. All eight check-runs on the tip are now
+`success`.
+
+**Recorded as a threat to validity rather than as noise.** A grading pipeline whose postbuild tier can fail on
+runner throughput means a red result is not by itself evidence about the change, and a green one is not by itself
+evidence about the runner. The discriminator used here — a second runner on the identical SHA — is the cheapest
+honest test, and it required no weakening of any gate.
+
+**The head advanced after this record was written**, by the commit that carries it. That is disclosed rather than
+left implicit: the SHA above is the one whose CI results are reported in this row, and the record commit's own run
+is reported in the final report.
+
 ## C6 — GRANDFATHERED BASELINE: identity, not counts
 
 `MEASUREMENT`. `config/architecture-enforcement-baseline.json`, schema `city-architecture-enforcement-baseline/1`,

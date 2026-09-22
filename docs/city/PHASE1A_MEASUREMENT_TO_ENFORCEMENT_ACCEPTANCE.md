@@ -46,8 +46,8 @@ violate in order to track them).
 | `architecture-enforcement-live.json` | 432894 | `442735a8ad9a25210760900ada82aef78d6c13256b9609c68e2aff4af2447ce5` |
 | `controlled-regressions.json` | 7739 | `2d6f52a5ca0794b2a89a47e78705e276756e5b622f43cb4277bb48d181351730` |
 | `legacy-vs-observer-vs-enforcer.json` | 1358 | `3d60889b7ec246292c7e6efc3a9932b1f9a9174ae0d8db5f688bf61d8b571527` |
-| `paper-evidence.ndjson` | 56827 | `6a816362361440ac01ba866dd8e1c7f4350b15a479f6b0613314264e92d965ed` |
-| `paper-evidence.json` | 66771 | `da95f20f06e4844bf97dc81ed028b10325b45a72a0cddb6817a23f7fca7753d4` |
+| `paper-evidence.ndjson` | 60227 | `4dff438831b3df5df00a6387227379d91801b5e455cd5c8fd6edb54b1f9a2cad` |
+| `paper-evidence.json` | 70624 | `905b1a8a87ca91b276ffd74daaec5c631a21750e91f84a33b0e218017d178fd6` |
 | `paper-evidence-index.md` | 8171 | `6ba3489da38bb4a3647a741aad207d87368599bceb1215a54fe1cc7b306d137a` |
 
 The tracked enforcement baseline is `config/architecture-enforcement-baseline.json`, **version 1**, byte-identity
@@ -137,7 +137,8 @@ DOES NOT MEAN  THESE RELATIONS ARE HEALTHY
 | P1A-22 | production architecture repair = NONE | **PASS** | no capability moved, split or rewired; every injection is a temporary directory |
 | P1A-23 | CI workflow unchanged | **PASS** | `.github/workflows/ci.yml` byte-identical to the base |
 | P1A-24 | Root Trust MATCHES | **PASS** | epoch 24, 63 files, aggregate `6eaf71e9…d457` on this branch |
-| P1A-25 | evidence captured continuously | **PASS** | 22 records in `paper-evidence.ndjson`, appended at each checkpoint |
+| P1A-25 | evidence captured continuously | **PASS** | 23 records in `paper-evidence.ndjson`, appended at each checkpoint |
+| P1A-28a | hosted CI on the final tip | **PASS after one transient failure** — run `35707095128` (`pull_request`) failed its `unit` job on runner throughput while the same SHA's push run `35707090892` passed all four jobs; the failed job was re-run once and attempt 2 is all-green. All eight check-runs on the tip are `success`. No gate was weakened, no check disabled, no baseline raised. Recorded in full in the ledger's C11 addendum. |
 | P1A-26 | failures/corrections/negative results preserved | **PASS** | one `FAILURE` record with five defects, one `CORRECTION`, one `NEGATIVE_CONTROL` record with four retained negatives |
 | P1A-27 | Phase 0 history not rewritten | **PASS** | `P0-15`/`P0-16` untouched; append-only additions |
 | P1A-28 | branch CI green | **PASS** | Desktop CI run **`35703938755`**, event `push`, `head_sha` = `4bf6a45483105504f006e3e3dfb4ebd074b3cf7b`, `completed`/`success`; `quality`, `unit`, `package`, `acceptance` all `completed`/`success` |
