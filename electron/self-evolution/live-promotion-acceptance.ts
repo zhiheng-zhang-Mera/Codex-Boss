@@ -228,7 +228,7 @@ app.whenReady().then(async () => {
   //    acceptance deliberately does NOT reserve an easier geometry for itself: it must exercise the root
   //    placement production actually resolves. An unsafe resolution throws here, before anything is written.
   const stableRoot = process.cwd();
-  let resolvedEvolution: ReturnType<typeof resolveEvolutionRoot>;
+  let resolvedEvolution;
   try {
     resolvedEvolution = resolveEvolutionRoot({
       stableRoot,
@@ -389,8 +389,9 @@ app.whenReady().then(async () => {
   console.log(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=PASS identity=${credentialEvidence.identity} branch=${layout.candidateBranch} candidate=${candidateHeadSha.slice(0, 12)} pr=${String(record.pullRequest?.number)} state=${record.state} checks=${greenChecks} baseUnmoved=true`);
   app.quit();
 }).catch((error) => {
-  // §8 — a top-level exception, including one thrown before Candidate creation, must still produce a FRESH
-  // attempt-scoped FAILED report. Without this, the previous attempt's report stayed on disk and was mistaken
+  // A top-level exception, including one thrown before Candidate creation, must still produce a FRESH
+  // attempt-scoped FAILED report (Update-Plan/Isolation-Finalization.md §8). Without this, the previous
+  // attempt's report stayed on disk and was mistaken
   // for the current one (STALE_SINGLETON_REPORT_HAZARD), which is exactly what happened when the nested-root
   // geometry threw and an older BLOCKED_EXTERNAL was read as this run's result.
   const detail = terminalFailureReason(error);

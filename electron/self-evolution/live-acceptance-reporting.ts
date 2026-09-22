@@ -24,7 +24,7 @@ import { scanSecrets, redactSecrets } from "../../src/shared/secret-scan";
  * that throws immediately. A report is never the only record of an attempt.
  */
 
-export interface AttemptIdentity {
+interface AttemptIdentity {
   runId: string;
   attemptStartedAt: string;
   /** Compiled instrument file name and digest: which code produced this attempt. */
@@ -37,7 +37,7 @@ export interface AttemptIdentity {
   baseBranch: string;
 }
 
-export interface ReportPaths {
+interface ReportPaths {
   directory: string;
   attemptFile: string;
   latestFile: string;
@@ -87,7 +87,7 @@ export function attemptIdentity(input: {
   };
 }
 
-export interface WriteResult {
+interface WriteResult {
   written: boolean;
   /** `REPORT_REFUSED` when the report failed its own leakage gate; `WRITE_FAILED` when the filesystem refused. */
   outcome: "WRITTEN" | "REPORT_REFUSED" | "WRITE_FAILED";

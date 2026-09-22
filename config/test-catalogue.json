@@ -756,6 +756,13 @@
       ]
     },
     {
+      "file": "tests/unit/evolution-root-policy.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ]
+    },
+    {
       "file": "tests/unit/evolution-sandbox.test.ts",
       "tier": "unit",
       "covers": [
@@ -957,6 +964,13 @@
         "knowledge"
       ],
       "obligation": "knowledge carries provenance, goes stale deterministically, and GC never deletes protected evidence"
+    },
+    {
+      "file": "tests/unit/live-acceptance-reporting.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ]
     },
     {
       "file": "tests/unit/login-scan.test.ts",
@@ -1436,6 +1450,13 @@
       "covers": [
         "promotion",
         "security"
+      ]
+    },
+    {
+      "file": "tests/unit/self-evolution-host-root-geometry.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
       ]
     },
     {

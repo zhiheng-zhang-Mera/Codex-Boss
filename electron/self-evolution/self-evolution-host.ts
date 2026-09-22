@@ -154,7 +154,8 @@ export function createGitHostHandlers(base: {
 export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions): SelfEvolutionHostHandle {
   const appPath = path.resolve(options.appPath);
   const stableRoot = path.resolve(options.stableRoot ?? detectRepositoryRoot(appPath) ?? appPath);
-  // §8.3 — the Candidate tree must be STRUCTURALLY outside Stable, not accidentally so. This used to
+  // The Candidate tree must be STRUCTURALLY outside Stable, not accidentally so
+  // (Update-Plan/Isolation-Finalization.md §8.3). This used to
   // default to `<userData>/evolution`, which is outside Stable in a packaged install only because
   // `%LOCALAPPDATA%` happens to sit elsewhere; in development `userData` is `runtime-data/` inside the
   // checkout, so the Candidate landed inside Stable and `verifyRuntimeSeparation` correctly refused.

@@ -38,7 +38,7 @@ import { RuntimeIsolationError } from "./runtime-isolation";
 export const EVOLUTION_ROOT_ENV = "BOSS_EVOLUTION_ROOT";
 
 /** Where the resulting location came from. Recorded as evidence rather than inferred. */
-export type EvolutionRootSource = "override" | "user-data" | "external-sibling" | "os-temp";
+type EvolutionRootSource = "override" | "user-data" | "external-sibling" | "os-temp";
 
 /** Non-secret provenance for the resolved location. Safe to write into evidence. */
 export interface EvolutionRootOrigin {
@@ -51,18 +51,18 @@ export interface EvolutionRootOrigin {
   detail: string;
 }
 
-export interface ResolvedEvolutionRoot {
+interface ResolvedEvolutionRoot {
   evolutionRoot: string;
   origin: EvolutionRootOrigin;
 }
 
-export interface EvolutionRootRejection {
+interface EvolutionRootRejection {
   constraint: string;
   detail: string;
   attempted: string;
 }
 
-export interface ResolveEvolutionRootInput {
+interface ResolveEvolutionRootInput {
   /** The Stable application root the Candidate must stay out of. */
   stableRoot: string;
   /** Stable's application data root. Preferred host-owned location, used when genuinely external. */
@@ -139,7 +139,7 @@ export function evolutionRootConstraints(stableRoot: string, candidate: string):
  *
  * A failed probe leaves nothing behind, and the caller treats the location as invalid.
  */
-export function probeExternalRoot(candidateRoot: string): boolean {
+function probeExternalRoot(candidateRoot: string): boolean {
   const marker = path.join(candidateRoot, `.isolation-probe-${process.pid}-${Date.now()}`);
   try {
     fs.mkdirSync(candidateRoot, { recursive: true });
