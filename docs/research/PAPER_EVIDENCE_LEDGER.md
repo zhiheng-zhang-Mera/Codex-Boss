@@ -552,32 +552,176 @@ one source of truth per item.
 | `CORRECTION_ID` | Original claim | Evidence that falsified or weakened it | Corrected claim | Historical text left intact? | Downstream consequences |
 |---|---|---|---|---|---|
 | `COR-1` | "At `city-start-baseline-v1` there is no city plan at all." | `git grep -l "Capability City" HEAD` → 2 tracked files | The baseline carries the city principles and the pre-city freeze manifest; what is absent is the research apparatus and any Phase 0 scope-with-criteria document | **Yes** — annotated in place and left standing | The Phase 0 specification's candidate list is stronger; the earlier stop remains correct |
-| `COR-2` | (Phase 0 implementation corrections are appended here as they occur — see §C) | | | | |
+| `COR-2` | An implicit assumption carried while drafting this phase: that the historical counts (25 / 594 / 187 / 43 / 25-of-27 / 7) could be read beside the Phase 0 counts as comparable quantities | Inspection of what each figure measured: `187` counted cross-**capability** edges under a broader path-attributed ownership notion, while Phase 0 counts all resolved internal source edges under declaration-based ownership; `43` and `25-of-27` are cycle measures Phase 0 does not compute; `7` is a state-access measure a source-import observatory cannot see | The historical and current figures are **not comparable**; they are labelled HISTORICAL wherever they appear, and the only historical figure that reproduces exactly is the 25-file declared scan set | **Yes** — the historical text is untouched; the new specification and dataset state the distinction explicitly | Recorded as negative result `N-03` / `P0-10` rather than reconciled by adjusting either number |
 
 ---
 
 # §C — Phase 0 evidence (this phase)
 
-Populated during execution. §19 step 17 requires this section to be completed with the final measured results
-before the implementation/evidence commit.
+Measured on the real Mech host at implementation commit
+`6bf354dda3324efeb1bf01421abaad6b6ca2d97`, against the branch point
+`53aa74a7f9628765a92210d16aabcc77ae98bae4` (`city-start-baseline-v1`), under the specification committed at
+`76b2f495f57928f34823f6ce17176890963e846e`.
 
-```text
-PENDING — filled in by the Phase 0 run
-```
+The structured records are `artifacts/city/phase0/paper-evidence.json` (records `P0-01`..`P0-14`); the tracked
+acceptance record is `docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_ACCEPTANCE.md`; the human-readable index is
+`artifacts/city/phase0/paper-evidence-index.md`. This section is the ledger's own summary of them, so the
+durable record does not depend on the gitignored runtime directory.
+
+## P0-01 — the scan set is derived from Git, not from the declarations it audits
+
+`MEASUREMENT` · `LOCAL_REAL_HOST`. **Prior assumption:** the manifest-declared module list defines what an
+architecture instrument may see. **Method:** `git ls-files` restricted to `electron/**` and `src/**`, `.ts`
+`.tsx` `.js` `.jsx` `.cjs` `.mjs`, `*.d.ts` excluded; ownership read separately. **Observed:** 1296 tracked
+files in the repository, **612 tracked source files scanned**, against **25** declared modules and 27 manifests.
+**Discrepancy:** none — the scan set is 24.5x the declared set. **Interpretation:** manifest membership is
+metadata about a measured file, not permission to see it. **Reproducible:** yes.
+
+## P0-02 — explicit ownership covers a small minority of the source
+
+`MEASUREMENT`. **Observed:** **25 declared-owned files, 587 UNDECLARED**, 0 ownership conflicts, 0 declared
+modules missing from the tracked set. **Discrepancy:** the definition is deliberately narrower than the
+historical `594` figure, which used a path-attributed notion of ownership. **Interpretation:** the declarations
+are incomplete as a description of the tree; Phase 0 measures that and does not repair it.
+
+## P0-03 — every resolved internal edge is retained
+
+`MEASUREMENT`. **Observed:** **1671 internal edges** across 612 files, 489 with at least one reference.
+Edge classes: `DECLARED_TO_DECLARED` 0 · `DECLARED_TO_UNDECLARED` 146 · `UNDECLARED_TO_DECLARED` 25 ·
+`UNDECLARED_TO_UNDECLARED` 1500. Edge endpoints 171 declared / 3171 undeclared. Forms: `static-import` 1601 ·
+`dynamic-import` 75 · `export-from` 16 · `require` 3 · `side-effect-import` 0. **Interpretation:** the graph the
+legacy gate cannot see is 1671 edges wide. **Limitation:** edge existence is a source-level fact; no runtime
+dependency is claimed.
+
+## P0-04 — the control arm, on the same tree
+
+`CONTROL`. **Method:** the unmodified `scripts/architecture.cjs` executed as a subprocess (`LEGACY_CLI`), plus a
+labelled re-derivation of its documented visibility rule over the identical scan set
+(`LEGACY_RULE_REDERIVATION`). **Observed:** ratchet exit 0, `pass = true`, **0 violations**, 3 declared
+capability edges, metrics unchanged; the re-derived rule reads **25** files, produces **145** internal edge
+records, and retains **0** of them after the undeclared-target filter. **Observer-only edges: 1671.**
+**Discrepancy:** the historical `3` was a count of *declared capability refs*, not of import edges; on the
+current tree the legacy rule retains **zero** import edges, because no declared module imports another declared
+module. **Interpretation:** the blind spot is not a gap; it is the whole graph, while the control sensor reports
+a clean ratchet.
+
+## P0-05 — known-positive control
+
+`CONTROL`. **Method:** resolve the actual current target from source at run time, never from a hard-coded path.
+**Observed:** `electron/bootstrap/persistence.ts` (declared owner `persistence`) imports
+`../runtime-intelligence/live-capture` → `electron/runtime-intelligence/live-capture.ts`, whose owner is
+`UNDECLARED`; the legacy rule **would drop this edge**; the dependency was **not** modified. **Discrepancy:** the
+pre-city evidence described it as `tenx`-owned; that description is historical comparison data only.
+**Interpretation:** the documented blind spot reproduces on the current tree.
+
+## P0-06 — the six required falsification classes
+
+`FIXTURE` + `NEGATIVE_CONTROL`. All six **PASS** (OBS-01 manifest independence; OBS-02 undeclared target
+preservation; OBS-03 false-import negative control; OBS-04 supported forms, one edge per `(from,to)`;
+OBS-05 mutation sensitivity; OBS-06 determinism). They run through the same production code path and are also
+asserted by `tests/unit/city/architecture-observatory.test.ts`, which drives the shipped command rather than a
+copy of it. **Limitation:** fixtures are synthetic by construction; the non-synthetic half is the real-tree
+structural assertions in the regression suite.
+
+## P0-07 — determinism on the real tree
+
+`REPRODUCTION`. Two full runs at the same clean commit produced the identical semantic hash
+`0c36a2643d5ef6c343b4533f8c3950ef0e19b0af32ddd83fe3903b5a090115b0` (2117 ms first run). Volatile metadata
+(timestamp, duration, host) is excluded from the semantic payload; keys are canonicalised. **Limitation:** the
+payload includes the tracked-file total, so the hash also moves when the repository gains or loses any tracked
+file.
+
+## P0-08 — the regex cross-check, and what it caught
+
+`NEGATIVE_CONTROL`. A conservative regex of the legacy shape was applied to the **same** 612-file scan set and
+compared pair-by-pair with the lexer: **regex 1565, lexer 1671, regex-only 0, lexer-only 106**. A
+newline-tolerant variant of the same regex recovers 1670 of the 1671; the single residual is a dynamic import
+the regex mis-parses because an earlier `import` keyword lets it cross statement boundaries.
+**Interpretation:** the disagreement is a limitation of the regex method (multi-line import/export statements),
+not a defect in the lexer — and `regex-only = 0` is the property that would have indicated a lexer miss. This
+cross-check is what caught failed attempt F-03.
+
+## P0-09 — the historical 25-file figure reproduces exactly
+
+`REPRODUCTION`. **Observed:** `legacy_scanned_files = 25`, `declared_modules_total = 25`, none absent from the
+tracked set. **Interpretation:** this half of the historical observation reproduces; the `594` half used a
+different ownership definition and is not reproduced here.
+
+## P0-10 — the historical structural figures do NOT reproduce (negative result)
+
+`NEGATIVE_CONTROL`. The historical `187`, `43`, `25-of-27` and `7` are **not** reproduced and are **not
+comparable**: `187` counted cross-*capability* edges under a broader ownership notion while Phase 0 counts all
+resolved internal source edges under declaration-based ownership; `43` and `25-of-27` are graph-cycle measures
+Phase 0 does not compute; `7` is a state-access measure a source-import observatory cannot see. **This is
+recorded as a negative result rather than silently reconciled**, and no reader may read a change between the
+historical and current numbers.
+
+## P0-11 — unresolved references are reported, not discarded
+
+`MEASUREMENT`. **Observed:** 1 unresolved relative reference — `src/renderer/main.tsx` → `./styles.css`,
+reason `non-source-extension`. **Interpretation:** a stylesheet is not a source module, so it is reported with
+its reason rather than dropped or miscounted.
+
+## P0-12 — the trust boundary is untouched
+
+`GOVERNANCE`. Root Trust epoch **24** (`boss-root-trust-24`) **MATCHES** on this branch; 63 surface files;
+aggregate `6eaf71e9e2c81122522be86743bc619fcbc823b3c1cff07b229f94edda40d457`. `scripts/architecture.cjs`,
+`config/architecture-baseline.json` and `config/capabilities/**` are byte-identical to the city-start baseline.
+**Limitation:** `package.json` gains one script and is a CODEOWNERS-protected path; this branch is not merged.
+
+## P0-13 — required regression suites
+
+`MEASUREMENT`. typecheck PASS · security scan PASS (1296 files) · architecture ratchet PASS
+(`violations: []`) · state probe PASS · test catalogue current at 277 suites · **unit tier 261 files / 3300
+tests / 0 failures** · postbuild tier 8 / 119 / 0 · slow tier 4 / 35 / 0.
+
+**Discrepancy, retained.** A first unit-tier run reported one failure:
+`tests/unit/runtime-intelligence/replay-corpus-io.test.ts` timed out at 60000 ms while heavy commands ran
+concurrently. Re-run in isolation it passed in **585 ms**, and the full tier re-run on an idle machine passed
+**3300/3300**. Recorded rather than dropped; a genuine intermittent defect in that suite cannot be excluded
+from a single observation, but it is unrelated to Phase 0's files.
+
+## P0-14 — the syntactic mix of the tree, measured
+
+`MEASUREMENT`. `static-import` 1601 · `dynamic-import` 75 · `export-from` 16 · `require` 3 ·
+`side-effect-import` 0; 17 distinct external packages over 493 occurrences. **Discrepancy:**
+`side-effect-import` is 0 on the real tree — the only such import is the stylesheet counted under P0-11 — and
+all three `require` edges sit in one file. Every supported form is still exercised by fixtures (OBS-04), so the
+zero is a measurement and not a gap in the observer.
 
 ---
 
 # §D — Negative results register
 
-```text
-PENDING — filled in by the Phase 0 run. A negative result is recorded, never converted into silence.
-```
+| ID | Claim | Result | Class | Retained |
+|---|---|---|---|---|
+| N-01 | Side-effect imports are a meaningful part of the internal graph | **0** `side-effect-import` edges; the only such import is a stylesheet, reported as an unresolved non-source reference | `NO_IMPROVEMENT` | yes |
+| N-02 | The legacy visibility rule retains some of the real import graph | It retains **none**: 145 internal edge records, 0 visible after the undeclared-target filter | `MIXED_RESULT` | yes |
+| N-03 | Phase 0 reproduces the historical structural figures (187 / 43 / 25-of-27 / 7) | **Not reproduced**; different quantities, different instrument; out of phase scope | `INCONCLUSIVE` | yes |
+| N-04 | The conservative regex and the lexer agree on the same scan set | They do **not**: 106 lexer-only, 0 regex-only; a newline-tolerant variant recovers 1670 of 1671 — a regex limitation | `MIXED_RESULT` | yes |
+| N-05 | A capability-level import graph exists to be reported | **0** capability-level edges: `DECLARED_TO_DECLARED = 0`, i.e. no declared module imports another declared module | `NO_IMPROVEMENT` | yes |
+| N-06 | The historical description of the persistence dependency still matches the source | It does not: the current specifier is `../runtime-intelligence/live-capture` and the target is `UNDECLARED`. The dependency itself is present and observable | `REGRESSION` | yes |
+| N-07 | The required regression suites pass | One unit-tier test timed out under concurrent host load; it passed in isolation in 585 ms and the idle re-run passed 3300/3300 | `INCONCLUSIVE` | yes |
+
+---
 
 # §E — Failed attempts register
 
-```text
-PENDING — filled in by the Phase 0 run.
-```
+| ID | Attempted | Why it appeared reasonable | How it failed | Falsifying evidence | What changed |
+|---|---|---|---|---|---|
+| F-01 | Use the TypeScript compiler API for AST parsing, as the specification prefers | `typescript` is already a dependency and the repository typechecks with it; AST parsing removes the whole class of lexical false positives | `typescript@7.0.2` is the native port: its package root resolves to `lib/version.cjs` and exports only `version` / `versionMajorMinor`; `ts.createSourceFile` does not exist | A direct `require` of the package and an enumeration of its exports | Investigated the unstable namespaces before abandoning the route |
+| F-02 | Use `typescript/unstable/ast` or `unstable/sync` as the parser | Those subpaths expose 409 and 44 symbols, including `SyntaxKind` and `ScriptKind`, which look like the classic surface | `unstable/ast` has no parse entry point (type guards, a factory and a scanner only), and its scanner returned the same `FirstToken` with empty token text for an entire sample; `unstable/sync` exposes project/file APIs and needs a native server | A token dump from a sixteen-line sample plus an enumeration of both namespaces | Recorded the incompatibility; no third-party parser exists in this lockfile, so a self-contained lexer plus token-level recogniser was written and the deviation recorded |
+| F-03 | Track template-literal hole depth in a single shared variable | A hole closes at the brace depth recorded when it opened, so one variable looked sufficient | Nested template literals overwrote it: the outer hole's closing brace stopped being recognised, a later real backtick opened a phantom template, 655–1098 character spans of real source were consumed as template text, and **three genuine `require()` edges were lost** in `electron/host/host-observer-collector.ts` | The regex cross-check reported `regex_only = 3` — the exact signature of a lexer miss — and a token dump showed zero `require` tokens in a file containing three | The expected brace depth is recorded **per hole frame**; edges moved 1668 → 1671 and `regex_only` fell to 0 |
+| F-04 | Decide regex-versus-division with a deny-list of expression-closing punctuators | `/` after `)` `]` or `}` is division; everywhere else it may open a regex | In TSX, `>` also closes a tag: the `/` in `<div />` and `</div>` was read as a regex start, ran to end of line, and produced **302 spurious `unterminated-regex` issues across twelve renderer files**, plus two unterminated-string and two unrecognized-character issues downstream of the same cause | The issue breakdown by kind and file, all concentrated in `src/renderer/**` | Replaced the deny-list with an explicit **allow-list** of punctuators after which a regex may legally start, removing `>` and `<`. Parse issues fell to **0** with the measured edge set **unchanged at 1671** — the evidence that the defect was in reporting, not in measurement |
+| F-05 | Pass an absolute `--out` directory to a helper that joined it onto the repository root | `path.join` is the natural way to build artifact paths | `path.join` does not reset on an absolute segment, so it produced a path that exists nowhere and the observatory threw while writing artifacts | The artifact-writing regression test failed with a stack pointing at `writeJson` | An absolute `--out` is honoured as given; a relative one is resolved against the root, with the displayed path kept repository-relative |
+
+**Nothing here was a published error.** F-03, F-04 and F-05 were caught before the implementation commit, by
+evidence rather than by review — the cross-check, the issue breakdown, and the regression suite respectively.
+They are retained because the epistemic history is the research asset, not the final diff.
+
+**Two defects reached a draft of this ledger itself and are corrected in section B:** `COR-2` (treating the
+historical counts as comparable to Phase 0's) and, before it, `COR-1`.
+
 
 ---
 
