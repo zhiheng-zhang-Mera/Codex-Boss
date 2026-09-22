@@ -858,13 +858,114 @@ model; and the rule that a sensor failure must never produce `PASS`.
 | `C3` Phase 1A spec | **COMPLETE** (record above) |
 | `C4` sensor qualification | **COMPLETE** — Q-01..Q-07 PASS, Q-08 MEASURED, unexplained disagreements 0 |
 | `C5` qualification failures / corrections | **COMPLETE** — two failures, both in the harness's own expectations |
-| `C6` grandfathered baseline | pending |
-| `C7` enforcement policy | pending |
-| `C8` shadow enforcement | pending |
-| `C9` controlled regressions | pending |
+| `C6` grandfathered baseline | **COMPLETE** — `config/architecture-enforcement-baseline.json` v1, identity-level, reproducible |
+| `C7` enforcement policy | **COMPLETE** — E-01..E-10 implemented; ENF-01..ENF-18 green |
+| `C8` shadow enforcement | **COMPLETE** — real tree: shadow PASS, enforce PASS, 0 new regressions |
+| `C9` controlled regressions | **COMPLETE** — 9/9 injections produce the expected machine code |
 | `C10` full regressions | pending |
 | `C11` hosted branch CI | pending |
 | `C12` Phase 1A promotion request | pending |
+
+## C6 — GRANDFATHERED BASELINE: identity, not counts
+
+`MEASUREMENT`. `config/architecture-enforcement-baseline.json`, schema `city-architecture-enforcement-baseline/1`,
+**version 1**, `baseline_hash 30c82a5c…` → regenerated to **`b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e`**
+once the series fields were added. It binds: `source_commit`, sensor spec + implementation SHA-256 + scan-set
+hash, the ownership of **every** tracked source file by identity (612 entries), **every** resolved internal edge
+by identity (1671 entries), the retired-edge series, the unresolved references with both the Phase 0 reason string
+and the new classification, the generation command and reason, and `not_yet_enforced`.
+
+```text
+MEANS          THESE RELATIONS EXISTED BEFORE ENFORCEMENT
+DOES NOT MEAN  THESE RELATIONS ARE HEALTHY
+```
+
+**Identity is the ratchet; counts are summaries.** A count-only baseline would have passed the round's own
+`EXP-09` attack, in which one grandfathered edge is removed and one undeclared-endpoint edge is added so that the
+total is unchanged.
+
+Unresolved classification at generation: `NON_SOURCE_ASSET 1` (the Phase 0 stylesheet), `SOURCE_TARGET_MISSING 0`,
+`UNSUPPORTED_SOURCE_RESOLUTION 0`, `OTHER_UNKNOWN 0`. Phase 0's own reason string (`non-source-extension`) is
+preserved beside the classification rather than rewritten.
+
+**Two provenance traps were found here and are recorded as failures rather than smoothed over:**
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| B-1 | `--check` reported a false mismatch immediately after a successful generation | the check recomputed the series identity (version, parent) from the file it was checking, and a regeneration bumps both by design, so the comparison could never succeed | series identity is now an **input** held fixed in check mode; the measured content is what is recomputed |
+| B-2 | `--check` would have started failing at the next commit | `source_commit` is part of the content, so committing the baseline moved it | provenance is now an input too; `--check` holds the recorded commit and verifies content identity, which is the property actually worth asserting |
+
+## C7 — POLICY: one evaluator, two modes
+
+`MEASUREMENT` + `FIXTURE`. `scripts/architecture-enforcement.cjs` implements E-01..E-10 with machine codes, and
+`architecture:enforce:shadow` / `architecture:enforce` are the canonical entry points. `architecture:ratchet`
+remains the untouched legacy control and is **not** replaced.
+
+```text
+shadow  -> policy violation reported, exit 0
+enforce -> policy violation reported, exit non-zero
+engine error -> non-zero in BOTH
+```
+
+The findings list is produced by one function in both modes, which is what makes **ENF-12** (identical findings)
+a real check rather than a coincidence. E-07's authorization test is operationalised from the repository's own
+declarations: capability `A` may import `B` only where `A` declares a `requires`/`optional` reference that `B`
+provides. E-09 fails closed on a read failure, a parse issue, a silent skip, an unsupported resolution or an
+unknown classification. E-10 emits `NOT_YET_ENFORCED` for the five defect classes Phase 1A does not model.
+
+`tests/unit/city/architecture-enforcement.test.ts` — **21 tests, all green**, driving the shipped command with
+injected inputs: ENF-01..ENF-18 plus the engine-error case.
+
+## C8 — SHADOW TRIAL on the real tree
+
+`MEASUREMENT` + `SHADOW_ENFORCEMENT`. On the exact Phase 1A baseline, all four roles were run:
+
+| Sensor | Result |
+|---|---|
+| `architecture:ratchet` (legacy control) | exit 0, `pass = true`, **0 violations** |
+| `architecture:observe` (truth) | 612 files, **1671** internal edges, 587 undeclared, semantic hash recorded |
+| `architecture:enforce:shadow` | **PASS**, exit 0, no engine error |
+| `architecture:enforce` | **PASS**, exit 0 — every inherited relation is grandfathered |
+
+```text
+findings_total 1677 = PASS_AS_GRANDFATHERED 1671 + NOT_YET_ENFORCED 5 + NON_SOURCE_ASSET 1
+violations 0 · engine_errors 0 · NEW_REGRESSIONS 0
+```
+
+The inherited tree passes enforcement **while every grandfathered relation remains labelled as debt**, which is
+the distinction the round exists to establish: `GRANDFATHERED != HEALTHY`.
+
+## C9 — CONTROLLED REGRESSIONS: nine injections, nine expected codes
+
+`POLICY_EXPERIMENT` + `REAL_HOST`. `scripts/architecture-phase1a-experiments.cjs`, isolated fixtures only.
+
+| ID | Injection | Expected code | Shadow | Enforce | Rollback |
+|---|---|---|---|---|---|
+| EXP-01 | new undeclared source | `NEW_UNDECLARED_SOURCE` | exit 0 | non-zero | RESTORED |
+| EXP-02 | declared → undeclared edge | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+| EXP-03 | undeclared → declared edge | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+| EXP-04 | undeclared → undeclared edge | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+| EXP-05 | unauthorized cross-capability edge | `NEW_UNDECLARED_CROSS_CAPABILITY_EDGE` | exit 0 | non-zero | RESTORED |
+| EXP-06 | ownership conflict | `OWNERSHIP_CONFLICT` | exit 0 | non-zero | RESTORED |
+| EXP-07 | missing source target | `UNRESOLVED_SOURCE_TARGET_MISSING` | exit 0 | non-zero | RESTORED |
+| EXP-08 | instrument failure | `SENSOR_INCOMPLETE` | exit 0 | non-zero | RESTORED |
+| EXP-09 | raw-count compensation attack | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+
+**9 of 9 passed**, every expected machine code observed, every rollback restored to the pre-mutation semantic
+hash. Production architecture was never mutated: every injection is a temporary directory.
+
+**A failure was found here too, and it is the kind this round is for.** The *first* run reported
+`expected_codes_present 9/9` **and** `rollbacks_restored 0`, so all nine experiments were marked failed. The
+rollback arm was hashing the **baseline** and comparing it with the **unmutated measurement** — two different
+object shapes, so equality was impossible and the pass criterion could never be met. The fix is recorded in the
+script beside the code. The lesson is worth keeping: the *machine codes* were right and the *harness's own
+bookkeeping* was wrong, exactly as in `COR-1` and in the qualification harness at C5.
+
+Two further construction defects were falsified by the tests rather than by review and are retained in place: the
+enforcement suite initially read its assertions from the command's compact stdout summary instead of the artifact
+the command writes (15 spurious failures), and the baseline series had to be reset from a bumped version 2 — whose
+parent was an uncommitted work-in-progress file — back to a clean version 1, because a baseline chain must start
+from an *accepted* state and not from a scratch file.
 
 ## C4 — SENSOR QUALIFICATION: the Phase 0 sensor is fit to carry a policy
 
