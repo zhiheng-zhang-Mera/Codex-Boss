@@ -756,6 +756,13 @@
       ]
     },
     {
+      "file": "tests/unit/evolution-root-policy.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
+      ]
+    },
+    {
       "file": "tests/unit/evolution-sandbox.test.ts",
       "tier": "unit",
       "covers": [
@@ -1690,6 +1697,13 @@
       "covers": [
         "promotion",
         "security"
+      ]
+    },
+    {
+      "file": "tests/unit/self-evolution-host-root-geometry.test.ts",
+      "tier": "unit",
+      "covers": [
+        "promotion"
       ]
     },
     {
