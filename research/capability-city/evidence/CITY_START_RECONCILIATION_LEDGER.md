@@ -491,6 +491,47 @@ from the tree on every check.
 
 ---
 
+## 5b. Independent re-verification of every inherited CI claim
+
+This ledger's §3 quotes CI facts that the programme recorded in **earlier** rounds. Quoting them would make
+this ledger an echo rather than a reconstruction, so every run id and every per-SHA check-run set cited
+anywhere in the programme's artefacts was re-read from the GitHub API in a later round. **No correction was
+required** — recorded explicitly, so that the absence of a finding is not mistaken for an absence of checking.
+
+| # | Claim, and where the programme asserted it | Independent check (run id → `head_sha` → jobs) | Verdict |
+|---|---|---|---|
+| 1 | `d9ddb15` validated: "all four jobs success", run `35674821748` (`FINDING-002`, `PAPER_EVIDENCE_INDEX` E-16) | `35674821748` → `d9ddb151…` → quality/unit/package/acceptance all `completed`/`success` | **CONFIRMED** |
+| 2 | Both CI runs on the promotion SHA are green (`MISSION_ROUND…`, D-004) | `35676861757` (event `pull_request`) → `d9ddb151…` → all four `success` | **CONFIRMED** |
+| 3 | Pre-City RC green: run `35603744506` on `836b5ed` (§3 A2, D-002) | `35603744506` → `836b5ed6…` → all four `success` | **CONFIRMED** |
+| 4 | A **second** green PR-triggered run existed before PR #8 merged (D-004 point 1) | `35612224184` (event `pull_request`) → `836b5ed6…` → all four `success` | **CONFIRMED** |
+| 5 | Baseline CI facts `35596132732` / `35599708676` / `35601709706` green on `23e1541` / `027917d` / `3945270` (`dataset/baseline-metadata.json` `ciFacts`) | each run → the named SHA → all four `success` | **CONFIRMED** |
+| 6 | Run `35594921583` on `5c06f7e` was a **failure** caused by tracking `artifacts/` (`baseline-metadata.json` `ciFacts` note; §3 A2) | `35594921583` → `5c06f7e…` → `quality` success, **`unit` failure**, `package`/`acceptance` **skipped** | **CONFIRMED**, and the failure mode is now *directly observed* rather than inherited |
+| 7 | Stage C candidate `d8fc0fb`: four required contexts green on that exact SHA, `foreignSha: []`, `missing: []` (§3 G1, `CLAIM-003`) | 8 check-runs (two runs) → **every** one `completed`/`success` with `head_sha = d8fc0fb…` | **CONFIRMED** |
+| 8 | Promotion candidate `d9ddb15`: same property (E-15) | 8 check-runs (two runs) → all `success`, all `head_sha = d9ddb151…` | **CONFIRMED** |
+| 9 | `836b5ed`: the pre-city RC's required checks were green on the RC head (§3 A1) | 8 check-runs (two runs) → all `success`, all `head_sha = 836b5ed…` | **CONFIRMED** |
+
+**One new observation, not previously recorded anywhere in the programme.** The pre-city baseline merge
+commit `7024203` itself carries **12** check-runs — three complete runs — and **every one is
+`completed`/`success` with `head_sha = 7024203…`**:
+
+```
+7024203… check-runs: quality ×3 success · unit ×3 success · acceptance ×3 success · package ×3 success
+```
+
+This is a direct, API-level corroboration of the classification `GOV-003` argues in prose: **the pre-city
+baseline's *content* was fully certified on its own merge SHA; only its *authorization path* was
+non-conforming.** The two classifications were already kept apart deliberately (`CONTENT_BASELINE_VALID` vs
+`PROMOTION_AUTHORIZATION_PATH_NONCONFORMING`); this ledger adds the measurement that shows the first half is not
+merely asserted. It changes no conclusion and does not soften `OBS-GOV-001` in any way.
+
+**Duplicate contexts, recorded because they look like a discrepancy and are not.** GitHub does not deduplicate
+check-runs across runs: each SHA above therefore reports four contexts *per run* (8 for two runs, 12 for three).
+The programme's "all four success" claims are true per run, and
+`foreignSha = []` / `missing = []` hold at the SHA level. A reader counting `total_count` will see 8 or 12
+rather than 4; that is the expected shape, not a second, hidden result.
+
+---
+
 ## 6. Negative space — what deliberately did NOT change
 
 Recorded so that silence is not read as an omission.

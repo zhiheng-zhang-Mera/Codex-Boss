@@ -119,6 +119,28 @@
     "note": "A green run whose head_sha is d9ddb151... or 7024203... is NOT post-merge certification and was not counted as such."
   },
 
+  "inherited_ci_claims_reverified": {
+    "purpose": "Every CI run id and per-SHA check-run set that this programme's earlier artefacts assert was re-read from the GitHub API in a later round, so this record reconstructs rather than echoes.",
+    "result": "NO CORRECTION REQUIRED",
+    "runs": [
+      { "run_id": 35674821748, "head_sha": "d9ddb1511adeb61dee21192a683eb7851d3ca556", "event": "push", "jobs": "quality, unit, package, acceptance all success", "verdict": "CONFIRMED" },
+      { "run_id": 35676861757, "head_sha": "d9ddb1511adeb61dee21192a683eb7851d3ca556", "event": "pull_request", "jobs": "all four success", "verdict": "CONFIRMED" },
+      { "run_id": 35603744506, "head_sha": "836b5ed60aa63f3334e6cd08b193113325505880", "event": "push", "jobs": "all four success", "verdict": "CONFIRMED" },
+      { "run_id": 35612224184, "head_sha": "836b5ed60aa63f3334e6cd08b193113325505880", "event": "pull_request", "jobs": "all four success", "verdict": "CONFIRMED" },
+      { "run_id": 35596132732, "head_sha": "23e15412f00355fd865432c03ec49210f91f0f33", "event": "push", "jobs": "all four success", "verdict": "CONFIRMED" },
+      { "run_id": 35599708676, "head_sha": "027917d2efb64c58a49a29ccedf4cffb9dc9a360", "event": "push", "jobs": "all four success", "verdict": "CONFIRMED" },
+      { "run_id": 35601709706, "head_sha": "394527095390e43d832e60501072c8ecdd5a6a97", "event": "push", "jobs": "all four success", "verdict": "CONFIRMED" },
+      { "run_id": 35594921583, "head_sha": "5c06f7eced2eb32e419ad747d732a4ae46beffc1", "event": "push", "jobs": "quality success, unit FAILURE, package skipped, acceptance skipped", "verdict": "CONFIRMED", "note": "the recorded self-inflicted artifacts-tracking failure; its failure mode is now directly observed rather than inherited" }
+    ],
+    "check_run_sets": [
+      { "sha": "d8fc0fb6579173a7f6200f06a494ddd744175d61", "check_runs": 8, "runs_behind": 2, "all_success": true, "all_head_sha_match": true, "verdict": "CONFIRMED" },
+      { "sha": "d9ddb1511adeb61dee21192a683eb7851d3ca556", "check_runs": 8, "runs_behind": 2, "all_success": true, "all_head_sha_match": true, "verdict": "CONFIRMED" },
+      { "sha": "836b5ed60aa63f3334e6cd08b193113325505880", "check_runs": 8, "runs_behind": 2, "all_success": true, "all_head_sha_match": true, "verdict": "CONFIRMED" },
+      { "sha": "7024203eee3444a0115664de5e3a3d6599d9a800", "check_runs": 12, "runs_behind": 3, "all_success": true, "all_head_sha_match": true, "verdict": "NEW OBSERVATION", "note": "the pre-city baseline merge SHA is itself fully certified on its own SHA - direct API-level corroboration of the CONTENT_BASELINE_VALID classification, which changes no conclusion and does not soften OBS-GOV-001" }
+    ],
+    "duplicate_contexts_note": "GitHub does not deduplicate check-runs across runs, so a SHA with two runs reports eight check-runs rather than four. All four success claims hold per run; foreignSha and missing are empty at the SHA level."
+  },
+
   "root_trust": {
     "trust_epoch": 24,
     "root_contract_version": "boss-root-trust-24",
