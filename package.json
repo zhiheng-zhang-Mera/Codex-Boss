@@ -65,6 +65,7 @@
     "architecture:impact": "node scripts/architecture.cjs impact",
     "architecture:ownership": "node scripts/architecture.cjs ownership",
     "architecture:ratchet": "node scripts/architecture.cjs ratchet",
+    "architecture:observe": "node scripts/architecture-observatory.cjs",
     "architecture:snapshot": "node scripts/architecture.cjs snapshot",
     "architecture:baseline:update": "node scripts/architecture-baseline.cjs",
     "architecture:manifests:generate": "node scripts/generate-capability-manifests.cjs",
