@@ -498,7 +498,7 @@ Recorded so that silence is not read as an omission.
 ```
 pre-city-baseline-v1 (tag object ec92eb9b…)      NOT moved · NOT recreated · NOT re-annotated · NOT deleted
 history                                          NOT rewritten · NOT rebased · NOT squashed · NOT force-pushed
-research branches and tags                       NONE deleted (8 research branches + 39 tags re-verified on origin)
+research branches and tags                       NONE deleted (8 research branches + 30 tags = 39 tag ref lines, re-verified on origin)
 frozen reports                                   NOT retroactively edited
 RQ.md D-1                                        NOT "fixed"
 artifacts/                                       NOT tracked (tests/unit/workspace-path-ownership.test.ts is right)

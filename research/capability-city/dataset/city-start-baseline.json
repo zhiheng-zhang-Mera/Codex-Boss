@@ -198,7 +198,7 @@
     "research_branches_deleted": 0,
     "tags_deleted": 0,
     "tags_moved": 0,
-    "tags_on_origin_verified": 39,
+    "tags_on_origin_verified": { "distinct_tags": 30, "ref_lines_including_peeled": 39, "command": "git ls-remote --tags origin" },
     "research_branch_tips_verified": {
       "feat/pf020-identity-convergence": "add57742d882349e57f60b8de8f59b68362849c4",
       "test/pf020-runtime-isolation-production-fix-v2": "2f36d99aa77acf23968a0f55432dfb44cb51dbdc",
