@@ -390,8 +390,8 @@ app.whenReady().then(async () => {
   app.quit();
 }).catch((error) => {
   // A top-level exception, including one thrown before Candidate creation, must still produce a FRESH
-  // attempt-scoped FAILED report (Update-Plan/Isolation-Finalization.md §8). Without this, the previous
-  // attempt's report stayed on disk and was mistaken
+  // attempt-scoped FAILED report (docs/autonomous-evolution.md — evidence is the security property).
+  // Without this, the previous attempt's report stayed on disk and was mistaken
   // for the current one (STALE_SINGLETON_REPORT_HAZARD), which is exactly what happened when the nested-root
   // geometry threw and an older BLOCKED_EXTERNAL was read as this run's result.
   const detail = terminalFailureReason(error);
