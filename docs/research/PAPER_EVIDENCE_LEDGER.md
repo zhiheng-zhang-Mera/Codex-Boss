@@ -1149,4 +1149,245 @@ pnpm run architecture:ratchet                        # the control sensor, uncha
 pnpm run architecture:observe                        # the truth sensor
 pnpm run architecture:enforce:shadow                 # prospective policy, report-only
 pnpm run architecture:enforce                        # prospective policy, failing
+git rev-parse city-phase1a-enforcement-v1^{commit}   # 5c1cc264448d979969595139ee8b27d7195216d1
 ```
+
+---
+
+# §H — Phase 1A promotion ceremony and freeze (appended after the fact)
+
+**Provenance of this section, stated before its content.** It is appended to the same authoritative ledger —
+not a second history system — from the branch `dev/city-phase1b-hosted-enforcement`, cut from the frozen tag
+`city-phase1a-enforcement-v1`. Nothing above this line is modified, deleted or "corrected", including the
+`FINAL_STATUS = WAITING_FOR_ROOT_OWNER_PHASE1A_PROMOTION` block that closes `C12`. That value was true when it
+was written — the machine had opened the request and stopped at the Owner boundary — and it is preserved
+exactly as written.
+
+```text
+PAST_REPORT = TRUE_AT_THE_TIME
+NEW_RECORD  = SUBSEQUENT_STATE_TRANSITION
+```
+
+The same reason as `P0-17` applies to where this record lives: `main` is protected, and this programme does
+not bypass protection. The freeze record therefore travels on the phase branch that will be promoted next,
+and the authoritative copy of the ceremony remains this ledger.
+
+## C13 — GOVERNANCE: the Root Owner promoted the Phase 1A candidate
+
+`GOVERNANCE` + `REMOTE_GITHUB`. Each value below was re-measured from the remote in this round; none is
+inherited from the request that preceded it.
+
+| Field | Measured |
+|---|---|
+| PR | **#12**, `dev/city-phase1a-enforcement-convergence` → `main`, author **`codex-boss[bot]`**, opened `2026-09-22T08:50:35Z` |
+| Request-time head | `40d0f7d099d63d74515c50a010de1d4da9294d97` — the SHA the promotion request bound, and the SHA recorded in `artifacts/city/phase1/phase1a-promotion-pr.json` |
+| Candidate head **as merged** | `993d1e21cb4a08407588841ae39872aa469d61f6` — the head advanced twice after the request (`40d0f7d` → `f30f86d` at `08:51:22Z` → `993d1e2` at `09:27:29Z`), each step an evidence or ledger commit |
+| Base | `main` @ `66440c1d360362a0bba38332d385feed41b64acb` |
+| Owner review | `APPROVED`, review id `5276944387`, reviewer **`zhiheng-zhang-Mera`**, submitted `2026-09-22T10:41:34Z`, `commit_id 993d1e21…` |
+| Merge | `merged = true`, `merged_at 2026-09-22T10:41:46Z`, `merged_by zhiheng-zhang-Mera` |
+| Approval precedes merge by | **12 s**, and the approved commit is the actual merged tip (the last head push preceded the approval by 74 minutes) |
+| Merge SHA | `5c1cc264448d979969595139ee8b27d7195216d1` |
+| Merge parents | parent 1 `66440c1d360362a0bba38332d385feed41b64acb`; parent 2 `993d1e21cb4a08407588841ae39872aa469d61f6` |
+| Merge tree | `3ca3372d3ccf2be9adc3b0a9bf0cbcc736717953` — **identical to the certified candidate tree**, so the merge introduced no conflict resolution and no unmeasured content |
+| Merge-base | `66440c1d…` (= parent 1), so the merge is content-additive over the certified candidate |
+| GitHub signature | `verification.verified = true`, reason `valid`, committer `GitHub <noreply@github.com>` |
+| File delta | **13 files**, `+10720 / −5` |
+
+`prepare != authorize` holds again, on a second and much larger change: the machine opened the request and
+could not approve or merge it, and a distinct human principal did both.
+
+**A precision the request artifact does not carry, recorded rather than smoothed.** The promotion request
+bound `40d0f7d`; the Owner approved and merged `993d1e2`. Both are true statements about different moments,
+and the difference is two evidence commits pushed after the request. A later reader comparing the request
+artifact with the merge would otherwise see a mismatch that is not one.
+
+## C14 — POST-MERGE HOSTED CI: four required contexts, one SHA
+
+`REMOTE_GITHUB`. Desktop CI run **`35717399512`**, event `push`, `head_branch main`,
+`head_sha 5c1cc264448d979969595139ee8b27d7195216d1`, `completed` / `success`, started `10:41:49Z`, finished
+`10:58:12Z`.
+
+| Job | Result | Window |
+|---|---|---|
+| `quality` | success | `10:41:52Z` → `10:42:32Z` |
+| `unit` | success | `10:42:36Z` → `10:51:37Z` |
+| `acceptance` | success | `10:51:41Z` → `10:58:11Z` |
+| `package` | success | `10:51:40Z` → `10:52:30Z` |
+
+All four ran on the merge SHA itself, and all four are the contexts the `Main-Protection` ruleset requires
+(`integration_id 15368`), so the promotion is certified by the same checks that gate every future merge.
+
+**Hosted enforcement was not activated by the promotion**, measured rather than asserted:
+`.github/workflows/ci.yml` is byte-identical at `66440c1d…` and `5c1cc26…`
+(blob `ff344cc08e50e5a0a9de576f0b86d6004fb6bab5`), and `architecture:enforce`, `architecture:enforce:shadow`,
+`architecture:observe` and `architecture:qualify` appear in **no** workflow file. The legacy architecture gate
+is enforced only as the step `pnpm run architecture:ratchet` **inside** the required `quality` job; there is no
+separate architecture check. Architecture migration is not started.
+
+```text
+PHASE1A                = PROMOTED
+PROSPECTIVE_ENFORCEMENT = PROMOTED
+PROMOTION              != HOSTED_GATE_ACTIVATION
+HOSTED_REQUIRED_GATE   = LEGACY
+ARCHITECTURE_MIGRATION = NOT_STARTED
+```
+
+## C15 — TAG FREEZE: `city-phase1a-enforcement-v1` (annotated, unmoved)
+
+`GOVERNANCE`. The tag was absent from the remote before this round, so this is a creation and not an
+idempotent pass; no existing tag was moved, and `city-phase0-observatory-v1` was re-resolved and is unchanged.
+
+| Field | Measured from the remote |
+|---|---|
+| Tag | `city-phase1a-enforcement-v1` |
+| Tag object | `884227cb3e77f209b58ea071a64dfbaeacba9fda`, `objecttype = tag` (annotated) |
+| Tag target | `5c1cc264448d979969595139ee8b27d7195216d1`, `targettype = commit` |
+| Peeled remote ref | `refs/tags/city-phase1a-enforcement-v1^{}` → `5c1cc26…` |
+| Target is an ancestor of `main` | yes (`git merge-base --is-ancestor`, exit 0), and equals `origin/main` exactly |
+| Phase 0 tag | `city-phase0-observatory-v1` → object `24bc1b9145cff314b389a373bf355390f55cd5cf` → `66440c1d…`, an ancestor of the new target, unmoved |
+| No force, no move, no delete-and-recreate | confirmed: one creation push, `* [new tag]` |
+
+## C16 — FREEZE VERIFICATION on the promoted `main` (local real host)
+
+`MEASUREMENT` + `REAL_HOST`. Re-executed non-destructively against the frozen commit, on the Mech host, with
+nothing else competing for the machine. The hosted runs at C14 are the hosted half of this evidence; this is
+the local half.
+
+| Check | Result |
+|---|---|
+| worktree | clean; `main` @ `5c1cc264448d979969595139ee8b27d7195216d1` == `origin/main` |
+| tag resolution | annotated, target `5c1cc26…`, ancestor of `main` (C15) |
+| Root Trust | epoch **24** (`boss-root-trust-24`) `MATCHES`; 63 files; aggregate `6eaf71e9…d457` |
+| baseline currency | `--check` → `identical: true`, `hash_matches: true`, version 1, 612 files, 1671 edges, hash `b211c052…9f4e` |
+| legacy control | `architecture:ratchet` → PASS, `violations: []` |
+| truth sensor | `architecture:observe` → PASS, 1671 observer-only edges, 587 undeclared, semantic hash `21eac0cb…8381` |
+| shadow policy | `architecture:enforce:shadow` → PASS, `findings 1677 = 1671 + 5 + 1`, violations 0, engine errors 0 |
+| enforce policy | `architecture:enforce` → PASS, exit 0, identical summary |
+| test catalogue | current at **278 suites** |
+| default unit tier | **262 files / 3321 tests / 0 failures**, exit 0, 209 s |
+| slow tier | **4 files / 35 tests / 0 failures**, exit 0, 196 s |
+| `ci.yml` still not an enforcement gate | blob unchanged (C14) |
+
+**Apparatus note, recorded rather than absorbed.** `pnpm` is not installed on this host (only `node` and
+`corepack`), so the tiers were invoked through the repository's own local binaries with exactly the commands
+`pnpm test` and `pnpm run test:slow` resolve to. The measured object is unchanged; the invocation path differs.
+A later reader reproducing these rows from the acceptance record's `pnpm` commands will need the same
+substitution on this host.
+
+## C17 — FAILURE + HOSTED_PARITY: the tag push re-ran the whole gate, and the slow tier failed on the second runner
+
+`FAILURE` + `HOSTED_PARITY` + `GOVERNANCE`. Recorded in full, because the interesting part is not the failure.
+
+Pushing the annotated tag triggered `Desktop CI` a second time on the same commit — `.github/workflows/ci.yml`
+declares `on: push` with no branch or tag filter, so an administrative freeze act schedules the full four-job
+gate. Run **`35731576930`**, event `push`, `head_branch city-phase1a-enforcement-v1`,
+`head_sha 5c1cc26…`, conclusion **failure**.
+
+| Job | Result on the same SHA |
+|---|---|
+| `quality` | success (`13:08:53Z` → `13:09:36Z`) |
+| `unit` | **failure** (`13:09:39Z` → `13:18:12Z`) |
+| `acceptance` | skipped |
+| `package` | skipped |
+
+The failing assertion is `tests/unit/platform/platform-soak.test.ts:201` —
+`expect(result.totals.recoveredCircuits).toBeGreaterThan(0)` → `AssertionError: expected 0 to be greater than 0`
+— in the slow tier, in the suite that runs the whole platform soak. It is the same *shape* as the C11
+addendum's transient: a timing-window assertion in a soak suite, starved on a hosted runner, in a suite this
+programme did not touch.
+
+**The discriminator, gathered before any conclusion:**
+
+1. **The same SHA passed this exact tier on another runner.** Run `35717399512`, runner `GitHub Actions
+   1000001524`, `unit` success — including this test.
+2. **The same frozen tree passes locally.** The slow tier on the real host: 4 files / 35 tests / 0 failures,
+   `distinguishes a recovered provider from a crash loop` green in 15.3 s. The default tier: 3321/3321.
+3. **The failure is a throughput signature, not a correctness signature**: a circuit that should have opened
+   and recovered had not yet recovered inside the observed window, and the file itself ran for 128 s.
+
+**The decision, and why.** The failed job was **not** re-run. The C11 addendum re-ran its transient because a
+retry was the cheapest way to obtain a second runner's verdict; here a second runner's verdict already exists
+on the identical SHA, so a re-run would buy no new information while replacing a visible red result with a
+green one. A transient is recorded as-is and retry history is not hidden. The red run stands, is named here,
+and the Owner may re-run it — that too would be recorded.
+
+**The governance consequence is the durable part, and it is not about this test.** On the frozen SHA the
+`unit` context now exists twice, with opposite conclusions and zero content difference:
+
+```text
+run 35717399512  push -> main                              unit = success
+run 35731576930  push -> tag city-phase1a-enforcement-v1   unit = failure
+```
+
+So *"check X succeeded on SHA Y"* is not a certifying statement. A certification must name the **run**: check
+name, SHA, run id, conclusion. Phase 1B inherits this as a specification requirement rather than rediscovering
+it, and the ledger records it here as a measured property of the apparatus — the same family as the C11
+addendum, one level up.
+
+## C18 — PHASE 1B SPECIFICATION: one commit, spec only, cut from the frozen tag
+
+`DOCUMENTATION`. Branch `dev/city-phase1b-hosted-enforcement`, cut from `city-phase1a-enforcement-v1`, with
+branch point measured at `5c1cc264448d979969595139ee8b27d7195216d1` and equal to the tag target.
+
+```text
+PHASE1B_SPEC_COMMIT = 49ef99a
+PHASE1B_SPEC_PATH   = docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md
+FILES_CHANGED       = 1   (the specification, and nothing else)
+SPEC_ONLY           = TRUE
+IMPLEMENTATION      = 0
+```
+
+The specification contains no workflow change, no package script, no test, no `CODEOWNERS` change, no ruleset
+change, no Root Trust mutation and no production code. It fixes the parts a later implementation may not
+re-decide: which of the four roles enters hosted CI and how (a separate `architecture` job with its own check
+identity, not a step inside the already-required `quality` check); the activation preconditions and which of
+them are Owner ceremonies; the fail-closed table and the rule that an engine failure is never a skip;
+`GRANDFATHERED != HEALTHY` with the no-washing rules; baseline-evolution governance; four hosted rollout
+stages with entry and exit conditions; the measured required-check identity; the Root Trust surface and epoch
+mechanics; emergency rollback; the Owner boundary; and acceptance criteria `PB-AC-01..20`.
+
+**Two defects are written into it with their evidence rather than as principles**, both measured this round:
+
+| Defect | Measured at this freeze |
+|---|---|
+| the baseline-laundering path is available to an autonomous actor | the plain invocation of `scripts/architecture-enforcement-baseline.cjs` regenerates the tracked baseline and records the current tree as grandfathered, bumping `baseline_version` and adopting the previous hash as parent; `--reason` has a default; nothing in any workflow or tier runs `--check`; and `--check` proves only self-consistency, which a regenerated baseline satisfies by construction |
+| the gate's own machinery is not Owner-bound | `config/architecture-enforcement-baseline.json`, `scripts/architecture-enforcement.cjs`, `scripts/architecture-enforcement-baseline.cjs`, `scripts/architecture-observatory.cjs` and `scripts/architecture.cjs` all classify `AUTONOMOUS_MUTABLE` under the repository's own authority classifier, and none appears in `CODEOWNERS` — while `.github/workflows/ci.yml` and `trust-policy/**` are already `ROOT_TRUST_SURFACE` |
+
+The second is the more consequential: a required gate assembled from autonomously mutable parts is
+enforceable but not Owner-bound, because the machine could edit the judge.
+
+## §H — checkpoint table
+
+| Checkpoint | State |
+|---|---|
+| `C13` Phase 1A promotion ceremony | **COMPLETE** — approved `10:41:34Z`, merged `10:41:46Z`, merge `5c1cc26…` |
+| `C14` post-merge hosted CI | **PASS** — run `35717399512`, four required contexts success on the merge SHA |
+| `C15` Phase 1A immutable tag | **FROZEN** — annotated `884227cb…` → `5c1cc26…`, absent before, unmoved |
+| `C16` freeze verification | **PASS** — local real host, all rows above |
+| `C17` tag-push rerun | **FAILURE recorded** — run `35731576930`, `unit` red on the same SHA; classified hosted-runner timing flake with the discriminator shown; not re-run |
+| `C18` Phase 1B specification | **COMMITTED** — `49ef99a`, one file, spec only |
+| Phase 1A promotion verified | **YES** |
+| Phase 1A history | **APPEND-ONLY** — no earlier record modified |
+| Phase 1B implementation | **NOT_STARTED** |
+| Architecture migration | **NOT_STARTED** |
+
+```text
+PHASE0 = PROMOTED_AND_FROZEN
+PHASE1A = PROMOTED_AND_FROZEN
+
+SENSOR = ENFORCEMENT_QUALIFIED
+GRANDFATHERED_DEBT_BASELINE = FROZEN
+PROSPECTIVE_ENFORCEMENT = PROMOTED_NOT_HOSTED
+
+HOSTED_REQUIRED_GATE = LEGACY
+
+PHASE1B_SPEC = READY
+PHASE1B_IMPLEMENTATION = NOT_STARTED
+ARCHITECTURE_MIGRATION = NOT_STARTED
+
+FINAL_STATUS = PHASE1A_FROZEN_PHASE1B_SPEC_READY
+```
+
+**The C12 block above is not superseded — it is dated.** It recorded a true state at `08:50Z`; this section
+records the state after `10:41:46Z`. Both remain, in order, because the transition between them is the
+evidence.
