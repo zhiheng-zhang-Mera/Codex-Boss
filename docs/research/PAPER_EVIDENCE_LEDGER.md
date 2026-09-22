@@ -776,6 +776,364 @@ They are retained because the epistemic history is the research asset, not the f
 **Two defects reached a draft of this ledger itself and are corrected in section B:** `COR-2` (treating the
 historical counts as comparable to Phase 0's) and, before it, `COR-1`.
 
+---
+
+# §F — Phase 1A evidence (this phase)
+
+## Hand-off note — where the ceremony record lives
+
+The Root Owner ceremony record (`P0-17`) was committed to the **Phase 0 branch** at
+`328537e13f060349e587a6fdf674e03e39a2de61`, because `main` is protected and this programme does not bypass
+protection, and because the immutable tag had to point at the merge commit `66440c1d…` rather than at a later
+commit. The Phase 1A branch is cut from that tag, so its ledger does not contain `P0-17` by inheritance. This
+section carries the ceremony forward so the promoted baseline's ledger is complete, and states plainly that the
+Phase 0 branch holds the authoritative copy. The Phase 0 branch receives no further ledger commits; this is the
+hand-off.
+
+## P0-17 (carried forward from `328537e`) — GOVERNANCE: the Root Owner ceremony completed
+
+`GOVERNANCE` + `REMOTE_GITHUB`. Each step independently re-measured from the remote on resumption:
+
+| Step | Measured |
+|---|---|
+| Machine identity created the promotion request | PR **#11**, author `codex-boss[bot]`, head `9274dad…`, base `53aa74a…`, `reviews: 0` at creation |
+| Machine stopped at the authorization boundary | no approval, no merge, no bypass, no admin override, no protection or `CODEOWNERS` change |
+| Root Owner independently approved | `APPROVED` by **`zhiheng-zhang-Mera`** at `2026-09-22T07:24:38Z` against commit `9274dad…` |
+| Root Owner merged | `merged = true`, `merged_at 2026-09-22T07:24:56Z`, `merged_by zhiheng-zhang-Mera`; `GET /pulls/11/merge` → `HTTP/2.0 204 No Content` |
+| Candidate head ancestry verified | `git merge-base --is-ancestor 9274dad… 66440c1d…` → exit 0 |
+| `main` moved to a genuine merge commit | `66440c1d…`, parents `53aa74a…` + `9274dad…`, committer `GitHub <noreply@github.com>` |
+| The merge introduced no unmeasured content | merge tree `799619c5…` == the certified head tree, as predicted in advance |
+| Post-merge CI | run **`35699482212`**, event `push`, `head_sha = 66440c1d…`, completed/success; `quality`, `unit`, `acceptance`, `package` all success on that SHA |
+| Root Trust on promoted `main` | epoch **24** `MATCHES`, 63 files, aggregate `6eaf71e9…d457` |
+
+**`prepare != authorize`** — the machine could request promotion and could not authorize it; a distinct human
+principal did. This is the measured counterpart to `OBS-GOV-001`, where author, CODEOWNER and merger were one
+principal and the promotion completed with zero reviews; the difference is **principal separation**, not the
+check set, since both had four green required contexts on the exact candidate SHA.
+**`technical acceptance != production promotion`** — Phase 0 passed twenty-five acceptance criteria at
+`6bf354d` and was still not promoted. A green board is not an authorization.
+
+## C2-TAG-FREEZE — Phase 0 is closed and immutably tagged
+
+`GOVERNANCE` · commit/tag target `66440c1d360362a0bba38332d385feed41b64acb`. The annotated tag
+**`city-phase0-observatory-v1`** was created at the promoted `main` commit and resolved again **from the
+remote**: tag object `24bc1b9145cff314b389a373bf355390f55cd5cf` → commit `66440c1d…`. It was absent before
+creation, so this is a creation rather than an idempotent pass, and no existing tag was moved. Three tags now
+coexist and none moved: `pre-city-baseline-v1` → `7024203…` (never moved), `city-start-baseline-v1` →
+`53aa74a…` (never moved), `city-phase0-observatory-v1` → `66440c1d…`.
+
+```text
+PHASE0_TECHNICAL_ACCEPTANCE = PASS
+PHASE0_ROOT_OWNER_PROMOTION = VERIFIED
+PHASE0_POST_MERGE_CI        = PASS
+PHASE0_IMMUTABLE_TAG        = FROZEN
+PHASE0                      = CLOSED
+```
+
+**Immutable from here.** The Phase 0 spec, the Phase 0 acceptance record, the historical Phase 0 measurements,
+the old failure records, `COR-1`/`COR-2` and the negative-result records are not modified again. Later
+interpretation problems may only be appended as corrections.
+
+## C3-SPEC — the Phase 1A specification, committed alone
+
+`DOCUMENTATION`. `PHASE1A_SPEC_COMMIT = 335bf5b3a094557627eaf5d5657ae6c931f6b351` —
+`docs/city/PHASE1A_MEASUREMENT_TO_ENFORCEMENT_SPEC.md`, 371 lines, **one file and no implementation code**,
+which is what the mission requires of the first Phase 1A commit. The branch is cut from the frozen tag, so the
+branch point resolves to `66440c1d…` and not to the old Phase 0 branch tip or the research branch.
+
+The specification fixes the parts the mission left to the implementation and that the acceptance criteria will
+be checked against: the baseline schema and its series/parent-hash promotion rule; the four unresolved-reference
+classes and their policies; the identity-level grandfathering rule and the reintroduction-is-new rule; the
+authorization test for cross-capability edges (capability `A` may import `B` only where `A` declares a
+`requires`/`optional` reference that `B` provides); `NOT_YET_ENFORCED` for defect classes Phase 1A does not
+model; and the rule that a sensor failure must never produce `PASS`.
+
+---
+
+# §G — Phase 1A checkpoints
+
+| Checkpoint | State |
+|---|---|
+| `C2` Phase 0 genuine promotion + immutable tag | **COMPLETE** (records above) |
+| `C3` Phase 1A spec | **COMPLETE** (record above) |
+| `C4` sensor qualification | **COMPLETE** — Q-01..Q-07 PASS, Q-08 MEASURED, unexplained disagreements 0 |
+| `C5` qualification failures / corrections | **COMPLETE** — two failures, both in the harness's own expectations |
+| `C6` grandfathered baseline | **COMPLETE** — `config/architecture-enforcement-baseline.json` v1, identity-level, reproducible |
+| `C7` enforcement policy | **COMPLETE** — E-01..E-10 implemented; ENF-01..ENF-18 green |
+| `C8` shadow enforcement | **COMPLETE** — real tree: shadow PASS, enforce PASS, 0 new regressions |
+| `C9` controlled regressions | **COMPLETE** — 9/9 injections produce the expected machine code |
+| `C10` full regressions | **COMPLETE** — every required tier and gate green on the real host |
+| `C11` hosted branch CI | **COMPLETE** — run `35703938755` on the branch tip, four jobs success |
+| `C12` Phase 1A promotion request | **COMPLETE** — PR #12 opened by the machine identity; stopped at the Owner boundary |
+
+## C12 — PHASE 1A PROMOTION REQUEST, and the second authorization boundary
+
+`GOVERNANCE` + `REMOTE_GITHUB`. PR **#12** (`dev/city-phase1a-enforcement-convergence` → `main`) was opened by
+the Boss GitHub App installation identity `app/codex-boss`, after the candidate SHA was re-read and compared with
+the CI-verified tip **before** the request was made.
+
+**Observed:** `state = open`, author **`codex-boss[bot]`**, head `40d0f7d…`, base `66440c1d…`,
+`mergeable = true`, **`merge_state = blocked`**, `merged = false`, **`reviews = 0`**, 13 files `+10653 / −5`;
+`main` before == after (`66440c1d…`). No approval, no merge, no bypass, no admin override, no protection or
+`CODEOWNERS` change.
+
+**Interpretation:** the Phase 0 ceremony repeated on a second, larger change, and with the same result —
+*prepare != authorize*. The machine principal could qualify a sensor, freeze a baseline, build a policy and
+request promotion, and could not authorize any of it. The request also states explicitly what it does **not**
+do: it does **not** activate the new gate in `.github/workflows/ci.yml`, it does **not** repair inherited
+architecture, and hosted enforcement activation remains a separate Root Owner act (Phase 1B).
+
+```text
+PHASE0 = PROMOTED_AND_FROZEN
+SENSOR = ENFORCEMENT_QUALIFIED
+GRANDFATHERED_DEBT_BASELINE = FROZEN
+PROSPECTIVE_ENFORCEMENT = QUALIFIED
+HOSTED_REQUIRED_GATE = LEGACY
+PAPER_EVIDENCE = CONTINUOUSLY_PRESERVED
+PHASE1B = NOT_STARTED
+ARCHITECTURE_MIGRATION = NOT_STARTED
+
+FINAL_STATUS = WAITING_FOR_ROOT_OWNER_PHASE1A_PROMOTION
+```
+
+## C10 — FULL REGRESSIONS
+
+`MEASUREMENT` + `REAL_HOST`. Everything the repository requires, run on the Mech host at the implementation
+commit, with nothing else competing for the machine:
+
+| Suite / gate | Result |
+|---|---|
+| `typecheck` (three projects) | PASS |
+| tracked-secret scan | PASS — 1304 files |
+| `state:probe` | PASS |
+| test catalogue | current at **278 suites**, 27/27 capabilities |
+| `architecture:ratchet` | PASS, `violations: []` |
+| Root Trust | epoch 24 `MATCHES`, 63 files, aggregate `6eaf71e9…d457` |
+| `architecture:observe` | PASS — 612 files, 1671 edges |
+| `architecture:qualify` | PASS — `ALLOWED_TO_PROCEED: true` |
+| `architecture:enforce:shadow` / `architecture:enforce` | PASS both |
+| `build` | PASS |
+| **unit tier** | **262 files / 3321 tests / 0 failures** |
+| postbuild tier | 8 files / 119 tests / 0 failures |
+| slow tier | 4 files / 35 tests / 0 failures |
+
+**A gate fired on this phase's own work, and the work was corrected rather than the gate.** The first unit-tier
+run reported two failures in `tests/unit/comment-citation.test.ts`: a new comment in
+`scripts/architecture-enforcement.cjs` cited a section number without naming a document that exists in the
+repository, so bare section citations rose 1308 → 1309 and the per-file debt check failed. The remedy was the
+gate's own preferred one — **state the rule instead** — and the comment was rewritten. The baseline number was
+not raised, no exception was recorded and no gate was disabled. This is the Phase 1A instance of the pattern
+`FINDING-005` recorded for Phase 0: the gate fired, the work product was corrected, the gate was not weakened.
+
+## C11 — HOSTED BRANCH CI
+
+`REMOTE_GITHUB`. Desktop CI run **`35703938755`**, event `push`, `head_sha` = the branch tip, `completed` /
+`success`: `quality`, `unit`, `package` and `acceptance` all `completed` / `success`. The `unit` job is the one
+that builds and runs the three tiers, so this is hosted evidence that the new suites, the catalogue and the new
+commands behave the same way on a clean checkout as they do on the Mech host.
+
+```text
+ENFORCEMENT_ENGINE   = QUALIFIED_CANDIDATE
+HOSTED_REQUIRED_GATE = LEGACY
+```
+
+Unit tests exercise the engine **on this branch**. That is not hosted-gate activation, and it must not be
+reported as such: turning the enforcer into a required hosted gate is a separate municipal-law / Root-Trust act
+(Phase 1B) which this round neither performs nor requests.
+
+### C11 addendum — a transient hosted-runner failure, and the evidence that it was transient
+
+The first hosted attempt on the final tip (`f30f86d7061f67cfa76eec02c4417f0509494102`) **failed**. Recorded in
+full rather than re-run into silence:
+
+| Observation | Detail |
+|---|---|
+| Failing run | `35707095128`, event `pull_request`, job `unit` |
+| Failing step | `pnpm run test:postbuild` — `pnpm test` before it **succeeded** |
+| Symptom 1 | `tests/acceptance/platform-soak-report.test.ts:76` — `expected 2 to be greater than 3`: a 0.25-minute soak with a 250 ms interval produced **2 samples** where it should produce dozens |
+| Symptom 2 | two 60-second test timeouts (`closure-terminal-logic.test.ts`, `root-trust-authority-lockdown.test.ts`) in suites this phase did not touch |
+| Commit delta on that SHA | **two markdown documents** — the ledger and the acceptance record |
+
+**Evidence that it was the runner, not the change**, gathered before any remedy was applied:
+
+1. **The same SHA passed on another runner.** Run `35707090892`, event `push`, same commit, same workflow:
+   `quality`, `unit`, `package`, `acceptance` all `success`.
+2. **The failing tier passed locally twice**, 8 files / 119 tests / 0 failures, in ~59 s.
+3. **The two previous tips passed the same tier in CI** (`35703938755`, `35705467524`).
+4. **The failure signature is throughput**, not correctness: samples starved and per-test ceilings crossed,
+   which is what a throttled hosted runner produces and what a code change does not.
+
+**Remedy and outcome.** The failed job was re-run once (`--failed`) as the standard remedy for a transient runner
+failure — not an approval, not a merge, not a protection change, and not a weakened check. Attempt 2 completed
+**success**: `quality`, `unit`, `acceptance`, `package` all green. All eight check-runs on the tip are now
+`success`.
+
+**Recorded as a threat to validity rather than as noise.** A grading pipeline whose postbuild tier can fail on
+runner throughput means a red result is not by itself evidence about the change, and a green one is not by itself
+evidence about the runner. The discriminator used here — a second runner on the identical SHA — is the cheapest
+honest test, and it required no weakening of any gate.
+
+**The head advanced after this record was written**, by the commit that carries it. That is disclosed rather than
+left implicit: the SHA above is the one whose CI results are reported in this row, and the record commit's own run
+is reported in the final report.
+
+## C6 — GRANDFATHERED BASELINE: identity, not counts
+
+`MEASUREMENT`. `config/architecture-enforcement-baseline.json`, schema `city-architecture-enforcement-baseline/1`,
+**version 1**, `baseline_hash 30c82a5c…` → regenerated to **`b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e`**
+once the series fields were added. It binds: `source_commit`, sensor spec + implementation SHA-256 + scan-set
+hash, the ownership of **every** tracked source file by identity (612 entries), **every** resolved internal edge
+by identity (1671 entries), the retired-edge series, the unresolved references with both the Phase 0 reason string
+and the new classification, the generation command and reason, and `not_yet_enforced`.
+
+```text
+MEANS          THESE RELATIONS EXISTED BEFORE ENFORCEMENT
+DOES NOT MEAN  THESE RELATIONS ARE HEALTHY
+```
+
+**Identity is the ratchet; counts are summaries.** A count-only baseline would have passed the round's own
+`EXP-09` attack, in which one grandfathered edge is removed and one undeclared-endpoint edge is added so that the
+total is unchanged.
+
+Unresolved classification at generation: `NON_SOURCE_ASSET 1` (the Phase 0 stylesheet), `SOURCE_TARGET_MISSING 0`,
+`UNSUPPORTED_SOURCE_RESOLUTION 0`, `OTHER_UNKNOWN 0`. Phase 0's own reason string (`non-source-extension`) is
+preserved beside the classification rather than rewritten.
+
+**Two provenance traps were found here and are recorded as failures rather than smoothed over:**
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| B-1 | `--check` reported a false mismatch immediately after a successful generation | the check recomputed the series identity (version, parent) from the file it was checking, and a regeneration bumps both by design, so the comparison could never succeed | series identity is now an **input** held fixed in check mode; the measured content is what is recomputed |
+| B-2 | `--check` would have started failing at the next commit | `source_commit` is part of the content, so committing the baseline moved it | provenance is now an input too; `--check` holds the recorded commit and verifies content identity, which is the property actually worth asserting |
+| B-3 | the first regeneration produced `baseline_version 2` whose parent was a version 1 that had **never been committed** | a baseline chain must begin at an accepted state; a scratch file is not one | deleted and regenerated as version 1 with no parent |
+| B-4 | after `git checkout`, `--check` failed again on an unchanged tree | git checks the file out with **CRLF** (`core.autocrlf=true`, no `.gitattributes`) while the generator writes **LF**, so a raw text comparison can never match on this platform — the *same* CRLF trap the Phase 0 record already documents for the pre-city freeze manifest | comparison is normalised, and an independent canonical-hash comparison is reported beside it; `hash_matches` is immune to line endings by construction |
+| B-5 | running the generator casually bumped the series to version 2 during what was meant to be an artifact refresh | regeneration *is* a deliberate act — the command exists for it, `--check` exists for the other purpose — and the operator used the wrong one | reverted with `git checkout`; the committed baseline is version 1 again, and the episode is recorded as a usage error rather than a code defect |
+
+**B-1 through B-5 share one shape**, and it is the same shape as `COR-1`, the qualification harness at C5, and
+the experiments at C9: **the apparatus was wrong and the measured object was right.** Four independent instances
+in two phases is no longer a coincidence to note in passing; it is a repeated property of building measurement
+infrastructure, and it is the strongest argument in this record for the rule that a failing check should first be
+suspected of being the failure.
+
+**A fifth instance, at C10:** the comment-citation gate fired on this phase's own source. The remedy was the
+gate's preferred one — state the rule instead — and it is counted here rather than filed separately, because the
+lesson is identical: the failing check was right and the work was wrong.
+
+## C7 — POLICY: one evaluator, two modes
+
+`MEASUREMENT` + `FIXTURE`. `scripts/architecture-enforcement.cjs` implements E-01..E-10 with machine codes, and
+`architecture:enforce:shadow` / `architecture:enforce` are the canonical entry points. `architecture:ratchet`
+remains the untouched legacy control and is **not** replaced.
+
+```text
+shadow  -> policy violation reported, exit 0
+enforce -> policy violation reported, exit non-zero
+engine error -> non-zero in BOTH
+```
+
+The findings list is produced by one function in both modes, which is what makes **ENF-12** (identical findings)
+a real check rather than a coincidence. E-07's authorization test is operationalised from the repository's own
+declarations: capability `A` may import `B` only where `A` declares a `requires`/`optional` reference that `B`
+provides. E-09 fails closed on a read failure, a parse issue, a silent skip, an unsupported resolution or an
+unknown classification. E-10 emits `NOT_YET_ENFORCED` for the five defect classes Phase 1A does not model.
+
+`tests/unit/city/architecture-enforcement.test.ts` — **21 tests, all green**, driving the shipped command with
+injected inputs: ENF-01..ENF-18 plus the engine-error case.
+
+## C8 — SHADOW TRIAL on the real tree
+
+`MEASUREMENT` + `SHADOW_ENFORCEMENT`. On the exact Phase 1A baseline, all four roles were run:
+
+| Sensor | Result |
+|---|---|
+| `architecture:ratchet` (legacy control) | exit 0, `pass = true`, **0 violations** |
+| `architecture:observe` (truth) | 612 files, **1671** internal edges, 587 undeclared, semantic hash recorded |
+| `architecture:enforce:shadow` | **PASS**, exit 0, no engine error |
+| `architecture:enforce` | **PASS**, exit 0 — every inherited relation is grandfathered |
+
+```text
+findings_total 1677 = PASS_AS_GRANDFATHERED 1671 + NOT_YET_ENFORCED 5 + NON_SOURCE_ASSET 1
+violations 0 · engine_errors 0 · NEW_REGRESSIONS 0
+```
+
+The inherited tree passes enforcement **while every grandfathered relation remains labelled as debt**, which is
+the distinction the round exists to establish: `GRANDFATHERED != HEALTHY`.
+
+## C9 — CONTROLLED REGRESSIONS: nine injections, nine expected codes
+
+`POLICY_EXPERIMENT` + `REAL_HOST`. `scripts/architecture-phase1a-experiments.cjs`, isolated fixtures only.
+
+| ID | Injection | Expected code | Shadow | Enforce | Rollback |
+|---|---|---|---|---|---|
+| EXP-01 | new undeclared source | `NEW_UNDECLARED_SOURCE` | exit 0 | non-zero | RESTORED |
+| EXP-02 | declared → undeclared edge | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+| EXP-03 | undeclared → declared edge | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+| EXP-04 | undeclared → undeclared edge | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+| EXP-05 | unauthorized cross-capability edge | `NEW_UNDECLARED_CROSS_CAPABILITY_EDGE` | exit 0 | non-zero | RESTORED |
+| EXP-06 | ownership conflict | `OWNERSHIP_CONFLICT` | exit 0 | non-zero | RESTORED |
+| EXP-07 | missing source target | `UNRESOLVED_SOURCE_TARGET_MISSING` | exit 0 | non-zero | RESTORED |
+| EXP-08 | instrument failure | `SENSOR_INCOMPLETE` | exit 0 | non-zero | RESTORED |
+| EXP-09 | raw-count compensation attack | `NEW_EDGE_UNDECLARED_ENDPOINT` | exit 0 | non-zero | RESTORED |
+
+**9 of 9 passed**, every expected machine code observed, every rollback restored to the pre-mutation semantic
+hash. Production architecture was never mutated: every injection is a temporary directory.
+
+**A failure was found here too, and it is the kind this round is for.** The *first* run reported
+`expected_codes_present 9/9` **and** `rollbacks_restored 0`, so all nine experiments were marked failed. The
+rollback arm was hashing the **baseline** and comparing it with the **unmutated measurement** — two different
+object shapes, so equality was impossible and the pass criterion could never be met. The fix is recorded in the
+script beside the code. The lesson is worth keeping: the *machine codes* were right and the *harness's own
+bookkeeping* was wrong, exactly as in `COR-1` and in the qualification harness at C5.
+
+Two further construction defects were falsified by the tests rather than by review and are retained in place: the
+enforcement suite initially read its assertions from the command's compact stdout summary instead of the artifact
+the command writes (15 spurious failures), and the baseline series had to be reset from a bumped version 2 — whose
+parent was an uncommitted work-in-progress file — back to a clean version 1, because a baseline chain must start
+from an *accepted* state and not from a scratch file.
+
+## C4 — SENSOR QUALIFICATION: the Phase 0 sensor is fit to carry a policy
+
+`MEASUREMENT` + `FIXTURE`. Script: `scripts/architecture-observatory-qualification.cjs`; artifacts
+`sensor-qualification.json` and `sensor-qualification-report.md`. Measurement acceptance is a weaker claim than
+enforcement acceptance — a false **negative** would silently bless a regression and a false **positive** would
+fail honest work — so the harness is deliberately adversarial.
+
+| Gate | Result | Substance |
+|---|---|---|
+| Q-01 production corpus integrity | **PASS** | 612 scanned files, **612 instrumented read calls**, 0 read failures, 0 parse issues, **0 silent skips** |
+| Q-02 adversarial syntax corpus | **PASS** | 14 of 14 **hand-labelled** cases: nested templates, a dynamic import inside a template hole, regex vs division, TSX self-closing/closing tags, JSX attributes, comments/strings/template text carrying import-like text, multiline and type-only imports, `export-from`, dynamic import, `require` including a non-call member access, Unicode identifiers, escaped strings and templates, dedup, and a negative control |
+| Q-03 seeded mutation battery | **PASS** | **520 of 520** deterministic seeded cases across add / remove / duplicate / change-form and seven noise-only kinds, each asserting the **exact** `(from,to)` edge set |
+| Q-04 independent disagreement detector | **PASS** | `BOTH` 1565 · `OBSERVER_ONLY` 106 · **`CROSSCHECK_ONLY` 0** · **unexplained disagreements 0** |
+| Q-05 determinism | **PASS** | 5 consecutive real-tree runs, **1** unique semantic hash |
+| Q-06 path/platform resolution | **PASS** | 19 cases — separators, `.js → .ts`, index, TSX/JSX, dot-segment normalisation, case preservation |
+| Q-07 scope honesty | **PASS** | 8 assertions; the sensor's own `scripts/**` implementation, the tests, the manifests and `*.d.ts` are all outside the scan set |
+| Q-08 resource measurement | **MEASURED** | wall time, output bytes and cheap memory metrics, **no invented threshold** |
+
+**The result that matters most is `CROSSCHECK_ONLY = 0`.** That is the direction that would indicate a sensor
+**false negative** — debt enforcement could never see — and the independent detector found none. The 106
+`OBSERVER_ONLY` edges are the known, previously-recorded limit of the conservative regex (multi-line
+import/export statements), and they are carried verbatim in the artifact rather than summarised away.
+
+## C5 — QUALIFICATION FAILURES: the test was wrong, the sensor was right
+
+`CORRECTION`. The **first** run returned `Q-01..Q-05 PASS`, **`Q-06 FAIL (2 cases)`**, `Q-07 PASS`,
+`Q-08 MEASURED`, `ALLOWED_TO_PROCEED = false`. Every failing case was inspected verbatim rather than the
+harness being adjusted until green:
+
+| Case | Expected | Observed | Root cause |
+|---|---|---|---|
+| `./casename` | `null` | `unresolved:no-tracked-candidate` | the case encoded a `null` expectation instead of the resolver's documented unresolved outcome — a malformed expectation |
+| `src/shared/shared-thing` | internal | `external` | the Phase 0 specification makes the bare-specifier rule **exact-match only**; an extensionless bare name is an external package specifier. The harness asserted extension-trying for bare specifiers, which the frozen sensor deliberately does not do |
+
+**Both failures were defects in the test, not the sensor.** No sensor bug was found, so no Phase 0 semantic
+control needed re-running and no correction to Phase 0 itself is owed. Both expectations were corrected **in the
+harness source, carrying the word `CORRECTED` and the reason**, and a third case was added asserting the
+exact-match rule from the other side (`src/shared/shared-thing.ts` is internal). The second run passed all eight
+gates.
+
+This is the qualification analogue of `COR-1`: the instrument was right and the expectation imposed on it was
+wrong. Retaining the falsification inside the test file, rather than only here, is the point — a reader of the
+tests sees that the harness has itself been falsified once.
 
 ---
 
@@ -783,9 +1141,12 @@ historical counts as comparable to Phase 0's) and, before it, `COR-1`.
 
 ```powershell
 git fetch --all --tags
-git rev-parse city-start-baseline-v1^{commit}      # 53aa74a7f9628765a92210d16aabcc77ae98bae4
-git rev-parse pre-city-baseline-v1^{commit}        # 7024203eee3444a0115664de5e3a3d6599d9a800
-node scripts/acceptance-evolution-bless.cjs --check # needs dist-electron built from this tree
-pnpm run architecture:ratchet                       # the control sensor, unchanged
-pnpm run architecture:observe                       # the experimental sensor
+git rev-parse city-start-baseline-v1^{commit}        # 53aa74a7f9628765a92210d16aabcc77ae98bae4
+git rev-parse pre-city-baseline-v1^{commit}          # 7024203eee3444a0115664de5e3a3d6599d9a800
+git rev-parse city-phase0-observatory-v1^{commit}    # 66440c1d360362a0bba38332d385feed41b64acb
+node scripts/acceptance-evolution-bless.cjs --check  # needs dist-electron built from this tree
+pnpm run architecture:ratchet                        # the control sensor, unchanged
+pnpm run architecture:observe                        # the truth sensor
+pnpm run architecture:enforce:shadow                 # prospective policy, report-only
+pnpm run architecture:enforce                        # prospective policy, failing
 ```

@@ -472,6 +472,15 @@
       ]
     },
     {
+      "file": "tests/unit/city/architecture-enforcement.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "prospective enforcement grandfathers inherited relations by identity while refusing new undeclared debt: ENF-01..ENF-18 cover grandfathering, debt reduction, reintroduction-is-new, new undeclared source and endpoints, same-capability and cross-capability authorization, ownership conflict, sensor incompleteness failing closed, non-source-asset classification, shadow and enforce sharing one evaluator, deterministic ordering, byte-identical baseline regeneration, count-compensation refusal, and engine errors failing closed in both modes",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/architecture-observatory.test.ts",
       "tier": "unit",
       "covers": [
