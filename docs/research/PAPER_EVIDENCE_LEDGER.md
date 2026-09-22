@@ -856,8 +856,8 @@ model; and the rule that a sensor failure must never produce `PASS`.
 |---|---|
 | `C2` Phase 0 genuine promotion + immutable tag | **COMPLETE** (records above) |
 | `C3` Phase 1A spec | **COMPLETE** (record above) |
-| `C4` sensor qualification | pending |
-| `C5` qualification failures / corrections | pending |
+| `C4` sensor qualification | **COMPLETE** — Q-01..Q-07 PASS, Q-08 MEASURED, unexplained disagreements 0 |
+| `C5` qualification failures / corrections | **COMPLETE** — two failures, both in the harness's own expectations |
 | `C6` grandfathered baseline | pending |
 | `C7` enforcement policy | pending |
 | `C8` shadow enforcement | pending |
@@ -865,6 +865,50 @@ model; and the rule that a sensor failure must never produce `PASS`.
 | `C10` full regressions | pending |
 | `C11` hosted branch CI | pending |
 | `C12` Phase 1A promotion request | pending |
+
+## C4 — SENSOR QUALIFICATION: the Phase 0 sensor is fit to carry a policy
+
+`MEASUREMENT` + `FIXTURE`. Script: `scripts/architecture-observatory-qualification.cjs`; artifacts
+`sensor-qualification.json` and `sensor-qualification-report.md`. Measurement acceptance is a weaker claim than
+enforcement acceptance — a false **negative** would silently bless a regression and a false **positive** would
+fail honest work — so the harness is deliberately adversarial.
+
+| Gate | Result | Substance |
+|---|---|---|
+| Q-01 production corpus integrity | **PASS** | 612 scanned files, **612 instrumented read calls**, 0 read failures, 0 parse issues, **0 silent skips** |
+| Q-02 adversarial syntax corpus | **PASS** | 14 of 14 **hand-labelled** cases: nested templates, a dynamic import inside a template hole, regex vs division, TSX self-closing/closing tags, JSX attributes, comments/strings/template text carrying import-like text, multiline and type-only imports, `export-from`, dynamic import, `require` including a non-call member access, Unicode identifiers, escaped strings and templates, dedup, and a negative control |
+| Q-03 seeded mutation battery | **PASS** | **520 of 520** deterministic seeded cases across add / remove / duplicate / change-form and seven noise-only kinds, each asserting the **exact** `(from,to)` edge set |
+| Q-04 independent disagreement detector | **PASS** | `BOTH` 1565 · `OBSERVER_ONLY` 106 · **`CROSSCHECK_ONLY` 0** · **unexplained disagreements 0** |
+| Q-05 determinism | **PASS** | 5 consecutive real-tree runs, **1** unique semantic hash |
+| Q-06 path/platform resolution | **PASS** | 19 cases — separators, `.js → .ts`, index, TSX/JSX, dot-segment normalisation, case preservation |
+| Q-07 scope honesty | **PASS** | 8 assertions; the sensor's own `scripts/**` implementation, the tests, the manifests and `*.d.ts` are all outside the scan set |
+| Q-08 resource measurement | **MEASURED** | wall time, output bytes and cheap memory metrics, **no invented threshold** |
+
+**The result that matters most is `CROSSCHECK_ONLY = 0`.** That is the direction that would indicate a sensor
+**false negative** — debt enforcement could never see — and the independent detector found none. The 106
+`OBSERVER_ONLY` edges are the known, previously-recorded limit of the conservative regex (multi-line
+import/export statements), and they are carried verbatim in the artifact rather than summarised away.
+
+## C5 — QUALIFICATION FAILURES: the test was wrong, the sensor was right
+
+`CORRECTION`. The **first** run returned `Q-01..Q-05 PASS`, **`Q-06 FAIL (2 cases)`**, `Q-07 PASS`,
+`Q-08 MEASURED`, `ALLOWED_TO_PROCEED = false`. Every failing case was inspected verbatim rather than the
+harness being adjusted until green:
+
+| Case | Expected | Observed | Root cause |
+|---|---|---|---|
+| `./casename` | `null` | `unresolved:no-tracked-candidate` | the case encoded a `null` expectation instead of the resolver's documented unresolved outcome — a malformed expectation |
+| `src/shared/shared-thing` | internal | `external` | the Phase 0 specification makes the bare-specifier rule **exact-match only**; an extensionless bare name is an external package specifier. The harness asserted extension-trying for bare specifiers, which the frozen sensor deliberately does not do |
+
+**Both failures were defects in the test, not the sensor.** No sensor bug was found, so no Phase 0 semantic
+control needed re-running and no correction to Phase 0 itself is owed. Both expectations were corrected **in the
+harness source, carrying the word `CORRECTED` and the reason**, and a third case was added asserting the
+exact-match rule from the other side (`src/shared/shared-thing.ts` is internal). The second run passed all eight
+gates.
+
+This is the qualification analogue of `COR-1`: the instrument was right and the expectation imposed on it was
+wrong. Retaining the falsification inside the test file, rather than only here, is the point — a reader of the
+tests sees that the harness has itself been falsified once.
 
 ---
 
