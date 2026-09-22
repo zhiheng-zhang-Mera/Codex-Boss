@@ -244,6 +244,16 @@
       ],
       "cause": "a grep for 'observatory' (correctly 0 files on main) was generalised into a claim about the whole city plan; git grep -l \"Capability City\" HEAD returns 2 files",
       "disposition": "annotated in place and left standing; a section 0 CORRECTION block added to the finding; candidates C1/C8 marked ON BASELINE",
+      "corroboration": {
+        "docs/capability-city-principles.md": {
+          "blob_sha256": "20288eaa479e4aaeaaf962f8e5ba2691785888dc28977738ad592a70511e524e",
+          "matches_pre_city_freeze_manifest_binding": true,
+          "working_tree_sha256_on_this_checkout": "42e6a62e772b4f4964e86473121bb481dbf22e3490c6c3c9538b7b2c33ac97ae",
+          "note": "the manifest binds the LF git blob; core.autocrlf=true makes a raw working-tree hash differ (336 CRLF). Verify against the blob, not the file on disk."
+        },
+        "research_tree_absent_from_baseline": true,
+        "research_tree_check": "git ls-tree -r --name-only HEAD -- research is empty; HEAD:research/capability-city/{RQ.md,RESEARCH_LEDGER.md,dataset/metrics.json} are absent"
+      },
       "effect_on_conclusion": "none - PHASE0_SPEC_NOT_FOUND stands on a corrected and stronger evidence base"
     }
   ]

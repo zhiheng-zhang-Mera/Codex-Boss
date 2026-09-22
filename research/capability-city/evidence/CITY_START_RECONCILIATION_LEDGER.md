@@ -545,6 +545,25 @@ and `PRE_CITY_FREEZE_MANIFEST.json` among the artefacts of `5c06f7e`/`c265ede` a
 `836b5ed` (and therefore both files) is in `main`'s ancestry (§3 A2). The error was confined to the companion
 finding document.
 
+### COR-1 corroboration — the two on-baseline artefacts are content-verified
+
+The corrected claim was itself checked against a binding rather than asserted:
+
+| Check | Result |
+|---|---|
+| `git cat-file blob HEAD:docs/capability-city-principles.md` sha256 | `20288eaa479e4aaeaaf962f8e5ba2691785888dc28977738ad592a70511e524e` |
+| `PRE_CITY_FREEZE_MANIFEST.json` → `deliverable_hashes["docs/capability-city-principles.md"].sha256` | `20288eaa479e4aaeaaf962f8e5ba2691785888dc28977738ad592a70511e524e` (**equal**) |
+| `git diff HEAD origin/refactor/capability-city-v1 -- docs/capability-city-principles.md` | empty (the research-branch copy is the same blob) |
+| `git ls-tree -r --name-only HEAD -- research` | **empty — the whole `research/` tree is absent from the baseline** |
+| `HEAD:research/capability-city/{RQ.md,RESEARCH_LEDGER.md,dataset/metrics.json}` | all absent from `main` |
+
+**Note for future readers, recorded so it is not mistaken for a provenance defect.** The manifest binds the
+**git blob**, which is LF. This Windows checkout has `core.autocrlf=true` and no `.gitattributes`, so a raw
+hash of the working-tree file differs — `42e6a62e772b4f4964e86473121bb481dbf22e3490c6c3c9538b7b2c33ac97ae`,
+with 336 CRLF sequences — and normalises back to `20288eaa…` exactly. **A raw-hash mismatch on this file is a
+line-ending artefact, not a content change.** Verify against the blob (`git cat-file blob`), not the file on
+disk.
+
 ---
 
 ## 8. What this round did **not** do
