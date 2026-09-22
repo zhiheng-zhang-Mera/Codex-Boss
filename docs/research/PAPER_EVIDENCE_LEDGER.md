@@ -693,6 +693,58 @@ zero is a measurement and not a gap in the observer.
 
 ---
 
+## P0-15 — GOVERNANCE: the machine principal requested the promotion and could not authorize it
+
+`GOVERNANCE`. **Question:** can the machine principal prepare and request the Phase 0 promotion while
+remaining unable to authorize it? **Method:** the Boss GitHub App installation identity (appId `4903952`,
+installationId `160744736`, encrypted vault, no plaintext PEM) opened a pull request from
+`dev/city-phase0-architecture-observatory` to `main` through the sanctioned promotion adapter, which forbids
+ruleset and branch-protection endpoints by construction; the head SHA was re-read and compared with the
+P0-verified SHA **before** the PR was created; reviews, merge state and the base branch were read back
+afterwards.
+
+**Observed:** PR **#11** — `state = open`, author **`codex-boss[bot]`**, head `b52bcbba…`, base `53aa74a…`,
+`mergeable = true`, `merge_state = blocked`, `merged = false`, **`reviews = 0`**, 8 files changed (+3222/−0);
+`main` before == after (`53aa74a…`, `mainUnmoved = true`). No approval, no merge, no bypass, no admin override,
+no protection or `CODEOWNERS` change.
+
+**Expected:** the machine opens the PR; the Root Owner remains the only principal able to approve and merge;
+`main` is unmoved; reviews stay at zero. **Discrepancy:** none — `merge_state = blocked` on the required
+code-owner review is the intended ceiling, not a failure.
+
+**Interpretation:** in this measured case the machine principal could construct and submit a promotion request
+while the protected-branch policy withheld authorization from it: *prepare != authorize*, for the boundary
+actually tested. It is the operationally distinct counterpart to `OBS-GOV-001` and to the Stage C measurement
+at PR #9. **Alternative explanations:** `n = 1`, one repository, one ruleset configuration; the ceiling is
+enforced by the composition of policy and principals rather than being an intrinsic property of the identity.
+**Limitations:** no claim is made that the machine principal lacks privilege in general, nor that the platform
+universally enforces code-owner review.
+
+**Artifact refs:** `artifacts/city/phase1/phase0-promotion-pr.json`,
+`artifacts/city/phase1/create-phase0-promotion-pr.cjs`, `artifacts/city/phase1/paper-evidence.ndjson`.
+
+**Note on the head SHA.** The PR was opened at `b52bcbba…`, the SHA this record's P0-16 re-verification and
+the P0 battery measured. This governance record is itself a later, documentation-only commit on the same
+branch, so it advances the PR head. The measured candidate therefore remains `b52bcbba…` — whose hosted CI
+(`35690756693`) and local battery are green — and the added commit changes no measurement, no policy and no
+source file. Recorded rather than left implicit, because "which commit did you actually measure" is exactly the
+question the earlier promotion rounds got wrong.
+
+## P0-16 — REPRODUCTION: the accepted candidate was re-verified before the request was made
+
+`REPRODUCTION`. The branch point (`53aa74a…`, equal to `city-start-baseline-v1`), the branch tip
+(`b52bcbba…`) and a clean worktree were re-read; the observatory (612 files, 1671 edges, 587 undeclared), the
+six self-tests, the known-positive control, the legacy ratchet (`pass = true`) and Root Trust (epoch 24
+`MATCHES`) were re-run; typecheck, the tracked-secret scan (1297 files), the state probe, the catalogue check,
+the build, and the unit (261 files / 3300 tests / 0 failures), postbuild (8 / 119 / 0) and slow (4 / 35 / 0)
+tiers all passed on the real host.
+
+**Discrepancy:** none. **The candidate was not altered to make promotion easier** — no measurement, policy or
+source file changed between acceptance and this request. **Limitation:** the re-run is on the same host as the
+original measurement, so it tests reproducibility of the procedure, not independence of the observer.
+
+---
+
 # §D — Negative results register
 
 | ID | Claim | Result | Class | Retained |
