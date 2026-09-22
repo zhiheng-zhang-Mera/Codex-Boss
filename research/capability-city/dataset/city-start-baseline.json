@@ -225,5 +225,26 @@
     "evidence/RESEARCH_REF_MANIFEST.md §1: `city-start-baseline-v1` = NOT CREATED (true at 3aa237f; superseded)",
     "evidence/RESEARCH_REF_MANIFEST.md §2: `main` = 7024203 (superseded; now 53aa74a)",
     "dataset/baseline-metadata.json governanceState: stageC NOT YET MEASURED (frozen BEFORE-state capture; superseded by D-009)"
+  ],
+
+  "corrections": [
+    {
+      "id": "COR-1",
+      "artefact": "research/capability-city/evidence/PHASE0_SPECIFICATION_FINDING.md",
+      "first_published_at_commits": ["60408b72672cb77b99f5b63bfb6b050a2d1d5c85", "5a61d73032c881443ed5a6aaefc2e7848dfef854"],
+      "claim_as_published": "At city-start-baseline-v1 / current main (53aa74a) there is no city plan at all; the entire Capability City plan lives only on refactor/capability-city-v1.",
+      "status": "WRONG - overstatement",
+      "correct_facts": [
+        "docs/capability-city-principles.md is TRACKED IN THE BASELINE (introduced by 5c06f7e, frozen by c265ede; byte-identical to the research-branch copy)",
+        "PRE_CITY_FREEZE_MANIFEST.json is TRACKED IN THE BASELINE (introduced by c265ede)"
+      ],
+      "what_survives": [
+        "the word 'observatory' occurs nowhere on main",
+        "the research apparatus (RQ.md, RESEARCH_LEDGER.md D-001..D-009, dataset/metrics.json, threats-to-validity.md, GOV-001..006, dataset/governance/*) exists only on refactor/capability-city-v1, which is not an ancestor of main"
+      ],
+      "cause": "a grep for 'observatory' (correctly 0 files on main) was generalised into a claim about the whole city plan; git grep -l \"Capability City\" HEAD returns 2 files",
+      "disposition": "annotated in place and left standing; a section 0 CORRECTION block added to the finding; candidates C1/C8 marked ON BASELINE",
+      "effect_on_conclusion": "none - PHASE0_SPEC_NOT_FOUND stands on a corrected and stronger evidence base"
+    }
   ]
 }

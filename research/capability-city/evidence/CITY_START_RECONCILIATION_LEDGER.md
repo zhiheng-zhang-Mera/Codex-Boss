@@ -529,6 +529,24 @@ The distinction between *superseded* and *wrong* matters: none of the statements
 
 ---
 
+## 7b. Correction register — errors found in this round's own earlier artefacts
+
+A later commit in the same programme re-ran the Phase 0 specification sweep and found an error in an artefact
+this round produced. It is recorded here rather than quietly repaired, for the same reason `RQ.md` D-1 is
+recorded rather than edited.
+
+| # | Artefact | Claim as first published | Status | Disposition |
+|---|---|---|---|---|
+| **COR-1** | `evidence/PHASE0_SPECIFICATION_FINDING.md`, commits `60408b7` / `5a61d73`, §2 blockquote | *"At `city-start-baseline-v1` / current `main` (`53aa74a`) there is no city plan at all. … The entire Capability City plan … live[s] only on `refactor/capability-city-v1`."* | **WRONG — an overstatement.** Two tracked files in the frozen baseline carry city material: `docs/capability-city-principles.md` (introduced `5c06f7e`, frozen `c265ede`, byte-identical to the research-branch copy) and `PRE_CITY_FREEZE_MANIFEST.json` (introduced `c265ede`). | A `§0 CORRECTION` block was **added** to the finding, the offending sentence was **annotated in place and left standing**, and candidates C1/C8 are now marked **ON BASELINE**. The conclusion is unchanged. |
+| **COR-1 cause** | method error, not a typo | The sweep ran `git grep -l -i "observatory" origin/main` (correctly **0 files**) and drew a conclusion about the *whole* city plan from it. `git grep -l "Capability City" HEAD` returns **2 files**. A narrow negative result was generalised into a broad one. | Recorded here because the same failure mode — *a measurement narrower than the claim drawn from it* — is the programme's own subject, and this is an instance of it committed by the programme itself. |
+
+**Effect on this ledger.** None material: this ledger already recorded `docs/capability-city-principles.md`
+and `PRE_CITY_FREEZE_MANIFEST.json` among the artefacts of `5c06f7e`/`c265ede` and already recorded that
+`836b5ed` (and therefore both files) is in `main`'s ancestry (§3 A2). The error was confined to the companion
+finding document.
+
+---
+
 ## 8. What this round did **not** do
 
 ```

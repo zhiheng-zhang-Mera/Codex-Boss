@@ -18,12 +18,61 @@ instructs exactly this stop, and §5 forbids substituting a newly invented rubri
 
 ---
 
+## 0. CORRECTION — added by a later commit in the same programme
+
+The first version of this file (commits `60408b7`, `5a61d73`) contained an **overstatement**. It is corrected
+here and left visible, rather than silently rewritten.
+
+**What it said:**
+
+> "At `city-start-baseline-v1` / current `main` (`53aa74a`) **there is no city plan at all.** … The entire
+> Capability City plan, the frozen research questions, the decision ledger `D-001..D-009` and every governance
+> artefact live **only** on `refactor/capability-city-v1`."
+
+**Why that was wrong.** Part of the Capability City material *is* on the baseline. Two tracked files on `main`
+carry it:
+
+| Path in the frozen baseline (`53aa74a`) | Introduced by | What it is |
+|---|---|---|
+| `docs/capability-city-principles.md` | `5c06f7e` (frozen by `c265ede`) | Owner-decided principles 15.1–15.9, **byte-identical** to the copy on `refactor/capability-city-v1` (`git diff` empty). Declares itself `FORMAL BUT NOT YET MACHINE-ENFORCED` and `DO NOT BEGIN Capability City / Kernelization construction from this document`. |
+| `PRE_CITY_FREEZE_MANIFEST.json` | `c265ede` | the freeze manifest: `city_principles_documented` (`machine_enforced: false`), `city_classification` (40 systems / 27 declared capabilities, `migration_performed: false`), `structural_health_baseline` (31 findings, 0 repairs), and `not_done_by_instruction`: *"Capability City / Kernelization construction — NOT STARTED"*. |
+
+How the mistake was made is worth recording, because it is a *method* error and not a typo: the earlier sweep
+grepped for `observatory` — which correctly returns **0 files on `main`** — and then drew a much broader
+conclusion ("no city plan at all") than that grep's evidence supports. `git grep -l "Capability City" HEAD`
+returns **two** files; `git grep -l -i "kernelization" HEAD` returns the same two.
+
+**What survives, and the corrected statement:**
+
+* **Survives intact.** The word `observatory` occurs **nowhere on `main`**. The *research* apparatus —
+  `RQ.md`, `RESEARCH_LEDGER.md` (`D-001..D-009`), `dataset/metrics.json`, `threats-to-validity.md`,
+  `GOV-001..006`, and every `dataset/governance/*` capture — lives **only** on
+  `refactor/capability-city-v1`, which is still **not** an ancestor of `main` (merge base `836b5ed`;
+  `--is-ancestor` → exit 1). Both facts were always accurate.
+* **Corrected statement.** *At `city-start-baseline-v1` the Owner-decided **city principles** and the pre-city
+  **freeze manifest** are present and tracked. What is absent is the research apparatus and — decisively — any
+  document stating Phase 0's **scope together with acceptance criteria**. The closest on-main text
+  (`docs/capability-city-principles.md` §15.7 and its closing "honest summary") names "an honest dependency
+  measurement" as the first substantive deliverable of the city phase, and in the same document refuses to be a
+  work order.*
+
+**Does the correction change the answer? No.** It *strengthens* the candidate list, because the strongest
+on-main candidate for an authoritative Phase 0 statement is now listed as being on the baseline (C1) rather
+than as a research-branch artefact — and it still supplies a **scope hint without any acceptance criteria**,
+which is exactly what §3 requires and §5 forbids inventing. `FINAL_STATUS = PHASE0_SPEC_NOT_FOUND` stands, on a
+corrected evidence base.
+
+---
+
 ## 1. What was searched, and how
 
 | Search | Command / method | Result |
 |---|---|---|
 | The frozen baseline tree | `git grep -l -i "observatory" origin/main` | **0 files** |
 | The frozen baseline tree | `git grep -l -E "CONFLICT_CLASSIFIER\|NON_BLOCKING_QUERY\|WAITING_VS_DEAD\|PHASE0_ACCEPTANCE" origin/main` | **0 files** |
+| The frozen baseline tree | `git grep -l "Capability City" HEAD` | **2 files** — `docs/capability-city-principles.md`, `PRE_CITY_FREEZE_MANIFEST.json` (**see §0 correction**: the city material is *not* entirely absent from the baseline) |
+| The frozen baseline tree | `git grep -l -i "kernelization" HEAD` | same 2 files |
+| The frozen baseline tree | `git ls-tree -r --name-only HEAD` filtered on `city` | same 2 files; no Phase 0 / acceptance-contract path |
 | **Every** remote ref (≈40) | `git grep -l -i "observatory" <ref>` for each | hits **only** on `refactor/capability-city-v1` (6 files) |
 | **Every** remote ref | `git grep -l -E "CONFLICT_CLASSIFIER\|NON_BLOCKING_QUERY\|WAITING_VS_DEAD\|PHASE0_ACCEPTANCE" <ref>` | **0 files — the tokens exist nowhere in git** |
 | Filenames ever added | `git log --all --diff-filter=A --name-only` filtered on `city\|phase0\|observatory` | no Phase 0 specification or acceptance contract was ever committed |
@@ -32,6 +81,11 @@ instructs exactly this stop, and §5 forbids substituting a newly invented rubri
 | Gitignored runtime reports | `D:\Boss-PreCity-RC\artifacts\city\reports\` | one prior-round report contains a **PHASE0 field table** (§3, candidate C7) — the only surviving trace of a *different* definition, and it cites a mission document that is not in the repository |
 
 The baseline commit is the critical negative result:
+
+> ⚠️ **The first sentence of the blockquote below is WRONG and is corrected in §0** — part of the city material
+> (`docs/capability-city-principles.md`, `PRE_CITY_FREEZE_MANIFEST.json`) *is* present in the baseline. It is
+> left standing rather than silently rewritten, because the error and its cause are themselves part of the
+> record. The remainder of the blockquote is accurate.
 
 > **At `city-start-baseline-v1` / current `main` (`53aa74a`) there is no city plan at all.** The word
 > "observatory" does not occur in a single file. The entire Capability City plan, the frozen research
@@ -48,17 +102,19 @@ The baseline commit is the critical negative result:
 ## 2. Candidate documents, with commit chronology
 
 Ordered by introduction. `COMMIT` is the commit that introduced or last authoritatively amended the text.
-All of these are on `refactor/capability-city-v1` (base `836b5ed`), **not** on `main`.
+`ON MAIN?` says whether the file is present in the frozen baseline tree. **C1 and C8 are on `main`** (C1 is in
+`main`'s ancestry via `836b5ed`); the rest exist only on `refactor/capability-city-v1`.
 
 | # | Path | Commit | Date (+1000) | What it actually is |
 |---|---|---|---|---|
-| **C1** | `docs/capability-city-principles.md` | `5c06f7e` (later frozen by `c265ede`) | 2026-09-21 | Principles 15.1–15.9 **the Owner had already decided**. It states its own status: *"FORMAL BUT NOT YET MACHINE-ENFORCED"*, *"Nothing in this document is implemented, and nothing here authorises construction"*, and *"DO NOT BEGIN Capability City / Kernelization construction from this document"*. §15.7 says *"Fixing the measurement is the first act of the city phase"* — a **priority statement, not a work order with criteria**. |
+| **C1** | `docs/capability-city-principles.md` — **ON MAIN** | `5c06f7e` (later frozen by `c265ede`) | 2026-09-21 | Principles 15.1–15.9 **the Owner had already decided**. It states its own status: *"FORMAL BUT NOT YET MACHINE-ENFORCED"*, *"Nothing in this document is implemented, and nothing here authorises construction"*, and *"DO NOT BEGIN Capability City / Kernelization construction from this document"*. §15.7 says *"Fixing the measurement is the first act of the city phase"*, and the closing "honest summary" says *"Making 15.1–15.9 enforceable — starting with an honest dependency measurement — is the first substantive deliverable of the Capability City / Kernelization phase."* **The strongest on-main candidate: a priority statement and a scope hint, not a work order, and it states no acceptance criteria.** |
 | **C2** | `research/capability-city/RESEARCH_LEDGER.md` **D-001** | `347de00` | 2026-09-22 06:18 | The decision that motivates Phase 0: chosen design **"(b), then (a)"** — *build a real-source observatory as a separate instrument first*, keeping the legacy manifest gate intact as the **comparison arm** for RQ5. It has *Expected effect* and *Potential confounders*, and its *Actual effect* is `Pending — Phase 0`. **It contains no acceptance criteria.** |
 | **C3** | `research/capability-city/evidence/BUG_FINDING_LEDGER.md` **FINDING-001** | `da80400` | 2026-09-22 11:11 | `FIX_SHA = NOT FIXED — Phase 0 is authorised to repair it`; `FIX_DESCRIPTION = "Phase 0: scan the real source tree; stop dropping undeclared targets; add falsification self-tests"`; `AFTER_RESULT = NOT YET MEASURED (Phase 0)`; `RELATED_TESTS = "Phase 0 will add the observatory's own falsification tests"`. **A one-line fix description, not a specification.** |
 | **C4** | `research/capability-city/dataset/metrics.json` | `dc42346` | 2026-09-22 09:40 | The most concrete artefact. `instruments.realSourceObservatory` gives scans / excludes / `mustParse` / `mustNotDependOn` / `rule`, **and its `command` field is literally `"PENDING — Phase 0"`** — i.e. the entry point was never fixed. M-01..M-25 carry baselines, many `"PENDING (Phase 0)"`. **Metric definitions are not acceptance criteria.** |
 | **C5** | `research/capability-city/RQ.md` **RQ5** | `347de00` | 2026-09-22 06:18 | *"Can a real-source-graph architecture gate detect more true violation relationships than a manifest-driven gate?"* Measures: true positives, **false negatives**, false positives, per detector, against **ground truth**. Answer: `OPEN`. |
 | **C6** | `research/capability-city/OWNER_MACHINE_IDENTITY_CEREMONY.md` step 6 | `da80400` | 2026-09-22 11:11 | *"only then begins **Phase 0** (Architecture Observatory Repair) on `refactor/capability-city-v1`"*. Names a branch, not a specification. |
 | **C7** | `artifacts/city/reports/MISSION_ROUND_WAITING_FOR_ROOT_OWNER_REPORT.md` §`PHASE0` | uncommitted (gitignored runtime report) | 2026-09-22 12:06 | A **different** Phase 0 definition. Its acceptance field set is `OBSERVATORY_ARCHITECTURE`, `STATE_MODEL`, `EVENT_MODEL`, `CONFLICT_CLASSIFIER`, `NON_BLOCKING_QUERY_TEST`, `NON_CONFLICTING_CHANGE_TEST`, `CONFLICTING_CHANGE_TEST`, `WAITING_VS_DEAD_TEST`, `FAILURE_ISOLATION_TEST`, `ROOT_AUTHORITY_TEST`, `PHASE0_TEST_COUNTS`, `PHASE0_ACCEPTANCE`. It cites *"mission §20"* as the Phase 0 gate and *"§20–§35"* as the Phase 0 definition. **That mission text is not in this repository.** |
+| **C8** | `PRE_CITY_FREEZE_MANIFEST.json` — **ON MAIN** | `c265ede` | 2026-09-21 | The pre-city freeze manifest, and the second on-baseline city artefact. Relevant keys: `city_principles_documented` (`complete: true`, `machine_enforced: **false**`), `city_classification` (`complete: true`, `migration_performed: **false**`, 40 systems / 27 declared capabilities), `structural_health_baseline` (31 findings, `repairs_performed: 0`), `open_architectural_debt.highest_priority[0]` = *"The architecture ratchet's measurement blind spot (fix before any city refactor — otherwise the refactor is unverifiable)"*, and `not_done_by_instruction`: *"Capability City / Kernelization construction — NOT STARTED"*. **Priority ordering and freeze state; the term `Phase 0` is never applied to the city programme, and no acceptance criteria appear.** |
 
 ---
 
@@ -68,10 +124,10 @@ All of these are on `refactor/capability-city-v1` (base `836b5ed`), **not** on `
 
 | | **Construction A — the architecture measurement observatory** | **Construction B — the state/event observation system** |
 |---|---|---|
-| Carried by | C2 (D-001), C3 (FINDING-001), C4 (`metrics.json`), C5 (RQ5) | **C7 only** — and C7 is a gitignored runtime report |
+| Carried by | C2 (D-001), C3 (FINDING-001), C4 (`metrics.json`), C5 (RQ5) — plus the **on-baseline** priority statements C1 (`docs/capability-city-principles.md` §15.7 and closing summary) and C8 (`PRE_CITY_FREEZE_MANIFEST.json`, `open_architectural_debt.highest_priority[0]`) | **C7 only** — and C7 is a gitignored runtime report |
 | What it is | a **new instrument** that scans the real source tree and reports the real dependency graph, run **alongside** the legacy manifest gate so the two can be scored against ground truth | a **passive observer of durable state and events** with a `STATE_MODEL`, an `EVENT_MODEL` and a `CONFLICT_CLASSIFIER`, queryable without blocking writers |
 | Its acceptance | not stated. RQ5 proposes TP/FN/FP against a *"seeded ground-truth violation set"* — but the seed set, its author, and the threshold that counts as acceptance are **all undefined** | a named list of six tests (`NON_BLOCKING_QUERY`, `NON_CONFLICTING_CHANGE`, `CONFLICTING_CHANGE`, `WAITING_VS_DEAD`, `FAILURE_ISOLATION`, `ROOT_AUTHORITY`) — **none of which exists as a test, a script, a config key or a document anywhere in git** |
-| Exists in tracked form? | **Partially** — as prose and metric definitions only | **No.** Only the field *names* survive, in an untracked report |
+| Exists in tracked form? | **Partially, and two of its statements are on the baseline itself** (C1, C8) — but as principles, a priority ordering, prose and metric definitions: no instrument design with a fixed entry point, and no criteria | **No.** Only the field *names* survive, in an untracked report |
 
 The round brief's own language — *"measure, expose, correlate, timestamp, attribute provenance, detect
 unknowns, and make system state inspectable"*, and the invariant pair `OBSERVATION != AUTHORIZATION` /
