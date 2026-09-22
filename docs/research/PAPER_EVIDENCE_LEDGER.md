@@ -1391,3 +1391,265 @@ FINAL_STATUS = PHASE1A_FROZEN_PHASE1B_SPEC_READY
 **The C12 block above is not superseded — it is dated.** It recorded a true state at `08:50Z`; this section
 records the state after `10:41:46Z`. Both remain, in order, because the transition between them is the
 evidence.
+
+---
+
+# §I — Phase 1B-A governance foundation (this phase)
+
+**Scope of this phase, stated as two questions rather than as a feature list:**
+
+```text
+CAN THE JUDGE MODIFY ITSELF?        previously YES (AUTONOMOUS_MUTABLE)   -> now OWNER-GATED
+CAN THE MACHINE LAUNDER THE BASELINE?  previously YES (regenerate and commit) -> now CLOSED mechanically
+```
+
+Nothing else was attempted. The hosted architecture job was **not** added, no required check was activated, the
+ruleset was **not** touched, `ci.yml` was **not** modified, and no architecture was migrated.
+
+## I-1 — AUTHORITY_BOUNDARY: the measured starting state, with the repository's own classifier
+
+`MEASUREMENT`. Before this phase, every part of the enforcement apparatus was autonomously mutable. Measured
+with the repository's own compiled classifier (`classifyAuthorityPath` / `classifySurface`, built from the tree
+at `2f915ec`), not argued from the file layout:
+
+| Path | was | is now |
+|---|---|---|
+| `config/architecture-enforcement-baseline.json` | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `scripts/architecture-enforcement.cjs` | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `scripts/architecture-enforcement-baseline.cjs` | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `scripts/architecture-observatory.cjs` | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `scripts/architecture.cjs` (legacy sensor) | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `config/architecture-baseline.json` (legacy baseline) | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `scripts/architecture-baseline.cjs` (its only writer) | `PRODUCT_SURFACE` / `AUTONOMOUS_MUTABLE` | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+| `scripts/architecture-baseline-series.cjs` (authorization) | did not exist | `ROOT_TRUST_SURFACE` / `OWNER_AUTHORITY` |
+
+**The negative control is part of the claim.** The same measurement, same classifier, after the change:
+`config/capabilities/*` and `scripts/architecture-observatory-qualification.cjs` remain `PRODUCT_SURFACE` /
+`AUTONOMOUS_MUTABLE`, and `docs/**` remains writable by the machine. A boundary that swallowed the repository
+would be as useless as one that protected nothing, so the suite asserts both directions
+(`tests/unit/city/architecture-governance-boundary.test.ts`).
+
+**The two boundaries had to move together, and the first attempt only moved one.** The host guard unions the
+compiled manifest with `.github/CODEOWNERS`; a path protected in only one of them is protected only on the
+paths that happen to consult that half. Both were extended with the same nine entries, and the suite asserts
+each path through **both** matchers — the compiled manifest *and* the real `CODEOWNERS` parsed with GitHub's
+matching rules.
+
+## I-2 — BASELINE_LAUNDERING: the closure, and what it now costs to launder
+
+`POLICY_EXPERIMENT` + `FINDING`. The attack, and the eight ways it was tried:
+
+```text
+BEFORE:  CI fails on new debt -> run `architecture:enforce:baseline` (no reason needed)
+         -> the current tree is recorded as grandfathered, version bumped, parent adopted
+         -> commit -> CI passes.   Nothing in any workflow or tier ever ran `--check`.
+```
+
+The closure is **not** a new check. It is that the tracked baseline can no longer be written by a naked
+invocation at all:
+
+| Invocation | Before | After (measured) |
+|---|---|---|
+| `architecture:enforce:baseline` (no arguments) | rewrote the tracked baseline, defaulting the reason | **exit 2**, "a reason is required"; the tracked file is untouched |
+| `--reason "update"` | accepted | **exit 2**, placeholder refused |
+| `--reason "<real text>"` | rewrote the tracked baseline | writes a **candidate** under `artifacts/city/phase1/`, `governs: false` |
+| `--out <path>` | wrote elsewhere (tests) | candidate semantics, unchanged for the existing suite |
+| `--accept` | did not exist | writes the tracked baseline **only if** an ACCEPTED series entry already names the exact `(version, parent, hash)`; otherwise `BASELINE_SERIES_UNAUTHORISED`, `written: false` |
+| `--check` | self-consistency only | self-consistency **and** authorization, reported as two separate fields |
+| `architecture:enforce` (both modes) | enforced whatever baseline it read | refuses an unauthorized baseline with `BASELINE_SERIES_UNAUTHORISED`, non-zero in **both** modes |
+
+**The measured refusal, verbatim from the probe run** (a no-op regeneration of an unchanged tree, which is the
+weakest possible form of the attack):
+
+```text
+state: BASELINE_ACCEPTANCE_REFUSED
+baseline_version: 2   parent_baseline_hash: b211c052…9f4e   baseline_hash: 9ba4561793a0…
+codes: [BASELINE_SERIES_UNAUTHORISED]
+written: false
+"the tracked baseline was not touched"
+```
+
+A regeneration that changes nothing still cannot become governing without an Owner-reviewed series entry.
+`BASELINE_SERIES_UNAUTHORISED` is an `ENGINE_ERROR`, not a policy violation: a gate that cannot establish what
+governs must not report a verdict about the change.
+
+**The fixture seam is one-directional, and that was a design decision with a measured consequence.** The
+governing path refuses `--authorizations` outright. Had it honoured the override, any caller could satisfy the
+check with a series of its own choosing. The cost of closing it is that both fixture harnesses must declare
+their own series explicitly — `tests/unit/city/architecture-enforcement.test.ts` (21 ENF tests, all still
+green) and the C9 battery (`scripts/architecture-phase1a-experiments.cjs`, **9/9** injections still producing
+their expected codes, 9/9 rollbacks restored). Tests that inject state now say so.
+
+## I-3 — FAILURE + CORRECTION: the head rule was wrong, and the test that caught it was mine
+
+`FAILURE` + `CORRECTION`. The first `assessAcceptance` required the committed baseline to equal the **head of
+the accepted series**. But authorization must exist *before* acceptance, so at the moment of acceptance the
+series already contains the candidate's entry and the candidate **is** the head; the state it builds on is its
+**parent** entry. As written, acceptance was impossible — every acceptance would have been refused with
+`BASELINE_HEAD_NOT_TRACKED`.
+
+The failure was caught by the suite's own positive control (`control: a properly authorized, monotone evolution
+IS accepted`), which failed while all eight attack cases passed. That asymmetry is the lesson: a suite made only
+of attacks is satisfied by a rule that refuses everything.
+
+This is the **sixth instance** of the pattern this programme keeps meeting — `COR-1`, the C5 qualification
+harness, the C9 rollback arm, `B-1..B-5`, the C10 citation gate — and it is the first one in which the
+apparatus was a *governance rule* rather than a measurement: **the apparatus was wrong and the measured object
+was right**, again, and again the remedy was to correct the apparatus rather than the expectation.
+
+## I-4 — FAILURE: an assertion that could not be true, for a reason worth knowing
+
+`FAILURE` + `MEASUREMENT`. The boundary suite first asserted that each judge path is matched by a
+`CODEOWNERS` pattern by inspecting `assessProtectedPaths(...).hits` for `source === "codeowners"`. That
+assertion **cannot** hold for a path the compiled manifest also protects: `assessProtectedPaths` returns after
+the first matching rule (`// one rule per path is enough evidence`) and the manifest is compiled first, so
+`source` is always `"immutable-manifest"` for exactly the paths that are protected by both halves.
+
+The remedy was not to weaken the check but to test the half it was actually about: the real
+`.github/CODEOWNERS` is now parsed and matched with the same `codeownersPatternToRegExp` compiler the guard
+uses, and each judge path must be matched **either** by a line naming it exactly **or** by a pre-existing
+directory rule (`/trust-policy/`). A blanket `/scripts/` or `/config/` rule fails the assertion, which is what
+keeps the block from quietly becoming a directory sweep.
+
+## I-5 — CORRECTION: the citation gate fired on this phase's own comment
+
+`CORRECTION`. `tests/unit/comment-citation.test.ts` failed with
+`scripts/architecture-baseline-series.cjs: 1 (baseline 0)` and `bare section citations: 1309 (baseline 1308)` —
+a new comment of mine cited "§7.1/§7.2" without naming a document. The baseline was **not** raised and the gate
+was **not** touched; the comment was rewritten to name
+`docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md` and its section in words. Second instance of the C10 pattern in
+this programme: the gate was right and the work was wrong.
+
+## I-6 — GOVERNANCE: the machine derived the next epoch and did not write it
+
+`GOVERNANCE` + `AUTHORITY_BOUNDARY`. Extending the Root Trust Surface necessarily moved the aggregate:
+
+```text
+before : epoch 24 certifies 6eaf71e9e2c81122522be86743bc619fcbc823b3c1cff07b229f94edda40d457  (63 files)
+after  : live surface        37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741  (72 files)
+verdict: TRUST_EPOCH_ROOT_SURFACE_MISMATCH
+```
+
+The machine then did exactly what the lockdown permits and no more:
+
+| Act | Performed? | Evidence |
+|---|---|---|
+| measure the live surface and the drift | **yes** | `acceptance-evolution-bless.cjs --check` → mismatch, exit 1 |
+| write a Stage A proposal | **yes** | `trust-migration-proposal.cjs` → `needsMigration=true`, `authorized=false`, candidate epoch **25**, parent `33beb3028f3e7c334e9ea5441fd5397a232cbbf788eae1d0482c45fe2f66593d` |
+| leave the committed epoch byte-identical | **yes** | the proposal wrote `artifacts/**` only; `git status trust-policy/trust-epoch.json` empty |
+| derive the candidate epoch in a test | **yes** | `advanceTrustEpoch` is pure; the suite asserts `trust_epoch 25`, `parent_epoch_hash == epoch 24's hash`, and that the candidate **does** anchor the extended surface |
+| run `--advance` | **no** | `tests/unit/root-trust-authority-lockdown.test.ts` case 2: an autonomous actor finalizing a trust epoch is `DENY` |
+| approve the environment / merge | **no** | Owner-only, and not attempted |
+
+**The sequencing constraint that makes this a two-act ceremony, measured this round.** A candidate could not
+simply be committed alongside the surface change, because the only mechanism that advances an epoch under
+external authority (`.github/workflows/trust-epoch-finalization.yml`) is `workflow_dispatch` on
+`refs/heads/main` and measures **main's** surface — so it cannot anchor a branch. The Owner's path is therefore:
+merge the surface extension (whose epoch-anchor checks are red *by design*, see I-7), then dispatch the
+finalization, which opens the epoch PR, then merge that.
+
+## I-7 — The expected-red set, named before the hosted run
+
+`MEASUREMENT` + `HOSTED_PARITY`. Because the epoch is deliberately stale, exactly two existing assertions about
+the *current* state of the repository fail, both for the same designed reason and neither a regression:
+
+| Check | Assertion | Measured |
+|---|---|---|
+| unit (default tier) | `tests/unit/test-layers.test.ts` — "keeps the graduation gate in push CI and the committed epoch anchored to the live surface" | **1 failed / 3359 passed / 264 files** |
+| postbuild tier | `tests/unit/root-trust-authority-lockdown.test.ts` — "does not change the epoch when the committed one already anchors the surface" | **1 failed / 119 passed / 8 files** |
+
+Both are `TRUST_EPOCH_ROOT_SURFACE_MISMATCH` / `currentEpochAnchorsLiveSurface: false`. They turn green when
+the Owner advances the epoch; they are the *reason* the ceremony exists rather than an obstacle to it. The
+phase does **not** depend on pretending they are green, and neither they nor the threshold behind them were
+modified.
+
+Every other gate measured green on this tree: `typecheck` (three projects), tracked-secret scan (1311 files),
+`state:probe`, test catalogue (280 suites, 27/27 capabilities), `architecture:ratchet` (`violations: []`),
+`architecture:observe` (612 scanned files, 1671 edges), `architecture:enforcement --check` (self-consistent
+**and** authorized), `architecture:enforce:shadow` and `architecture:enforce` (PASS, findings 1677, violations
+0), the C9 battery 9/9, ENF-01..ENF-18 21/21, and the two new governance suites 22/22 and 16/16.
+
+## I-8 — MEASUREMENT: what the two hashes are sensitive to
+
+`MEASUREMENT`. Recorded because both numbers get cited as evidence and they do not move together:
+
+```text
+editing scripts/architecture-baseline-series.cjs   -> Root Trust aggregate b1e8a5ca… -> 37c98265…  (72 files)
+adding two ordinary unit-test files                -> observatory semantic_hash 21eac0cb… -> ac115cc8…
+                                                   -> accepted baseline: unchanged (612 files / 1671 edges)
+```
+
+The observatory's semantic hash covers the tracked-file inventory, so any new tracked file moves it. The
+enforcement baseline covers the **scan set** and the resolved graph, so it does not. That asymmetry is
+load-bearing: a baseline that moved whenever an unrelated file was added would be unusable as a ratchet, and a
+semantic hash that did not move would not be a hash of the measurement.
+
+## I-9 — DEFECT recorded and NOT fixed: the documented generation mode resets the epoch chain
+
+`FINDING`. `tests/acceptance/autonomous-evolution-trust.test.ts` documents
+`BOSS_GENERATE_EVOLUTION_TRUST=1` as the way to re-bless the committed trust data. Its `writeTrustPolicyData`
+builds the epoch with `advanceTrustEpoch({ previous: null, … })` — a **genesis** epoch, `trust_epoch: 1`, no
+parent. Running the documented generation mode after any epoch history exists would replace epoch 24 with epoch
+1 and break the append-only chain.
+
+This phase therefore regenerated **only** the declaration mirror, from the module's own
+`declaredRootTrustSurface()`, and did not run the generation mode. Fixing the generation mode is a change to a
+Root Trust test file and would itself need an epoch, so it is a separate governance act; it is recorded here
+rather than repaired inside a phase whose subject was a different boundary.
+
+## I-10 — HISTORY: the Phase 1A flake record is untouched, and this phase does not depend on it
+
+`REPRODUCTION` + `FAILURE` (carried forward). Run `35731576930` (the tag push of
+`city-phase1a-enforcement-v1`, `unit` red in the slow tier on the frozen SHA) remains in the record at `C17`,
+unmodified. Nothing in this phase deleted it, re-ran it into green, quarantined `platform-soak.test.ts`, or
+weakened a threshold. `PHASE1B-A` does not depend on that run never having happened: the laundering closure and
+the authority boundary are properties of the tree, and the epoch ceremony is a property of the surface hash.
+
+## I-11 — GOVERNANCE: commit provenance changes from here
+
+`GOVERNANCE`. From this phase's construction commits onward, the implementation commits carry an explicit
+**machine/developer** author rather than the local git identity that resembles the Root Owner's own hand:
+
+```text
+IMPLEMENTATION AUTHOR = Codex-Boss (machine/developer identity)
+PR OPENER            = the machine identity, or — where that credential is not provisioned — recorded as such
+ROOT OWNER REVIEW    = zhiheng-zhang-Mera
+ROOT OWNER MERGE     = zhiheng-zhang-Mera
+```
+
+The boundary that matters is unchanged and is not the author field: authorization still comes from the
+**credential** that opens and pushes, the **Owner review** on the protected paths, and the **ceremony** that
+advances the epoch. Commit metadata is attribution, not authority — which is exactly why the change is
+cosmetic and why it is recorded instead of being presented as a control.
+
+## I-12 — checkpoint table
+
+| Checkpoint | State |
+|---|---|
+| `1B-A.1` baseline laundering closed | **COMPLETE** — candidate/accepted split, reason required, `--accept` gated by a pre-existing series entry |
+| `1B-A.2` series authorization | **IMPLEMENTED** — `trust-policy/architecture-enforcement-baselines.json`, v1 bootstrapped from the PR #12 promotion |
+| `1B-A.3` judge Owner-bound | **CANDIDATE** — nine paths in the classifier, the compiled manifest and `CODEOWNERS`; tests green |
+| `1B-A.4` Root Trust Surface extended | **COMPLETE** — 63 → 72 files, aggregate `6eaf71e9…` → `37c98265…` |
+| `1B-A.5` epoch | **WAITING_FOR_OWNER** — candidate epoch 25 prepared, parent `33beb302…`, committed epoch untouched |
+| `1B-A.6` adversarial suites | **GREEN** — A1..A8 (22 tests), B1..B9/C1..C4/negative control (16 tests) |
+| `1B-A.7` hosted architecture job | **NOT ADDED** |
+| `1B-A.8` ruleset / `ci.yml` | **UNCHANGED** |
+| `1B-A.9` architecture migration | **NOT_STARTED** |
+
+```text
+PHASE1B_A = GOVERNANCE_FOUNDATION_CANDIDATE
+
+BASELINE_LAUNDERING = CLOSED
+JUDGE_SELF_MODIFICATION = OWNER_GATED
+BASELINE_SERIES = OWNER_AUTHORISED (v1)
+
+ROOT_TRUST_SURFACE_EXTENSION = PREPARED
+ROOT_TRUST_EPOCH_CANDIDATE = READY (epoch 25, parent 33beb302…)
+ROOT_TRUST_EPOCH = WAITING_FOR_OWNER_FINALIZATION
+
+HOSTED_ARCHITECTURE_JOB = NOT_STARTED
+HOSTED_REQUIRED_GATE = LEGACY
+ARCHITECTURE_MIGRATION = NOT_STARTED
+
+FINAL_STATUS = WAITING_FOR_ROOT_OWNER_TRUST_EPOCH_CEREMONY
+```

@@ -564,3 +564,50 @@ node scripts/architecture.cjs ratchet                           # legacy control
 gh api repos/zhiheng-zhang-Mera/Codex-Boss/rulesets/22746755    # the required contexts and the review rules
 gh api repos/zhiheng-zhang-Mera/Codex-Boss/environments         # boss-root-trust-owner, required reviewer
 ```
+
+---
+
+## 16. Phase 1B-A implementation record — spec corrections and measurements
+
+Phase 1B-A (GOVERNANCE_FOUNDATION) implemented §6, §7, §9 and §10. Where the implementation could not follow
+this document as written, the discrepancy is recorded here rather than resolved silently in the code. The
+normative text above is deliberately **not** rewritten: this section is what a later reader must reconcile
+against it, and each entry says which text it supersedes.
+
+### 16.1 Corrections applied
+
+| # | What this document said | What the implementation does, and why |
+|---|---|---|
+| C-1 | §7.2: "a new record — proposed path `config/architecture-enforcement-authorisations.json` or an entry under `trust-policy/`" | **`trust-policy/architecture-enforcement-baselines.json`**, schema `city-architecture-enforcement-baseline-series/1`. Placing it under `trust-policy/**` means the authorization record is Owner-review-required by a rule that already exists, instead of by a new one this phase would have had to add. |
+| C-2 | §7.1 required every accepted evolution to record "added/deleted identity accounting", and §6.1 named the laundering path | The generator no longer writes the tracked baseline **at all** unless `--accept` is given *and* an accepted series entry already names the exact triple. A plain invocation now writes a **candidate** under `artifacts/city/phase1/` that grandfathers nothing. §7's closure was written as a *check*; a check would still have permitted a naked regeneration to be committed, so the closure was moved to the *write*. |
+| C-3 | §5 listed `BASELINE_SERIES_UNAUTHORISED` as "to be implemented", and did not mention fixture seams | Implemented as an `ENGINE_ERROR` in **both** modes. Additionally, `--authorizations <path>` is a fixture seam that is **refused on the governing path**: an authorization check whose source the caller chooses is not a check. The engine records `series_authorization.source` on every run so a governed run is distinguishable from a fixture. |
+| C-4 | §9: extending the Root Trust Surface is listed among the things that are "an Owner ceremony" | The extension is an ordinary commit that *necessarily* moves the surface aggregate; the Owner ceremony is the **epoch finalization**. Measured: `advanceTrustEpoch` is a pure function the machine may run to derive the candidate, while `tests/unit/root-trust-authority-lockdown.test.ts` case 2 denies an autonomous actor the `--advance` *write*. That is the line Phase 1B-A holds. |
+| C-5 | §9: "the `ci.yml` edit, the `CODEOWNERS` edit and the epoch advance … must land in the same commit" | **Not achievable as written, measured this round.** `.github/workflows/trust-epoch-finalization.yml` runs `workflow_dispatch` on `refs/heads/main` and measures **main's** surface, so it cannot anchor a branch. The epoch advance for a surface extension must therefore follow the merge, as a second Owner act. This is the sequencing constraint that puts Phase 1B-A in `WAITING_FOR_ROOT_OWNER_TRUST_EPOCH_CEREMONY`. |
+| C-6 | §4 PRE-11: "Root Trust preparation is complete … so the epoch anchors the new surface" as an activation precondition | Unchanged as a precondition, but its satisfaction is now known to require **two** Owner merges (the extension, then the epoch), so it cannot be satisfied by a single PR. |
+
+### 16.2 Defect found in existing machinery, recorded and not fixed
+
+**The documented trust-data generation mode destroys the epoch chain.**
+`tests/acceptance/autonomous-evolution-trust.test.ts` documents `BOSS_GENERATE_EVOLUTION_TRUST=1` as the way to
+re-bless `trust-policy/root-trust-surface.json` **and** `trust-policy/trust-epoch.json`. Its
+`writeTrustPolicyData` builds the epoch with `advanceTrustEpoch({ previous: null, … })`, i.e. a **genesis** epoch
+(`trust_epoch: 1`, no parent). Running the documented generation mode after any epoch history exists would
+replace epoch 24 with epoch 1 and break the append-only chain the trust model depends on.
+
+Phase 1B-A therefore regenerated the declaration mirror **only**, from the module's own
+`declaredRootTrustSurface()` (the same generator the acceptance suite calls), and did not run the generation
+mode. This is a defect in a Root Trust file, so fixing it is a separate governance act with its own epoch; it is
+out of scope for this round and is recorded in `docs/research/PAPER_EVIDENCE_LEDGER.md`.
+
+### 16.3 Measurement note: what the Root Trust aggregate is sensitive to
+
+Measured while freezing this phase: editing `scripts/architecture-baseline-series.cjs` moved the surface
+aggregate (`b1e8a5ca…` → `37c98265…`, 72 files), while adding two ordinary unit-test files under
+`tests/unit/city/` moved the **observatory's** `semantic_hash` (`21eac0cb…` → `ac115cc8…`) but **not** the
+accepted baseline (`--check` stayed `identical: true` with 612 files / 1671 edges).
+
+The asymmetry is real and is worth knowing before either number is used as evidence: the observatory's semantic
+hash covers the tracked-file inventory (so any new tracked file moves it), whereas the enforcement baseline
+covers the *scan set* and the resolved graph. A baseline that moved every time an unrelated file was added
+would be unusable as a ratchet; a semantic hash that did not move would not be a hash of the measurement.
+
