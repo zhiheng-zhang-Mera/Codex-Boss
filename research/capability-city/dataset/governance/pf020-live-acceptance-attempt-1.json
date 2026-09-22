@@ -1,0 +1,113 @@
+{
+  "schema": "pf020-live-acceptance-attempt/1",
+  "attempt": "first run WITH a provisioned machine identity",
+  "outcome": "FAILED_AT_PREFLIGHT_WITH_NON_CREDENTIAL_ERROR",
+  "finalStatus": "IDENTITY_SEPARATION_TEST_FAILED_OR_BLOCKED",
+
+  "worktree": "D:\\Boss-PF020-Live-Acceptance",
+  "PF020_TEST_SHA": "add57742d882349e57f60b8de8f59b68362849c4",
+  "pf020BranchModified": false,
+  "mainShaBefore": "7024203eee3444a0115664de5e3a3d6599d9a800",
+  "mainShaAfter": "7024203eee3444a0115664de5e3a3d6599d9a800",
+  "mainUnchanged": true,
+
+  "ownerCeremony": {
+    "pemSelection": "OK — performed by the Owner in a local Windows file picker; path never printed, logged, echoed or written to any artifact, and cleared from the process immediately after use",
+    "electronConfirmation": "Owner clicked 'Register securely'",
+    "result": "GITHUB_MACHINE_BOOTSTRAP=OK repositories=1 backend=platform-secure-store"
+  },
+
+  "machineIdentity": {
+    "present": true,
+    "configFile": "runtime-data/.boss/github-machine-identity.json",
+    "vaultFile": "runtime-data/.boss/secret-vault.json (presence recorded; contents never read)",
+    "schemaVersion": 1,
+    "enabled": true,
+    "logicalIdentity": "Codex-Boss",
+    "appId": "4903952",
+    "installationId": "160744736",
+    "privateKeyRef": "github/codex-boss",
+    "allowedRepositories": ["zhiheng-zhang-mera/codex-boss"],
+    "vaultEncrypted": true,
+    "vaultPlaintextPemMarkers": 0,
+    "credentialAcceptedByRuntime": true,
+    "credentialAcceptedEvidence": "Bounded and exact: the run's stdout did NOT contain `PROMOTION_IDENTITY_LIVE_ACCEPTANCE=BLOCKED_EXTERNAL`. That status is emitted by blockedExternal() from exactly two credential guards — line 128 `if (!runtime.configured)` and line 141 the selfCheck guard. Neither fired. Therefore `runtime.configured` was true and the installed identity loaded from the vault. This proves the credential was READ and the identity was CONFIGURED. It does NOT prove that authentication or installation reachability were verified, because the failure occurred afterwards at createCandidateWorkspace (line 187) and the earlier selfCheck result was never printed. Authentication health is itself part of what the aborted preflight would have reported."
+  },
+
+  "preflight": {
+    "command": "pnpm run acceptance:promotion-identity:live -- --preflight",
+    "exitCode": 1,
+    "expected": "PROMOTION_IDENTITY_LIVE_ACCEPTANCE=PREFLIGHT_PASS",
+    "actual": "PROMOTION_IDENTITY_LIVE_ACCEPTANCE=FAIL RuntimeIsolationError: candidate runtime tree overlaps Stable surfaces: <candidate root inside stable root>",
+    "resultClass": "NON_CREDENTIAL_FAILURE",
+    "isPREFLIGHT_PASS": false,
+    "credentialRelated": false
+  },
+
+  "rootCause": {
+    "classification": "INSTRUMENT_DEFECT_IN_DEV_MODE",
+    "preciseCause": "The acceptance derives its Candidate evolution root from the checkout it runs in, which places the Candidate INSIDE the Stable root; the isolation invariant correctly refuses that configuration.",
+    "evidenceChain": [
+      "live-promotion-acceptance.ts:58 — `const dataRoot = appDataUnder(process.cwd());`",
+      "live-promotion-acceptance.ts:186 — `const evolutionRoot = path.join(dataRoot, \"evolution\");`",
+      "live-promotion-acceptance.ts:187 — `createCandidateWorkspace({ stableRoot: process.cwd(), evolutionRoot, baseSha, runId, allowNonHeadBase: true })`",
+      "runtime-isolation.ts:82 — `const root = path.join(path.resolve(evolutionRoot), runId);`",
+      "runtime-isolation.ts:180 — `if (isInside(stableRoot, layout.root)) overlaps.push(\"<candidate root inside stable root>\");`",
+      "workspace-manager.ts:117 — `const separation = verifyRuntimeSeparation(layout, stableRoot);`"
+    ],
+    "resolvedPaths": {
+      "stableRoot": "D:\\Boss-PF020-Live-Acceptance",
+      "candidateRoot": "D:\\Boss-PF020-Live-Acceptance\\runtime-data\\evolution\\<runId>",
+      "relationship": "candidateRoot is inside stableRoot"
+    },
+    "whyItFails": "runtime-isolation.ts:180 exists to enforce §8.3 (the Candidate must be isolated from Stable). Running the acceptance in development mode makes Stable = the checkout itself and derives Candidate = <checkout>/runtime-data/evolution/<runId>, so the invariant is unconditionally violated. The check is correct; the acceptance's own environment cannot satisfy the invariant it verifies.",
+    "significance": "This is the same class of defect as OBS-GOV-001: the mechanism that exists to enforce an invariant cannot, in the configuration it is actually run in, satisfy it. Here it failed CLOSED (loud refusal), which is the safe direction — the opposite of OBS-GOV-001's silent success."
+  },
+
+  "workaroundConsideredAndRejected": {
+    "idea": "Place the evolution root outside the checkout, or run the acceptance from a non-repo directory.",
+    "whyRejected": [
+      "`stableRoot: process.cwd()` requires the working directory to be the repository, and `createCandidateWorkspace` refuses a root without .git (workspace-manager.ts:105-108).",
+      "Relocating the evolution root, or setting stableRoot separately from the data root, is a change to the PF020 acceptance source to make the test pass — explicitly forbidden by this round's instruction."
+    ],
+    "changeMadeToPF020": false,
+    "changeMadeToTrustOrCredentialLogic": false
+  },
+
+  "remoteMutationCheck": {
+    "acceptanceBranchesCreated": 0,
+    "evolutionBranchesCreated": 0,
+    "pullRequestsCreated": 0,
+    "pullRequestsApproved": 0,
+    "pullRequestsMerged": 0,
+    "mainShaUnchanged": true,
+    "conclusion": "The preflight failed before any push or PR. Nothing was mutated remotely. No acceptance PR exists, so there was nothing to approve, merge or close."
+  },
+
+  "acceptanceReportNote": {
+    "file": "runtime-data/.boss/promotion-identity-live-acceptance.json",
+    "observedState": "BLOCKED_EXTERNAL with the older detail 'the GitHub machine identity is not installed in this host's data root'",
+    "stale": true,
+    "why": "That file is from the earlier no-credential run. The failure path throws before writeReport is reached (`fail()` at live-promotion-acceptance.ts:100 exits the process and is only called after evidenceBase is constructed at line 236; the RuntimeIsolationError is thrown at line 187 by createCandidateWorkspace), so no new report was written. The stale file must not be cited as this run's result.",
+    "evidenceOfCurrentRun": "the command's own stdout: PROMOTION_IDENTITY_LIVE_ACCEPTANCE=FAIL RuntimeIsolationError: candidate runtime tree overlaps Stable surfaces"
+  },
+
+  "stageC": "NOT MEASURED — the instrument could not execute the protocol; this is an instrument defect, not a separation result",
+  "promotionIdentitySeparationProven": false,
+
+  "prohibitionsRespected": {
+    "phase0Started": false,
+    "mainModified": false,
+    "pf020Merged": false,
+    "rootTrustModified": false,
+    "acceptancePrApprovedOrMerged": false,
+    "appPermissionsChanged": false,
+    "rulesetChanged": false,
+    "codeownersChanged": false,
+    "ownerTokenUsedAsFallback": false,
+    "ghOwnerSessionUsedAsAppIdentity": false,
+    "pf020ModifiedToMakeTestPass": false,
+    "pemContentRead": false,
+    "pemPathLogged": false
+  }
+}

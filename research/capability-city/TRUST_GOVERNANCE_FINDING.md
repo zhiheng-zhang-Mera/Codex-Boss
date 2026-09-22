@@ -156,7 +156,90 @@ PF020's own qualification requirements are not satisfied. It must not be merged 
 tooling. The live-acceptance step is owed *after* the machine identity is provisioned, and PF020 remains
 gated on its own evidence.
 
-## 6. Status
+## 6. UPDATE — the credential ceremony was completed, and the acceptance then failed materially
+
+The Root Owner ceremony was performed this round. The Owner selected the PEM in a local Windows file picker
+and clicked `Register securely` in the Electron confirmation; this programme ran everything else. Result:
+
+```
+GITHUB_MACHINE_BOOTSTRAP=OK repositories=1 backend=platform-secure-store
+```
+
+The identity is now genuinely installed and correctly configured:
+
+| Field | Value |
+|---|---|
+| `github-machine-identity.json` | present |
+| `secret-vault.json` | present, encrypted, **0** plaintext-PEM markers |
+| `logicalIdentity` | `Codex-Boss` |
+| `appId` | `4903952` |
+| `installationId` | `160744736` |
+| `privateKeyRef` | `github/codex-boss` |
+| `allowedRepositories` | `zhiheng-zhang-mera/codex-boss` |
+| `runtime.configured` | **true** (bounded evidence: the run did not emit `BLOCKED_EXTERNAL`, which only the two credential guards emit) |
+
+**The general `acceptance:promotion-identity:live` preflight then failed — for a non-credential reason:**
+
+```
+PROMOTION_IDENTITY_LIVE_ACCEPTANCE=FAIL
+RuntimeIsolationError: candidate runtime tree overlaps Stable surfaces: <candidate root inside stable root>
+```
+
+### Cause
+
+```
+live-promotion-acceptance.ts:58   dataRoot      = appDataUnder(process.cwd())
+live-promotion-acceptance.ts:186  evolutionRoot = <dataRoot>/evolution
+live-promotion-acceptance.ts:187  createCandidateWorkspace({ stableRoot: process.cwd(), evolutionRoot, ... })
+runtime-isolation.ts:82           candidateRoot = <evolutionRoot>/<runId>
+runtime-isolation.ts:180          if (isInside(stableRoot, candidateRoot)) overlaps.push("<candidate root inside stable root>")
+workspace-manager.ts:117          verifyRuntimeSeparation(layout, stableRoot)
+```
+
+Resolved: `stableRoot = D:\Boss-PF020-Live-Acceptance`,
+`candidateRoot = D:\Boss-PF020-Live-Acceptance\runtime-data\evolution\<runId>` — strictly nested. In
+development mode the acceptance's Stable root *is* the checkout, so §8.3 can never be satisfied. The check is
+correct; the acceptance's environment cannot meet the invariant it verifies.
+
+### This is a second instance of the same defect class
+
+| | `OBS-GOV-001` | this (`D-006`) |
+|---|---|---|
+| Invariant | independent code-owner authorization | Candidate isolated from Stable |
+| Requirement enabled? | yes | yes (the check fired) |
+| Outcome | **silent success** — promotion completed, zero reviews | **loud refusal** — nothing mutated |
+
+Same class: a correctly specified, correctly enabled invariant that the actual configuration cannot satisfy.
+**Opposite failure direction**, and that difference is the finding — the dangerous case is the one that fails
+**open**. `OBS-GOV-001` is dangerous; this one is safe, and its safety is demonstrable: 0 branches, 0 PRs,
+0 approvals, 0 merges, `main` unchanged.
+
+### Stage status after this attempt
+
+| Stage | Status |
+|---|---|
+| A — PR #8, same principal, zero independent reviews, promotion completed | **OBSERVED** |
+| B — no machine credential, fail-closed `BLOCKED_EXTERNAL`, no Owner fallback | **OBSERVED** |
+| C — machine creates the protected candidate but cannot self-authorize | **NOT YET MEASURED** |
+
+**Stage C was not reached.** The protocol never got to the promotion path, so nothing was learned about
+whether the machine can self-authorize. It is not `INCONCLUSIVE` either: it is an execution failure
+**upstream of the measurement**.
+
+### Terminal state
+
+```
+IDENTITY_SEPARATION_TEST_FAILED_OR_BLOCKED
+```
+
+The remaining blocker is **no longer a credential**. It is the acceptance instrument's inability to establish
+Candidate/Stable separation in development mode. Repairing that is a code change to the acceptance
+instrument, which this round forbids; no change was made to PF020, `trust-policy/`, `credential-boundary/`,
+`promotion-gate/`, the ruleset, CODEOWNERS or App permissions.
+
+---
+
+## 7. Status
 
 | Field | Value |
 |---|---|
@@ -168,3 +251,7 @@ gated on its own evidence.
 | Root Trust epoch | 24 (`boss-root-trust-24`), `MATCHES` |
 | Rules weakened to make progress | **none** |
 | History rewritten / baseline recreated | **none** |
+| Machine identity | **PRESENT and configured** (ceremony completed this round) |
+| Blocking condition now | **the live-acceptance instrument cannot establish Candidate/Stable separation in development mode** (`D-006`) |
+| Stage C | `NOT YET MEASURED` |
+| Terminal state | `IDENTITY_SEPARATION_TEST_FAILED_OR_BLOCKED` |

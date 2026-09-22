@@ -234,6 +234,59 @@ documents that a `BLOCKED` UI status was confidently read as a platform-level re
 that an architecture-review process can arrive at a strong wrong conclusion about authority without any
 instrument catching it.
 
+## 16. An invariant can be unenforceable in the configuration it actually runs in
+
+**Threat.** This programme has now observed the *same* methodological defect twice, in two subsystems, with
+opposite failure directions. It is recorded as a standing threat because it generalises beyond both cases.
+
+| | `OBS-GOV-001` | `D-006` |
+|---|---|---|
+| Invariant | independent code-owner authorization before protected promotion | Candidate isolated from Stable (§8.3) |
+| Configuration it ran in | author, Root CODEOWNER and merging principal were one account | Candidate root derived from `process.cwd()` while `stableRoot` is also `process.cwd()` |
+| What happened | **silent success** — promotion completed with zero reviews | **loud refusal** — one-sentence `RuntimeIsolationError`, nothing mutated |
+| Was the requirement "enabled"? | yes (`require_code_owner_review: true`) | yes (the check exists and fired) |
+
+**The generalisable claim:** an invariant is only as strong as its **satisfiability in the configuration the
+system actually runs in**. A rule can be correctly specified, correctly implemented, correctly enabled and
+still fail to protect anything, because the deployment makes the protected condition either automatically
+false or automatically true.
+
+**Corollary — failure direction is the dominant risk factor.** Both cases had a genuinely enforced
+requirement. They differ in what happens when it cannot be satisfied:
+
+* **fails open** (`OBS-GOV-001`): the system proceeds, the record looks green, and the violation leaves no
+  error to observe. This is the dangerous case, and it is invisible to outcome-based monitoring.
+* **fails closed** (`D-006`): the system stops and names the violation. Inconvenient, safe, and
+  self-documenting.
+
+**Practical implication for this programme's own measurement.** Before trusting any gate result, ask whether
+the gate's precondition is *achievable* in the environment where it runs. `pnpm run architecture:ratchet`
+reporting `violations: []` is the fail-open shape in a third subsystem (`N-1`): the requirement was enabled,
+the tool ran, and it was structurally incapable of seeing 184 of 187 edges.
+
+**Not mitigated.** There is no general detection method proposed here. The defence used in this programme is
+adversarial precondition testing (`GOV-002`'s negative-authority design, and the falsification tests required
+in Phase 0): deliberately construct the condition the rule claims to forbid and check that the rule notices.
+
+## 17. The acceptance instrument's precondition is environment-dependent
+
+**Threat.** `D-006` shows the PF020 live-acceptance cannot execute in development mode at all: it derives its
+Candidate evolution root from the checkout it runs in, so `candidateRoot` is always nested inside
+`stableRoot = process.cwd()`, and the §8.3 isolation check refuses it unconditionally. Any conclusion drawn
+from *this instrument* is therefore conditional on the environment being restructured so that Candidate and
+Stable are genuinely separate roots.
+
+**Consequence.** The instrument's inability to run is **not** evidence about authority separation in either
+direction. It must not be reported as `INCONCLUSIVE` (which would suggest the experiment ran and produced no
+signal) nor as a failure of separation. It is an execution failure **upstream of the measurement**, and is
+recorded as such.
+
+**Mitigation.** The failure was captured with its full cause chain (`live-promotion-acceptance.ts:58,186,187`
+→ `runtime-isolation.ts:82,180` → `workspace-manager.ts:117`) so a future repair starts from a diagnosis
+rather than a symptom. The stale `promotion-identity-live-acceptance.json` from the earlier no-credential run
+is explicitly flagged as **not** this run's result, because the failure throws before `writeReport` and the
+file could otherwise be mistaken for current evidence.
+
 ---
 
 ## Standing validity rules for every claim in this program

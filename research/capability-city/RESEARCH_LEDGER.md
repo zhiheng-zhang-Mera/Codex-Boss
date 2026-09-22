@@ -396,6 +396,50 @@ the defect at a larger scale.
 
 ---
 
+## D-006 — The identity precondition was met; the acceptance then failed on its own isolation invariant
+
+| Field | Value |
+|---|---|
+| **Decision ID** | D-006 |
+| **Date / commit** | PF020 worktree `D:\Boss-PF020-Live-Acceptance` @ `add57742d882349e57f60b8de8f59b68362849c4` |
+| **Problem** | `D-005` left the programme blocked on a Root-Owner credential ceremony. That ceremony was completed this round. The question was whether Stage C (`GOV-002`) could then be executed. |
+| **Pre-change evidence** | `MACHINE_IDENTITY_PRESENT` was `NO`; preflight exited `2 BLOCKED_EXTERNAL`; `PF020` instrument semantics had been verified against its declaration (`dataset/governance/pf020-source-verification.json`). |
+| **Candidate designs** | (a) Run the ceremony and the acceptance as prescribed. (b) Leave the blocker standing. |
+| **Chosen design** | (a), executed by the Owner for the two GUI steps and by this programme for everything else, exactly as mandated. |
+| **Reason** | The credential was the only remaining external precondition identified in `D-005`; removing it is the only way to learn whether the *instrument* is also sound. That second question had never been tested with a real credential. |
+| **Expected effect** | Preflight `PREFLIGHT_PASS`, then the full negative-authority acceptance. |
+| **Potential confounders** | The preflight validates identity, permissions, credential path **and candidate construction**. Success at the first three does not imply success at the fourth; a failure there is an instrument/environment result, not an authority result. |
+| **Actual effect** | The credential precondition was **met** (`GITHUB_MACHINE_BOOTSTRAP=OK repositories=1 backend=platform-secure-store`; identity configured with appId `4903952`, installationId `160744736`, encrypted vault, zero plaintext-PEM markers; `runtime.configured` was `true`, proven by the absence of `BLOCKED_EXTERNAL` — see the bounded evidence note in `dataset/governance/pf020-live-acceptance-attempt-1.json`). Preflight then failed for **non-credential** reasons: `RuntimeIsolationError: candidate runtime tree overlaps Stable surfaces: <candidate root inside stable root>`, exit 1. |
+| **Unexpected result** | The blocker was not the credential at all, and the failure was **structural, not authority-related**. The acceptance derives its Candidate root from the checkout it runs in (`appDataUnder(process.cwd())` → `<checkout>/runtime-data/evolution/<runId>`) while `stableRoot = process.cwd()`, so the Candidate is unconditionally nested inside Stable, and `runtime-isolation.ts:180` correctly refuses. The instrument that exists to enforce Candidate/Stable isolation cannot satisfy its own precondition in development mode. |
+
+### Why this is a result and not just a stall
+
+This is the **same class** of defect as `OBS-GOV-001`, with the **opposite failure direction**:
+
+| | `OBS-GOV-001` | `D-006` |
+|---|---|---|
+| Invariant enforced | independent code-owner authorization | Candidate isolated from Stable (§8.3) |
+| Configuration | author = approver = merger (one principal) | Candidate root derived inside the Stable root |
+| Outcome | **silent success** — promotion completed with zero reviews | **loud refusal** — one-sentence error, nothing mutated |
+| Risk | high: the boundary appeared satisfied and was not | low: the boundary fired and stopped the run |
+
+Together they support the programme's central methodological claim from two sides: an invariant is only as
+strong as its satisfiability in the configuration it actually runs in, and the *dangerous* failure is the one
+that fails **open**. Recorded as `threats-to-validity.md` §16.
+
+### Disposition
+
+* No change was made to PF020, to `trust-policy/`, `credential-boundary/`, `promotion-gate/`, the ruleset,
+  CODEOWNERS or App permissions. Repairing this is a code change to the acceptance instrument, which this
+  round explicitly forbids.
+* Nothing was mutated remotely: 0 branches, 0 PRs, 0 approvals, 0 merges; `main` unchanged at `7024203`.
+* **Stage C remains `NOT YET MEASURED`.** The protocol never reached the promotion path, so nothing was
+  learned about whether the machine principal can self-authorize. It is **not** an `INCONCLUSIVE`
+  separation result either — it is an execution failure upstream of the measurement.
+* Terminal state for this round: `IDENTITY_SEPARATION_TEST_FAILED_OR_BLOCKED`.
+
+---
+
 ## Research questions — frozen
 
 See `RQ.md`. The set is frozen before construction so that results cannot be reverse-fitted to questions

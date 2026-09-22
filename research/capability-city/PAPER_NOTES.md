@@ -147,18 +147,62 @@ Full record: `experiments/governance/GOV-001-pr8-observed-failure.md`.
 The promotion path fails closed rather than silently reverting to Owner credentials. Observation to be
 completed by the no-credential preflight (`NO_MACHINE_CREDENTIAL_FALLBACK_OBSERVED`) — see "Negative results".
 
-**Stage C — machine principal can act but cannot self-authorize (NOT YET MEASURED)**
+**Stage C — machine principal can act but cannot self-authorize (ATTEMPTED, NOT MEASURED)**
 
 ```
 PROTOCOL   GOVERNANCE_NEGATIVE_AUTHORITY_TEST
-STATUS     FROZEN, not executed
+STATUS     FROZEN, EXECUTED ONCE, BLOCKED BY AN INSTRUMENT DEFECT
 ```
 
-The experiment asks *"can the bot write enough to perform work, while still being unable to authorize its own
-protected promotion?"* — not *"can the bot write?"*. Protocol:
-`experiments/governance/GOV-002-machine-principal-negative-control-protocol.md`.
+The credential precondition was **satisfied** this round. The Owner completed the local Root-Owner ceremony
+(PEM selected in a Windows file picker; `Register securely` clicked in the Electron confirmation), producing:
 
-**Stage C must not be written as PASS in advance.**
+```
+GITHUB_MACHINE_BOOTSTRAP=OK repositories=1 backend=platform-secure-store
+```
+
+The identity was then confirmed installed and correctly configured (appId `4903952`, installationId
+`160744736`, allowlist `zhiheng-zhang-mera/codex-boss`, vault encrypted, zero plaintext-PEM markers).
+
+The preflight nevertheless failed, and **for a non-credential reason**:
+
+```
+PROMOTION_IDENTITY_LIVE_ACCEPTANCE=FAIL
+RuntimeIsolationError: candidate runtime tree overlaps Stable surfaces: <candidate root inside stable root>
+```
+
+**Cause (traced, not guessed).** The acceptance derives its Candidate evolution root from the checkout it runs
+in, which puts the Candidate *inside* the Stable root:
+
+```
+live-promotion-acceptance.ts:58   dataRoot      = appDataUnder(process.cwd())
+live-promotion-acceptance.ts:186  evolutionRoot = <dataRoot>/evolution
+live-promotion-acceptance.ts:187  createCandidateWorkspace({ stableRoot: process.cwd(), evolutionRoot, ... })
+runtime-isolation.ts:82           candidateRoot = <evolutionRoot>/<runId>
+runtime-isolation.ts:180          if (isInside(stableRoot, candidateRoot)) overlaps.push("<candidate root inside stable root>")
+workspace-manager.ts:117          verifyRuntimeSeparation(layout, stableRoot)
+```
+
+Resolved: `stableRoot = D:\Boss-PF020-Live-Acceptance`,
+`candidateRoot = D:\Boss-PF020-Live-Acceptance\runtime-data\evolution\<runId>` — strictly nested.
+
+**This is a genuine instrument finding, and it is the same class of defect as `OBS-GOV-001`:** a mechanism
+that exists to enforce an invariant cannot, *in the configuration it is actually run in*, satisfy that
+invariant. In development mode `stableRoot` is the checkout itself, so the Candidate can never be outside it.
+
+**But the failure direction is the opposite, and that difference matters.** `OBS-GOV-001` was *silent
+success* — the boundary appeared satisfied and was not. This was a *loud refusal*: the check fired, named the
+violation in one sentence, and mutated nothing. For the research argument, these are the two halves of the
+same claim: an unenforceable invariant is dangerous when it fails open and merely inconvenient when it fails
+closed. `OBS-GOV-001` is the dangerous case; this is the safe one.
+
+**Stage C therefore remains `NOT YET MEASURED`.** It is not a separation result at all: the protocol never
+reached the promotion path, so nothing was learned about whether the machine can self-authorize.
+
+Nothing was mutated remotely (0 branches, 0 PRs, 0 approvals, 0 merges; `main` unchanged). No code, ruleset,
+CODEOWNERS or App permission was changed to make the test pass.
+
+Raw evidence: `dataset/governance/pf020-live-acceptance-attempt-1.json`.
 
 ### Candidate narrative (explicitly premature)
 
@@ -194,6 +238,8 @@ Recorded in full, including this programme's own errors.
 | N-5 | **`acceptance:promotion-identity:live` does not exist on `main`** — it ships only with the unmerged PF020 branch, so the live acceptance tooling is not available on the baseline. | `MEASURED` |
 | N-6 | **The general GitHub machine acceptance on `main` cannot prove the Root-CODEOWNER ceiling.** It proves authentication, branch creation, commit, push, PR creation and CI inspection; it does **not** prove `WAITING_FOR_ROOT_OWNER`, self-authorization refusal, or the ceiling. | `MEASURED` (see §J findings) |
 | N-7 | **Provisioning a second principal is a real, non-trivial cost** (local Root-Owner ceremony, App private key, installation id, platform secure storage). Evidence that policy-only separation hides its own operational cost. | `OBSERVED` |
+| N-8 | **The live-acceptance instrument cannot run in development mode.** It derives its Candidate root from the checkout it runs in (`appDataUnder(process.cwd())` → `<checkout>/runtime-data/evolution/<runId>`), which places the Candidate inside `stableRoot = process.cwd()`, and the isolation invariant correctly refuses that (`runtime-isolation.ts:180`). The mechanism that enforces Candidate/Stable isolation cannot satisfy its own precondition in the configuration it is run in. **Failed closed** — loud refusal, zero remote mutation — which is the safe direction. Same *class* as `OBS-GOV-001`, opposite failure direction. Stage C therefore stays unmeasured. | `MEASURED` |
+| N-9 | **The machine identity itself is real and has worked.** PR #3 was authored by `app/codex-boss`, and this round's ceremony produced a functioning configured identity (`appId 4903952`, `installationId 160744736`, encrypted vault, `configured: true`). The blocker is no longer the credential — it is the instrument. | `OBSERVED` |
 
 ---
 
