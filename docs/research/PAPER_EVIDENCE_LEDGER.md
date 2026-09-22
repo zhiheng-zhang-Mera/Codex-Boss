@@ -776,6 +776,95 @@ They are retained because the epistemic history is the research asset, not the f
 **Two defects reached a draft of this ledger itself and are corrected in section B:** `COR-2` (treating the
 historical counts as comparable to Phase 0's) and, before it, `COR-1`.
 
+---
+
+# §F — Phase 1A evidence (this phase)
+
+## Hand-off note — where the ceremony record lives
+
+The Root Owner ceremony record (`P0-17`) was committed to the **Phase 0 branch** at
+`328537e13f060349e587a6fdf674e03e39a2de61`, because `main` is protected and this programme does not bypass
+protection, and because the immutable tag had to point at the merge commit `66440c1d…` rather than at a later
+commit. The Phase 1A branch is cut from that tag, so its ledger does not contain `P0-17` by inheritance. This
+section carries the ceremony forward so the promoted baseline's ledger is complete, and states plainly that the
+Phase 0 branch holds the authoritative copy. The Phase 0 branch receives no further ledger commits; this is the
+hand-off.
+
+## P0-17 (carried forward from `328537e`) — GOVERNANCE: the Root Owner ceremony completed
+
+`GOVERNANCE` + `REMOTE_GITHUB`. Each step independently re-measured from the remote on resumption:
+
+| Step | Measured |
+|---|---|
+| Machine identity created the promotion request | PR **#11**, author `codex-boss[bot]`, head `9274dad…`, base `53aa74a…`, `reviews: 0` at creation |
+| Machine stopped at the authorization boundary | no approval, no merge, no bypass, no admin override, no protection or `CODEOWNERS` change |
+| Root Owner independently approved | `APPROVED` by **`zhiheng-zhang-Mera`** at `2026-09-22T07:24:38Z` against commit `9274dad…` |
+| Root Owner merged | `merged = true`, `merged_at 2026-09-22T07:24:56Z`, `merged_by zhiheng-zhang-Mera`; `GET /pulls/11/merge` → `HTTP/2.0 204 No Content` |
+| Candidate head ancestry verified | `git merge-base --is-ancestor 9274dad… 66440c1d…` → exit 0 |
+| `main` moved to a genuine merge commit | `66440c1d…`, parents `53aa74a…` + `9274dad…`, committer `GitHub <noreply@github.com>` |
+| The merge introduced no unmeasured content | merge tree `799619c5…` == the certified head tree, as predicted in advance |
+| Post-merge CI | run **`35699482212`**, event `push`, `head_sha = 66440c1d…`, completed/success; `quality`, `unit`, `acceptance`, `package` all success on that SHA |
+| Root Trust on promoted `main` | epoch **24** `MATCHES`, 63 files, aggregate `6eaf71e9…d457` |
+
+**`prepare != authorize`** — the machine could request promotion and could not authorize it; a distinct human
+principal did. This is the measured counterpart to `OBS-GOV-001`, where author, CODEOWNER and merger were one
+principal and the promotion completed with zero reviews; the difference is **principal separation**, not the
+check set, since both had four green required contexts on the exact candidate SHA.
+**`technical acceptance != production promotion`** — Phase 0 passed twenty-five acceptance criteria at
+`6bf354d` and was still not promoted. A green board is not an authorization.
+
+## C2-TAG-FREEZE — Phase 0 is closed and immutably tagged
+
+`GOVERNANCE` · commit/tag target `66440c1d360362a0bba38332d385feed41b64acb`. The annotated tag
+**`city-phase0-observatory-v1`** was created at the promoted `main` commit and resolved again **from the
+remote**: tag object `24bc1b9145cff314b389a373bf355390f55cd5cf` → commit `66440c1d…`. It was absent before
+creation, so this is a creation rather than an idempotent pass, and no existing tag was moved. Three tags now
+coexist and none moved: `pre-city-baseline-v1` → `7024203…` (never moved), `city-start-baseline-v1` →
+`53aa74a…` (never moved), `city-phase0-observatory-v1` → `66440c1d…`.
+
+```text
+PHASE0_TECHNICAL_ACCEPTANCE = PASS
+PHASE0_ROOT_OWNER_PROMOTION = VERIFIED
+PHASE0_POST_MERGE_CI        = PASS
+PHASE0_IMMUTABLE_TAG        = FROZEN
+PHASE0                      = CLOSED
+```
+
+**Immutable from here.** The Phase 0 spec, the Phase 0 acceptance record, the historical Phase 0 measurements,
+the old failure records, `COR-1`/`COR-2` and the negative-result records are not modified again. Later
+interpretation problems may only be appended as corrections.
+
+## C3-SPEC — the Phase 1A specification, committed alone
+
+`DOCUMENTATION`. `PHASE1A_SPEC_COMMIT = 335bf5b3a094557627eaf5d5657ae6c931f6b351` —
+`docs/city/PHASE1A_MEASUREMENT_TO_ENFORCEMENT_SPEC.md`, 371 lines, **one file and no implementation code**,
+which is what the mission requires of the first Phase 1A commit. The branch is cut from the frozen tag, so the
+branch point resolves to `66440c1d…` and not to the old Phase 0 branch tip or the research branch.
+
+The specification fixes the parts the mission left to the implementation and that the acceptance criteria will
+be checked against: the baseline schema and its series/parent-hash promotion rule; the four unresolved-reference
+classes and their policies; the identity-level grandfathering rule and the reintroduction-is-new rule; the
+authorization test for cross-capability edges (capability `A` may import `B` only where `A` declares a
+`requires`/`optional` reference that `B` provides); `NOT_YET_ENFORCED` for defect classes Phase 1A does not
+model; and the rule that a sensor failure must never produce `PASS`.
+
+---
+
+# §G — Phase 1A checkpoints
+
+| Checkpoint | State |
+|---|---|
+| `C2` Phase 0 genuine promotion + immutable tag | **COMPLETE** (records above) |
+| `C3` Phase 1A spec | **COMPLETE** (record above) |
+| `C4` sensor qualification | pending |
+| `C5` qualification failures / corrections | pending |
+| `C6` grandfathered baseline | pending |
+| `C7` enforcement policy | pending |
+| `C8` shadow enforcement | pending |
+| `C9` controlled regressions | pending |
+| `C10` full regressions | pending |
+| `C11` hosted branch CI | pending |
+| `C12` Phase 1A promotion request | pending |
 
 ---
 
@@ -783,9 +872,12 @@ historical counts as comparable to Phase 0's) and, before it, `COR-1`.
 
 ```powershell
 git fetch --all --tags
-git rev-parse city-start-baseline-v1^{commit}      # 53aa74a7f9628765a92210d16aabcc77ae98bae4
-git rev-parse pre-city-baseline-v1^{commit}        # 7024203eee3444a0115664de5e3a3d6599d9a800
-node scripts/acceptance-evolution-bless.cjs --check # needs dist-electron built from this tree
-pnpm run architecture:ratchet                       # the control sensor, unchanged
-pnpm run architecture:observe                       # the experimental sensor
+git rev-parse city-start-baseline-v1^{commit}        # 53aa74a7f9628765a92210d16aabcc77ae98bae4
+git rev-parse pre-city-baseline-v1^{commit}          # 7024203eee3444a0115664de5e3a3d6599d9a800
+git rev-parse city-phase0-observatory-v1^{commit}    # 66440c1d360362a0bba38332d385feed41b64acb
+node scripts/acceptance-evolution-bless.cjs --check  # needs dist-electron built from this tree
+pnpm run architecture:ratchet                        # the control sensor, unchanged
+pnpm run architecture:observe                        # the truth sensor
+pnpm run architecture:enforce:shadow                 # prospective policy, report-only
+pnpm run architecture:enforce                        # prospective policy, failing
 ```
