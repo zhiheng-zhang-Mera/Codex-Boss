@@ -1,7 +1,7 @@
 {
   "schema": "capability-city-artifact-manifest/1",
-  "revision": 4,
-  "revisionNote": "Revision 4 adds GOV-005 (instrument v1-vs-v2 disclosure) and GOV-006 (production runtime-isolation repair), the Stage C attempt-2 preflight and PASS reports, and re-hashes the three documents updated by D-008/D-009. A changed digest means the artifact gained a documented update recorded in RESEARCH_LEDGER.md; earlier revisions are superseded, not silently overwritten.",
+  "revision": 5,
+  "revisionNote": "Revision 5 adds the six durable research-artifact ledgers under evidence/ (bug findings, experiment timeline, claim-evidence matrix, commit provenance, paper evidence index, research ref manifest) plus the archival ref record. These live under the tracked research/ tree rather than artifacts/research/ because artifacts/ is a declared RUNTIME_OWNED_PATH that must not own tracked files.",
   "purpose": "Content binding for every research artifact of the Capability City programme.",
   "algorithm": "sha256",
   "subject": {
@@ -36,6 +36,12 @@
     { "path": "research/capability-city/dataset/governance/pf020-source-verification.json", "sha256": "ee0df97f5ebfa6c089c36363a179486f46d650069ec21c4a2e27751d71c7f4cb", "bytes": 6859, "role": "PF020 instrument semantic verification + main-instrument limitations" },
     { "path": "research/capability-city/dataset/governance/preflight-blocked-external-report.json", "sha256": "734ef639550d3bc1b9498b8e11720242321728a74c347d2a213980141d385564", "bytes": 899, "role": "no-credential preflight result: BLOCKED_EXTERNAL, no fallback (Stage B)" },
     { "path": "research/capability-city/dataset/governance/pf020-live-acceptance-attempt-1.json", "sha256": "c567a520ff63805c2c570ac794420b3af60b52a6ca07f8410e60ec1724c671c2", "bytes": 7207, "role": "Stage C attempt with a real credential: preflight failed on RuntimeIsolationError, non-credential cause, zero remote mutation" },
+    { "path": "research/capability-city/evidence/BUG_FINDING_LEDGER.md", "sha256": "ea7b872fa5519bb22fa68bf1af06bd8b60c7451d36fc480b4f5b00b50358382d", "bytes": 22971, "role": "FINDING-001..006 in the full mission schema, with WHY_POLICY_WAS_NOT_WEAKENED and PAPER_USE per finding" },
+    { "path": "research/capability-city/evidence/EXPERIMENT_TIMELINE.md", "sha256": "40dcfe109083f910ff9b7bd906082aa5da777992c61f006be4373753d6e0344c", "bytes": 31788, "role": "32-row chronological timeline with causal chain; Stage C attempt 1 labelled PRECONDITION FAILURE" },
+    { "path": "research/capability-city/evidence/CLAIM_EVIDENCE_MATRIX.md", "sha256": "246e34bd20374dc0de04be0a226de0b1f998152e03cafefb229e5c615e740975", "bytes": 15385, "role": "CLAIM-001..007 with status, supporting/contradicting/limiting evidence, ALLOWED_WORDING and PROHIBITED_OVERCLAIM" },
+    { "path": "research/capability-city/evidence/COMMIT_PROVENANCE_LEDGER.md", "sha256": "5d09c786e1c3796244292737acdd9fa79e26ed719d810467c3071bed7dcf855b", "bytes": 60584, "role": "26 research-significant commits x 11 fields, ref inventory, reachability audit, documented discrepancies" },
+    { "path": "research/capability-city/evidence/PAPER_EVIDENCE_INDEX.md", "sha256": "3c7c134fc71a0be3386f6cd3acb1f20e3ce9282a26cdd556ae230f03c009d392", "bytes": 13309, "role": "index of the 19 mission-listed high-value evidence items E-01..E-19" },
+    { "path": "research/capability-city/evidence/RESEARCH_REF_MANIFEST.md", "sha256": "6fb81c970ac5e2ef9f24bec1079fdd1752c9d62da9330c3acb3699b882203159", "bytes": 8670, "role": "durable refs, archival tags, reachability audit, and the three documented provenance discrepancies" },
     { "path": "research/capability-city/dataset/pr8-promotion-identity-collision.json", "sha256": "56ffae965a55277a48268392b239deaef52ae3c0f52e2b94125430a18df04ed0", "bytes": 1277, "role": "earlier PR #8 evidence capture (superseded by dataset/github/pr8.json, retained)" }
   ],
 
