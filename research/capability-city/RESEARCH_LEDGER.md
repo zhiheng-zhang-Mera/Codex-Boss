@@ -440,6 +440,136 @@ that fails **open**. Recorded as `threats-to-validity.md` §16.
 
 ---
 
+## D-007 — PF020_LIVE_ACCEPTANCE_INSTRUMENT_REPAIR — scope determination found a production defect
+
+| Field | Value |
+|---|---|
+| **Decision ID** | D-007 |
+| **Title** | `PF020_LIVE_ACCEPTANCE_INSTRUMENT_REPAIR` |
+| **Date / commit** | PF020 worktree @ `add57742d882349e57f60b8de8f59b68362849c4` |
+| **Problem** | `D-006` recorded that Stage C failed *before promotion measurement* with `RuntimeIsolationError: candidate root inside stable root`. The round's authorised scope is the **instrument** repair. Before touching code, the defect's scope had to be determined: is the impossible layout instrument-only, or does production draw it too? |
+| **Pre-change evidence** | See below — caller census, geometry trace, and a read-only predicate probe. |
+
+### Observed defect (instrument)
+
+```
+live-promotion-acceptance.ts:58    dataRoot      = appDataUnder(process.cwd())
+live-promotion-acceptance.ts:186   evolutionRoot = <dataRoot>/evolution
+live-promotion-acceptance.ts:187   createCandidateWorkspace({ stableRoot: process.cwd(), evolutionRoot, ... })
+```
+
+while `stableRoot = process.cwd()`. Therefore `evolutionRoot` is **inside** `stableRoot` in dev/test
+deployment, and `verifyRuntimeSeparation` correctly rejects it:
+
+```
+RuntimeIsolationError: candidate runtime tree overlaps Stable surfaces: <candidate root inside stable root>
+```
+
+This means, recorded exactly and without softening:
+
+* the **isolation invariant itself behaved correctly**;
+* the live-acceptance instrument instantiated an **impossible layout**;
+* **Stage C was never measured**;
+* **no inference about self-authorization is permitted from that run.**
+
+### Second instrument-integrity defect (recorded before repair)
+
+```
+STALE_SINGLETON_REPORT_HAZARD
+```
+
+When an exception occurs before `writeReport`/`fail()`, `promotion-identity-live-acceptance.json` **may remain
+from a previous run**. A stale report can therefore be mistaken for the current attempt — which is exactly
+what happened in `D-006`, where the file still read `BLOCKED_EXTERNAL` while the current attempt had failed
+with a `RuntimeIsolationError`. The report is a fixed singleton path
+(`live-promotion-acceptance.ts:59`) written only on the success/preflight-success path.
+
+**Neither defect is to be hidden after repair.** Both are recorded here and in
+`experiments/governance/GOV-004-runtime-isolation-instrument-defect-scope.md`.
+
+### Scope determination (proposal §1) — measured
+
+Caller census: `verifyRuntimeSeparation` has **exactly one** production call site
+(`workspace-manager.ts:117`, inside `createCandidateWorkspace`). Both the instrument and production reach it
+through that same function, so the question reduces to which paths each caller passes.
+
+**Production draws the same shape.** The coordinator uses an injected root;
+`bootstrap/engineering.ts:45-46,61` documents that the option is *omitted in production so the host's own
+defaults apply*; and the host defaults `evolutionRoot` to `<userData>/evolution`
+(`self-evolution-host.ts:154`) while `userData` is `<installRoot>/runtime-data` in development
+(`runtime-paths.ts:100`, `main.ts:162`). So in dev: `stableRoot = <checkout>`,
+`evolutionRoot = <checkout>/runtime-data/evolution`.
+
+Read-only probe against the **compiled shipped predicate** (no file patched, no mock introduced):
+
+| Geometry | `separated` | Verdict |
+|---|---|---|
+| PRODUCTION dev (`evolution` under `userData` inside the checkout) | `false` | **REJECT** |
+| INSTRUMENT acceptance (identical shape) | `false` | **REJECT** |
+| PRODUCTION packaged (`userData` outside the checkout) | `true` | ACCEPT |
+| Proposed instrument v2 (external sibling) | `true` | ACCEPT |
+| CONTROL — historical failure, explicitly nested | `false` | REJECT |
+
+**Corroboration already in the source:** `self-evolution-host.ts:155-157` records that this exact geometry
+previously broke production — *"Keeping governance under evolutionRoot made the production composition root
+fail closed at startup and caused every packaged smoke run to hang before renderer boot."* A related instance
+was already found and fixed in production; the `evolutionRoot`-under-Stable case remained.
+
+### Chosen design
+
+**NONE YET — deliberately.** Classification is `PRODUCTION_AND_INSTRUMENT`, and the round brief requires:
+
+> If production self-evolution uses the same invalid geometry, STOP after documenting it. Do NOT casually
+> patch production and continue the experiment. Return `PRODUCTION_RUNTIME_ISOLATION_DEFECT_DISCOVERED` for
+> Owner review. Only continue automatically if classification is `INSTRUMENT_ONLY`.
+
+### Reason
+
+Patching `evolutionRoot` to land outside Stable is **not** an instrument-local change: the root comes from the
+production host's default, so the repair necessarily reaches `self-evolution-host.ts:154` and/or the
+composition root. That is outside this round's authorised scope ("PF020 LIVE ACCEPTANCE INSTRUMENT REPAIR",
+and explicitly *not* production repair), and it changes a component that is part of the subject under test.
+
+Two candidate repairs exist and are **not** equivalent — recorded for the Owner, neither executed:
+
+* **A — instrument-local:** give only `live-promotion-acceptance.ts` an external evolution root. Runs Stage C,
+  but models a geometry production does not use in dev, which weakens external validity.
+* **B — production fix:** make the production default external too. Correct-looking, but a production root-
+  policy change requiring its own authorisation, tests and disclosure.
+
+### Expected effect
+
+`PENDING` — no repair applied.
+
+### Potential confounders
+
+* The packaged path is ACCEPT only because `userData` happens to sit outside the checkout; the correctness is
+  **path-dependent**, not structurally guaranteed. A packaged install whose data root were placed inside the
+  app path would hit the same refusal.
+* Option A would make the acceptance green while the production path it is meant to represent still fails
+  closed in dev. That is the inverse of the `§8` hazard (changing the thing being measured), and is why A is
+  not obviously the right answer.
+
+### Actual effect
+
+```
+RETURNED    PRODUCTION_RUNTIME_ISOLATION_DEFECT_DISCOVERED
+```
+
+No code changed. `verifyRuntimeSeparation` was **not** weakened, excepted or special-cased — per the round's
+most important rule, the invariant is not repaired because the acceptance cannot satisfy it; the acceptance
+is to be repaired so that it does satisfy it. `main`, the PF020 branch, `trust-policy/`,
+`credential-boundary/`, `promotion-gate/`, the ruleset, CODEOWNERS and App permissions are all unchanged.
+
+### Unexpected result
+
+That a round scoped to *instrument* repair immediately uncovered a **production** defect of the same shape —
+and that the production source already carries a comment documenting a prior instance of the same class. The
+defect was not introduced by the instrument; the instrument merely instantiated the production geometry in a
+configuration where it fails.
+
+---
+
 ## Research questions — frozen
 
 See `RQ.md`. The set is frozen before construction so that results cannot be reverse-fitted to questions

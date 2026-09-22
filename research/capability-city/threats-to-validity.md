@@ -287,6 +287,44 @@ rather than a symptom. The stale `promotion-identity-live-acceptance.json` from 
 is explicitly flagged as **not** this run's result, because the failure throws before `writeReport` and the
 file could otherwise be mistaken for current evidence.
 
+## 18. The instrument defect is also a production defect, which changes what Stage C could have shown
+
+**Threat.** `D-007` / `GOV-004` established that the nested-root geometry is
+`PRODUCTION_AND_INSTRUMENT`, not instrument-only: production self-evolution instantiates the *same* invalid
+layout in development (`self-evolution-host.ts:154` defaulting `evolutionRoot` to `<userData>/evolution`, with
+`userData = <checkout>/runtime-data`). This has a direct consequence for the experiment's validity that must be
+stated before Stage C is ever run.
+
+**If the instrument alone had been repaired** (option A in `GOV-004` — give only the acceptance an external
+evolution root), Stage C would have exercised a Candidate/Stable geometry that **the product does not use in
+development**. The measurement would then describe the instrument's configuration rather than the product's,
+which is the inverse of the §8 hazard: not changing the subject to pass a test, but changing the *harness* so
+the test no longer touches the subject's real configuration.
+
+**Therefore the repair choice is a validity choice, not an implementation detail.** Only a production-side
+change (option B) would let a Stage C result speak about the product. That change is outside this round's
+authorised scope and needs its own authorisation and disclosure.
+
+**Mitigation.** The choice is recorded as a required Owner decision in `GOV-004` §7 and left unmade. No repair
+was applied, so no unrepresentative configuration has been measured yet.
+
+**Residual.** Whichever option is chosen, the publication must state which geometry Stage C measured, because
+a reader cannot infer it from the result.
+
+## 19. A path-dependent `ACCEPT` is weaker evidence than it looks
+
+**Threat.** The probe shows the production geometry is accepted **only when `userData` happens to sit outside
+the checkout** (the packaged default, `%LOCALAPPDATA%\Codex-Boss`). The separation is therefore
+**path-dependent, not structurally guaranteed**: a packaged install whose data root were placed inside the app
+path, or a differently-configured development checkout, would hit the same refusal.
+
+**Consequence.** Any claim of the form "production Candidate isolation holds" is conditional on the data-root
+location and must be stated with it. A single green run in the packaged layout does not establish the
+invariant across deployments.
+
+**Mitigation.** Both geometries are recorded side by side in `GOV-004` §4 with their measured verdicts, so the
+path-dependence is visible rather than averaged away.
+
 ---
 
 ## Standing validity rules for every claim in this program

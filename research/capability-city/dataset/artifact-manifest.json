@@ -1,7 +1,7 @@
 {
   "schema": "capability-city-artifact-manifest/1",
-  "revision": 2,
-  "revisionNote": "Revision 2 adds dataset/governance/pf020-live-acceptance-attempt-1.json (the executed-but-blocked Stage C attempt) and re-hashes the four documents updated by that attempt. Revision 1's digests remain valid for the artifacts it covered and are not overwritten in meaning: a changed digest here means the artifact gained a documented update, recorded in RESEARCH_LEDGER.md.",
+  "revision": 3,
+  "revisionNote": "Revision 3 adds GOV-004 (runtime-isolation nested-root scope determination) and re-hashes the three documents updated by D-007. A changed digest means the artifact gained a documented update, recorded in RESEARCH_LEDGER.md D-007; earlier revisions' digests are superseded, not silently overwritten.",
   "purpose": "Content binding for every research artifact of the Capability City programme.",
   "algorithm": "sha256",
   "subject": {
@@ -16,14 +16,15 @@
 
   "artifacts": [
     { "path": "research/capability-city/RQ.md", "sha256": "0aa6b7e3bfdebb9fee4ded1bdf53beeba2209edc23f7a5425a4f4548d471316d", "bytes": 7012, "role": "frozen research questions RQ1-RQ5" },
-    { "path": "research/capability-city/RESEARCH_LEDGER.md", "sha256": "f9a24456126bfcc5aaee06d8b21eef06aa5ea10e2b878a27137de5819a89d569", "bytes": 32131, "role": "decision ledger D-001..D-006" },
-    { "path": "research/capability-city/PAPER_NOTES.md", "sha256": "ba7da55c0f9a719186fbe82e8ca0e856995bc694fef97658cd38f35a484815a5", "bytes": 16055, "role": "paper notes: governance case study Stages A/B/C, negative results N-1..N-9" },
-    { "path": "research/capability-city/threats-to-validity.md", "sha256": "b4ae0632a09398cc6cd8cb8b065e130e4ea7d3100237a9bb2daa957f8bd3607c", "bytes": 19331, "role": "threats to validity sections 1-17" },
+    { "path": "research/capability-city/RESEARCH_LEDGER.md", "sha256": "64fa769533cddc0ac17eb2662e0f22ea0fd74230b1d19ed1e39b801c8fe0f34a", "bytes": 39115, "role": "decision ledger D-001..D-007" },
+    { "path": "research/capability-city/PAPER_NOTES.md", "sha256": "1a45eb3b080b3c3dc877021b83e3255d8bc433f53021b6f62c8bd3c513493603", "bytes": 17480, "role": "paper notes: governance case study Stages A/B/C, negative results N-1..N-12" },
+    { "path": "research/capability-city/threats-to-validity.md", "sha256": "dc301a7beb213b98279a3d18b8af9dd9483928bca79609ad9f3108eade4cb44a", "bytes": 21876, "role": "threats to validity sections 1-19, incl. the production-scope and path-dependence threats" },
     { "path": "research/capability-city/TRUST_GOVERNANCE_FINDING.md", "sha256": "7fdd58ff308d13887c719cc7df9b87a7d4dcc165406add19c5d390548acaf4da", "bytes": 12367, "role": "governance finding, ceremony update, D-006 second-instance analysis" },
     { "path": "research/capability-city/OWNER_MACHINE_IDENTITY_CEREMONY.md", "sha256": "c39e978771da331e0ab3fe04e776822680b974a4d21861ad1ad8d771b065772f", "bytes": 8125, "role": "Owner ceremony runbook (no secrets; placeholder path only)" },
     { "path": "research/capability-city/experiments/governance/GOV-001-pr8-observed-failure.md", "sha256": "14851960c535e9f0e3bb5cfd18168ea6fddc158e61882ef84a9bf1f0e960ac5e", "bytes": 9463, "role": "OBS-GOV-001 observed failure case study" },
     { "path": "research/capability-city/experiments/governance/GOV-002-machine-principal-negative-control-protocol.md", "sha256": "9241e18d121bedf694c268dfbc955d02d63a6fded040c254ba29a2a6983cf810", "bytes": 8440, "role": "GOVERNANCE_NEGATIVE_AUTHORITY_TEST frozen protocol" },
     { "path": "research/capability-city/experiments/governance/GOV-003-content-vs-authorization-separation.md", "sha256": "03a6b72bd5b47ac108532b4dcd73f99a5e01c4b0ed29f66c95bf8e24d04ae105", "bytes": 7244, "role": "C1 content validity vs C2 authorization-process validity" },
+    { "path": "research/capability-city/experiments/governance/GOV-004-runtime-isolation-instrument-defect-scope.md", "sha256": "4bfd8c753bc2c96d96eef01d24f043db288328db99d3b7a5ab289249b7c22f2d", "bytes": 10501, "role": "scope determination: PRODUCTION_AND_INSTRUMENT, with caller census, geometry trace, predicate probe, and the required Owner decision" },
     { "path": "research/capability-city/dataset/baseline-metadata.json", "sha256": "0b59018db93bd7fa63d9ef7c229966173e94874dc2c3e661cfb5c030e0213d6c", "bytes": 5656, "role": "frozen BEFORE-state metadata" },
     { "path": "research/capability-city/dataset/metrics.json", "sha256": "ee41f5f7246b717ca677eea15b81a3e329782813e311e6911a0179554fd4d798", "bytes": 9257, "role": "metric definitions M-01..M-25 and negative-result schema" },
     { "path": "research/capability-city/dataset/github/pr8.json", "sha256": "e7ce0deb44091cc5f3dae611a37c01f1bb51a3b8c28f7ba10368dad4781ade90", "bytes": 582, "role": "raw PR #8 API snapshot" },
