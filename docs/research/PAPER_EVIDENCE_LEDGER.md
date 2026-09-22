@@ -745,6 +745,54 @@ original measurement, so it tests reproducibility of the procedure, not independ
 
 ---
 
+## P0-17 — GOVERNANCE: the Root Owner ceremony completed, and the promotion is real
+
+`GOVERNANCE` + `REMOTE_GITHUB`. Recorded immediately on resumption, before any Phase 1A work begins. **`P0-15`
+and `P0-16` are left exactly as written**: they describe what was true while the request was waiting, and the
+fact that it waited is part of the record, not an embarrassment to tidy away.
+
+**Sequence, each step independently verified from the remote rather than taken from any summary:**
+
+| Step | Measured |
+|---|---|
+| The machine identity created the promotion request | PR **#11**, author `codex-boss[bot]`, head `9274dad5887bfde576acabf77ec74fdf29bbd17b`, base `53aa74a7f9628765a92210d16aabcc77ae98bae4`, `reviews: 0` at creation |
+| The machine stopped at the authorization boundary | no approval, no merge, no bypass, no admin override, no protection or `CODEOWNERS` change; `merge_state = blocked` |
+| The Root Owner independently approved | review `state = APPROVED`, author **`zhiheng-zhang-Mera`**, `submitted_at 2026-09-22T07:24:38Z`, `commit_id 9274dad…` — 18 seconds before the merge |
+| The Root Owner merged | `merged = true`, `merged_at 2026-09-22T07:24:56Z`, `merged_by zhiheng-zhang-Mera`; `GET /pulls/11/merge` → **`HTTP/2.0 204 No Content`** |
+| The candidate head's ancestry was verified | `git merge-base --is-ancestor 9274dad… 66440c1d…` → **exit 0** |
+| `main` moved to a **genuine** merge commit | `66440c1d360362a0bba38332d385feed41b64acb`, parents `53aa74a…` + `9274dad…`, committer **`GitHub <noreply@github.com>`** — not the pre-computed `test_merge` |
+| The merge introduced no unmeasured content | merge tree `799619c516908d5d598c1ddd3f45d1e7619219e9` == the certified head tree, exactly as predicted in advance |
+| Post-merge push CI independently passed | run **`35699482212`**, event `push`, `head_sha = 66440c1d…`, `completed`/`success`; `quality`, `unit`, `acceptance`, `package` all `completed`/`success` on **that** SHA |
+| Root Trust on the promoted `main` | epoch **24** (`boss-root-trust-24`) **MATCHES**; 63 surface files; aggregate `6eaf71e9…d457` |
+| `origin/main` | `66440c1d360362a0bba38332d385feed41b64acb` |
+
+**Interpretation — the two distinctions this programme exists to keep:**
+
+* ***`prepare != authorize`.*** The machine principal constructed and submitted the promotion request and could
+  not authorize it; a distinct human principal then approved it, and a merge commit followed. This is the
+  measured counterpart to `OBS-GOV-001`, where author, CODEOWNER and merger were one principal and the promotion
+  completed with zero reviews. The difference between the two cases is **principal separation**, not the check
+  set: both had four green required contexts on the exact candidate SHA.
+* ***`technical acceptance != production promotion`.*** Phase 0 passed its own twenty-five acceptance criteria at
+  `6bf354d` and was still not promoted: promotion was a separate act by a separate authority. A green board is not
+  an authorization, and the earlier rounds' `WAITING_FOR_ROOT_OWNER_PHASE0_PROMOTION` stop is evidence of that
+  distinction being enforced rather than papered over.
+
+**Alternative explanations:** `n = 1`; one repository, one ruleset configuration, one ceremony. **Limitations:**
+this records that the ceremony occurred and was verified, not that the platform enforces code-owner review in
+general, and not that the machine principal lacks privilege in general. **Reproducible:** every value above is a
+single documented API or git read.
+
+**Where this record lives, and why.** `main` is protected and this programme does not bypass protection, so the
+ceremony record is committed to the **Phase 0 branch** — the branch that already carries `P0-15` and `P0-16` —
+and the immutable tag points at the merge commit `66440c1d…`, which does not contain this record and must not be
+moved to include it. This is a **hand-off**: the Phase 0 branch receives no further ledger commits, and the
+Phase 1A line, cut from the tag, carries the record forward as its own continuous ledger immediately after the
+specification commit. Recording it on the Phase 1A branch *before* the spec would have made a non-spec commit the
+first Phase 1A commit, which the mission forbids.
+
+---
+
 # §D — Negative results register
 
 | ID | Claim | Result | Class | Retained |
