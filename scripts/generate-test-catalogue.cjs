@@ -86,6 +86,11 @@ const CURATED = {
   "tests/unit/platform/capability-manifest.test.ts": { covers: ["runtime"], obligation: "a capability manifest is validated before it can join the graph", alwaysRun: true },
   "tests/unit/platform/state-ownership.test.ts": { covers: ["runtime"], obligation: "one authoritative owner per durable namespace", alwaysRun: true },
   "tests/unit/platform/architecture-ratchet.test.ts": { covers: ["runtime"], obligation: "the architecture ratchet measures the real tree", alwaysRun: true },
+  // Phase 0 (Capability City): the real-source observatory guards the MEASUREMENT layer every other
+  // architecture claim rests on, so it is always-run like the ratchet it is compared against. The suite
+  // drives the shipped command rather than a copy of it, and its specification is
+  // docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md.
+  "tests/unit/city/architecture-observatory.test.ts": { covers: ["runtime"], obligation: "the real-source observatory scans Git-tracked source independently of the manifest declarations, retains every resolved internal edge including edges onto UNDECLARED targets, keeps the persistence to runtime-intelligence live-capture dependency observable, is deterministic across runs, and passes all six required falsification classes OBS-01..OBS-06", alwaysRun: true },
   "tests/unit/platform/platform-health.test.ts": { covers: ["runtime"], obligation: "a missing optional capability degrades locally instead of failing the platform", alwaysRun: true },
   "tests/unit/platform/test-impact.test.ts": { covers: ["runtime"], obligation: "the impact selector picks the affected suites, fails closed, and its audit detects what it dropped", alwaysRun: true },
   "tests/unit/sandbox-toolchain-materialization.test.ts": { covers: ["promotion"], obligation: "the sandbox materializes the smallest readable toolchain into the user-owned candidate tree, content-addressed so a stale copy cannot mask a changed source" },

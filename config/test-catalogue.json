@@ -472,6 +472,15 @@
       ]
     },
     {
+      "file": "tests/unit/city/architecture-observatory.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the real-source observatory scans Git-tracked source independently of the manifest declarations, retains every resolved internal edge including edges onto UNDECLARED targets, keeps the persistence to runtime-intelligence live-capture dependency observable, is deterministic across runs, and passes all six required falsification classes OBS-01..OBS-06",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/closure-terminal-logic.test.ts",
       "tier": "unit",
       "covers": [
