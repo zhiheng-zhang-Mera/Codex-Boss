@@ -61,6 +61,24 @@ identical on two consecutive runs at this commit (determinism, OBS-06 on the rea
 measured artifacts and from `docs/research/PAPER_EVIDENCE_LEDGER.md`; they are not machine-derived from the
 ledger. That is stated as a limitation rather than implied away.
 
+## Hosted CI
+
+| Field | Value |
+|---|---|
+| Workflow | Desktop CI (`.github/workflows/ci.yml`), event `push` |
+| Run | **`35689642769`** |
+| `head_sha` | `6bf354dda3324efeb1bf01421abaad6b6ca2d97` — the source commit measured above |
+| Result | `quality`, `unit`, `package`, `acceptance` — **all `completed` / `success`** |
+| Earlier run on this branch | `35688213411` on the spec commit `76b2f49` — all four success |
+
+The `unit` job is the one that builds the repository and runs the three test tiers, so a green `unit` on this
+SHA is hosted evidence that the Phase 0 suite, the catalogue and the observatory command all behave the same
+way on a clean checkout as they do on the Mech host.
+
+This acceptance record is committed in a **later** commit than the source commit it measures. That is
+deliberate: the record describes the tree it measured, and the tree it sits in has gained only documentation
+since. The hosted run above certifies the measured tree, not the documentation commit that records it.
+
 ## Scan set
 
 | Field | Value |
@@ -189,7 +207,7 @@ rather than a copy of it, and by the repository's unit tier.
 | A16 | real-host Mech evidence exists | **PASS** | six artifacts produced on this host at `6bf354d` |
 | A17 | runtime evidence hashes bound into this record | **PASS** | table above |
 | A18 | Root Trust remains `MATCHES` and its surface is not modified | **PASS** | epoch 24, 63 files, aggregate `6eaf71e9…d457` on this branch |
-| A19 | required repository regression suites pass | **PASS (local) + hosted CI** | unit 261 files / 3300 tests / 0 failures; postbuild 8 / 119 / 0; slow 4 / 35 / 0; typecheck, security scan (1296 files), ratchet, state probe, catalogue check all green. Hosted CI result recorded in the round report. |
+| A19 | required repository regression suites pass | **PASS — local and hosted** | Local: unit 261 files / 3300 tests / 0 failures; postbuild 8 / 119 / 0; slow 4 / 35 / 0; typecheck, security scan (1296 files), ratchet, state probe, catalogue check all green. Hosted: Desktop CI run **`35689642769`** on the source commit `6bf354d` — `quality`, `unit`, `package`, `acceptance` all `completed`/`success`. |
 | A20 | Phase 1 has not started | **PASS** | no Phase 1 work; `ENFORCEMENT_CONVERGENCE = NOT_STARTED` |
 | A21 | `PAPER_EVIDENCE_LEDGER` exists with historical + current evidence | **PASS** | `docs/research/PAPER_EVIDENCE_LEDGER.md`, sections A and C |
 | A22 | failed attempts, corrections and negative results preserved | **PASS** | ledger sections B/D/E; 2 corrections, 5 failed attempts, 7 negative results |

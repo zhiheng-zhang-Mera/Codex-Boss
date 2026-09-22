@@ -673,7 +673,9 @@ aggregate `6eaf71e9e2c81122522be86743bc619fcbc823b3c1cff07b229f94edda40d457`. `s
 
 `MEASUREMENT`. typecheck PASS · security scan PASS (1296 files) · architecture ratchet PASS
 (`violations: []`) · state probe PASS · test catalogue current at 277 suites · **unit tier 261 files / 3300
-tests / 0 failures** · postbuild tier 8 / 119 / 0 · slow tier 4 / 35 / 0.
+tests / 0 failures** · postbuild tier 8 / 119 / 0 · slow tier 4 / 35 / 0. **Hosted CI:** Desktop CI run
+`35689642769` on `6bf354d` — `quality`, `unit`, `package`, `acceptance` all success. The spec commit's own run
+`35688213411` was also green.
 
 **Discrepancy, retained.** A first unit-tier run reported one failure:
 `tests/unit/runtime-intelligence/replay-corpus-io.test.ts` timed out at 60000 ms while heavy commands ran
