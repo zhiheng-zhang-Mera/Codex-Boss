@@ -46,8 +46,8 @@ violate in order to track them).
 | `architecture-enforcement-live.json` | 432894 | `442735a8ad9a25210760900ada82aef78d6c13256b9609c68e2aff4af2447ce5` |
 | `controlled-regressions.json` | 7739 | `2d6f52a5ca0794b2a89a47e78705e276756e5b622f43cb4277bb48d181351730` |
 | `legacy-vs-observer-vs-enforcer.json` | 1358 | `3d60889b7ec246292c7e6efc3a9932b1f9a9174ae0d8db5f688bf61d8b571527` |
-| `paper-evidence.ndjson` | 53700 | `d1ec96790d53b23bc856150de5913f438f1e558695baa7b859ecbd52b7d26d00` |
-| `paper-evidence.json` | 63167 | `23a966794b12c94df23be874469a0a08804ab6172d2373a0e238058539b948f8` |
+| `paper-evidence.ndjson` | 56827 | `6a816362361440ac01ba866dd8e1c7f4350b15a479f6b0613314264e92d965ed` |
+| `paper-evidence.json` | 66771 | `da95f20f06e4844bf97dc81ed028b10325b45a72a0cddb6817a23f7fca7753d4` |
 | `paper-evidence-index.md` | 8171 | `6ba3489da38bb4a3647a741aad207d87368599bceb1215a54fe1cc7b306d137a` |
 
 The tracked enforcement baseline is `config/architecture-enforcement-baseline.json`, **version 1**, byte-identity
@@ -137,7 +137,7 @@ DOES NOT MEAN  THESE RELATIONS ARE HEALTHY
 | P1A-22 | production architecture repair = NONE | **PASS** | no capability moved, split or rewired; every injection is a temporary directory |
 | P1A-23 | CI workflow unchanged | **PASS** | `.github/workflows/ci.yml` byte-identical to the base |
 | P1A-24 | Root Trust MATCHES | **PASS** | epoch 24, 63 files, aggregate `6eaf71e9…d457` on this branch |
-| P1A-25 | evidence captured continuously | **PASS** | 21 records in `paper-evidence.ndjson`, appended at each checkpoint |
+| P1A-25 | evidence captured continuously | **PASS** | 22 records in `paper-evidence.ndjson`, appended at each checkpoint |
 | P1A-26 | failures/corrections/negative results preserved | **PASS** | one `FAILURE` record with five defects, one `CORRECTION`, one `NEGATIVE_CONTROL` record with four retained negatives |
 | P1A-27 | Phase 0 history not rewritten | **PASS** | `P0-15`/`P0-16` untouched; append-only additions |
 | P1A-28 | branch CI green | **PASS** | Desktop CI run **`35703938755`**, event `push`, `head_sha` = `4bf6a45483105504f006e3e3dfb4ebd074b3cf7b`, `completed`/`success`; `quality`, `unit`, `package`, `acceptance` all `completed`/`success` |

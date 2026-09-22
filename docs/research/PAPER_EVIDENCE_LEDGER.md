@@ -864,7 +864,37 @@ model; and the rule that a sensor failure must never produce `PASS`.
 | `C9` controlled regressions | **COMPLETE** — 9/9 injections produce the expected machine code |
 | `C10` full regressions | **COMPLETE** — every required tier and gate green on the real host |
 | `C11` hosted branch CI | **COMPLETE** — run `35703938755` on the branch tip, four jobs success |
-| `C12` Phase 1A promotion request | pending |
+| `C12` Phase 1A promotion request | **COMPLETE** — PR #12 opened by the machine identity; stopped at the Owner boundary |
+
+## C12 — PHASE 1A PROMOTION REQUEST, and the second authorization boundary
+
+`GOVERNANCE` + `REMOTE_GITHUB`. PR **#12** (`dev/city-phase1a-enforcement-convergence` → `main`) was opened by
+the Boss GitHub App installation identity `app/codex-boss`, after the candidate SHA was re-read and compared with
+the CI-verified tip **before** the request was made.
+
+**Observed:** `state = open`, author **`codex-boss[bot]`**, head `40d0f7d…`, base `66440c1d…`,
+`mergeable = true`, **`merge_state = blocked`**, `merged = false`, **`reviews = 0`**, 13 files `+10653 / −5`;
+`main` before == after (`66440c1d…`). No approval, no merge, no bypass, no admin override, no protection or
+`CODEOWNERS` change.
+
+**Interpretation:** the Phase 0 ceremony repeated on a second, larger change, and with the same result —
+*prepare != authorize*. The machine principal could qualify a sensor, freeze a baseline, build a policy and
+request promotion, and could not authorize any of it. The request also states explicitly what it does **not**
+do: it does **not** activate the new gate in `.github/workflows/ci.yml`, it does **not** repair inherited
+architecture, and hosted enforcement activation remains a separate Root Owner act (Phase 1B).
+
+```text
+PHASE0 = PROMOTED_AND_FROZEN
+SENSOR = ENFORCEMENT_QUALIFIED
+GRANDFATHERED_DEBT_BASELINE = FROZEN
+PROSPECTIVE_ENFORCEMENT = QUALIFIED
+HOSTED_REQUIRED_GATE = LEGACY
+PAPER_EVIDENCE = CONTINUOUSLY_PRESERVED
+PHASE1B = NOT_STARTED
+ARCHITECTURE_MIGRATION = NOT_STARTED
+
+FINAL_STATUS = WAITING_FOR_ROOT_OWNER_PHASE1A_PROMOTION
+```
 
 ## C10 — FULL REGRESSIONS
 
