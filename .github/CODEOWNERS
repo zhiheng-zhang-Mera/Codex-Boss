@@ -103,6 +103,36 @@
 
 
 # ============================================================================
+# 4b. The architecture judge, its baselines and its authorization record
+# ============================================================================
+#
+# Added by Phase 1B-A (GOVERNANCE_FOUNDATION). Measured before this block existed, with the repository's own
+# authority classifier: the enforcement engine, the baseline generator, the observatory, the legacy ratchet,
+# `config/architecture-enforcement-baseline.json` and `config/architecture-baseline.json` all classified
+# `AUTONOMOUS_MUTABLE`, and none of them appeared in this file. A required gate assembled from autonomously
+# mutable parts is enforceable but NOT Owner-bound: the judge could be edited by the actor it judges — and the
+# baseline it enforces against could be regenerated, which is the laundering path Phase 1B-A closes.
+#
+# The paths below are the judge. `architecture-baseline-series.cjs` and `trust-policy/` (already protected as a
+# directory) are the AUTHORIZATION: they decide which baseline governs, so an actor that may edit either can
+# authorize its own debt. `config/architecture-baseline.json` is the legacy ratchet's baseline and
+# `scripts/architecture-baseline.cjs` is its only writer, protected for the same reason the new pair is:
+# owning the judge while leaving its baseline writable protects nothing.
+#
+# Ordinary product code, the capability manifests and ordinary tests stay in the autonomous plane: this block
+# names eight files, and deliberately nothing else.
+
+/config/architecture-enforcement-baseline.json    @zhiheng-zhang-Mera
+/config/architecture-baseline.json                @zhiheng-zhang-Mera
+/scripts/architecture-enforcement.cjs             @zhiheng-zhang-Mera
+/scripts/architecture-enforcement-baseline.cjs    @zhiheng-zhang-Mera
+/scripts/architecture-baseline-series.cjs         @zhiheng-zhang-Mera
+/scripts/architecture-observatory.cjs             @zhiheng-zhang-Mera
+/scripts/architecture.cjs                         @zhiheng-zhang-Mera
+/scripts/architecture-baseline.cjs                @zhiheng-zhang-Mera
+
+
+# ============================================================================
 # 5. Root Authority policy surface
 # ============================================================================
 #

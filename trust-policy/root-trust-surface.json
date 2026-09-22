@@ -27,9 +27,17 @@
       "scripts/acceptance-autonomous-evolution.cjs",
       "src/shared/trust-problems.ts",
       "tests/acceptance/autonomous-evolution-*.test.ts",
-      "tests/helpers/acceptance-report.ts"
+      "tests/helpers/acceptance-report.ts",
+      "config/architecture-enforcement-baseline.json",
+      "config/architecture-baseline.json",
+      "scripts/architecture-enforcement.cjs",
+      "scripts/architecture-enforcement-baseline.cjs",
+      "scripts/architecture-baseline-series.cjs",
+      "scripts/architecture-observatory.cjs",
+      "scripts/architecture.cjs",
+      "scripts/architecture-baseline.cjs"
     ],
-    "count": 22,
-    "boundary_hash": "6765efaf264ab372849faf48c343b64cb95c50f0dd47056d1ff045560108c4b0"
+    "count": 30,
+    "boundary_hash": "0141acecec911904a02b3ea302c1bd1b30532d48d0a94d3ef3a030d5a422d14c"
   }
 }

@@ -110,7 +110,27 @@ export const ROOT_TRUST_SURFACE_EXTENSIONS: readonly string[] = [
   "scripts/acceptance-autonomous-evolution.cjs",
   "src/shared/trust-problems.ts",
   "tests/acceptance/autonomous-evolution-*.test.ts",
-  "tests/helpers/acceptance-report.ts"
+  "tests/helpers/acceptance-report.ts",
+
+  /**
+   * Phase 1B-A — the architecture judge and its evidence sources.
+   *
+   * The same disagreement the lockdown fixed for the epoch, measured again for the enforcer: before these
+   * entries existed, the enforcement engine, the baseline generator, the authorizing series, the observatory
+   * and the legacy ratchet all classified AUTONOMOUS_MUTABLE. A host gate assembled from files the machine
+   * may rewrite is a gate the machine can turn green, so a required architecture check built on them would
+   * have been enforcement in name only. The paths are listed literally, one file at a time, rather than as a
+   * directory: `/config/` and `/scripts/` hold ordinary product tooling that must stay autonomous, and the
+   * point of the entry is to name the judge, not to freeze the directory around it.
+   */
+  "config/architecture-enforcement-baseline.json",
+  "config/architecture-baseline.json",
+  "scripts/architecture-enforcement.cjs",
+  "scripts/architecture-enforcement-baseline.cjs",
+  "scripts/architecture-baseline-series.cjs",
+  "scripts/architecture-observatory.cjs",
+  "scripts/architecture.cjs",
+  "scripts/architecture-baseline.cjs"
 ];
 
 /**

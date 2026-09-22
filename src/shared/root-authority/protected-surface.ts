@@ -142,6 +142,30 @@ export const ROOT_PROTECTED_MANIFEST: readonly string[] = [
   // no defence when the record it writes can be forged directly.
   "/trust-policy/",
 
+  // ---------------------------------------------------------------------
+  // The architecture judge and its evidence sources (Phase 1B-A).
+  //
+  // Measured before this block existed, with `classifyAuthorityPath`: the
+  // enforcement engine, the baseline generator, the authorizing series, the
+  // observatory, the legacy ratchet and both committed baselines were
+  // AUTONOMOUS_MUTABLE, so a change set made only of these paths returned
+  // ALLOW and the machine could have re-baselined its own debt — or edited the
+  // judge — without the Owner step. Owning the judge while leaving its baseline
+  // writable protects nothing, which is why the baselines and the legacy
+  // baseline's writer are named beside the engine.
+  //
+  // Named one file at a time. `/config/` also holds the capability manifests
+  // and `/scripts/` holds ordinary product tooling; both stay autonomous.
+  // ---------------------------------------------------------------------
+  "/config/architecture-enforcement-baseline.json",
+  "/config/architecture-baseline.json",
+  "/scripts/architecture-enforcement.cjs",
+  "/scripts/architecture-enforcement-baseline.cjs",
+  "/scripts/architecture-baseline-series.cjs",
+  "/scripts/architecture-observatory.cjs",
+  "/scripts/architecture.cjs",
+  "/scripts/architecture-baseline.cjs",
+
   // The trust verifier, classifier, self-certification judge and the evidence
   // helpers they trust.
   "/src/shared/autonomous-evolution-*.ts",
