@@ -13,6 +13,7 @@ import { EvolutionRunRegistry, evolutionRuns } from "./mutation-context";
 import { WindowsAppContainerSandbox } from "./sandbox/windows-appcontainer-backend";
 import type { EvolutionSandbox } from "./sandbox/sandbox-backend";
 import { SelfEvolutionCoordinator, type SelfEvolutionRunReport } from "./self-evolution-coordinator";
+import { resolveEvolutionRoot, type EvolutionRootOrigin } from "../stable-candidate/evolution-root-policy";
 import { StableRuntimePointer } from "./stable-runtime-pointer";
 import type { ChangeEntry, HostOperationHandlers } from "./host-operations";
 
@@ -68,6 +69,8 @@ interface SelfEvolutionHostHandle {
   stableRoot(): string;
   governanceRoot(): string;
   evolutionRoot(): string;
+  /** Non-secret provenance of the resolved evolution root: source, fingerprint, reason. */
+  evolutionRootOrigin(): EvolutionRootOrigin;
   pointer(): StableRuntimePointer;
   lastRun(): SelfEvolutionRunReport | undefined;
 }
@@ -151,7 +154,19 @@ export function createGitHostHandlers(base: {
 export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions): SelfEvolutionHostHandle {
   const appPath = path.resolve(options.appPath);
   const stableRoot = path.resolve(options.stableRoot ?? detectRepositoryRoot(appPath) ?? appPath);
-  const evolutionRoot = path.resolve(options.evolutionRoot ?? path.join(options.userData, "evolution"));
+  // §8.3 — the Candidate tree must be STRUCTURALLY outside Stable, not accidentally so. This used to
+  // default to `<userData>/evolution`, which is outside Stable in a packaged install only because
+  // `%LOCALAPPDATA%` happens to sit elsewhere; in development `userData` is `runtime-data/` inside the
+  // checkout, so the Candidate landed inside Stable and `verifyRuntimeSeparation` correctly refused.
+  // `resolveEvolutionRoot` is the single shared policy (the live acceptance calls the same one) and it
+  // throws rather than returning a location that fails the invariant. An explicit `evolutionRoot` still
+  // works, but is now verified against Stable before it is honoured.
+  const resolvedEvolution = resolveEvolutionRoot({
+    stableRoot,
+    userData: path.resolve(options.userData),
+    ...(options.evolutionRoot ? { explicitOverride: options.evolutionRoot } : {})
+  });
+  const evolutionRoot = resolvedEvolution.evolutionRoot;
   // Root controls must be a sibling of the Candidate tree. Keeping governance
   // under evolutionRoot made the production composition root fail closed at
   // startup and caused every packaged smoke run to hang before renderer boot.
@@ -171,8 +186,8 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
     new WindowsAppContainerSandbox({
       launcherRoot: path.join(options.userData, "sandbox"),
       candidateRoot: evolutionRoot,
-      // Only the Stable tree is denied. `evolutionRoot` lives under userData, so
-      // denying userData would refuse the coordinator's own Candidate grant.
+      // Only the Stable tree is denied. `evolutionRoot` is resolved by the shared policy to a location
+      // proven outside Stable, so denying Stable does not refuse the coordinator's own Candidate grant.
       denyRoots: [stableRoot],
       // Read-only toolchain roots are declared here, NOT as per-request grants,
       // because a per-request grant is checked against `denyRoots` and the Stable
@@ -261,6 +276,8 @@ export function createSelfEvolutionHost(options: CreateSelfEvolutionHostOptions)
     stableRoot: () => stableRoot,
     governanceRoot: () => governanceRoot,
     evolutionRoot: () => evolutionRoot,
+    /** Non-secret provenance of the resolved evolution root: source, fingerprint, reason. */
+    evolutionRootOrigin: () => resolvedEvolution.origin,
     pointer: () => new StableRuntimePointer({ pointerFile, stableRoot }),
     lastRun: () => lastRun
   };
