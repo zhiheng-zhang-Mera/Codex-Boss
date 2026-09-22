@@ -894,6 +894,15 @@ preserved beside the classification rather than rewritten.
 |---|---|---|---|
 | B-1 | `--check` reported a false mismatch immediately after a successful generation | the check recomputed the series identity (version, parent) from the file it was checking, and a regeneration bumps both by design, so the comparison could never succeed | series identity is now an **input** held fixed in check mode; the measured content is what is recomputed |
 | B-2 | `--check` would have started failing at the next commit | `source_commit` is part of the content, so committing the baseline moved it | provenance is now an input too; `--check` holds the recorded commit and verifies content identity, which is the property actually worth asserting |
+| B-3 | the first regeneration produced `baseline_version 2` whose parent was a version 1 that had **never been committed** | a baseline chain must begin at an accepted state; a scratch file is not one | deleted and regenerated as version 1 with no parent |
+| B-4 | after `git checkout`, `--check` failed again on an unchanged tree | git checks the file out with **CRLF** (`core.autocrlf=true`, no `.gitattributes`) while the generator writes **LF**, so a raw text comparison can never match on this platform — the *same* CRLF trap the Phase 0 record already documents for the pre-city freeze manifest | comparison is normalised, and an independent canonical-hash comparison is reported beside it; `hash_matches` is immune to line endings by construction |
+| B-5 | running the generator casually bumped the series to version 2 during what was meant to be an artifact refresh | regeneration *is* a deliberate act — the command exists for it, `--check` exists for the other purpose — and the operator used the wrong one | reverted with `git checkout`; the committed baseline is version 1 again, and the episode is recorded as a usage error rather than a code defect |
+
+**B-1 through B-5 share one shape**, and it is the same shape as `COR-1`, the qualification harness at C5, and
+the experiments at C9: **the apparatus was wrong and the measured object was right.** Four independent instances
+in two phases is no longer a coincidence to note in passing; it is a repeated property of building measurement
+infrastructure, and it is the strongest argument in this record for the rule that a failing check should first be
+suspected of being the failure.
 
 ## C7 — POLICY: one evaluator, two modes
 

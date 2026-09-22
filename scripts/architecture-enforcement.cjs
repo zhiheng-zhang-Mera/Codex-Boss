@@ -194,7 +194,7 @@ function evaluatePolicy({ baseline, measurement, declarations }) {
   if (parseIssues.length > 0) add(CODE.SENSOR_INCOMPLETE, SEVERITY.VIOLATION, "sensor", `${parseIssues.length} parse issue(s)`);
   if (silentSkips > 0) add(CODE.SENSOR_INCOMPLETE, SEVERITY.VIOLATION, "sensor", `${silentSkips} silently skipped file(s)`);
 
-  // ---- unresolved references, classified (section 6) ----------------------------------------
+  // ---- unresolved references: report the asset, fail closed on everything else ----------------
   for (const item of measurement.unresolved ?? []) {
     const classification = item.classification ?? baselineModule.classifyUnresolved(item);
     switch (classification) {

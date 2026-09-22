@@ -223,6 +223,14 @@ function serialize(baseline) {
 function main() {
   const argv = process.argv.slice(2);
   const check = argv.includes("--check");
+  const existing = (() => {
+    try { return JSON.parse(fs.readFileSync(BASELINE_PATH, "utf8")); } catch { return undefined; }
+  })();
+  // Refresh the runtime generation record for the CURRENTLY COMMITTED baseline without touching it. Needed
+  // because a rejected regeneration attempt overwrites the record while the tracked file is reverted, which
+  // would otherwise leave the runtime evidence describing a baseline that does not exist. Regenerating the
+  // tracked file is a deliberate act; refreshing its record is not.
+  const recordOnly = argv.includes("--record-only");
   const reasonIndex = argv.indexOf("--reason");
   const outIndex = argv.indexOf("--out");
   const outPath = outIndex >= 0 && argv[outIndex + 1] ? argv[outIndex + 1] : BASELINE_PATH;
@@ -231,10 +239,47 @@ function main() {
       ? argv[reasonIndex + 1]
       : "Phase 1A initial grandfathered-debt baseline: every relation the qualified sensor measured at the promoted Phase 0 state is debt that existed before enforcement.";
 
+  if (recordOnly) {
+    if (!existing) {
+      process.stderr.write("--record-only requires an existing committed baseline\n");
+      return 1;
+    }
+    const started = Date.now();
+    const { baseline: recomputed, baselineHash } = buildBaseline({
+      reason: existing.reason,
+      baselineVersion: existing.baseline_version,
+      parentBaselineHash: existing.parent_baseline_hash ?? null,
+      prior: { edges: existing.edges ?? [], retired_edges: existing.retired_edges ?? [] },
+      sourceCommit: existing.source_commit,
+    });
+    const matches = recomputed.baseline_hash === baselineHash && baselineHash === existing.baseline_hash;
+    const record = {
+      schema: `${SCHEMA}#generation`,
+      generatedAt: new Date().toISOString(),
+      wall_time_ms: Date.now() - started,
+      output_path: path.relative(ROOT, BASELINE_PATH).split(path.sep).join("/"),
+      output_bytes: fs.statSync(BASELINE_PATH).size,
+      reason: existing.reason,
+      baseline_version: existing.baseline_version,
+      parent_baseline_hash: existing.parent_baseline_hash ?? null,
+      baseline_hash: existing.baseline_hash,
+      source_commit: existing.source_commit,
+      record_only_refresh: true,
+      content_reverified_against_tree: matches,
+      semantics: {
+        means: "THESE RELATIONS EXISTED BEFORE ENFORCEMENT",
+        does_not_mean: "THESE RELATIONS ARE HEALTHY",
+        identity_is_authoritative: true,
+        counts_are_summaries: true,
+      },
+    };
+    fs.mkdirSync(path.dirname(RUNTIME_RECORD), { recursive: true });
+    fs.writeFileSync(RUNTIME_RECORD, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    process.stdout.write(`${JSON.stringify({ state: "RUNTIME_RECORD_REFRESHED", baseline_version: record.baseline_version, baseline_hash: record.baseline_hash, content_reverified_against_tree: matches }, null, 2)}\n`);
+    return matches ? 0 : 1;
+  }
+
   const started = Date.now();
-  const existing = (() => {
-    try { return JSON.parse(fs.readFileSync(BASELINE_PATH, "utf8")); } catch { return undefined; }
-  })();
 
   // Series identity is an INPUT, not something recomputed from the file being checked. Recomputing it is how the
   // first revision of this generator made --check report a false mismatch: a normal regeneration bumps the
@@ -259,20 +304,30 @@ function main() {
   const text = serialize(baseline);
 
   if (check) {
+    // Line endings are a checkout property, not baseline content: git checks this file out with CRLF on
+    // Windows (core.autocrlf=true, no .gitattributes), while the generator writes LF. The first revision
+    // compared raw text and therefore reported a false mismatch for every fresh clone on this platform — the
+    // same CRLF trap the Phase 0 record already documents for the pre-city freeze manifest. Comparison is
+    // therefore normalised, and an independent canonical-hash comparison is reported alongside it.
+    const normalize = (text) => text.replace(/\r\n/g, "\n");
     const current = fs.existsSync(BASELINE_PATH) ? fs.readFileSync(BASELINE_PATH, "utf8") : null;
-    const identical = current === text;
+    const identical = current !== null && normalize(current) === normalize(text);
+    const hashMatches = Boolean(existing) && existing.baseline_hash === baselineHash;
     const summary = {
       mode: "check",
       path: BASELINE_PATH,
       exists: current !== null,
       identical,
+      recorded_baseline_hash: existing?.baseline_hash ?? null,
+      recomputed_baseline_hash: baselineHash,
+      hash_matches: hashMatches,
+      line_endings_normalised_for_comparison: true,
       baseline_version: baseline.baseline_version,
-      baseline_hash: baselineHash,
       tracked_source_files: baseline.counts.tracked_source_files,
       internal_edges: baseline.counts.internal_edges,
     };
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-    return identical ? 0 : 1;
+    return identical && hashMatches ? 0 : 1;
   }
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
