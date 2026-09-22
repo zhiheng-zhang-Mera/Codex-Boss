@@ -532,6 +532,34 @@ rather than 4; that is the expected shape, not a second, hidden result.
 
 ---
 
+### 5c. Re-confirmation — the blocker was re-checked at the start of a later round, not assumed
+
+The Phase 0 blocker was re-tested against the remote before being reported as still standing, so that "nothing
+changed" is a measurement rather than a recollection.
+
+| Check | Value | Changed since the baseline freeze? |
+|---|---|---|
+| `origin/main` | `53aa74a7f9628765a92210d16aabcc77ae98bae4` | **no** — `git log 53aa74a..origin/main` is empty |
+| `city-start-baseline-v1` | `53aa74a7f9628765a92210d16aabcc77ae98bae4` | no |
+| `pre-city-baseline-v1` | `7024203eee3444a0115664de5e3a3d6599d9a800` | no — never moved |
+| `refactor/capability-city-v1` | `77533fac4aa68402dd70496a041b57dd5d7efb80` | advanced only by this programme's own research commits |
+| branches / tags on `origin` | 41 / 30 | no new ref of any kind |
+| pull requests | newest is **#10** (`MERGED`); no PR opened after it | **none** |
+| open issues | **none** | — |
+| `git grep -l -i "observatory" origin/main` | **0 files** | no |
+| `git grep -l "Capability City" origin/main` | 2 files (unchanged) | no |
+
+**Last outstanding inherited claim, now independently verified.** `GOV-002` criterion P8 is *"not approved or
+merged during the run"* for the Stage C candidate. Re-read from the API: PR #9 `state = closed`,
+`merged = false`, and `pulls/9/reviews` returns **zero** reviews. Every P1–P8 criterion now has either a
+check-run, a review-API or a branch-identity measurement behind it rather than a prose assertion.
+
+**Conclusion of the re-confirmation.** No authoritative Phase 0 specification has appeared, and no repository
+ref was added that could carry one. The blocker recorded in `evidence/PHASE0_SPECIFICATION_FINDING.md` is
+unchanged and remains **external and Owner-actionable**.
+
+---
+
 ## 6. Negative space — what deliberately did NOT change
 
 Recorded so that silence is not read as an omission.
