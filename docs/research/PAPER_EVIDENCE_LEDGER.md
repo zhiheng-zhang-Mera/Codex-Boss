@@ -1653,3 +1653,34 @@ ARCHITECTURE_MIGRATION = NOT_STARTED
 
 FINAL_STATUS = WAITING_FOR_ROOT_OWNER_TRUST_EPOCH_CEREMONY
 ```
+
+## I-13 — HOSTED_PARITY: the prediction, and what the hosted run actually said
+
+`HOSTED_PARITY` + `MEASUREMENT`. The prediction in I-7 was written **before** the push, so the comparison is
+evidence rather than narration. Desktop CI run **`35743903897`**, event `push`, `head_sha 69b8aac…`:
+
+| Job | Result | Detail |
+|---|---|---|
+| `quality` | **success** | typecheck (three projects), secret scan, `architecture:ratchet`, `state:probe` |
+| `unit` | **failure** | the single failing assertion is `tests/unit/test-layers.test.ts:430` — the epoch anchor |
+| `package` | skipped | `needs: unit` |
+| `acceptance` | skipped | `needs: unit` |
+
+**Prediction versus measurement, stated rather than reconciled:** I-7 predicted *two* red assertions (one in the
+default tier, one in the postbuild tier) and the hosted run surfaced **one**, because the workflow runs
+`pnpm test`, `pnpm run test:postbuild` and `pnpm run test:slow` as sequential steps and a failing step stops the
+job. The postbuild failure is therefore real but **not observable in this run**; it was observed locally
+(`1 failed / 119 passed`). Both are the same assertion of the same fact — `TRUST_EPOCH_ROOT_SURFACE_MISMATCH` —
+and both clear when the epoch is advanced.
+
+**What the hosted run does and does not establish.** It establishes that the only thing standing between this
+branch and a green chain is the epoch ceremony: `quality` is green on the real runner, and the failing
+assertion is the invariant the ceremony exists to satisfy, not a defect this phase introduced. It does **not**
+establish that `acceptance` and `package` would be green, because `needs: unit` skipped them; that remains an
+inference from the local battery (slow tier 35/35 green, `package` independent of the trust epoch), and it is
+labelled as an inference.
+
+**The red result is left standing, in the same spirit as C17.** Nothing was re-run to turn it green, no
+threshold was lowered, and no test was quarantined. A run that says "the epoch does not anchor this surface" is
+the run this phase intended to produce, and the Owner's ceremony is what changes it.
+
