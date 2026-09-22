@@ -1,0 +1,229 @@
+{
+  "schema": "capability-city-city-start-baseline/1",
+  "purpose": "Machine-readable record of the Root Owner ceremony re-verification, the promotion merge topology, the post-merge certification of the main SHA, the Root Trust invariant, and the city-start baseline freeze. Companion to evidence/CITY_START_RECONCILIATION_LEDGER.md, which is the narrative record and remains authoritative for wording.",
+  "recordedBy": "Boss round: ceremony re-verification -> city-start-baseline-v1 -> reconciliation ledger -> Phase 0 specification resolution",
+  "recordedAt": "2026-09-22T12:45:00+10:00",
+  "repository": "zhiheng-zhang-Mera/Codex-Boss",
+
+  "baselines": {
+    "pre_city": {
+      "tag": "pre-city-baseline-v1",
+      "tag_type": "annotated",
+      "tag_object": "ec92eb9b83c08c84d4b0fb0ce5ba7d2304c1a79e",
+      "commit": "7024203eee3444a0115664de5e3a3d6599d9a800",
+      "tree": "8e31f066a1b5df7f32c9db47c80aaffd02b78dd5",
+      "archival_alias_tag": "research/pre-city-runtime-isolation-defect-v1",
+      "role": "historical control; intentionally retains FINDING-001 and FINDING-002",
+      "moved_this_round": false,
+      "recreated_this_round": false,
+      "deleted_this_round": false
+    },
+    "city_start": {
+      "tag": "city-start-baseline-v1",
+      "tag_type": "annotated",
+      "tag_object": "2d11e1fb18723919d35b8623b49e3661312059e8",
+      "commit": "53aa74a7f9628765a92210d16aabcc77ae98bae4",
+      "tag_created_at": "2026-09-22T12:41:49+10:00",
+      "tagger": "zhiheng-zhang-Mera <15601654187@163.com>",
+      "created_this_round": true,
+      "tagged_commit_is_main": true,
+      "tagged_commit_is_pre_merge_head": false,
+      "tagged_commit_is_experimental_branch": false,
+      "role": "measurement origin: production state after a genuine Root-Owner-authorized promotion"
+    },
+    "coexistence_verified_from_remote": true
+  },
+
+  "promotion": {
+    "pr": 10,
+    "pr_url": "https://github.com/zhiheng-zhang-Mera/Codex-Boss/pull/10",
+    "title": "fix(runtime-isolation): place the Candidate root outside Stable in every topology",
+    "state": "closed",
+    "merged": true,
+    "created_at": "2026-09-22T01:44:03Z",
+    "merged_at": "2026-09-22T02:23:31Z",
+    "merged_by": "zhiheng-zhang-Mera",
+    "author": "codex-boss[bot]",
+    "author_is_bot": true,
+    "head_sha": "d9ddb1511adeb61dee21192a683eb7851d3ca556",
+    "head_ref": "fix/runtime-isolation-root-policy-v1",
+    "base_sha": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "base_ref": "main",
+    "merge_commit_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4",
+    "changed_files": 5,
+    "additions": 538,
+    "deletions": 3,
+    "commits": 1,
+    "merge_method": "merge commit (two parents; committer GitHub <noreply@github.com>)",
+    "merge_endpoint_http": "HTTP/2.0 204 No Content",
+    "reviews": [
+      {
+        "user": "zhiheng-zhang-Mera",
+        "state": "APPROVED",
+        "submitted_at": "2026-09-22T02:23:14Z",
+        "commit_id": "d9ddb1511adeb61dee21192a683eb7851d3ca556"
+      }
+    ],
+    "independent_approval_exists": true,
+    "bypass_used": false,
+    "admin_override_used": false,
+    "self_approval_attempted": false,
+    "files": [
+      "config/test-catalogue.json",
+      "electron/self-evolution/self-evolution-host.ts",
+      "electron/stable-candidate/evolution-root-policy.ts",
+      "tests/unit/evolution-root-policy.test.ts",
+      "tests/unit/self-evolution-host-root-geometry.test.ts"
+    ],
+    "instrument_files_present": false,
+    "test_merge_sha_rejected_as_evidence": "c4dfb4cbb9d892681fa4d4d74ffc7ba6ee10b7bf"
+  },
+
+  "merge_topology": {
+    "merge_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4",
+    "commit_iso": "2026-09-22T12:23:30+10:00",
+    "subject": "Merge pull request #10 from zhiheng-zhang-Mera/fix/runtime-isolation-root-policy-v1",
+    "parent_1": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "parent_1_role": "old main / pre-city baseline lineage",
+    "parent_2": "d9ddb1511adeb61dee21192a683eb7851d3ca556",
+    "parent_2_role": "promotion head",
+    "author": "zhiheng-zhang-Mera <15601654187@163.com>",
+    "committer": "GitHub <noreply@github.com>",
+    "is_genuine_merge_commit": true,
+    "head_is_ancestor_of_main": true,
+    "head_is_ancestor_of_main_proof": {
+      "command": "git merge-base --is-ancestor d9ddb1511adeb61dee21192a683eb7851d3ca556 origin/main",
+      "exit_code": 0
+    }
+  },
+
+  "post_merge_certification": {
+    "workflow_run_id": 35679289373,
+    "workflow": "Desktop CI",
+    "workflow_path": ".github/workflows/ci.yml",
+    "event": "push",
+    "head_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4",
+    "run_started_at": "2026-09-22T02:23:33Z",
+    "run_completed_at": "2026-09-22T02:39:42Z",
+    "run_conclusion": "success",
+    "required_contexts": {
+      "quality": { "status": "completed", "conclusion": "success", "head_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4", "started_at": "2026-09-22T02:23:42Z", "completed_at": "2026-09-22T02:24:26Z" },
+      "unit": { "status": "completed", "conclusion": "success", "head_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4", "started_at": "2026-09-22T02:24:31Z", "completed_at": "2026-09-22T02:33:04Z" },
+      "package": { "status": "completed", "conclusion": "success", "head_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4", "started_at": "2026-09-22T02:33:07Z", "completed_at": "2026-09-22T02:34:21Z" },
+      "acceptance": { "status": "completed", "conclusion": "success", "head_sha": "53aa74a7f9628765a92210d16aabcc77ae98bae4", "started_at": "2026-09-22T02:33:08Z", "completed_at": "2026-09-22T02:39:41Z" }
+    },
+    "verified_via": ["commit check-runs API (4 runs)", "workflow jobs API (4 jobs)"],
+    "foreign_sha_contexts": [],
+    "missing_contexts": [],
+    "all_required_green_on_the_main_sha": true,
+    "note": "A green run whose head_sha is d9ddb151... or 7024203... is NOT post-merge certification and was not counted as such."
+  },
+
+  "root_trust": {
+    "trust_epoch": 24,
+    "root_contract_version": "boss-root-trust-24",
+    "root_surface_hash_full": "6eaf71e9e2c81122522be86743bc619fcbc823b3c1cff07b229f94edda40d457",
+    "root_surface_files": 63,
+    "epoch_hash": "33beb3028f3e7c334e9ea5441fd5397a232cbbf788eae1d0482c45fe2f66593d",
+    "parent_epoch_hash": "2b1a0336a39aab5e7a2f85b4752672af1c918cc484b6af3b7bbfc0c8a115324e",
+    "status": "MATCHES",
+    "measured_command": "node scripts/acceptance-evolution-bless.cjs --check",
+    "measured_against": "main @ 53aa74a7f9628765a92210d16aabcc77ae98bae4",
+    "build_provenance": "dist-electron rebuilt from the frozen baseline tree via `corepack pnpm run build:electron` (exit 0) before the check",
+    "root_trust_surface_files_modified_by_promotion": "NONE",
+    "matches_frozen_baseline_metadata": true,
+    "previously_published_value_was_truncated": "6eaf71e9..."
+  },
+
+  "governance": {
+    "observation_id": "OBS-GOV-001",
+    "classification": "OWNER_BYPASS_USED_BECAUSE_PROMOTION_ACTOR_AND_CODEOWNER_COLLIDED",
+    "pr8": { "merged": true, "merge_commit": "7024203eee3444a0115664de5e3a3d6599d9a800", "reviews": 0, "independent_approval_exists": false, "mechanism": "NOT OBSERVABLE FROM CURRENT EVIDENCE" },
+    "pr9": { "state": "closed", "merged": false, "author": "codex-boss[bot]", "head": "d8fc0fb6579173a7f6200f06a494ddd744175d61", "outcome": "WAITING_FOR_ROOT_OWNER", "classification": "Stage C successful controlled measurement" },
+    "pr10": { "independent_approval_exists": true, "approver": "zhiheng-zhang-Mera", "author": "codex-boss[bot]", "principals_distinct": true },
+    "first_ceremony_attempt": {
+      "status": "ROOT_OWNER_CEREMONY_VERIFICATION_FAILED",
+      "observed": "PR10 open, merged=false, reviews=[], origin/main=7024203, /pulls/10/merge -> 404",
+      "action_taken": "stopped at §0; nothing created, moved, edited or deleted",
+      "preserved_as": "historical fact, not a defect to erase"
+    },
+    "main_protection_ruleset": {
+      "id": 22746755,
+      "name": "Main-Protection",
+      "enforcement": "active",
+      "updated_at": "2026-09-19T18:08:25.639+10:00",
+      "require_code_owner_review": true,
+      "required_approving_review_count": 0,
+      "require_extra_approval_for_unattributed_changes": true,
+      "required_status_checks": ["quality", "unit", "acceptance", "package"],
+      "strict_required_status_checks_policy": true,
+      "bypass_actors": [{ "actor_id": 229580437, "actor_type": "User", "bypass_mode": "always" }],
+      "changed_by_this_programme": false
+    }
+  },
+
+  "production_vs_instrument_separation": {
+    "statement": "The promoted production patch and the acceptance/instrument work are separate objects, and the instrument was deliberately NOT promoted.",
+    "production_branch_form": { "sha": "b0e7da96e98a1af12fd94d28e22d1f2863982626", "class": "PRODUCTION", "merged_to_main": false },
+    "production_main_form": { "sha": "d9ddb1511adeb61dee21192a683eb7851d3ca556", "class": "PRODUCTION", "merged_to_main": true },
+    "instrument": [
+      { "sha": "cc970fe2fa21e38ae4f788a971fc86dc0d7eba4b", "role": "I1 acceptance instrument v2", "merged_to_main": false, "archival_tag": "research/identity-separation-stage-c-v1" },
+      { "sha": "fc01cca40620cd4f4259691a94b8828c068461b4", "role": "instrument validation fixes", "merged_to_main": false },
+      { "sha": "2f36d99aa77acf23968a0f55432dfb44cb51dbdc", "role": "instrument v2 tip (produced the Stage C measurement)", "merged_to_main": false }
+    ],
+    "main_derived_patch_difference_from_branch_patch": [
+      "comment citation: bare section number -> a tracked document (docs/autonomous-evolution.md)",
+      "export surface: 5 unnecessary `export` keywords dropped (the rule's own preferred remedy)",
+      "config/test-catalogue.json regenerated additively (+14)"
+    ],
+    "no_bypass_exception_or_threshold_change_in_that_difference": true
+  },
+
+  "ancestry_verified": {
+    "d9ddb1511adeb61dee21192a683eb7851d3ca556": { "in_main": true },
+    "7024203eee3444a0115664de5e3a3d6599d9a800": { "in_main": true },
+    "53aa74a7f9628765a92210d16aabcc77ae98bae4": { "in_main": true, "is_main": true },
+    "add57742d882349e57f60b8de8f59b68362849c4": { "in_main": false },
+    "7d558cb858e61269ddef548bde6ce85796bb871a": { "in_main": false },
+    "b0e7da96e98a1af12fd94d28e22d1f2863982626": { "in_main": false },
+    "cc970fe2fa21e38ae4f788a971fc86dc0d7eba4b": { "in_main": false },
+    "2f36d99aa77acf23968a0f55432dfb44cb51dbdc": { "in_main": false },
+    "method": "git merge-base --is-ancestor <full-sha> origin/main",
+    "warning": "abbreviated or unresolvable revisions make this command exit non-zero and must never be read as 'not an ancestor'"
+  },
+
+  "preservation_state": {
+    "history_rewritten": false,
+    "frozen_evidence_modified": false,
+    "research_branches_deleted": 0,
+    "tags_deleted": 0,
+    "tags_moved": 0,
+    "tags_on_origin_verified": 39,
+    "research_branch_tips_verified": {
+      "feat/pf020-identity-convergence": "add57742d882349e57f60b8de8f59b68362849c4",
+      "test/pf020-runtime-isolation-production-fix-v2": "2f36d99aa77acf23968a0f55432dfb44cb51dbdc",
+      "fix/runtime-isolation-root-policy-v1": "d9ddb1511adeb61dee21192a683eb7851d3ca556",
+      "integration/pre-city-baseline": "836b5ed60aa63f3334e6cd08b193113325505880",
+      "refactor/capability-city-v1": "3aa237fd51571951fcb7b51036e92dfe7285f948",
+      "evolution/acceptance-promotion-identity-20260922002549": "3ce1ef89ea4047f1ed90be91585e6493387de847",
+      "evolution/acceptance-promotion-identity-20260922002642": "d8fc0fb6579173a7f6200f06a494ddd744175d61",
+      "evolution/acceptance-promotion-identity-20260922010033": "16d093d342e0ff22546654d9acfaa417d708a163"
+    }
+  },
+
+  "phase0": {
+    "status": "NOT_STARTED",
+    "reason": "PHASE0_SPEC_NOT_FOUND",
+    "branch_created": false,
+    "implementation_commits": 0,
+    "detail": "evidence/PHASE0_SPECIFICATION_FINDING.md",
+    "phase0_accepted_claimed": false,
+    "phase1_started": false
+  },
+
+  "superseded_earlier_statements_recorded_not_edited": [
+    "evidence/RESEARCH_REF_MANIFEST.md §1: `city-start-baseline-v1` = NOT CREATED (true at 3aa237f; superseded)",
+    "evidence/RESEARCH_REF_MANIFEST.md §2: `main` = 7024203 (superseded; now 53aa74a)",
+    "dataset/baseline-metadata.json governanceState: stageC NOT YET MEASURED (frozen BEFORE-state capture; superseded by D-009)"
+  ]
+}
