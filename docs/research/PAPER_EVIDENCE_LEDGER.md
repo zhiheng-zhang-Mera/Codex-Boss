@@ -862,9 +862,54 @@ model; and the rule that a sensor failure must never produce `PASS`.
 | `C7` enforcement policy | **COMPLETE** — E-01..E-10 implemented; ENF-01..ENF-18 green |
 | `C8` shadow enforcement | **COMPLETE** — real tree: shadow PASS, enforce PASS, 0 new regressions |
 | `C9` controlled regressions | **COMPLETE** — 9/9 injections produce the expected machine code |
-| `C10` full regressions | pending |
-| `C11` hosted branch CI | pending |
+| `C10` full regressions | **COMPLETE** — every required tier and gate green on the real host |
+| `C11` hosted branch CI | **COMPLETE** — run `35703938755` on the branch tip, four jobs success |
 | `C12` Phase 1A promotion request | pending |
+
+## C10 — FULL REGRESSIONS
+
+`MEASUREMENT` + `REAL_HOST`. Everything the repository requires, run on the Mech host at the implementation
+commit, with nothing else competing for the machine:
+
+| Suite / gate | Result |
+|---|---|
+| `typecheck` (three projects) | PASS |
+| tracked-secret scan | PASS — 1304 files |
+| `state:probe` | PASS |
+| test catalogue | current at **278 suites**, 27/27 capabilities |
+| `architecture:ratchet` | PASS, `violations: []` |
+| Root Trust | epoch 24 `MATCHES`, 63 files, aggregate `6eaf71e9…d457` |
+| `architecture:observe` | PASS — 612 files, 1671 edges |
+| `architecture:qualify` | PASS — `ALLOWED_TO_PROCEED: true` |
+| `architecture:enforce:shadow` / `architecture:enforce` | PASS both |
+| `build` | PASS |
+| **unit tier** | **262 files / 3321 tests / 0 failures** |
+| postbuild tier | 8 files / 119 tests / 0 failures |
+| slow tier | 4 files / 35 tests / 0 failures |
+
+**A gate fired on this phase's own work, and the work was corrected rather than the gate.** The first unit-tier
+run reported two failures in `tests/unit/comment-citation.test.ts`: a new comment in
+`scripts/architecture-enforcement.cjs` cited a section number without naming a document that exists in the
+repository, so bare section citations rose 1308 → 1309 and the per-file debt check failed. The remedy was the
+gate's own preferred one — **state the rule instead** — and the comment was rewritten. The baseline number was
+not raised, no exception was recorded and no gate was disabled. This is the Phase 1A instance of the pattern
+`FINDING-005` recorded for Phase 0: the gate fired, the work product was corrected, the gate was not weakened.
+
+## C11 — HOSTED BRANCH CI
+
+`REMOTE_GITHUB`. Desktop CI run **`35703938755`**, event `push`, `head_sha` = the branch tip, `completed` /
+`success`: `quality`, `unit`, `package` and `acceptance` all `completed` / `success`. The `unit` job is the one
+that builds and runs the three tiers, so this is hosted evidence that the new suites, the catalogue and the new
+commands behave the same way on a clean checkout as they do on the Mech host.
+
+```text
+ENFORCEMENT_ENGINE   = QUALIFIED_CANDIDATE
+HOSTED_REQUIRED_GATE = LEGACY
+```
+
+Unit tests exercise the engine **on this branch**. That is not hosted-gate activation, and it must not be
+reported as such: turning the enforcer into a required hosted gate is a separate municipal-law / Root-Trust act
+(Phase 1B) which this round neither performs nor requests.
 
 ## C6 — GRANDFATHERED BASELINE: identity, not counts
 
@@ -903,6 +948,10 @@ the experiments at C9: **the apparatus was wrong and the measured object was rig
 in two phases is no longer a coincidence to note in passing; it is a repeated property of building measurement
 infrastructure, and it is the strongest argument in this record for the rule that a failing check should first be
 suspected of being the failure.
+
+**A fifth instance, at C10:** the comment-citation gate fired on this phase's own source. The remedy was the
+gate's preferred one — state the rule instead — and it is counted here rather than filed separately, because the
+lesson is identical: the failing check was right and the work was wrong.
 
 ## C7 — POLICY: one evaluator, two modes
 
