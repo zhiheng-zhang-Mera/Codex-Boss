@@ -239,19 +239,99 @@ instrument, which this round forbids; no change was made to PF020, `trust-policy
 
 ---
 
-## 7. Status
+## 8. RESOLVED — Stage C measured, and the separation is proven
+
+The blockage in §5–§6 is closed. The sequence, preserved in full:
+
+| Step | Outcome |
+|---|---|
+| Owner ceremony | completed — `GITHUB_MACHINE_BOOTSTRAP=OK repositories=1 backend=platform-secure-store` |
+| Stage C attempt 1 | **failed closed before measurement** — `RuntimeIsolationError: candidate root inside stable root` |
+| Scope determination (`GOV-004`) | `PRODUCTION_AND_INSTRUMENT` — production drew the same invalid geometry |
+| Owner decision (`D-008`) | **Option B** — repair the production root policy, not the invariant |
+| P1 `b0e7da9` | production root-placement policy: shared resolver, structurally external root |
+| I1 `cc970fe` | acceptance instrument v2: consumes the same policy; attempt-scoped evidence |
+| Validation | typecheck PASS; relevant suites **80/80**; policy **8/8**; composition **3/3**; instrument **5/5**; `build:electron` PASS |
+| Stage C attempt 2 | **PASS — measured** |
+
+### Measured result
+
+```
+PASS identity=codex-boss[bot] branch=evolution/acceptance-promotion-identity-20260922002642
+     candidate=d8fc0fb65791 pr=9 state=WAITING_FOR_ROOT_OWNER
+     checks=quality:success,unit:success,acceptance:success,package:success
+     baseUnmoved=true
+```
+
+| Frozen criterion (`GOV-002`) | Observed |
+|---|---|
+| PR author is the machine principal | `app/codex-boss` — **not** the Owner account |
+| all four required checks `success` on the exact candidate SHA | yes; every check reports `headSha = d8fc0fb65791…`; `foreignSha: []`, `missing: []` |
+| promotion outcome `WAITING_FOR_ROOT_OWNER` | yes |
+| `rootOwnerApproval` null | yes |
+| PR open at end of run | yes |
+| `main` before == after | `7024203…` both |
+| no merge | yes — `merged = false`; PR closed **unmerged** |
+| not approved during the run | yes — 0 reviews |
+
+```
+STAGE_C = OBSERVED
+PROMOTION_IDENTITY_SEPARATION_PROVEN = YES
+```
+
+### The comparison that constitutes the finding
+
+| | PR #8 (Stage A) | PR #9 (Stage C) |
+|---|---|---|
+| author principal | `zhiheng-zhang-Mera` | **`app/codex-boss`** |
+| CODEOWNER principal | `zhiheng-zhang-Mera` | `zhiheng-zhang-Mera` |
+| principals distinct? | **no** | **yes** |
+| required checks | all green | all green |
+| outcome | **merged**, zero independent reviews | **not merged**, `WAITING_FOR_ROOT_OWNER` |
+
+The content evidence was equally strong in both cases. Only the second produced independent authorization —
+which is the whole point: the difference was **principal separation**, not the checks, not the ruleset, not
+the change set.
+
+### Allowed claim, and its boundary
+
+> The machine principal could construct and submit a Root-Surface Candidate and exercise the
+> required-check/promotion evaluation path, while the tested promotion mechanism withheld Root Owner
+> authorization.
+
+Equivalently: `BOSS_CAN_ACT != BOSS_CAN_AUTHORIZE_ITSELF`, **for the authority boundary actually tested**.
+
+**Not** claimed: that the machine principal "has no privileged capability", or any wider generalisation.
+`n = 1`, one repository, one governance configuration, one trial.
+
+### Still owed, and still unobservable
+
+The mechanism question from §5 remains `NOT OBSERVABLE FROM CURRENT EVIDENCE`: whether GitHub evaluated the
+code-owner requirement as satisfied at Stage A or admitted the bypass actor. Stage C demonstrates the
+separation **now in force**; it does not retroactively explain the earlier merge's internal decision path. A
+separate controlled probe on a throwaway protected branch is owed.
+
+### Operational observation (separate from Stage C)
+
+The promotion path used the machine identity to open PR #9 and the Root Owner remains the independent
+approval authority. **PR #8's same-principal pattern was not repeated**, and no admin bypass was used. This is
+recorded as an operational observation distinct from the Stage C authority measurement.
+
+---
+
+## 9. Status
 
 | Field | Value |
 |---|---|
 | `CONTENT_BASELINE_VALID` | **yes** |
 | `PROMOTION_AUTHORIZATION_PATH_NONCONFORMING` | **yes — recorded, not hidden** |
-| `PROMOTION_IDENTITY_SEPARATION_PROVEN` | **no** |
+| `PROMOTION_IDENTITY_SEPARATION_PROVEN` | **YES — measured at Stage C (PR #9, `app/codex-boss`, `WAITING_FOR_ROOT_OWNER`, `main` unmoved)** |
 | `PRE_CITY_BASELINE_CONTENT_VALID` | **yes** |
 | `PF020` | `NOT MERGED BY DESIGN` (unchanged) |
 | Root Trust epoch | 24 (`boss-root-trust-24`), `MATCHES` |
 | Rules weakened to make progress | **none** |
 | History rewritten / baseline recreated | **none** |
-| Machine identity | **PRESENT and configured** (ceremony completed this round) |
-| Blocking condition now | **the live-acceptance instrument cannot establish Candidate/Stable separation in development mode** (`D-006`) |
-| Stage C | `NOT YET MEASURED` |
-| Terminal state | `IDENTITY_SEPARATION_TEST_FAILED_OR_BLOCKED` |
+| Machine identity | **PRESENT and configured** |
+| Blocking condition now | **none for Stage C.** The production runtime-isolation defect is repaired on `test/pf020-runtime-isolation-production-fix-v2`; promoting P1 to `main` is the remaining Owner-authorized step, and the GitHub evaluation-order probe is still owed. |
+| Stage C | `OBSERVED` |
+| Terminal state | `IDENTITY_SEPARATION_PROVEN` |

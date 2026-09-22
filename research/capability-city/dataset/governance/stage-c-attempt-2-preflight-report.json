@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-22T00:26:30.293Z",
+  "state": "PREFLIGHT_PASS",
+  "runId": "acceptance-promotion-identity-20260922002549",
+  "attemptStartedAt": "2026-09-22T00:25:49.736Z",
+  "instrumentFile": "live-promotion-acceptance.js",
+  "instrumentSha256": "e21ba0db4383afeb09bf827693377d431fa6f95244e3ea602082106e7b183854",
+  "preflightOnly": true,
+  "commitSha": "unavailable",
+  "repository": "zhiheng-zhang-Mera/Codex-Boss",
+  "baseBranch": "main",
+  "baseSha": "7024203eee3444a0115664de5e3a3d6599d9a800",
+  "appIdentity": {
+    "logicalIdentity": "Codex-Boss",
+    "appId": "4903952",
+    "installationId": "160744736",
+    "enabled": true,
+    "allowedRepositories": [
+      "zhiheng-zhang-mera/codex-boss"
+    ]
+  },
+  "selfCheck": {
+    "configured": true,
+    "credentialProviderAvailable": true,
+    "authenticationHealthy": true,
+    "installationReachable": true,
+    "capabilities": {
+      "git": true,
+      "github.read": true,
+      "github.write": true,
+      "credential.github": true,
+      "filesystem": true,
+      "test": true,
+      "network": true
+    }
+  },
+  "measuredPermissions": {
+    "contents": "write",
+    "issues": "write",
+    "metadata": "read",
+    "pull_requests": "write",
+    "statuses": "write",
+    "workflows": "write"
+  },
+  "repositorySelection": "selected",
+  "repositoryAllowed": false,
+  "administrationProbeStatus": 200,
+  "credentialEvidence": {
+    "provider": {
+      "configured": true,
+      "identity": "codex-boss[bot]",
+      "source": "github-app-installation-token"
+    },
+    "status": "AVAILABLE",
+    "source": "github-app-installation-token",
+    "identity": "codex-boss[bot]",
+    "synchronousFormIsHonest": true,
+    "tokenIsNotAnAmbientOwnerCredential": true
+  },
+  "rootPolicy": {
+    "stableRoot": "D:\\Boss-PF020-Live-Acceptance",
+    "evolutionRoot": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f",
+    "source": "external-sibling",
+    "fingerprint": "1276cb9e357ea72f",
+    "detail": "sibling of Stable, keyed by installation fingerprint so distinct checkouts cannot collide",
+    "separated": true,
+    "overlaps": []
+  },
+  "candidateLayout": {
+    "root": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002549",
+    "workspace": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002549\\workspace",
+    "runtimeData": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002549\\runtime-data"
+  },
+  "candidate": {
+    "workspace": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002549\\workspace",
+    "branch": "evolution/acceptance-promotion-identity-20260922002549",
+    "candidateHeadSha": "3ce1ef89ea4047f1ed90be91585e6493387de847",
+    "changedFiles": [
+      "electron/credential-boundary/live-acceptance-20260922002549.md"
+    ],
+    "acceptancePath": "electron/credential-boundary/live-acceptance-20260922002549.md"
+  },
+  "authorityPlane": {
+    "ledgerFile": "D:\\Boss-PF020-Live-Acceptance\\runtime-data\\evolution-governance\\root-audit-ledger.jsonl",
+    "governanceRoot": "D:\\Boss-PF020-Live-Acceptance\\runtime-data\\evolution-governance",
+    "killSwitchState": "ENABLED"
+  },
+  "detail": "identity, permissions, credential path, root policy and candidate are ready; nothing was pushed"
+}

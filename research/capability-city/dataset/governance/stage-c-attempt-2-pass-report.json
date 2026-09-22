@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-22T00:43:16.644Z",
+  "state": "PASS",
+  "runId": "acceptance-promotion-identity-20260922002642",
+  "attemptStartedAt": "2026-09-22T00:26:42.487Z",
+  "instrumentFile": "live-promotion-acceptance.js",
+  "instrumentSha256": "e21ba0db4383afeb09bf827693377d431fa6f95244e3ea602082106e7b183854",
+  "preflightOnly": false,
+  "commitSha": "unavailable",
+  "repository": "zhiheng-zhang-Mera/Codex-Boss",
+  "baseBranch": "main",
+  "baseSha": "7024203eee3444a0115664de5e3a3d6599d9a800",
+  "appIdentity": {
+    "logicalIdentity": "Codex-Boss",
+    "appId": "4903952",
+    "installationId": "160744736",
+    "enabled": true,
+    "allowedRepositories": [
+      "zhiheng-zhang-mera/codex-boss"
+    ]
+  },
+  "selfCheck": {
+    "configured": true,
+    "credentialProviderAvailable": true,
+    "authenticationHealthy": true,
+    "installationReachable": true,
+    "capabilities": {
+      "git": true,
+      "github.read": true,
+      "github.write": true,
+      "credential.github": true,
+      "filesystem": true,
+      "test": true,
+      "network": true
+    }
+  },
+  "measuredPermissions": {
+    "contents": "write",
+    "issues": "write",
+    "metadata": "read",
+    "pull_requests": "write",
+    "statuses": "write",
+    "workflows": "write"
+  },
+  "repositorySelection": "selected",
+  "repositoryAllowed": false,
+  "administrationProbeStatus": 200,
+  "credentialEvidence": {
+    "provider": {
+      "configured": true,
+      "identity": "codex-boss[bot]",
+      "source": "github-app-installation-token"
+    },
+    "status": "AVAILABLE",
+    "source": "github-app-installation-token",
+    "identity": "codex-boss[bot]",
+    "synchronousFormIsHonest": true,
+    "tokenIsNotAnAmbientOwnerCredential": true
+  },
+  "rootPolicy": {
+    "stableRoot": "D:\\Boss-PF020-Live-Acceptance",
+    "evolutionRoot": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f",
+    "source": "external-sibling",
+    "fingerprint": "1276cb9e357ea72f",
+    "detail": "sibling of Stable, keyed by installation fingerprint so distinct checkouts cannot collide",
+    "separated": true,
+    "overlaps": []
+  },
+  "candidateLayout": {
+    "root": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002642",
+    "workspace": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002642\\workspace",
+    "runtimeData": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002642\\runtime-data"
+  },
+  "candidate": {
+    "workspace": "D:\\Boss-PF020-Live-Acceptance-evolution-1276cb9e357ea72f\\acceptance-promotion-identity-20260922002642\\workspace",
+    "branch": "evolution/acceptance-promotion-identity-20260922002642",
+    "candidateHeadSha": "d8fc0fb6579173a7f6200f06a494ddd744175d61",
+    "changedFiles": [
+      "electron/credential-boundary/live-acceptance-20260922002642.md"
+    ],
+    "acceptancePath": "electron/credential-boundary/live-acceptance-20260922002642.md"
+  },
+  "authorityPlane": {
+    "ledgerFile": "D:\\Boss-PF020-Live-Acceptance\\runtime-data\\evolution-governance\\root-audit-ledger.jsonl",
+    "governanceRoot": "D:\\Boss-PF020-Live-Acceptance\\runtime-data\\evolution-governance",
+    "killSwitchState": "ENABLED"
+  },
+  "observations": {
+    "outcome": "WAITING_FOR_ROOT_OWNER",
+    "blockedExternal": null,
+    "promotionState": "WAITING_FOR_ROOT_OWNER",
+    "promotionReasons": [
+      "protected-surface-requires-root-owner"
+    ],
+    "promotionHistory": [
+      {
+        "at": "2026-09-22T00:43:14.747Z",
+        "from": "CREATED",
+        "to": "WORKING",
+        "reasons": [
+          "advance:WORKING"
+        ]
+      },
+      {
+        "at": "2026-09-22T00:43:14.754Z",
+        "from": "WORKING",
+        "to": "VERIFYING",
+        "reasons": [
+          "advance:VERIFYING"
+        ]
+      },
+      {
+        "at": "2026-09-22T00:43:14.756Z",
+        "from": "VERIFYING",
+        "to": "REVIEWING",
+        "reasons": [
+          "advance:REVIEWING"
+        ]
+      },
+      {
+        "at": "2026-09-22T00:43:14.759Z",
+        "from": "REVIEWING",
+        "to": "READY_FOR_PR",
+        "reasons": [
+          "advance:READY_FOR_PR"
+        ]
+      },
+      {
+        "at": "2026-09-22T00:43:14.762Z",
+        "from": "READY_FOR_PR",
+        "to": "WAITING_FOR_CI",
+        "reasons": [
+          "advance:WAITING_FOR_CI"
+        ]
+      },
+      {
+        "at": "2026-09-22T00:43:14.900Z",
+        "from": "WAITING_FOR_CI",
+        "to": "WAITING_FOR_ROOT_OWNER",
+        "reasons": [
+          "protected-surface-requires-root-owner"
+        ]
+      }
+    ],
+    "rootOwnerApproval": null,
+    "pullRequest": {
+      "number": 9,
+      "headSha": "d8fc0fb6579173a7f6200f06a494ddd744175d61"
+    },
+    "pullRequestState": "open",
+    "requiredChecks": {
+      "name": "quality+unit+acceptance+package",
+      "conclusion": "success",
+      "status": "completed",
+      "sha": "d8fc0fb6579173a7f6200f06a494ddd744175d61",
+      "requiredChecks": [
+        "quality",
+        "unit",
+        "acceptance",
+        "package"
+      ],
+      "checks": [
+        {
+          "name": "quality",
+          "status": "completed",
+          "conclusion": "success",
+          "headSha": "d8fc0fb6579173a7f6200f06a494ddd744175d61"
+        },
+        {
+          "name": "unit",
+          "status": "completed",
+          "conclusion": "success",
+          "headSha": "d8fc0fb6579173a7f6200f06a494ddd744175d61"
+        },
+        {
+          "name": "acceptance",
+          "status": "completed",
+          "conclusion": "success",
+          "headSha": "d8fc0fb6579173a7f6200f06a494ddd744175d61"
+        },
+        {
+          "name": "package",
+          "status": "completed",
+          "conclusion": "success",
+          "headSha": "d8fc0fb6579173a7f6200f06a494ddd744175d61"
+        }
+      ],
+      "missing": [],
+      "notSuccessful": [],
+      "foreignSha": [],
+      "allRequiredChecksSuccessful": true
+    },
+    "baseBranchShaAfter": "7024203eee3444a0115664de5e3a3d6599d9a800",
+    "protectedBranchUnmoved": true
+  }
+}
