@@ -1684,3 +1684,52 @@ labelled as an inference.
 threshold was lowered, and no test was quarantined. A run that says "the epoch does not anchor this surface" is
 the run this phase intended to produce, and the Owner's ceremony is what changes it.
 
+## I-14 — FINDING: the Owner's own finalization workflow cannot commit its proposal artifact
+
+`FINDING` + `FAILURE` (found while preparing the ceremony, recorded rather than repaired). Phase 1B-A ends at
+the epoch boundary, so the path the Owner will take out of that boundary was checked — and one step of it does
+not work as written.
+
+`.github/workflows/trust-epoch-finalization.yml`, Stage B, contains:
+
+```powershell
+git add trust-policy/trust-epoch.json artifacts/platform-foundation/trust/trust-migration-proposal.json
+```
+
+`artifacts/` is gitignored in this repository (`.gitignore:23`), so `git add` refuses that pathspec. Measured in
+a scratch repository carrying the same `.gitignore`:
+
+```text
+$ git add tracked.json artifacts/platform-foundation/trust/trust-migration-proposal.json
+The following paths are ignored by one of your .gitignore files:
+artifacts
+hint: Use -f if you really want to add them.
+exit 1        (tracked.json staged; the ignored path not staged)
+```
+
+Two consequences, and the second is the one that matters:
+
+1. The proposal artifact — the machine-readable record of *why this epoch was advanced*, which the workflow's
+   own comment calls the thing the finalization run uploads as evidence — is never committed by that step. It
+   survives only as a workflow artifact upload.
+2. Whether the step **fails** or merely reports an error depends on the runner's native-command error
+   preference (`$PSNativeCommandUseErrorActionPreference` behaviour differs across PowerShell versions). With
+   `shell: pwsh` and a terminating preference, the script stops before `git commit`, and the finalization
+   cannot complete at all; without it, the epoch still commits and the step is merely noisy. That ambiguity is
+   itself the defect: a governance step whose success depends on a shell preference is not a step a Root Owner
+   should have to debug during a ceremony.
+
+**Not repaired here, deliberately.** The file is a governance workflow whose owner is the Root Owner, and the
+mission for this phase ends at the epoch boundary rather than inside the ceremony. The remedy is one line —
+drop the ignored path from `git add`, or add it with `-f` — and it is the Owner's act to make it. It is
+recorded here because Part E asks for exactly this class of discovery: a constraint in the trust machinery that
+was not visible from the specification and would otherwise have been found by the Owner at the moment they
+tried to use it.
+
+**The alternative route is unaffected, and is the one the repository's own `ci.yml` comment describes.**
+`node scripts/acceptance-evolution-bless.cjs --advance` establishes the next epoch from the measured live
+surface; committed **together with** the surface change, it is the cadence the `ci.yml` comment attributes to
+epochs 11 and 13, and it needs no workflow at all. It is a Root Owner act: the lockdown's case 2 makes an
+autonomous actor running `--advance` a `DENY`, which is precisely why this phase prepared the epoch and stopped.
+
+
