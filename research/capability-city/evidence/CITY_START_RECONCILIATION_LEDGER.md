@@ -568,6 +568,47 @@ and left in place, and the authoritative statement lives elsewhere. That precede
 
 The distinction between *superseded* and *wrong* matters: none of the statements above was false when written.
 
+### 7a. D-4 — the frozen on-baseline freeze manifest records a **pre-promotion** plan
+
+`PRE_CITY_FREEZE_MANIFEST.json` is **tracked in the baseline itself** and was finalised at the RC
+(`c265ede` → `836b5ed`). It was frozen *before* the promotion happened, so every field that the promotion could
+change now reads differently. This is the third discrepancy of the same shape as `RQ.md` D-1 and
+`baseline-metadata.json` D-2, and the first found **in an on-baseline tracked document**. Following the
+programme's numbering it is recorded as **D-4**; the manifest is **not** edited.
+
+| Field in the frozen manifest | Value in the baseline | What is true now | Class |
+|---|---|---|---|
+| `promotion_decision.rc_merged_to_main` | `false` | **`true`** — PR #8 merged, `7024203` | superseded |
+| `promotion_decision.pr_created` | `false` (= "Not created. §19 permits a PR but does not require one") | **PR #8 exists** | superseded |
+| `promotion_decision.final_status` | `PRE_CITY_RC_READY_FOR_OWNER_PROMOTION` | the promotion completed; PR #10 later superseded `main` again | superseded |
+| `identity.final_main_sha` | `null`; note: *"main is UNMOVED at 4da0ed0"* | `main` became `7024203`, then `53aa74a` | superseded |
+| `tag.status` | `TAG_READY_NOT_CREATED` | the tag **exists** | superseded |
+| `tag.target_sha` / `tag.exact_commands` | `23e15412f00355fd865432c03ec49210f91f0f33` | the tag points at **`7024203`** — the merge commit | **discrepancy** |
+| `owner_action_required[0..1]` | "Decide whether to promote …" / "Create and push the `pre-city-baseline-v1` tag" | **both done** | superseded |
+
+**Why `target_sha` is a discrepancy and not an error.** The manifest's own rule is that *"a tag never points at
+a commit that was not promoted"*. Promotion produced a merge commit, so under that same rule the correct target
+became `7024203` rather than the pre-merge tip `23e1541`. The tag's own annotation records this: *"Tagged from
+the resulting `main` as instructed."* The plan was superseded by its own execution; nothing was contradicted.
+
+**Content relation, measured** — so the discrepancy is bounded rather than left vague:
+
+```
+git rev-parse 23e15412f00355fd865432c03ec49210f91f0f33^{tree}   ->  ca291874c396b5948a0a91770a8bdf62ffe61614
+git rev-parse 836b5ed60aa63f3334e6cd08b193113325505880^{tree}   ->  8e31f066a1b5df7f32c9db47c80aaffd02b78dd5
+git rev-parse 7024203eee3444a0115664de5e3a3d6599d9a800^{tree}   ->  8e31f066a1b5df7f32c9db47c80aaffd02b78dd5
+git diff --stat 23e1541 7024203    ->  PRE_CITY_FREEZE_MANIFEST.json | 469 +++++  (1 file, +469/-0)
+```
+
+So the tagged content differs from the manifest's named target **only by the manifest file itself** — the
+document that contains the instruction. The manifest also binds that fact from the other side:
+`identity.pre_city_rc_acceptance_verified_tree_sha = ca291874c396b5948a0a91770a8bdf62ffe61614`, which is
+**exactly** the tree measured above for `23e1541`. The binding holds.
+
+**The manifest's own CI claims were independently re-verified this round** (§5b rows 5 and 6): all three
+`rc_commits_verified_green` runs are green on the SHAs it names, and the failure it records for `5c06f7e` is a
+real failure. So D-4 is a *staleness* finding about a document, not a defect in its evidence.
+
 ---
 
 ## 7b. Correction register — errors found in this round's own earlier artefacts

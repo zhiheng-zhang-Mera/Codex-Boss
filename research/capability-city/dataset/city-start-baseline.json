@@ -233,6 +233,37 @@
     }
   },
 
+  "documented_provenance_discrepancies": {
+    "register": "continues the numbering of evidence/RESEARCH_REF_MANIFEST.md section 5 (D-1, D-2, D-3). Recorded, never silently corrected.",
+    "D-4": {
+      "artefact": "PRE_CITY_FREEZE_MANIFEST.json (TRACKED IN THE BASELINE; finalised at the RC, c265ede -> 836b5ed)",
+      "class": "staleness - the document records a pre-promotion plan and the promotion later superseded it",
+      "superseded_fields": [
+        "promotion_decision.rc_merged_to_main: false -> true (PR #8 merged, 7024203)",
+        "promotion_decision.pr_created: false -> PR #8 exists",
+        "promotion_decision.final_status: PRE_CITY_RC_READY_FOR_OWNER_PROMOTION -> promotion completed",
+        "identity.final_main_sha: null ('main is UNMOVED at 4da0ed0') -> main became 7024203, then 53aa74a",
+        "tag.status: TAG_READY_NOT_CREATED -> the tag exists",
+        "owner_action_required[0..1] (decide promotion; create and push the tag) -> both done"
+      ],
+      "genuine_discrepancy": {
+        "field": "tag.target_sha / tag.exact_commands",
+        "manifest_says": "23e15412f00355fd865432c03ec49210f91f0f33",
+        "actual_tag_target": "7024203eee3444a0115664de5e3a3d6599d9a800",
+        "why_not_an_error": "the manifest's own rule is that a tag never points at a commit that was not promoted; promotion produced a merge commit, so under that same rule the target became 7024203. The tag annotation records 'Tagged from the resulting main as instructed'."
+      },
+      "content_relation_measured": {
+        "23e1541_tree": "ca291874c396b5948a0a91770a8bdf62ffe61614",
+        "836b5ed_tree": "8e31f066a1b5df7f32c9db47c80aaffd02b78dd5",
+        "7024203_tree": "8e31f066a1b5df7f32c9db47c80aaffd02b78dd5",
+        "diff_23e1541_to_7024203": "PRE_CITY_FREEZE_MANIFEST.json | 469 insertions, 0 deletions (only the manifest - the document that contains the instruction)",
+        "manifest_self_binding": "identity.pre_city_rc_acceptance_verified_tree_sha = ca291874c396b5948a0a91770a8bdf62ffe61614, which equals the measured 23e1541 tree - the binding holds"
+      },
+      "manifest_ci_claims_reverified": "all three rc_commits_verified_green runs green on the SHAs it names; the recorded 5c06f7e failure is real (see inherited_ci_claims_reverified)",
+      "disposition": "recorded in evidence/CITY_START_RECONCILIATION_LEDGER.md section 7a; the manifest is NOT edited"
+    }
+  },
+
   "phase0": {
     "status": "NOT_STARTED",
     "reason": "PHASE0_SPEC_NOT_FOUND",
