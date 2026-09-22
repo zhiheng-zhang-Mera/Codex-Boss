@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { app, safeStorage } from "electron";
 import { createGitHubMachineRuntime } from "../github/github-machine-runtime";
 import { appDataUnder } from "../runtime-paths";
@@ -11,11 +12,14 @@ import { GitHubPromotionAdapter } from "../promotion-gate/github-promotion-adapt
 import { createRunPromotionController } from "../promotion-gate/promotion-controller";
 import { RootAuthority } from "../root-authority/root-authority";
 import { createCandidateWorkspace, candidateChangedFiles, commitCandidate } from "../stable-candidate/workspace-manager";
+import { resolveEvolutionRoot } from "../stable-candidate/evolution-root-policy";
+import { evolutionLayout, verifyRuntimeSeparation } from "../stable-candidate/runtime-isolation";
 import { runGitOrThrow, GIT_MAX_BUFFER_BYTES } from "../git/git-gateway";
 import { createEvolutionGovernance, createGitHostHandlers } from "./self-evolution-host";
 import { EvolutionHostOperations } from "./host-operations";
 import type { EvolutionRunContext } from "./mutation-context";
 import { promoteCandidateOverGitHub } from "./remote-promotion";
+import { attemptIdentity, reportPaths, terminalFailureReason, writeAttemptReport } from "./live-acceptance-reporting";
 
 /**
  * Live acceptance of the Self-Evolution promotion path acting with the EXISTING GitHub App machine identity
@@ -27,13 +31,17 @@ import { promoteCandidateOverGitHub } from "./remote-promotion";
  *   2. measures the App's own permission set from the installation-token response, and probes one
  *      administration endpoint so "the App has no repository administration" is a measurement rather than a
  *      belief;
- *   3. builds a real Candidate worktree at the live protected-branch tip, with one harmless file added under a
+ *   3. resolves the Candidate evolution root through the SAME shared policy production uses
+ *      (`stable-candidate/evolution-root-policy`), and records the invariant's own verdict on the resulting
+ *      geometry — the acceptance must exercise the geometry production actually resolves, never an easier
+ *      one reserved for itself;
+ *   4. builds a real Candidate worktree at the live protected-branch tip, with one harmless file added under a
  *      path the Root Surface manifest protects (`electron/credential-boundary/`) and the trust epoch does NOT
  *      cover — so CI can be green and the authority ceiling is still reached;
- *   4. drives the SAME promotion sequence an autonomous run drives (`promoteCandidateOverGitHub`, the same
+ *   5. drives the SAME promotion sequence an autonomous run drives (`promoteCandidateOverGitHub`, the same
  *      handlers, the same `PromotionController`, the same governance switch), which pushes the branch, opens
  *      the pull request, reads EVERY required check for the exact candidate SHA, and then stops;
- *   5. asserts the negative authority result: `WAITING_FOR_ROOT_OWNER`, the pull request still open, the
+ *   6. asserts the negative authority result: `WAITING_FOR_ROOT_OWNER`, the pull request still open, the
  *      protected branch unmoved, and no merge.
  *
  * ## What it must never do
@@ -48,6 +56,13 @@ import { promoteCandidateOverGitHub } from "./remote-promotion";
  *   1  the acceptance ran and FAILED (each reason is listed; the report says what was observed)
  *   2  BLOCKED_EXTERNAL: the machine identity is not installed on this host, so the acceptance could not run.
  *      This is a measured state, not a guess: nothing was pushed and nothing was merged.
+ *
+ * ## Attempt-scoped reporting (corrects STALE_SINGLETON_REPORT_HAZARD)
+ *
+ * The report used to be one fixed file written only on the success/preflight-success path. An exception
+ * before that point left the PREVIOUS run's report in place, and a stale `BLOCKED_EXTERNAL` was mistaken for
+ * a newer `RuntimeIsolationError` attempt. Every attempt now writes its own `<runId>.json`, and `latest.json`
+ * is rewritten atomically on every attempt — including attempts that throw before a Candidate is built.
  */
 
 const repository = "zhiheng-zhang-Mera/Codex-Boss";
@@ -56,18 +71,49 @@ const rootOwner = "zhiheng-zhang-Mera";
 const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
 const runId = `acceptance-promotion-identity-${stamp}`;
 const dataRoot = appDataUnder(process.cwd());
-const reportFile = path.join(dataRoot, ".boss", "promotion-identity-live-acceptance.json");
+const attemptStartedAt = new Date().toISOString();
+/** Attempt-scoped evidence paths. `latest.json` is a convenience pointer, never the only record. */
+const reportTargets = reportPaths(dataRoot, runId);
+/** Path of THIS compiled instrument, so the report can name the exact code that produced it. */
+const instrumentFile = __filename;
 app.setPath("userData", dataRoot);
 
 const preflightOnly = process.argv.includes("--preflight");
 
 type Json = Record<string, unknown>;
 
+/** Attempt identity, present in every report so no attempt can be confused with another. */
+function attemptEvidence(): Json {
+  return {
+    ...attemptIdentity({
+      runId,
+      attemptStartedAt,
+      instrumentFile,
+      preflightOnly,
+      repository,
+      baseBranch
+    })
+  };
+}
+
+/**
+ * Writes one attempt's evidence, atomically, and refreshes `latest.json`.
+ *
+ * Secret-safe: the report is scanned before it touches disk, and a report that fails the gate is REFUSED
+ * with only a redacted terminal message. There is deliberately no fallback that dumps the raw report.
+ */
 function writeReport(report: Json): void {
-  const serialized = JSON.stringify(report, null, 2);
-  if (scanSecrets(serialized).length) throw new Error("the acceptance report failed its own credential-leakage gate");
-  fs.mkdirSync(path.dirname(reportFile), { recursive: true });
-  fs.writeFileSync(reportFile, `${serialized}\n`, "utf8");
+  const result = writeAttemptReport(reportTargets, report);
+  if (result.outcome === "REPORT_REFUSED") {
+    console.error("PROMOTION_IDENTITY_LIVE_ACCEPTANCE=REPORT_REFUSED the acceptance report failed its own credential-leakage gate; nothing was written");
+  } else if (result.outcome === "WRITE_FAILED") {
+    console.error("PROMOTION_IDENTITY_LIVE_ACCEPTANCE=REPORT_WRITE_FAILED the acceptance report could not be written");
+  }
+}
+
+/** A report whose `state` is terminal, so a later attempt cannot be confused with it. */
+function report(state: string, extra: Json): Json {
+  return { schemaVersion: 2, generatedAt: new Date().toISOString(), state, ...attemptEvidence(), ...extra };
 }
 
 /**
@@ -76,17 +122,12 @@ function writeReport(report: Json): void {
  * fall through into a promotion attempt.
  */
 function blockedExternal(detail: string, evidence: Json = {}): never {
-  writeReport({
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    state: "BLOCKED_EXTERNAL",
+  writeReport(report("BLOCKED_EXTERNAL", {
     detail,
-    repository,
-    baseBranch,
     requiredExternalAction: `Install the Codex-Boss GitHub App machine identity on this host (\`corepack pnpm run bootstrap:github-machine\`, Owner-run, private key kept in platform secure storage), then re-run \`corepack pnpm run acceptance:promotion-identity:live\`.`,
     credentialRequiredAction: BOSS_CREDENTIAL_REQUIRED_ACTION,
     ...evidence
-  });
+  }));
   console.log(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=BLOCKED_EXTERNAL detail=${redactSecrets(detail)}`);
   app.exit(2);
   throw new Error("unreachable: the blocked acceptance exits the process");
@@ -94,7 +135,7 @@ function blockedExternal(detail: string, evidence: Json = {}): never {
 
 /** Reports a failure and stops. See `blockedExternal` for why the return type is `never`. */
 function fail(reasons: string[], evidence: Json): never {
-  writeReport({ schemaVersion: 1, generatedAt: new Date().toISOString(), state: "FAILED", reasons, repository, baseBranch, ...evidence });
+  writeReport(report("FAILED", { reasons, ...evidence }));
   for (const reason of reasons) console.error(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE_FAIL ${redactSecrets(reason)}`);
   app.exit(1);
   throw new Error("unreachable: the failed acceptance exits the process");
@@ -183,8 +224,48 @@ app.whenReady().then(async () => {
   }
 
   const governanceRoot = path.join(dataRoot, "evolution-governance");
-  const evolutionRoot = path.join(dataRoot, "evolution");
-  const candidate = await createCandidateWorkspace({ stableRoot: process.cwd(), evolutionRoot, baseSha: liveBase.value.sha, runId, allowNonHeadBase: true });
+  // 4. The Candidate root comes from the SAME shared policy the production composition root uses. The
+  //    acceptance deliberately does NOT reserve an easier geometry for itself: it must exercise the root
+  //    placement production actually resolves. An unsafe resolution throws here, before anything is written.
+  const stableRoot = process.cwd();
+  let resolvedEvolution: ReturnType<typeof resolveEvolutionRoot>;
+  try {
+    resolvedEvolution = resolveEvolutionRoot({
+      stableRoot,
+      userData: dataRoot,
+      ...(process.env.BOSS_EVOLUTION_ROOT ? { explicitOverride: process.env.BOSS_EVOLUTION_ROOT } : {})
+    });
+  } catch (error) {
+    fail([`the shared evolution-root policy refused to place the Candidate root: ${String((error as Error).message)}`], {
+      appIdentity,
+      credentialEvidence,
+      rootPolicy: { stableRoot, resolved: null }
+    });
+    return;
+  }
+  const evolutionRoot = resolvedEvolution.evolutionRoot;
+  // The invariant's own verdict on the geometry the policy just chose. Recorded, not assumed: if this is
+  // ever `false` the acceptance must stop rather than build a Candidate.
+  const geometry = verifyRuntimeSeparation(evolutionLayout(evolutionRoot, runId, liveBase.value.sha), stableRoot);
+  const rootPolicyEvidence = {
+    stableRoot,
+    evolutionRoot,
+    source: resolvedEvolution.origin.source,
+    fingerprint: resolvedEvolution.origin.fingerprint,
+    detail: resolvedEvolution.origin.detail,
+    separated: geometry.separated,
+    overlaps: geometry.overlaps
+  };
+  if (!geometry.separated) {
+    fail(["the shared evolution-root policy returned a location the isolation invariant rejects"], {
+      appIdentity,
+      credentialEvidence,
+      rootPolicy: rootPolicyEvidence
+    });
+    return;
+  }
+
+  const candidate = await createCandidateWorkspace({ stableRoot, evolutionRoot, baseSha: liveBase.value.sha, runId, allowNonHeadBase: true });
   const layout = candidate.layout;
   const acceptancePath = `electron/credential-boundary/live-acceptance-${stamp}.md`;
   fs.writeFileSync(path.join(layout.workspace, acceptancePath), [
@@ -234,11 +315,6 @@ app.whenReady().then(async () => {
   const promotion = createRunPromotionController({ governanceRoot, runId, authority, workspace: layout.workspace, emergency, stableSha: liveBase.value.sha });
 
   const evidenceBase = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    runId,
-    repository,
-    baseBranch,
     baseSha: liveBase.value.sha,
     appIdentity,
     selfCheck,
@@ -247,13 +323,17 @@ app.whenReady().then(async () => {
     repositoryAllowed,
     administrationProbeStatus: administrationProbe,
     credentialEvidence,
+    /** Which root-placement policy resolved the Candidate root, and the invariant's verdict on it. */
+    rootPolicy: rootPolicyEvidence,
+    /** The Candidate's resolved layout, relative to nothing shared with Stable. */
+    candidateLayout: { root: layout.root, workspace: layout.workspace, runtimeData: layout.runtimeData },
     candidate: { workspace: layout.workspace, branch: layout.candidateBranch, candidateHeadSha, changedFiles, acceptancePath },
     authorityPlane: { ledgerFile, governanceRoot, killSwitchState: killSwitch.status().state }
   };
 
   if (preflightOnly) {
-    writeReport({ ...evidenceBase, state: "PREFLIGHT_PASS", detail: "identity, permissions, credential path and candidate are ready; nothing was pushed" });
-    console.log(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=PREFLIGHT_PASS identity=${credentialEvidence.identity} candidate=${candidateHeadSha.slice(0, 12)} changedFiles=${changedFiles.join(",")}`);
+    writeReport(report("PREFLIGHT_PASS", { ...evidenceBase, detail: "identity, permissions, credential path, root policy and candidate are ready; nothing was pushed" }));
+    console.log(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=PREFLIGHT_PASS identity=${credentialEvidence.identity} rootSource=${rootPolicyEvidence.source} separated=${rootPolicyEvidence.separated} base=${liveBase.value.sha.slice(0, 12)} candidate=${candidateHeadSha.slice(0, 12)} changedFiles=${changedFiles.join(",")}`);
     app.exit(0);
     return;
   }
@@ -305,10 +385,27 @@ app.whenReady().then(async () => {
   if (failures.length) {
     fail(failures, { ...evidenceBase, observations });
   }
-  writeReport({ ...evidenceBase, state: "PASS", observations });
+  writeReport(report("PASS", { ...evidenceBase, observations }));
   console.log(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=PASS identity=${credentialEvidence.identity} branch=${layout.candidateBranch} candidate=${candidateHeadSha.slice(0, 12)} pr=${String(record.pullRequest?.number)} state=${record.state} checks=${greenChecks} baseUnmoved=true`);
   app.quit();
 }).catch((error) => {
-  console.error(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=FAIL ${redactSecrets(String(error))}`);
+  // §8 — a top-level exception, including one thrown before Candidate creation, must still produce a FRESH
+  // attempt-scoped FAILED report. Without this, the previous attempt's report stayed on disk and was mistaken
+  // for the current one (STALE_SINGLETON_REPORT_HAZARD), which is exactly what happened when the nested-root
+  // geometry threw and an older BLOCKED_EXTERNAL was read as this run's result.
+  const detail = terminalFailureReason(error);
+  const kind = error instanceof Error ? error.name : "Error";
+  try {
+    writeReport(report("FAILED", {
+      reasons: [`the acceptance threw before completion (${kind}): ${detail}`],
+      terminal: "THROWN",
+      phase: "pre-candidate-or-later"
+    }));
+  } catch {
+    // A report that cannot be written must not become a second failure surface: print the redacted terminal
+    // message and return non-zero. Never dump raw error or context.
+    console.error("PROMOTION_IDENTITY_LIVE_ACCEPTANCE=REPORT_WRITE_FAILED");
+  }
+  console.error(`PROMOTION_IDENTITY_LIVE_ACCEPTANCE=FAIL ${detail}`);
   app.exit(1);
 });
