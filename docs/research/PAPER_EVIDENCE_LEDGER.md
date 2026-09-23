@@ -2262,15 +2262,83 @@ formality.
 
 ## K-9 — hosted observation, and what this mission may and may not conclude
 
-`MEASUREMENT`. The candidate branch is pushed and both events are observed. **Filled after the push**, from the
-actual runs, whichever way they went.
+`MEASUREMENT`. The candidate branch is pushed and the `push` event is observed on the real GitHub-hosted
+runner. **The PR event does not exist**, because no pull request was opened — see K-10, which is the identity
+boundary rather than an omission.
 
 ```text
-PUSH_RUN_ID = (pending)
-PUSH_ARCHITECTURE_RESULT = (pending)
-PR_RUN_ID = (pending)
-PR_ARCHITECTURE_RESULT = (pending)
+PUSH_RUN_ID = 35805180887
+PUSH_EVENT = push
+PUSH_HEAD_SHA = 9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c
+PUSH_RUN_CONCLUSION = completed/failure
+  quality       success
+  architecture  success      <-- the new check, on the hosted runner, separately
+  unit          failure      <-- EXPECTED: tests/unit/test-layers.test.ts:430, the epoch anchor (K-7 EXPECTED_1)
+  acceptance    skipped      (needs: unit)
+  package       skipped      (needs: unit)
+
+ARCHITECTURE_JOB_ID = 107004291479
+ARCHITECTURE_JOB_CONCLUSION = completed/success
+ARCHITECTURE_JOB_RUNNER = GitHub Actions 1000001561   (a real hosted runner, not this host)
+
+PR_RUN_ID = NOT_APPLICABLE   (no PR opened; see K-10)
 ```
+
+**The `architecture` check appears SEPARATELY, which is the point of the migration.** All thirteen of its steps
+ran and passed on the hosted runner, in the specified order:
+
+```text
+ 2 actions/checkout@v4                                  success
+ 3 pnpm/action-setup@v4                                 success
+ 4 actions/setup-node@v4                                success
+ 5 pnpm install --frozen-lockfile                       success
+ 6 pnpm run install:electron                            success
+ 7 pnpm run build                                       success
+ 8 pnpm run architecture:enforce:baseline:series        success
+ 9 pnpm run architecture:enforce:baseline -- --check    success
+10 pnpm run architecture:enforce:shadow                 success
+11 node scripts/architecture-shadow-hosted.cjs          success
+12 Architecture shadow evidence is present and complete success
+13 actions/upload-artifact@v4                           success
+```
+
+**The hosted evidence artifact, read back from the run** (`gh run download 35805180887 --name
+architecture-shadow`) rather than from this host's copy:
+
+```text
+artifact            = architecture-shadow (id 10727212130)
+schema              = city-phase1b-hosted-architecture-shadow/1
+fixture_mode        = false
+commit_sha          = 9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c
+workflow_run_id     = 35805180887        workflow_run_attempt = 1
+event               = push               job = architecture        runner_os = Windows
+shadow_verdict      = PASS               engine_verdict = PASS
+engine_error_count  = 0                  machinery_failure_count = 0
+policy_violation_count = 0               new_regressions = 0
+findings_count      = 1677               findings_semantic_hash = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
+findings_by_policy_class = {POLICY_VIOLATION: 0, FAIL_CLOSED: 0, INFORMATIONAL: 1677}
+baseline_version    = 1                  baseline_hash = b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e
+baseline_series_status = AUTHORISED      baseline_self_consistent = true
+root_trust_epoch    = 25                 root_trust_surface_hash = 37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741
+not_yet_enforced    = 5 classes published
+```
+
+**Parity, measured between the hosted artifact and a local run of the same commit** — not asserted from a
+constant, and not from the same artifact read twice:
+
+```text
+HOSTED_FINDINGS_HASH = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
+LOCAL_FINDINGS_HASH  = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
+HASHES_EQUAL = true      COUNTS_EQUAL = true (1677)      state = HOSTED_LOCAL_PARITY
+```
+
+The hosted run's overall conclusion is `failure`, and that is the **expected** failure rather than a defect of
+this phase: `unit` is red on `tests/unit/test-layers.test.ts:430`, the epoch anchor, which is `EXPECTED_1` of K-7
+and clears when the Owner's ceremony writes epoch 26. `acceptance` and `package` are `skipped` because they
+declare `needs: unit` — which is precisely why the `architecture` job was given **no** `needs:` in the first
+place: had it depended on `unit`, it would have been **skipped in this very run** and the deployment would have
+had no evidence at all. The design decision and the run agree, and the run is the reason the decision is now
+evidence rather than an argument.
 
 **What this section may not conclude.** It does not claim the soak is complete: the Phase 1B specification's S1
 exit condition is **≥ 20 consecutive PR/push `architecture` runs** in which shadow and local agree,
@@ -2278,6 +2346,13 @@ exit condition is **≥ 20 consecutive PR/push `architecture` runs** in which sh
 the mission says so explicitly. It also does not claim the hosted gate would block anything correctly *in
 production*, because it is not required and has therefore never blocked anything — which is what stages S2 and S3
 exist to establish, and neither is this mission.
+
+```text
+HOSTED_SHADOW_DEPLOYED = YES            (one push event, architecture job green, artifact published, parity measured)
+HOSTED_SHADOW_SOAK_COMPLETE = NO        (>= 20 consecutive runs not reached)
+HOSTED_REQUIRED_GATE = LEGACY
+HOSTED_ENFORCE_VISIBLE = NOT_STARTED
+```
 
 ## K-10 — `AUTHORITY_BOUNDARY`: the PR identity, measured, and the stop it forces
 
