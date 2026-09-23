@@ -1,0 +1,606 @@
+#!/usr/bin/env node
+/**
+ * Capability City Phase 1B-B — hosted architecture shadow.
+ *
+ * Specification (normative): docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md, sections 2, 3 (stage S1), 5, 8.
+ * Mission: Mission-4C, Part B.
+ *
+ * WHAT THIS FILE IS, AND WHAT IT IS NOT
+ *   It is the ORCHESTRATOR and EVIDENCE PRODUCER for the hosted `architecture` job. It is not a second
+ *   evaluator: the policy decision is made by `scripts/architecture-enforcement.cjs`, the same function that
+ *   serves `--mode enforce` locally, and this file never re-decides a finding.
+ *
+ *   It runs the three logical checks the mission names, in order:
+ *
+ *       1. baseline-series authorization      trust-policy/architecture-enforcement-baselines.json
+ *       2. accepted-baseline self-consistency config/architecture-enforcement-baseline.json
+ *       3. architecture shadow enforcement    scripts/architecture-enforcement.cjs --mode shadow
+ *
+ * THE ONE THING THIS FILE ADDS: FAIL-CLOSED CLASSIFICATION
+ *   The engine's own contract is "policy violation -> exit 0 in shadow; engine error -> non-zero in both". That
+ *   contract is right for the engine and is NOT sufficient for the hosted gate, because the spec's fail-closed
+ *   table (section 5) names conditions that the engine classifies as `severity: VIOLATION` while still exiting
+ *   0 in shadow mode -- `SENSOR_INCOMPLETE` above all. A hosted shadow job that exited 0 on an incomplete
+ *   sensor would be a gate that could not look, reporting that there was nothing to see, which is the exact
+ *   failure mode the Phase 1B specification exists to prevent (section 5, rule 1).
+ *
+ *   So this file draws the line the hosted job needs, and draws it ON FINDING CODES rather than on the engine's
+ *   exit code:
+ *
+ *       POLICY VIOLATION          -> reported, this process exits 0, the `architecture` job may stay green
+ *       MACHINERY FAILURE         -> this process exits 1, the `architecture` job fails
+ *
+ *   SHADOW != IGNORE_ERRORS. Only policy violations are report-only. Broken measurement or broken governance
+ *   machinery is fail-closed even in shadow.
+ *
+ * WHY THE ENGINE IS CALLED IN-PROCESS RATHER THAN SPAWNED
+ *   The repository's engine is a library and a CLI over the same exported functions (`evaluatePolicy`,
+ *   `measureTree`, ...). Calling the exports from here lets the runner hold the measurement, the baseline and
+ *   the resulting findings in one set of variables, so the evidence it publishes is derived from the decision
+ *   it reports rather than parsed back out of a subprocess's stdout. A subprocess whose JSON failed to parse
+ *   would be a machinery failure discovered late; here it cannot happen, because there is no second encoding.
+ *
+ * USAGE
+ *   node scripts/architecture-shadow-hosted.cjs
+ *   node scripts/architecture-shadow-hosted.cjs --out <dir> --metadata <path>
+ *   node scripts/architecture-shadow-hosted.cjs --baseline <path> [--authorizations <path>] \
+ *        [--measurement <path>] [--declarations <path>] [--root <dir>]     # FIXTURE SEAM
+ *
+ * THE FIXTURE SEAM IS REFUSED ON THE GOVERNING PATH
+ *   `--baseline` (or any other override that can change what is measured or what governs) selects fixture mode,
+ *   and fixture mode is what the adversarial suites drive to make each fail-closed row observable. Exactly as in
+ *   the engine, a fixture may name its own `--authorizations` source, but the GOVERNING run may not redirect its
+ *   authorization check to a caller-chosen series: an authorization check whose source the caller picks is not a
+ *   check. `--authorizations` without `--baseline` is therefore a refusal, not an override.
+ */
+
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
+
+const enforcement = require("./architecture-enforcement.cjs");
+const baselineModule = require("./architecture-enforcement-baseline.cjs");
+const seriesModule = require("./architecture-baseline-series.cjs");
+
+const ROOT = path.resolve(__dirname, "..");
+const SCHEMA = "city-phase1b-hosted-architecture-shadow/1";
+const DEFAULT_OUT_DIR = path.join("artifacts", "city", "phase1");
+const DEFAULT_SHADOW_NAME = "architecture-enforcement-shadow.json";
+const DEFAULT_METADATA_NAME = "architecture-shadow-metadata.json";
+const DIGEST_SCHEMA = "city-architecture-findings-digest/1";
+
+// The trust epoch record, read as committed. The aggregate surface hash for the LIVE tree is deliberately NOT
+// recomputed here: that needs dist-electron, and a CI job that could not measure the surface must still be able
+// to publish the shadow evidence it did measure. `--require-surface` makes the caller demand it (PARITY, below).
+const EPOCH_PATH = path.join("trust-policy", "trust-epoch.json");
+
+/**
+ * The fail-closed classification, by finding code. A code listed here is MACHINERY, not policy: the gate could
+ * not measure, could not establish what governs, or the sensor is known to be incomplete. Everything else is a
+ * finding about the tree, which shadow reports without blocking.
+ *
+ * This list is the machine-readable form of docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md section 5. It is
+ * asserted against that section by tests/unit/city/architecture-hosted-shadow.test.ts (S1..S4, H7).
+ */
+const MACHINERY_CODES = [
+  "ENGINE_ERROR",
+  "SENSOR_INCOMPLETE",
+  "UNRESOLVED_UNSUPPORTED_SOURCE_RESOLUTION",
+  "UNRESOLVED_SOURCE_TARGET_MISSING",
+  "UNRESOLVED_OTHER_UNKNOWN",
+  "BASELINE_SERIES_UNAUTHORISED",
+  "BASELINE_SERIES_MISSING",
+  "BASELINE_SERIES_MALFORMED",
+  "BASELINE_SERIES_EMPTY",
+  "BASELINE_TRIPLE_INCOMPLETE",
+  "BASELINE_HASH_INVALID",
+  "BASELINE_HASH_MISMATCH",
+  "BASELINE_VERSION_NOT_SEQUENTIAL",
+  "BASELINE_VERSION_REUSED",
+  "BASELINE_PARENT_MISMATCH",
+  "BASELINE_FORK",
+  "BASELINE_HEAD_NOT_TRACKED",
+  "NOT_YET_ENFORCED_EXPANDED",
+  "RETIRED_EDGE_FORGOTTEN",
+  "OWNERSHIP_CONFLICT",
+];
+
+const MACHINERY = new Set(MACHINERY_CODES);
+
+/**
+ * Findings that are not about the tree at all: they are the engine stating a fact about the repository or about
+ * its own ability to look. They are exactly the spec section 5 rows whose state is "implemented" but whose
+ * hosted consequence the engine cannot express, because the engine's shadow contract is policy-only.
+ */
+function classifyPolicy(finding) {
+  if (MACHINERY.has(finding.code)) return "FAIL_CLOSED";
+  if (finding.code === "NON_SOURCE_ASSET" || finding.code === "NOT_YET_ENFORCED" || finding.code === "PASS_AS_GRANDFATHERED" || finding.code === "DEBT_REDUCED" || finding.code === "NEW_DECLARED_SOURCE" || finding.code === "NEW_EDGE_DECLARED_ENDPOINT") {
+    return "INFORMATIONAL";
+  }
+  return "POLICY_VIOLATION";
+}
+
+/**
+ * Normalize one finding into the identity a parity comparison is allowed to use. Count alone is explicitly NOT
+ * sufficient (mission section 8), so the shape carries code + subject identity + severity + policy class and
+ * nothing volatile -- no timestamps, no file counts, no ordering.
+ */
+function normalizeFinding(finding) {
+  return {
+    code: String(finding?.code ?? ""),
+    severity: String(finding?.severity ?? ""),
+    subject: String(finding?.subject ?? ""),
+    policy_class: classifyPolicy(finding ?? {}),
+  };
+}
+
+/** Deterministic order: code, then subject, then severity. Two identical finding sets order identically. */
+function sortNormalized(entries) {
+  return [...entries].sort((left, right) => {
+    if (left.code !== right.code) return left.code < right.code ? -1 : 1;
+    if (left.subject !== right.subject) return left.subject < right.subject ? -1 : 1;
+    return left.severity < right.severity ? -1 : left.severity > right.severity ? 1 : 0;
+  });
+}
+
+function sha256(text) {
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+/**
+ * The semantic digest over the normalized findings set.
+ *
+ * "Deterministic" here means the same findings produce the same digest across runs, platforms and process
+ * orderings; it does NOT mean two different finding sets are hashed by count. Keys are emitted in a fixed
+ * order and the entries are sorted, so the digest is a function of the SET, not of the array it arrived in.
+ */
+function semanticFindingsHash(normalizedFindings) {
+  const canonical = sortNormalized(normalizedFindings).map((entry) =>
+    `{"code":${JSON.stringify(entry.code)},"severity":${JSON.stringify(entry.severity)},"subject":${JSON.stringify(entry.subject)},"policy_class":${JSON.stringify(entry.policy_class)}}`
+  );
+  return sha256(JSON.stringify({ schema: DIGEST_SCHEMA, findings: canonical }));
+}
+
+/**
+ * Compare a local normalized findings set with a hosted one, by identity. Returns the disagreement rather than a
+ * boolean, so an operator can read WHICH finding differed instead of being told the hashes are not equal.
+ */
+function compareFindings(localNormalized, hostedNormalized) {
+  const key = (entry) => `${entry.code}\u0000${entry.subject}\u0000${entry.severity}\u0000${entry.policy_class}`;
+  const localSet = new Map(sortNormalized(localNormalized).map((entry) => [key(entry), entry]));
+  const hostedSet = new Map(sortNormalized(hostedNormalized).map((entry) => [key(entry), entry]));
+  const onlyLocal = [...localSet.keys()].filter((k) => !hostedSet.has(k)).map((k) => localSet.get(k));
+  const onlyHosted = [...hostedSet.keys()].filter((k) => !localSet.has(k)).map((k) => hostedSet.get(k));
+  const localHash = semanticFindingsHash([...localSet.values()]);
+  const hostedHash = semanticFindingsHash([...hostedSet.values()]);
+  return {
+    parity: onlyLocal.length === 0 && onlyHosted.length === 0 && localHash === hostedHash,
+    local_findings_hash: localHash,
+    hosted_findings_hash: hostedHash,
+    local_count: localSet.size,
+    hosted_count: hostedSet.size,
+    count_only_match: localSet.size === hostedSet.size && localHash !== hostedHash,
+    only_local: sortNormalized(onlyLocal),
+    only_hosted: sortNormalized(onlyHosted),
+  };
+}
+
+function readJsonIfPresent(file) {
+  try {
+    return { value: JSON.parse(fs.readFileSync(file, "utf8")), error: null };
+  } catch (error) {
+    return { value: null, error: error.message };
+  }
+}
+
+/**
+ * Read the committed trust epoch. This is a READ of a governance record, never a write: nothing in this file may
+ * advance an epoch, and the mission forbids `--advance` in this phase outright.
+ */
+function readTrustEpoch(root) {
+  const file = path.join(root, EPOCH_PATH);
+  const loaded = readJsonIfPresent(file);
+  if (!loaded.value) return { path: EPOCH_PATH.split(path.sep).join("/"), trust_epoch: null, root_surface_hash: null, read_error: loaded.error };
+  return {
+    path: EPOCH_PATH.split(path.sep).join("/"),
+    trust_epoch: loaded.value?.record?.trust_epoch ?? null,
+    root_contract_version: loaded.value?.record?.root_contract_version ?? null,
+    root_surface_hash: loaded.value?.record?.root_surface_hash ?? null,
+    epoch_hash: loaded.value?.epoch_hash ?? null,
+    read_error: null,
+  };
+}
+
+/**
+ * The accept-side control: is the baseline's own content hash the hash the series accepted? This is `--check`'s
+ * `hash_matches` question, asked here from the same two values the series authorizes, so a baseline edited in
+ * place after acceptance is caught by the hosted job even before the separate `--check` step runs.
+ */
+function baselineSelfConsistency(root, baselineOverride) {
+  const baselinePath = baselineOverride ? path.resolve(baselineOverride) : baselineModule.BASELINE_PATH;
+  const loaded = readJsonIfPresent(baselinePath);
+  if (!loaded.value) {
+    return {
+      path: path.relative(root, baselinePath).split(path.sep).join("/"),
+      exists: false,
+      self_consistent: false,
+      code: "ENGINE_ERROR",
+      detail: `the baseline could not be read: ${loaded.error}`,
+      baseline_version: null,
+      baseline_hash: null,
+      recomputed_baseline_hash: null,
+    };
+  }
+  const baseline = loaded.value;
+  let recomputed = null;
+  let buildError = null;
+  try {
+    // Recompute from the same tree the baseline describes. `buildBaseline` is the generator the accepted
+    // baseline came from, so this is a genuine re-derivation and not a comparison of a file with itself.
+    //
+    // The four inputs below are held to the committed file exactly as `--check` holds them, and that is
+    // deliberate rather than convenient: the version, the parent, the reason, the recorded source commit and
+    // the prior edge/retired-edge sets are all fields the FILE owns, and deriving any of them from the measured
+    // tree instead is how the generator's own first revision made `--check` report a false mismatch. Only the
+    // measured content (files, edges, unresolved, sensor identity) is re-derived here.
+    recomputed = baselineModule.buildBaseline({
+      root,
+      reason: typeof baseline.reason === "string" ? baseline.reason : "hosted shadow self-consistency probe (never written)",
+      parentBaselineHash: baseline.parent_baseline_hash ?? null,
+      baselineVersion: Number(baseline.baseline_version ?? 1),
+      prior: { edges: baseline.edges ?? [], retired_edges: baseline.retired_edges ?? [] },
+      sourceCommit: typeof baseline.source_commit === "string" ? baseline.source_commit : null,
+    }).baselineHash;
+  } catch (error) {
+    buildError = error && error.message ? error.message : String(error);
+  }
+  const declared = baseline.baseline_hash ?? null;
+  const selfConsistent = buildError === null && recomputed !== null && declared !== null && recomputed === declared;
+  return {
+    path: path.relative(root, baselinePath).split(path.sep).join("/"),
+    exists: true,
+    self_consistent: selfConsistent,
+    code: selfConsistent ? null : "BASELINE_HASH_MISMATCH",
+    detail: selfConsistent ? null : (buildError !== null ? `the baseline could not be re-derived: ${buildError}` : `the declared baseline hash ${String(declared).slice(0, 12)}… is not the recomputed content hash ${String(recomputed).slice(0, 12)}…`),
+    baseline_version: Number(baseline.baseline_version ?? 1),
+    baseline_hash: declared,
+    recomputed_baseline_hash: recomputed,
+  };
+}
+
+function parseArgs(argv) {
+  const value = (flag) => {
+    const index = argv.indexOf(flag);
+    return index >= 0 && argv[index + 1] ? argv[index + 1] : null;
+  };
+  return {
+    baseline: value("--baseline"),
+    authorizations: value("--authorizations"),
+    measurement: value("--measurement"),
+    declarations: value("--declarations"),
+    root: value("--root"),
+    out: value("--out"),
+    metadata: value("--metadata"),
+    requireSurface: argv.includes("--require-surface"),
+    // Fixture-only seam: the adversarial suites need to drive the POLICY decision with synthetic inputs, and a
+    // synthetic baseline can never be self-consistent with the real tree. Without this the policy rows (S5, S6)
+    // could not be tested at all; with it, a fixture states out loud that it is not exercising check 2.
+    skipSelfConsistency: argv.includes("--skip-self-consistency"),
+  };
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  const options = parseArgs(argv);
+  const started = Date.now();
+  const root = options.root ? path.resolve(options.root) : ROOT;
+
+  // Fixture mode is selected by any override that changes what is measured or what governs.
+  const fixtureMode = Boolean(options.baseline || options.measurement || options.declarations || options.root);
+
+  // The governing path may not choose its own authorization source. Refused rather than honoured, for the same
+  // reason the engine refuses it: a check whose source the caller picks is indistinguishable from no check.
+  if (options.authorizations && !options.baseline) {
+    process.stderr.write("architecture-shadow-hosted: --authorizations is a fixture seam and requires an explicit --baseline; the governing check must read trust-policy/architecture-enforcement-baselines.json\n");
+    return 2;
+  }
+  // ...and neither may the governing path skip a check that the hosted job exists to run.
+  if (options.skipSelfConsistency && !fixtureMode) {
+    process.stderr.write("architecture-shadow-hosted: --skip-self-consistency is a fixture seam and requires an explicit fixture override; the governing check always re-derives the accepted baseline\n");
+    return 2;
+  }
+
+  const machinery = [];
+  const notes = [];
+
+  // ---------------------------------------------------------------------------------------------
+  // check 1 -- baseline-series authorization
+  // ---------------------------------------------------------------------------------------------
+  const authorizationsPath = options.authorizations ? path.resolve(options.authorizations) : null;
+  const seriesLoaded = seriesModule.loadSeries(authorizationsPath ?? seriesModule.SERIES_PATH);
+  const baselineForTriple = (() => {
+    const file = options.baseline ? path.resolve(options.baseline) : baselineModule.BASELINE_PATH;
+    const loaded = readJsonIfPresent(file);
+    return loaded.value;
+  })();
+  const triple = baselineForTriple ? seriesModule.tripleOf(baselineForTriple) : null;
+  const structuralProblems = seriesLoaded.problems.length > 0 ? seriesLoaded.problems : seriesModule.validateSeries(seriesLoaded.value);
+  const authorization = triple ? seriesModule.authorizeTriple(seriesLoaded.value, triple) : { authorized: false, entry: null, problems: [{ code: "BASELINE_HEAD_NOT_TRACKED", detail: "the baseline could not be read, so no triple could be authorized" }] };
+
+  if (structuralProblems.length > 0 || !authorization.authorized) {
+    const problems = structuralProblems.length > 0 ? structuralProblems : authorization.problems;
+    for (const entry of problems) machinery.push({ code: entry.code, subject: "baseline", detail: entry.detail ?? null });
+  }
+  notes.push(`series ${path.relative(root, seriesLoaded.path).split(path.sep).join("/")} -> ${authorization.authorized && structuralProblems.length === 0 ? "AUTHORISED" : "NOT_AUTHORISED"}`);
+
+  // ---------------------------------------------------------------------------------------------
+  // check 2 -- accepted-baseline self-consistency
+  // ---------------------------------------------------------------------------------------------
+  const selfConsistency = options.skipSelfConsistency
+    ? {
+        path: options.baseline ? path.relative(root, path.resolve(options.baseline)).split(path.sep).join("/") : path.relative(root, baselineModule.BASELINE_PATH).split(path.sep).join("/"),
+        exists: true,
+        self_consistent: true,
+        code: null,
+        detail: null,
+        skipped_by_fixture: true,
+        baseline_version: null,
+        baseline_hash: null,
+        recomputed_baseline_hash: null,
+      }
+    : baselineSelfConsistency(root, options.baseline);
+  if (!selfConsistency.self_consistent) {
+    machinery.push({ code: selfConsistency.code ?? "ENGINE_ERROR", subject: selfConsistency.path, detail: selfConsistency.detail });
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // check 3 -- architecture shadow enforcement
+  // ---------------------------------------------------------------------------------------------
+  let baseline = null;
+  let measurement = null;
+  let declarations = null;
+  let findings = [];
+  let verdict = "ENGINE_ERROR";
+
+  const baselinePath = options.baseline ? path.resolve(options.baseline) : baselineModule.BASELINE_PATH;
+  const loadedBaseline = readJsonIfPresent(baselinePath);
+  if (!loadedBaseline.value) {
+    machinery.push({ code: "ENGINE_ERROR", subject: "baseline", detail: `the baseline could not be read: ${loadedBaseline.error}` });
+  } else {
+    baseline = loadedBaseline.value;
+  }
+
+  if (baseline) {
+    try {
+      measurement = options.measurement ? JSON.parse(fs.readFileSync(path.resolve(options.measurement), "utf8")) : enforcement.measureTree(root);
+    } catch (error) {
+      machinery.push({ code: "ENGINE_ERROR", subject: "measurement", detail: `the measurement could not be produced: ${error && error.message ? error.message : String(error)}` });
+    }
+  }
+  if (baseline && measurement) {
+    try {
+      declarations = options.declarations ? JSON.parse(fs.readFileSync(path.resolve(options.declarations), "utf8")) : enforcement.loadDeclarationsFromTree(root);
+    } catch (error) {
+      machinery.push({ code: "ENGINE_ERROR", subject: "declarations", detail: `the declarations could not be read: ${error && error.message ? error.message : String(error)}` });
+    }
+  }
+
+  if (baseline && measurement && declarations && machinery.length === 0) {
+    // The series refusal is already recorded above; evaluating policy against a baseline that does not govern
+    // would produce findings about a policy that is not in force, so it is not evaluated at all.
+    const evaluated = enforcement.evaluatePolicy({ baseline, measurement, declarations });
+    findings = enforcement.sortFindings(evaluated.findings);
+    verdict = evaluated.verdict;
+  } else if (machinery.length > 0) {
+    verdict = "ENGINE_ERROR";
+  }
+
+  const normalized = sortNormalized(findings.map(normalizeFinding));
+  const findingsHash = semanticFindingsHash(normalized);
+
+  const policyFindings = normalized.filter((entry) => entry.policy_class === "POLICY_VIOLATION");
+  const informational = normalized.filter((entry) => entry.policy_class === "INFORMATIONAL");
+  const failClosedFindings = normalized.filter((entry) => entry.policy_class === "FAIL_CLOSED");
+
+  /**
+   * The engine-error record, gathered from BOTH places an engine error can appear.
+   *
+   *   - `machinery` -- the orchestrator's own failures: an unreadable or non-self-consistent baseline, an
+   *     unauthorized series, a measurement that could not be produced. These occur BEFORE policy evaluation, so
+   *     they never become findings, and a reader of the evidence must still be able to name them.
+   *   - `failClosedFindings` -- conditions the ENGINE reports as findings that this file escalates, of which
+   *     `SENSOR_INCOMPLETE` is the one that matters: the engine calls it a policy violation precisely so its own
+   *     shadow mode stays report-only, and the hosted gate must still fail on it.
+   *
+   * Both are engine errors in the hosted sense -- the gate could not establish a trustworthy measurement -- so
+   * both are recorded here and both are counted. A record that carried only the first would report
+   * `engine_error_count: 0` while failing the job, which is evidence that contradicts its own verdict.
+   */
+  const engineErrorRecords = [
+    ...machinery.map((entry) => ({ code: entry.code, subject: entry.subject, detail: entry.detail ?? null, origin: "orchestrator" })),
+    ...failClosedFindings
+      .filter((entry) => entry.severity !== "ENGINE_ERROR")
+      .map((entry) => ({ code: entry.code, subject: entry.subject, detail: null, origin: "engine_finding_escalated" })),
+  ];
+  const engineErrors = [
+    ...normalized.filter((entry) => entry.severity === "ENGINE_ERROR"),
+    ...engineErrorRecords.map((entry) => ({ code: entry.code, subject: entry.subject })),
+  ];
+
+  // The hosted verdict: the engine's verdict, raised to FAIL_CLOSED when the machinery itself is broken. A
+  // policy violation stays a policy violation and therefore stays report-only.
+  const machineryFailure = machinery.length > 0 || failClosedFindings.length > 0;
+  const hostedVerdict = machineryFailure ? "MACHINERY_FAILURE" : verdict;
+  const shadowVerdict = machineryFailure ? "MACHINERY_FAILURE" : verdict === "PASS" ? "PASS" : "POLICY_VIOLATION_REPORTED";
+
+  const epoch = readTrustEpoch(root);
+
+  const outDir = options.out
+    ? (path.isAbsolute(options.out) ? options.out : path.join(root, options.out))
+    : path.join(root, DEFAULT_OUT_DIR);
+
+  const metadata = {
+    schema: SCHEMA,
+    generator: "scripts/architecture-shadow-hosted.cjs",
+    mode: "shadow",
+    hosted: true,
+    fixture_mode: fixtureMode,
+    commit_sha: process.env.GITHUB_SHA ?? null,
+    workflow_run_id: process.env.GITHUB_RUN_ID ?? null,
+    workflow_run_attempt: process.env.GITHUB_RUN_ATTEMPT ?? null,
+    workflow: process.env.GITHUB_WORKFLOW ?? null,
+    job: process.env.GITHUB_JOB ?? null,
+    event: process.env.GITHUB_EVENT_NAME ?? null,
+    runner_os: process.env.RUNNER_OS ?? null,
+    baseline_version: baseline?.baseline_version ?? null,
+    baseline_hash: baseline?.baseline_hash ?? null,
+    baseline_series_status: authorization.authorized && structuralProblems.length === 0 ? "AUTHORISED" : "NOT_AUTHORISED",
+    baseline_series_path: path.relative(root, seriesLoaded.path).split(path.sep).join("/"),
+    baseline_series_authorization_reference: authorization.entry?.authorization_reference ?? null,
+    baseline_self_consistent: selfConsistency.self_consistent,
+    baseline_self_consistency_skipped_by_fixture: Boolean(selfConsistency.skipped_by_fixture),
+    baseline_recomputed_hash: selfConsistency.recomputed_baseline_hash,
+    root_trust_epoch: epoch.trust_epoch,
+    root_trust_surface_hash: epoch.root_surface_hash,
+    root_trust_epoch_path: epoch.path,
+    root_trust_epoch_read_error: epoch.read_error,
+    shadow_verdict: shadowVerdict,
+    engine_verdict: verdict,
+    engine_error_count: engineErrors.length,
+    machinery_failure_count: machinery.length + failClosedFindings.length,
+    new_regressions: null,
+    findings_semantic_hash: findingsHash,
+    findings_digest_schema: DIGEST_SCHEMA,
+    findings_count: normalized.length,
+    findings_by_policy_class: {
+      POLICY_VIOLATION: policyFindings.length,
+      FAIL_CLOSED: failClosedFindings.length,
+      INFORMATIONAL: informational.length,
+    },
+    policy_violation_count: policyFindings.length,
+    engine_errors: engineErrors,
+    engine_error_records: engineErrorRecords,
+    not_yet_enforced: (baseline?.not_yet_enforced ?? baselineModule.NOT_YET_ENFORCED).slice().sort(),
+    shadow_does_not_mean_ignore_errors: true,
+    policy_note: "policy violations are reported and do not block; broken measurement or governance machinery fails closed",
+    // The normalized set itself, so a LOCAL run of the same commit can be compared by identity rather than by
+    // count. This is what makes HOSTED_LOCAL_PARITY a comparison of findings and not a comparison of numbers.
+    findings_normalized: normalized,
+    volatile: { generated_at: new Date().toISOString(), wall_time_ms: Date.now() - started },
+  };
+
+  // `new_regressions` is derived from the normalized set rather than left null: it is the count of policy
+  // findings that are about the tree, which is the quantity the soak condition (a) speaks about.
+  metadata.new_regressions = policyFindings.length;
+
+  const shadowArtifact = {
+    schema: enforcement.SCHEMA,
+    mode: "shadow",
+    hosted: true,
+    orchestrated_by: SCHEMA,
+    verdict,
+    policy: {
+      roles: { ratchet: "legacy control", observe: "truth sensor", enforce: "prospective policy" },
+      hosted_line: "policy violation -> report-only; machinery failure -> fail-closed",
+    },
+    baseline: {
+      path: path.relative(root, baselinePath).split(path.sep).join("/"),
+      baseline_version: baseline?.baseline_version ?? null,
+      baseline_hash: baseline?.baseline_hash ?? null,
+      parent_baseline_hash: baseline?.parent_baseline_hash ?? null,
+      source_commit: baseline?.source_commit ?? null,
+    },
+    series_authorization: {
+      authorized: authorization.authorized && structuralProblems.length === 0,
+      path: path.relative(root, seriesLoaded.path).split(path.sep).join("/"),
+      authorization_reference: authorization.entry?.authorization_reference ?? null,
+      problems: structuralProblems.length > 0 ? structuralProblems : authorization.problems,
+    },
+    measurement: measurement
+      ? {
+          files: Object.keys(measurement.files ?? {}).length,
+          edges: (measurement.edges ?? []).length,
+          unresolved: (measurement.unresolved ?? []).length,
+          silent_skips: measurement.silent_skips ?? null,
+        }
+      : null,
+    summary: {
+      findings_total: normalized.length,
+      violations: normalized.filter((entry) => entry.severity === "VIOLATION").length,
+      engine_errors: engineErrors.length,
+      policy_violations: policyFindings.length,
+      fail_closed: failClosedFindings.length,
+      informational: informational.length,
+      new_regressions: metadata.new_regressions,
+      findings_semantic_hash: findingsHash,
+    },
+    findings,
+    // Both halves of "the gate could not measure": the orchestrator's own refusals, and the engine-reported
+    // conditions this file escalates. See the note beside `engineErrorRecords`.
+    machinery_failures: engineErrorRecords,
+    hosted_verdict: hostedVerdict,
+    volatile: { generatedAt: new Date().toISOString(), wall_time_ms: Date.now() - started },
+  };
+
+  fs.mkdirSync(outDir, { recursive: true });
+  const shadowPath = path.join(outDir, DEFAULT_SHADOW_NAME);
+  const metadataPath = options.metadata
+    ? (path.isAbsolute(options.metadata) ? options.metadata : path.join(root, options.metadata))
+    : path.join(outDir, DEFAULT_METADATA_NAME);
+  fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+  fs.writeFileSync(shadowPath, `${JSON.stringify(shadowArtifact, null, 2)}\n`, "utf8");
+  fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+
+  const summary = {
+    schema: SCHEMA,
+    hosted: true,
+    fixture_mode: fixtureMode,
+    shadow_verdict: shadowVerdict,
+    engine_verdict: verdict,
+    baseline_series_status: metadata.baseline_series_status,
+    baseline_self_consistent: metadata.baseline_self_consistent,
+    engine_error_count: metadata.engine_error_count,
+    machinery_failure_count: metadata.machinery_failure_count,
+    policy_violation_count: metadata.policy_violation_count,
+    new_regressions: metadata.new_regressions,
+    findings_count: metadata.findings_count,
+    findings_semantic_hash: findingsHash,
+    root_trust_epoch: metadata.root_trust_epoch,
+    shadow_artifact: path.relative(root, shadowPath).split(path.sep).join("/"),
+    metadata_artifact: path.relative(root, metadataPath).split(path.sep).join("/"),
+    notes,
+    exit_code: machineryFailure ? 1 : 0,
+  };
+  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+
+  if (options.requireSurface && metadata.root_trust_surface_hash === null) {
+    process.stderr.write("architecture-shadow-hosted: --require-surface was requested but no trust epoch surface hash could be read\n");
+    return 1;
+  }
+  return machineryFailure ? 1 : 0;
+}
+
+module.exports = {
+  SCHEMA,
+  DIGEST_SCHEMA,
+  MACHINERY_CODES,
+  classifyPolicy,
+  normalizeFinding,
+  sortNormalized,
+  semanticFindingsHash,
+  compareFindings,
+  baselineSelfConsistency,
+  readTrustEpoch,
+  main,
+};
+
+if (require.main === module) {
+  try {
+    process.exitCode = main();
+  } catch (error) {
+    process.stderr.write(`hosted architecture shadow failed: ${error && error.stack ? error.stack : String(error)}\n`);
+    process.exitCode = 1;
+  }
+}
