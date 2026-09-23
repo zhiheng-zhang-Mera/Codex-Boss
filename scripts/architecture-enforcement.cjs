@@ -25,6 +25,16 @@
  *   node scripts/architecture-enforcement.cjs --mode shadow
  *   node scripts/architecture-enforcement.cjs --mode enforce
  *   node scripts/architecture-enforcement.cjs --mode enforce --baseline <path> --measurement <path> --declarations <path>
+ *
+ * THE GOVERNING BASELINE MUST BE OWNER-AUTHORIZED (Phase 1B-A)
+ *   Before any policy is evaluated, the baseline's (baseline_version, parent_baseline_hash, baseline_hash) triple
+ *   must be named by an ACCEPTED entry in trust-policy/architecture-enforcement-baselines.json. A baseline that
+ *   is merely well-formed — or merely reproducible from the tree it was generated at, which is exactly what a
+ *   laundered baseline is — does not govern, and refusal is BASELINE_SERIES_UNAUTHORISED in BOTH modes.
+ *
+ *   `--baseline <path>` (a fixture) may name its own `--authorizations <path>` source. The governing path may
+ *   NOT: redirecting the governing check to a caller-supplied series would make the check optional, so the
+ *   combination is itself refused rather than honoured.
  */
 
 "use strict";
@@ -34,6 +44,7 @@ const path = require("node:path");
 
 const observatory = require("./architecture-observatory.cjs");
 const baselineModule = require("./architecture-enforcement-baseline.cjs");
+const seriesModule = require("./architecture-baseline-series.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const DEFAULT_OUT_DIR = path.join("artifacts", "city", "phase1");
@@ -59,6 +70,7 @@ const CODE = {
   NON_SOURCE_ASSET: "NON_SOURCE_ASSET",
   NOT_YET_ENFORCED: "NOT_YET_ENFORCED",
   ENGINE_ERROR: "ENGINE_ERROR",
+  BASELINE_SERIES_UNAUTHORISED: "BASELINE_SERIES_UNAUTHORISED",
 };
 
 const SEVERITY = { VIOLATION: "VIOLATION", INFO: "INFO", ENGINE: "ENGINE_ERROR" };
@@ -340,6 +352,11 @@ function main() {
   const baselineIndex = argv.indexOf("--baseline");
   const measurementIndex = argv.indexOf("--measurement");
   const declarationsIndex = argv.indexOf("--declarations");
+  const authorizationsIndex = argv.indexOf("--authorizations");
+  const authorizationsPath = authorizationsIndex >= 0 && argv[authorizationsIndex + 1] ? path.resolve(argv[authorizationsIndex + 1]) : null;
+  // Governing mode runs the repository's own baseline. Fixture mode injects one, and only fixture mode may name
+  // its own authorization source — see the header.
+  const governing = !(baselineIndex >= 0 && argv[baselineIndex + 1]);
 
   const started = Date.now();
   let baseline;
@@ -354,6 +371,76 @@ function main() {
     };
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
     return 1; // engine error: non-zero in both modes
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // the governance gate: an unauthorized baseline does not govern, in EITHER mode
+  // ---------------------------------------------------------------------------------------------
+  const seriesAuthorization = (() => {
+    const base = { source: authorizationsPath ? "override" : "governing-default", authorized: false, authorization_reference: null, problems: [], codes: [] };
+    if (governing && authorizationsPath) {
+      // Refused rather than honoured: honouring it would let any caller satisfy the check with a series of its
+      // own choosing, which is indistinguishable from having no check.
+      return {
+        ...base,
+        path: path.relative(ROOT, seriesModule.SERIES_PATH).split(path.sep).join("/"),
+        problems: [{ code: CODE.BASELINE_SERIES_UNAUTHORISED, detail: "--authorizations is a fixture seam and requires an explicit --baseline; the governing check must read trust-policy/architecture-enforcement-baselines.json" }],
+        codes: [CODE.BASELINE_SERIES_UNAUTHORISED],
+      };
+    }
+    const loaded = seriesModule.loadSeries(authorizationsPath ?? seriesModule.SERIES_PATH);
+    const result = seriesModule.authorizeTriple(loaded.value, seriesModule.tripleOf(baseline));
+    return {
+      ...base,
+      path: path.relative(ROOT, loaded.path).split(path.sep).join("/"),
+      authorized: result.authorized,
+      authorization_reference: result.entry?.authorization_reference ?? null,
+      problems: result.problems,
+      codes: [...new Set(result.problems.map((entry) => entry.code))],
+    };
+  })();
+
+  if (!seriesAuthorization.authorized) {
+    const findings = seriesAuthorization.problems.map((entry) => ({
+      code: entry.code ?? CODE.BASELINE_SERIES_UNAUTHORISED,
+      severity: SEVERITY.ENGINE,
+      subject: "baseline",
+      detail: entry.detail ?? null,
+    }));
+    const payload = {
+      schema: SCHEMA,
+      mode,
+      // This is an engine-level refusal, not a policy violation: a gate that cannot establish what governs
+      // must not report a verdict about the change, and it must not degrade into a skip.
+      verdict: "ENGINE_ERROR",
+      policy: {
+        roles: { ratchet: "legacy control", observe: "truth sensor", enforce: "prospective policy" },
+        means: "an unauthorized baseline is not enforced, and is never silently treated as authorized",
+      },
+      baseline: {
+        path: governing ? path.relative(ROOT, baselineModule.BASELINE_PATH).split(path.sep).join("/") : path.relative(ROOT, path.resolve(argv[baselineIndex + 1])).split(path.sep).join("/"),
+        baseline_version: baseline.baseline_version ?? null,
+        baseline_hash: baseline.baseline_hash ?? null,
+        parent_baseline_hash: baseline.parent_baseline_hash ?? null,
+      },
+      series_authorization: seriesAuthorization,
+      summary: {
+        findings_total: findings.length,
+        violations: 0,
+        engine_errors: findings.length,
+        new_regressions: null,
+      },
+      verdict_reason: "BASELINE_NOT_AUTHORIZED",
+      findings,
+      volatile: { generatedAt: new Date().toISOString(), wall_time_ms: Date.now() - started },
+    };
+    if (!noWrite) {
+      fs.mkdirSync(outDir, { recursive: true });
+      const name = mode === "shadow" ? "architecture-enforcement-shadow.json" : "architecture-enforcement-live.json";
+      fs.writeFileSync(path.join(outDir, name), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    }
+    process.stdout.write(`${JSON.stringify({ mode, verdict: "ENGINE_ERROR", code: seriesAuthorization.codes[0] ?? CODE.BASELINE_SERIES_UNAUTHORISED, series_authorization: { authorized: false, source: seriesAuthorization.source, path: seriesAuthorization.path }, shadow_enforce_same_evaluator: true }, null, 2)}\n`);
+    return 1;
   }
   try {
     measurement = measurementIndex >= 0 && argv[measurementIndex + 1] ? readJson(argv[measurementIndex + 1]) : measureTree(ROOT);
@@ -397,6 +484,9 @@ function main() {
       edges: Array.isArray(baseline.edges) ? baseline.edges.length : null,
       files: baseline.files ? Object.keys(baseline.files).length : null,
     },
+    // Which series authorized this baseline, and by which reference. Recorded on every governed run so a
+    // reader of the artifact can tell an Owner-authorized baseline from a fixture seam.
+    series_authorization: seriesAuthorization,
     measurement: {
       files: Object.keys(measurement.files ?? {}).length,
       edges: (measurement.edges ?? []).length,

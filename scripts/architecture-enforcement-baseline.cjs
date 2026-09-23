@@ -19,10 +19,31 @@
  *   That is what makes ENF-16 a real check rather than a tolerance. Volatile metadata (wall time, host) goes to
  *   the runtime record artifacts/city/phase1/baseline-generation.json instead.
  *
+ * REGENERATION IS A PROPOSAL, NOT AN ACCEPTANCE (Phase 1B-A)
+ *   This generator measures and PROPOSES. It does not decide what governs. The distinction is mechanical:
+ *
+ *     candidate baseline  written by this script (candidate mode, or --out). It grandfathers NOTHING and it
+ *                         governs NOTHING, because no series entry names it.
+ *     accepted baseline   config/architecture-enforcement-baseline.json. It is governed by
+ *                         trust-policy/architecture-enforcement-baselines.json, which is Root Trust Surface, so
+ *                         an acceptance is an Owner-reviewed governance act — see --accept below.
+ *
+ *   Plain invocation therefore no longer writes the tracked baseline. The path that used to launder debt
+ *   (CI fails -> regenerate -> new debt is grandfathered -> CI passes) now produces an artifact that changes
+ *   no verdict anywhere.
+ *
  * USAGE
- *   node scripts/architecture-enforcement-baseline.cjs --reason "..."      regenerate
- *   node scripts/architecture-enforcement-baseline.cjs --check             is the committed baseline current?
- *   node scripts/architecture-enforcement-baseline.cjs --out <path>        write elsewhere (tests)
+ *   node scripts/architecture-enforcement-baseline.cjs --reason "..."      measure a CANDIDATE (never the tracked file)
+ *   node scripts/architecture-enforcement-baseline.cjs --out <path>        write the candidate elsewhere (tests)
+ *   node scripts/architecture-enforcement-baseline.cjs --check             is the committed baseline current AND authorized?
+ *   node scripts/architecture-enforcement-baseline.cjs --accept            write the tracked baseline, only if its triple
+ *                                                                          is already named by an ACCEPTED series entry
+ *   node scripts/architecture-enforcement-baseline.cjs --record-only       refresh the runtime record only
+ *
+ *   A reason is REQUIRED for every write that produces a baseline, and a placeholder reason is refused: an
+ *   unattended regeneration must not be able to succeed silently by falling back to a default string.
+ *   `--check` verifies two different things and reports both: self-consistency with the tree, and
+ *   authorization by the accepted series. Self-consistency alone is what a laundered baseline has.
  */
 
 "use strict";
@@ -34,12 +55,29 @@ const { execFileSync } = require("node:child_process");
 const { parse: parseYaml } = require("yaml");
 
 const observatory = require("./architecture-observatory.cjs");
+const series = require("./architecture-baseline-series.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const BASELINE_PATH = path.join(ROOT, "config", "architecture-enforcement-baseline.json");
+const CANDIDATE_PATH = path.join(ROOT, "artifacts", "city", "phase1", "architecture-enforcement-baseline-candidate.json");
 const RUNTIME_RECORD = path.join(ROOT, "artifacts", "city", "phase1", "baseline-generation.json");
 const SCHEMA = "city-architecture-enforcement-baseline/1";
 const SENSOR_IMPLEMENTATION = "scripts/architecture-observatory.cjs";
+
+/**
+ * Reasons that say nothing. A regeneration whose stated reason is one of these is indistinguishable from an
+ * unattended script whose only purpose was to make a red check green, which is the act this file exists to
+ * make impossible to perform quietly.
+ */
+const PLACEHOLDER_REASONS = ["update", "refresh", "regen", "regenerate", "baseline", "wip", "fix", "test", "tmp", "n/a", "na", "none", "misc", "changes"];
+
+function validateReason(reason) {
+  const text = typeof reason === "string" ? reason.trim() : "";
+  if (text.length === 0) return "a reason is required: regeneration states WHAT changed in the architecture and WHY it is not new debt";
+  if (text.length < 12) return `the reason ${JSON.stringify(text)} is too short to review`;
+  if (PLACEHOLDER_REASONS.includes(text.toLowerCase())) return `the reason ${JSON.stringify(text)} is a placeholder and states nothing`;
+  return null;
+}
 
 /** Unresolved-reference classes. Phase 0's own reason strings are preserved alongside them, never rewritten. */
 const NON_SOURCE_ASSET = "NON_SOURCE_ASSET";
@@ -223,21 +261,39 @@ function serialize(baseline) {
 function main() {
   const argv = process.argv.slice(2);
   const check = argv.includes("--check");
-  const existing = (() => {
-    try { return JSON.parse(fs.readFileSync(BASELINE_PATH, "utf8")); } catch { return undefined; }
-  })();
+  const accept = argv.includes("--accept");
   // Refresh the runtime generation record for the CURRENTLY COMMITTED baseline without touching it. Needed
   // because a rejected regeneration attempt overwrites the record while the tracked file is reverted, which
   // would otherwise leave the runtime evidence describing a baseline that does not exist. Regenerating the
-  // tracked file is a deliberate act; refreshing its record is not.
+  // tracked file is a deliberate act; refreshing its record is not, and this remains the one unattended path.
   const recordOnly = argv.includes("--record-only");
   const reasonIndex = argv.indexOf("--reason");
   const outIndex = argv.indexOf("--out");
-  const outPath = outIndex >= 0 && argv[outIndex + 1] ? argv[outIndex + 1] : BASELINE_PATH;
-  const reason =
-    reasonIndex >= 0 && argv[reasonIndex + 1]
-      ? argv[reasonIndex + 1]
-      : "Phase 1A initial grandfathered-debt baseline: every relation the qualified sensor measured at the promoted Phase 0 state is debt that existed before enforcement.";
+  const reason = reasonIndex >= 0 && argv[reasonIndex + 1] ? argv[reasonIndex + 1] : undefined;
+  const existing = (() => {
+    try { return JSON.parse(fs.readFileSync(BASELINE_PATH, "utf8")); } catch { return undefined; }
+  })();
+
+  if ([check, accept, recordOnly].filter(Boolean).length > 1) {
+    process.stderr.write("choose one of --check, --accept, --record-only\n");
+    return 2;
+  }
+  if (accept && outIndex >= 0) {
+    process.stderr.write("--accept writes the tracked baseline and cannot be combined with --out\n");
+    return 2;
+  }
+  // Every mode that writes a baseline states a reason. --check and --record-only describe an existing state
+  // rather than propose a change, so they carry no new reason.
+  if (!check && !recordOnly) {
+    const reasonProblem = validateReason(reason);
+    if (reasonProblem) {
+      process.stderr.write(`${reasonProblem}\n`);
+      return 2;
+    }
+  }
+  const targetPath = accept
+    ? BASELINE_PATH
+    : (outIndex >= 0 && argv[outIndex + 1] ? path.resolve(argv[outIndex + 1]) : CANDIDATE_PATH);
 
   if (recordOnly) {
     if (!existing) {
@@ -313,6 +369,8 @@ function main() {
     const current = fs.existsSync(BASELINE_PATH) ? fs.readFileSync(BASELINE_PATH, "utf8") : null;
     const identical = current !== null && normalize(current) === normalize(text);
     const hashMatches = Boolean(existing) && existing.baseline_hash === baselineHash;
+    // Two different questions, reported separately, because a laundered baseline answers the first one yes.
+    const governing = series.verifyGoverningBaseline();
     const summary = {
       mode: "check",
       path: BASELINE_PATH,
@@ -321,52 +379,105 @@ function main() {
       recorded_baseline_hash: existing?.baseline_hash ?? null,
       recomputed_baseline_hash: baselineHash,
       hash_matches: hashMatches,
+      self_consistent: identical && hashMatches,
+      series_authorized: governing.ok,
+      series_path: path.relative(ROOT, governing.seriesPath).split(path.sep).join("/"),
+      authorization_reference: governing.entry?.authorization_reference ?? null,
+      authorization_problems: governing.problems,
       line_endings_normalised_for_comparison: true,
       baseline_version: baseline.baseline_version,
       tracked_source_files: baseline.counts.tracked_source_files,
       internal_edges: baseline.counts.internal_edges,
     };
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-    return identical && hashMatches ? 0 : 1;
+    // A baseline that is current but unauthorized does not govern, and the check says so with its own code.
+    if (!governing.ok) process.stderr.write(`${governing.code ?? series.CODE.BASELINE_SERIES_UNAUTHORISED}\n`);
+    return identical && hashMatches && governing.ok ? 0 : 1;
   }
 
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, text, "utf8");
-
-  const runtime = {
-    schema: `${SCHEMA}#generation`,
-    generatedAt: new Date().toISOString(),
-    wall_time_ms: Date.now() - started,
-    output_path: path.relative(ROOT, outPath).split(path.sep).join("/"),
-    output_bytes: Buffer.byteLength(text, "utf8"),
-    reason,
-    baseline_version: baseline.baseline_version,
-    parent_baseline_hash: baseline.parent_baseline_hash,
-    baseline_hash: baselineHash,
-    source_commit: baseline.source_commit,
-    semantics: {
-      means: "THESE RELATIONS EXISTED BEFORE ENFORCEMENT",
-      does_not_mean: "THESE RELATIONS ARE HEALTHY",
-      identity_is_authoritative: true,
-      counts_are_summaries: true,
-    },
-  };
-  if (outPath === BASELINE_PATH) {
-    fs.mkdirSync(path.dirname(RUNTIME_RECORD), { recursive: true });
-    fs.writeFileSync(RUNTIME_RECORD, `${JSON.stringify(runtime, null, 2)}\n`, "utf8");
-  }
-
-  process.stdout.write(`${JSON.stringify({
-    state: "BASELINE_WRITTEN",
-    path: runtime.output_path,
-    bytes: runtime.output_bytes,
-    baseline_version: baseline.baseline_version,
-    baseline_hash: baselineHash,
+  const relativeTarget = path.relative(ROOT, targetPath).split(path.sep).join("/");
+  const counts = {
     tracked_source_files: baseline.counts.tracked_source_files,
     declared_owned_files: baseline.counts.declared_owned_files,
     undeclared_files: baseline.counts.undeclared_files,
     internal_edges: baseline.counts.internal_edges,
     unresolved_by_class: baseline.unresolved_by_class,
+  };
+  const identity = {
+    baseline_version: baseline.baseline_version,
+    parent_baseline_hash: baseline.parent_baseline_hash,
+    baseline_hash: baselineHash,
+    source_commit: baseline.source_commit,
+    reason,
+  };
+
+  if (accept) {
+    const loaded = series.loadSeries();
+    const assessment = series.assessAcceptance({
+      series: loaded.value,
+      candidate: baseline,
+      currentBaseline: existing,
+      computedHash: baselineHash,
+    });
+    if (!assessment.ok) {
+      // Fail closed and write nothing: the tracked baseline is untouched, so a refused acceptance leaves
+      // enforcement exactly as it was rather than leaving it half-moved.
+      process.stdout.write(`${JSON.stringify({
+        state: "BASELINE_ACCEPTANCE_REFUSED",
+        target: relativeTarget,
+        written: false,
+        ...identity,
+        codes: [...new Set(assessment.problems.map((entry) => entry.code))],
+        problems: assessment.problems,
+        next_step: "an ACCEPTED entry in trust-policy/architecture-enforcement-baselines.json has to name this exact (baseline_version, parent_baseline_hash, baseline_hash) BEFORE acceptance; that file is Root Trust Surface and requires Owner review",
+      }, null, 2)}\n`);
+      return 1;
+    }
+    fs.writeFileSync(BASELINE_PATH, text, "utf8");
+    const runtime = {
+      schema: `${SCHEMA}#generation`,
+      generatedAt: new Date().toISOString(),
+      wall_time_ms: Date.now() - started,
+      output_path: relativeTarget,
+      output_bytes: Buffer.byteLength(text, "utf8"),
+      reason,
+      baseline_version: baseline.baseline_version,
+      parent_baseline_hash: baseline.parent_baseline_hash,
+      baseline_hash: baselineHash,
+      source_commit: baseline.source_commit,
+      authorization_reference: series.authorizeTriple(loaded.value, series.tripleOf(baseline)).entry?.authorization_reference ?? null,
+      semantics: {
+        means: "THESE RELATIONS EXISTED BEFORE ENFORCEMENT",
+        does_not_mean: "THESE RELATIONS ARE HEALTHY",
+        identity_is_authoritative: true,
+        counts_are_summaries: true,
+      },
+    };
+    fs.mkdirSync(path.dirname(RUNTIME_RECORD), { recursive: true });
+    fs.writeFileSync(RUNTIME_RECORD, `${JSON.stringify(runtime, null, 2)}\n`, "utf8");
+    process.stdout.write(`${JSON.stringify({
+      state: "BASELINE_ACCEPTED",
+      target: relativeTarget,
+      ...identity,
+      counts,
+      // What this acceptance actually changes, enumerated by identity. A count would not be reviewable.
+      accounting: assessment.diff,
+    }, null, 2)}\n`);
+    return 0;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, text, "utf8");
+  const authorization = series.authorizeTriple(series.loadSeries().value, series.tripleOf(baseline));
+  process.stdout.write(`${JSON.stringify({
+    state: "BASELINE_CANDIDATE_WRITTEN",
+    target: relativeTarget,
+    ...identity,
+    counts,
+    governs: false,
+    grandfathered_by_this_file: false,
+    already_authorized: authorization.authorized,
+    note: "a candidate governs nothing and grandfathers nothing until an ACCEPTED series entry names its triple; the tracked baseline was not touched",
   }, null, 2)}\n`);
   return 0;
 }
@@ -374,12 +485,15 @@ function main() {
 module.exports = {
   SCHEMA,
   BASELINE_PATH,
+  CANDIDATE_PATH,
+  PLACEHOLDER_REASONS,
   NOT_YET_ENFORCED,
   NON_SOURCE_ASSET,
   SOURCE_TARGET_MISSING,
   UNSUPPORTED_SOURCE_RESOLUTION,
   OTHER_UNKNOWN,
   classifyUnresolved,
+  validateReason,
   buildBaseline,
   serialize,
   listTracked,

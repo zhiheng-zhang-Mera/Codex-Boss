@@ -1,0 +1,33 @@
+{
+  "$comment": "Root Trust data. The ACCEPTED series of grandfathered-debt baselines for the Phase 1A prospective architecture enforcer. A baseline governs enforcement only when its (baseline_version, parent_baseline_hash, baseline_hash) triple appears here with status ACCEPTED. This file is inside trust-policy/**, so it is Root Trust Surface and Root-Owner review is required to change it: that is what turns 'regenerate the baseline' from a developer convenience into a governance event. It is NOT machine-regenerable from the tree — a series that any actor could regenerate would authorise whatever the last tree contained.",
+  "schema": "city-architecture-enforcement-baseline-series/1",
+  "series": "city-architecture-enforcement-baseline",
+  "baseline_path": "config/architecture-enforcement-baseline.json",
+  "generator_path": "scripts/architecture-enforcement-baseline.cjs",
+  "accepted": [
+    {
+      "baseline_version": 1,
+      "baseline_hash": "b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e",
+      "parent_baseline_hash": null,
+      "source_commit": "8684953e067315cb94732a21ac31d54210d1cc89",
+      "authorization_reference": "Root Owner promotion of PR #12 (dev/city-phase1a-enforcement-convergence -> main), merge commit 5c1cc264448d979969595139ee8b27d7195216d1, immutable tag city-phase1a-enforcement-v1; Owner review APPROVED 2026-09-22T10:41:34Z, merged 2026-09-22T10:41:46Z",
+      "evidence_reference": "docs/city/PHASE1A_MEASUREMENT_TO_ENFORCEMENT_ACCEPTANCE.md; docs/research/PAPER_EVIDENCE_LEDGER.md section H (C14 post-merge CI, C15 tag freeze, C16 freeze verification)",
+      "accepted_at": "2026-09-22T10:41:46Z",
+      "status": "ACCEPTED",
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 612,
+        "internal_edges": 1671,
+        "retired_edges": 0,
+        "unresolved_references": 1
+      }
+    }
+  ]
+}

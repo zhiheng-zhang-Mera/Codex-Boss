@@ -68,6 +68,8 @@
     "architecture:observe": "node scripts/architecture-observatory.cjs",
     "architecture:qualify": "node scripts/architecture-observatory-qualification.cjs",
     "architecture:enforce:baseline": "node scripts/architecture-enforcement-baseline.cjs",
+    "architecture:enforce:baseline:series": "node scripts/architecture-baseline-series.cjs --check",
+    "architecture:enforce:baseline:accept": "node scripts/architecture-enforcement-baseline.cjs --accept",
     "architecture:enforce:shadow": "node scripts/architecture-enforcement.cjs --mode shadow",
     "architecture:enforce": "node scripts/architecture-enforcement.cjs --mode enforce",
     "architecture:snapshot": "node scripts/architecture.cjs snapshot",

@@ -18,6 +18,36 @@ import { describe, expect, it } from "vitest";
 const ENGINE = "scripts/architecture-enforcement.cjs";
 const GENERATOR = "scripts/architecture-enforcement-baseline.cjs";
 
+/**
+ * Phase 1B-A: a baseline governs only when an ACCEPTED series entry names its
+ * `(baseline_version, parent_baseline_hash, baseline_hash)` triple. Every case in this file injects a
+ * baseline, so every case declares the series that authorizes it — explicitly, through `--authorizations`,
+ * which is refused on the governing path. A fixture that could reach the engine without saying so would make
+ * this suite a bypass of the governance it is supposed to exercise; the suite in
+ * `architecture-baseline-authorization.test.ts` is what proves an undeclared baseline is refused.
+ */
+const FIXTURE_V1_HASH = "1".repeat(64);
+const FIXTURE_V2_HASH = "2".repeat(64);
+
+function authorizationSeries(baseline: Json): Json {
+  const version = Number(baseline.baseline_version ?? 1);
+  const parent = (baseline.parent_baseline_hash as string | null) ?? null;
+  const entry = (baseline_version: number, parent_baseline_hash: string | null, baseline_hash: string) => ({
+    baseline_version,
+    parent_baseline_hash,
+    baseline_hash,
+    source_commit: "0".repeat(40),
+    authorization_reference: "phase1a enforcement fixture: an injected baseline used to drive the evaluator, not a repository state",
+    evidence_reference: "tests/unit/city/architecture-enforcement.test.ts",
+    accepted_at: "2026-09-22T00:00:00Z",
+    status: "ACCEPTED",
+  });
+  const accepted = version >= 2
+    ? [entry(1, null, String(parent)), entry(version, parent, String(baseline.baseline_hash))]
+    : [entry(1, null, String(baseline.baseline_hash))];
+  return { schema: "city-architecture-enforcement-baseline-series/1", series: "city-architecture-enforcement-baseline", accepted };
+}
+
 const CAP_A = "alpha";
 const CAP_B = "beta";
 const FILE_A = "src/alpha/a.ts";
@@ -41,7 +71,7 @@ function baseBaseline(overrides: Json = {}): Json {
     schema: "city-architecture-enforcement-baseline/1",
     baseline_version: 1,
     parent_baseline_hash: null,
-    baseline_hash: "fixture",
+    baseline_hash: FIXTURE_V1_HASH,
     source_commit: "fixture",
     files: { [FILE_A]: CAP_A, [FILE_B]: CAP_B, [FILE_U]: "UNDECLARED" },
     edges: [[FILE_A, FILE_B]],
@@ -87,9 +117,10 @@ function evaluate(baseline: Json, measurement: Json, declarations: Json = DECLAR
   const baselinePath = writeJson(dir, "baseline.json", baseline);
   const measurementPath = writeJson(dir, "measurement.json", measurement);
   const declarationsPath = writeJson(dir, "declarations.json", declarations);
+  const authorizationsPath = writeJson(dir, "authorizations.json", authorizationSeries(baseline));
   const shadowOut = path.join(dir, "shadow-out");
   const enforceOut = path.join(dir, "enforce-out");
-  const common = ["--baseline", baselinePath, "--measurement", measurementPath, "--declarations", declarationsPath];
+  const common = ["--baseline", baselinePath, "--measurement", measurementPath, "--declarations", declarationsPath, "--authorizations", authorizationsPath];
   const shadow = runEngine(["--mode", "shadow", "--out", shadowOut, ...common]);
   const enforce = runEngine(["--mode", "enforce", "--out", enforceOut, ...common]);
   // The command prints a compact summary and writes the full findings to the mode's artifact, so the artifact is
@@ -137,8 +168,9 @@ describe("phase 1a enforcement: grandfathering and debt (ENF-01, ENF-02, ENF-17,
   });
 
   it("ENF-18 debt retired by an accepted later baseline and then reintroduced is treated as new", () => {
-    // Baseline v2 is an accepted later state that retired the edge.
-    const baselineV2 = baseBaseline({ baseline_version: 2, edges: [], retired_edges: [[FILE_A, FILE_U]] });
+    // Baseline v2 is an accepted later state that retired the edge. Its version/parent are stated explicitly so
+    // the fixture is a well-formed series link rather than a v2 with no ancestry.
+    const baselineV2 = baseBaseline({ baseline_version: 2, parent_baseline_hash: FIXTURE_V1_HASH, baseline_hash: FIXTURE_V2_HASH, edges: [], retired_edges: [[FILE_A, FILE_U]] });
     const measurement = baseMeasurement({ edges: [[FILE_A, FILE_U]] });
     const { shadow } = evaluate(baselineV2, measurement);
     expect(shadow.json.verdict).toBe("POLICY_VIOLATION");

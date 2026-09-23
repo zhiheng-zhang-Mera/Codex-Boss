@@ -472,12 +472,30 @@
       ]
     },
     {
+      "file": "tests/unit/city/architecture-baseline-authorization.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "a baseline governs only when an Owner-authorised series entry names its exact (version, parent, hash) triple: the A1..A8 laundering attacks — unauthorised regeneration, hand-edited hash, absent series entry, version reuse, skipped version, wrong parent, reintroduced or forgotten retirement, expanded NOT_YET_ENFORCED and count compensation — are each refused with their own machine code, an unauthorised injected baseline fails closed in BOTH modes, the governing check cannot be redirected to a caller-supplied series, a placeholder reason cannot produce a baseline, candidate output governs nothing, and the tracked baseline is byte-identical after the suite runs",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/architecture-enforcement.test.ts",
       "tier": "unit",
       "covers": [
         "runtime"
       ],
       "obligation": "prospective enforcement grandfathers inherited relations by identity while refusing new undeclared debt: ENF-01..ENF-18 cover grandfathering, debt reduction, reintroduction-is-new, new undeclared source and endpoints, same-capability and cross-capability authorization, ownership conflict, sensor incompleteness failing closed, non-source-asset classification, shadow and enforce sharing one evaluator, deterministic ordering, byte-identical baseline regeneration, count-compensation refusal, and engine errors failing closed in both modes",
+      "alwaysRun": true
+    },
+    {
+      "file": "tests/unit/city/architecture-governance-boundary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the architecture judge, its two committed baselines and its authorising series are Owner-Authority in the trust classifier, in the compiled protected-surface manifest and in the real .github/CODEOWNERS parsed with GitHub matching semantics; each is inside the Root Trust Surface and moves the epoch aggregate when one byte changes; an ordinary product file neither moves the aggregate nor requires Owner review; and the machine may DERIVE the next epoch (parent-linked, anchoring the extended surface) while writing nothing",
       "alwaysRun": true
     },
     {

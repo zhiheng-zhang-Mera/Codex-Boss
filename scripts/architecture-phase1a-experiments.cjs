@@ -49,7 +49,10 @@ function fixtureBaseline(overrides = {}) {
     schema: "city-architecture-enforcement-baseline/1",
     baseline_version: 1,
     parent_baseline_hash: null,
-    baseline_hash: "experiment-fixture",
+    // Phase 1B-A: a 64-hex identity, because a baseline is only usable when an accepted series entry can name
+    // its triple. The nine injections below are fixtures, so the series that authorizes them is written beside
+    // them and passed explicitly — see runEngine.
+    baseline_hash: sha256("phase1a-experiment-fixture"),
     source_commit: "experiment-fixture",
     files: { [FILE_A]: CAP_A, [FILE_B]: CAP_B, [FILE_U]: "UNDECLARED", [FILE_U2]: "UNDECLARED" },
     edges: [[FILE_A, FILE_B]],
@@ -57,6 +60,24 @@ function fixtureBaseline(overrides = {}) {
     unresolved: [],
     not_yet_enforced: ["dependency_cycles"],
     ...overrides,
+  };
+}
+
+/** The authorization series that names a fixture baseline. Fixtures declare themselves; nothing else may. */
+function fixtureAuthorization(baseline) {
+  return {
+    schema: "city-architecture-enforcement-baseline-series/1",
+    series: "city-architecture-enforcement-baseline",
+    accepted: [{
+      baseline_version: baseline.baseline_version,
+      baseline_hash: baseline.baseline_hash,
+      parent_baseline_hash: baseline.parent_baseline_hash ?? null,
+      source_commit: "0".repeat(40),
+      authorization_reference: "C9 controlled-regression fixture: an injected baseline in a temporary directory, never a repository state",
+      evidence_reference: "scripts/architecture-phase1a-experiments.cjs",
+      accepted_at: "2026-09-22T00:00:00Z",
+      status: "ACCEPTED",
+    }],
   };
 }
 
@@ -84,6 +105,7 @@ function runEngine(dir, mode, baseline, measurement, declarations) {
   const baselinePath = write("baseline", baseline);
   const measurementPath = write("measurement", measurement);
   const declarationsPath = write("declarations", declarations);
+  const authorizationsPath = write("authorizations", fixtureAuthorization(baseline));
   const outDir = path.join(dir, `${mode}-out`);
   let status = 0;
   try {
@@ -92,6 +114,7 @@ function runEngine(dir, mode, baseline, measurement, declarations) {
       "--baseline", baselinePath,
       "--measurement", measurementPath,
       "--declarations", declarationsPath,
+      "--authorizations", authorizationsPath,
       "--out", outDir,
     ], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
