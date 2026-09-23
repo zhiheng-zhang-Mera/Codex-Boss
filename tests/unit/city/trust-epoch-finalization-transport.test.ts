@@ -206,6 +206,93 @@ describe("Trust finalization transport hardening: the workflow's static contract
     const inSurface = surface.declared.paths.some((p) => p === WORKFLOW);
     expect(inSurface, "the finalization workflow became Root Trust Surface; the hardening premise changed").toBe(false);
   });
+
+  it("T16 the already-ready path compares against the PROPOSED record, never the committed one", () => {
+    // THE SECOND HALF OF THE IDEMPOTENCY DEFECT. Deciding the terminal state from the COMMITTED record cannot work:
+    // the committed epoch is the stale one by definition -- that is why a migration was needed at all -- so a branch
+    // carrying exactly the proposed record would be compared against a record that disagrees with it and reported as
+    // EPOCH_BRANCH_CONFLICT. The idempotent success would be unreachable and a rerun would fail forever.
+    const lines = executableLines(workflowRaw());
+    expect(lines, "the handoff no longer receives the proposed record").toContain("$expectedPath = \"$env:RUNNER_TEMP/expected-epoch.json\"");
+    // THE DECISIVE CHECK, and it is on the handoff step's OWN argument rather than on a quoted spelling of the bad
+    // one. `--expected-record "trust-policy/trust-epoch.json"` can be written with either quote character, so a
+    // check for one spelling of the defect would miss the defect. What must hold is the VALUE: the handoff compares
+    // against the record this run proposed, never against the committed tree.
+    const handoffStep = (finalizeJob().steps ?? []).find((step) => String(step.name ?? "").includes("write the PR handoff"));
+    expect(handoffStep, "the terminal handoff step is gone").toBeTruthy();
+    const handoffRun = String(handoffStep?.run ?? "");
+    expect(handoffRun, "the handoff step is not present in the parsed workflow").not.toBe("");
+    const expectedArg = /--expected-record\s+(\S+)/.exec(handoffRun);
+    expect(expectedArg, "the handoff no longer passes --expected-record at all").toBeTruthy();
+    // The VALUE must be this run's proposed record. The commit step legitimately names the committed record --
+    // that is the file it stages -- which is exactly why the check belongs to this step's argument and not to a
+    // file-wide search for the path.
+    expect(expectedArg?.[1], "the handoff compares against the committed record, so a matching already-ready branch would be misreported as a conflict").toBe('"$expectedPath"');
+    // The proposed record must also be SEEDED from the branch on the already-ready path, or its epoch hash stays
+    // null and a null hash compares unequal to the real one -- the same inverted verdict by a different route.
+    expect(lines, "the already-ready path does not seed the expected epoch hash from the branch").toMatch(/\$expected\.epoch_hash = \$existingRecord\.epoch_hash/);
+
+    // And the decision must still discriminate: a branch that genuinely disagrees is still a conflict, so the
+    // seeding above cannot have made every branch match.
+    const agreed = handoff.decideTerminalState({ needsMigration: true, branchExists: true, expectedRecord: epochRecord(), existingRecord: epochRecord(), candidateEpoch: 28 });
+    const disagreed = handoff.decideTerminalState({ needsMigration: true, branchExists: true, expectedRecord: epochRecord(), existingRecord: epochRecord({ root_surface_hash: "9".repeat(64) }), candidateEpoch: 28 });
+    expect(agreed.state, "a branch matching the proposed record is no longer idempotently ready").toBe(handoff.STATE.EPOCH_BRANCH_ALREADY_READY);
+    expect(disagreed.state, "a branch disagreeing with the proposed record is no longer refused").toBe(handoff.STATE.EPOCH_BRANCH_CONFLICT);
+  });
+
+  it("T17 the run that reuses a ready branch still names the commit and hash it publishes", () => {
+    // THE FIRST HALF OF THE SAME DEFECT. EPOCH_COMMIT is written by the commit step, which is skipped when the
+    // branch already exists -- so on that path the handoff named no commit and its own validator refused it. A
+    // request the App cannot act on is not a handoff, so the idempotent success path has to resolve both facts from
+    // the branch it is reusing.
+    const lines = executableLines(workflowRaw());
+    expect(lines, "the handoff step no longer falls back to the branch's own commit").toMatch(/git rev-parse FETCH_HEAD/);
+    expect(lines, "the handoff step no longer passes the epoch hash it publishes").toContain('--epoch-hash "$epochHash"');
+    // It must PASS the commit, not merely compute it: relying on the EPOCH_COMMIT environment variable alone would
+    // work on the producing path (whose commit step exports it) and silently publish nothing on the reuse path,
+    // which is the path this test exists for.
+    const reuseStep = (finalizeJob().steps ?? []).find((step) => String(step.name ?? "").includes("write the PR handoff"));
+    const reuseRun = String(reuseStep?.run ?? "");
+    expect(reuseRun, "the handoff step no longer passes the commit it resolved").toContain('--epoch-commit "$epochCommit"');
+
+    // The behaviour, not just the wording: given the branch's record and commit, the CLI reports a success that
+    // names a real commit and a real hash. This is the case that used to exit 1.
+    const record = {
+      record: { trust_epoch: 28, root_contract_version: "boss-root-trust-28", root_surface_hash: "a".repeat(64), parent_epoch_hash: "b".repeat(64), epoch_hash: "c".repeat(64) },
+      epoch_hash: "c".repeat(64),
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trust-finalize-reuse-"));
+    const expectedFile = path.join(dir, "expected.json");
+    const existingFile = path.join(dir, "existing.json");
+    fs.writeFileSync(expectedFile, JSON.stringify(record), "utf8");
+    fs.writeFileSync(existingFile, JSON.stringify(record), "utf8");
+    const out = path.join(dir, "epoch-pr-handoff.json");
+    const result = spawnSync(process.execPath, [
+      "scripts/trust-epoch-finalize-handoff.cjs",
+      "--repository", "zhiheng-zhang-Mera/Codex-Boss", "--run-id", "123456789",
+      "--base-sha", "d".repeat(40), "--candidate-epoch", "28",
+      "--branch", "trust-epoch/boss-root-trust-28", "--root-surface-hash", "a".repeat(64),
+      "--expected-record", expectedFile, "--existing-record", existingFile,
+      "--epoch-commit", "e".repeat(40), "--epoch-hash", "c".repeat(64),
+      "--out", out,
+    ], { cwd: PROJECT, encoding: "utf8", timeout: 120000 });
+    expect(result.status, `reusing an already-ready branch must succeed, not fail its own validation: ${result.stderr}`).toBe(0);
+    const built = JSON.parse(fs.readFileSync(out, "utf8")) as { state: string; epoch_commit: string; epoch_hash: string; pr_required: boolean };
+    expect(built.state).toBe(handoff.STATE.EPOCH_BRANCH_ALREADY_READY);
+    expect(built.epoch_commit, "the reused branch's handoff names no commit, so the App cannot open a PR against it").toBe("e".repeat(40));
+    expect(built.epoch_hash).toBe("c".repeat(64));
+    expect(built.pr_required, "a reused ready branch must still be handed off for merging").toBe(true);
+  });
+
+  it("T18 the no-migration path names its terminal state instead of falling through silent", () => {
+    // Without this the workflow's own correct no-op ends with no FINALIZATION_RESULT, and a reader cannot tell
+    // "already anchored" from "did nothing because it fell through".
+    const lines = executableLines(workflowRaw());
+    expect(lines, "the no-migration step no longer names its terminal state").toContain('"FINALIZATION_RESULT=NO_MIGRATION"');
+    // The three success states must each be reachable and each name exactly one result.
+    const results = lines.match(/FINALIZATION_RESULT=\$?\(?\$?\w*\)?\S*/g) ?? [];
+    expect(results.length, `the workflow does not name a terminal result on every success path: ${JSON.stringify(results)}`).toBeGreaterThanOrEqual(2);
+  });
 });
 
 // =============================================================================================

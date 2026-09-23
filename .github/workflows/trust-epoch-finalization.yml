@@ -122,6 +122,27 @@ jobs:
           "BASE_SHA=$($proposal.repository.commit)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "PROPOSED_SURFACE=$($proposal.candidateEpoch.root_surface_hash)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "PROPOSED_PARENT=$($proposal.candidateEpoch.parent_epoch_hash)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # THE RECORD THIS RUN PROPOSES, as a plain record-shaped object.
+          #
+          # The idempotency check downstream compares what this run WOULD produce against what the branch
+          # already carries. Comparing against the COMMITTED tree instead would always disagree -- the
+          # committed epoch is by definition the stale one, which is exactly why a migration was needed at
+          # all -- so a matching branch would be misreported as a conflict and a rerun would fail instead of
+          # succeeding idempotently.
+          #
+          # The epoch hash is the one field the proposal cannot know: the advance computes it. It is filled in
+          # after the advance when one happened, and for an already-ready branch the FETCHED record supplies
+          # it, because a matching branch means the two hashes are equal by definition.
+          if ($proposal.needsMigration) {
+            $expected = [ordered]@{
+              trust_epoch           = $proposal.candidateEpoch.trust_epoch
+              root_contract_version = $proposal.candidateEpoch.root_contract_version
+              root_surface_hash     = $proposal.candidateEpoch.root_surface_hash
+              parent_epoch_hash     = $proposal.candidateEpoch.parent_epoch_hash
+              epoch_hash            = $null
+            }
+            [System.IO.File]::WriteAllText("$env:RUNNER_TEMP/expected-epoch.json", ($expected | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
+          }
 
       # IDEMPOTENCY, BEFORE ANY WRITE.
       #
@@ -151,6 +172,20 @@ jobs:
           git fetch --depth 1 origin $branch
           $existingJson = git show FETCH_HEAD:trust-policy/trust-epoch.json
           [System.IO.File]::WriteAllText("$env:RUNNER_TEMP/existing-epoch.json", $existingJson, (New-Object System.Text.UTF8Encoding($false)))
+          # The record on the branch IS what this run would produce -- that is precisely what "already ready"
+          # means, and it is why no re-advance happens. Seeding the expected record from it is therefore honest,
+          # not circular: it lets the comparison below decide whether the branch MATCHES this run's proposal,
+          # which is exactly the case where the two epoch hashes are equal by definition. Leaving the expected
+          # hash null here would make a matching branch compare unequal to itself and be reported as a conflict,
+          # inverting the idempotency rule into a permanent failure.
+          $expectedPath = "$env:RUNNER_TEMP/expected-epoch.json"
+          if (Test-Path $expectedPath) {
+            $expected = Get-Content $expectedPath -Raw | ConvertFrom-Json
+            $existingRecord = $existingJson | ConvertFrom-Json
+            $expected.epoch_hash = $existingRecord.epoch_hash
+            [System.IO.File]::WriteAllText($expectedPath, ($expected | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
+            Write-Host "comparing the proposal against the record on $branch (epoch_hash $($existingRecord.epoch_hash))"
+          }
 
       # STAGE B. Only reached when the committed epoch genuinely does not anchor the live surface, which the
       # proposal measured rather than assumed -- and only when the branch does not already carry the record.
@@ -166,6 +201,16 @@ jobs:
             Write-Error "TRUST_EPOCH_FINALIZATION_NO_CHANGE: --advance did not produce an epoch change, so there is nothing to authorise"
             exit 1
           }
+          # Fill the proposed record's epoch hash from the record the advance just wrote, so a later rerun has a
+          # complete expected record to compare against.
+          $produced = Get-Content trust-policy/trust-epoch.json -Raw | ConvertFrom-Json
+          $expectedPath = "$env:RUNNER_TEMP/expected-epoch.json"
+          if (Test-Path $expectedPath) {
+            $expected = Get-Content $expectedPath -Raw | ConvertFrom-Json
+            $expected.epoch_hash = $produced.epoch_hash
+            [System.IO.File]::WriteAllText($expectedPath, ($expected | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
+            Write-Host "proposed epoch hash $($produced.epoch_hash)"
+          }
 
       - name: Stage B — the migration must have been needed
         if: env.NEEDS_MIGRATION != 'true'
@@ -173,6 +218,9 @@ jobs:
         run: |
           Write-Host "The committed epoch already anchors the live Root Trust Surface; nothing to finalize."
           Write-Host "No epoch was advanced and no commit was created. This is a successful no-op."
+          # Name the terminal state, or the workflow would end with no FINALIZATION_RESULT on its own correct
+          # no-op path and a reader could not tell "already anchored" from "fell through doing nothing".
+          "FINALIZATION_RESULT=NO_MIGRATION" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Stage B — commit the epoch on an Owner-reviewed branch
         if: env.NEEDS_MIGRATION == 'true' && env.BRANCH_EXISTS != 'true'
@@ -214,9 +262,21 @@ jobs:
         if: env.NEEDS_MIGRATION == 'true'
         shell: pwsh
         run: |
+          # What THIS RUN WOULD PRODUCE -- always the record Stage A wrote from the proposal, never the
+          # committed tree: the committed epoch is the stale one by definition, so comparing against it would
+          # report a matching already-ready branch as a conflict.
+          $expectedPath = "$env:RUNNER_TEMP/expected-epoch.json"
+          if (-not (Test-Path $expectedPath)) { Write-Error "TRUST_EPOCH_FINALIZATION_NO_EXPECTED: the proposed record was not written by Stage A"; exit 1 }
+          # What THE BRANCH ALREADY CARRIES, when it exists.
           $existingPath = "$env:RUNNER_TEMP/existing-epoch.json"
           $existingArg = if (Test-Path $existingPath) { $existingPath } else { "" }
-          $expectedArg = if ($env:BRANCH_EXISTS -eq 'true') { "trust-policy/trust-epoch.json" } else { "" }
+          # The epoch branch's own commit, read from the branch when this run did not produce one. Without it
+          # the already-ready path would hand off a request naming no commit, and the App could not open a PR
+          # against it.
+          $epochCommit = if ($env:EPOCH_COMMIT) { $env:EPOCH_COMMIT }
+                         elseif (Test-Path $existingPath) { (git rev-parse FETCH_HEAD) }
+                         else { "" }
+          $epochHash = if (Test-Path $existingPath) { (Get-Content $existingPath -Raw | ConvertFrom-Json).epoch_hash } else { $null }
           $handoffDir = "artifacts/platform-foundation/trust"
           New-Item -ItemType Directory -Force -Path $handoffDir | Out-Null
           $handoffPath = "$handoffDir/epoch-pr-handoff.json"
@@ -228,8 +288,10 @@ jobs:
             --candidate-epoch "$env:CANDIDATE_EPOCH" `
             --branch "$env:EPOCH_BRANCH" `
             --root-surface-hash "$env:PROPOSED_SURFACE" `
-            --expected-record "$expectedArg" `
+            --expected-record "$expectedPath" `
             --existing-record "$existingArg" `
+            --epoch-commit "$epochCommit" `
+            --epoch-hash "$epochHash" `
             --out $handoffPath
           if ($LASTEXITCODE -ne 0) { Write-Error "TRUST_EPOCH_FINALIZATION_TERMINAL: the finalization did not reach a success state"; exit 1 }
           $decision = Get-Content "$handoffDir/epoch-pr-decision.json" -Raw | ConvertFrom-Json

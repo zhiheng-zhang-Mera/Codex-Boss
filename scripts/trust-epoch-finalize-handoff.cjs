@@ -18,9 +18,14 @@
  *   node scripts/trust-epoch-finalize-handoff.cjs \
  *     --repository owner/name --run-id 123 --base-branch main --base-sha <sha> \
  *     --candidate-epoch 28 --branch trust-epoch/boss-root-trust-28 \
- *     --root-surface-hash <sha256> \
+ *     --root-surface-hash <sha256> [--epoch-hash <sha256>] [--epoch-commit <sha>] \
  *     [--expected-record <trust-epoch.json>] [--existing-record <trust-epoch.json>] \
  *     --out artifacts/platform-foundation/trust/epoch-pr-handoff.json
+ *
+ * `--epoch-commit` and `--epoch-hash` name facts the CALLER measured: the commit the branch carries and the epoch
+ * hash the record produces. This program never invents either -- a governance artifact that filled in a commit it
+ * did not observe would be the one thing such an artifact must never do. When `--epoch-commit` is absent the
+ * `EPOCH_COMMIT` environment variable is consulted, because that is how the producing workflow step publishes it.
  */
 
 "use strict";
@@ -45,6 +50,15 @@ function parseArgs(argv) {
     rootSurfaceHash: value("--root-surface-hash"),
     expectedRecordPath: value("--expected-record"),
     existingRecordPath: value("--existing-record"),
+    // The epoch hash to publish. It comes from the record the run produced, or -- for a rerun onto an
+    // already-ready branch, where this run produced nothing -- from the record the branch already carries. The
+    // workflow resolves which; this program only publishes what it is told.
+    epochHash: value("--epoch-hash"),
+    // The commit the epoch branch carries. On the producing path this step publishes it through EPOCH_COMMIT; on a
+    // rerun onto an already-ready branch no new commit is produced in this run, so the workflow resolves the commit
+    // from the branch itself and passes it here. Without it the already-ready handoff would name no commit and be
+    // refused by its own validator -- making the idempotent success path unreachable.
+    epochCommit: value("--epoch-commit") ?? process.env.EPOCH_COMMIT ?? "",
     out: value("--out"),
     // The workflow sets this when Stage A found nothing to migrate. It is passed as a flag rather than inferred so
     // the no-migration success is an explicit statement rather than a default reached by omission.
@@ -105,11 +119,11 @@ function main() {
     baseSha: args.baseSha,
     epoch,
     epochBranch: args.branch,
-    // For the already-ready case the commit already exists on the branch; the caller records it when it produced
-    // one, so it is reported as the empty string rather than invented here.
-    epochCommit: process.env.EPOCH_COMMIT ?? "",
+    // The commit the branch actually carries, as measured by the caller. For the already-ready case the commit
+    // already exists on the branch and the caller resolves it from there, so it is reported rather than invented.
+    epochCommit: args.epochCommit,
     rootSurfaceHash: args.rootSurfaceHash,
-    epochHash: expected?.epoch_hash ?? null,
+    epochHash: args.epochHash ?? expected?.epoch_hash ?? null,
     prRequired: branchReady,
     result: decision,
   });
