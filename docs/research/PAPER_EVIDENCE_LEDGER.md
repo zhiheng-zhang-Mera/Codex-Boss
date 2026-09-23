@@ -3124,3 +3124,142 @@ the other direction.
 
 
 
+
+# §O — the dependency cycle is closed: PR #16 merged, PR #15 absorbed main, and hosted CI is fully green
+
+**This section is appended. §K, §L, §M and §N are byte-for-byte unchanged.**
+
+## O-1 — `GOVERNANCE`: the cycle, and how it was broken
+
+`GOVERNANCE` + `MEASUREMENT`. The epoch-26 promotion could not go green on its own. `main` carried epoch 25 and
+was therefore intentionally Root-Trust-stale; the epoch-26 branch carried a green epoch record but the
+pre-ceremony guards, which the ceremony correctly falsified. Each side depended on the other. The cycle was broken
+by landing the guard repair **first**, while `main` remained deliberately stale, and only then letting the epoch
+branch absorb the new `main`.
+
+```text
+PR #16  repaired the transition guards; merged while main intentionally remained epoch-25 stale
+PR #15  then absorbed latest main; the epoch-26 blob was unchanged; hosted CI became fully green
+```
+
+**PR #16 merged with history preserved.** A real two-parent merge, and the only files it changed were the two the
+repair was scoped to:
+
+```text
+PR16_MERGE_SHA       = b2a76078b50ba336ad5cbb3c7060d220effc8b85
+MAIN_SHA_AFTER_PR16  = b2a76078b50ba336ad5cbb3c7060d220effc8b85
+parents              = adf92b619aa83b398a857ac8d2039fd6cc1eb0d9  (pre-PR16 main)
+                       f4b4b59917eaf7713eaa56035061766bc56bcf22  (PR #16 head)
+files changed vs pre-PR16 main = docs/research/PAPER_EVIDENCE_LEDGER.md
+                                 tests/unit/city/architecture-hosted-shadow.test.ts
+NOT changed = scripts/architecture-shadow-hosted.cjs, .github/workflows/ci.yml, trust-policy/**,
+              config/architecture-enforcement-baseline.json, config/architecture-baseline.json
+```
+
+## O-2 — `MEASUREMENT`: the Root Trust surface did not move, and epoch 26 still anchors it
+
+`MEASUREMENT`. Re-measured from a **clean worktree** of the new `main`, not from the long-lived checkout:
+
+```text
+ROOT_TRUST_SURFACE_HASH              = 0c139bd5bb4750febda923582bf0266fe0753502e2b8dbd4ad740ab4a38826bf
+ROOT_TRUST_SURFACE_CHANGED_BY_PR16   = NO
+```
+
+That is exactly the value the epoch-26 record declares, so the repair — which touched a city unit test and
+append-only research evidence — left the Root Trust surface untouched, as intended. The epoch-26 record was then
+proved against the NEW main surface by overlaying it on a clean new-main worktree:
+
+```text
+[bless] root trust surface: 72 files, aggregate 0c139bd5bb4750febda923582bf0266fe0753502e2b8dbd4ad740ab4a38826bf
+[bless] repository: HEAD @ b2a76078b50ba336ad5cbb3c7060d220effc8b85
+[bless] epoch 26 (boss-root-trust-26) MATCHES the live surface
+EPOCH26_STILL_VALID = YES
+```
+
+`--advance` was **not** run. Epoch 26 was not re-finalized, and epoch 27 was not written.
+
+## O-3 — `CORRECTION`: PR #15 updated by merge, with the epoch blob byte-identical
+
+`MEASUREMENT`. `main` was merged into `trust-epoch/boss-root-trust-26` as a **normal merge commit**. No rebase, no
+amend, no reset, no force-push, and `aaa3d373` was not recreated:
+
+```text
+OLD_PR15_HEAD = aaa3d3732f3d0f899c67ced9be47ee975566f3cb   (preserved; still an ancestor)
+NEW_PR15_HEAD = 000b0d4fc1f07716cd188dc2659271ef8ec5576c   (the merge commit)
+parents       = aaa3d3732f3d0f899c67ced9be47ee975566f3cb     (the Owner-authorised epoch commit)
+                b2a76078b50ba336ad5cbb3c7060d220effc8b85     (new main)
+push          = aaa3d37..000b0d4   (fast-forward; NO --force)
+```
+
+Ancestry was verified to contain **both** `aaa3d373…` and `b2a7607…`, and the only file the merge introduces
+relative to new `main` is `trust-policy/trust-epoch.json`.
+
+```text
+EPOCH26_BLOB_UNCHANGED = YES
+aaa3d373 blob 8bd2db62ff13aeb48fdc68412853fe574a5e88b6
+merge    blob 8bd2db62ff13aeb48fdc68412853fe574a5e88b6
+trust_epoch 26 · boss-root-trust-26 · root_surface_hash 0c139bd5… · parent eb2f9b1b… · epoch_hash 85f1c49b…
+```
+
+**The branch update was performed as the machine identity, not the Owner.** The commit objects were authored
+locally and the push authenticated with the Codex-Boss GitHub App installation token obtained through the
+production `createGitHubMachineRuntime` path — no `gh`, no environment token, no Owner credential. PR #15 remains
+`codex-boss[bot]`, `base = main`, `state = open`.
+
+## O-4 — `MEASUREMENT`: hosted CI is fully green on both events
+
+`MEASUREMENT`. Both the `push` and the `pull_request` runs on `NEW_PR15_HEAD` completed with **every job green**:
+
+| Run | Event | quality | unit | acceptance | package | architecture |
+|---|---|---|---|---|---|---|
+| `35824118548` | push | success | success | success | success | success |
+| `35824121801` | pull_request | success | success | success | success | success |
+
+```text
+QUALITY = SUCCESS   UNIT = SUCCESS   ACCEPTANCE = SUCCESS   PACKAGE = SUCCESS   ARCHITECTURE = SUCCESS
+ARCHITECTURE_REQUIRED = NO
+ruleset required checks = quality, unit, acceptance, package   (ruleset updated_at 2026-09-19, unchanged)
+
+CITY_GUARD_TESTS = 34/34 PASS on the hosted runner
+   ✓ S6 … its metadata reports the COMMITTED epoch
+   ✓ the architecture grandfathering records are byte-identical to the Phase 1B-A freeze commit
+   ✓ the committed trust epoch is a valid parent-linked lineage, whoever advanced it
+   ✓ tests/unit/test-layers.test.ts — the epoch anchor that failed on PR #15 now PASSES
+
+unit tier  = 265 files passed (265)
+postbuild  = 8 files passed (8)
+slow       = 4 files passed (4)
+ROOT_TRUST_CHECK = epoch 26 MATCHES the live surface
+```
+
+**What this closes.** The `TRUST_EPOCH_ROOT_SURFACE_MISMATCH` that stood on `main` — recorded in §K-7 as
+`EXPECTED_1`/`EXPECTED_2`, and still present on PR #16 — is gone, because the branch that carries epoch 26 now
+also carries the surface epoch 26 anchors. The expected-red set has been retired by the ceremony it was waiting
+for, and nothing was weakened to retire it: no test was relaxed, no assertion removed, no epoch advanced again, and
+no bypass used.
+
+## O-5 — the honest summary of this whole guard family
+
+`CORRECTION`. Four defects were found in one guard family across §L, §M and §N, and every one of them was the same
+mistake: **an assumption about the environment, the history, or the epoch in force, rather than about the property
+the guard claimed to measure.**
+
+| # | Defect | Recorded |
+|---|---|---|
+| 1 | parity identity dropped `detail`, collapsing a finding family toward false agreement | §L-3 / §K-4b |
+| 2 | `hosted: true` hardcoded, letting a local run publish hosted-looking evidence | §L-3 / §K-10b |
+| 3 | three guards pinned `epoch == 25`, so the valid ceremony failed them | §N |
+| 4 | the new lineage guard assumed a one-commit delta and a `null`-parent epoch 1, neither of which this repository's history obeys | §N-3a |
+
+Each was found by running the guard against reality rather than by reasoning about it, and the last was found only
+because the State B fixture was rebuilt to reproduce the real mechanism instead of approximating it. That is the
+pattern worth carrying forward: **a green test is evidence about the world only if the fixture reproduces the world,
+and a guard is durable only if it names the invariant rather than the value.**
+
+
+
+
+
+
+
+
