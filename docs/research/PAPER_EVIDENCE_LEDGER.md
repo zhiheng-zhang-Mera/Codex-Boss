@@ -3032,7 +3032,8 @@ Owner approval, Owner merge. This suite now checks **lineage** and defers **auth
 ## N-3 — `REPRODUCTION`: proved in both lifecycle states, before anything is merged
 
 `REPRODUCTION`. A guard that only passes in the state it was written in is the defect, so the repair is proved in
-both states.
+both states — and building State B honestly exposed **two further defects in the new guard itself**, recorded here
+rather than quietly fixed.
 
 **State A — pre-ceremony (current `main @ adf92b6`, committed epoch 25).**
 
@@ -3042,18 +3043,48 @@ tests/unit/city/architecture-hosted-shadow.test.ts  = 34 passed (34)
 
 The three repaired cases pass here, and the repository-wide Root Trust layer still reports the already-known
 `TRUST_EPOCH_ROOT_SURFACE_MISMATCH`, because `main` is intentionally stale until PR #15 lands. That known
-staleness is not a repair failure.
+staleness is not a repair failure — it is `main`'s expected state.
 
-**State B — synthetic epoch-26 (repaired content + the epoch record from `aaa3d373`)**, built as a real
-temporary worktree from git history rather than from copied expectations:
+**State B — synthetic epoch-26 (repaired content + the epoch record from `aaa3d373`).** Built as a real temporary
+worktree from git history, and — this is the part the first attempt got wrong — the epoch-26 record was
+**committed** in it, because the lineage guard reads real history and an uncommitted overlay is not a ceremony:
 
 ```text
-tests/unit/city/architecture-hosted-shadow.test.ts        = PASS
-node scripts/acceptance-evolution-bless.cjs --check       = PASS  (epoch 26 MATCHES the live surface)
+tests/unit/city/architecture-hosted-shadow.test.ts        = 34 passed (34)
+node scripts/acceptance-evolution-bless.cjs --check       = PASS
+   [bless] root trust surface: 72 files, aggregate 0c139bd5bb4750febda923582bf0266fe0753502e2b8dbd4ad740ab4a38826bf
+   [bless] epoch 26 (boss-root-trust-26) MATCHES the live surface
 ```
 
-This is the proof that the repaired guards survive the Owner ceremony **before** it is merged, which is the whole
-point of the repair.
+S6, the renamed architecture-grandfathering guard, and the lineage case all pass **at epoch 26**. This is the proof
+that the repaired guards survive the Owner ceremony before it is merged, which is the whole point of the repair.
+
+### N-3a — `FAILURE` + `CORRECTION`: the first State B was a bad fixture, and the guard was still wrong
+
+`FAILURE` + `CORRECTION`. The first State B overlaid the epoch-26 file into the worktree **without committing it**,
+and the lineage case failed with `the committed epoch jumped from 24 to 26`. That failure was correct behaviour:
+with the file uncommitted, git history still said the last change to the epoch record was epoch 25's own commit, so
+the tree genuinely contradicted its own history. The fixture was wrong, not the guard — and the lesson is the same
+one §L-3 and §M-3 recorded: **a test fixture that does not reproduce the real mechanism proves nothing.** The
+fixture now creates a real commit, as a ceremony does.
+
+Building it honestly then exposed two genuine defects in the new guard:
+
+1. **The one-commit delta assumption was false.** The guard read the epoch record from `<lastChange>^` and required
+   it to be exactly one lower. Measured: the commit that introduced epoch 25 (`9e22604b`) has a PARENT carrying
+   epoch 24, so the file legitimately moved 24 → 25 across intervening commits. The real history is a chain of
+   epochs (18, 19, 20, 21, 22, 23, 24, 25 …) each naming its predecessor's `epoch_hash`, while the commit graph
+   between them is not one-epoch-per-commit. The guard now walks the commits that touched the epoch record and
+   requires every parent link to be present and correct — which is the property that actually makes a record
+   trustworthy — instead of asserting a delta that history does not obey.
+2. **It imposed a convention this repository never used.** The guard required epoch 1 to have a `null` parent.
+   Measured: the historical record at `9f73d4dc` spells it `""` with contract `boss-root-trust-1`. The root of the
+   chain now accepts either spelling; the **current** record is still held to the stricter `null` shape, because
+   that is what the trust module writes today.
+
+Both were found by running the guard against real history rather than by reasoning about it. They are recorded
+because the pattern is now unmistakable: **every one of the four defects in this guard family (§L-3, §M-3, and
+these two) was an assumption about the environment or the history rather than about the property itself.**
 
 ## N-4 — `MEASUREMENT`: the Root Trust surface did not move
 
