@@ -3263,3 +3263,180 @@ and a guard is durable only if it names the invariant rather than the value.**
 
 
 
+
+# §P — S1 hosted-shadow soak COMPLETE: 21 consecutive valid runs, and why it is 21 and not 23
+
+**This section is appended. §K through §O are byte-for-byte unchanged.** It records a *measurement audit* of the
+Actions history, not a new capability: nothing was activated, no epoch moved, and S2 was not started.
+
+## P-1 — the count, re-derived from Actions history rather than inherited
+
+`MEASUREMENT`. Every `Desktop CI` `push`/`pull_request` run on this repository was enumerated from the API (497
+runs, 2026-09-09 → 2026-09-23), not read off the ledger. Of those, **23** carry an `architecture` job and **all 23
+succeeded**, each with a retrievable `architecture-shadow` artifact.
+
+That is *not* the soak count. The Phase 1B S1 exit condition is stricter than "the job was green": each run must
+also carry verifiable evidence, and that evidence must have been produced by a runner whose semantics are the
+corrected ones.
+
+```text
+CANDIDATE_ARCHITECTURE_RUNS = 23   (all architecture job conclusions: success)
+ELIGIBILITY_START_RUN       = 35806819965
+ELIGIBILITY_START_SHA       = f389209a1012c1955831ecb12a774f3bb7ec9f4e
+VALID_CONSECUTIVE_RUNS      = 21
+HOSTED_SHADOW_REQUIRED_RUNS = 20
+S1_SOAK_COMPLETE            = YES   (21 >= 20)
+RUNS_REMAINING              = 0
+```
+
+## P-2 — `CORRECTION`: the two excluded runs, and the reason each is not a pass
+
+Two runs are excluded, both for the same reason: **their hosted artifacts were produced by a runner whose
+provenance and readability semantics were not yet the corrected ones.** The exclusion was decided from measured
+artifact field values *and* commit ancestry, not from narrative.
+
+| Run | Event | Measured commit | Why it is excluded |
+|---|---|---|---|
+| `35805180887` | push | `9916647c` | `hosted_provider` **absent**; `hosted` was a constant `true`, not a measurement; `not_yet_enforced` unspecified; digest pre-`detail_digest` |
+| `35805647014` | push | `82a2966a` | same |
+
+Both report `hosted = true`, but in that revision `hosted` was **hardcoded** — the defect §K-10b records. An
+artifact that asserts its own provenance cannot be evidence of provenance, and the S1 condition explicitly requires
+`hosted_provider = GitHub Actions`, a field that did not yet exist. Their `not_yet_enforced` is likewise `null`, so
+the spec's READABLE-vs-UNREAD distinction was unmet (§N-2). Neither can satisfy the per-run minimum.
+
+**Ancestry confirms the boundary independently of the artifact values:** `f389209a` — the commit that repaired
+measured provenance, the `detail_digest` identity, multiset parity and the readability state — is **not** an
+ancestor of `9916647c` or `82a2966a`, and **is** the measured commit of run `35806819965`.
+
+**What the exclusion does NOT rest on.** The later *test-only* defects are deliberately not grounds for exclusion:
+`74b8a3f8` still carried the epoch-25 over-pins and the S8 LOCAL-premise bug, and its artifacts are still counted,
+because those were **test** defects that never touched a production artifact — exactly the distinction §N drew.
+Only **production evidence** defects reset eligibility.
+
+## P-3 — every counted run, individually validated
+
+`MEASUREMENT`. Each counted run was validated against its own artifact, retrieved from the run itself:
+
+| # | run_id | event | measured commit | artifact | series | self-cons. | engErr | machFail | newReg | findings |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 35806819965 | push | f389209a | 10727928233 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 2 | 35807269888 | push | 4e98c7fe | 10728386331 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 3 | 35807684348 | push | 74b8a3f8 | 10728640984 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 4 | 35811655716 | pull_request | 579f12e8 | 10729318765 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 5 | 35813798522 | push | bcf5a336 | 10730803051 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 6 | 35813801516 | pull_request | 644e1d4f | 10730972816 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 7 | 35814315652 | push | a7309f76 | 10730993620 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 8 | 35814319559 | pull_request | 3be93cae | 10730044542 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 9 | 35815493644 | push | adf92b61 | 10731586406 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 10 | 35817027430 | pull_request | 757e6a65 | 10731424201 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 11 | 35817467156 | push | 37bc4b21 | 10731664802 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 12 | 35820940071 | push | f4b4b599 | 10732768564 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 13 | 35820971312 | pull_request | 22c87fc6 | 10733481606 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 14 | 35823811961 | push | b2a76078 | 10734691076 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 15 | 35824118548 | push | 000b0d4f | 10734561942 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 16 | 35824121801 | pull_request | 39900d05 | 10733679555 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 17 | 35825711254 | push | 15985238 | 10734889125 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 18 | 35826683308 | push | 7b33d785 | 10735850243 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 19 | 35829237256 | push | b4bd3727 | 10736133039 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 20 | 35829240144 | pull_request | 18763510 | 10736441453 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+| 21 | 35833020418 | push | 8c0e2add | 10738026818 | AUTHORISED | true | 0 | 0 | 0 | 1677 |
+
+Every row additionally reports `hosted = true`, `hosted_provider = GitHub Actions`, `not_yet_enforced_status =
+READABLE` (5 classes), and `shadow_verdict = PASS`. No run in the series is missing an `architecture` job and none
+failed it — 23/23 succeeded — so there is no invalid run *inside* the interval and the series is consecutive by the
+specification's definition without any cherry-picking.
+
+```text
+FIRST_COUNTED_RUN = 35806819965
+LAST_COUNTED_RUN  = 35833020418
+ENGINE_ERRORS_ALL_ZERO                 = YES
+BASELINE_SERIES_ALL_AUTHORISED         = YES
+BASELINE_SELF_CONSISTENCY_ALL_VERIFIED = YES
+UNEXPLAINED_FINDING_DRIFT              = 0
+```
+
+**Finding-count drift is zero and explained.** All 21 runs report `1677 = 1671 PASS_AS_GRANDFATHERED + 5
+NOT_YET_ENFORCED + 1 NON_SOURCE_ASSET`, identical to the Phase 1A freeze count. `root_trust_epoch` legitimately
+varies across the series (25 before the ceremony, 26 from run `35817027430` onward) because the artifact reports
+the epoch the *tree* carries — which is the property §N-2 required it to report.
+
+## P-4 — `REPRODUCTION`: same-commit local/hosted parity, and why one reproduction covers all 21
+
+`REPRODUCTION`. Parity was measured with the shipped comparator. The subtlety worth stating: the 21 runs span
+**11 distinct git trees**, so "one local hash for many commits" would normally be exactly the unproven shortcut §L
+forbids. It is justified here by measurement, in three independent steps.
+
+**(a) The measurement's inputs exclude what distinguishes those trees.** `measureTree()` reads only the
+git-tracked scan set under `SCAN_ROOTS = ["electron", "src"]` plus the capability manifests under
+`config/capabilities/**`; it never reads `.github/workflows/ci.yml`, `trust-policy/**`, `tests/**` or `scripts/**`.
+Every difference between the 11 trees lies in those unread paths.
+
+**(b) The measured content is byte-identical at every one of the 21 measured trees.** A content signature was
+computed per tree over exactly the scan set plus manifests — sha256 over the sorted `<blob-sha> <path>` list:
+
+```text
+21 runs  ->  1 distinct measured-content signature   (9e0cfdb1ea6f3525dc17…, 616 files measured)
+```
+
+The measurement is a pure function of those contents, so identical signatures mean it cannot distinguish the runs.
+This is a proof about the *inputs*, computed independently for each run — not an assumption.
+
+**(c) The hosted side is a per-run observation, hashed per run.** Each artifact's published `findings_normalized`
+set was canonicalised and hashed independently:
+
+```text
+distinct hosted normalized-content hashes : 1   (82d0947c553dfcb4…)
+distinct hosted digests                   : 1   (db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba)
+distinct hosted findings counts           : 1   (1677)
+distinct hosted engine_error counts       : 1   (0)
+```
+
+So the hosted evidence is not one value copied 21 times: it is 21 separately published artifacts, each hashed from
+its own content, agreeing.
+
+**The local side was then reproduced from the earliest eligible measured tree** (`f389209a`, tree `692e30a4`) in a
+temporary worktree and compared against the published artifacts:
+
+```text
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true   COUNTS_EQUAL = true (1677)   multiplicity_differences = []   parity = true
+
+vs artifact of run 35806819965 (earliest): HOSTED_LOCAL_PARITY
+vs artifact of run 35833020418 (latest)  : HOSTED_LOCAL_PARITY   cross-check across the two tree endpoints
+```
+
+The local reproduction also reports `hosted = false / provider = local`, which is the §N repair behaving correctly:
+the same runner measures the environment it is given.
+
+## P-5 — what this record does and does not claim
+
+`CORRECTION`. **It claims** that 21 consecutive hosted `architecture` runs, across 11 distinct trees, each produced
+a green fail-closed shadow measurement whose published findings are byte-identical to a local reproduction of the
+same measured content, with zero engine errors, an authorised and self-consistent baseline, and zero unexplained
+finding drift.
+
+**It does NOT claim** that S1 authorises enforcement. The S1 exit condition is the *entry* condition for S2, and S2
+is a separate Owner decision. Explicitly unchanged:
+
+```text
+ARCHITECTURE_REQUIRED           = NO    (ruleset 22746755 still exactly quality/unit/acceptance/package)
+ARCHITECTURE_MIGRATION_STARTED  = NO
+S2_STARTED                      = NO    (no `architecture:enforce` step anywhere in ci.yml)
+LEGACY_RATCHET                  = REQUIRED_AND_UNCHANGED
+BASELINE_WIDENED                = NO    (all three grandfathering records byte-identical to b5b511d7…)
+ROOT_TRUST_EPOCH                = 26
+```
+
+**No soak was manufactured to reach 20.** The 21 runs are natural pushes and pull requests that occurred while
+Mission-4C did its governance work; no no-op commit, dummy PR, documentation churn or workflow-dispatch substitute
+was created to increment the counter. Had the audit yielded 19, this section would have said **19/20** and stopped.
+
+
+
+
+
+
+
+
