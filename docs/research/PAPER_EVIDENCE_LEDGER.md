@@ -2675,10 +2675,20 @@ error masquerade as a baseline mismatch.
 ```text
 PR                  = #14
 OLD_PR_HEAD         = 74b8a3f81ccab8f713bb246a529b0c48a20112fb
-REPAIR_COMMIT       = <new sha>   (appended commit; recorded in L-7 after it exists)
-NEW_PR_HEAD         = <new sha>   (the PR moves to it naturally on push; no amend, no rebase, no force-push)
+REPAIR_COMMIT       = bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04
+NEW_PR_HEAD         = bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04
+PUSH_DISTANCE       = 74b8a3f..bcf5a33   (fast-forward; the old candidate is an ANCESTOR of the new head)
+AMEND_REBASE_RESET_FORCE_PUSH = NONE
 OLD_CANDIDATE_RETAINED_AS_EVIDENCE = YES  (74b8a3f and run 35811655716 are negative evidence and are not deleted)
+FILES_CHANGED       = .github/workflows/ci.yml
+                      docs/research/PAPER_EVIDENCE_LEDGER.md
+                      scripts/architecture-shadow-hosted.cjs   (export-only; no semantic change)
+                      tests/unit/city/architecture-hosted-shadow.test.ts
+                      tests/unit/city/helpers/phase1b-scripts.ts
 ```
+
+`PR_HEAD_SHA_AFTER_PUSH = bcf5a33…` and `PR_AUTHOR = codex-boss[bot] (Bot)` — PR #14 moved to the new head
+naturally, with its authorship unchanged. No new PR was opened and the old one was not closed.
 
 `.github/workflows/ci.yml` is Root Trust Surface, so the `fetch-depth` change moves the candidate surface again.
 **No epoch was advanced**; the epoch-26 candidate was re-measured against the new candidate head, and the previous
@@ -2710,19 +2720,91 @@ duplicated or counted twice to approach 20.
 
 ## L-7 — `MEASUREMENT` on the repaired head
 
-Filled from the actual runs of `NEW_PR_HEAD`; the values here are the ones the mission report quotes.
+`MEASUREMENT`. Both event types were re-run on `NEW_PR_HEAD` and every result below is bound to that SHA.
+
+| Run | Event | Head | `quality` | `architecture` | `unit` | `package` | `acceptance` |
+|---|---|---|---|---|---|---|---|
+| `35813798522` | `push` | `bcf5a33…` | success | **success** | failure | skipped | skipped |
+| `35813801516` | `pull_request` | `bcf5a33…` | success | **success** | failure | skipped | skipped |
 
 ```text
-NEW_PR_HEAD = ce5b308
-PUSH_RUN      = (see L-7 table below)
-PR_RUN        = (see L-7 table below)
-CONTENT_FAILURES             = (expected 0)
-ROOT_TRUST_STALENESS_FAILURES = (expected >= 1)
-ARCHITECTURE_RESULT          = (expected SUCCESS, NOT required, 0 engine errors)
-LOCAL_FINDINGS_HASH          = measured on NEW_PR_HEAD
-HOSTED_FINDINGS_HASH         = measured on NEW_PR_HEAD
-PARITY_FOR_NEW_HEAD          = (old-SHA parity is NOT reused)
+NEW_PR_HEAD                  = bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04
+PUSH_RUN                     = 35813798522
+PR_RUN                       = 35813801516
+ARCHITECTURE_JOB             = completed/success on both (runners 1000001586, 1000001588)
+ARCHITECTURE_REQUIRED        = NO
+UNIT_RESULT                  = 1 failed | 264 passed (265)
+CONTENT_FAILURES             = 0        <-- S8 and the frozen-commit guard both pass on the hosted runner now
+ROOT_TRUST_STALENESS_FAILURES = 1       <-- test-layers.test.ts:430, TRUST_EPOCH_ROOT_SURFACE_MISMATCH
 ```
+
+**The two content failures are gone on the very environment that produced them.** The hosted `unit` log now shows
+exactly one failing file (`tests/unit/test-layers.test.ts:430`) and one failing case, with the epoch message. The
+repair did not merely move the failure: `S8` passes under inherited `GITHUB_ACTIONS=true`, and the frozen-commit
+byte comparison resolves `b5b511d7…` because the `unit` job now checks out full history.
+
+**One detail worth recording, because it affects how "same commit" is read.** On a `pull_request` event GitHub
+Actions checks out the PR **merge** commit, not the branch head. The artifact from run `35813801516` therefore
+carries `commit_sha = 644e1d4f4790b9bffbdd8a71ca2e698b0b7294f2`, whose parents are verified to be exactly
+`b5b511d7…` (main) and `bcf5a33…` (the PR head):
+
+```text
+644e1d4f… = Merge bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04 into b5b511d750f11a7573b24e7b04c545b44d73b3da
+parents   = [b5b511d750f11a7573b24e7b04c545b44d73b3da, bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04]
+```
+
+Because main is an ancestor of the head, the merge tree is identical to the head tree, so the measurement is the
+new head's. Stated explicitly rather than glossed, because "the artifact says a different SHA" is exactly the kind
+of discrepancy that should be explained, not ignored.
+
+### Same-commit hosted/local parity, re-measured for `NEW_PR_HEAD`
+
+The old SHA's parity hash is **not** reused; this comparison is between a local run of `bcf5a33…` and the artifact
+the hosted `pull_request` run actually published:
+
+```text
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true    COUNTS_EQUAL = true (1677)    multiplicity_differences = []    state = HOSTED_LOCAL_PARITY
+PARITY_FOR_NEW_HEAD = YES
+```
+
+Hosted provenance on that run, measured rather than inherited:
+
+```text
+hosted = true    hosted_provider = "GitHub Actions"    runner_os = Windows
+shadow_verdict = PASS    engine_verdict = PASS    engine_error_count = 0
+findings_count = 1677    machinery_failure_count = 0    policy_violation_count = 0
+baseline_series_status = AUTHORISED    baseline_self_consistency_status = VERIFIED
+not_yet_enforced_status = READABLE (5 classes)    root_trust_epoch = 25
+```
+
+### Soak accounting — re-derived, not inherited
+
+Each candidate run is classified against the S1 exit condition rather than counted because the `architecture` job
+was green. The pre-repair runs established that the hosted **deployment** exists and behaves; they are not inherited
+as soak credit for the repaired head.
+
+```text
+PRE_REPAIR_HOSTED_RUNS (existence evidence, NOT soak credit for the new head)
+  35805180887  push  9916647   architecture SUCCESS
+  35805647014  push  82a2966   architecture SUCCESS
+  35806819965  push  f389209   architecture SUCCESS
+  35807269888  push  4e98c7f   architecture SUCCESS
+  35807684348  push  74b8a3f   architecture SUCCESS
+  35811655716  pull_request  74b8a3f   architecture SUCCESS  (the run that found the two test defects)
+
+CURRENT_HEAD_HOSTED_RUNS (validated against the S1 conditions on NEW_PR_HEAD)
+  35813798522  push          bcf5a33   architecture SUCCESS, 0 engine errors, provenance genuine
+  35813801516  pull_request  bcf5a33   architecture SUCCESS, parity measured, 0 engine errors
+
+HOSTED_SHADOW_CONSECUTIVE_VALID_RUNS = 2   (counted only where provenance and parity were re-verified)
+HOSTED_SHADOW_REQUIRED_RUNS = 20
+HOSTED_SHADOW_SOAK_COMPLETE = NO
+```
+
+No run was relabelled, duplicated, or counted twice to approach 20. The pre-repair runs remain in the record as
+hosted-shadow evidence, which is what they are.
 
 
 
