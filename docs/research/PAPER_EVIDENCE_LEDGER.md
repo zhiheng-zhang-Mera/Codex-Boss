@@ -2310,12 +2310,13 @@ boundary rather than an omission.
 ```text
 PUSH_RUN_ID = 35805180887        (first hosted observation, on 9916647)
 PUSH_RUN_2_ID = 35805647014      (on the ledger-finalisation commit 82a2966)
-PUSH_RUN_3_ID = 35806819965      (on the corrected commit f389209 — the final head)
+PUSH_RUN_3_ID = 35806819965      (on the corrected commit f389209)
+PUSH_RUN_4_ID = 35807269888      (on 4e98c7f — the head this record stops at)
 PUSH_EVENT = push
-FINAL_BRANCH_SHA = f389209a1012c1955831ecb12a774f3bb7ec9f4e
-PUSH_RUN_CONCLUSION = completed/failure  (all three: `unit` red on the EXPECTED epoch anchor; `architecture` green)
+HEAD_UNDER_OBSERVATION = 4e98c7fe733b0e583374c29ad9a314a452e9b549
+PUSH_RUN_CONCLUSION = completed/failure  (all four: `unit` red on the EXPECTED epoch anchor; `architecture` green)
   quality       success
-  architecture  success      <-- the new check, on the hosted runner, separately, all three times
+  architecture  success      <-- the new check, on the hosted runner, separately, all four times
   unit          failure      <-- EXPECTED: tests/unit/test-layers.test.ts:430, the epoch anchor (K-7 EXPECTED_1)
   acceptance    skipped      (needs: unit)
   package       skipped      (needs: unit)
@@ -2386,10 +2387,12 @@ Both sides of that comparison were produced by the **pre-repair** runner, which 
 changes both sides identically. On the repaired runner the same comparison yields `db536b06…` on both sides, and
 `P3c` asserts that equality rather than this transcript.
 
-**A second and third hosted observation, on later commits** — the ledger is not allowed to go stale, and each push
-is its own run:
+**A second, third and fourth hosted observation, on later commits** — the ledger is not allowed to go stale, and
+each push is its own run:
 
 ```text
+RUN 35807269888   push   4e98c7fe733b0e583374c29ad9a314a452e9b549   architecture = completed/success
+   overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
 RUN 35806819965   push   f389209a1012c1955831ecb12a774f3bb7ec9f4e   architecture = completed/success
    artifact: sha f389209a, hosted true / GitHub Actions (measured), verdict PASS, findings 1677
              hash db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba   <-- the REPAIRED identity
@@ -2415,10 +2418,17 @@ HASHES_EQUAL = true   COUNTS_EQUAL = true (1677)   multiplicity_differences = []
 ```
 
 ```text
-HOSTED_ARCHITECTURE_RUNS_OBSERVED = 3 consecutive, all `architecture` green on a real hosted runner
+HOSTED_ARCHITECTURE_RUNS_OBSERVED = 4 consecutive, all `architecture` green on a real hosted runner
 HOSTED_SHADOW_SOAK_COMPLETE = NO   (the spec's S1 exit condition is >= 20 consecutive runs; this is not that)
-FINAL_BRANCH_SHA = f389209a1012c1955831ecb12a774f3bb7ec9f4e
+BRANCH_HEAD_OBSERVED = 4e98c7fe733b0e583374c29ad9a314a452e9b549
 ```
+
+**A note on how this record terminates.** Each push to the branch starts a new hosted run, so a ledger commit that
+records the run of the commit before it is always one behind — recording run N changes the head and invites run
+N+1. Rather than chase that recursion, the record stops here: the head under observation is
+`4e98c7fe…`, its own `architecture` result is recorded above, and any later push carries documentation only.
+A reader who needs the current head's result should read the run list rather than this file, and the mission's
+report names the SHA it stopped at.
 
 The hosted run's overall conclusion is `failure`, and that is the **expected** failure rather than a defect of
 this phase: `unit` is red on `tests/unit/test-layers.test.ts:430`, the epoch anchor, which is `EXPECTED_1` of K-7
