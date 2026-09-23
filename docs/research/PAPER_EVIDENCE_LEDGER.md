@@ -2308,12 +2308,14 @@ runner. **The PR event does not exist**, because no pull request was opened — 
 boundary rather than an omission.
 
 ```text
-PUSH_RUN_ID = 35805180887
+PUSH_RUN_ID = 35805180887        (first hosted observation, on 9916647)
+PUSH_RUN_2_ID = 35805647014      (on the ledger-finalisation commit 82a2966)
+PUSH_RUN_3_ID = 35806819965      (on the corrected commit f389209 — the final head)
 PUSH_EVENT = push
-PUSH_HEAD_SHA = 9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c
-PUSH_RUN_CONCLUSION = completed/failure
+FINAL_BRANCH_SHA = f389209a1012c1955831ecb12a774f3bb7ec9f4e
+PUSH_RUN_CONCLUSION = completed/failure  (all three: `unit` red on the EXPECTED epoch anchor; `architecture` green)
   quality       success
-  architecture  success      <-- the new check, on the hosted runner, separately
+  architecture  success      <-- the new check, on the hosted runner, separately, all three times
   unit          failure      <-- EXPECTED: tests/unit/test-layers.test.ts:430, the epoch anchor (K-7 EXPECTED_1)
   acceptance    skipped      (needs: unit)
   package       skipped      (needs: unit)
@@ -2388,15 +2390,34 @@ changes both sides identically. On the repaired runner the same comparison yield
 is its own run:
 
 ```text
+RUN 35806819965   push   f389209a1012c1955831ecb12a774f3bb7ec9f4e   architecture = completed/success
+   artifact: sha f389209a, hosted true / GitHub Actions (measured), verdict PASS, findings 1677
+             hash db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba   <-- the REPAIRED identity
+             baseline_self_consistency_status VERIFIED, not_yet_enforced_status READABLE (5)
+             series AUTHORISED, epoch 25, engine_errors 0, machinery_failure_count 0
+   overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
 RUN 35805647014   push   82a2966a7e95a0bad10a01d429ae9e517433ff2c   architecture = completed/success
-   artifact: sha 82a2966a, verdict PASS, findings 1677, hash 8142122c…, epoch 25, series AUTHORISED, engine_errors 0
+   artifact: sha 82a2966a, verdict PASS, findings 1677, hash 8142122c… (pre-repair identity), epoch 25, engine_errors 0
    overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
 RUN 35805180887   push   9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c   architecture = completed/success
 ```
 
+**The repaired runner is confirmed on the real hosted runner, not only locally.** Run `35806819965`'s artifact
+carries `hosted: true` with `provider: GitHub Actions` **measured** from the workflow environment (defect 4 of
+K-10b), `baseline_self_consistency_status: VERIFIED` (a real check rather than a fabricated pass), and
+`not_yet_enforced_status: READABLE` with the five classes (a real read rather than the module default). Parity
+between that artifact and a local run of the same commit:
+
 ```text
-HOSTED_ARCHITECTURE_RUNS_OBSERVED = 2 consecutive, both `architecture` green on a real hosted runner
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true   COUNTS_EQUAL = true (1677)   multiplicity_differences = []   state = HOSTED_LOCAL_PARITY
+```
+
+```text
+HOSTED_ARCHITECTURE_RUNS_OBSERVED = 3 consecutive, all `architecture` green on a real hosted runner
 HOSTED_SHADOW_SOAK_COMPLETE = NO   (the spec's S1 exit condition is >= 20 consecutive runs; this is not that)
+FINAL_BRANCH_SHA = f389209a1012c1955831ecb12a774f3bb7ec9f4e
 ```
 
 The hosted run's overall conclusion is `failure`, and that is the **expected** failure rather than a defect of
@@ -2415,7 +2436,8 @@ production*, because it is not required and has therefore never blocked anything
 exist to establish, and neither is this mission.
 
 ```text
-HOSTED_SHADOW_DEPLOYED = YES            (one push event, architecture job green, artifact published, parity measured)
+HOSTED_SHADOW_DEPLOYED = YES            (three push events; `architecture` green on a real hosted runner each time;
+                                         artifact published; parity measured against the published artifact)
 HOSTED_SHADOW_SOAK_COMPLETE = NO        (>= 20 consecutive runs not reached)
 HOSTED_REQUIRED_GATE = LEGACY
 HOSTED_ENFORCE_VISIBLE = NOT_STARTED
