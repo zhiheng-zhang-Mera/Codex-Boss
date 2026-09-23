@@ -2550,6 +2550,181 @@ The stop boundary is respected in full: no required check activated, no ruleset 
 `--advance`, no baseline widening, no baseline v2, no legacy ratchet retirement, no architecture migration, no
 immutable-tag movement, no history rewrite, no hidden retry and no threshold weakened.
 
+---
+
+# §L — CORRECTION: the "34 tests green" figure was LOCAL evidence, and the hosted runner disproved it
+
+**This section is an appended correction. Nothing above it is edited, deleted or reworded** — in particular §K-4b,
+§K-10b, the pre-repair digest `8142122c…` and the original overclaim all remain exactly as they were written. The
+point of this section is that the *old claim stays visible* and the correction sits beside it, rather than the
+history being tidied into "we never said anything wrong".
+
+## L-1 — `FAILURE`: the first real `pull_request` run of PR #14 found two defects in this phase's own test file
+
+`FAILURE` + `MEASUREMENT`. Mission-4C Part B reported, in §K-8, that the new suite was **"34 tests, all green"**,
+and reported the candidate's only expected failures as the two epoch-anchored ones. **That was a local
+measurement, and it was not true of the hosted runner.**
+
+PR #14 was opened by the Codex-Boss App machine identity and its first real `pull_request` Desktop CI run
+(`35811655716`, head `74b8a3f8…`) produced:
+
+```text
+Test Files  2 failed | 263 passed (265)
+Tests       3 failed | 3383 passed (3386)
+```
+
+| # | Failing case | Assertion | Real cause |
+|---|---|---|---|
+| 1 | `tests/unit/test-layers.test.ts:430` | `TRUST_EPOCH_ROOT_SURFACE_MISMATCH` | **expected** Root Trust staleness |
+| 2 | `architecture-hosted-shadow.test.ts` → `S8` | `a local run declared itself hosted: expected true to be false` | **test defect** |
+| 3 | `architecture-hosted-shadow.test.ts` → frozen-commit byte guard | `git could not read … at the frozen commit: expected 128 to be +0` | **test defect** |
+
+## L-2 — the two defects, stated as what they actually were
+
+`FINDING` + `CORRECTION`. **Both are defects in the TESTS and in the EVIDENCE, not in the hosted-shadow engine.**
+
+**Defect 1 — `S8` asserted a premise about its own environment.** `S8` called the governing runner with no
+environment and then required `hosted === false`. That holds only when the *test process* is local. The hosted
+`unit` runner exports `GITHUB_ACTIONS=true` (and `CI`, `GITHUB_SHA`, `GITHUB_RUN_ID`, …), the child inherited it,
+and the production runner **correctly** measured `hosted: true`. Production was right; the test's premise was
+wrong. The failure message — *"a local run declared itself hosted"* — named the production behaviour rather than
+the test's false assumption, which is itself part of why this was not caught locally.
+
+**Defect 2 — the frozen-commit byte guard assumed history the checkout does not have.** The guard compares a
+guarded file's current bytes with its bytes at the immutable Phase 1B-A freeze commit `b5b511d7…`, via
+`git show <sha>:<path>`. `actions/checkout@v4` defaults to `fetch-depth: 1`, so on the hosted runner that commit
+is absent and `git show` exits **128**. The guard therefore failed for a reason unrelated to the property it
+guards. Worse: on the hosted runner the assertion was **not guarding anything at all** — it was reporting a git
+error as a baseline mismatch.
+
+**Classification.** These are `TEST/EVIDENCE DEFECTS`, **not** production architecture-shadow engine defects.
+Recorded explicitly because two tempting mis-readings both exist: the failure message looks like a provenance
+bug, and a red guard looks like the baseline it guards has moved. Neither was true.
+
+**What did not fail, and is the thing that matters most here.** The `architecture` job itself remained
+**SUCCESS** on the same hosted run — 1677 findings, 0 engine errors — and `quality` passed. The hosted shadow
+deployment the phase claims was unaffected by either defect.
+
+```text
+PR                          = #14
+OLD_CANDIDATE               = 74b8a3f81ccab8f713bb246a529b0c48a20112fb
+HOSTED_PULL_REQUEST_RUN     = 35811655716
+ARCHITECTURE_JOB_ON_THAT_RUN = SUCCESS (1677 findings, 0 engine errors)
+CLASSIFICATION              = TEST/EVIDENCE DEFECTS (not production engine defects)
+```
+
+## L-3 — `CORRECTION`: what the earlier green count was, and was not
+
+`CORRECTION`. §K-8's **"34 tests, all green"** statement is, and always was, **LOCAL evidence only**. It is
+**not** proof that the suite passed on a hosted `unit` runner, and the first hosted run showed that it did not.
+The same applies to §K-8's summary of the tier results and to the §K-9 claim that the only expected failures were
+the two epoch-anchored ones: on the hosted runner there was **one additional failing test file**, this phase's
+own.
+
+What the ledger keeps, deliberately:
+
+```text
+OLD_CLAIM_PRESERVED        = YES  (K-8's "34 tests, all green" is unchanged and still readable as written)
+CORRECTION_APPENDED        = YES  (this section)
+OLD_RECORDS_MODIFIED       = NO
+LEDGER_HISTORY_REWRITTEN   = NO
+```
+
+**The general lesson, recorded because this is the second time this phase family has learned it.** §K-3 recorded
+an artifact that contradicted its own verdict; §K-4b recorded a parity identity that failed toward agreement.
+This is the third variant of the same shape: **a green local run was quoted as coverage of a runner it never
+executed on.** "It passes here" and "it passes there" are different measurements, and only the second is evidence
+about CI. A test that depends on the environment it runs in must *control* that environment, or it is measuring
+the developer's laptop and reporting it as the pipeline.
+
+## L-4 — `CORRECTION`: the repair, and the proof it is not a papering-over
+
+`CORRECTION` + `REPRODUCTION`. Repaired in the appended repair commit on this branch (`test(city): make
+hosted-shadow guards CI-valid`), recorded with its real SHA in §L-5 and §L-7 below.
+
+1. **`S8` now controls its premise.** `runGoverning` takes an explicit `env` seam. The LOCAL case is driven with
+   `localSimulationEnv()`, which copies `process.env` and deletes **exactly** the variables the production runner
+   declares it reads (`HOSTED_ENVIRONMENT_VARIABLES`, exported from the runner so the test cannot clear a
+   different set from the one production reads). The HOSTED case is driven with `hostedSimulationEnv()`, which
+   sets the GitHub Actions variables explicitly. Both directions are asserted, plus the measured `hosted` flag in
+   both shadow artifacts.
+2. **The frozen-commit guard was given the history it inspects.** `.github/workflows/ci.yml` now checks out the
+   `unit` job with `fetch-depth: 0`. The guard still performs a real `git show <frozen-sha>:<path>` byte
+   comparison; it was **not** converted to an expected-hash constant, which would have been satisfiable by
+   editing the constant in the same change it exists to catch.
+
+**What the repair deliberately did NOT do**, because each of these would have made the test green by removing the
+thing being tested: it did not change `scripts/architecture-shadow-hosted.cjs` provenance detection, did not
+hardcode `hosted = false`, did not special-case `NODE_ENV=test`, did not skip `S8` on CI, did not add
+`if (!process.env.CI)`, and did not suppress the assertion. The production runner still measures the environment
+it is given — proven by running it with `GITHUB_ACTIONS=true` in the environment, where it reports
+`hosted: true / provider: "GitHub Actions"` and preserves the commit and run metadata.
+
+**Both defects are falsified by re-running the suite in the environment that broke it.** With
+`GITHUB_ACTIONS=true`, `CI=true`, `GITHUB_SHA`, `GITHUB_RUN_ID`, `GITHUB_JOB=unit`, `GITHUB_EVENT_NAME=pull_request`
+and the `RUNNER_*` variables all set in the shell, the amended suite passes **34/34** — where the previous
+revision failed `S8` on exactly those variables.
+
+The `fetch-depth: 0` requirement is itself now pinned by an assertion in the same suite, so removing it fails
+with a statement of what broke instead of an opaque exit 128 two hundred lines away — and a `git cat-file -e`
+probe turns "the frozen commit is not in this checkout" into an explicit diagnosis rather than letting a git
+error masquerade as a baseline mismatch.
+
+## L-5 — the repair commit, exactly
+
+```text
+PR                  = #14
+OLD_PR_HEAD         = 74b8a3f81ccab8f713bb246a529b0c48a20112fb
+REPAIR_COMMIT       = <new sha>   (appended commit; recorded in L-7 after it exists)
+NEW_PR_HEAD         = <new sha>   (the PR moves to it naturally on push; no amend, no rebase, no force-push)
+OLD_CANDIDATE_RETAINED_AS_EVIDENCE = YES  (74b8a3f and run 35811655716 are negative evidence and are not deleted)
+```
+
+`.github/workflows/ci.yml` is Root Trust Surface, so the `fetch-depth` change moves the candidate surface again.
+**No epoch was advanced**; the epoch-26 candidate was re-measured against the new candidate head, and the previous
+proposal is not authorization for the new surface. The old candidate surface hash no longer authorizes the new
+head — which is the intended behaviour, not a problem to be worked around.
+
+## L-6 — `FAILURE` + `CORRECTION`: the soak count was over-reported for the same reason
+
+`CORRECTION`. §K-9 recorded **`HOSTED_ARCHITECTURE_RUNS_OBSERVED = 6 consecutive, all green`**. Those runs did
+genuinely happen on a real hosted runner and the `architecture` job genuinely succeeded in each — but "the
+architecture job succeeded" is not by itself the S1 exit condition, which also requires that shadow and local
+agree on `new_regressions`, that `engine_errors` is 0, that provenance is genuine GitHub Actions, and that the
+baseline checks are valid **for the commit being counted**. Counting them as a continuous S1 soak series without
+re-validating each run against the spec is the same error as L-3: inheriting a favourable number instead of
+measuring it.
+
+The runs are therefore split, and the classification is by validation rather than by count:
+
+```text
+PRE_REPAIR_HOSTED_RUNS    = 6   (35803359214 was a TAG-push run of the Phase 1B-A freeze, a different phase;
+                                 35805180887, 35805647014, 35806819965, 35807269888, 35807684348 are Phase
+                                 1B-B push runs on the hosted runner, `architecture` green in each)
+                                 -> retained as HOSTED-SHADOW EXISTENCE EVIDENCE, not inherited as soak credit
+CURRENT_HEAD_HOSTED_RUNS  = measured on NEW_PR_HEAD after the repair (see §L-7)
+```
+
+`HOSTED_SHADOW_CONSECUTIVE_VALID_RUNS` is reported for the repaired head only, and no old run is relabelled,
+duplicated or counted twice to approach 20.
+
+## L-7 — `MEASUREMENT` on the repaired head
+
+Filled from the actual runs of `NEW_PR_HEAD`; the values here are the ones the mission report quotes.
+
+```text
+NEW_PR_HEAD = ce5b308
+PUSH_RUN      = (see L-7 table below)
+PR_RUN        = (see L-7 table below)
+CONTENT_FAILURES             = (expected 0)
+ROOT_TRUST_STALENESS_FAILURES = (expected >= 1)
+ARCHITECTURE_RESULT          = (expected SUCCESS, NOT required, 0 engine errors)
+LOCAL_FINDINGS_HASH          = measured on NEW_PR_HEAD
+HOSTED_FINDINGS_HASH         = measured on NEW_PR_HEAD
+PARITY_FOR_NEW_HEAD          = (old-SHA parity is NOT reused)
+```
+
+
 
 
 

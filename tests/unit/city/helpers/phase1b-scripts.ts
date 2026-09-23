@@ -60,6 +60,8 @@ export interface HostedShadowRunner {
   SCHEMA: string;
   DIGEST_SCHEMA: string;
   MACHINERY_CODES: string[];
+  /** The provenance variables the runner reads; a test clears exactly these to build a controlled environment. */
+  HOSTED_ENVIRONMENT_VARIABLES: string[];
   classifyPolicy: (finding: { code?: string }) => PolicyClass;
   normalizeFinding: (finding: { code?: unknown; severity?: unknown; subject?: unknown; detail?: unknown }) => NormalizedFinding;
   sortNormalized: (entries: NormalizedFinding[]) => NormalizedFinding[];

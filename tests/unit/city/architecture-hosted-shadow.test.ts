@@ -158,8 +158,16 @@ function runRunner(options: {
   return { status: result.status, json, stdout, stderr: String(result.stderr ?? ""), dir, metadataPath };
 }
 
-/** Drive the runner in GOVERNING mode: the real repository, the real accepted baseline, no seams. */
-function runGoverning(): RunResult {
+/**
+ * Drive the runner in GOVERNING mode: the real repository, the real accepted baseline, no seams.
+ *
+ * `env` is an explicit seam and it is load-bearing. The runner MEASURES the environment it is given, so a test
+ * that wants to observe the LOCAL branch of that measurement has to PROVIDE a local environment -- it may not
+ * assume the environment it happens to be running in. The first revision of S8 made exactly that mistake: it
+ * called this function with no `env`, inherited `GITHUB_ACTIONS=true` from the hosted unit runner, and then
+ * asserted `hosted === false`. Production was right; the test's premise was wrong.
+ */
+function runGoverning(env?: NodeJS.ProcessEnv): RunResult {
   const dir = fixtureDir();
   const outDir = path.join(dir, "out");
   const metadataPath = path.join(dir, "architecture-shadow-metadata.json");
@@ -168,6 +176,7 @@ function runGoverning(): RunResult {
     encoding: "utf8",
     timeout: 900000,
     maxBuffer: 64 * 1024 * 1024,
+    ...(env ? { env } : {}),
   });
   if (result.error) throw result.error;
   const stdout = String(result.stdout ?? "");
@@ -178,6 +187,43 @@ function runGoverning(): RunResult {
     json = null;
   }
   return { status: result.status, json, stdout, stderr: String(result.stderr ?? ""), dir, metadataPath };
+}
+
+/**
+ * An environment that genuinely looks LOCAL: the parent's environment with every GitHub Actions provenance
+ * variable removed. The list is taken from the production runner's own declaration rather than retyped, so the
+ * test cannot clear a different set from the one production reads -- if the runner starts reading a new variable
+ * and that variable is not cleared here, this list is where the omission shows.
+ */
+function localSimulationEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const name of hostedShadowRunner.HOSTED_ENVIRONMENT_VARIABLES) delete env[name];
+  return env;
+}
+
+/**
+ * An environment that genuinely looks HOSTED: explicit GitHub Actions values, whatever the parent is. Used to
+ * prove the other direction, so a runner whose provenance detection had simply broken would fail here.
+ */
+function hostedSimulationEnv(): NodeJS.ProcessEnv {
+  return {
+    ...localSimulationEnv(),
+    GITHUB_ACTIONS: "true",
+    CI: "true",
+    GITHUB_SHA: "a".repeat(40),
+    GITHUB_RUN_ID: "123456",
+    GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_WORKFLOW: "Desktop CI",
+    GITHUB_JOB: "architecture",
+    GITHUB_EVENT_NAME: "push",
+    GITHUB_REPOSITORY: "zhiheng-zhang-Mera/Codex-Boss",
+    GITHUB_REF: "refs/heads/dev/city-phase1b-hosted-shadow",
+    GITHUB_SERVER_URL: "https://github.com",
+    GITHUB_RUN_NUMBER: "42",
+    RUNNER_OS: "Windows",
+    RUNNER_ARCH: "X64",
+    RUNNER_NAME: "simulated-runner",
+  };
 }
 
 function readMetadata(result: RunResult): Json {
@@ -663,34 +709,54 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     expect(emptyMetadata.not_yet_enforced_status).toBe("READABLE_EMPTY");
   });
 
-  it("S8 an artifact from a LOCAL run does not claim to be hosted", () => {
-    // `hosted: true` was a constant, so a local run produced an artifact that declared itself hosted while
+  it("S8 a LOCAL environment is reported as local, and a HOSTED environment as hosted", () => {
+    // `hosted: true` was once a constant, so a local run produced an artifact that declared itself hosted while
     // carrying no commit, no run id and no event -- and one revision of the evidence ledger quoted such a run as
-    // HOSTED evidence before any hosted run existed. Provenance is now measured.
-    const result = runGoverning();
-    const metadata = readMetadata(result);
-    expect(metadata.hosted, "a local run declared itself hosted").toBe(false);
-    expect(metadata.hosted_provider).toBe("local");
-    expect(String(metadata.hosted_absence_note)).toMatch(/did NOT run on GitHub-hosted CI/);
-    expect(metadata.commit_sha).toBeNull();
-    expect(metadata.workflow_run_id).toBeNull();
-    // The raw variables are published, so a reader can re-derive the claim instead of trusting it.
-    expect(metadata.hosted_environment).toBeTruthy();
+    // HOSTED evidence before any hosted run existed. Provenance is now measured from the environment.
+    //
+    // WHAT THIS CASE GOT WRONG THE FIRST TIME, and why it is written this way now. The first revision called
+    // `runGoverning()` with no environment and asserted `hosted === false`. That is only true when the TEST
+    // process is itself local. The hosted unit runner exports `GITHUB_ACTIONS=true`, the child inherited it, the
+    // runner correctly measured `hosted: true`, and the assertion failed -- on CI, and only on CI. The repair is
+    // not to make production more agreeable; it is for the test to CONTROL THE ENVIRONMENT IT IS MEASURING.
+    // Both directions are now driven explicitly, so this case passes identically on a laptop and on the runner,
+    // and neither branch can pass by accident.
 
-    // And the runner DOES report hosted when the workflow variables say so -- otherwise S8 would pass on a
-    // runner whose provenance detection was simply broken.
-    const dir = fixtureDir();
-    const outDir = path.join(dir, "out");
-    const metadataPath = path.join(dir, "meta.json");
-    const hostedEnv = { ...process.env, GITHUB_ACTIONS: "true", CI: "true", GITHUB_SHA: "a".repeat(40), GITHUB_RUN_ID: "123456", GITHUB_EVENT_NAME: "push", GITHUB_JOB: "architecture", GITHUB_RUN_ATTEMPT: "1", GITHUB_WORKFLOW: "Desktop CI", RUNNER_OS: "Windows" };
-    const simulated = spawnSync(process.execPath, [RUNNER, "--out", outDir, "--metadata", metadataPath], { cwd: PROJECT, encoding: "utf8", timeout: 900000, maxBuffer: 64 * 1024 * 1024, env: hostedEnv });
-    if (simulated.error) throw simulated.error;
-    expect(simulated.status).toBe(0);
-    const hostedMetadata = JSON.parse(fs.readFileSync(metadataPath, "utf8")) as Json;
-    expect(hostedMetadata.hosted, "the runner did not recognise the GitHub Actions environment").toBe(true);
-    expect(hostedMetadata.hosted_provider).toBe("GitHub Actions");
-    expect(hostedMetadata.commit_sha).toBe("a".repeat(40));
-    expect(hostedMetadata.workflow_run_id).toBe("123456");
+    // --- LOCAL controlled case: every provenance variable removed from the child's environment ---
+    const localResult = runGoverning(localSimulationEnv());
+    expect(localResult.status, `the local governing run failed: ${localResult.stderr.slice(0, 300)}`).toBe(0);
+    const local = readMetadata(localResult);
+    expect(local.hosted, "a LOCAL environment was reported as hosted").toBe(false);
+    expect(local.hosted_provider).toBe("local");
+    expect(String(local.hosted_absence_note)).toMatch(/did NOT run on GitHub-hosted CI/);
+    expect(local.commit_sha).toBeNull();
+    expect(local.workflow_run_id).toBeNull();
+    // The raw variables are published, so a reader can re-derive the claim instead of trusting it.
+    expect(local.hosted_environment).toBeTruthy();
+    const observedLocal = local.hosted_environment as Record<string, string | null>;
+    for (const name of hostedShadowRunner.HOSTED_ENVIRONMENT_VARIABLES) {
+      expect(observedLocal[name], `${name} was not cleared, so this was not a local environment`).toBeNull();
+    }
+
+    // --- HOSTED controlled case: explicit GitHub Actions values, whatever the parent happens to be ---
+    const hostedResult = runGoverning(hostedSimulationEnv());
+    expect(hostedResult.status).toBe(0);
+    const hosted = readMetadata(hostedResult);
+    expect(hosted.hosted, "the runner did not recognise the GitHub Actions environment").toBe(true);
+    expect(hosted.hosted_provider).toBe("GitHub Actions");
+    expect(hosted.commit_sha).toBe("a".repeat(40));
+    expect(hosted.workflow_run_id).toBe("123456");
+    expect(hosted.event).toBe("push");
+    expect(hosted.job).toBe("architecture");
+    expect(hosted.runner_os).toBe("Windows");
+    expect(hosted.hosted_absence_note).toBeNull();
+
+    // --- The measured flag is what the artifact says, in both directions ---
+    const localArtifact = JSON.parse(fs.readFileSync(path.join(localResult.dir, "out", "architecture-enforcement-shadow.json"), "utf8")) as Json;
+    const hostedArtifact = JSON.parse(fs.readFileSync(path.join(hostedResult.dir, "out", "architecture-enforcement-shadow.json"), "utf8")) as Json;
+    expect(localArtifact.hosted).toBe(false);
+    expect(hostedArtifact.hosted).toBe(true);
+    expect(hostedArtifact.hosted_provider).toBe("GitHub Actions");
   });
 });
 
@@ -956,6 +1022,37 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
       "trust-policy/trust-epoch.json",
       "trust-policy/root-trust-surface.json",
     ];
+
+    // THE GUARD MUST BE ABLE TO SEE THE PAST IT INSPECTS.
+    //
+    // This comparison needs `b5b511d7…` to be present in the checkout. `actions/checkout@v4` defaults to
+    // `fetch-depth: 1`, and on the first real `pull_request` run of PR #14 (run 35811655716) the `unit` job
+    // therefore failed here with `expected 128 to be +0` -- `git show` could not resolve the commit, and the
+    // failure said nothing about the property being guarded. `.github/workflows/ci.yml` now gives the `unit` job
+    // `fetch-depth: 0`.
+    //
+    // That setting is asserted here, so removing it fails THIS test with a statement of what broke, instead of
+    // producing the same opaque exit-128 two hundred lines away. The assertion is about the job that actually
+    // runs this suite, not about every job: full history is a cost and only this suite needs it.
+    const unitJob = ciWorkflow().parsed.jobs?.unit;
+    expect(unitJob, "the unit job is gone from ci.yml").toBeTruthy();
+    const unitCheckout = (unitJob?.steps ?? []).find((step) => String(step.uses ?? "").startsWith("actions/checkout@"));
+    expect(unitCheckout, "the unit job has no checkout step").toBeTruthy();
+    const checkoutWith = (unitCheckout?.with ?? {}) as Record<string, unknown>;
+    expect(
+      String(checkoutWith["fetch-depth"] ?? ""),
+      "the unit job's checkout does not fetch full history, so the frozen-commit guard below cannot resolve b5b511d7… and will fail with an opaque exit 128"
+    ).toBe("0");
+
+    // If the history really is unavailable (a depth-1 checkout that predates the fix, or a shallow clone), say so
+    // EXPLICITLY rather than letting a git error masquerade as a baseline mismatch. This is a diagnosis, not a
+    // skip: the loop below still runs and still compares real bytes.
+    const historyProbe = spawnSync("git", ["cat-file", "-e", `${FROZEN}^{commit}`], { cwd: PROJECT, encoding: "utf8", timeout: 120000 });
+    expect(
+      historyProbe.status,
+      `the frozen commit ${FROZEN} is not present in this checkout, so the byte comparison cannot run; the unit job must check out with fetch-depth: 0`
+    ).toBe(0);
+
     for (const file of guarded) {
       const atFrozen = spawnSync("git", ["show", `${FROZEN}:${file}`], { cwd: PROJECT, encoding: "utf8", timeout: 120000, maxBuffer: 64 * 1024 * 1024 });
       if (atFrozen.error) throw atFrozen.error;

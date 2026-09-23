@@ -741,6 +741,9 @@ module.exports = {
   SCHEMA,
   DIGEST_SCHEMA,
   MACHINERY_CODES,
+  // The provenance variables this runner READS. Exported so a test that wants to construct a controlled
+  // environment clears exactly what production reads, rather than a retyped list that can drift from it.
+  HOSTED_ENVIRONMENT_VARIABLES,
   classifyPolicy,
   normalizeFinding,
   sortNormalized,

@@ -206,7 +206,26 @@ jobs:
     needs: quality
     runs-on: windows-latest
     steps:
+      # FULL HISTORY, and only in this job.
+      #
+      # `actions/checkout@v4` defaults to `fetch-depth: 1`, which is right for the other jobs and wrong for this
+      # one. `tests/unit/city/architecture-hosted-shadow.test.ts` guards the accepted baseline and the epoch
+      # record by comparing their CURRENT bytes with their bytes at the immutable Phase 1B-A freeze commit
+      # `b5b511d750f11a7573b24e7b04c545b44d73b3da` -- a real `git show <sha>:<path>` comparison, deliberately,
+      # because a guard written against an expected-hash constant can be satisfied by editing the constant in the
+      # same change it is supposed to catch.
+      #
+      # On a depth-1 checkout that commit is not present, so `git show` exits 128 and the guard fails for a reason
+      # that has nothing to do with the property it checks. That is exactly what happened on the first real
+      # `pull_request` run of PR #14 (run 35811655716): the guard reported `expected 128 to be +0`. Supplying the
+      # history the guard inspects is the fix; weakening the guard, or making it tolerate a missing commit, would
+      # have turned a real check into a decorative one.
+      #
+      # If this `fetch-depth: 0` is ever removed, the guard must fail again rather than silently degrade -- which
+      # it will, with the same exit-128 signature.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: "11.19.0"
