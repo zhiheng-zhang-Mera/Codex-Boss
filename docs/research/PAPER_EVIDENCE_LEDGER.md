@@ -2806,6 +2806,139 @@ HOSTED_SHADOW_SOAK_COMPLETE = NO
 No run was relabelled, duplicated, or counted twice to approach 20. The pre-repair runs remain in the record as
 hosted-shadow evidence, which is what they are.
 
+---
+
+# §M — the epoch-26 ceremony, and the three guards it correctly falsified
+
+**This section is appended. Nothing above it is edited, deleted or reworded.**
+
+## M-1 — `GOVERNANCE`: the Owner's ceremony completed, and the machine opened the PR
+
+`MEASUREMENT`. The Root Owner approved the protected `boss-root-trust-owner` environment and the Trust Epoch
+Finalization workflow ran. Everything the mission asked to be re-measured was re-measured from GitHub and from a
+**clean worktree**, not from the authoring workflow's working tree.
+
+```text
+FINALIZATION_RUN = 35816107209
+FINALIZATION_FAILURE_CLASS = PR_CREATION_NOT_PERMITTED_FOR_GITHUB_TOKEN   (the ONLY failing step)
+   "GitHub Actions is not permitted to create or approve pull requests (createPR)"
+   Stage A proposal / Stage B --advance / Stage B --check = SUCCESS, SUCCESS, SUCCESS
+   Actions permissions were NOT weakened to work around it
+
+MAIN_SHA     = adf92b619aa83b398a857ac8d2039fd6cc1eb0d9   (= merge of PR #14)
+EPOCH_BRANCH = trust-epoch/boss-root-trust-26
+EPOCH_COMMIT = aaa3d3732f3d0f899c67ced9be47ee975566f3cb
+DIVERGENCE   = 1 ahead, 0 behind
+FILES_CHANGED = trust-policy/trust-epoch.json   (and nothing else)
+
+trust_epoch           = 26
+root_contract_version = boss-root-trust-26
+root_surface_hash     = 0c139bd5bb4750febda923582bf0266fe0753502e2b8dbd4ad740ab4a38826bf
+parent_epoch_hash     = eb2f9b1b4116576c35db718f442fe975c595b9ee85196a5abb0c1234673d4f68
+epoch_hash            = 85f1c49b772d33a5c05127723bc6653603b92572e18ee4ecbcc1a553e17996d9
+```
+
+Every value matches what the workflow reported. Epoch 25's `epoch_hash` `eb2f9b1b…` is exactly the candidate's
+`parent_epoch_hash`, so the chain is intact.
+
+## M-2 — `REPRODUCTION`: the clean checkout, and the `root-trust-surface.json` question resolved
+
+`REPRODUCTION`. Run in a clean `git worktree` at `aaa3d373…`, outside the long-lived checkout:
+
+```text
+$ node scripts/acceptance-evolution-bless.cjs --check
+[bless] root trust surface: 72 files, aggregate 0c139bd5bb4750febda923582bf0266fe0753502e2b8dbd4ad740ab4a38826bf
+[bless] repository: HEAD @ aaa3d3732f3d0f899c67ced9be47ee975566f3cb
+[bless] epoch 26 (boss-root-trust-26) MATCHES the live surface
+EPOCH26_CLEAN_CHECK = PASS
+```
+
+**The `M trust-policy/root-trust-surface.json` line in the finalization log was a working-tree artifact, not a
+content change, and the branch is NOT incomplete.** Measured by comparing committed blobs:
+
+```text
+main       trust-policy/root-trust-surface.json  blob 03d61f0dcfa10aad21283b3d5911e85268343a38
+epoch-26   trust-policy/root-trust-surface.json  blob 03d61f0dcfa10aad21283b3d5911e85268343a38
+BYTE-IDENTICAL = true        CRLF count = 0 on both
+```
+
+The mechanism is the one §L already documented for the same file: git checks it out with CRLF on Windows
+(`core.autocrlf`) while the tool writes LF, so the file shows as modified in the working tree and commits
+unchanged. The decisive evidence is the check itself — `--check` passes against the **committed** tree and reports
+the declared aggregate, which it could not do if the declared surface were missing from the branch.
+
+## M-3 — `FAILURE`: the ceremony falsified three of this phase's own guards, correctly
+
+`FAILURE` (a real, unexpected failure — recorded rather than repaired) + `MEASUREMENT`. PR #15's `pull_request`
+run `35817027430` on `aaa3d373…`:
+
+| Job | Result |
+|---|---|
+| `quality` | **success** |
+| `architecture` | **success** (not required) |
+| `unit` | **failure** — `tests/unit/city/architecture-hosted-shadow.test.ts`, 3 cases |
+| `acceptance` | **skipped** (`needs: unit`) |
+| `package` | **skipped** (`needs: unit`) |
+
+```text
+Test Files  1 failed | 264 passed (265)
+× S6 the accepted baseline tree in GOVERNING mode is a hosted PASS with the frozen finding count
+× the accepted baseline series and the accepted baseline are byte-identical to the frozen commit
+× the mission's stop boundary was respected: no epoch was advanced
+
+AssertionError: expected 26 to be 25
+AssertionError: trust-policy/trust-epoch.json differs from the frozen commit; this phase must not change it
+AssertionError: epoch 26 was written; that is the Owner ceremony this mission must not perform: expected 26 to be 25
+```
+
+**These are not defects of the epoch branch, and they are not a regression in the hosted-shadow engine.** All
+three are assertions added by Phase 1B-B that pin the **pre-ceremony** state explicitly:
+
+| Pin | What it asserts | Where |
+|---|---|---|
+| `trust-epoch.json` byte-identical to the freeze commit `b5b511d7…` | the epoch is still 25 | §L-4's own guard |
+| `root_trust_epoch === 25` | no ceremony has run | `S6` |
+| `trust_epoch === 25` ("no epoch was advanced") | the machine did not advance it | negative control |
+
+At epoch 26 every one of them is **supposed** to be false. They passed while the candidate was deliberately stale
+at epoch 25 — that is precisely what `EXPECTED_1`/`EXPECTED_2` in §K-7 recorded — and they fail now because the
+ceremony did what it exists to do.
+
+**The self-criticism, stated plainly.** §L-4 replaced a guard that could be satisfied by editing a constant with
+one that compares against immutable history. That was the right direction, but it left the guard **over-fitted to
+the epoch in force at the time**: it hardcodes "epoch 25" and "byte-identical to `b5b511d7`", so the very
+ceremony the governance process requires to happen will always break it. A guard that must be rewritten by each
+epoch advance is not measuring the property it claims to measure — "the machine must not advance the epoch
+unilaterally" is a statement about *who* advanced it, not about the number staying 25 forever.
+
+The repair belongs to the Phase 1B-B line (make the pins express the invariant rather than the epoch number), and
+**not** to this finalization branch. PR #15 was therefore left exactly as the workflow authored it: no commit, no
+amendment, no branch mutation. The unexpected failure is reported to the Owner rather than repaired, per the
+handoff's Part 5 instruction.
+
+```text
+PR = 15
+PR_AUTHOR = codex-boss[bot] (Bot, id 327719386)
+PR_HEAD_SHA = aaa3d3732f3d0f899c67ced9be47ee975566f3cb
+PR_BASE_SHA = adf92b619aa83b398a857ac8d2039fd6cc1eb0d9
+PR_RUN = 35817027430
+QUALITY = success    ARCHITECTURE = success    ARCHITECTURE_REQUIRED = NO
+UNIT = failure (3 epoch-25 over-pins)    ACCEPTANCE = skipped    PACKAGE = skipped
+EPOCH_READVANCED = NO    RULESET_CHANGED = NO    BASELINE_WIDENED = NO
+OWNER_CREDENTIAL_USED_FOR_PR = NO
+```
+
+## M-4 — what this records about the process
+
+Two things worth keeping, both of which are the same lesson §L-3 already learned once:
+
+1. **A guard is only as good as the state it is allowed to assume.** §L-4's frozen-commit comparison made the
+   *evidence* stronger and the *assumption* narrower at the same time, and the narrowing is what failed here.
+2. **The expected-red set has to be re-derived at every governance transition.** §K-7 named the epoch-staleness
+   failures for the *pre-ceremony* candidate. After the ceremony, the expected-red set is different — and this
+   ledger entry, not the green count, is where that gets recorded.
+
+
 
 
 
