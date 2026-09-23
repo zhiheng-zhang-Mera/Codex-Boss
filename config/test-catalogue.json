@@ -499,6 +499,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/architecture-hosted-shadow-live-probe.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the bounded live-ruleset probe cannot outlive the unit test that calls it (its bound is strictly below the 60s enclosing budget and is passed to the child process), and it classifies every unmeasurable outcome as LIVE_NOT_MEASURED with a named reason rather than hanging or reporting a measurement — a timeout, a missing `gh`, an unauthenticated `gh`, a non-zero exit, a signal kill, malformed JSON, a disabled probe, and a response for the wrong ruleset id each land there with no platform facts leaked; a genuinely readable response lands in LIVE_MEASURED and yields the required contexts, and the same probe reports architecture_required true when the ruleset really requires it, so the classification is a real fork rather than a constant; the diagnostic line distinguishes the two states so a green test can never be read as proof that the live platform was checked; and the hosted-shadow suite is pinned to consume the helper rather than spawning `gh` directly, while the measurement runners keep the long timeouts they legitimately need",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/architecture-hosted-shadow.test.ts",
       "tier": "unit",
       "covers": [

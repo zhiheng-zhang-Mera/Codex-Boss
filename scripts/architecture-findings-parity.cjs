@@ -118,7 +118,8 @@ function parseArgs(argv) {
   };
   // TWO COMPARISONS, ONE IDENTITY.
   //
-  //   local-hosted   the default: is a local evaluation the same as the hosted one? (Phase 1B-B §8)
+  //   local-hosted   the default: is a local evaluation the same as the hosted one? The hosted/local parity
+  //                  requirement of docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §8.
   //   shadow-enforce the S2 entry proof: do the SAME inputs produce the same findings in both modes? (ENF-12)
   //
   // The second is not a relabelled first. It compares two artifacts produced by `--mode shadow` and
