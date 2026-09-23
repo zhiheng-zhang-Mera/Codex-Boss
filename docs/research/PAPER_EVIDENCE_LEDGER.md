@@ -3118,7 +3118,12 @@ true when it was written. §L fixed a guard that could be satisfied by editing a
 that were satisfied only by the epoch standing still — which is the same failure of imagination, arrived at from
 the other direction.
 
----
+
+
+
+
+
+
 
 # §O — the dependency cycle is closed: PR #16 merged, PR #15 absorbed main, and hosted CI is fully green
 
