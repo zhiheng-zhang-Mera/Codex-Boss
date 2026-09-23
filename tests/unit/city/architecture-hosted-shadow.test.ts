@@ -654,7 +654,7 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     expect(normalized.some((entry) => entry.code === "NEW_EDGE_UNDECLARED_ENDPOINT" && entry.policy_class === "POLICY_VIOLATION")).toBe(true);
   });
 
-  it("S6 the accepted baseline tree in GOVERNING mode is a hosted PASS with the frozen finding count", () => {
+  it("S6 the accepted baseline tree in GOVERNING mode is a hosted PASS, and its metadata reports the COMMITTED epoch", () => {
     const result = runGoverning();
     expect(result.status, `the governing shadow run failed: ${result.stderr.slice(0, 400)}`).toBe(0);
     const metadata = readMetadata(result);
@@ -669,7 +669,37 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     // The Phase 1A freeze recorded `findings 1677 = 1671 + 5 + 1` on this tree. The hosted runner must produce
     // the same number, because it runs the same evaluator over the same measurement.
     expect(Number(metadata.findings_count)).toBe(1677);
-    expect(metadata.root_trust_epoch).toBe(25);
+
+    // THE EPOCH CLAIM IS "REPORTS THE COMMITTED RECORD", NEVER "EQUALS 25".
+    //
+    // This assertion used to read `expect(metadata.root_trust_epoch).toBe(25)`. That pinned a TRANSIENT ceremony
+    // state rather than the hosted-shadow property, and it guaranteed a red suite on the first valid Owner epoch
+    // advance: PR #15 (the epoch 25 -> 26 ceremony) failed here with `expected 26 to be 25`, reporting a defect
+    // that did not exist. The property that actually belongs to this suite is that the runner publishes the epoch
+    // the TREE carries rather than a number of its own -- which must hold before a ceremony, after one, and for
+    // every future epoch, with no edit here.
+    //
+    // Read the committed record from the tested tree and require the metadata to agree with it.
+    const epochPath = path.join(PROJECT, "trust-policy", "trust-epoch.json");
+    const committedEpoch = JSON.parse(fs.readFileSync(epochPath, "utf8")) as {
+      record: { trust_epoch: number; root_contract_version: string; root_surface_hash: string };
+      epoch_hash: string;
+    };
+    expect(metadata.root_trust_epoch_read_error, "the runner reported an unreadable epoch record").toBeNull();
+    expect(
+      metadata.root_trust_epoch,
+      "the runner's published epoch disagrees with the committed trust-policy/trust-epoch.json; it must report the tree's record, not its own value"
+    ).toBe(committedEpoch.record.trust_epoch);
+    expect(
+      metadata.root_trust_surface_hash,
+      "the runner's published surface hash disagrees with the committed epoch record"
+    ).toBe(committedEpoch.record.root_surface_hash);
+    // ...and the record it agrees with is itself internally coherent, so "agrees with a malformed file" is not a
+    // way to pass this case.
+    expect(committedEpoch.record.root_contract_version).toBe(`boss-root-trust-${committedEpoch.record.trust_epoch}`);
+    expect(typeof committedEpoch.epoch_hash).toBe("string");
+    expect(committedEpoch.epoch_hash.length).toBeGreaterThan(0);
+
     // The unmodelled defect classes are published, and an EMPTY list must be distinguishable from an UNREAD one
     // (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §5, rule 2). This run must carry the real five -- and the
     // STATUS is what makes that claim testable: the first revision wrote
@@ -1006,22 +1036,44 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
     expect(stepWithArbitraryText(architecture)).toMatch(/architecture-enforce:shadow|architecture-shadow-hosted/);
   });
 
-  it("the accepted baseline series and the accepted baseline are byte-identical to the frozen commit", () => {
-    // The hosted shadow observes. It does not widen the accepted baseline series, it does not accept a v2, and it
-    // does not regenerate the baseline.
+  it("the architecture grandfathering records are byte-identical to the Phase 1B-A freeze commit", () => {
+    // Scope: the ACCEPTED ARCHITECTURE BASELINES AND THEIR AUTHORISING SERIES -- the objects whose widening this
+    // phase forbids. The name says so; the earlier name ("the accepted baseline series and the accepted baseline
+    // are byte-identical to the frozen commit") was accurate about the intent but the list underneath it had
+    // drifted to include Root Trust lifecycle records, so the name and the guard disagreed.
     //
     // ASSERTED AGAINST THE FROZEN COMMIT, not against constants. The previous revision pinned today's expected
     // hashes, which cannot detect a widening performed in the same change -- a new accepted version would simply
     // have been written together with an updated constant. `b5b511d7…` is the promoted merge commit, which is
     // immutable history, so a byte comparison against it is a real guard.
+    //
+    // WHAT IS GUARDED, AND WHAT IS DELIBERATELY NOT.
+    //
+    // This case used to also include `trust-policy/trust-epoch.json` and `trust-policy/root-trust-surface.json`,
+    // which made it permanently over-fitted to the pre-ceremony state: the FIRST is REQUIRED to change during a
+    // valid Owner epoch ceremony, and the second may change during a valid Root Trust surface migration. Guarding
+    // them here meant the governance process this suite exists to protect could not legally run -- PR #15 (the
+    // epoch 25 -> 26 ceremony) failed on exactly that, with `trust-policy/trust-epoch.json differs from the frozen
+    // commit`, reporting a defect that did not exist.
+    //
+    // So this guard covers the objects whose widening Phase 1B-B actually forbids -- the architecture
+    // grandfathering records -- and nothing else. The epoch record's own integrity is guarded by the lineage
+    // invariant below, and the Root Trust lifecycle by the Root Trust Authority mechanism, which is where those
+    // properties belong.
     const FROZEN = "b5b511d750f11a7573b24e7b04c545b44d73b3da";
     const guarded = [
       "trust-policy/architecture-enforcement-baselines.json",
       "config/architecture-enforcement-baseline.json",
       "config/architecture-baseline.json",
-      "trust-policy/trust-epoch.json",
-      "trust-policy/root-trust-surface.json",
     ];
+    // Stated as an assertion rather than left to the reader: the Root Trust lifecycle records must NOT be in this
+    // list, so a future edit that re-adds them fails with an explanation instead of silently re-creating the bug.
+    for (const lifecycle of ["trust-policy/trust-epoch.json", "trust-policy/root-trust-surface.json"]) {
+      expect(
+        guarded,
+        `${lifecycle} is a Root Trust lifecycle record, not an architecture baseline; it is REQUIRED to change during a valid Owner ceremony and must not be pinned to the frozen commit`
+      ).not.toContain(lifecycle);
+    }
 
     // THE GUARD MUST BE ABLE TO SEE THE PAST IT INSPECTS.
     //
@@ -1070,15 +1122,134 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
     expect(check.status).toBe(0);
   });
 
-  it("the mission's stop boundary was respected: no epoch was advanced", () => {
-    // Part B deliberately leaves the committed epoch stale, because `.github/workflows/ci.yml` is Root Trust
-    // Surface and this phase changed it. Writing epoch 26 is an Owner ceremony, and `--advance` is the Owner's
-    // act. The committed record must therefore still be epoch 25 with its original surface hash.
-    const epoch = JSON.parse(fs.readFileSync(path.join(PROJECT, "trust-policy", "trust-epoch.json"), "utf8")) as { record: { trust_epoch: number; root_surface_hash: string } };
-    expect(epoch.record.trust_epoch, "epoch 26 was written; that is the Owner ceremony this mission must not perform").toBe(25);
-    // Epoch 25 anchors the PRE-Phase-1B-B surface, which is the hash of the frozen promoted commit.
-    expect(epoch.record.root_surface_hash).toBe("37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741");
-    // And the migration proposal is PREPARED, not applied: the tooling exists, the epoch does not move.
+  it("the committed trust epoch is a valid parent-linked lineage, whoever advanced it", () => {
+    // WHY THIS REPLACED "the mission's stop boundary was respected: no epoch was advanced".
+    //
+    // That assertion required `trust_epoch === 25` and a specific surface hash. It was a legitimate observation
+    // about the Mission-4C CANDIDATE, which deliberately shipped stale, but it is not a repository invariant:
+    // epoch 25 cannot remain the answer forever, and pinning it made the first valid Owner ceremony fail
+    // (`expected 26 to be 25` on PR #15). A checkpoint observation and a permanent guard are different things,
+    // and this case is now the permanent guard.
+    //
+    // THE INVARIANT THAT IS ACTUALLY PERMANENT: an epoch MAY advance, but the committed record must remain a
+    // valid PARENT-LINKED lineage, and the advance must have been a real commit to this repository. That holds for
+    // epoch 25, 26, 27 and every later one with no edit here.
+    //
+    // WHAT THIS CASE DELIBERATELY DOES NOT DO: it does not try to prove WHO authorised the advance. The commit
+    // message, the author name, an "OWNER APPROVED" string, a marker file or an environment variable are all
+    // forgeable by the actor being guarded, so treating any of them as proof of Owner authority would be a weaker
+    // second authority model. That property belongs to the Root Trust Authority mechanism enforced elsewhere --
+    // autonomous finalization denied, `trust-epoch-finalization.yml` dispatch-only on the protected
+    // `boss-root-trust-owner` environment, Owner approval external, and Owner merge as the final act. This case
+    // checks lineage and defers authority.
+    const epochRel = "trust-policy/trust-epoch.json";
+    const epochPath = path.join(PROJECT, epochRel);
+    expect(fs.existsSync(epochPath), "the committed epoch record is missing").toBe(true);
+    const current = JSON.parse(fs.readFileSync(epochPath, "utf8")) as {
+      record: { trust_epoch: number; root_contract_version: string; root_surface_hash: string; parent_epoch_hash: string | null };
+      epoch_hash: string;
+    };
+
+    // The record must be internally coherent on its own terms before any history is consulted.
+    expect(Number.isInteger(current.record.trust_epoch), "trust_epoch is not an integer").toBe(true);
+    expect(current.record.trust_epoch).toBeGreaterThanOrEqual(1);
+    expect(current.record.root_contract_version).toBe(`boss-root-trust-${current.record.trust_epoch}`);
+    expect(typeof current.epoch_hash).toBe("string");
+    expect(current.epoch_hash.length).toBeGreaterThan(0);
+
+    // THE CHAIN IS THE INVARIANT -- NOT THE IMMEDIATELY PRECEDING COMMIT.
+    //
+    // The first version of this case read the epoch record from `<lastChange>^` and required it to be exactly one
+    // lower. That assumption is false in this repository, and measurably so: the commit that introduced epoch 25
+    // (`9e22604b`) has a PARENT whose epoch record is 24, so the file legitimately moved 24 -> 25 inside a
+    // history where other commits intervened. Real history here is a chain of epochs (21, 22, 23, 24, 25, ...),
+    // each naming its predecessor's `epoch_hash`, while the commit graph between them is not one-epoch-per-commit.
+    //
+    // So the invariant is stated as the CHAIN rather than as a delta against the previous commit: walk the
+    // commits that touched the epoch record and require every parent link to be present and correct. A
+    // parent-linked lineage is exactly the property that makes an epoch record trustworthy -- it says this record
+    // was derived from the previous one, not asserted from nothing.
+    //
+    // WHAT THIS STILL CATCHES: a fabricated record whose `parent_epoch_hash` names no epoch this repository ever
+    // had; a skipped link in the chain; a contract version that does not match its own epoch number.
+    const historyProbe = spawnSync("git", ["log", "--format=%H", "--", epochRel], { cwd: PROJECT, encoding: "utf8", timeout: 120000 });
+    if (historyProbe.error) throw historyProbe.error;
+    expect(
+      historyProbe.status,
+      `git could not read the history of ${epochRel}; this case needs full history (the unit job checks out with fetch-depth: 0) and must not silently skip`
+    ).toBe(0);
+    const historyShas = String(historyProbe.stdout ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    expect(historyShas.length, `no commit was found that changed ${epochRel}`).toBeGreaterThan(0);
+
+    type EpochRecord = { record: { trust_epoch: number; root_contract_version: string; parent_epoch_hash: string | null }; epoch_hash: string };
+    const records: Array<{ sha: string; value: EpochRecord }> = [];
+    for (const sha of historyShas) {
+      try {
+        records.push({ sha, value: JSON.parse(String(spawnSync("git", ["show", `${sha}:${epochRel}`], { cwd: PROJECT, encoding: "utf8", timeout: 120000, maxBuffer: 64 * 1024 * 1024 }).stdout)) as EpochRecord });
+      } catch {
+        // A commit in this file's history where the file did not exist yet, or was unreadable, is simply not a
+        // link in the chain. It is skipped rather than treated as evidence.
+      }
+    }
+    expect(records.length, `no readable epoch record was found in the history of ${epochRel}`).toBeGreaterThan(0);
+
+    // Every readable record in this file's history must be self-consistent and parent-linked to the record it
+    // claims to descend from, where that record is present in the same history.
+    const byHash = new Map(records.map((entry) => [entry.value.epoch_hash, entry]));
+    const byEpoch = new Map(records.map((entry) => [entry.value.record.trust_epoch, entry]));
+    for (const { sha, value } of records) {
+      expect(value.record.root_contract_version, `epoch ${value.record.trust_epoch} (${sha.slice(0, 8)}…) has a contract version that disagrees with its own epoch number`).toBe(`boss-root-trust-${value.record.trust_epoch}`);
+      if (value.record.trust_epoch === 1) {
+        // THE FIRST EPOCH HAS NO PARENT, and this repository's own history spells that `""` -- measured, not
+        // assumed: the record at `9f73d4dc` carries `parent_epoch_hash: ""` with contract `boss-root-trust-1`.
+        // Demanding `null` here would be inventing a convention this repository never used, so both spellings are
+        // accepted for the root of the chain. The CURRENT record is held to the stricter rule below, because that
+        // is the shape the trust module writes today.
+        expect([null, ""], `epoch 1 (${sha.slice(0, 8)}…) must have no parent, but names ${JSON.stringify(value.record.parent_epoch_hash)}`).toContain(value.record.parent_epoch_hash);
+        continue;
+      }
+      expect(value.record.parent_epoch_hash, `epoch ${value.record.trust_epoch} (${sha.slice(0, 8)}…) names no parent`).toBeTruthy();
+      // The parent it names must be an epoch this repository really had. If it is, the link must also be the
+      // IMMEDIATELY preceding epoch -- a chain with a hole is not a lineage.
+      const parent = byHash.get(String(value.record.parent_epoch_hash));
+      if (parent) {
+        expect(
+          value.record.trust_epoch,
+          `epoch ${value.record.trust_epoch} descends from epoch ${parent.value.record.trust_epoch}, which is not its immediate predecessor`
+        ).toBe(parent.value.record.trust_epoch + 1);
+        expect(value.epoch_hash, `epoch ${value.record.trust_epoch} has the same hash as its parent`).not.toBe(parent.value.epoch_hash);
+      } else {
+        // The predecessor is older than the commits this history query reached (the file's history here does not
+        // go back to the beginning). Recorded, not asserted: what can be checked is that it is not a self-link.
+        expect(value.record.parent_epoch_hash).not.toBe(value.epoch_hash);
+      }
+    }
+
+    // THE CURRENT RECORD MUST BE A LINK IN THAT CHAIN. This is the assertion that survives a ceremony: it holds
+    // whether the tree carries epoch 25, 26, 27 or any later one, without any edit here.
+    if (current.record.trust_epoch > 1) {
+      expect(current.record.parent_epoch_hash, "the committed epoch names no parent").toBeTruthy();
+      const predecessor = byHash.get(String(current.record.parent_epoch_hash)) ?? byEpoch.get(current.record.trust_epoch - 1);
+      if (predecessor) {
+        expect(
+          current.record.trust_epoch,
+          `the committed epoch descends from epoch ${predecessor.value.record.trust_epoch}, which is not its immediate predecessor`
+        ).toBe(predecessor.value.record.trust_epoch + 1);
+      }
+      expect(current.epoch_hash, "the committed epoch has the same hash as its parent").not.toBe(current.record.parent_epoch_hash);
+    } else {
+      expect(current.record.parent_epoch_hash, "the first epoch must have a null parent").toBeNull();
+    }
+
+    // The record must not be an unreachable orphan: the commit that produced it has to be in this branch's history.
+    const provenance = spawnSync("git", ["log", "-1", "--format=%H", "--", epochRel], { cwd: PROJECT, encoding: "utf8", timeout: 120000 });
+    const lastChange = String(provenance.stdout ?? "").trim();
+    expect(lastChange, `no commit was found that changed ${epochRel}`).toMatch(/^[0-9a-f]{40}$/);
+    const reachable = spawnSync("git", ["merge-base", "--is-ancestor", lastChange, "HEAD"], { cwd: PROJECT, encoding: "utf8", timeout: 120000 });
+    if (reachable.error) throw reachable.error;
+    expect(reachable.status, `the commit that last changed ${epochRel} (${lastChange.slice(0, 12)}…) is not an ancestor of HEAD`).toBe(0);
+
+    // And the migration tooling is PREPARED, not applied: it exists, and running it does not move the epoch.
     expect(fs.existsSync(path.join(PROJECT, "scripts", "trust-migration-proposal.cjs"))).toBe(true);
   });
 });
