@@ -64,22 +64,34 @@ function resolveArtifact(candidate) {
 /**
  * The normalized finding set of a shadow artifact.
  *
- * A artifact that carries `findings_normalized` (produced by scripts/architecture-shadow-hosted.cjs) is used as
+ * An artifact that carries `findings_normalized` (produced by scripts/architecture-shadow-hosted.cjs) is used as
  * is, because re-normalizing it here would let this tool disagree with the runner about what a policy class is.
  * An artifact that carries only raw `findings` (the engine's own output) is normalized with the runner's own
- * exported classifier, so both producers go through exactly one implementation.
+ * exported `normalizeFinding`, so both producers go through exactly one implementation.
+ *
+ * `detail_digest` is carried through rather than recomputed: it is part of the finding's identity (see the note
+ * on `normalizeFinding`), and an artifact written by an OLDER runner would not have it. Such an artifact is
+ * re-normalized from its raw `findings` instead, so a shape change cannot silently compare two different
+ * identities against each other. When neither is possible the artifact is not comparable, which the caller
+ * reports as `PARITY_NOT_MEASURED` rather than as agreement.
  */
 function normalizedOf(artifact) {
-  if (Array.isArray(artifact?.findings_normalized)) {
-    return { source: "findings_normalized", findings: runner.sortNormalized(artifact.findings_normalized.map((entry) => ({
+  const fromNormalized = Array.isArray(artifact?.findings_normalized) ? artifact.findings_normalized : null;
+  const shapeComplete = fromNormalized !== null && fromNormalized.every((entry) => typeof entry?.detail_digest === "string" && entry.detail_digest.length > 0);
+  if (fromNormalized && shapeComplete) {
+    return { source: "findings_normalized", findings: runner.sortNormalized(fromNormalized.map((entry) => ({
       code: String(entry?.code ?? ""),
       severity: String(entry?.severity ?? ""),
       subject: String(entry?.subject ?? ""),
       policy_class: String(entry?.policy_class ?? ""),
+      detail_digest: String(entry?.detail_digest ?? ""),
     }))) };
   }
   if (Array.isArray(artifact?.findings)) {
-    return { source: "findings(re-normalized)", findings: runner.sortNormalized(artifact.findings.map(runner.normalizeFinding)) };
+    return {
+      source: fromNormalized ? "findings(re-normalized: findings_normalized predates the detail_digest identity)" : "findings(re-normalized)",
+      findings: runner.sortNormalized(artifact.findings.map(runner.normalizeFinding)),
+    };
   }
   return { source: null, findings: null };
 }
@@ -134,7 +146,8 @@ function main() {
   const payload = {
     state: comparison.parity ? "HOSTED_LOCAL_PARITY" : "PARITY_DISAGREEMENT",
     parity: comparison.parity,
-    comparison: "finding identity (code + subject + severity + policy_class), not count",
+    comparison: "finding identity (code + subject + severity + policy_class + detail digest), multiset comparison with multiplicity",
+    comparison_kind: comparison.comparison_kind,
     digest_schema: runner.DIGEST_SCHEMA,
     local: { artifact: path.resolve(localFile), normalized_source: local.source, findings_hash: comparison.local_findings_hash, findings_count: comparison.local_count },
     hosted: { artifact: path.resolve(hostedFile), normalized_source: hosted.source, findings_hash: comparison.hosted_findings_hash, findings_count: comparison.hosted_count },
@@ -146,8 +159,9 @@ function main() {
     count_only_trap_observed: countOnlyTrap,
     only_local: comparison.only_local,
     only_hosted: comparison.only_hosted,
+    multiplicity_differences: comparison.multiplicity_differences,
     semantics: {
-      means: "the two runs produced the same findings, by identity",
+      means: "the two runs produced the same findings, by identity and with the same multiplicity",
       does_not_mean: "the two runs produced the same number of findings",
     },
   };

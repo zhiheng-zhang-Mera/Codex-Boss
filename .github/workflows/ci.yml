@@ -150,10 +150,17 @@ jobs:
       #    able to widen the accepted baseline series.
       - run: pnpm run architecture:enforce:baseline -- --check
       # 3. The shadow enforcement itself. `architecture:enforce:shadow` is the repository's
-      #    existing script; the hosted runner beside it orchestrates the two checks above,
-      #    produces the narrow evidence artifact, and enforces the policy-vs-machinery
-      #    distinction (policy violation -> exit 0, machinery failure -> exit non-zero).
-      - run: pnpm run architecture:enforce:shadow
+      #    existing script, run first as its own step so the engine's verdict and exit code are
+      #    visible in the CI UI on their own. It writes to its OWN directory rather than to the
+      #    canonical path: the hosted runner in the next step publishes the artifact this job
+      #    uploads, and two writers to one path would mean the uploaded file was whichever ran
+      #    last rather than a file with one author. Here it is unambiguous — the engine's shadow
+      #    report is under `engine-shadow/`, and the uploaded evidence is the runner's.
+      - run: pnpm run architecture:enforce:shadow -- --out artifacts/city/phase1/engine-shadow
+      # 4. The hosted runner: it re-checks the series and the baseline itself, produces the
+      #    narrow evidence artifact at the path the upload step names, and enforces the
+      #    policy-vs-machinery distinction (policy violation -> exit 0, machinery failure ->
+      #    exit non-zero).
       - run: node scripts/architecture-shadow-hosted.cjs
       # 4. Verify the evidence this job just published is the evidence it claims to have
       #    produced. A generated record that is missing, empty, or carries no

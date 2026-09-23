@@ -2104,17 +2104,17 @@ used for a hosted runner and the same discipline: the flake is named, not hidden
 ## K-4 — `HOSTED_PARITY`: parity by identity, and the trap a count would have walked into
 
 `IMPLEMENTATION` + `MEASUREMENT`. `scripts/architecture-findings-parity.cjs` compares two shadow evaluations over
-finding **identity** — `code`, `subject`, `severity`, `policy_class` — and computes a deterministic semantic
-digest over the normalized set (`city-architecture-findings-digest/1`, sha256 over a canonical, sorted,
-fixed-key-order rendering). Ordering is normalized away deliberately: the digest is over the SET, so a
-permutation compares equal and a substitution does not.
+finding **identity** — `code`, `subject`, `severity`, `policy_class`, and a sha256 of the finding's `detail` — and
+computes a deterministic semantic digest over the normalized **multiset** (`city-architecture-findings-digest/1`,
+sha256 over a canonical, sorted, fixed-key-order rendering). Ordering is normalized away deliberately: the digest
+is over the multiset, so a permutation compares equal and a substitution does not.
 
 Measured on the frozen tree, two independent governing runs (`dev/city-phase1b-hosted-shadow`, accepted baseline
 v1, 1677 findings):
 
 ```text
-LOCAL_FINDINGS_HASH  = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
-HOSTED_FINDINGS_HASH = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
 HASHES_EQUAL = true      COUNTS_EQUAL = true      state = HOSTED_LOCAL_PARITY
 ```
 
@@ -2126,6 +2126,47 @@ A count-based parity check would have called that a pass.
 And a comparison that **cannot** be made is not a pass (`P3b`): an unreadable input, or an input that carries
 neither `findings` nor `findings_normalized`, exits **2** with `PARITY_NOT_MEASURED`. "I could not compare" and
 "they agree" are different statements, and the tool refuses to conflate them.
+
+### K-4b — `FAILURE` + `CORRECTION`: the identity was lossy, and the first version of this section overstated it
+
+`FAILURE` (found in adversarial review, not by the author) + `CORRECTION`. The claim above — "a substitution does
+not [compare equal]" — **was false for one finding family when it was first written**, and it is corrected here
+rather than quietly repaired.
+
+The engine emits every `SENSOR_INCOMPLETE` finding with `subject: "sensor"` and puts everything that distinguishes
+them in `detail` (`scripts/architecture-enforcement.cjs`, the three `E-09` rows). The first revision of
+`normalizeFinding` used `code` + `subject` + `severity` + `policy_class` and **dropped `detail`**, so:
+
+```text
+normalize("1 read failure(s): a.ts")   = {code: SENSOR_INCOMPLETE, severity: VIOLATION, subject: sensor, policy_class: FAIL_CLOSED}
+normalize("3 silently skipped file(s)") = {code: SENSOR_INCOMPLETE, severity: VIOLATION, subject: sensor, policy_class: FAIL_CLOSED}
+IDENTICAL = true      same digest = true      compareFindings(...).parity = true
+```
+
+Two genuinely different finding sets normalised to one value, produced one digest, and were reported as **parity**.
+A second, related defect sat beside it: the digest hashed the multiset while `compareFindings` de-duplicated
+through a `Map`, so one occurrence of a finding and three occurrences of it produced the **same** parity verdict
+but **different** `findings_semantic_hash` — two different quantities published under one name.
+
+Both are repaired, and the repairs are guarded rather than described:
+
+1. `detail_digest` (sha256 of `detail`) is part of the normalized identity, so the identity is injective. The
+   detail *text* is still not carried, because it contains file paths and a bounded artifact should not grow with
+   the corpus; the full `detail` remains in `architecture-enforcement-shadow.json` for a reader.
+2. `compareFindings` is a **multiset** comparison, matching the digest, so `parity` and
+   `findings_semantic_hash` can no longer disagree about the same input pair.
+3. `P4` and `P5` are the regression guards, driven through the shipped module, and both fail against the previous
+   revision.
+
+**The published digest therefore changed** — `8142122c…` before the repair, `db536b06…` after — while the
+**findings did not**: `1677 = 1671 PASS_AS_GRANDFATHERED + 5 NOT_YET_ENFORCED + 1 NON_SOURCE_ASSET`, unchanged, and
+the live tree has no duplicate normalized entries. A digest is a function of the representation; changing the
+identity representation changes the digest and changes nothing about the measurement. The hosted artifact quoted
+in K-9 predates the repair and is labelled as such; a re-run on the repaired runner produces `db536b06…`.
+
+**This is the second time in this phase that a green artifact was believed over a defect**, and the lesson is the
+one the audit drew: a parity mechanism is evidence only if its identity is lossless, and a lossy identity fails
+*silently in the direction of agreement*, which is the worst direction for a governance check.
 
 The identity the mission asks for is also measured against the engine directly, on this tree:
 
@@ -2238,7 +2279,7 @@ failure in the battery is a real failure; only these two are expected.
 | Check | Result |
 |---|---|
 | `typecheck` (three projects) | exit 0 |
-| tracked-secret scan | `TRACKED_SECRET_SCAN=PASS files=1314` |
+| tracked-secret scan | `TRACKED_SECRET_SCAN=PASS files=1315` (one more than before this phase: the new test helper) |
 | state probe | exit 0 |
 | test catalogue check | exit 0 — 281 suites, after the new suite gained its curated entry (see below) |
 | `architecture:ratchet` | exit 0, `violations: []` |
@@ -2248,8 +2289,8 @@ failure in the battery is a real failure; only these two are expected.
 | `architecture:enforce:shadow` | exit 0, PASS, 1677 findings, 0 violations |
 | `architecture:enforce` | exit 0, PASS, 1677 findings, 0 violations |
 | Root Trust `--check` | **FAIL — EXPECTED** (K-7, `EXPECTED_1`) |
-| new suite `tests/unit/city/architecture-hosted-shadow.test.ts` | 28 tests, all green after the K-3 correction |
-| unit tier / postbuild / slow | **unit 265 files, 3386 passed, exactly 1 failed** — `test-layers.test.ts`, `EXPECTED_1`; **postbuild 8 files, 118 passed, exactly 1 failed** — `root-trust-authority-lockdown.test.ts`, `EXPECTED_2`; **slow 4 files, 35/35 passed** |
+| new suite `tests/unit/city/architecture-hosted-shadow.test.ts` | **34 tests, all green** — 28 as first written, plus 6 added by the adversarial review (`S7`, `S8`, `S9`, `P4`, `P5`, and the `continue-on-error` guard) |
+| unit tier / postbuild / slow | **unit 265 files, 3392 passed, exactly 1 failed** — `test-layers.test.ts`, `EXPECTED_1`; **postbuild 8 files, 118 passed, exactly 1 failed** — `root-trust-authority-lockdown.test.ts`, `EXPECTED_2`; **slow 4 files, 35/35 passed** |
 | ruleset `22746755` before / after | `quality`, `unit`, `acceptance`, `package` — **UNCHANGED**; `architecture` NOT added |
 | tag-push CI run `35803359214` | `completed/success` — `quality`, `unit`, `package`, `acceptance` **all green on `b5b511d7…`**. A second green run on the SAME SHA as the certifying run `35801514014`; recorded in J-3/J-4, not substituted for it, and not treated as a fresh certification |
 
@@ -2323,13 +2364,39 @@ root_trust_epoch    = 25                 root_trust_surface_hash = 37c9826522487
 not_yet_enforced    = 5 classes published
 ```
 
+**Every field above is from the artifact as published, including its digest `8142122c…`, which is the digest the
+runner produced BEFORE the K-4b identity repair.** That repair changed the identity representation and therefore
+the digest value (`8142122c…` → `db536b06…`) while changing nothing about the measurement: the same 1677 findings,
+the same `{0, 0, 1677}` classes, the same five unmodelled classes, the same baseline and epoch. The artifact is
+quoted as it was, not re-labelled with the new digest it does not contain — an artifact is evidence of the run that
+produced it and nothing else.
+
 **Parity, measured between the hosted artifact and a local run of the same commit** — not asserted from a
 constant, and not from the same artifact read twice:
 
 ```text
-HOSTED_FINDINGS_HASH = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
-LOCAL_FINDINGS_HASH  = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
+HOSTED_FINDINGS_HASH = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c   (published artifact, pre-repair identity)
+LOCAL_FINDINGS_HASH  = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c   (local run, pre-repair identity)
 HASHES_EQUAL = true      COUNTS_EQUAL = true (1677)      state = HOSTED_LOCAL_PARITY
+```
+
+Both sides of that comparison were produced by the **pre-repair** runner, which is why they agree; the repair
+changes both sides identically. On the repaired runner the same comparison yields `db536b06…` on both sides, and
+`P3c` asserts that equality rather than this transcript.
+
+**A second and third hosted observation, on later commits** — the ledger is not allowed to go stale, and each push
+is its own run:
+
+```text
+RUN 35805647014   push   82a2966a7e95a0bad10a01d429ae9e517433ff2c   architecture = completed/success
+   artifact: sha 82a2966a, verdict PASS, findings 1677, hash 8142122c…, epoch 25, series AUTHORISED, engine_errors 0
+   overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
+RUN 35805180887   push   9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c   architecture = completed/success
+```
+
+```text
+HOSTED_ARCHITECTURE_RUNS_OBSERVED = 2 consecutive, both `architecture` green on a real hosted runner
+HOSTED_SHADOW_SOAK_COMPLETE = NO   (the spec's S1 exit condition is >= 20 consecutive runs; this is not that)
 ```
 
 The hosted run's overall conclusion is `failure`, and that is the **expected** failure rather than a defect of
@@ -2383,8 +2450,40 @@ FINAL_STATUS = WAITING_FOR_MACHINE_IDENTITY_OR_OWNER_PR_EXCEPTION_DECISION
 The alternative — the Owner opening it, or an Owner decision to accept the exception again — is the Owner's call
 and is recorded as such rather than presumed.
 
-## K-11 — the terminal state of this phase
+## K-10b — `CORRECTION`: six defects found by adversarial review, and what each one actually was
 
+`FAILURE` + `CORRECTION`. An independent adversarial pass was run against the committed work, briefed to find
+violations rather than to agree. It found **no violation of the mission's forbidden list and no breach of the stop
+boundary**, and it found six real defects. All six are repaired, and each repair has a guard that fails against the
+previous revision. They are recorded here because a phase that reports only its successes is not evidence.
+
+| # | Defect | Why it mattered | Repair + guard |
+|---|---|---|---|
+| 1 | the parity identity dropped `detail`, so the `SENSOR_INCOMPLETE` family collapsed to one value and two different finding sets compared as **parity** | a governance comparison that fails **toward agreement** is worse than no comparison | `detail_digest` in the identity; multiset comparison; `P4`/`P5` (K-4b) |
+| 2 | `compareFindings` de-duplicated while the digest hashed the multiset, so one copy and three copies gave the same `parity` but different hashes | one name, two quantities — and the CI evidence step reads one while the report prints the other | same repair; `P5` |
+| 3 | `not_yet_enforced` was written `baseline?.not_yet_enforced ?? NOT_YET_ENFORCED`, and the fallback is byte-identical to the committed baseline's five | the spec's rule that an EMPTY list and an UNREAD list must be distinguishable (§5 rule 2) was **unmet in mechanism**, and the hosted job's own assertion was dead code | three states (`READABLE` / `READABLE_EMPTY` / `FIELD_ABSENT`), `null` plus a named engine error when unread; `S7` |
+| 4 | `hosted: true` was a constant, so a purely local run published an artifact that declared itself hosted | **this section's own K-4 originally cited a `HOSTED_FINDINGS_HASH` before any hosted run existed** — the overclaim was downstream of this defect | `hostedEnvironment()` measures the workflow variables; `hosted_provider` and the raw variables are published; `S8` |
+| 5 | fixture mode published `baseline_self_consistent: true` for a check it never ran | a fabricated pass that also satisfies the hosted job's evidence assertion | skipped checks are `null` with status `NOT_MEASURED_FIXTURE_SEAM`; `S9` |
+| 6 | three assertions were **vacuous**: the corpus-root guard could not see `with.path` at all (the step type did not declare `with`), the `not_yet_enforced` length assertion was satisfied by defect 3's fallback, and H7's credential-less branch asserted a tautology | a guard that cannot fail is not a guard, and it reads as coverage | `with` is parsed and the guard inspects real pathspecs; `S7` removes the fallback; H7's branch re-asserts the in-repository contract and announces the non-measurement; `continue-on-error` is now asserted across **every** workflow |
+
+Two further weaknesses the review named are recorded rather than repaired here, because repairing them is not this
+phase's business:
+
+- **The `promotion-gate` drift guard was relaxed in the same change it would have caught** (K-3b). The old form
+  asserted `REQUIRED_PROMOTION_CHECKS === every job id in ci.yml`, which this phase makes false by adding a
+  NON-required job; the new form asserts "every required context is produced and is named in the ruleset contract
+  CODEOWNERS states, and the shadow job is in neither". The review's fair criticism is that the guard's authority
+  for *what is required* is now a hand-maintained comment, and the "no extra job" direction is gone. The live
+  ruleset is a platform fact and cannot be read from a unit test; the honest position is that this guard is weaker
+  than it was, deliberately, because the property it encoded is no longer true.
+- **Parity is not wired into a CI job.** By construction the CI job *is* the hosted run, so there is no second
+  machine to compare against inside CI; the tool is exercised by tests and manually. Recorded as a limitation.
+- **`app/codex-boss` has authored and merged earlier PRs.** K-10's `MACHINE_IDENTITY_AVAILABLE = NO` is therefore
+  narrower than its heading: what was measured is that **no machine/App credential is installed on this host**
+  (no identity config, no vault, no bot login, no token). A machine identity has existed for other rounds; it is
+  simply not present here, which is the condition §18 makes the PR path depend on.
+
+## K-11 — the terminal state of this phase
 ```text
 PHASE0 = PROMOTED_AND_FROZEN
 PHASE1A = PROMOTED_AND_FROZEN

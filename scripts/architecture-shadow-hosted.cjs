@@ -77,6 +77,47 @@ const DIGEST_SCHEMA = "city-architecture-findings-digest/1";
 const EPOCH_PATH = path.join("trust-policy", "trust-epoch.json");
 
 /**
+ * Where this evaluation actually ran, MEASURED from the workflow environment rather than asserted.
+ *
+ * An earlier revision wrote `hosted: true` as a constant, so a purely LOCAL run produced an artifact that
+ * declared itself hosted, carried `commit_sha: null` and `event: null`, and could be (and in one revision of the
+ * evidence ledger, was) quoted as hosted evidence before any hosted run existed. A provenance field that is always
+ * true is not provenance. These values are read from the variables GitHub Actions defines, and `hosted` is true
+ * only when the provider is really `GitHub Actions`.
+ */
+const HOSTED_ENVIRONMENT_VARIABLES = [
+  "GITHUB_SHA",
+  "GITHUB_RUN_ID",
+  "GITHUB_RUN_ATTEMPT",
+  "GITHUB_WORKFLOW",
+  "GITHUB_JOB",
+  "GITHUB_EVENT_NAME",
+  "GITHUB_ACTIONS",
+  "GITHUB_REPOSITORY",
+  "GITHUB_REF",
+  "GITHUB_SERVER_URL",
+  "GITHUB_RUN_NUMBER",
+  "RUNNER_OS",
+  "RUNNER_ARCH",
+  "RUNNER_NAME",
+  "CI",
+];
+
+function hostedEnvironment() {
+  const env = process.env;
+  const provider = env.GITHUB_ACTIONS === "true" ? "GitHub Actions" : env.CI ? "unknown CI" : "local";
+  const observed = {};
+  for (const name of HOSTED_ENVIRONMENT_VARIABLES) observed[name] = env[name] ?? null;
+  return {
+    hosted: provider === "GitHub Actions",
+    provider,
+    // The raw variables, so a reader can re-derive every field above instead of trusting this file's reading.
+    observed,
+    absence_note: provider === "GitHub Actions" ? null : "this evaluation did NOT run on GitHub-hosted CI; the artifact describes a local run",
+  };
+}
+
+/**
  * The fail-closed classification, by finding code. A code listed here is MACHINERY, not policy: the gate could
  * not measure, could not establish what governs, or the sensor is known to be incomplete. Everything else is a
  * finding about the tree, which shadow reports without blocking.
@@ -126,23 +167,41 @@ function classifyPolicy(finding) {
 /**
  * Normalize one finding into the identity a parity comparison is allowed to use. Count alone is explicitly NOT
  * sufficient (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §8 and the Mission-4C brief's parity requirement), so
- * the shape carries code + subject identity + severity + policy class and
- * nothing volatile -- no timestamps, no file counts, no ordering.
+ * the shape carries code + subject identity + severity + policy class, plus a digest of the finding's DETAIL --
+ * and nothing volatile: no timestamps, no file counts, no ordering.
+ *
+ * WHY THE DETAIL DIGEST IS PART OF THE IDENTITY (a real defect found in review, not a precaution).
+ *   The first revision used `code` + `subject` + `severity` + `policy_class` alone. That is LOSSY for one family
+ *   the engine really emits: `SENSOR_INCOMPLETE` findings all carry the subject `sensor` and put everything that
+ *   distinguishes them in `detail` ("1 read failure(s): a.ts" vs "3 silently skipped file(s)"). Dropping `detail`
+ *   made a read failure and a batch of silent skips normalize to the SAME value, so two DIFFERENT finding sets
+ *   produced the same digest and `compareFindings` reported `parity: true`. Measured before the fix:
+ *
+ *       normalize(read-failure) === normalize(silent-skip)      -> true
+ *       semanticFindingsHash([read-failure]) === [silent-skip]  -> true
+ *       compareFindings([read-failure], [silent-skip]).parity   -> true
+ *
+ *   The detail text itself is NOT carried, because it contains file paths and a bounded artifact should not grow
+ *   with the corpus. A sha256 of it is enough to keep the identity injective, which is what parity needs; the
+ *   full `detail` is still published in `architecture-enforcement-shadow.json` for a human reader.
  */
 function normalizeFinding(finding) {
+  const detail = finding?.detail === null || finding?.detail === undefined ? "" : String(finding.detail);
   return {
     code: String(finding?.code ?? ""),
     severity: String(finding?.severity ?? ""),
     subject: String(finding?.subject ?? ""),
     policy_class: classifyPolicy(finding ?? {}),
+    detail_digest: sha256(detail),
   };
 }
 
-/** Deterministic order: code, then subject, then severity. Two identical finding sets order identically. */
+/** Deterministic order: code, then subject, then the detail identity. Two identical sets order identically. */
 function sortNormalized(entries) {
   return [...entries].sort((left, right) => {
     if (left.code !== right.code) return left.code < right.code ? -1 : 1;
     if (left.subject !== right.subject) return left.subject < right.subject ? -1 : 1;
+    if (left.detail_digest !== right.detail_digest) return left.detail_digest < right.detail_digest ? -1 : 1;
     return left.severity < right.severity ? -1 : left.severity > right.severity ? 1 : 0;
   });
 }
@@ -151,41 +210,86 @@ function sha256(text) {
   return crypto.createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+/** The canonical, injective rendering of one normalized finding. Every field goes through JSON.stringify. */
+function canonicalFinding(entry) {
+  return `{"code":${JSON.stringify(entry.code)},"severity":${JSON.stringify(entry.severity)},"subject":${JSON.stringify(entry.subject)},"policy_class":${JSON.stringify(entry.policy_class)},"detail_digest":${JSON.stringify(entry.detail_digest)}}`;
+}
+
+/** The identity key of a normalized finding: the canonical rendering, so two entries are equal iff they match. */
+function findingKey(entry) {
+  return canonicalFinding(entry);
+}
+
 /**
  * The semantic digest over the normalized findings set.
  *
  * "Deterministic" here means the same findings produce the same digest across runs, platforms and process
- * orderings; it does NOT mean two different finding sets are hashed by count. Keys are emitted in a fixed
- * order and the entries are sorted, so the digest is a function of the SET, not of the array it arrived in.
+ * orderings; it does NOT mean two different finding sets are hashed by count. Keys are emitted in a fixed order
+ * and the entries are sorted, so the digest is a function of the MULTISET, not of the array it arrived in.
+ *
+ * MULTISET, NOT SET, and the distinction is load-bearing. The engine emits one finding per condition, so a run
+ * that saw the same condition three times and a run that saw it once are different measurements. The digest
+ * therefore counts occurrences; `compareFindings` below compares with the same multiplicity, so the two agree
+ * about what "the same findings" means. An earlier revision hashed the multiset but compared de-duplicated
+ * groups, so `findings_semantic_hash` and `compareFindings().parity` could disagree about one input pair.
  */
 function semanticFindingsHash(normalizedFindings) {
-  const canonical = sortNormalized(normalizedFindings).map((entry) =>
-    `{"code":${JSON.stringify(entry.code)},"severity":${JSON.stringify(entry.severity)},"subject":${JSON.stringify(entry.subject)},"policy_class":${JSON.stringify(entry.policy_class)}}`
-  );
+  const canonical = sortNormalized(normalizedFindings).map(canonicalFinding);
   return sha256(JSON.stringify({ schema: DIGEST_SCHEMA, findings: canonical }));
 }
 
 /**
  * Compare a local normalized findings set with a hosted one, by identity. Returns the disagreement rather than a
  * boolean, so an operator can read WHICH finding differed instead of being told the hashes are not equal.
+ *
+ * The comparison is a MULTISET comparison: counts of identical entries matter, because "the same finding twice"
+ * and "the same finding once" are different observations. `parity` is true only when both sides have exactly the
+ * same entries with exactly the same multiplicities -- which is the same statement the digest makes, so the two
+ * can never disagree.
  */
 function compareFindings(localNormalized, hostedNormalized) {
-  const key = (entry) => `${entry.code}\u0000${entry.subject}\u0000${entry.severity}\u0000${entry.policy_class}`;
-  const localSet = new Map(sortNormalized(localNormalized).map((entry) => [key(entry), entry]));
-  const hostedSet = new Map(sortNormalized(hostedNormalized).map((entry) => [key(entry), entry]));
-  const onlyLocal = [...localSet.keys()].filter((k) => !hostedSet.has(k)).map((k) => localSet.get(k));
-  const onlyHosted = [...hostedSet.keys()].filter((k) => !localSet.has(k)).map((k) => hostedSet.get(k));
-  const localHash = semanticFindingsHash([...localSet.values()]);
-  const hostedHash = semanticFindingsHash([...hostedSet.values()]);
+  const tally = (entries) => {
+    const counts = new Map();
+    for (const entry of sortNormalized(entries)) {
+      const key = findingKey(entry);
+      const seen = counts.get(key);
+      if (seen) seen.count += 1;
+      else counts.set(key, { entry, count: 1 });
+    }
+    return counts;
+  };
+  const localCounts = tally(localNormalized);
+  const hostedCounts = tally(hostedNormalized);
+  const onlyLocal = [];
+  const onlyHosted = [];
+  const multiplicityDifferences = [];
+  const keys = new Set([...localCounts.keys(), ...hostedCounts.keys()]);
+  for (const key of keys) {
+    const local = localCounts.get(key);
+    const hosted = hostedCounts.get(key);
+    const localCount = local?.count ?? 0;
+    const hostedCount = hosted?.count ?? 0;
+    if (localCount === hostedCount) continue;
+    const entry = local?.entry ?? hosted?.entry;
+    if (localCount > 0 && hostedCount === 0) onlyLocal.push(entry);
+    else if (hostedCount > 0 && localCount === 0) onlyHosted.push(entry);
+    else multiplicityDifferences.push({ finding: entry, local_count: localCount, hosted_count: hostedCount });
+  }
+  const localHash = semanticFindingsHash([...localCounts.values()].flatMap(({ entry, count }) => Array.from({ length: count }, () => entry)));
+  const hostedHash = semanticFindingsHash([...hostedCounts.values()].flatMap(({ entry, count }) => Array.from({ length: count }, () => entry)));
+  const localTotal = [...localCounts.values()].reduce((total, item) => total + item.count, 0);
+  const hostedTotal = [...hostedCounts.values()].reduce((total, item) => total + item.count, 0);
   return {
-    parity: onlyLocal.length === 0 && onlyHosted.length === 0 && localHash === hostedHash,
+    parity: onlyLocal.length === 0 && onlyHosted.length === 0 && multiplicityDifferences.length === 0 && localHash === hostedHash,
+    comparison_kind: "multiset (identity + multiplicity)",
     local_findings_hash: localHash,
     hosted_findings_hash: hostedHash,
-    local_count: localSet.size,
-    hosted_count: hostedSet.size,
-    count_only_match: localSet.size === hostedSet.size && localHash !== hostedHash,
+    local_count: localTotal,
+    hosted_count: hostedTotal,
+    count_only_match: localTotal === hostedTotal && localHash !== hostedHash,
     only_local: sortNormalized(onlyLocal),
     only_hosted: sortNormalized(onlyHosted),
+    multiplicity_differences: multiplicityDifferences,
   };
 }
 
@@ -344,7 +448,11 @@ function main() {
     ? {
         path: options.baseline ? path.relative(root, path.resolve(options.baseline)).split(path.sep).join("/") : path.relative(root, baselineModule.BASELINE_PATH).split(path.sep).join("/"),
         exists: true,
-        self_consistent: true,
+        // NOT `true`. A check that was not performed is `null` -- "not measured" -- never a pass. The first
+        // revision fabricated `self_consistent: true` here, which is the same class of defect as the hardcoded
+        // `hosted: true`: a fixture-mode artifact asserted a verification it had not run, and a reader (or the
+        // hosted job's own evidence assertion) could not tell it from a real one.
+        self_consistent: null,
         code: null,
         detail: null,
         skipped_by_fixture: true,
@@ -353,9 +461,14 @@ function main() {
         recomputed_baseline_hash: null,
       }
     : baselineSelfConsistency(root, options.baseline);
-  if (!selfConsistency.self_consistent) {
+  if (selfConsistency.self_consistent === false) {
     machinery.push({ code: selfConsistency.code ?? "ENGINE_ERROR", subject: selfConsistency.path, detail: selfConsistency.detail });
   }
+  const selfConsistencyStatus = selfConsistency.skipped_by_fixture === true
+    ? "NOT_MEASURED_FIXTURE_SEAM"
+    : selfConsistency.self_consistent === true
+      ? "VERIFIED"
+      : "FAILED";
 
   // ---------------------------------------------------------------------------------------------
   // check 3 -- architecture shadow enforcement
@@ -407,6 +520,24 @@ function main() {
   const failClosedFindings = normalized.filter((entry) => entry.policy_class === "FAIL_CLOSED");
 
   /**
+   * The unmodelled-defect-class list, read from the BASELINE rather than from the module default.
+   *
+   * Three states, and they must stay distinguishable: READABLE (the baseline carries the field -- possibly as an
+   * empty list, which is a meaningful answer), EMPTY (carried and empty, also meaningful), and UNREAD (the
+   * baseline does not carry the field, or no baseline was read at all -- which is a machinery failure, because
+   * the gate cannot publish a list it never read).
+   */
+  const notYetEnforced = (() => {
+    if (!baseline) return { readable: false, status: "BASELINE_UNREAD", value: null, error: "no baseline was read, so the unmodelled-defect-class list could not be read either" };
+    if (!Array.isArray(baseline.not_yet_enforced)) return { readable: false, status: "FIELD_ABSENT", value: null, error: "the baseline carries no `not_yet_enforced` array; an unread list must not be published as an empty one" };
+    const value = [...baseline.not_yet_enforced].map(String).sort();
+    return { readable: true, status: value.length === 0 ? "READABLE_EMPTY" : "READABLE", value, error: null };
+  })();
+  if (!notYetEnforced.readable) {
+    machinery.push({ code: "ENGINE_ERROR", subject: "baseline.not_yet_enforced", detail: notYetEnforced.error });
+  }
+
+  /**
    * The engine-error record, gathered from BOTH places an engine error can appear.
    *
    *   - `machinery` -- the orchestrator's own failures: an unreadable or non-self-consistent baseline, an
@@ -438,6 +569,7 @@ function main() {
   const shadowVerdict = machineryFailure ? "MACHINERY_FAILURE" : verdict === "PASS" ? "PASS" : "POLICY_VIOLATION_REPORTED";
 
   const epoch = readTrustEpoch(root);
+  const host = hostedEnvironment();
 
   const outDir = options.out
     ? (path.isAbsolute(options.out) ? options.out : path.join(root, options.out))
@@ -447,7 +579,10 @@ function main() {
     schema: SCHEMA,
     generator: "scripts/architecture-shadow-hosted.cjs",
     mode: "shadow",
-    hosted: true,
+    hosted: host.hosted,
+    hosted_provider: host.provider,
+    hosted_environment: host.observed,
+    hosted_absence_note: host.absence_note,
     fixture_mode: fixtureMode,
     commit_sha: process.env.GITHUB_SHA ?? null,
     workflow_run_id: process.env.GITHUB_RUN_ID ?? null,
@@ -462,6 +597,7 @@ function main() {
     baseline_series_path: path.relative(root, seriesLoaded.path).split(path.sep).join("/"),
     baseline_series_authorization_reference: authorization.entry?.authorization_reference ?? null,
     baseline_self_consistent: selfConsistency.self_consistent,
+    baseline_self_consistency_status: selfConsistencyStatus,
     baseline_self_consistency_skipped_by_fixture: Boolean(selfConsistency.skipped_by_fixture),
     baseline_recomputed_hash: selfConsistency.recomputed_baseline_hash,
     root_trust_epoch: epoch.trust_epoch,
@@ -484,7 +620,19 @@ function main() {
     policy_violation_count: policyFindings.length,
     engine_errors: engineErrors,
     engine_error_records: engineErrorRecords,
-    not_yet_enforced: (baseline?.not_yet_enforced ?? baselineModule.NOT_YET_ENFORCED).slice().sort(),
+    // The unmodelled defect classes, READ FROM THE BASELINE AND NOT SUBSTITUTED.
+    //
+    // An earlier revision wrote `baseline?.not_yet_enforced ?? baselineModule.NOT_YET_ENFORCED`, which made an
+    // ABSENT/UNREAD list indistinguishable from the module's default -- and the default is byte-identical to what
+    // the committed baseline carries, so the published list was always the right five whatever the baseline said.
+    // That silently defeated the spec's rule (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §5, rule 2) that "an
+    // empty list and an unread list must be distinguishable", and it made the hosted job's own `not_yet_enforced`
+    // assertion dead code. It is now reported as the baseline actually has it: the list when present (including
+    // an EMPTY list, which is a real and meaningful value), and `null` plus a named engine error when the
+    // baseline does not carry the field at all.
+    not_yet_enforced: notYetEnforced.readable ? notYetEnforced.value : null,
+    not_yet_enforced_status: notYetEnforced.status,
+    not_yet_enforced_read_error: notYetEnforced.error,
     shadow_does_not_mean_ignore_errors: true,
     policy_note: "policy violations are reported and do not block; broken measurement or governance machinery fails closed",
     // The normalized set itself, so a LOCAL run of the same commit can be compared by identity rather than by
@@ -500,7 +648,9 @@ function main() {
   const shadowArtifact = {
     schema: enforcement.SCHEMA,
     mode: "shadow",
-    hosted: true,
+    // Measured provenance, not a constant -- see `hostedEnvironment`.
+    hosted: host.hosted,
+    hosted_provider: host.provider,
     orchestrated_by: SCHEMA,
     verdict,
     policy: {
@@ -557,12 +707,15 @@ function main() {
 
   const summary = {
     schema: SCHEMA,
-    hosted: true,
+    hosted: host.hosted,
+    hosted_provider: host.provider,
+    not_yet_enforced_status: metadata.not_yet_enforced_status,
     fixture_mode: fixtureMode,
     shadow_verdict: shadowVerdict,
     engine_verdict: verdict,
     baseline_series_status: metadata.baseline_series_status,
     baseline_self_consistent: metadata.baseline_self_consistent,
+    baseline_self_consistency_status: metadata.baseline_self_consistency_status,
     engine_error_count: metadata.engine_error_count,
     machinery_failure_count: metadata.machinery_failure_count,
     policy_violation_count: metadata.policy_violation_count,
@@ -591,8 +744,11 @@ module.exports = {
   classifyPolicy,
   normalizeFinding,
   sortNormalized,
+  canonicalFinding,
+  findingKey,
   semanticFindingsHash,
   compareFindings,
+  hostedEnvironment,
   baselineSelfConsistency,
   readTrustEpoch,
   main,

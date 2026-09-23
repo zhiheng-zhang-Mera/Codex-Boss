@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
+import { hostedShadowRunner } from "./helpers/phase1b-scripts";
 
 /**
  * Capability City Phase 1B-B — hosted architecture shadow (Mission-4C, Part B).
@@ -193,7 +194,14 @@ function executableLines(workflow: string): string {
 
 type CiWorkflow = {
   on?: Record<string, unknown>;
-  jobs?: Record<string, { "runs-on"?: string; needs?: unknown; if?: unknown; paths?: unknown; branches?: unknown; steps?: Array<{ name?: string; uses?: string; run?: string }> }>;
+  jobs?: Record<string, {
+    "runs-on"?: string;
+    needs?: unknown;
+    if?: unknown;
+    paths?: unknown;
+    branches?: unknown;
+    steps?: Array<{ name?: string; uses?: string; run?: string; if?: string; with?: Record<string, unknown> }>;
+  }>;
 };
 
 function ciWorkflow(): { raw: string; parsed: CiWorkflow } {
@@ -208,8 +216,23 @@ function architectureJob(): { raw: string; parsed: CiWorkflow; job: NonNullable<
   return { raw, parsed, job };
 }
 
-function jobCommands(job: { steps?: Array<{ name?: string; uses?: string; run?: string }> }): string {
+function jobCommands(job: { steps?: Array<{ name?: string; uses?: string; run?: string; with?: Record<string, unknown> }> }): string {
   return (job.steps ?? []).map((step) => step.run ?? step.uses ?? "").join("\n");
+}
+
+/**
+ * Every string a step passes to its action, i.e. the `with:` block.
+ *
+ * H6d needs this and the first revision did not have it: `jobCommands` joined only `run`/`uses`, so the
+ * `actions/upload-artifact` step contributed exactly the string `actions/upload-artifact@v4` and the assertion
+ * that no corpus root is uploaded could never see an upload path. It passed only because the evidence-verification
+ * step happens to mention the two evidence filenames in its own script. That is a guard that cannot fail, so it
+ * is fixed here and H6d now reads the real `path:` inputs.
+ */
+function stepWithArbitraryText(job: { steps?: Array<{ name?: string; uses?: string; run?: string; if?: string; with?: Record<string, unknown> }> }): string {
+  return (job.steps ?? [])
+    .map((step) => `${step.name ?? ""}\n${step.uses ?? ""}\n${step.run ?? ""}\n${step.if ?? ""}\n${JSON.stringify(step.with ?? {})}`)
+    .join("\n");
 }
 
 // =============================================================================================
@@ -304,13 +327,40 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
     const { job } = architectureJob();
     const upload = (job.steps ?? []).find((step) => step.uses === "actions/upload-artifact@v4");
     expect(upload, "the architecture job uploads no evidence artifact").toBeTruthy();
-    const commands = jobCommands(job);
-    expect(commands).toContain("architecture-enforcement-shadow.json");
-    expect(commands).toContain("architecture-shadow-metadata.json");
-    // The forbidden corpus roots. An artifact that shipped the working tree would turn a governance record
-    // into a data leak, and the mission names these four explicitly.
-    for (const forbidden of ["artifacts/**", "runtime-data/**", "history/**", ".codex-boss/**"]) {
-      expect(commands, `the artifact upload includes the forbidden corpus root ${forbidden}`).not.toContain(`path: ${forbidden}`);
+    // The REAL upload inputs. `with.path` is what the action reads; nothing else in the job decides what leaves
+    // the runner, so this is the only text that can prove the narrow-artifact claim.
+    const uploadPaths = String((upload?.with as Record<string, unknown> | undefined)?.path ?? "");
+    expect(uploadPaths, "the upload step declares no path").toContain("architecture-enforcement-shadow.json");
+    expect(uploadPaths, "the upload step declares no path").toContain("architecture-shadow-metadata.json");
+    // The forbidden corpus roots. An artifact that shipped the working tree would turn a governance record into
+    // a data leak, and the mission names these four explicitly. Each entry of `path:` is inspected as a
+    // PATHSPEC, not as a substring: `artifacts/city/phase1/architecture-shadow-metadata.json` is a named file and
+    // is exactly what is wanted, while `artifacts/**`, `artifacts/`, `artifacts` and `.` are whole-tree or
+    // whole-directory requests and are not. The previous revision could not see these paths at all (see
+    // `stepWithArbitraryText`), and a substring test would have rejected the legitimate file too, so the rule is
+    // stated as the shape of the pathspec rather than as a substring.
+    const forbiddenRoots = ["artifacts", "runtime-data", "history", ".codex-boss"];
+    const entries = uploadPaths.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    expect(entries.length, "the upload step declares no path entries").toBeGreaterThan(0);
+    for (const entry of entries) {
+      // A whole corpus ROOT is the forbidden thing: the bare directory (`artifacts`, `artifacts/`, `.`) or a
+      // recursive glob into it (`artifacts/**`, `artifacts/*`). A NAMED file inside an evidence directory is not
+      // a corpus root -- and prefix-matching alone would reject exactly the narrow artifact the mission wants.
+      expect(forbiddenRoots, `the artifact upload ships the corpus root ${entry}`).not.toContain(entry.replace(/\/+$/, ""));
+      for (const root of forbiddenRoots) {
+        expect(entry, `the artifact upload ships a recursive glob into ${root}: ${entry}`).not.toMatch(new RegExp(`^${root.replace(".", "\\.")}/\\*`));
+      }
+      // Every entry must be a concrete file under the evidence directory, so a directory or a glob cannot be
+      // added later without failing here.
+      expect(entry, `the artifact upload entry is not a concrete evidence file: ${entry}`).toMatch(/^artifacts\/city\/phase1\/[\w.-]+\.json$/);
+    }
+    // The evidence names must really be there, so the loop above cannot pass by matching nothing.
+    expect(entries.join("\n")).toContain("architecture-enforcement-shadow.json");
+    expect(entries.join("\n")).toContain("architecture-shadow-metadata.json");
+    // The forbidden corpus roots must also not appear as globs anywhere a step passes to an action.
+    const stepText = stepWithArbitraryText(job);
+    for (const forbidden of ["artifacts/**", "runtime-data/**", "history/**", ".codex-boss/**", "runtime-data/", "history/", ".codex-boss/"]) {
+      expect(stepText, `a step passes the forbidden corpus root ${forbidden}`).not.toContain(forbidden);
     }
   });
 
@@ -335,14 +385,23 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
     // The workflow side: no workflow file may name a required architecture context or add one.
     expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8"))).not.toMatch(/required_status_checks/);
 
-    // (b) The live measurement, when GitHub can be reached. A failure to reach it is reported rather than
-    // treated as a pass: a check that silently degrades to "not measured" is the failure mode the spec's
-    // section 5 rule 1 names.
+    // (b) The live measurement, when GitHub can be reached. A clean hosted runner has no credential and cannot
+    // reach it, so this branch is REPORTED rather than hidden -- but note what it is not: the previous revision
+    // ended with `expect(status === 0 || error !== undefined || stderr.length > 0).toBe(true)`, which is true on
+    // every possible input and therefore asserted nothing at all. A conditional skip is stated as a skip.
     const result = spawnSync("gh", ["api", "repos/zhiheng-zhang-Mera/Codex-Boss/rulesets/22746755"], { encoding: "utf8", timeout: 120000 });
-    if (result.error || result.status !== 0) {
-      // No credential in this environment (a clean hosted runner has none). The assertions above still hold;
-      // this is recorded so the skip is visible rather than silent.
-      expect(result.status === 0 || result.error !== undefined || String(result.stderr ?? "").length > 0).toBe(true);
+    const liveReadable = !result.error && result.status === 0 && String(result.stdout ?? "").trim().startsWith("{");
+    if (!liveReadable) {
+      // No credential on this runner, so the live ruleset is NOT measured here. Rather than assert a tautology,
+      // this branch re-asserts the in-repository contract that IS available -- and says out loud that the
+      // platform fact was not measured, so a reader of a green run is not misled into thinking it was.
+      const contract = codeowners.split(/\r?\n/).filter((line) => /Required status checks\s*=/.test(line)).join("\n");
+      for (const check of ["quality", "unit", "acceptance", "package"]) {
+        expect(contract, `the CODEOWNERS ruleset contract no longer names ${check}`).toContain(check);
+      }
+      expect(contract, "the CODEOWNERS ruleset contract now names the architecture check").not.toContain("architecture");
+      expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8")), "a workflow gained a required_status_checks block").not.toMatch(/required_status_checks/);
+      process.stdout.write(`[H7] live ruleset NOT measured on this runner (${result.error ? String(result.error.message) : `gh exit ${String(result.status)}`}); verified against CODEOWNERS and the workflow instead\n`);
       return;
     }
     const ruleset = JSON.parse(String(result.stdout ?? "")) as { id: number; rules?: Array<{ type: string; parameters?: { required_status_checks?: Array<{ context: string }> } }> };
@@ -380,15 +439,12 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     expect(metadata.shadow_verdict).toBe("MACHINERY_FAILURE");
   });
 
-  it("S2 a baseline that does not re-derive from this tree fails the hosted job via the real --check path", () => {
-    // Driven through the SHIPPED command rather than through the runner's internal seam, so the case proves
-    // what the hosted step `architecture:enforce:baseline -- --check` does on this machine.
+  it("S2 the shipped baseline --check passes on this tree AND its exit code is falsifiable", () => {
+    // Part one: what the hosted step `architecture:enforce:baseline -- --check` reports on this tree, run through
+    // the SHIPPED command.
     const result = spawnSync(process.execPath, [BASELINE_CHECK, "--check"], { cwd: PROJECT, encoding: "utf8", timeout: 900000, maxBuffer: 64 * 1024 * 1024 });
     if (result.error) throw result.error;
     const report = JSON.parse(String(result.stdout ?? "")) as Json;
-    // On the frozen commit this is green: the accepted baseline is reproducible from the tree it came from.
-    // The case asserts the MECHANISM (both questions are reported and both are required for exit 0), which is
-    // what makes a tampered baseline observable, rather than pinning today's green.
     expect(report).toHaveProperty("self_consistent");
     expect(report).toHaveProperty("hash_matches");
     expect(report).toHaveProperty("series_authorized");
@@ -396,7 +452,26 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     expect(report.series_authorized).toBe(true);
     expect(report.self_consistent).toBe(true);
     expect(result.status).toBe(0);
-    // The same command refuses a baseline it cannot reproduce: the runner's own check-2 is exercised by S2b.
+
+    // Part two, which is what the previous revision was missing: an assertion that this command is GREEN today is
+    // not an assertion that it can be RED. The check exits 0 only when all three of its questions are yes, so the
+    // guard is stated as that contract and then FALSIFIED for the self-consistency question, using the same
+    // function the hosted runner calls for its own check 2.
+    const tampered = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "architecture-enforcement-baseline.json"), "utf8")) as Json;
+    tampered.baseline_hash = "9".repeat(64);
+    const dir = fixtureDir();
+    const tamperedPath = writeJson(dir, "tampered-baseline.json", tampered);
+    const consistency = hostedShadowRunner.baselineSelfConsistency(PROJECT, tamperedPath);
+    expect(consistency.self_consistent, "a baseline edited in place was reported as self-consistent").toBe(false);
+    expect(consistency.code, "the refusal was not named").toBe("BASELINE_HASH_MISMATCH");
+    expect(String(consistency.detail)).toMatch(/not the recomputed content hash/);
+    // The check's own contract, asserted as the conjunction the exit code is made of: a red answer to ANY of the
+    // three questions means the hosted step exits non-zero, which fails the `architecture` job.
+    const exitZeroRequires = (r: Json) => r.identical === true && r.hash_matches === true && r.series_authorized === true;
+    expect(exitZeroRequires(report), "the green report does not satisfy the exit-0 conjunction").toBe(true);
+    expect(exitZeroRequires({ ...report, hash_matches: false }), "a report with hash_matches false would still exit 0").toBe(false);
+    expect(exitZeroRequires({ ...report, series_authorized: false }), "a report with series_authorized false would still exit 0").toBe(false);
+    expect(exitZeroRequires({ ...report, identical: false }), "a report with identical false would still exit 0").toBe(false);
   });
 
   it("S2b the runner's own self-consistency check fails the job when the accepted baseline is not reproducible", () => {
@@ -413,7 +488,31 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     const metadata = readMetadata(result);
     expect(metadata.baseline_series_status).toBe("AUTHORISED");
     expect(metadata.baseline_self_consistent).toBe(false);
+    expect(metadata.baseline_self_consistency_status).toBe("FAILED");
     expect(metadata.shadow_verdict).toBe("MACHINERY_FAILURE");
+  });
+
+  it("S9 the fixture seam reports a SKIPPED check as not-measured, never as a pass", () => {
+    // A fixture-mode artifact asserts nothing about the real tree's baseline consistency, and the first revision
+    // nonetheless published `baseline_self_consistent: true` for it -- a fabricated pass. It is now `null` with a
+    // named status, so the hosted job's own evidence assertion (`-ne $true`) cannot be satisfied by a run that
+    // never performed the check.
+    const result = runRunner({ measurement: baseMeasurement() });
+    expect(result.status).toBe(0);
+    const metadata = readMetadata(result);
+    expect(metadata.baseline_self_consistent, "a skipped check was published as a pass").toBeNull();
+    expect(metadata.baseline_self_consistency_status).toBe("NOT_MEASURED_FIXTURE_SEAM");
+    expect(metadata.baseline_self_consistency_skipped_by_fixture).toBe(true);
+    // ...and the same fixture WITHOUT the seam does perform the check and reports a real verdict, so the null is
+    // the seam's disclosure rather than a permanently unmeasured field.
+    const measured = runRunner({ baseline: baseBaseline({ baseline_hash: "1".repeat(64) }), skipSelfConsistency: false });
+    const measuredMetadata = readMetadata(measured);
+    expect(measuredMetadata.baseline_self_consistency_skipped_by_fixture).toBe(false);
+    expect(["VERIFIED", "FAILED"]).toContain(measuredMetadata.baseline_self_consistency_status);
+    // A synthetic baseline cannot re-derive from the real tree, so the verdict is FAILED -- and it must fail the
+    // job, which is what proves the status is wired to the outcome rather than merely reported.
+    expect(measuredMetadata.baseline_self_consistency_status).toBe("FAILED");
+    expect(measured.status).toBe(1);
   });
 
   it("S3 an engine error fails the hosted job", () => {
@@ -516,6 +615,8 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     expect(metadata.shadow_verdict).toBe("PASS");
     expect(metadata.baseline_series_status).toBe("AUTHORISED");
     expect(metadata.baseline_self_consistent).toBe(true);
+    expect(metadata.baseline_self_consistency_status).toBe("VERIFIED");
+    expect(metadata.baseline_self_consistency_skipped_by_fixture).toBe(false);
     expect(Number(metadata.engine_error_count)).toBe(0);
     expect(Number(metadata.machinery_failure_count)).toBe(0);
     expect(Number(metadata.policy_violation_count)).toBe(0);
@@ -523,11 +624,73 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     // the same number, because it runs the same evaluator over the same measurement.
     expect(Number(metadata.findings_count)).toBe(1677);
     expect(metadata.root_trust_epoch).toBe(25);
-    // The unmodelled defect classes are published, and an EMPTY list must be distinguishable from an UNREAD
-    // one (spec section 5, rule 2). This run must carry the real five.
+    // The unmodelled defect classes are published, and an EMPTY list must be distinguishable from an UNREAD one
+    // (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §5, rule 2). This run must carry the real five -- and the
+    // STATUS is what makes that claim testable: the first revision wrote
+    // `baseline?.not_yet_enforced ?? baselineModule.NOT_YET_ENFORCED`, and the module default is byte-identical to
+    // the committed baseline's five, so a length assertion could not tell a read list from a substituted one.
     expect(Array.isArray(metadata.not_yet_enforced)).toBe(true);
     expect((metadata.not_yet_enforced as string[]).length).toBe(5);
-    expect((metadata.not_yet_enforced as string[]).length).toBeGreaterThan(0);
+    expect(metadata.not_yet_enforced_status, "the list was substituted rather than read from the baseline").toBe("READABLE");
+    expect(metadata.not_yet_enforced_read_error).toBeNull();
+    // ...and the five are the baseline's own, read from the tracked file rather than from the module constant.
+    const tracked = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "architecture-enforcement-baseline.json"), "utf8")) as { not_yet_enforced: string[] };
+    expect([...(metadata.not_yet_enforced as string[])].sort()).toEqual([...tracked.not_yet_enforced].map(String).sort());
+  });
+
+  it("S7 an UNREAD unmodelled-defect-class list is a machinery failure, not an empty list", () => {
+    // The case the previous revision could not represent. A baseline that carries no `not_yet_enforced` array has
+    // NOT said "there are none"; it has failed to say anything, and the spec requires those to be distinguishable.
+    const withoutField = baseBaseline();
+    delete (withoutField as Json).not_yet_enforced;
+    const result = runRunner({ baseline: withoutField, measurement: baseMeasurement() });
+    expect(result.status, "an unread not_yet_enforced list passed the hosted job").toBe(1);
+    const metadata = readMetadata(result);
+    expect(metadata.not_yet_enforced).toBeNull();
+    expect(metadata.not_yet_enforced_status).toBe("FIELD_ABSENT");
+    expect(String(metadata.not_yet_enforced_read_error)).toMatch(/not_yet_enforced/);
+    expect(metadata.shadow_verdict).toBe("MACHINERY_FAILURE");
+    // It must be nameable in the engine-error record, not only reflected in a count.
+    const records = metadata.engine_error_records as Array<{ code: string; subject: string }>;
+    expect(records.some((entry) => entry.subject === "baseline.not_yet_enforced")).toBe(true);
+
+    // ...and a READABLE EMPTY list is NOT a failure: an empty list is a real answer, and conflating the two in
+    // the other direction would refuse a legitimate state.
+    const emptyList = runRunner({ baseline: baseBaseline({ not_yet_enforced: [] }), measurement: baseMeasurement() });
+    expect(emptyList.status, "a readable empty not_yet_enforced list was treated as a failure").toBe(0);
+    const emptyMetadata = readMetadata(emptyList);
+    expect(emptyMetadata.not_yet_enforced).toEqual([]);
+    expect(emptyMetadata.not_yet_enforced_status).toBe("READABLE_EMPTY");
+  });
+
+  it("S8 an artifact from a LOCAL run does not claim to be hosted", () => {
+    // `hosted: true` was a constant, so a local run produced an artifact that declared itself hosted while
+    // carrying no commit, no run id and no event -- and one revision of the evidence ledger quoted such a run as
+    // HOSTED evidence before any hosted run existed. Provenance is now measured.
+    const result = runGoverning();
+    const metadata = readMetadata(result);
+    expect(metadata.hosted, "a local run declared itself hosted").toBe(false);
+    expect(metadata.hosted_provider).toBe("local");
+    expect(String(metadata.hosted_absence_note)).toMatch(/did NOT run on GitHub-hosted CI/);
+    expect(metadata.commit_sha).toBeNull();
+    expect(metadata.workflow_run_id).toBeNull();
+    // The raw variables are published, so a reader can re-derive the claim instead of trusting it.
+    expect(metadata.hosted_environment).toBeTruthy();
+
+    // And the runner DOES report hosted when the workflow variables say so -- otherwise S8 would pass on a
+    // runner whose provenance detection was simply broken.
+    const dir = fixtureDir();
+    const outDir = path.join(dir, "out");
+    const metadataPath = path.join(dir, "meta.json");
+    const hostedEnv = { ...process.env, GITHUB_ACTIONS: "true", CI: "true", GITHUB_SHA: "a".repeat(40), GITHUB_RUN_ID: "123456", GITHUB_EVENT_NAME: "push", GITHUB_JOB: "architecture", GITHUB_RUN_ATTEMPT: "1", GITHUB_WORKFLOW: "Desktop CI", RUNNER_OS: "Windows" };
+    const simulated = spawnSync(process.execPath, [RUNNER, "--out", outDir, "--metadata", metadataPath], { cwd: PROJECT, encoding: "utf8", timeout: 900000, maxBuffer: 64 * 1024 * 1024, env: hostedEnv });
+    if (simulated.error) throw simulated.error;
+    expect(simulated.status).toBe(0);
+    const hostedMetadata = JSON.parse(fs.readFileSync(metadataPath, "utf8")) as Json;
+    expect(hostedMetadata.hosted, "the runner did not recognise the GitHub Actions environment").toBe(true);
+    expect(hostedMetadata.hosted_provider).toBe("GitHub Actions");
+    expect(hostedMetadata.commit_sha).toBe("a".repeat(40));
+    expect(hostedMetadata.workflow_run_id).toBe("123456");
   });
 });
 
@@ -544,13 +707,16 @@ describe("Phase 1B-B P1..P3: parity is by finding identity, never by count", () 
     expect(Array.isArray(normalized)).toBe(true);
     expect(normalized.length).toBeGreaterThan(0);
     for (const entry of normalized.slice(0, 25)) {
-      expect(Object.keys(entry).sort()).toEqual(["code", "policy_class", "severity", "subject"]);
+      expect(Object.keys(entry).sort()).toEqual(["code", "detail_digest", "policy_class", "severity", "subject"]);
       expect(typeof entry.code).toBe("string");
       expect(typeof entry.subject).toBe("string");
       expect(typeof entry.severity).toBe("string");
+      expect(typeof entry.detail_digest).toBe("string");
+      expect(String(entry.detail_digest)).toMatch(/^[0-9a-f]{64}$/);
       expect(["POLICY_VIOLATION", "FAIL_CLOSED", "INFORMATIONAL"]).toContain(entry.policy_class);
     }
-    // The four axes the mission requires the comparison to cover, all present on the shape.
+    // The axes the mission requires the comparison to cover, all present on the shape. `detail_digest` is part of
+    // the identity, not decoration: see P4, which is the case that forced it.
     expect(metadata.findings_digest_schema).toBe("city-architecture-findings-digest/1");
   });
 
@@ -617,10 +783,16 @@ describe("Phase 1B-B P1..P3: parity is by finding identity, never by count", () 
     expect(notAnArtifact.status).toBe(2);
   });
 
-  it("P3c the digest is the SAME for the local run and the hosted run of one commit", () => {
-    // The mission's target evidence: LOCAL_FINDINGS_HASH == HOSTED_FINDINGS_HASH on the same commit and the
-    // same accepted baseline. Two independent governing runs, compared by the shipped comparator -- not by
-    // looking at one artifact's digest twice.
+  it("P3c the digest is the SAME for two independent governing runs of one commit", () => {
+    // The mission's target evidence: LOCAL_FINDINGS_HASH == HOSTED_FINDINGS_HASH on the same commit and the same
+    // accepted baseline. Two independent governing runs, compared by the shipped comparator -- not by looking at
+    // one artifact's digest twice.
+    //
+    // WHAT THIS CASE IS AND IS NOT. Both invocations run on THIS host, so this is an idempotence and
+    // representation proof, not proof that GitHub's runner agrees. The hosted side of the claim is measured
+    // outside this suite, from the artifact the hosted run really published (see the evidence ledger §K-9); this
+    // case is named for what it actually does, because the previous title said "the local run and the hosted run"
+    // and the body spawned two local runs, which is a claim the test could not support.
     const first = runGoverning();
     const second = runGoverning();
     expect(first.status).toBe(0);
@@ -631,7 +803,54 @@ describe("Phase 1B-B P1..P3: parity is by finding identity, never by count", () 
     expect(report.state).toBe("HOSTED_LOCAL_PARITY");
     expect(report.HASHES_EQUAL).toBe(true);
     expect(report.parity).toBe(true);
+    expect(report.comparison_kind).toMatch(/multiset/);
     expect(parity.status).toBe(0);
+  });
+
+  it("P4 the identity is lossless: distinct findings in the same family cannot collide", () => {
+    // THE DEFECT THIS CASE EXISTS FOR, found in adversarial review rather than by the author.
+    //
+    // The engine emits every `SENSOR_INCOMPLETE` finding with `subject: "sensor"` and puts the distinguishing
+    // text in `detail`. The first revision of the normalized identity was code + subject + severity + policy
+    // class, which is LOSSY for that family: it made "1 read failure(s): a.ts" and "3 silently skipped file(s)"
+    // normalize to the SAME value, so two different finding sets produced the same digest and
+    // `compareFindings` reported `parity: true`. That directly refutes the claim the parity feature exists to
+    // support. Measured through the shipped module, so the guard is on the real implementation.
+    const runner = hostedShadowRunner;
+    const readFailure = { code: "SENSOR_INCOMPLETE", severity: "VIOLATION", subject: "sensor", detail: "1 read failure(s): a.ts" };
+    const silentSkips = { code: "SENSOR_INCOMPLETE", severity: "VIOLATION", subject: "sensor", detail: "3 silently skipped file(s)" };
+    const readAnother = { code: "SENSOR_INCOMPLETE", severity: "VIOLATION", subject: "sensor", detail: "1 read failure(s): b.ts" };
+
+    const a = runner.normalizeFinding(readFailure);
+    const b = runner.normalizeFinding(silentSkips);
+    expect(JSON.stringify(a), "two different SENSOR_INCOMPLETE findings normalize to the same identity").not.toBe(JSON.stringify(b));
+    expect(runner.semanticFindingsHash([a])).not.toBe(runner.semanticFindingsHash([b]));
+    expect(runner.compareFindings([a], [b]).parity, "two different finding sets were reported as parity").toBe(false);
+    // Same code, same subject, different file in the detail: still distinct.
+    expect(runner.semanticFindingsHash([a])).not.toBe(runner.semanticFindingsHash([runner.normalizeFinding(readAnother)]));
+    // ...and the SAME finding still compares equal to itself, so the fix did not make the identity unstable.
+    expect(runner.semanticFindingsHash([a])).toBe(runner.semanticFindingsHash([runner.normalizeFinding(readFailure)]));
+    expect(runner.compareFindings([a], [runner.normalizeFinding(readFailure)]).parity).toBe(true);
+  });
+
+  it("P5 multiplicity is compared, and the digest and the comparison agree about it", () => {
+    // The companion defect: the digest hashed the multiset while `compareFindings` de-duplicated through a Map,
+    // so one copy of a finding and three copies of it produced the SAME parity verdict but DIFFERENT
+    // `findings_semantic_hash` -- two different quantities under one name. Both are now multiset comparisons.
+    const runner = hostedShadowRunner;
+    const one = runner.normalizeFinding({ code: "SENSOR_INCOMPLETE", severity: "VIOLATION", subject: "sensor", detail: "1 read failure(s): a.ts" });
+    const once = [one];
+    const thrice = [one, one, one];
+    expect(runner.semanticFindingsHash(once)).not.toBe(runner.semanticFindingsHash(thrice));
+    const comparison = runner.compareFindings(once, thrice);
+    expect(comparison.parity, "1 occurrence and 3 occurrences were reported as parity").toBe(false);
+    expect(comparison.local_count).toBe(1);
+    expect(comparison.hosted_count).toBe(3);
+    expect(comparison.multiplicity_differences.length).toBe(1);
+    // The two quantities must agree: whenever the digests differ, parity is false.
+    expect(comparison.local_findings_hash === comparison.hosted_findings_hash).toBe(false);
+    // The same input twice IS parity, so multiplicity comparison did not simply make everything disagree.
+    expect(runner.compareFindings(thrice, [one, one, one]).parity).toBe(true);
   });
 });
 
@@ -685,21 +904,67 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
     expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8"))).not.toMatch(/required_status_checks/);
   });
 
-  it("the accepted baseline series and the accepted baseline are untouched by this phase", () => {
-    // The hosted shadow observes. It does not widen the accepted baseline series, it does not accept a v2, and
-    // it does not regenerate the baseline. This is asserted against the tracked files themselves, which is the
-    // only place the claim can be checked: a workflow that had quietly re-accepted a baseline would have
-    // committed a different file.
-    const series = JSON.parse(fs.readFileSync(path.join(PROJECT, "trust-policy", "architecture-enforcement-baselines.json"), "utf8")) as { accepted: Array<{ baseline_version: number; baseline_hash: string }> };
-    expect(series.accepted.map((entry) => entry.baseline_version)).toEqual([1]);
-    expect(series.accepted[0].baseline_hash).toBe("b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e");
+  it("no workflow can make the architecture step optional with continue-on-error", () => {
+    // docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §5, rule 3: "no workflow-level `continue-on-error`, no
+    // `if: always()` substitution, and no path by which the enforcement step can be skipped while the job still
+    // reports success." Nothing asserted that before this case, across ANY workflow in the repository -- a gap
+    // named in adversarial review.
+    //
+    // `if: always()` is allowed on the ARTIFACT UPLOAD step alone, because a failed job is exactly when its
+    // findings are worth publishing; it is forbidden anywhere near enforcement, where its effect would be to run
+    // a step that cannot change the conclusion.
+    const dir = path.join(PROJECT, ".github", "workflows");
+    const workflows = fs.readdirSync(dir).filter((name) => /\.ya?ml$/.test(name));
+    expect(workflows.length).toBeGreaterThan(0);
+    for (const name of workflows) {
+      const parsed = parseYaml(fs.readFileSync(path.join(dir, name), "utf8")) as CiWorkflow & { "continue-on-error"?: unknown };
+      expect(parsed["continue-on-error"], `${name} sets a workflow-level continue-on-error`).toBeUndefined();
+      for (const [jobName, job] of Object.entries(parsed.jobs ?? {})) {
+        const text = stepWithArbitraryText(job);
+        expect(text, `${name}:${jobName} sets a step-level continue-on-error`).not.toMatch(/continue-on-error/);
+        // The only `always()` permitted is on the artifact upload, whose conclusion cannot change the job.
+        for (const step of job.steps ?? []) {
+          if (!/always\(\)/.test(String(step.if ?? ""))) continue;
+          expect(step.uses, `${name}:${jobName} runs a non-artifact step as \`if: always()\`, which can hide a failure`).toMatch(/upload-artifact/);
+        }
+        // And the enforcement command must never be guarded by a conditional at all.
+        for (const step of job.steps ?? []) {
+          if (!/architecture:enforce|architecture-shadow-hosted/.test(String(step.run ?? ""))) continue;
+          expect(step.if, `${name}:${jobName} made the enforcement step conditional`).toBeUndefined();
+          expect(step["continue-on-error" as keyof typeof step], `${name}:${jobName} made the enforcement step non-blocking`).toBeUndefined();
+        }
+      }
+    }
+    // Sanity: the scan really saw the architecture job, so this case cannot pass by enumerating nothing.
+    const architecture = architectureJob().job;
+    expect(stepWithArbitraryText(architecture)).toMatch(/architecture-enforce:shadow|architecture-shadow-hosted/);
+  });
 
-    const baseline = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "architecture-enforcement-baseline.json"), "utf8")) as Json;
-    expect(baseline.baseline_version).toBe(1);
-    expect(baseline.parent_baseline_hash).toBeNull();
-    expect(baseline.baseline_hash).toBe("b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e");
+  it("the accepted baseline series and the accepted baseline are byte-identical to the frozen commit", () => {
+    // The hosted shadow observes. It does not widen the accepted baseline series, it does not accept a v2, and it
+    // does not regenerate the baseline.
+    //
+    // ASSERTED AGAINST THE FROZEN COMMIT, not against constants. The previous revision pinned today's expected
+    // hashes, which cannot detect a widening performed in the same change -- a new accepted version would simply
+    // have been written together with an updated constant. `b5b511d7…` is the promoted merge commit, which is
+    // immutable history, so a byte comparison against it is a real guard.
+    const FROZEN = "b5b511d750f11a7573b24e7b04c545b44d73b3da";
+    const guarded = [
+      "trust-policy/architecture-enforcement-baselines.json",
+      "config/architecture-enforcement-baseline.json",
+      "config/architecture-baseline.json",
+      "trust-policy/trust-epoch.json",
+      "trust-policy/root-trust-surface.json",
+    ];
+    for (const file of guarded) {
+      const atFrozen = spawnSync("git", ["show", `${FROZEN}:${file}`], { cwd: PROJECT, encoding: "utf8", timeout: 120000, maxBuffer: 64 * 1024 * 1024 });
+      if (atFrozen.error) throw atFrozen.error;
+      expect(atFrozen.status, `git could not read ${file} at the frozen commit`).toBe(0);
+      const now = fs.readFileSync(path.join(PROJECT, file), "utf8");
+      expect(now.replace(/\r\n/g, "\n"), `${file} differs from the frozen commit; this phase must not change it`).toBe(String(atFrozen.stdout).replace(/\r\n/g, "\n"));
+    }
 
-    // The shipped series check agrees, run for real.
+    // ...and the shipped series check agrees, run for real.
     const check = spawnSync(process.execPath, [SERIES_CHECK, "--check"], { cwd: PROJECT, encoding: "utf8", timeout: 300000, maxBuffer: 64 * 1024 * 1024 });
     if (check.error) throw check.error;
     const report = JSON.parse(String(check.stdout ?? "")) as Json;
