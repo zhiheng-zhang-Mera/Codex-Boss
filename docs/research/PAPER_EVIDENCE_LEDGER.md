@@ -3440,3 +3440,190 @@ was created to increment the counter. Had the audit yielded 19, this section wou
 
 
 
+
+---
+
+# §Q — Phase 1B stage S2 candidate: hosted ENFORCE visible, and the two content failures it exposed
+
+**This section is appended. §K through §P are byte-for-byte unchanged.**
+
+## Q-1 — `GOVERNANCE`: S2 adds enforcement beside shadow, and keeps it NOT required
+
+`GOVERNANCE` + `MEASUREMENT`. Stage S2 of the Phase 1B rollout adds the **real governing enforce evaluation** to the
+hosted `architecture` job. It is additive: the S1 shadow step, the hosted shadow runner and both baseline checks all
+remain, because removing them would destroy the evidence the S2 comparison is made against.
+
+```text
+S2_BRANCH = dev/city-phase1b-s2-hosted-enforce-visible
+PR        = #19   (author codex-boss[bot], base main @ 5da81700)
+S1_SOAK_COMPLETE = YES (21/20, §P — not reinterpreted)
+ARCHITECTURE_REQUIRED = NO
+RULESET_CHANGED = NO      (22746755, unchanged; updated_at 2026-09-19)
+LEGACY_RATCHET = REQUIRED_AND_UNCHANGED
+BASELINE_WIDENED = NO     (all three grandfathering records byte-identical to b5b511d7…)
+S3 = NOT AUTHORIZED
+```
+
+**ENF-12 measured on the hosted runner, not relabelled from a local run.** `scripts/architecture-findings-parity.cjs`
+gained an explicit `--mode shadow-enforce` that compares the two artifacts the two steps produce, using the **same**
+normalized identity (`code`, `subject`, `severity`, `policy_class`, `detail_digest`) and the **same** multiset
+comparison as the local/hosted mode. A missing or unreadable input is `PARITY_NOT_MEASURED` and exits 2.
+
+## Q-2 — `FAILURE`: the first S2 head passed ENF-12 and failed two content checks
+
+`FAILURE`. The first S2 head is preserved as the proof that exposed both defects. It is **not** rewritten out of
+history.
+
+```text
+INITIAL_S2_HEAD       = 388dec8b9ddc9fe3c58f54b5a01300f74ffc8996
+INITIAL_HOSTED_ENF12  = PASS   (architecture job SUCCESS on runs 35850985251 and 35851017393; 1677 findings,
+                                0 engine errors, shadow hash == enforce hash)
+INITIAL_CONTENT_FAILURES =
+  1. a bare section citation introduced by this phase in scripts/architecture-findings-parity.cjs
+     ("Phase 1B-B §8"), refused by the repository's citation guard, which is right to refuse it;
+  2. H7 spawned `gh api …` with `timeout: 120000` from inside a Vitest case whose own timeout is 60 seconds, so
+     on the hosted runner -- where `gh` is unauthenticated -- the child blocked and the CASE was killed:
+     `Error: Test timed out in 60000ms.`
+```
+
+**Defect 2 is the fifth instance of this phase family's recurring pattern**, and the shape is identical each time:
+a check whose truth depends on something outside itself. Here the guard's *ability to verify* was unbounded, so the
+failure surfaced as an opaque timeout rather than as a statement about the ruleset. A subprocess timeout above the
+enclosing test's timeout is not a timeout — it is a hang wearing a timeout as a disguise.
+
+## Q-3 — `CORRECTION`: both repairs, and the bound that makes the second one permanent
+
+`CORRECTION`. Both were authorized as minimal and neither touches enforcement semantics.
+
+**1. The citation** is now qualified as `docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §8`. The diff is
+comment-only; parity runtime semantics are untouched.
+
+**2. The probe** moved into `tests/unit/city/helpers/live-ruleset-probe.ts`, which bounds the attempt at **10 s** —
+strictly below the 60 s enclosing budget — passes that bound to the child with `SIGKILL`, and returns exactly one of
+two states:
+
+```text
+LIVE_MEASURED      no spawn error, exit 0, parseable JSON, AND the response is the ruleset id we asked for
+LIVE_NOT_MEASURED  a timeout, a missing gh, an unauthenticated gh, a signal kill, a non-zero exit, malformed
+                   output, a disabled probe, or a response for the WRONG ruleset id
+```
+
+The unmeasured branch re-asserts the deterministic repository contract that **is** available (CODEOWNERS still names
+the legacy four, no workflow mutated a required context, the architecture job is still structurally independent) and
+prints `H7_LIVE_RULESET = NOT_MEASURED reason = …`, so a green test can never be read as proof that the live platform
+was checked. The case was renamed to say what it actually claims: *the repository contract keeps architecture
+non-required, and the live ruleset agrees **when readable***.
+
+**Seven new regression tests** pin the bound and the classification with **no network** — every case injects its own
+runner — and pin that the hosted-shadow suite consumes the helper rather than spawning `gh` directly, while leaving
+the measurement runners their legitimately long minute-scale timeouts. A blanket timeout rule would have forbidden
+the very timeouts the tree measurement needs.
+
+```text
+REPAIRED_S2_HEAD        = 0d7a77b9c624ccffca196207c302ba4fe9443476
+OLD_S2_HEAD_ANCESTOR    = YES   (388dec8… is an ancestor; no amend, rebase, reset or force-push)
+BARE_SECTION_CITATION_FIXED = YES
+H7_PROBE_TIMEOUT_MS     = 10000
+H7_PROBE_BOUND_BELOW_TEST_TIMEOUT = YES
+```
+
+## Q-4 — `MEASUREMENT` + `HOSTED_PARITY`: the repaired head, re-proved on the real runner
+
+`MEASUREMENT`. The initial head's ENF-12 result does **not** bind the repaired head, so it was re-measured.
+
+| Run | Event | `quality` | `architecture` | `unit` |
+|---|---|---|---|---|
+| `35859286908` | push | success | **success** | failure — expected staleness only |
+| `35859292900` | pull_request | success | **success** | failure — expected staleness only |
+
+```text
+HOSTED_ENF12_PARITY  = PASS on BOTH events
+SHADOW_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+ENFORCE_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true    COUNTS_EQUAL = true (1677)    MULTIPLICITY_DIFFERENCES = []
+ENGINE_ERRORS = 0      MACHINERY_FAILURES = 0        NEW_REGRESSIONS = 0
+BASELINE_SERIES_STATUS = AUTHORISED                  BASELINE_SELF_CONSISTENCY = VERIFIED
+hosted = true          provider = GitHub Actions
+```
+
+**Unit tier, and the two classes are now cleanly separated:**
+
+```text
+Test Files  1 failed | 266 passed (267)
+CONTENT_FAILURES              = 0
+ROOT_TRUST_STALENESS_FAILURES = 1   (tests/unit/test-layers.test.ts:430, TRUST_EPOCH_ROOT_SURFACE_MISMATCH)
+```
+
+That single failure is the *expected* consequence of `.github/workflows/ci.yml` being Root Trust Surface: the S2
+workflow change makes committed epoch 26 stale. `--advance` was **not** run and epoch 27 was not written.
+
+**H7's state on the hosted runner, recorded as the honesty proof for the repair:**
+
+```text
+H7_LIVE_RULESET = NOT_MEASURED
+reason = gh exited 4: gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN environment variable
+```
+
+It reached that state in seconds instead of being killed by its own test's timeout — which is the repair working —
+**and the ledger does not treat it as a platform measurement.**
+
+## Q-5 — `REMOTE_GITHUB`: the live ruleset measured separately, as the platform claim requires
+
+`MEASUREMENT`. Because H7 reports `LIVE_NOT_MEASURED` on a credential-less runner, the platform fact supporting
+`ARCHITECTURE_REQUIRED = NO` is measured **outside** the unit-test claim, by a read-only API read:
+
+```text
+LIVE_RULESET_MEASURED_SEPARATELY = YES
+RULESET_ID             = 22746755  (Main-Protection)
+REQUIRED_CHECKS        = quality, unit, acceptance, package
+ARCHITECTURE_REQUIRED  = NO
+rules                  = deletion, non_fast_forward, creation, required_status_checks, pull_request
+updated_at             = 2026-09-19T08:08:25Z   (unchanged; before this phase began)
+bypass_actors          = [{actor_id: 229580437, actor_type: User}]   (the Root Owner only; the App is not one)
+```
+
+**The repository contract and the platform agree, and neither is inferred from the other.** A green H7 in its
+unmeasured branch is never counted as evidence about the live platform — that is the distinction this repair exists
+to preserve.
+
+## Q-6 — `FAILURE`: two local-only concurrency failures, recorded and NOT repaired
+
+`FAILURE` + `CLASSIFICATION`. The full local unit tier on this branch also reported two `runtime-intelligence`
+corpus tests failing. They are **not** in this section's scope and were **not** repaired, because they do not
+reproduce either in isolation or on the hosted runner:
+
+```text
+tests/unit/runtime-intelligence/replay-cases.test.ts       replays this host's real corpus when one exists
+tests/unit/runtime-intelligence/replay-corpus-io.test.ts   exports a real corpus with records, and every one passes
+```
+
+Run together in isolation the same two files pass **48/48**, and they do not appear in the hosted failure list. They
+are classified `HOST_CONTENTION_FLAKE` — the class §L-6 already recorded — with their discriminator shown, and the
+authorized repair scope explicitly excluded them unless they reproduced on the hosted run or in isolation. Neither
+happened, so they were left alone rather than "fixed" by weakening a timeout.
+
+## Q-7 — what this section does and does not claim
+
+`CORRECTION`. **It claims** that the hosted `architecture` job now runs both a shadow and a governing enforce
+evaluation on every `push` and `pull_request`; that the two produce byte-identical findings by identity and
+multiplicity on the real runner (ENF-12); that the check remains **not required**; and that the two content failures
+exposed by the first S2 head are repaired and no longer reproduce.
+
+**It does not claim** that S2 is promoted. S2 promotion is an **Owner decision** this phase waits on. Explicitly
+unchanged and not performed:
+
+```text
+RULESET_CHANGED = NO      ARCHITECTURE_REQUIRED = NO     BASELINE_WIDENED = NO
+S3 = NOT AUTHORIZED       LEGACY_RATCHET = REQUIRED_AND_UNCHANGED
+TRUST_EPOCH_ADVANCED = NO (epoch 26, expected stale on this candidate)
+NEGATIVE_CONTROL_PREPARED = YES   NEGATIVE_CONTROL_EXECUTED = NO
+PHASE2_MIGRATION = NOT STARTED
+```
+
+The S2 exit condition additionally requires a deliberate **negative control** — a known undeclared edge that shadow
+reports and enforce blocks — plus a continuous run of enforce-visible observations. That negative control is
+**prepared, not executed**: it requires a machine-authored scratch PR introducing one known undeclared edge with its
+exact expected machine code, proving shadow reports it and enforce reports the identical finding set and exits
+non-zero, then closed unmerged. Executing it needs separate authorization, and no such defect was merged into
+`main`.
+
