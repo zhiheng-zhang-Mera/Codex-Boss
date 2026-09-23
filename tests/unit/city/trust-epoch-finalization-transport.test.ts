@@ -450,3 +450,69 @@ describe("Trust finalization handoff CLI: the exit codes the workflow depends on
     expect(run.state).toBe(handoff.STATE.EPOCH_BRANCH_CONFLICT);
   });
 });
+
+// =============================================================================================
+// The consumer: the handoff must be actionable by the App identity, and by nothing else
+// =============================================================================================
+
+describe("Trust finalization handoff consumer: the App transport can act on it, and the workflow cannot", () => {
+  /**
+   * The repair moves PR transport from the Actions `GITHUB_TOKEN` to the Codex-Boss App identity. That is only a
+   * repair if the App's production path can actually consume what the workflow writes, so this section binds the
+   * two sides: the handoff's fields against the gateway's own method signature, and the dropped permission against
+   * the guardian decision the App relies on.
+   *
+   * It is static on purpose. The live App PR is opened during the epoch-28 ceremony and is recorded then; a unit
+   * test that minted an installation token and opened a real pull request would be a network side effect in the
+   * ordinary tier, which is the class of defect this same mission already had to repair once.
+   */
+  const GATEWAY_SOURCE = "electron/github/github-gateway.ts";
+
+  it("the gateway exposes a pull-request path, and the handoff names exactly the fields it takes", () => {
+    const source = fs.readFileSync(path.join(PROJECT, GATEWAY_SOURCE), "utf8");
+    // The signature the consumer must satisfy: { head, base, title, body }.
+    const signature = source.match(/createPullRequest\([^)]*\)\s*:\s*Promise<[^>]*>/);
+    expect(signature, "the gateway no longer exposes createPullRequest").toBeTruthy();
+    for (const field of ["head", "base", "title", "body"]) {
+      expect(String(signature?.[0]), `the gateway's createPullRequest no longer takes ${field}`).toContain(field);
+    }
+    // The handoff carries every input that path needs: head from epoch_branch, base from base_branch. Title and body
+    // are derived from the epoch, which the handoff also carries.
+    const built = handoff.buildHandoff(handoffInput()) as Record<string, unknown>;
+    expect(built.epoch_branch, "the handoff does not name the head branch the App must push").toBe("trust-epoch/boss-root-trust-28");
+    expect(built.base_branch, "the handoff does not name the base branch").toBe("main");
+    expect(typeof built.epoch, "the handoff does not carry the epoch the PR title derives from").toBe("number");
+  });
+
+  it("the App identity is the transport the handoff names, and it is a NAME rather than a credential", () => {
+    // BOSS_GITHUB_LOGICAL_IDENTITY is the repository's own declaration of its machine identity. The handoff's
+    // pr_creator must identify that machine path, and must never be a token, key or actor the workflow could use.
+    const machine = require(path.join(PROJECT, "dist-electron", "src", "shared", "github-machine.js")) as { BOSS_GITHUB_LOGICAL_IDENTITY: string };
+    expect(machine.BOSS_GITHUB_LOGICAL_IDENTITY, "the machine logical identity changed").toBe("Codex-Boss");
+    const built = handoff.buildHandoff(handoffInput()) as { pr_creator: string };
+    expect(built.pr_creator, "the handoff names a creator that is not the machine-identity path").toBe("codex-boss-machine-identity");
+    expect(built.pr_creator).not.toMatch(/github-actions|GITHUB_TOKEN|ghs_|ghp_/i);
+  });
+
+  it("the guardian still ALLOWS the App to create pull requests, so the delegated path is not a dead end", () => {
+    // If the guardian denied pull_request.create, the repair would have moved transport to a path that cannot act,
+    // and the epoch would again end with a produced branch and no PR. This asserts the delegated path is live.
+    const policy = require(path.join(PROJECT, "dist-electron", "electron", "github", "github-guardian-policy.js")) as {
+      decideGitHubOperation: (operation: string) => { decision: string; reason: string };
+    };
+    const decision = policy.decideGitHubOperation("pull_request.create");
+    expect(decision.decision, `the App's pull-request path is not ALLOW: ${decision.reason}`).toBe("ALLOW");
+    // ...and the path the workflow must NEVER take is the one it lost: it holds no pull-request authority at all.
+    const perms = parsedWorkflow().permissions ?? {};
+    expect(perms).not.toHaveProperty("pull-requests");
+  });
+
+  it("the handoff is refused when the epoch branch and the epoch disagree, so the App cannot open a PR on the wrong head", () => {
+    // The consumer keys the PR head off epoch_branch. If the two fields drifted apart, the App would open a pull
+    // request against a branch that does not match the epoch being finalized.
+    const drifted = handoff.buildHandoff(handoffInput({ epochBranch: "trust-epoch/boss-root-trust-27" }));
+    const result = handoff.validateHandoff(drifted);
+    expect(result.ok, "a handoff whose branch disagrees with its epoch was accepted").toBe(false);
+    expect(result.problems.join(" ")).toMatch(/disagrees|does not match/);
+  });
+});
