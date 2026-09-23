@@ -504,10 +504,24 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
     // …and the legacy single name is gone from the adapter entirely.
     expect(REQUIRED_PROMOTION_CHECKS).not.toContain("validate");
 
-    // Measured, not remembered: the declaration is checked against the workflow that produces the contexts, so
-    // the gate and the CI it gates cannot drift into two opinions. (The LIVE ruleset is a platform fact and is
-    // measured by `scripts/verify-authority-separation.cjs --platform`, not by a unit test.)
-    const workflow = fs.readFileSync(path.join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8").split(/\r?\n/);
+    // Measured, not remembered: the declaration is checked against the repository, so the gate and the CI it
+    // gates cannot drift into two opinions. (The LIVE ruleset is a platform fact and is measured by
+    // `scripts/verify-authority-separation.cjs --platform`, not by a unit test.)
+    //
+    // WHAT IS COMPARED, AND WHY IT IS NO LONGER "EVERY JOB ID". This assertion used to require the declaration
+    // to equal the workflow's job ids, which was true only while every job in `ci.yml` was required. Phase 1B-B
+    // added the `architecture` shadow job, which is deliberately NOT required — that is the whole point of
+    // hosted stage S1: the check must exist, report and accumulate evidence BEFORE anyone makes it block. The
+    // old form would have demanded `architecture` be added to `REQUIRED_PROMOTION_CHECKS`, which would have made
+    // it required by the autonomous gate and, worse, would have encoded "every job is required" as the contract.
+    //
+    // So the comparison is now against the two places that actually say which contexts are REQUIRED — the
+    // repository's own statement of the ruleset (`.github/CODEOWNERS`, which would have to be edited to change
+    // it) and the workflow's own `required_status_checks` absence — plus the requirement that each of the four
+    // is really produced as a job. A non-required job is allowed to exist; a required context that no job
+    // produces is still a failure, and a required context missing from the declaration is still a failure.
+    const workflowText = fs.readFileSync(path.join(process.cwd(), ".github", "workflows", "ci.yml"), "utf8");
+    const workflow = workflowText.split(/\r?\n/);
     const jobsAt = workflow.findIndex((line) => /^jobs:\s*$/.test(line));
     expect(jobsAt, "ci.yml must declare a jobs block").toBeGreaterThanOrEqual(0);
     const jobIds: string[] = [];
@@ -516,7 +530,30 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
       if (job) jobIds.push(job[1]);
     }
     expect(jobIds.length, "the workflow must declare its jobs").toBeGreaterThan(0);
-    expect([...REQUIRED_PROMOTION_CHECKS].sort()).toEqual(jobIds.slice().sort());
+
+    // Every required context is really produced by a job in this workflow.
+    for (const check of REQUIRED_PROMOTION_CHECKS) {
+      expect(jobIds, `the declaration names \`${check}\` but no job in ci.yml produces that context`).toContain(check);
+    }
+
+    // The required set, as the repository states it. CODEOWNERS is the tracked record of the ruleset contract;
+    // a workflow cannot make a check required, so this is the only in-repository authority for the list.
+    const codeowners = fs.readFileSync(path.join(process.cwd(), ".github", "CODEOWNERS"), "utf8");
+    const requiredLine = codeowners.split(/\r?\n/).find((line) => /Required status checks\s*=/.test(line));
+    expect(requiredLine, "CODEOWNERS no longer states the required status-check contract").toBeTruthy();
+    for (const check of REQUIRED_PROMOTION_CHECKS) {
+      expect(requiredLine, `\`${check}\` is in the declaration but not in the ruleset contract CODEOWNERS states`).toMatch(new RegExp(`\\b${check}\\b`));
+    }
+    // ...and the declaration names nothing the ruleset does not require. A check required by the autonomous gate
+    // but not by the platform would park every promotion on a gate the platform never demanded.
+    const statedRequired = (requiredLine ?? "").match(/\b(quality|unit|acceptance|package|architecture|validate)\b/g) ?? [];
+    expect([...new Set(statedRequired)].sort(), "the declaration and the ruleset contract disagree").toEqual([...REQUIRED_PROMOTION_CHECKS].sort());
+
+    // The non-required shadow job exists and is NOT required: present as a job, absent from the declaration and
+    // from the ruleset contract. This is the property Phase 1B-B is about, asserted where the drift would show.
+    expect(jobIds, "the hosted `architecture` shadow job is gone from ci.yml").toContain("architecture");
+    expect(REQUIRED_PROMOTION_CHECKS as readonly string[]).not.toContain("architecture");
+    expect(requiredLine ?? "", "the architecture check was added to the required set").not.toMatch(/architecture/);
   });
 
   it("refuses to push the protected base branch directly", async () => {

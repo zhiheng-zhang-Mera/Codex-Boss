@@ -18,11 +18,11 @@
  *
  * THE ONE THING THIS FILE ADDS: FAIL-CLOSED CLASSIFICATION
  *   The engine's own contract is "policy violation -> exit 0 in shadow; engine error -> non-zero in both". That
- *   contract is right for the engine and is NOT sufficient for the hosted gate, because the spec's fail-closed
- *   table (section 5) names conditions that the engine classifies as `severity: VIOLATION` while still exiting
- *   0 in shadow mode -- `SENSOR_INCOMPLETE` above all. A hosted shadow job that exited 0 on an incomplete
- *   sensor would be a gate that could not look, reporting that there was nothing to see, which is the exact
- *   failure mode the Phase 1B specification exists to prevent (section 5, rule 1).
+ *   contract is right for the engine and is NOT sufficient for the hosted gate, because the fail-closed table of
+ *   docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md (§5) names conditions that the engine classifies as
+ *   `severity: VIOLATION` while still exiting 0 in shadow mode -- `SENSOR_INCOMPLETE` above all. A hosted shadow
+ *   job that exited 0 on an incomplete sensor would be a gate that could not look, reporting that there was
+ *   nothing to see, which is the exact failure mode that document's rule 1 exists to prevent.
  *
  *   So this file draws the line the hosted job needs, and draws it ON FINDING CODES rather than on the engine's
  *   exit code:
@@ -81,8 +81,8 @@ const EPOCH_PATH = path.join("trust-policy", "trust-epoch.json");
  * not measure, could not establish what governs, or the sensor is known to be incomplete. Everything else is a
  * finding about the tree, which shadow reports without blocking.
  *
- * This list is the machine-readable form of docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md section 5. It is
- * asserted against that section by tests/unit/city/architecture-hosted-shadow.test.ts (S1..S4, H7).
+ * This list is the machine-readable form of docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §5. It is
+ * asserted against that document by tests/unit/city/architecture-hosted-shadow.test.ts (S1..S4, H7).
  */
 const MACHINERY_CODES = [
   "ENGINE_ERROR",
@@ -111,8 +111,9 @@ const MACHINERY = new Set(MACHINERY_CODES);
 
 /**
  * Findings that are not about the tree at all: they are the engine stating a fact about the repository or about
- * its own ability to look. They are exactly the spec section 5 rows whose state is "implemented" but whose
- * hosted consequence the engine cannot express, because the engine's shadow contract is policy-only.
+ * its own ability to look. They are exactly the fail-closed rows of docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md
+ * whose state is "implemented" but whose hosted consequence the engine cannot express, because the engine's
+ * shadow contract is policy-only.
  */
 function classifyPolicy(finding) {
   if (MACHINERY.has(finding.code)) return "FAIL_CLOSED";
@@ -124,7 +125,8 @@ function classifyPolicy(finding) {
 
 /**
  * Normalize one finding into the identity a parity comparison is allowed to use. Count alone is explicitly NOT
- * sufficient (mission section 8), so the shape carries code + subject identity + severity + policy class and
+ * sufficient (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §8 and the Mission-4C brief's parity requirement), so
+ * the shape carries code + subject identity + severity + policy class and
  * nothing volatile -- no timestamps, no file counts, no ordering.
  */
 function normalizeFinding(finding) {

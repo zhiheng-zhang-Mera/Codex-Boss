@@ -14,9 +14,20 @@
  * — be "fixed" by substituting one of the four names, which would make the gate look like it verified CI while
  * checking a quarter of it.
  *
- * The promotion gate reads this declaration. `Desktop CI` emits exactly these four job ids, and
- * `tests/unit/promotion-gate.test.ts` reads `.github/workflows/ci.yml` and fails if the two lists stop being the
- * same — so the gate and the pipeline it gates cannot drift into two opinions.
+ * The promotion gate reads this declaration. `Desktop CI` emits these four job ids, and
+ * `tests/unit/promotion-gate.test.ts` reads `.github/workflows/ci.yml` and `.github/CODEOWNERS` and fails if this
+ * list, the required set the ruleset contract names, and the jobs the workflow really produces stop agreeing —
+ * so the gate and the pipeline it gates cannot drift into two opinions.
+ *
+ * ## Not every job in `ci.yml` is required, deliberately
+ *
+ * Phase 1B-B (hosted stage S1) added an `architecture` job that runs the prospective architecture enforcer in
+ * shadow mode. It is a real job in the same workflow and it is **not** required: making it required is stage S3,
+ * a ruleset edit and nothing else, and an Owner act. So `Desktop CI`'s job list and this list are no longer the
+ * same set, and they are not supposed to be — the property this file asserts is "every REQUIRED context is
+ * produced and declared", not "every produced context is required". A gate that demanded the latter would either
+ * block promotion on a check the platform never required, or force a non-required check into the required set to
+ * keep a test green, which is exactly the activation this phase must not perform.
  *
  * ## What this file is NOT
  *

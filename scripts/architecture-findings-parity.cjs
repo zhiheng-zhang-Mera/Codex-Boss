@@ -2,8 +2,8 @@
 /**
  * Capability City Phase 1B-B — local/hosted architecture findings parity.
  *
- * Specification (normative): docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md section 8;
- * Mission-4C section 8 ("hosted/local parity", "a count match is insufficient").
+ * Specification (normative): docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §8, and the Mission-4C brief's parity
+ * requirement ("hosted/local parity", "a count match is insufficient").
  *
  * THE FAILURE THIS TOOL EXISTS TO PREVENT
  *   "Both runs reported 1677 findings, so they agree" is not parity. Two runs can report the same NUMBER of
@@ -33,7 +33,8 @@
  *   2  the inputs could not be read or are not shadow artifacts, which is a machinery failure and not a pass
  *
  * A MISSING INPUT IS NEVER A PASS. An unavailable comparison exits 2 rather than reporting parity, because
- * "I could not compare" and "they agree" are different statements (spec section 5, rule 1).
+ * "I could not compare" and "they agree" are different statements (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md
+ * §5, rule 1).
  */
 
 "use strict";
