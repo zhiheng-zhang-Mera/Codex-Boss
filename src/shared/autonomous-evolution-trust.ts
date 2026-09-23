@@ -119,8 +119,9 @@ export const ROOT_TRUST_SURFACE_EXTENSIONS: readonly string[] = [
    * (matching `acceptance-evolution-*.cjs`) advanced the epoch and was Root Trust, but the module that decides
    * whether a produced epoch branch is handed off for merging — and that writes the machine-readable handoff the
    * PR transport consumes — classified `PRODUCT_SURFACE`, so this run could rewrite it without opening an epoch.
-   * A terminal decision the machine may rewrite is a gate the machine can turn green, which is precisely the
-   * defect class §3 exists to prevent.
+   * A terminal decision the machine may rewrite is a gate the machine can turn green: it is exactly the
+   * disagreement this boundary exists to prevent, because the surface must contain whatever can decide whether a
+   * boundary change is authorised.
    *
    * Named literally, one file at a time, like the architecture entries below: `scripts/` holds ordinary product
    * tooling that must stay autonomous, and the point of the entry is to name the judge rather than to freeze the
