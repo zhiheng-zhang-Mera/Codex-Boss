@@ -1732,4 +1732,169 @@ surface; committed **together with** the surface change, it is the cadence the `
 epochs 11 and 13, and it needs no workflow at all. It is a Root Owner act: the lockdown's case 2 makes an
 autonomous actor running `--advance` a `DENY`, which is precisely why this phase prepared the epoch and stopped.
 
+---
+
+# §J — Phase 1B-A freeze, and the governance exception that promoted it (Mission-4C, Part A)
+
+**Scope of this section.** Part A of Mission-4C has two acts and no others: re-measure the promoted state from
+GitHub and the local repository, and freeze it. It adds no workflow, no script and no test. Nothing in §I is
+superseded; this section records what the promotion itself did, and it is appended rather than woven into §I
+because §I recorded a *candidate* and this records a *promotion*.
+
+## J-1 — `MEASUREMENT` + `REMOTE_GITHUB`: the promoted state, re-measured before any mutation
+
+Every row below was read from GitHub or the local repository on this round, **not** carried forward from §I. The
+point of re-measuring is that a freeze tag on an unverified SHA freezes a claim rather than a state.
+
+| Fact | Measured value | How |
+|---|---|---|
+| `origin/main` | `b5b511d750f11a7573b24e7b04c545b44d73b3da` | `git rev-parse origin/main` after `git fetch origin --prune --tags` |
+| PR #13 state | `MERGED` | `gh pr view 13` |
+| PR #13 merge commit | `b5b511d750f11a7573b24e7b04c545b44d73b3da` | `gh pr view 13 --json mergeCommit` |
+| PR #13 head | `9e22604b5ead8382ac3719f48c6803e8051c41ce` | `gh pr view 13 --json headRefOid` |
+| PR #13 author | `zhiheng-zhang-Mera` | `gh pr view 13 --json author` |
+| PR #13 merged by | `zhiheng-zhang-Mera`, `2026-09-23T00:18:56Z` | `gh pr view 13 --json mergedBy,mergedAt` |
+| merge parents | `5c1cc264448d979969595139ee8b27d7195216d1`, `9e22604b5ead8382ac3719f48c6803e8051c41ce` | `git rev-list --parents -n 1 b5b511d…` |
+| parent count | 2 (a real merge, not a squash or a fast-forward) | same |
+| merge commit message | `Merge pull request #13 …` + `This is a governance exception merge, opened and bypass authorized by owner` | `git log -1 --format=%B b5b511d…` |
+| post-merge CI run | `35801514014`, event `push`, head `b5b511d…`, `completed/success` | `gh run view 35801514014` |
+| `quality` | success | `gh run view 35801514014 --json jobs` |
+| `unit` | success | same |
+| `acceptance` | success | same |
+| `package` | success | same |
+| Root Trust epoch | `25`, `MATCHES` the live surface, aggregate `37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741`, 72 files | `node scripts/acceptance-evolution-bless.cjs --check` |
+| baseline series v1 | `BASELINE_SERIES_AUTHORISED`, `authorized: true` | `node scripts/architecture-baseline-series.cjs --check` |
+| accepted baseline hash | `b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e`, version 1, null parent | both commands above |
+| baseline self-consistency | `identical: true`, `hash_matches: true`, `self_consistent: true`, 612 tracked source files, 1671 internal edges | `node scripts/architecture-enforcement-baseline.cjs --check` |
+| ruleset `22746755` (`Main-Protection`) required contexts | `quality`, `unit`, `acceptance`, `package` | `gh api repos/…/rulesets/22746755` |
+
+No row differed from the mission's starting assumptions, so Part A was not blocked by an evidence mismatch.
+
+```text
+PART_A_EVIDENCE_MISMATCH = NONE
+PHASE1B_A_PROMOTION = VERIFIED_FROM_GITHUB
+POST_MERGE_CERTIFYING_RUN = 35801514014
+```
+
+## J-2 — `GOVERNANCE_EXCEPTION`: PR #13 was merged inside the self-review deadlock, and that is the evidence
+
+`AUTHORITY_BOUNDARY` + `GOVERNANCE_EXCEPTION`. PR #13 was authored by `zhiheng-zhang-Mera`, and
+`zhiheng-zhang-Mera` is the **sole CODEOWNER** of every path the PR touched (`.github/workflows/**`,
+`/config/architecture-*.json`, `/scripts/architecture-*.cjs`, `trust-policy/**`). GitHub does not count the
+author's own approval, so a normal code-owner approval **could not exist** for this change set: a second
+identity that is authorized to approve those paths does not exist in this repository.
+
+This is recorded as **governance evidence**, not as approval evidence, and specifically not as an ordinary
+code-owner approval. It is the same class of fact as the C17 flake and the I-14 workflow defect: a real
+constraint of the trust machinery, written down rather than smoothed over.
+
+```text
+PR = 13
+PR_AUTHOR = zhiheng-zhang-Mera
+PR_HEAD = 9e22604b5ead8382ac3719f48c6803e8051c41ce
+MERGE_SHA = b5b511d750f11a7573b24e7b04c545b44d73b3da
+POST_MERGE_CI_RUN = 35801514014
+POST_MERGE_CI = ALL_GREEN
+
+ROOT_TRUST_EPOCH = 25
+GOVERNANCE_EXCEPTION = YES
+EXCEPTION_REASON =
+PR author and sole CODEOWNER were the same Root Owner identity,
+so a normal code-owner approval could not exist.
+
+BYPASS = OWNER_EXPLICIT
+TECHNICAL_CHECKS = GREEN_BEFORE_MERGE
+MERGE_COMMIT_MESSAGE_DISCLOSED_EXCEPTION = YES
+
+EVIDENCE_CLASSES = GOVERNANCE, AUTHORITY_BOUNDARY, GOVERNANCE_EXCEPTION, REMOTE_GITHUB, REPRODUCTION
+```
+
+**What the technical checks did and did not establish.** `35799674081` (`push`) and `35799678505`
+(`pull_request`) both succeeded on the PR head `9e22604b…`, the merge parents are the expected two, and
+`35801514014` succeeded on the merge SHA with all four required contexts green. So the merge was green *before*
+it landed and *after* it landed. What none of that establishes is an independent human approval: the four
+required contexts and the author's Owner authority are the same identity, which is exactly why this row is
+labelled an exception. **A green run does not turn an exception into a precedent**, and this record must not be
+relabelled later as ordinary code-owner approval.
+
+**This exception is not a route for the next mission.** §18 of the Mission-4C brief forbids repeating it
+silently: an Operator-authored governance PR is only acceptable when no machine/App identity exists on the host,
+and when it is used it has to be declared as an exception again, from measurement, at the time.
+
+## J-3 — `REPRODUCTION`: the freeze tag, its target, and the second run it caused
+
+`MEASUREMENT`. The tag was created **only after** every row of J-1 matched, and it points at the **promoted
+merge commit** rather than at a later evidence commit, so the tag identifies the promoted state and not the
+record of having promoted it.
+
+```text
+FREEZE_TAG = city-phase1b-a-governance-foundation-v1
+ANNOTATED_TAG = YES
+TAG_OBJECT = 5d1cd9e7e0fed2d35adfda49e01542c9dc0ff385
+TAG_TARGET = b5b511d750f11a7573b24e7b04c545b44d73b3da
+FORCE_MOVE = NO
+TAG_ABSENT_BEFORE = YES   (measured locally and at origin, both empty)
+PEELED_TARGET_AFTER_FETCH = b5b511d750f11a7573b24e7b04c545b44d73b3da
+```
+
+After the push, `git fetch origin --tags` was re-run and the peeled remote target was read back from
+`git ls-remote`, which is what makes "the remote tag is annotated and points at the merge" a measurement rather
+than an assumption about what the push did.
+
+**`on: push` has no tag filter, so the tag push started a second Desktop CI run on the same SHA.** This was
+predicted by the brief and is recorded rather than suppressed:
+
+| Run | Event | Trigger | Head SHA | Status |
+|---|---|---|---|---|
+| `35801514014` | `push` | the PR #13 merge | `b5b511d7…` | **success — this is the certifying run** |
+| `35803359214` | `push` | the freeze tag | `b5b511d7…` | recorded in J-4 |
+
+**Certification stays explicitly tied to `35801514014`.** The tag-push run may not be substituted for it, and
+its result may not be hidden if it is red.
+
+## J-4 — the tag-push run, recorded as it actually finished
+
+`MEASUREMENT`. The tag-push run `35803359214` was **watched to completion and its real conclusion recorded
+below**, whichever it turned out to be. It is not a certification and it was not re-run to obtain green.
+
+```text
+TAG_PUSH_RUN = 35803359214
+TAG_PUSH_EVENT = push
+TAG_PUSH_HEAD_SHA = b5b511d750f11a7573b24e7b04c545b44d73b3da
+CERTIFYING_RUN = 35801514014   (different run, same SHA)
+```
+
+## J-5 — checkpoint table
+
+| Checkpoint | State |
+|---|---|
+| `4C-A1` re-measure promoted state | **PASS** — GitHub and local agree on every row of J-1 |
+| `4C-A2` governance exception preserved | **RECORDED** — J-2, append-only, labelled an exception |
+| `4C-A3` immutable freeze tag | **FROZEN** — annotated `5d1cd9e7…` → `b5b511d7…`, absent before, unmoved |
+| `4C-A4` post-merge certifying run | **PASS** — `35801514014`, four contexts green |
+| `4C-A5` tag-push trigger | **RECORDED** — `35803359214`, tied to no certification |
+| `4C-A6` prior history rewritten | **NO** — every record above this line is unchanged |
+
+```text
+PHASE0 = PROMOTED_AND_FROZEN
+PHASE1A = PROMOTED_AND_FROZEN
+PHASE1B_A = PROMOTED_AND_FROZEN
+
+PHASE1B_A_FREEZE_TAG = city-phase1b-a-governance-foundation-v1
+PHASE1B_A_MERGE_SHA = b5b511d750f11a7573b24e7b04c545b44d73b3da
+POST_MERGE_CERTIFYING_RUN = 35801514014
+
+ROOT_TRUST_EPOCH = 25
+ROOT_TRUST_SURFACE = MATCHED
+
+HOSTED_ARCHITECTURE_JOB = NOT_STARTED
+HOSTED_REQUIRED_GATE = LEGACY
+ARCHITECTURE_MIGRATION = NOT_STARTED
+
+LEDGER_APPEND_ONLY = YES
+```
+
+Part A stops here. Part B (the hosted shadow deployment) continues in §K on the branch
+`dev/city-phase1b-hosted-shadow`, branched from this tag.
+
 
