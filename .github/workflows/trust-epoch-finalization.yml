@@ -26,10 +26,35 @@ name: Trust Epoch Finalization
 #
 # WHAT IT DELIBERATELY DOES NOT DO
 #
-# It does not push the epoch to `main` with a stored owner credential. It creates the epoch commit on a
-# branch and opens a pull request, so the final act is the Owner's merge under the repository ruleset
-# (`require_code_owner_review`, with the Owner as the only always-bypass actor). A workflow that held a
-# bypass PAT would be a second Owner credential in a runner, which Phase A4/A6 forbid.
+# It does not push the epoch to `main` with a stored owner credential. It creates the epoch commit on a branch and
+# hands the pull request off to the repository's machine identity, so the final act is the Owner's merge under the
+# repository ruleset (`require_code_owner_review`, with the Owner as the only always-bypass actor). A workflow that
+# held a bypass PAT would be a second Owner credential in a runner, which Phase A4/A6 forbid.
+#
+# THE TRANSPORT BOUNDARY, AND WHY IT MOVED (Mission-4D hardening)
+#
+# This workflow used to end with `gh pr create`. Repository policy does not permit the Actions `GITHUB_TOKEN` to
+# create pull requests, so that step failed -- and it failed identically for two consecutive epochs:
+#
+#     epoch 26:  ceremony PASS, --advance PASS, --check PASS, branch pushed PASS, gh pr create FAIL
+#     epoch 27:  ceremony PASS, --advance PASS, --check PASS, branch pushed PASS, gh pr create FAIL
+#
+# The epoch was correctly produced and anchored both times, and the workflow was reported FAILED both times. The
+# defect is semantic before it is operational: the terminal state described the workflow's TRANSPORT rather than its
+# CEREMONY, so a reader could not tell "the epoch is wrong" from "the epoch is right and nobody was told".
+#
+# The corrected shape:
+#
+#     produce + verify (--check) + push + hand off   ->  SUCCESS  (EPOCH_BRANCH_READY)
+#     nothing to migrate                             ->  SUCCESS  (NO_MIGRATION, nothing written)
+#     branch already exactly right                   ->  SUCCESS  (EPOCH_BRANCH_ALREADY_READY, no re-advance)
+#     branch exists and disagrees                    ->  FAILURE  (EPOCH_BRANCH_CONFLICT, fail closed)
+#
+# AUTHORITY IS REDUCED, NOT MOVED. `pull-requests: write` is gone because the permission existed only to fail; no
+# Owner credential, App private key or broader scope replaces it. PR transport belongs to the Codex-Boss App
+# machine identity (`createGitHubMachineRuntime` -> `GitHubGateway.createPullRequest`), which consumes the
+# machine-readable handoff this workflow writes. `contents: write` stays: the workflow must still commit and push
+# the epoch branch, and that is the whole of what it may do.
 
 on:
   workflow_dispatch:
@@ -49,7 +74,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   finalize:
@@ -95,11 +119,43 @@ jobs:
           "NEEDS_MIGRATION=$($proposal.needsMigration.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CURRENT_EPOCH=$($proposal.currentEpoch.trust_epoch)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "CANDIDATE_EPOCH=$($proposal.candidateEpoch.trust_epoch)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "BASE_SHA=$($proposal.repository.commit)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PROPOSED_SURFACE=$($proposal.candidateEpoch.root_surface_hash)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PROPOSED_PARENT=$($proposal.candidateEpoch.parent_epoch_hash)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # IDEMPOTENCY, BEFORE ANY WRITE.
+      #
+      # A rerun must not advance an epoch twice. The rule is decided by a pure module so it can be tested
+      # exhaustively, and this step refuses to move if the branch already carries a DIFFERENT record:
+      #
+      #   branch absent                      -> continue, produce it
+      #   branch present, same epoch record  -> EPOCH_BRANCH_ALREADY_READY, reuse it, do NOT advance
+      #   branch present, different record   -> EPOCH_BRANCH_CONFLICT, fail closed
+      #
+      # Overwriting or force-pushing an Owner-authorised epoch branch would destroy the record of a ceremony that
+      # already happened, so the conflict path is a refusal and not a repair.
+      - name: Stage B — check the epoch branch for an existing, already-finalized epoch
+        if: env.NEEDS_MIGRATION == 'true'
+        shell: pwsh
+        run: |
+          $branch = "trust-epoch/boss-root-trust-$env:CANDIDATE_EPOCH"
+          "EPOCH_BRANCH=$branch" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $existing = git ls-remote --heads origin $branch
+          if ([string]::IsNullOrWhiteSpace($existing)) {
+            "BRANCH_EXISTS=false" | Out-File -FilePath $env:GITHUB_ENV -Append
+            Write-Host "epoch branch $branch does not exist yet"
+            exit 0
+          }
+          "BRANCH_EXISTS=true" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "epoch branch $branch already exists; reading the record it carries"
+          git fetch --depth 1 origin $branch
+          $existingJson = git show FETCH_HEAD:trust-policy/trust-epoch.json
+          [System.IO.File]::WriteAllText("$env:RUNNER_TEMP/existing-epoch.json", $existingJson, (New-Object System.Text.UTF8Encoding($false)))
 
       # STAGE B. Only reached when the committed epoch genuinely does not anchor the live surface, which the
-      # proposal measured rather than assumed.
+      # proposal measured rather than assumed -- and only when the branch does not already carry the record.
       - name: Stage B — advance the epoch (Owner-authorised)
-        if: env.NEEDS_MIGRATION == 'true'
+        if: env.NEEDS_MIGRATION == 'true' && env.BRANCH_EXISTS != 'true'
         shell: pwsh
         run: |
           node scripts/acceptance-evolution-bless.cjs --advance
@@ -119,14 +175,18 @@ jobs:
           Write-Host "No epoch was advanced and no commit was created. This is a successful no-op."
 
       - name: Stage B — commit the epoch on an Owner-reviewed branch
-        if: env.NEEDS_MIGRATION == 'true'
+        if: env.NEEDS_MIGRATION == 'true' && env.BRANCH_EXISTS != 'true'
         shell: pwsh
         run: |
-          $branch = "trust-epoch/boss-root-trust-$env:CANDIDATE_EPOCH"
+          $branch = $env:EPOCH_BRANCH
           git config user.name "Codex-Boss Trust Epoch Finalization"
           git config user.email "trust-epoch@users.noreply.github.com"
           git checkout -b $branch
-          git add trust-policy/trust-epoch.json artifacts/platform-foundation/trust/trust-migration-proposal.json
+          # ONLY the epoch record is staged. `artifacts/**` is gitignored, so adding the proposal path here both
+          # refuses the pathspec and makes the step's success depend on the shell's native-command error
+          # preference -- a governance step whose outcome turns on a shell setting. The proposal survives as a
+          # workflow artifact upload, which is what the evidence step below is for.
+          git add trust-policy/trust-epoch.json
           $message = @"
           chore(trust): finalize epoch $env:CANDIDATE_EPOCH under Owner authorisation
 
@@ -139,38 +199,52 @@ jobs:
           $message | Out-File -FilePath commit-message.txt -Encoding utf8
           git commit -F commit-message.txt
           git push --set-upstream origin $branch
-          "EPOCH_BRANCH=$branch" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $sha = git rev-parse HEAD
+          "EPOCH_COMMIT=$sha" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "pushed $branch at $sha"
 
-      - name: Stage B — open the pull request for the Owner's merge
+      # THE TERMINAL DECISION, AND THE HANDOFF.
+      #
+      # This replaces the PR-creation step. It decides the terminal state from facts already measured (needs
+      # migration, branch existence, the expected record vs the one on the branch), exits 0 on every SUCCESS state
+      # and non-zero only on a genuine refusal, and writes the machine-readable handoff the App identity consumes.
+      #
+      # It does NOT create a pull request, and it holds no credential with which it could.
+      - name: Stage B — decide the terminal state and write the PR handoff
         if: env.NEEDS_MIGRATION == 'true'
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          $body = @(
-            "Trust epoch finalization, authorised through the ``boss-root-trust-owner`` protected environment.",
-            "",
-            "| field | value |",
-            "| --- | --- |",
-            "| current epoch | $env:CURRENT_EPOCH |",
-            "| candidate epoch | $env:CANDIDATE_EPOCH |",
-            "| authorised by | ${{ github.actor }} (environment approval) |",
-            "| reason | ${{ inputs.reason }} |",
-            "| risk | ${{ inputs.risk }} |",
-            "| rollback | ${{ inputs.rollback }} |",
-            "| run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |",
-            "",
-            "The epoch was produced by ``scripts/acceptance-evolution-bless.cjs --advance`` over the measured live",
-            "surface and verified with ``--check`` in this run. Merging this pull request is the final Owner act:",
-            "the workflow deliberately holds no bypass credential."
-          ) -join "`n"
-          $body | Out-File -FilePath pr-body.md -Encoding utf8
-          gh pr create --base main --head $env:EPOCH_BRANCH --title "chore(trust): finalize epoch $env:CANDIDATE_EPOCH" --body-file pr-body.md
+          $existingPath = "$env:RUNNER_TEMP/existing-epoch.json"
+          $existingArg = if (Test-Path $existingPath) { $existingPath } else { "" }
+          $expectedArg = if ($env:BRANCH_EXISTS -eq 'true') { "trust-policy/trust-epoch.json" } else { "" }
+          $handoffDir = "artifacts/platform-foundation/trust"
+          New-Item -ItemType Directory -Force -Path $handoffDir | Out-Null
+          $handoffPath = "$handoffDir/epoch-pr-handoff.json"
+          node scripts/trust-epoch-finalize-handoff.cjs `
+            --repository "${{ github.repository }}" `
+            --run-id "${{ github.run_id }}" `
+            --base-branch main `
+            --base-sha "$env:BASE_SHA" `
+            --candidate-epoch "$env:CANDIDATE_EPOCH" `
+            --branch "$env:EPOCH_BRANCH" `
+            --root-surface-hash "$env:PROPOSED_SURFACE" `
+            --expected-record "$expectedArg" `
+            --existing-record "$existingArg" `
+            --out $handoffPath
+          if ($LASTEXITCODE -ne 0) { Write-Error "TRUST_EPOCH_FINALIZATION_TERMINAL: the finalization did not reach a success state"; exit 1 }
+          $decision = Get-Content "$handoffDir/epoch-pr-decision.json" -Raw | ConvertFrom-Json
+          "FINALIZATION_RESULT=$($decision.state)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "FINALIZATION_RESULT=$($decision.state) PR_HANDOFF_REQUIRED=$($decision.pr_required)"
 
+      # The evidence. Two narrow generated files: the proposal Stage A measured, and the handoff the App consumes.
+      # NOT a corpus root, and never a credential.
       - name: Record the finalization evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trust-epoch-finalization-${{ github.run_id }}
-          path: artifacts/platform-foundation/trust/trust-migration-proposal.json
-          if-no-files-found: warn
+          path: |
+            artifacts/platform-foundation/trust/trust-migration-proposal.json
+            artifacts/platform-foundation/trust/epoch-pr-handoff.json
+            artifacts/platform-foundation/trust/epoch-pr-decision.json
+          if-no-files-found: warn
