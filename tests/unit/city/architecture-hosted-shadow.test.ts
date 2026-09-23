@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { describe, expect, it } from "vitest";
+import { describeLiveProbe, LIVE_PROBE_TIMEOUT_MS, probeLiveRuleset } from "./helpers/live-ruleset-probe";
 import { hostedShadowRunner } from "./helpers/phase1b-scripts";
 
 /**
@@ -410,14 +411,13 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
     }
   });
 
-  it("H7 the job is NOT referenced by the ruleset as required (stage S1, not S3)", () => {
+  it("H7 the repository contract keeps architecture non-required, and the live ruleset agrees when readable", () => {
     // "Required" is a RULESET property, and a workflow cannot set it -- so the invariant has to be asserted
-    // where it actually lives. It is asserted in two independent ways, and neither of them depends on a local
-    // cache file that a clean CI checkout would not have:
+    // where it actually lives. It is asserted in two independent ways:
     //
     //   (a) the repository's own statement of the ruleset contract, `.github/CODEOWNERS`, which names the exact
     //       required context list and would have to be edited to make `architecture` required;
-    //   (b) the live ruleset, read through the GitHub API when a credential is available.
+    //   (b) the live ruleset, read through the GitHub API WHEN READABLE.
     //
     // Making the check required is stage S3 -- a ruleset edit and nothing else -- and it is an Owner act this
     // mission may not take. If `architecture` appears in either place, this mission has activated a gate it was
@@ -431,32 +431,44 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
     // The workflow side: no workflow file may name a required architecture context or add one.
     expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8"))).not.toMatch(/required_status_checks/);
 
-    // (b) The live measurement, when GitHub can be reached. A clean hosted runner has no credential and cannot
-    // reach it, so this branch is REPORTED rather than hidden -- but note what it is not: the previous revision
-    // ended with `expect(status === 0 || error !== undefined || stderr.length > 0).toBe(true)`, which is true on
-    // every possible input and therefore asserted nothing at all. A conditional skip is stated as a skip.
-    const result = spawnSync("gh", ["api", "repos/zhiheng-zhang-Mera/Codex-Boss/rulesets/22746755"], { encoding: "utf8", timeout: 120000 });
-    const liveReadable = !result.error && result.status === 0 && String(result.stdout ?? "").trim().startsWith("{");
-    if (!liveReadable) {
-      // No credential on this runner, so the live ruleset is NOT measured here. Rather than assert a tautology,
-      // this branch re-asserts the in-repository contract that IS available -- and says out loud that the
-      // platform fact was not measured, so a reader of a green run is not misled into thinking it was.
+    // (b) The live read, bounded.
+    //
+    // WHY THIS IS NOW A HELPER, AND WHY THE TIMEOUT MATTERS. This case previously spawned `gh api …` with
+    // `timeout: 120000` from inside a Vitest case whose own timeout is 60 seconds. On the GitHub-hosted runner,
+    // where `gh` is unauthenticated, the child blocked and the CASE was killed: measured on PR #19, run
+    // 35851017393, `Error: Test timed out in 60000ms.` A child timeout above the enclosing test's timeout is not a
+    // timeout. `probeLiveRuleset` bounds the attempt well below it and returns exactly one of two states.
+    const probe = probeLiveRuleset();
+    process.stdout.write(`${describeLiveProbe(probe)}\n`);
+
+    if (probe.state === "LIVE_NOT_MEASURED") {
+      // The platform fact was NOT measured, and this branch does not pretend otherwise. What it does instead is
+      // re-assert the deterministic repository-side contract, which is genuinely available on any runner:
+      // CODEOWNERS still states the legacy four, no workflow mutated a required context, and the architecture job
+      // is structurally independent and non-required.
+      //
+      // A GREEN H7 HERE IS NOT PROOF ABOUT THE LIVE PLATFORM. The Mission-4D live ruleset fact is measured
+      // separately by a read-only API inspection and reported independently; it is never inferred from this test.
       const contract = codeowners.split(/\r?\n/).filter((line) => /Required status checks\s*=/.test(line)).join("\n");
       for (const check of ["quality", "unit", "acceptance", "package"]) {
         expect(contract, `the CODEOWNERS ruleset contract no longer names ${check}`).toContain(check);
       }
       expect(contract, "the CODEOWNERS ruleset contract now names the architecture check").not.toContain("architecture");
       expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8")), "a workflow gained a required_status_checks block").not.toMatch(/required_status_checks/);
-      process.stdout.write(`[H7] live ruleset NOT measured on this runner (${result.error ? String(result.error.message) : `gh exit ${String(result.status)}`}); verified against CODEOWNERS and the workflow instead\n`);
+      const architectureJob = ciWorkflow().parsed.jobs?.architecture;
+      expect(architectureJob, "the architecture job is gone from ci.yml").toBeTruthy();
+      expect(architectureJob?.needs, "the architecture job gained a `needs:`, so it is no longer structurally independent").toBeUndefined();
+      expect(architectureJob?.if, "the architecture job gained an `if:`").toBeUndefined();
       return;
     }
-    const ruleset = JSON.parse(String(result.stdout ?? "")) as { id: number; rules?: Array<{ type: string; parameters?: { required_status_checks?: Array<{ context: string }> } }> };
-    expect(ruleset.id).toBe(22746755);
-    const contexts = (ruleset.rules ?? [])
-      .filter((rule) => rule.type === "required_status_checks")
-      .flatMap((rule) => (rule.parameters?.required_status_checks ?? []).map((entry) => entry.context));
-    expect(contexts, `ruleset ${ruleset.id} no longer names the legacy required contexts`).toEqual(["quality", "unit", "acceptance", "package"]);
-    expect(contexts, "the architecture check must NOT be required in this mission").not.toContain("architecture");
+
+    // LIVE_MEASURED: the ruleset really was read, so the platform facts may be asserted.
+    expect(probe.ruleset_id).toBe(22746755);
+    expect(probe.required_contexts, "the live ruleset no longer names exactly the legacy required contexts").toEqual(["quality", "unit", "acceptance", "package"]);
+    expect(probe.architecture_required, "the architecture check must NOT be required in this mission").toBe(false);
+    // The bound is part of the contract, not a detail: a probe that could outlive its enclosing timeout is the
+    // defect this repair fixes, so it is asserted where it can be seen.
+    expect(probe.elapsed_ms, "the live probe exceeded its own bound").toBeLessThan(LIVE_PROBE_TIMEOUT_MS);
   });
 });
 

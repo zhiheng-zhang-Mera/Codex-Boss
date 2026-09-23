@@ -188,11 +188,74 @@ jobs:
           if ($meta.baseline_series_status -ne "AUTHORISED") { throw "ARCHITECTURE_SHADOW_SERIES: $($meta.baseline_series_status)" }
           if ($meta.baseline_self_consistent -ne $true) { throw "ARCHITECTURE_SHADOW_BASELINE: the accepted baseline is not self-consistent with this tree" }
           Write-Host "ARCHITECTURE_SHADOW_VERDICT=$($meta.shadow_verdict) FINDINGS=$($meta.findings_count) DIGEST=$($meta.findings_semantic_hash) EPOCH=$($meta.root_trust_epoch) NOT_YET_ENFORCED=$($meta.not_yet_enforced.Count)"
+      # 5. S2 (phase 1B, stage S2): the REAL governing enforce mode, visible and still NOT required.
+      #
+      #    ADDITIVE, NOT A REPLACEMENT. The shadow steps above remain exactly as they were; this step adds the
+      #    enforcing evaluation beside them. Shadow is evidence; enforce is policy. Removing shadow here would
+      #    destroy the S1 evidence trail and `tests/unit/city/architecture-s2-hosted-enforce.test.ts` fails if it
+      #    disappears.
+      #
+      #    A SEPARATE OUTPUT DIRECTORY, deliberately. `architecture:enforce:shadow` writes to `engine-shadow/` and
+      #    this writes to `engine-enforce/`, so neither can overwrite the other and a reader can always tell which
+      #    mode produced a file. The engine names its outputs by mode
+      #    (`architecture-enforcement-shadow.json` / `architecture-enforcement-live.json`), so the two directories
+      #    are the only thing keeping them apart.
+      #
+      #    ON THE NORMAL TREE THIS EXITS 0. It exits non-zero only on a policy violation or an engine/machinery
+      #    failure — that is what makes it enforcement rather than a report. It is NOT in the ruleset's
+      #    required_status_checks: making it required is stage S3, a ruleset edit and nothing else, and an Owner
+      #    act this phase does not perform.
+      #
+      #    The governing path is used unmodified: no `--baseline` and no `--authorizations`, so the run reads the
+      #    committed accepted baseline and `trust-policy/architecture-enforcement-baselines.json`. Redirecting
+      #    either through a fixture seam would make the gate optional.
+      - run: pnpm run architecture:enforce -- --out artifacts/city/phase1/engine-enforce
+      # 6. The S2 entry proof: ENF-12 on the HOSTED runner, not a relabelled local comparison.
+      #
+      #    `--mode shadow-enforce` compares the two artifacts the two steps above just produced, using the SAME
+      #    normalized identity and the SAME multiset comparison as the local/hosted mode
+      #    (`scripts/architecture-findings-parity.cjs`). The property it proves is the one that makes shadow
+      #    evidence about enforce: one evaluator, two modes, and only the EXIT CODE differs. A policy violation
+      #    must therefore appear identically in both, and this step fails if it does not.
+      #
+      #    A missing or unreadable input is `PARITY_NOT_MEASURED` and exits 2 — never a pass. A gate that turns
+      #    "I could not compare" into "the modes agree" is the failure this phase exists to prevent.
+      - name: Hosted shadow/enforce parity (ENF-12)
+        run: node scripts/architecture-findings-parity.cjs --mode shadow-enforce --shadow artifacts/city/phase1/engine-shadow --enforce artifacts/city/phase1/engine-enforce
+      # 7. The S2 evidence must itself be present, and must be honest about what it measured. The parity step
+      #    already exits non-zero on disagreement; this step asserts the records exist, are non-empty, and that
+      #    the enforce run reported zero engine errors and an authorised, self-consistent baseline. It also
+      #    asserts the parity report says what it is — `shadow-enforce`, not the local/hosted mode — so a future
+      #    edit cannot quietly swap one comparison for the other and keep the same green.
+      - name: Hosted enforce and parity evidence is present and complete
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $required = @(
+            "artifacts/city/phase1/engine-enforce/architecture-enforcement-live.json",
+            "artifacts/city/phase1/engine-shadow/architecture-enforcement-shadow.json"
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) { throw "ARCHITECTURE_S2_EVIDENCE_MISSING: $file was not produced" }
+            if ((Get-Item $file).Length -eq 0) { throw "ARCHITECTURE_S2_EVIDENCE_EMPTY: $file is empty" }
+          }
+          $enforce = Get-Content "artifacts/city/phase1/engine-enforce/architecture-enforcement-live.json" -Raw | ConvertFrom-Json
+          if ($enforce.mode -ne "enforce") { throw "ARCHITECTURE_S2_MODE: the enforce artifact reports mode '$($enforce.mode)'" }
+          if ($enforce.verdict -ne "PASS") { throw "ARCHITECTURE_S2_VERDICT: $($enforce.verdict)" }
+          if ($enforce.summary.engine_errors -ne 0) { throw "ARCHITECTURE_S2_ENGINE_ERRORS: $($enforce.summary.engine_errors)" }
+          if ($enforce.summary.violations -ne 0) { throw "ARCHITECTURE_S2_POLICY_VIOLATIONS: $($enforce.summary.violations)" }
+          # The macro shadow a reader will scan the job for: settings live in a file, so they can drift.
+          Write-Host "ARCHITECTURE_S2_ENFORCE_VERDICT=$($enforce.verdict) FINDINGS=$($enforce.summary.findings_total) VIOLATIONS=$($enforce.summary.violations) ENGINE_ERRORS=$($enforce.summary.engine_errors)"
       # The narrow hosted evidence artifact. NOT a corpus root and NOT an evidence tree:
       # `artifacts/**`, `runtime-data/**`, `history/**` and `.codex-boss/**` are never
-      # uploaded, and the two files below are generated records, not repository state.
+      # uploaded, and the files below are generated records, not repository state.
       # `if: always()` because a failed architecture job is exactly when its findings are
       # worth reading.
+      #
+      # THE S1 ARTIFACT IS KEPT SEPARATE FROM THE S2 ONE. `architecture-shadow` still means exactly what it meant
+      # in stage S1 — the shadow evidence — and the new `architecture-enforce-visible` carries the enforce
+      # evidence alongside it. Adding enforce to the S1 artifact would silently change the meaning of every
+      # historical `architecture-shadow` download, which is why the names are distinct rather than merged.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -200,6 +263,14 @@ jobs:
           path: |
             artifacts/city/phase1/architecture-enforcement-shadow.json
             artifacts/city/phase1/architecture-shadow-metadata.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: architecture-enforce-visible
+          path: |
+            artifacts/city/phase1/engine-enforce/architecture-enforcement-live.json
+            artifacts/city/phase1/engine-shadow/architecture-enforcement-shadow.json
           if-no-files-found: warn
 
   unit:
