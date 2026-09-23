@@ -44,19 +44,34 @@ const path = require("node:path");
 
 const runner = require("./architecture-shadow-hosted.cjs");
 
+/**
+ * The canonical artifact file names, one per mode.
+ *
+ * `scripts/architecture-enforcement.cjs` names its output by MODE -- `architecture-enforcement-shadow.json` for
+ * `--mode shadow` and `architecture-enforcement-live.json` for `--mode enforce`. A directory argument is therefore
+ * resolved against the names that mode actually writes, rather than against one hardcoded name: an S2 comparison
+ * that looked only for the shadow name would silently report PARITY_NOT_MEASURED for every enforce input, which is
+ * a fail-closed outcome but not a useful one.
+ */
 const SHADOW_NAME = "architecture-enforcement-shadow.json";
+const ENFORCE_NAME = "architecture-enforcement-live.json";
+const DIRECTORY_NAMES = [SHADOW_NAME, ENFORCE_NAME];
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-/** Accept either the artifact itself or the directory that contains it. */
-function resolveArtifact(candidate) {
+/** Accept either an artifact file or a directory containing one of the canonical artifacts. */
+function resolveArtifact(candidate, preferredName) {
   if (!candidate) return null;
   const resolved = path.resolve(candidate);
   if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
-    const inside = path.join(resolved, SHADOW_NAME);
-    return fs.existsSync(inside) ? inside : null;
+    const ordered = preferredName ? [preferredName, ...DIRECTORY_NAMES.filter((n) => n !== preferredName)] : DIRECTORY_NAMES;
+    for (const name of ordered) {
+      const inside = path.join(resolved, name);
+      if (fs.existsSync(inside)) return inside;
+    }
+    return null;
   }
   return fs.existsSync(resolved) ? resolved : null;
 }
@@ -101,13 +116,87 @@ function parseArgs(argv) {
     const index = argv.indexOf(flag);
     return index >= 0 && argv[index + 1] ? argv[index + 1] : null;
   };
-  return { local: value("--local"), hosted: value("--hosted") };
+  // TWO COMPARISONS, ONE IDENTITY.
+  //
+  //   local-hosted   the default: is a local evaluation the same as the hosted one? (Phase 1B-B §8)
+  //   shadow-enforce the S2 entry proof: do the SAME inputs produce the same findings in both modes? (ENF-12)
+  //
+  // The second is not a relabelled first. It compares two artifacts produced by `--mode shadow` and
+  // `--mode enforce` through ONE evaluator, and the property at stake is that only the EXIT CODE differs. It uses
+  // exactly the same normalized identity and the same multiset comparison, because a second normalization
+  // definition is how two comparisons start disagreeing about what a finding is.
+  const mode = value("--mode") ?? "local-hosted";
+  if (argv.includes("--shadow-enforce")) return { mode: "shadow-enforce" };
+  return { mode, local: value("--local"), hosted: value("--hosted"), shadow: value("--shadow"), enforce: value("--enforce") };
+}
+
+/**
+ * The shadow-versus-enforce comparison (ENF-12).
+ *
+ * Exit semantics mirror the local/hosted mode: agreement is 0, disagreement is 1, and an input that cannot be read
+ * or is not an artifact is **2 — `PARITY_NOT_MEASURED`**, never a pass. That last rule is what keeps a broken
+ * measurement from reading as "the two modes agree".
+ */
+function shadowEnforceMain(options) {
+  const shadowFile = resolveArtifact(options.shadow, SHADOW_NAME);
+  const enforceFile = resolveArtifact(options.enforce, ENFORCE_NAME);
+  const unreadable = [];
+  if (!shadowFile) unreadable.push(`--shadow ${options.shadow}`);
+  if (!enforceFile) unreadable.push(`--enforce ${options.enforce}`);
+  if (unreadable.length > 0) {
+    process.stdout.write(`${JSON.stringify({ state: "PARITY_NOT_MEASURED", mode: "shadow-enforce", parity: false, reason: `could not read ${unreadable.join(", ")}`, note: "a comparison that could not be made is not a pass" }, null, 2)}\n`);
+    return 2;
+  }
+  let shadowArtifact;
+  let enforceArtifact;
+  try {
+    shadowArtifact = readJson(shadowFile);
+    enforceArtifact = readJson(enforceFile);
+  } catch (error) {
+    process.stdout.write(`${JSON.stringify({ state: "PARITY_NOT_MEASURED", mode: "shadow-enforce", parity: false, reason: `an input is not JSON: ${error.message}`, note: "a comparison that could not be made is not a pass" }, null, 2)}\n`);
+    return 2;
+  }
+  const shadow = normalizedOf(shadowArtifact);
+  const enforce = normalizedOf(enforceArtifact);
+  if (!shadow.findings || !enforce.findings) {
+    process.stdout.write(`${JSON.stringify({ state: "PARITY_NOT_MEASURED", mode: "shadow-enforce", parity: false, reason: "an input carries no findings and no findings_normalized, so it is not an enforcement artifact", note: "a comparison that could not be made is not a pass" }, null, 2)}\n`);
+    return 2;
+  }
+  const comparison = runner.compareFindings(shadow.findings, enforce.findings);
+  const countOnlyTrap = comparison.local_count === comparison.hosted_count && comparison.local_findings_hash !== comparison.hosted_findings_hash;
+  const payload = {
+    state: comparison.parity ? "SHADOW_ENFORCE_PARITY" : "PARITY_DISAGREEMENT",
+    mode: "shadow-enforce",
+    parity: comparison.parity,
+    comparison: "finding identity (code + subject + severity + policy_class + detail digest), multiset comparison with multiplicity",
+    comparison_kind: comparison.comparison_kind,
+    digest_schema: runner.DIGEST_SCHEMA,
+    shadow: { artifact: path.resolve(shadowFile), normalized_source: shadow.source, findings_hash: comparison.local_findings_hash, findings_count: comparison.local_count, mode: shadowArtifact.mode ?? null, verdict: shadowArtifact.verdict ?? null },
+    enforce: { artifact: path.resolve(enforceFile), normalized_source: enforce.source, findings_hash: comparison.hosted_findings_hash, findings_count: comparison.hosted_count, mode: enforceArtifact.mode ?? null, verdict: enforceArtifact.verdict ?? null },
+    SHADOW_FINDINGS_HASH: comparison.local_findings_hash,
+    ENFORCE_FINDINGS_HASH: comparison.hosted_findings_hash,
+    HASHES_EQUAL: comparison.local_findings_hash === comparison.hosted_findings_hash,
+    COUNTS_EQUAL: comparison.local_count === comparison.hosted_count,
+    count_only_match_cannot_fake_parity: true,
+    count_only_trap_observed: countOnlyTrap,
+    only_shadow: comparison.only_local,
+    only_enforce: comparison.only_hosted,
+    multiplicity_differences: comparison.multiplicity_differences,
+    semantics: {
+      means: "shadow and enforce produced the same findings on the same inputs -- the ENF-12 identity, which is what makes shadow evidence about enforce",
+      does_not_mean: "shadow and enforce have the same exit code; only the exit code differs between the modes",
+    },
+  };
+  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+  return comparison.parity ? 0 : 1;
 }
 
 function main() {
   const options = parseArgs(process.argv.slice(2));
+  if (options.mode === "shadow-enforce") return shadowEnforceMain(options);
   if (!options.local || !options.hosted) {
-    process.stderr.write("usage: architecture-findings-parity.cjs --local <shadow.json|dir> --hosted <shadow.json|dir>\n");
+    process.stderr.write("usage: architecture-findings-parity.cjs --local <artifact|dir> --hosted <artifact|dir>\n");
+    process.stderr.write("       architecture-findings-parity.cjs --mode shadow-enforce --shadow <artifact|dir> --enforce <artifact|dir>\n");
     return 2;
   }
   const localFile = resolveArtifact(options.local);
@@ -169,7 +258,7 @@ function main() {
   return comparison.parity ? 0 : 1;
 }
 
-module.exports = { normalizedOf, resolveArtifact, main };
+module.exports = { normalizedOf, resolveArtifact, shadowEnforceMain, main };
 
 if (require.main === module) {
   try {

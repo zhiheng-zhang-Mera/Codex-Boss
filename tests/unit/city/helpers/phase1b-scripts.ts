@@ -75,6 +75,9 @@ export interface HostedShadowRunner {
 
 export interface FindingsParityTool {
   normalizedOf: (artifact: unknown) => { source: string | null; findings: NormalizedFinding[] | null };
+  resolveArtifact: (candidate: string | null, preferredName?: string) => string | null;
+  /** The S2 (ENF-12) shadow-versus-enforce comparison; exported so the S2 suite drives the shipped code. */
+  shadowEnforceMain: (options: { shadow: string | null; enforce: string | null }) => number;
 }
 
 const requireFromHere = createRequire(path.join(process.cwd(), "package.json"));

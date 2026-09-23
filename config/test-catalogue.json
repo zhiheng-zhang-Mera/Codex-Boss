@@ -517,6 +517,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/architecture-s2-hosted-enforce.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "S2 adds the real governing enforce evaluation to the hosted `architecture` job without making it required: the job keeps no needs/if/paths/branches, no ordinary job gates on it, no `continue-on-error` or `always()` can hide an enforce failure, and the legacy ratchet stays in the required quality job; shadow is provably NOT replaced (the shadow step, the hosted runner and both baseline checks survive beside the new enforce step, which writes to its own output directory so the modes cannot overwrite each other and the parity comparison cannot compare a file with itself); and the ENF-12 identity holds through the shipped comparator — shadow and enforce produce byte-identical findings on the same fixture and differ ONLY in exit behaviour (policy violation: shadow 0, enforce non-zero), while an unauthorised baseline series, an incomplete sensor and an engine error fail BOTH modes, parity is by identity and multiplicity rather than count, and a missing or unreadable parity input is PARITY_NOT_MEASURED and fails rather than passing",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/closure-terminal-logic.test.ts",
       "tier": "unit",
       "covers": [
