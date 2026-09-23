@@ -131,6 +131,19 @@
 /scripts/architecture.cjs                         @zhiheng-zhang-Mera
 /scripts/architecture-baseline.cjs                @zhiheng-zhang-Mera
 
+# Phase 1B-B: the HOSTED half of the same judge.
+#
+# The `architecture` job in `.github/workflows/ci.yml` is Owner-reviewed above, and it invokes
+# `scripts/architecture-shadow-hosted.cjs`. That protected the workflow while leaving the code the workflow
+# actually runs unprotected -- an actor that may edit the script can change what the hosted check concludes
+# without touching a single protected byte, which is no protection at all. The same argument applies to
+# `scripts/architecture-findings-parity.cjs`, which decides whether two findings sets are called equal.
+#
+# These files are NOT Root Trust Surface, and this block does not make them so: they are the hosted
+# instrumentation around a judge that already is. Adding them here is a review boundary, not an epoch move.
+/scripts/architecture-shadow-hosted.cjs           @zhiheng-zhang-Mera
+/scripts/architecture-findings-parity.cjs         @zhiheng-zhang-Mera
+
 
 # ============================================================================
 # 5. Root Authority policy surface

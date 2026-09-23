@@ -499,6 +499,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/architecture-hosted-shadow.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the hosted `architecture` job is visible and cannot disappear (H1..H7: the exact check identity, no paths filter, no branches filter, no conditional, both push and pull_request, the mandated checks in the specified order, no baseline widening, a narrow evidence artifact that excludes every corpus root, and no required-architecture context in the ruleset), shadow is not ignore-errors (S1..S6: an unauthorised baseline series, a baseline that does not re-derive from the tree, an engine error and an incomplete sensor each FAIL the job while an ordinary policy violation is merely reported and exits 0, proven against the discriminator that the engine's own shadow mode would have exited 0 on the same input), and parity is by finding identity rather than count (P1..P3: one normalized schema, an order-independent deterministic semantic digest, and a count-preserving subject mutation that a count-based comparison would have called a pass), together with a negative control that the legacy ratchet stays required in the quality job, that no ordinary job became dependent on the new one, and that no epoch was advanced",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/architecture-observatory.test.ts",
       "tier": "unit",
       "covers": [

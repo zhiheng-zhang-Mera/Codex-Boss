@@ -1732,4 +1732,1081 @@ surface; committed **together with** the surface change, it is the cadence the `
 epochs 11 and 13, and it needs no workflow at all. It is a Root Owner act: the lockdown's case 2 makes an
 autonomous actor running `--advance` a `DENY`, which is precisely why this phase prepared the epoch and stopped.
 
+---
+
+# §J — Phase 1B-A freeze, and the governance exception that promoted it (Mission-4C, Part A)
+
+**Scope of this section.** Part A of Mission-4C has two acts and no others: re-measure the promoted state from
+GitHub and the local repository, and freeze it. It adds no workflow, no script and no test. Nothing in §I is
+superseded; this section records what the promotion itself did, and it is appended rather than woven into §I
+because §I recorded a *candidate* and this records a *promotion*.
+
+## J-1 — `MEASUREMENT` + `REMOTE_GITHUB`: the promoted state, re-measured before any mutation
+
+Every row below was read from GitHub or the local repository on this round, **not** carried forward from §I. The
+point of re-measuring is that a freeze tag on an unverified SHA freezes a claim rather than a state.
+
+| Fact | Measured value | How |
+|---|---|---|
+| `origin/main` | `b5b511d750f11a7573b24e7b04c545b44d73b3da` | `git rev-parse origin/main` after `git fetch origin --prune --tags` |
+| PR #13 state | `MERGED` | `gh pr view 13` |
+| PR #13 merge commit | `b5b511d750f11a7573b24e7b04c545b44d73b3da` | `gh pr view 13 --json mergeCommit` |
+| PR #13 head | `9e22604b5ead8382ac3719f48c6803e8051c41ce` | `gh pr view 13 --json headRefOid` |
+| PR #13 author | `zhiheng-zhang-Mera` | `gh pr view 13 --json author` |
+| PR #13 merged by | `zhiheng-zhang-Mera`, `2026-09-23T00:18:56Z` | `gh pr view 13 --json mergedBy,mergedAt` |
+| merge parents | `5c1cc264448d979969595139ee8b27d7195216d1`, `9e22604b5ead8382ac3719f48c6803e8051c41ce` | `git rev-list --parents -n 1 b5b511d…` |
+| parent count | 2 (a real merge, not a squash or a fast-forward) | same |
+| merge commit message | `Merge pull request #13 …` + `This is a governance exception merge, opened and bypass authorized by owner` | `git log -1 --format=%B b5b511d…` |
+| post-merge CI run | `35801514014`, event `push`, head `b5b511d…`, `completed/success` | `gh run view 35801514014` |
+| `quality` | success | `gh run view 35801514014 --json jobs` |
+| `unit` | success | same |
+| `acceptance` | success | same |
+| `package` | success | same |
+| Root Trust epoch | `25`, `MATCHES` the live surface, aggregate `37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741`, 72 files | `node scripts/acceptance-evolution-bless.cjs --check` |
+| baseline series v1 | `BASELINE_SERIES_AUTHORISED`, `authorized: true` | `node scripts/architecture-baseline-series.cjs --check` |
+| accepted baseline hash | `b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e`, version 1, null parent | both commands above |
+| baseline self-consistency | `identical: true`, `hash_matches: true`, `self_consistent: true`, 612 tracked source files, 1671 internal edges | `node scripts/architecture-enforcement-baseline.cjs --check` |
+| ruleset `22746755` (`Main-Protection`) required contexts | `quality`, `unit`, `acceptance`, `package` | `gh api repos/…/rulesets/22746755` |
+
+No row differed from the mission's starting assumptions, so Part A was not blocked by an evidence mismatch.
+
+```text
+PART_A_EVIDENCE_MISMATCH = NONE
+PHASE1B_A_PROMOTION = VERIFIED_FROM_GITHUB
+POST_MERGE_CERTIFYING_RUN = 35801514014
+```
+
+## J-2 — `GOVERNANCE_EXCEPTION`: PR #13 was merged inside the self-review deadlock, and that is the evidence
+
+`AUTHORITY_BOUNDARY` + `GOVERNANCE_EXCEPTION`. PR #13 was authored by `zhiheng-zhang-Mera`, and
+`zhiheng-zhang-Mera` is the **sole CODEOWNER** of every path the PR touched (`.github/workflows/**`,
+`/config/architecture-*.json`, `/scripts/architecture-*.cjs`, `trust-policy/**`). GitHub does not count the
+author's own approval, so a normal code-owner approval **could not exist** for this change set: a second
+identity that is authorized to approve those paths does not exist in this repository.
+
+This is recorded as **governance evidence**, not as approval evidence, and specifically not as an ordinary
+code-owner approval. It is the same class of fact as the C17 flake and the I-14 workflow defect: a real
+constraint of the trust machinery, written down rather than smoothed over.
+
+```text
+PR = 13
+PR_AUTHOR = zhiheng-zhang-Mera
+PR_HEAD = 9e22604b5ead8382ac3719f48c6803e8051c41ce
+MERGE_SHA = b5b511d750f11a7573b24e7b04c545b44d73b3da
+POST_MERGE_CI_RUN = 35801514014
+POST_MERGE_CI = ALL_GREEN
+
+ROOT_TRUST_EPOCH = 25
+GOVERNANCE_EXCEPTION = YES
+EXCEPTION_REASON =
+PR author and sole CODEOWNER were the same Root Owner identity,
+so a normal code-owner approval could not exist.
+
+BYPASS = OWNER_EXPLICIT
+TECHNICAL_CHECKS = GREEN_BEFORE_MERGE
+MERGE_COMMIT_MESSAGE_DISCLOSED_EXCEPTION = YES
+
+EVIDENCE_CLASSES = GOVERNANCE, AUTHORITY_BOUNDARY, GOVERNANCE_EXCEPTION, REMOTE_GITHUB, REPRODUCTION
+```
+
+**What the technical checks did and did not establish.** `35799674081` (`push`) and `35799678505`
+(`pull_request`) both succeeded on the PR head `9e22604b…`, the merge parents are the expected two, and
+`35801514014` succeeded on the merge SHA with all four required contexts green. So the merge was green *before*
+it landed and *after* it landed. What none of that establishes is an independent human approval: the four
+required contexts and the author's Owner authority are the same identity, which is exactly why this row is
+labelled an exception. **A green run does not turn an exception into a precedent**, and this record must not be
+relabelled later as ordinary code-owner approval.
+
+**This exception is not a route for the next mission.** §18 of the Mission-4C brief forbids repeating it
+silently: an Operator-authored governance PR is only acceptable when no machine/App identity exists on the host,
+and when it is used it has to be declared as an exception again, from measurement, at the time.
+
+## J-3 — `REPRODUCTION`: the freeze tag, its target, and the second run it caused
+
+`MEASUREMENT`. The tag was created **only after** every row of J-1 matched, and it points at the **promoted
+merge commit** rather than at a later evidence commit, so the tag identifies the promoted state and not the
+record of having promoted it.
+
+```text
+FREEZE_TAG = city-phase1b-a-governance-foundation-v1
+ANNOTATED_TAG = YES
+TAG_OBJECT = 5d1cd9e7e0fed2d35adfda49e01542c9dc0ff385
+TAG_TARGET = b5b511d750f11a7573b24e7b04c545b44d73b3da
+FORCE_MOVE = NO
+TAG_ABSENT_BEFORE = YES   (measured locally and at origin, both empty)
+PEELED_TARGET_AFTER_FETCH = b5b511d750f11a7573b24e7b04c545b44d73b3da
+```
+
+After the push, `git fetch origin --tags` was re-run and the peeled remote target was read back from
+`git ls-remote`, which is what makes "the remote tag is annotated and points at the merge" a measurement rather
+than an assumption about what the push did.
+
+**`on: push` has no tag filter, so the tag push started a second Desktop CI run on the same SHA.** This was
+predicted by the brief and is recorded rather than suppressed:
+
+| Run | Event | Trigger | Head SHA | Status |
+|---|---|---|---|---|
+| `35801514014` | `push` | the PR #13 merge | `b5b511d7…` | **success — this is the certifying run** |
+| `35803359214` | `push` | the freeze tag | `b5b511d7…` | recorded in J-4 |
+
+**Certification stays explicitly tied to `35801514014`.** The tag-push run may not be substituted for it, and
+its result may not be hidden if it is red.
+
+## J-4 — the tag-push run, recorded as it actually finished
+
+`MEASUREMENT`. The tag-push run `35803359214` was **watched to completion** and its real conclusion is recorded
+below. It is not a certification and it was not re-run to obtain green.
+
+| Job | Result |
+|---|---|
+| `quality` | success |
+| `unit` | success |
+| `package` | success |
+| `acceptance` | success |
+
+```text
+TAG_PUSH_RUN = 35803359214
+TAG_PUSH_EVENT = push
+TAG_PUSH_HEAD_SHA = b5b511d750f11a7573b24e7b04c545b44d73b3da
+TAG_PUSH_CONCLUSION = completed/success   (all four jobs green)
+CERTIFYING_RUN = 35801514014   (different run, same SHA)
+```
+
+**Two green runs on one SHA, and only one of them certifies.** The tag push re-ran Desktop CI on
+`b5b511d7…`, the same commit `35801514014` certified, and it also came back green. That result is recorded
+because it was produced, and it is explicitly **not** promoted into a second certification: the phase-1B-A
+promotion was certified by the post-merge run, and a tag-triggered run that happens to agree does not
+retroactively become the evidence for the merge. It also shows the tag push is not free — `on: push` has no tag
+filter, so every Phase freeze will cost a full CI run on an already-certified SHA. That is a cost, not a defect,
+and it is left as it is rather than "fixed" by adding a tag filter to the workflow in this mission, which would
+itself be a Root Trust change requiring its own epoch.
+
+## J-5 — checkpoint table
+
+| Checkpoint | State |
+|---|---|
+| `4C-A1` re-measure promoted state | **PASS** — GitHub and local agree on every row of J-1 |
+| `4C-A2` governance exception preserved | **RECORDED** — J-2, append-only, labelled an exception |
+| `4C-A3` immutable freeze tag | **FROZEN** — annotated `5d1cd9e7…` → `b5b511d7…`, absent before, unmoved |
+| `4C-A4` post-merge certifying run | **PASS** — `35801514014`, four contexts green |
+| `4C-A5` tag-push trigger | **RECORDED** — `35803359214`, tied to no certification |
+| `4C-A6` prior history rewritten | **NO** — every record above this line is unchanged |
+
+```text
+PHASE0 = PROMOTED_AND_FROZEN
+PHASE1A = PROMOTED_AND_FROZEN
+PHASE1B_A = PROMOTED_AND_FROZEN
+
+PHASE1B_A_FREEZE_TAG = city-phase1b-a-governance-foundation-v1
+PHASE1B_A_MERGE_SHA = b5b511d750f11a7573b24e7b04c545b44d73b3da
+POST_MERGE_CERTIFYING_RUN = 35801514014
+
+ROOT_TRUST_EPOCH = 25
+ROOT_TRUST_SURFACE = MATCHED
+
+HOSTED_ARCHITECTURE_JOB = NOT_STARTED
+HOSTED_REQUIRED_GATE = LEGACY
+ARCHITECTURE_MIGRATION = NOT_STARTED
+
+LEDGER_APPEND_ONLY = YES
+```
+
+Part A stops here. Part B (the hosted shadow deployment) continues in §K on the branch
+`dev/city-phase1b-hosted-shadow`, branched from this tag.
+
+---
+
+# §K — Phase 1B-B hosted shadow (Mission-4C, Part B)
+
+**Scope of this phase, stated as one question.** The Phase 1B specification fixes four roles and four rollout
+stages. Phase 1B-A made the judge Owner-bound and closed the laundering path, but the judge was still **not
+hosted**: `architecture:enforce`, `architecture:enforce:shadow`, `architecture:observe` and `architecture:qualify`
+appeared in no workflow file. This phase answers one question and stops:
+
+```text
+DOES THE QUALIFIED ENFORCER BEHAVE AS SPECIFIED WHEN IT RUNS ON GITHUB-HOSTED CI,
+BEFORE IT IS ALLOWED TO BLOCK ANYTHING?
+```
+
+Stage S1 only. The job is **not** required, the ruleset is **not** touched, the legacy ratchet is **not** removed,
+no architecture is migrated, and **no epoch is advanced**. The epoch is deliberately left stale and the candidate
+is prepared.
+
+## K-1 — `HOSTED_SHADOW`: the job, and the four ways a check can silently disappear
+
+`IMPLEMENTATION` + `MEASUREMENT`. `.github/workflows/ci.yml` gains one job, `architecture`, placed after
+`quality`. Its exact identity is part of the governance contract, because stage S3 is a ruleset edit that will
+name this context and nothing else.
+
+| Property | Value | Why it is not negotiable |
+|---|---|---|
+| job id / check name | `architecture` | the name S3 will reference; a rename is an unmet required check |
+| `runs-on` | `windows-latest` | the repository's other jobs run on the hosted Windows runner |
+| `needs:` | **none** | a `needs:` lets the check vanish from the UI whenever an earlier job fails |
+| `paths:` | **none** | a filter makes the check absent on most commits |
+| `branches:` | **none** | same |
+| `if:` | **none** | a conditional job reports nothing instead of failing |
+| required by ruleset | **NO** | activation is S3, an Owner act |
+| artifact | `artifacts/city/phase1/architecture-enforcement-shadow.json` + `architecture-shadow-metadata.json` | narrow generated evidence, not a corpus root |
+
+The execution order is the specification's seven steps, and the order is asserted rather than the set:
+checkout → pnpm → node → `install:electron` → `build` → baseline-series → baseline `--check` → shadow →
+hosted runner → evidence assertions → artifact upload.
+
+**`architecture:enforce:baseline -- --check` in the hosted job is the row the spec marked "must be added to the
+hosted gate — today nothing runs `--check`."** It now runs on every push and pull request.
+
+Measured on the real tree, before and after (`pnpm run architecture:enforce:baseline:series`,
+`... :baseline -- --check`):
+
+```text
+state = BASELINE_SERIES_AUTHORISED          authorized = true
+triple = (1, null, b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e)
+identical = true    hash_matches = true    self_consistent = true    series_authorized = true
+tracked_source_files = 612    internal_edges = 1671
+problems = []
+```
+
+## K-2 — `HOSTED_SHADOW`: `SHADOW != IGNORE_ERRORS`, and the one gap that made it necessary
+
+`IMPLEMENTATION` + `FINDING`. The engine already draws the shadow/enforce line: policy violation → exit 0 in
+shadow, engine error → non-zero in both. That contract is right for the engine and **is not sufficient for the
+hosted gate**, and the reason is a measured property of the engine rather than a matter of taste:
+
+`scripts/architecture-enforcement.cjs` classifies an incomplete sensor as `severity: VIOLATION` — `E-09`, three
+rows of it (`read_failures`, `parse_issues`, `silent_skips`) — so the engine's shadow mode **exits 0** on an
+incomplete sensor. Measured directly, with a fixture, through the shipped command:
+
+```text
+node scripts/architecture-enforcement.cjs --mode shadow ... --measurement <read_failure fixture>
+  verdict = POLICY_VIOLATION      exit = 0      findings include SENSOR_INCOMPLETE
+```
+
+A hosted shadow job built only on the engine's exit code would therefore report **green** while its sensor could
+not read a file. The Phase 1B specification's fail-closed table (section 5) lists that condition as **must
+FAIL**, and rule 1 says why: *a gate that turns "I could not look" into "nothing to report" is the failure mode
+this whole phase exists to prevent.*
+
+The resolution is `scripts/architecture-shadow-hosted.cjs`, which orchestrates the three logical checks and
+draws the line **on finding codes rather than on the engine's exit code**:
+
+| Condition | Engine's own classification | Hosted consequence |
+|---|---|---|
+| ordinary policy violation (`NEW_EDGE_UNDECLARED_ENDPOINT`, `REINTRODUCED_DEBT`, ...) | VIOLATION | reported, hosted job **exits 0** |
+| `SENSOR_INCOMPLETE` (read failure / parse issue / silent skip) | VIOLATION | hosted job **FAILS** |
+| `UNRESOLVED_SOURCE_TARGET_MISSING`, `UNRESOLVED_UNSUPPORTED_SOURCE_RESOLUTION`, `UNRESOLVED_OTHER_UNKNOWN` | VIOLATION | hosted job **FAILS** (fail-closed by design) |
+| `OWNERSHIP_CONFLICT` | VIOLATION | hosted job **FAILS** (governance ambiguity, not a policy opinion) |
+| `ENGINE_ERROR` | ENGINE_ERROR | hosted job **FAILS** |
+| `BASELINE_SERIES_*`, `BASELINE_HASH_*`, `BASELINE_*_MISMATCH`, `BASELINE_HEAD_NOT_TRACKED` | engine refusal | hosted job **FAILS** |
+| baseline not self-consistent | engine exit | hosted job **FAILS** |
+
+The engine itself is **not modified** by this phase. Its shadow contract is correct for a local report-only run;
+the hosted elevation is the hosted runner's business, which is why the runner records both the engine's verdict
+and the hosted verdict side by side in the evidence instead of overwriting one with the other.
+
+## K-3 — `FAILURE` + `CORRECTION`: the evidence that contradicted its own verdict
+
+`FAILURE` (found by the adversarial suite, recorded rather than quietly repaired) + `CORRECTION`.
+
+The first revision of the hosted runner recorded its engine errors from
+`findings.filter(severity === "ENGINE_ERROR")`. That is the same conflation K-2 describes, one level down: an
+escalated `SENSOR_INCOMPLETE` carries `severity: VIOLATION`, so it never entered that list. The consequence was
+an artifact that **failed the job while publishing `engine_error_count: 0`** — evidence contradicting the verdict
+it accompanied, and a reader could not have told an unreadable baseline from an incomplete sensor.
+
+The case that caught it is now `S3`/`S3b` in `tests/unit/city/architecture-hosted-shadow.test.ts`:
+
+```text
+FAIL  S3 an engine error fails the hosted job
+AssertionError: expected 0 to be greater than 0        (engine_error_count)
+```
+
+The repair gathers the record from **both** places an engine error can appear — the orchestrator's own refusals
+(unreadable baseline, non-self-consistent baseline, unauthorized series, unusable measurement), each tagged
+`origin: "orchestrator"`, and the engine-reported conditions this file escalates, tagged
+`origin: "engine_finding_escalated"` — and counts both. `S3b` is the regression guard: a silent skip must appear
+in `engine_error_records` as `SENSOR_INCOMPLETE` **and** must not be counted as a policy violation.
+
+This is the second time in this phase family that the same shape of defect appeared — §I-14 recorded a governance
+step whose success depended on a shell preference, and C17 a hosted flake — and it is recorded for the same
+reason: a governance artifact that reports a number inconsistent with its own outcome is worse than a missing one,
+because it is believed.
+
+## K-3b — `FAILURE` + `CORRECTION`: two more, found by the battery rather than by a test of mine
+
+`FAILURE` + `CORRECTION` (both found by running the repository's own guards against the new work; both are real,
+neither was waived).
+
+**(1) The new comments leaned on section numbers a reader could not look up.**
+`tests/unit/comment-citation.test.ts` refused them:
+
+```text
+FAIL  no file has more bare section citations than it is recorded with
+      scripts/architecture-shadow-hosted.cjs: 2 (baseline 0)
+FAIL  the recorded debt only shrinks
+      bare section citations: 1310 (baseline 1308)
+```
+
+The guard freezes a real debt — 1308 comments in this repository cite section numbers of supplied plan documents
+that are **not tracked here** — and requires new code to state the rule or name a tracked document. The new
+scripts cited "section 5" and "section 8" bare. Repaired by naming the document:
+`docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md §5` / `§8`. The count fell back to the frozen baseline, so
+`tests/fixtures/comment-citation-baseline.json` was **not** edited — the debt did not grow, which is what that
+file exists to detect.
+
+**(2) The promotion gate's drift guard encoded an assumption that this phase makes false.**
+`tests/unit/promotion-gate.test.ts` asserted that `REQUIRED_PROMOTION_CHECKS` (the four contexts the promotion
+path demands) equals **every job id in `ci.yml`**:
+
+```text
+FAIL  declares the required checks from one source, and says where they come from
+      expected [ 'acceptance', 'package', 'quality', 'unit' ]
+      to deeply equal [ 'acceptance', 'architecture', 'package', 'quality', 'unit' ]
+```
+
+That equality held only while every job in the workflow happened to be required. It is not a law: it is a
+coincidence that stage S1 deliberately ends. **The tempting repairs were both wrong.** Adding `architecture` to
+`REQUIRED_PROMOTION_CHECKS` would have made the new check required by the autonomous promotion path — an
+activation this mission forbids (§20) arriving through a test fixture rather than through a ruleset, which is the
+worse of the two ways for it to arrive. Deleting the assertion would have removed a real guard. The third option
+is the one taken: assert the property that is actually true and load-bearing **for every required context** — each
+one is produced by a real job; each one appears in the ruleset contract the repository states in
+`.github/CODEOWNERS`; the declaration names nothing the ruleset does not require; and the new shadow job exists,
+is **not** in the declaration, and is **not** in the ruleset contract. `src/shared/promotion-checks.ts` gained the
+same distinction in prose, because that file's header asserted the old equality as a contract.
+
+Neither file is Root Trust Surface (`PRODUCT_SURFACE` and `VERIFICATION_SURFACE` respectively), so this is an
+ordinary engineering repair rather than an Owner act — but it is recorded because it is the phase's most
+instructive near-miss: **a green test is not evidence that the contract it encodes is the right contract.**
+
+## K-3c — `REPRODUCTION`: a hosted-local flake, recorded rather than re-run into silence
+
+`FAILURE` + `MEASUREMENT`. The first full local unit run reported 5 failures. One of them was not about this
+phase's contract at all:
+
+```text
+FAIL  tests/unit/runtime-intelligence/replay-corpus-io.test.ts > … > exports a real corpus with records
+      Error: Test timed out in 60000ms.
+```
+
+It was produced while three other heavy suites (unit, postbuild and slow tiers) were running concurrently on the
+same host — the runner was saturated. Run **alone**, the same file is green:
+
+```text
+tests/unit/runtime-intelligence/replay-corpus-io.test.ts   33 tests passed   (7.4s)
+```
+
+Both runs are recorded, per §15 ("if a failure is retried, both attempts remain in the record"). No timeout was
+raised, no test was quarantined, and the file was not touched. Classified **host-contention flake**, with the
+discriminator shown (green in isolation, red only under concurrent load), which is the same classification C17
+used for a hosted runner and the same discipline: the flake is named, not hidden, and not "fixed" by weakening it.
+
+## K-4 — `HOSTED_PARITY`: parity by identity, and the trap a count would have walked into
+
+`IMPLEMENTATION` + `MEASUREMENT`. `scripts/architecture-findings-parity.cjs` compares two shadow evaluations over
+finding **identity** — `code`, `subject`, `severity`, `policy_class`, and a sha256 of the finding's `detail` — and
+computes a deterministic semantic digest over the normalized **multiset** (`city-architecture-findings-digest/1`,
+sha256 over a canonical, sorted, fixed-key-order rendering). Ordering is normalized away deliberately: the digest
+is over the multiset, so a permutation compares equal and a substitution does not.
+
+Measured on the frozen tree, two independent governing runs (`dev/city-phase1b-hosted-shadow`, accepted baseline
+v1, 1677 findings):
+
+```text
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true      COUNTS_EQUAL = true      state = HOSTED_LOCAL_PARITY
+```
+
+**Why a count is not the claim, demonstrated rather than asserted** (`P3`): take the 1677 normalized findings,
+change **one** finding's `subject`, leave the count at 1677. The comparator returns
+`COUNTS_EQUAL = true`, `HASHES_EQUAL = false`, `parity = false`, exit 1, and names the one finding on each side.
+A count-based parity check would have called that a pass.
+
+And a comparison that **cannot** be made is not a pass (`P3b`): an unreadable input, or an input that carries
+neither `findings` nor `findings_normalized`, exits **2** with `PARITY_NOT_MEASURED`. "I could not compare" and
+"they agree" are different statements, and the tool refuses to conflate them.
+
+### K-4b — `FAILURE` + `CORRECTION`: the identity was lossy, and the first version of this section overstated it
+
+`FAILURE` (found in adversarial review, not by the author) + `CORRECTION`. The claim above — "a substitution does
+not [compare equal]" — **was false for one finding family when it was first written**, and it is corrected here
+rather than quietly repaired.
+
+The engine emits every `SENSOR_INCOMPLETE` finding with `subject: "sensor"` and puts everything that distinguishes
+them in `detail` (`scripts/architecture-enforcement.cjs`, the three `E-09` rows). The first revision of
+`normalizeFinding` used `code` + `subject` + `severity` + `policy_class` and **dropped `detail`**, so:
+
+```text
+normalize("1 read failure(s): a.ts")   = {code: SENSOR_INCOMPLETE, severity: VIOLATION, subject: sensor, policy_class: FAIL_CLOSED}
+normalize("3 silently skipped file(s)") = {code: SENSOR_INCOMPLETE, severity: VIOLATION, subject: sensor, policy_class: FAIL_CLOSED}
+IDENTICAL = true      same digest = true      compareFindings(...).parity = true
+```
+
+Two genuinely different finding sets normalised to one value, produced one digest, and were reported as **parity**.
+A second, related defect sat beside it: the digest hashed the multiset while `compareFindings` de-duplicated
+through a `Map`, so one occurrence of a finding and three occurrences of it produced the **same** parity verdict
+but **different** `findings_semantic_hash` — two different quantities published under one name.
+
+Both are repaired, and the repairs are guarded rather than described:
+
+1. `detail_digest` (sha256 of `detail`) is part of the normalized identity, so the identity is injective. The
+   detail *text* is still not carried, because it contains file paths and a bounded artifact should not grow with
+   the corpus; the full `detail` remains in `architecture-enforcement-shadow.json` for a reader.
+2. `compareFindings` is a **multiset** comparison, matching the digest, so `parity` and
+   `findings_semantic_hash` can no longer disagree about the same input pair.
+3. `P4` and `P5` are the regression guards, driven through the shipped module, and both fail against the previous
+   revision.
+
+**The published digest therefore changed** — `8142122c…` before the repair, `db536b06…` after — while the
+**findings did not**: `1677 = 1671 PASS_AS_GRANDFATHERED + 5 NOT_YET_ENFORCED + 1 NON_SOURCE_ASSET`, unchanged, and
+the live tree has no duplicate normalized entries. A digest is a function of the representation; changing the
+identity representation changes the digest and changes nothing about the measurement. The hosted artifact quoted
+in K-9 predates the repair and is labelled as such; a re-run on the repaired runner produces `db536b06…`.
+
+**This is the second time in this phase that a green artifact was believed over a defect**, and the lesson is the
+one the audit drew: a parity mechanism is evidence only if its identity is lossless, and a lossy identity fails
+*silently in the direction of agreement*, which is the worst direction for a governance check.
+
+The identity the mission asks for is also measured against the engine directly, on this tree:
+
+```text
+architecture:enforce:shadow  verdict PASS  findings_total 1677  violations 0  engine_errors 0
+architecture:enforce         verdict PASS  findings_total 1677  violations 0  engine_errors 0
+shadow_enforce_same_evaluator = true
+```
+
+1677 = 1671 `PASS_AS_GRANDFATHERED` + 5 `NOT_YET_ENFORCED` + 1 `NON_SOURCE_ASSET`, which is exactly the count the
+Phase 1A freeze recorded. The hosted runner reproduces it, because it runs the same evaluator over the same
+measurement rather than a parallel implementation.
+
+## K-5 — `AUTHORITY_BOUNDARY`: protecting a workflow while leaving its code unprotected is no protection
+
+`FINDING` + `CORRECTION`. `.github/CODEOWNERS` already protected `.github/workflows/`, `/package.json` and the
+eight Phase 1B-A judge paths. The `architecture` job it now protects invokes **`scripts/architecture-shadow-hosted.cjs`**,
+which was **not** protected: an actor able to edit that script could change what the hosted check concludes
+without touching one Owner-reviewed byte — the hosted verdict, the fail-closed code list and the published digest
+all live in it. `scripts/architecture-findings-parity.cjs` is the same shape of hole one step further out: it
+decides when two findings sets are called equal.
+
+Both are now Owner-reviewed, with the reasoning written into the file so a later reader can see it is a review
+boundary and **not** a Root Trust Surface extension:
+
+```text
+/scripts/architecture-shadow-hosted.cjs    @zhiheng-zhang-Mera
+/scripts/architecture-findings-parity.cjs  @zhiheng-zhang-Mera
+```
+
+Neither file is in `ROOT_TRUST_SURFACE` (`trust-policy/root-trust-surface.json` still declares 30 paths) and
+neither moves the epoch aggregate, which is why this is a CODEOWNERS change and not an epoch event:
+`tests/unit/owner-authority.test.ts` and `architecture-governance-boundary.test.ts` both still pass, and the
+surface aggregate is unchanged by it at **72 files**.
+
+## K-6 — `NEGATIVE_CONTROL`: nothing unrelated became architecture-governance-dependent
+
+`MEASUREMENT`. Stated as falsifiable facts about the workflow and the tracked files, not as intent:
+
+| Claim | Measured |
+|---|---|
+| the legacy ratchet is still required | `architecture:ratchet` still runs as a step in the `quality` job, and the job is unchanged |
+| the legacy ratchet was not weakened | `package.json#architecture:ratchet` is still `node scripts/architecture.cjs ratchet` |
+| no ordinary job depends on the new one | `quality`/`unit`/`acceptance`/`package` carry no `architecture` in `needs:` and do not run the shadow runner |
+| the new job depends on nothing | `architecture` has no `needs:`, so it cannot be suppressed by another job's failure |
+| the accepted baseline series was not widened | v1 only, hash `b211c052…`, byte-identical |
+| a second accepted baseline was not added | `accepted` has exactly one entry |
+| the ratchet's own baseline was not regenerated | `config/architecture-baseline.json` untouched by this phase |
+
+`pnpm run architecture:ratchet` → `violations: []`, exit 0. `pnpm run architecture:observe` → semantic hash
+`a9ba58ba0ae8fea081f54d0b009d70329cd46e2e07fc8a2faeecc21c05ac22b4`, exit 0.
+
+## K-7 — `ROOT_TRUST_MIGRATION_PREPARATION`: epoch 26 is prepared, and epoch 26 is NOT written
+
+`MEASUREMENT`. `.github/workflows/ci.yml` is Root Trust Surface, so this phase's workflow change necessarily
+moves the surface aggregate. That is expected, is not hidden, and is not repaired by this phase.
+
+```text
+BEFORE (the frozen promoted commit b5b511d7…)
+  ROOT_TRUST_EPOCH = 25          root_contract_version = boss-root-trust-25
+  ROOT_TRUST_SURFACE = 72 files  aggregate = 37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741
+  bless --check = MATCHES
+
+AFTER (the candidate branch, ci.yml changed, epoch untouched)
+  ROOT_TRUST_EPOCH = 25          (UNCHANGED — deliberately stale)
+  LIVE_SURFACE = CHANGED         aggregate = fe3a6e87becb010fdc5c2e77c4d4222e9271e6cabed131b082b582bec3ce7ba6
+  ROOT_TRUST_SURFACE = 72 files  (the new files are CODEOWNERS-protected, NOT Root Trust Surface)
+  TRUST_EPOCH_CHECK = MISMATCH
+  bless --check = FAIL  (TRUST_EPOCH_ROOT_SURFACE_MISMATCH)
+```
+
+The Stage A tooling (`scripts/trust-migration-proposal.cjs`, autonomous, writes only under the gitignored
+`artifacts/`) produced the candidate:
+
+```text
+stage = STAGE_A_AUTONOMOUS_PROPOSAL        authorized = false        needsMigration = true
+current_epoch    = 25 (boss-root-trust-25), surface 37c98265…
+candidate_epoch  = 26 (boss-root-trust-26), surface fe3a6e87…
+candidate.parent_epoch_hash = eb2f9b1b4116576c35db718f442fe975c595b9ee85196a5abb0c1234673d4f68   (epoch 25's hash)
+changedRootTrustFiles = [".github/workflows/ci.yml"]
+reason   = "Phase 1B-B hosted shadow adds the non-required architecture CI job"
+risk     = "Hosted shadow instrumentation changes governance machinery but does not activate a required gate"
+rollback = "Revert the hosted-shadow workflow change; keep ruleset unchanged; preserve all evidence"
+```
+
+**`--advance` was NOT run. Epoch 26 was NOT written.** `trust-policy/trust-epoch.json` is byte-identical to the
+promoted commit's copy and still records epoch 25 anchoring the pre-change surface. The proposal is a REQUEST;
+`authorized: false` is its own statement that this machine may prepare a migration and may not perform one. The
+known-broken `trust-epoch-finalization.yml` path (§I-14) was **not** used, not repaired, and remains a separate
+governance issue.
+
+**Two failures are expected on this candidate and are not defects of this phase.** They share one cause — the
+epoch is deliberately stale — and both clear when the Owner's ceremony writes epoch 26:
+
+```text
+EXPECTED_1  node scripts/acceptance-evolution-bless.cjs --check
+            FAIL  TRUST_EPOCH_ROOT_SURFACE_MISMATCH   (epoch 25 certifies 37c98265…, surface is fe3a6e87…)
+EXPECTED_2  tests/unit/root-trust-authority-lockdown.test.ts
+            "does not change the epoch when the committed one already anchors the surface"
+            proposal.surface.currentEpochAnchorsLiveSurface === false
+```
+
+Both are the invariant the ceremony exists to satisfy, not a regression this phase introduced. Every other
+failure in the battery is a real failure; only these two are expected.
+
+## K-8 — the validation battery, and the tag-push run
+
+`MEASUREMENT`. Recorded as it finished, including the runs that are not green.
+
+| Check | Result |
+|---|---|
+| `typecheck` (three projects) | exit 0 |
+| tracked-secret scan | `TRACKED_SECRET_SCAN=PASS files=1315` (one more than before this phase: the new test helper) |
+| state probe | exit 0 |
+| test catalogue check | exit 0 — 281 suites, after the new suite gained its curated entry (see below) |
+| `architecture:ratchet` | exit 0, `violations: []` |
+| `architecture:observe` | exit 0, semantic hash `a9ba58ba…` |
+| `architecture:enforce:baseline:series` | exit 0, `BASELINE_SERIES_AUTHORISED` |
+| `architecture:enforce:baseline -- --check` | exit 0, `self_consistent` + `series_authorized` |
+| `architecture:enforce:shadow` | exit 0, PASS, 1677 findings, 0 violations |
+| `architecture:enforce` | exit 0, PASS, 1677 findings, 0 violations |
+| Root Trust `--check` | **FAIL — EXPECTED** (K-7, `EXPECTED_1`) |
+| new suite `tests/unit/city/architecture-hosted-shadow.test.ts` | **34 tests, all green** — 28 as first written, plus 6 added by the adversarial review (`S7`, `S8`, `S9`, `P4`, `P5`, and the `continue-on-error` guard) |
+| unit tier / postbuild / slow | **unit 265 files, 3392 passed, exactly 1 failed** — `test-layers.test.ts`, `EXPECTED_1`; **postbuild 8 files, 118 passed, exactly 1 failed** — `root-trust-authority-lockdown.test.ts`, `EXPECTED_2`; **slow 4 files, 35/35 passed** |
+| ruleset `22746755` before / after | `quality`, `unit`, `acceptance`, `package` — **UNCHANGED**; `architecture` NOT added |
+| tag-push CI run `35803359214` | `completed/success` — `quality`, `unit`, `package`, `acceptance` **all green on `b5b511d7…`**. A second green run on the SAME SHA as the certifying run `35801514014`; recorded in J-3/J-4, not substituted for it, and not treated as a fresh certification |
+
+**A third `FAILURE` was found by this battery, not by a test:** `node scripts/generate-test-catalogue.cjs --check`
+refused the new suite with *"imports no capability module and has no curated entry"*. The catalogue is a
+governance artifact — a suite that is in no tier and covers no capability is a suite nobody can account for — so
+the suite gained a curated entry naming its capability (`runtime`) and its obligation, and
+`config/test-catalogue.json` was regenerated. Recorded because the check did its job rather than being a
+formality.
+
+## K-9 — hosted observation, and what this mission may and may not conclude
+
+`MEASUREMENT`. The candidate branch is pushed and the `push` event is observed on the real GitHub-hosted
+runner. **The PR event does not exist**, because no pull request was opened — see K-10, which is the identity
+boundary rather than an omission.
+
+```text
+PUSH_RUN_ID = 35805180887        (first hosted observation, on 9916647)
+PUSH_RUN_2_ID = 35805647014      (on the ledger-finalisation commit 82a2966)
+PUSH_RUN_3_ID = 35806819965      (on the corrected commit f389209)
+PUSH_RUN_4_ID = 35807269888      (on 4e98c7f — the head this record stops at)
+PUSH_EVENT = push
+HEAD_UNDER_OBSERVATION = 4e98c7fe733b0e583374c29ad9a314a452e9b549
+PUSH_RUN_CONCLUSION = completed/failure  (all four: `unit` red on the EXPECTED epoch anchor; `architecture` green)
+  quality       success
+  architecture  success      <-- the new check, on the hosted runner, separately, all four times
+  unit          failure      <-- EXPECTED: tests/unit/test-layers.test.ts:430, the epoch anchor (K-7 EXPECTED_1)
+  acceptance    skipped      (needs: unit)
+  package       skipped      (needs: unit)
+
+ARCHITECTURE_JOB_ID = 107004291479
+ARCHITECTURE_JOB_CONCLUSION = completed/success
+ARCHITECTURE_JOB_RUNNER = GitHub Actions 1000001561   (a real hosted runner, not this host)
+
+PR_RUN_ID = NOT_APPLICABLE   (no PR opened; see K-10)
+```
+
+**The `architecture` check appears SEPARATELY, which is the point of the migration.** All thirteen of its steps
+ran and passed on the hosted runner, in the specified order:
+
+```text
+ 2 actions/checkout@v4                                  success
+ 3 pnpm/action-setup@v4                                 success
+ 4 actions/setup-node@v4                                success
+ 5 pnpm install --frozen-lockfile                       success
+ 6 pnpm run install:electron                            success
+ 7 pnpm run build                                       success
+ 8 pnpm run architecture:enforce:baseline:series        success
+ 9 pnpm run architecture:enforce:baseline -- --check    success
+10 pnpm run architecture:enforce:shadow                 success
+11 node scripts/architecture-shadow-hosted.cjs          success
+12 Architecture shadow evidence is present and complete success
+13 actions/upload-artifact@v4                           success
+```
+
+**The hosted evidence artifact, read back from the run** (`gh run download 35805180887 --name
+architecture-shadow`) rather than from this host's copy:
+
+```text
+artifact            = architecture-shadow (id 10727212130)
+schema              = city-phase1b-hosted-architecture-shadow/1
+fixture_mode        = false
+commit_sha          = 9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c
+workflow_run_id     = 35805180887        workflow_run_attempt = 1
+event               = push               job = architecture        runner_os = Windows
+shadow_verdict      = PASS               engine_verdict = PASS
+engine_error_count  = 0                  machinery_failure_count = 0
+policy_violation_count = 0               new_regressions = 0
+findings_count      = 1677               findings_semantic_hash = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c
+findings_by_policy_class = {POLICY_VIOLATION: 0, FAIL_CLOSED: 0, INFORMATIONAL: 1677}
+baseline_version    = 1                  baseline_hash = b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e
+baseline_series_status = AUTHORISED      baseline_self_consistent = true
+root_trust_epoch    = 25                 root_trust_surface_hash = 37c98265224877d404f52a6016862cede85b5c7c4a0c864a664eb52fbf6b7741
+not_yet_enforced    = 5 classes published
+```
+
+**Every field above is from the artifact as published, including its digest `8142122c…`, which is the digest the
+runner produced BEFORE the K-4b identity repair.** That repair changed the identity representation and therefore
+the digest value (`8142122c…` → `db536b06…`) while changing nothing about the measurement: the same 1677 findings,
+the same `{0, 0, 1677}` classes, the same five unmodelled classes, the same baseline and epoch. The artifact is
+quoted as it was, not re-labelled with the new digest it does not contain — an artifact is evidence of the run that
+produced it and nothing else.
+
+**Parity, measured between the hosted artifact and a local run of the same commit** — not asserted from a
+constant, and not from the same artifact read twice:
+
+```text
+HOSTED_FINDINGS_HASH = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c   (published artifact, pre-repair identity)
+LOCAL_FINDINGS_HASH  = 8142122c9bd0b38d3f65e73829809e83b706bbfff5eb2ee4e245fc93f4eda41c   (local run, pre-repair identity)
+HASHES_EQUAL = true      COUNTS_EQUAL = true (1677)      state = HOSTED_LOCAL_PARITY
+```
+
+Both sides of that comparison were produced by the **pre-repair** runner, which is why they agree; the repair
+changes both sides identically. On the repaired runner the same comparison yields `db536b06…` on both sides, and
+`P3c` asserts that equality rather than this transcript.
+
+**A second, third and fourth hosted observation, on later commits** — the ledger is not allowed to go stale, and
+each push is its own run:
+
+```text
+RUN 35807269888   push   4e98c7fe733b0e583374c29ad9a314a452e9b549   architecture = completed/success
+   overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
+RUN 35806819965   push   f389209a1012c1955831ecb12a774f3bb7ec9f4e   architecture = completed/success
+   artifact: sha f389209a, hosted true / GitHub Actions (measured), verdict PASS, findings 1677
+             hash db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba   <-- the REPAIRED identity
+             baseline_self_consistency_status VERIFIED, not_yet_enforced_status READABLE (5)
+             series AUTHORISED, epoch 25, engine_errors 0, machinery_failure_count 0
+   overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
+RUN 35805647014   push   82a2966a7e95a0bad10a01d429ae9e517433ff2c   architecture = completed/success
+   artifact: sha 82a2966a, verdict PASS, findings 1677, hash 8142122c… (pre-repair identity), epoch 25, engine_errors 0
+   overall run conclusion = failure   (unit: the same expected epoch anchor; acceptance/package skipped)
+RUN 35805180887   push   9916647c9fc3bd1b8d4ac173fe4e32f5e2860d8c   architecture = completed/success
+```
+
+**The repaired runner is confirmed on the real hosted runner, not only locally.** Run `35806819965`'s artifact
+carries `hosted: true` with `provider: GitHub Actions` **measured** from the workflow environment (defect 4 of
+K-10b), `baseline_self_consistency_status: VERIFIED` (a real check rather than a fabricated pass), and
+`not_yet_enforced_status: READABLE` with the five classes (a real read rather than the module default). Parity
+between that artifact and a local run of the same commit:
+
+```text
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true   COUNTS_EQUAL = true (1677)   multiplicity_differences = []   state = HOSTED_LOCAL_PARITY
+```
+
+```text
+HOSTED_ARCHITECTURE_RUNS_OBSERVED = 4 consecutive, all `architecture` green on a real hosted runner
+HOSTED_SHADOW_SOAK_COMPLETE = NO   (the spec's S1 exit condition is >= 20 consecutive runs; this is not that)
+BRANCH_HEAD_OBSERVED = 4e98c7fe733b0e583374c29ad9a314a452e9b549
+```
+
+**A note on how this record terminates.** Each push to the branch starts a new hosted run, so a ledger commit that
+records the run of the commit before it is always one behind — recording run N changes the head and invites run
+N+1. Rather than chase that recursion, the record stops here: the head under observation is
+`4e98c7fe…`, its own `architecture` result is recorded above, and any later push carries documentation only.
+A reader who needs the current head's result should read the run list rather than this file, and the mission's
+report names the SHA it stopped at.
+
+The hosted run's overall conclusion is `failure`, and that is the **expected** failure rather than a defect of
+this phase: `unit` is red on `tests/unit/test-layers.test.ts:430`, the epoch anchor, which is `EXPECTED_1` of K-7
+and clears when the Owner's ceremony writes epoch 26. `acceptance` and `package` are `skipped` because they
+declare `needs: unit` — which is precisely why the `architecture` job was given **no** `needs:` in the first
+place: had it depended on `unit`, it would have been **skipped in this very run** and the deployment would have
+had no evidence at all. The design decision and the run agree, and the run is the reason the decision is now
+evidence rather than an argument.
+
+**What this section may not conclude.** It does not claim the soak is complete: the Phase 1B specification's S1
+exit condition is **≥ 20 consecutive PR/push `architecture` runs** in which shadow and local agree,
+`engine_errors` is 0, and count differences are explained by the change. One deployment is not twenty runs, and
+the mission says so explicitly. It also does not claim the hosted gate would block anything correctly *in
+production*, because it is not required and has therefore never blocked anything — which is what stages S2 and S3
+exist to establish, and neither is this mission.
+
+```text
+HOSTED_SHADOW_DEPLOYED = YES            (three push events; `architecture` green on a real hosted runner each time;
+                                         artifact published; parity measured against the published artifact)
+HOSTED_SHADOW_SOAK_COMPLETE = NO        (>= 20 consecutive runs not reached)
+HOSTED_REQUIRED_GATE = LEGACY
+HOSTED_ENFORCE_VISIBLE = NOT_STARTED
+```
+
+## K-10 — `AUTHORITY_BOUNDARY`: the PR identity, measured, and the stop it forces
+
+`MEASUREMENT`. Mission §18 makes the PR path conditional on an actual machine credential, and this host was
+measured rather than assumed:
+
+| Probe | Result |
+|---|---|
+| `gh auth status` | `zhiheng-zhang-Mera` — the **Root Owner**, not a machine/App identity |
+| `.boss/github-machine-identity.json` in the data root | **absent** (`runtime-data/.boss/` holds no identity config) |
+| `.boss/secret-vault.json` (the App private key store) | **absent** — searched the data root and the machine |
+| `.codex-boss/config/github-machine-identity.example.json` | `enabled: false` — an example, not a configuration |
+| `CODEX_BOSS_GITHUB_TOKEN` / `BOSS_GITHUB_TOKEN` | unset |
+| `artifacts/acceptance/BOSS_MACHINE_IDENTITY_PROMOTION_CONVERGENCE_REPORT.md` §7 | `NOT_OBSERVABLE_IN_JOB` — *"the GitHub machine identity is not installed in this host's data root, so the promotion path has no credential to act with"*, `BLOCKED_EXTERNAL` |
+
+```text
+MACHINE_IDENTITY_AVAILABLE = NO
+```
+
+Opening the PR would therefore mean opening a second **Owner-authored** governance PR and walking back into the
+PR #13 self-review deadlock that §J-2 records as an exception. Mission §18 forbids doing that silently, so the
+branch is pushed and the PR is **not** opened:
+
+```text
+FINAL_STATUS = WAITING_FOR_MACHINE_IDENTITY_OR_OWNER_PR_EXCEPTION_DECISION
+```
+
+The alternative — the Owner opening it, or an Owner decision to accept the exception again — is the Owner's call
+and is recorded as such rather than presumed.
+
+## K-10b — `CORRECTION`: six defects found by adversarial review, and what each one actually was
+
+`FAILURE` + `CORRECTION`. An independent adversarial pass was run against the committed work, briefed to find
+violations rather than to agree. It found **no violation of the mission's forbidden list and no breach of the stop
+boundary**, and it found six real defects. All six are repaired, and each repair has a guard that fails against the
+previous revision. They are recorded here because a phase that reports only its successes is not evidence.
+
+| # | Defect | Why it mattered | Repair + guard |
+|---|---|---|---|
+| 1 | the parity identity dropped `detail`, so the `SENSOR_INCOMPLETE` family collapsed to one value and two different finding sets compared as **parity** | a governance comparison that fails **toward agreement** is worse than no comparison | `detail_digest` in the identity; multiset comparison; `P4`/`P5` (K-4b) |
+| 2 | `compareFindings` de-duplicated while the digest hashed the multiset, so one copy and three copies gave the same `parity` but different hashes | one name, two quantities — and the CI evidence step reads one while the report prints the other | same repair; `P5` |
+| 3 | `not_yet_enforced` was written `baseline?.not_yet_enforced ?? NOT_YET_ENFORCED`, and the fallback is byte-identical to the committed baseline's five | the spec's rule that an EMPTY list and an UNREAD list must be distinguishable (§5 rule 2) was **unmet in mechanism**, and the hosted job's own assertion was dead code | three states (`READABLE` / `READABLE_EMPTY` / `FIELD_ABSENT`), `null` plus a named engine error when unread; `S7` |
+| 4 | `hosted: true` was a constant, so a purely local run published an artifact that declared itself hosted | **this section's own K-4 originally cited a `HOSTED_FINDINGS_HASH` before any hosted run existed** — the overclaim was downstream of this defect | `hostedEnvironment()` measures the workflow variables; `hosted_provider` and the raw variables are published; `S8` |
+| 5 | fixture mode published `baseline_self_consistent: true` for a check it never ran | a fabricated pass that also satisfies the hosted job's evidence assertion | skipped checks are `null` with status `NOT_MEASURED_FIXTURE_SEAM`; `S9` |
+| 6 | three assertions were **vacuous**: the corpus-root guard could not see `with.path` at all (the step type did not declare `with`), the `not_yet_enforced` length assertion was satisfied by defect 3's fallback, and H7's credential-less branch asserted a tautology | a guard that cannot fail is not a guard, and it reads as coverage | `with` is parsed and the guard inspects real pathspecs; `S7` removes the fallback; H7's branch re-asserts the in-repository contract and announces the non-measurement; `continue-on-error` is now asserted across **every** workflow |
+
+Two further weaknesses the review named are recorded rather than repaired here, because repairing them is not this
+phase's business:
+
+- **The `promotion-gate` drift guard was relaxed in the same change it would have caught** (K-3b). The old form
+  asserted `REQUIRED_PROMOTION_CHECKS === every job id in ci.yml`, which this phase makes false by adding a
+  NON-required job; the new form asserts "every required context is produced and is named in the ruleset contract
+  CODEOWNERS states, and the shadow job is in neither". The review's fair criticism is that the guard's authority
+  for *what is required* is now a hand-maintained comment, and the "no extra job" direction is gone. The live
+  ruleset is a platform fact and cannot be read from a unit test; the honest position is that this guard is weaker
+  than it was, deliberately, because the property it encoded is no longer true.
+- **Parity is not wired into a CI job.** By construction the CI job *is* the hosted run, so there is no second
+  machine to compare against inside CI; the tool is exercised by tests and manually. Recorded as a limitation.
+- **`app/codex-boss` has authored and merged earlier PRs.** K-10's `MACHINE_IDENTITY_AVAILABLE = NO` is therefore
+  narrower than its heading: what was measured is that **no machine/App credential is installed on this host**
+  (no identity config, no vault, no bot login, no token). A machine identity has existed for other rounds; it is
+  simply not present here, which is the condition §18 makes the PR path depend on.
+
+## K-11 — the terminal state of this phase
+```text
+PHASE0 = PROMOTED_AND_FROZEN
+PHASE1A = PROMOTED_AND_FROZEN
+PHASE1B_A = PROMOTED_AND_FROZEN
+
+PHASE1B_B_HOSTED_SHADOW = DEPLOYMENT_CANDIDATE
+
+HOSTED_ARCHITECTURE_JOB = PRESENT
+HOSTED_ARCHITECTURE_JOB_REQUIRED = NO
+
+HOSTED_ENFORCE_VISIBLE = NOT_STARTED
+HOSTED_REQUIRED_GATE = LEGACY
+RULESET = UNCHANGED
+LEGACY_RATCHET = REQUIRED_AND_UNCHANGED
+
+ROOT_TRUST_EPOCH = 25_STALE_BY_EXPECTED_WORKFLOW_CHANGE
+ROOT_TRUST_EPOCH_CANDIDATE = 26_READY
+ROOT_TRUST_EPOCH_26_WRITTEN = NO
+
+ARCHITECTURE_MIGRATION = NOT_STARTED
+BASELINE_WIDENED = NO
+
+HOSTED_SHADOW_SOAK_COMPLETE = NO   (the >= 20 consecutive runs condition is not claimed)
+
+LEDGER_APPEND_ONLY = YES
+OLD_HISTORY_REWRITTEN = NO
+IMMUTABLE_TAG_MOVED = NO
+FORCE_PUSH = NO
+```
+
+The stop boundary is respected in full: no required check activated, no ruleset mutation, no epoch write, no
+`--advance`, no baseline widening, no baseline v2, no legacy ratchet retirement, no architecture migration, no
+immutable-tag movement, no history rewrite, no hidden retry and no threshold weakened.
+
+---
+
+# §L — CORRECTION: the "34 tests green" figure was LOCAL evidence, and the hosted runner disproved it
+
+**This section is an appended correction. Nothing above it is edited, deleted or reworded** — in particular §K-4b,
+§K-10b, the pre-repair digest `8142122c…` and the original overclaim all remain exactly as they were written. The
+point of this section is that the *old claim stays visible* and the correction sits beside it, rather than the
+history being tidied into "we never said anything wrong".
+
+## L-1 — `FAILURE`: the first real `pull_request` run of PR #14 found two defects in this phase's own test file
+
+`FAILURE` + `MEASUREMENT`. Mission-4C Part B reported, in §K-8, that the new suite was **"34 tests, all green"**,
+and reported the candidate's only expected failures as the two epoch-anchored ones. **That was a local
+measurement, and it was not true of the hosted runner.**
+
+PR #14 was opened by the Codex-Boss App machine identity and its first real `pull_request` Desktop CI run
+(`35811655716`, head `74b8a3f8…`) produced:
+
+```text
+Test Files  2 failed | 263 passed (265)
+Tests       3 failed | 3383 passed (3386)
+```
+
+| # | Failing case | Assertion | Real cause |
+|---|---|---|---|
+| 1 | `tests/unit/test-layers.test.ts:430` | `TRUST_EPOCH_ROOT_SURFACE_MISMATCH` | **expected** Root Trust staleness |
+| 2 | `architecture-hosted-shadow.test.ts` → `S8` | `a local run declared itself hosted: expected true to be false` | **test defect** |
+| 3 | `architecture-hosted-shadow.test.ts` → frozen-commit byte guard | `git could not read … at the frozen commit: expected 128 to be +0` | **test defect** |
+
+## L-2 — the two defects, stated as what they actually were
+
+`FINDING` + `CORRECTION`. **Both are defects in the TESTS and in the EVIDENCE, not in the hosted-shadow engine.**
+
+**Defect 1 — `S8` asserted a premise about its own environment.** `S8` called the governing runner with no
+environment and then required `hosted === false`. That holds only when the *test process* is local. The hosted
+`unit` runner exports `GITHUB_ACTIONS=true` (and `CI`, `GITHUB_SHA`, `GITHUB_RUN_ID`, …), the child inherited it,
+and the production runner **correctly** measured `hosted: true`. Production was right; the test's premise was
+wrong. The failure message — *"a local run declared itself hosted"* — named the production behaviour rather than
+the test's false assumption, which is itself part of why this was not caught locally.
+
+**Defect 2 — the frozen-commit byte guard assumed history the checkout does not have.** The guard compares a
+guarded file's current bytes with its bytes at the immutable Phase 1B-A freeze commit `b5b511d7…`, via
+`git show <sha>:<path>`. `actions/checkout@v4` defaults to `fetch-depth: 1`, so on the hosted runner that commit
+is absent and `git show` exits **128**. The guard therefore failed for a reason unrelated to the property it
+guards. Worse: on the hosted runner the assertion was **not guarding anything at all** — it was reporting a git
+error as a baseline mismatch.
+
+**Classification.** These are `TEST/EVIDENCE DEFECTS`, **not** production architecture-shadow engine defects.
+Recorded explicitly because two tempting mis-readings both exist: the failure message looks like a provenance
+bug, and a red guard looks like the baseline it guards has moved. Neither was true.
+
+**What did not fail, and is the thing that matters most here.** The `architecture` job itself remained
+**SUCCESS** on the same hosted run — 1677 findings, 0 engine errors — and `quality` passed. The hosted shadow
+deployment the phase claims was unaffected by either defect.
+
+```text
+PR                          = #14
+OLD_CANDIDATE               = 74b8a3f81ccab8f713bb246a529b0c48a20112fb
+HOSTED_PULL_REQUEST_RUN     = 35811655716
+ARCHITECTURE_JOB_ON_THAT_RUN = SUCCESS (1677 findings, 0 engine errors)
+CLASSIFICATION              = TEST/EVIDENCE DEFECTS (not production engine defects)
+```
+
+## L-3 — `CORRECTION`: what the earlier green count was, and was not
+
+`CORRECTION`. §K-8's **"34 tests, all green"** statement is, and always was, **LOCAL evidence only**. It is
+**not** proof that the suite passed on a hosted `unit` runner, and the first hosted run showed that it did not.
+The same applies to §K-8's summary of the tier results and to the §K-9 claim that the only expected failures were
+the two epoch-anchored ones: on the hosted runner there was **one additional failing test file**, this phase's
+own.
+
+What the ledger keeps, deliberately:
+
+```text
+OLD_CLAIM_PRESERVED        = YES  (K-8's "34 tests, all green" is unchanged and still readable as written)
+CORRECTION_APPENDED        = YES  (this section)
+OLD_RECORDS_MODIFIED       = NO
+LEDGER_HISTORY_REWRITTEN   = NO
+```
+
+**The general lesson, recorded because this is the second time this phase family has learned it.** §K-3 recorded
+an artifact that contradicted its own verdict; §K-4b recorded a parity identity that failed toward agreement.
+This is the third variant of the same shape: **a green local run was quoted as coverage of a runner it never
+executed on.** "It passes here" and "it passes there" are different measurements, and only the second is evidence
+about CI. A test that depends on the environment it runs in must *control* that environment, or it is measuring
+the developer's laptop and reporting it as the pipeline.
+
+## L-4 — `CORRECTION`: the repair, and the proof it is not a papering-over
+
+`CORRECTION` + `REPRODUCTION`. Repaired in the appended repair commit on this branch (`test(city): make
+hosted-shadow guards CI-valid`), recorded with its real SHA in §L-5 and §L-7 below.
+
+1. **`S8` now controls its premise.** `runGoverning` takes an explicit `env` seam. The LOCAL case is driven with
+   `localSimulationEnv()`, which copies `process.env` and deletes **exactly** the variables the production runner
+   declares it reads (`HOSTED_ENVIRONMENT_VARIABLES`, exported from the runner so the test cannot clear a
+   different set from the one production reads). The HOSTED case is driven with `hostedSimulationEnv()`, which
+   sets the GitHub Actions variables explicitly. Both directions are asserted, plus the measured `hosted` flag in
+   both shadow artifacts.
+2. **The frozen-commit guard was given the history it inspects.** `.github/workflows/ci.yml` now checks out the
+   `unit` job with `fetch-depth: 0`. The guard still performs a real `git show <frozen-sha>:<path>` byte
+   comparison; it was **not** converted to an expected-hash constant, which would have been satisfiable by
+   editing the constant in the same change it exists to catch.
+
+**What the repair deliberately did NOT do**, because each of these would have made the test green by removing the
+thing being tested: it did not change `scripts/architecture-shadow-hosted.cjs` provenance detection, did not
+hardcode `hosted = false`, did not special-case `NODE_ENV=test`, did not skip `S8` on CI, did not add
+`if (!process.env.CI)`, and did not suppress the assertion. The production runner still measures the environment
+it is given — proven by running it with `GITHUB_ACTIONS=true` in the environment, where it reports
+`hosted: true / provider: "GitHub Actions"` and preserves the commit and run metadata.
+
+**Both defects are falsified by re-running the suite in the environment that broke it.** With
+`GITHUB_ACTIONS=true`, `CI=true`, `GITHUB_SHA`, `GITHUB_RUN_ID`, `GITHUB_JOB=unit`, `GITHUB_EVENT_NAME=pull_request`
+and the `RUNNER_*` variables all set in the shell, the amended suite passes **34/34** — where the previous
+revision failed `S8` on exactly those variables.
+
+The `fetch-depth: 0` requirement is itself now pinned by an assertion in the same suite, so removing it fails
+with a statement of what broke instead of an opaque exit 128 two hundred lines away — and a `git cat-file -e`
+probe turns "the frozen commit is not in this checkout" into an explicit diagnosis rather than letting a git
+error masquerade as a baseline mismatch.
+
+## L-5 — the repair commit, exactly
+
+```text
+PR                  = #14
+OLD_PR_HEAD         = 74b8a3f81ccab8f713bb246a529b0c48a20112fb
+REPAIR_COMMIT       = bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04
+NEW_PR_HEAD         = bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04
+PUSH_DISTANCE       = 74b8a3f..bcf5a33   (fast-forward; the old candidate is an ANCESTOR of the new head)
+AMEND_REBASE_RESET_FORCE_PUSH = NONE
+OLD_CANDIDATE_RETAINED_AS_EVIDENCE = YES  (74b8a3f and run 35811655716 are negative evidence and are not deleted)
+FILES_CHANGED       = .github/workflows/ci.yml
+                      docs/research/PAPER_EVIDENCE_LEDGER.md
+                      scripts/architecture-shadow-hosted.cjs   (export-only; no semantic change)
+                      tests/unit/city/architecture-hosted-shadow.test.ts
+                      tests/unit/city/helpers/phase1b-scripts.ts
+```
+
+`PR_HEAD_SHA_AFTER_PUSH = bcf5a33…` and `PR_AUTHOR = codex-boss[bot] (Bot)` — PR #14 moved to the new head
+naturally, with its authorship unchanged. No new PR was opened and the old one was not closed.
+
+`.github/workflows/ci.yml` is Root Trust Surface, so the `fetch-depth` change moves the candidate surface again.
+**No epoch was advanced**; the epoch-26 candidate was re-measured against the new candidate head, and the previous
+proposal is not authorization for the new surface. The old candidate surface hash no longer authorizes the new
+head — which is the intended behaviour, not a problem to be worked around.
+
+## L-6 — `FAILURE` + `CORRECTION`: the soak count was over-reported for the same reason
+
+`CORRECTION`. §K-9 recorded **`HOSTED_ARCHITECTURE_RUNS_OBSERVED = 6 consecutive, all green`**. Those runs did
+genuinely happen on a real hosted runner and the `architecture` job genuinely succeeded in each — but "the
+architecture job succeeded" is not by itself the S1 exit condition, which also requires that shadow and local
+agree on `new_regressions`, that `engine_errors` is 0, that provenance is genuine GitHub Actions, and that the
+baseline checks are valid **for the commit being counted**. Counting them as a continuous S1 soak series without
+re-validating each run against the spec is the same error as L-3: inheriting a favourable number instead of
+measuring it.
+
+The runs are therefore split, and the classification is by validation rather than by count:
+
+```text
+PRE_REPAIR_HOSTED_RUNS    = 6   (35803359214 was a TAG-push run of the Phase 1B-A freeze, a different phase;
+                                 35805180887, 35805647014, 35806819965, 35807269888, 35807684348 are Phase
+                                 1B-B push runs on the hosted runner, `architecture` green in each)
+                                 -> retained as HOSTED-SHADOW EXISTENCE EVIDENCE, not inherited as soak credit
+CURRENT_HEAD_HOSTED_RUNS  = measured on NEW_PR_HEAD after the repair (see §L-7)
+```
+
+`HOSTED_SHADOW_CONSECUTIVE_VALID_RUNS` is reported for the repaired head only, and no old run is relabelled,
+duplicated or counted twice to approach 20.
+
+## L-7 — `MEASUREMENT` on the repaired head
+
+`MEASUREMENT`. Both event types were re-run on `NEW_PR_HEAD` and every result below is bound to that SHA.
+
+| Run | Event | Head | `quality` | `architecture` | `unit` | `package` | `acceptance` |
+|---|---|---|---|---|---|---|---|
+| `35813798522` | `push` | `bcf5a33…` | success | **success** | failure | skipped | skipped |
+| `35813801516` | `pull_request` | `bcf5a33…` | success | **success** | failure | skipped | skipped |
+
+```text
+NEW_PR_HEAD                  = bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04
+PUSH_RUN                     = 35813798522
+PR_RUN                       = 35813801516
+ARCHITECTURE_JOB             = completed/success on both (runners 1000001586, 1000001588)
+ARCHITECTURE_REQUIRED        = NO
+UNIT_RESULT                  = 1 failed | 264 passed (265)
+CONTENT_FAILURES             = 0        <-- S8 and the frozen-commit guard both pass on the hosted runner now
+ROOT_TRUST_STALENESS_FAILURES = 1       <-- test-layers.test.ts:430, TRUST_EPOCH_ROOT_SURFACE_MISMATCH
+```
+
+**The two content failures are gone on the very environment that produced them.** The hosted `unit` log now shows
+exactly one failing file (`tests/unit/test-layers.test.ts:430`) and one failing case, with the epoch message. The
+repair did not merely move the failure: `S8` passes under inherited `GITHUB_ACTIONS=true`, and the frozen-commit
+byte comparison resolves `b5b511d7…` because the `unit` job now checks out full history.
+
+**One detail worth recording, because it affects how "same commit" is read.** On a `pull_request` event GitHub
+Actions checks out the PR **merge** commit, not the branch head. The artifact from run `35813801516` therefore
+carries `commit_sha = 644e1d4f4790b9bffbdd8a71ca2e698b0b7294f2`, whose parents are verified to be exactly
+`b5b511d7…` (main) and `bcf5a33…` (the PR head):
+
+```text
+644e1d4f… = Merge bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04 into b5b511d750f11a7573b24e7b04c545b44d73b3da
+parents   = [b5b511d750f11a7573b24e7b04c545b44d73b3da, bcf5a3365f6a628ef7d388304b6b9f1ac25cfe04]
+```
+
+Because main is an ancestor of the head, the merge tree is identical to the head tree, so the measurement is the
+new head's. Stated explicitly rather than glossed, because "the artifact says a different SHA" is exactly the kind
+of discrepancy that should be explained, not ignored.
+
+### Same-commit hosted/local parity, re-measured for `NEW_PR_HEAD`
+
+The old SHA's parity hash is **not** reused; this comparison is between a local run of `bcf5a33…` and the artifact
+the hosted `pull_request` run actually published:
+
+```text
+LOCAL_FINDINGS_HASH  = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HOSTED_FINDINGS_HASH = db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+HASHES_EQUAL = true    COUNTS_EQUAL = true (1677)    multiplicity_differences = []    state = HOSTED_LOCAL_PARITY
+PARITY_FOR_NEW_HEAD = YES
+```
+
+Hosted provenance on that run, measured rather than inherited:
+
+```text
+hosted = true    hosted_provider = "GitHub Actions"    runner_os = Windows
+shadow_verdict = PASS    engine_verdict = PASS    engine_error_count = 0
+findings_count = 1677    machinery_failure_count = 0    policy_violation_count = 0
+baseline_series_status = AUTHORISED    baseline_self_consistency_status = VERIFIED
+not_yet_enforced_status = READABLE (5 classes)    root_trust_epoch = 25
+```
+
+### Soak accounting — re-derived, not inherited
+
+Each candidate run is classified against the S1 exit condition rather than counted because the `architecture` job
+was green. The pre-repair runs established that the hosted **deployment** exists and behaves; they are not inherited
+as soak credit for the repaired head.
+
+```text
+PRE_REPAIR_HOSTED_RUNS (existence evidence, NOT soak credit for the new head)
+  35805180887  push  9916647   architecture SUCCESS
+  35805647014  push  82a2966   architecture SUCCESS
+  35806819965  push  f389209   architecture SUCCESS
+  35807269888  push  4e98c7f   architecture SUCCESS
+  35807684348  push  74b8a3f   architecture SUCCESS
+  35811655716  pull_request  74b8a3f   architecture SUCCESS  (the run that found the two test defects)
+
+CURRENT_HEAD_HOSTED_RUNS (validated against the S1 conditions on NEW_PR_HEAD)
+  35813798522  push          bcf5a33   architecture SUCCESS, 0 engine errors, provenance genuine
+  35813801516  pull_request  bcf5a33   architecture SUCCESS, parity measured, 0 engine errors
+
+HOSTED_SHADOW_CONSECUTIVE_VALID_RUNS = 2   (counted only where provenance and parity were re-verified)
+HOSTED_SHADOW_REQUIRED_RUNS = 20
+HOSTED_SHADOW_SOAK_COMPLETE = NO
+```
+
+No run was relabelled, duplicated, or counted twice to approach 20. The pre-repair runs remain in the record as
+hosted-shadow evidence, which is what they are.
+
+
+
+
 

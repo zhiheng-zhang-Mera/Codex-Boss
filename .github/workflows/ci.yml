@@ -45,6 +45,34 @@ name: Desktop CI
 #
 # Every job re-checks out and re-installs: a job is a fresh runner, and pretending
 # otherwise is how a "split" CI quietly stops testing what it claims to.
+#
+# THE `architecture` JOB IS NOT REQUIRED, AND THAT IS THE POINT (Phase 1B-B, stage S1).
+#
+# It runs the qualified prospective architecture enforcer in SHADOW mode as its own
+# check named `architecture`, so the check exists, reports, and accumulates hosted
+# evidence BEFORE anyone is asked to make it block anything. It is deliberately:
+#
+#   NOT in the ruleset's required_status_checks   -- adding it is stage S3, a ruleset
+#                                                    edit and nothing else, and it is
+#                                                    an Owner act this phase may not take
+#   NOT dependent on other jobs (`needs:`)        -- `needs:` would make the check
+#                                                    disappear from the required-check UI
+#                                                    on a `quality` failure, i.e. it would
+#                                                    be able to vanish rather than report
+#   NOT filtered by `paths:` or `branches:`       -- a filtered job is an absent check
+#   NOT conditional (`if:`)                       -- same reason, and the spec forbids a
+#                                                    path by which enforcement can be
+#                                                    skipped while the job reports success
+#
+# Its semantics are NOT "shadow means ignore errors". The distinction the specification
+# draws (section 5, rule 1) is enforced inside `scripts/architecture-shadow-hosted.cjs`:
+# a POLICY VIOLATION is reported and the step exits 0, while a MACHINERY FAILURE --
+# engine error, incomplete sensor, a baseline that is not self-consistent, or a baseline
+# whose identity no ACCEPTED series entry names -- exits non-zero and fails the job.
+# A gate that cannot measure must not report success, even in shadow.
+#
+# The legacy ratchet is untouched and still required: it runs as a step in `quality`
+# above. Phase 1B-B is additive observation, not a replacement.
 
 on:
   push:
@@ -84,11 +112,120 @@ jobs:
       # substrate the durable state core is built on.
       - run: pnpm run state:probe
 
+  architecture:
+    # Phase 1B-B stage S1: the qualified prospective enforcer, hosted, in shadow, NOT required.
+    #
+    # No `needs:` -- deliberately. The check must appear on every push and pull_request event
+    # this workflow emits, and a `needs:` would let it vanish whenever an earlier job failed.
+    # A check that can disappear is not evidence that a gate behaves as specified; it is a
+    # check that was absent at exactly the moment it mattered.
+    #
+    # No `paths:` and no `branches:` filter, and no `if:` -- see the header note above. The
+    # identity of this job (`architecture`) is part of the governance contract and is pinned
+    # by tests/unit/city/architecture-hosted-shadow.test.ts, which fails if it is renamed.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.19.0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The build is required because `architecture-baseline-series --check` and the shadow
+      # runner both read the repository's own compiled trust/observatory modules. The shadow
+      # measurement itself is source-only; the governance check around it is not.
+      - run: pnpm run install:electron
+      - run: pnpm run build
+      # 1. Is the committed accepted baseline authorized? A baseline that is merely
+      #    well-formed, or merely reproducible from the tree it was generated at, is exactly
+      #    what a laundered baseline is. This step is what makes the series check part of the
+      #    hosted gate rather than a local habit; nothing ran it in CI before this phase.
+      - run: pnpm run architecture:enforce:baseline:series
+      # 2. Is the accepted baseline self-consistent with this tree, and does its recorded
+      #    identity match what the series accepts? Regeneration is never attempted here:
+      #    `--accept` is not called anywhere in this workflow, because ordinary CI must not be
+      #    able to widen the accepted baseline series.
+      - run: pnpm run architecture:enforce:baseline -- --check
+      # 3. The shadow enforcement itself. `architecture:enforce:shadow` is the repository's
+      #    existing script, run first as its own step so the engine's verdict and exit code are
+      #    visible in the CI UI on their own. It writes to its OWN directory rather than to the
+      #    canonical path: the hosted runner in the next step publishes the artifact this job
+      #    uploads, and two writers to one path would mean the uploaded file was whichever ran
+      #    last rather than a file with one author. Here it is unambiguous — the engine's shadow
+      #    report is under `engine-shadow/`, and the uploaded evidence is the runner's.
+      - run: pnpm run architecture:enforce:shadow -- --out artifacts/city/phase1/engine-shadow
+      # 4. The hosted runner: it re-checks the series and the baseline itself, produces the
+      #    narrow evidence artifact at the path the upload step names, and enforces the
+      #    policy-vs-machinery distinction (policy violation -> exit 0, machinery failure ->
+      #    exit non-zero).
+      - run: node scripts/architecture-shadow-hosted.cjs
+      # 4. Verify the evidence this job just published is the evidence it claims to have
+      #    produced. A generated record that is missing, empty, or carries no
+      #    `not_yet_enforced` list is a machinery failure reported as a green job — and an
+      #    EMPTY `not_yet_enforced` list must be distinguishable from an UNREAD one (spec
+      #    section 5, rule 2), so the list's presence is asserted rather than its contents.
+      #    Parity between the local and hosted evaluation is proven against this same
+      #    artifact in tests/unit/city/architecture-hosted-shadow.test.ts, where it does not
+      #    cost a second full measurement of the tree on every push.
+      - name: Architecture shadow evidence is present and complete
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $metaPath = "artifacts/city/phase1/architecture-shadow-metadata.json"
+          $shadowPath = "artifacts/city/phase1/architecture-enforcement-shadow.json"
+          foreach ($file in @($metaPath, $shadowPath)) {
+            if (-not (Test-Path $file)) { throw "ARCHITECTURE_SHADOW_EVIDENCE_MISSING: $file was not produced" }
+            if ((Get-Item $file).Length -eq 0) { throw "ARCHITECTURE_SHADOW_EVIDENCE_EMPTY: $file is empty" }
+          }
+          $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
+          if ($meta.schema -ne "city-phase1b-hosted-architecture-shadow/1") { throw "ARCHITECTURE_SHADOW_EVIDENCE_SCHEMA: $($meta.schema)" }
+          if ($null -eq $meta.not_yet_enforced) { throw "ARCHITECTURE_SHADOW_NOT_YET_ENFORCED_UNREAD: the unmodelled-defect-class list is absent, which is not the same as empty" }
+          if (-not $meta.findings_semantic_hash) { throw "ARCHITECTURE_SHADOW_DIGEST_MISSING: no findings digest was published" }
+          if ($meta.engine_error_count -ne 0) { throw "ARCHITECTURE_SHADOW_ENGINE_ERRORS: $($meta.engine_error_count) engine error(s)" }
+          if ($meta.baseline_series_status -ne "AUTHORISED") { throw "ARCHITECTURE_SHADOW_SERIES: $($meta.baseline_series_status)" }
+          if ($meta.baseline_self_consistent -ne $true) { throw "ARCHITECTURE_SHADOW_BASELINE: the accepted baseline is not self-consistent with this tree" }
+          Write-Host "ARCHITECTURE_SHADOW_VERDICT=$($meta.shadow_verdict) FINDINGS=$($meta.findings_count) DIGEST=$($meta.findings_semantic_hash) EPOCH=$($meta.root_trust_epoch) NOT_YET_ENFORCED=$($meta.not_yet_enforced.Count)"
+      # The narrow hosted evidence artifact. NOT a corpus root and NOT an evidence tree:
+      # `artifacts/**`, `runtime-data/**`, `history/**` and `.codex-boss/**` are never
+      # uploaded, and the two files below are generated records, not repository state.
+      # `if: always()` because a failed architecture job is exactly when its findings are
+      # worth reading.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: architecture-shadow
+          path: |
+            artifacts/city/phase1/architecture-enforcement-shadow.json
+            artifacts/city/phase1/architecture-shadow-metadata.json
+          if-no-files-found: warn
+
   unit:
     needs: quality
     runs-on: windows-latest
     steps:
+      # FULL HISTORY, and only in this job.
+      #
+      # `actions/checkout@v4` defaults to `fetch-depth: 1`, which is right for the other jobs and wrong for this
+      # one. `tests/unit/city/architecture-hosted-shadow.test.ts` guards the accepted baseline and the epoch
+      # record by comparing their CURRENT bytes with their bytes at the immutable Phase 1B-A freeze commit
+      # `b5b511d750f11a7573b24e7b04c545b44d73b3da` -- a real `git show <sha>:<path>` comparison, deliberately,
+      # because a guard written against an expected-hash constant can be satisfied by editing the constant in the
+      # same change it is supposed to catch.
+      #
+      # On a depth-1 checkout that commit is not present, so `git show` exits 128 and the guard fails for a reason
+      # that has nothing to do with the property it checks. That is exactly what happened on the first real
+      # `pull_request` run of PR #14 (run 35811655716): the guard reported `expected 128 to be +0`. Supplying the
+      # history the guard inspects is the fix; weakening the guard, or making it tolerate a missing commit, would
+      # have turned a real check into a decorative one.
+      #
+      # If this `fetch-depth: 0` is ever removed, the guard must fail again rather than silently degrade -- which
+      # it will, with the same exit-128 signature.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: "11.19.0"
