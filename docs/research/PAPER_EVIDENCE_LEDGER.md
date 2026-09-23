@@ -3627,3 +3627,216 @@ exact expected machine code, proving shadow reports it and enforce reports the i
 non-zero, then closed unmerged. Executing it needs separate authorization, and no such defect was merged into
 `main`.
 
+# §R — Mission-4D: the trust finalization transport repair, and the epoch-27 cycle it closes
+
+**This section is appended. §A through §Q are byte-for-byte unchanged.**
+
+## R-1 — `MEASUREMENT`: epoch 27 is stable on `main`, and the gate that blocked this work has closed
+
+`MEASUREMENT`. The epoch-27 handoff was pending, and the repair described below was held behind it because a
+transport repair cannot be evidenced against a tree whose own epoch is unfinalized. The gate is now closed by the
+Owner, and the facts are:
+
+```text
+EPOCH27_BRANCH      = trust-epoch/boss-root-trust-27
+EPOCH27_PR          = #20   "chore(trust): finalize epoch 27 under Owner authorisation"
+EPOCH27_HEAD        = 0dda34f5fa470aabc6ba866797a45de65030380f
+EPOCH27_MERGE_SHA   = 86ee83a9bcd09fd256e7df3bdd0e4b82683ac13c
+EPOCH27_MERGE_AUTHOR= Root Owner (human), via the repository ruleset's required code-owner review
+EPOCH27_CHANGED_FILES = 1   (trust-policy/trust-epoch.json only)
+EPOCH_PRE_MERGE     = 26
+EPOCH_POST_MERGE    = 27
+ROOT_CONTRACT_POST  = boss-root-trust-27
+ROOT_SURFACE_POST   = 57b1db4421313ed220a5e413dbb8e3374a8279c3365fb7618e371b09697a1418
+EPOCH_HASH_POST     = d2531f749f176dd4a366e955ba6bd937889553c297ab619313d4a9c140c5c2cd
+PARENT_EPOCH_HASH   = 85f1c49b772d33a5c05127723bc6653603b92572e18ee4ecbcc1a553e17996d9
+```
+
+**The anchoring is verified by the repository's own ceremony check, not asserted.** On the rebased repair branch,
+against a working tree that carries all of this mission's changes:
+
+```text
+$ node scripts/acceptance-evolution-bless.cjs --check
+[bless] root trust surface: 72 files, aggregate 57b1db4421313ed220a5e413dbb8e3374a8279c3365fb7618e371b09697a1418
+[bless] repository: fix/root-trust-finalization-transport-handoff-v1 @ 0060bf3eaba9861e9224b36273b0dc8441329a3d
+[bless] epoch 27 (boss-root-trust-27) MATCHES the live surface
+```
+
+The same check on the pre-merge base reported the expected staleness, and the repository's own staleness guard said so
+in its own words — `TRUST_EPOCH_ROOT_SURFACE_MISMATCH`, epoch 26 certifying `0c139bd5…` against a live surface of
+`57b1db44…`. **That red is the diagnosis, not the defect**: it is the machine-stated reason the epoch-27 ceremony
+existed. It is recorded here so the pre-merge and post-merge states are both on the record rather than only the
+convenient one.
+
+## R-2 — `FAILURE`: the same transport step failed identically for two consecutive epochs
+
+`FAILURE`. The finalization workflow ended with `gh pr create`. Repository policy does not permit the Actions
+`GITHUB_TOKEN` to create pull requests, so that step failed — and it failed the same way twice:
+
+```text
+epoch 26 (run 35816107209):  ceremony PASS, --advance PASS, --check PASS, branch pushed PASS, gh pr create FAIL
+epoch 27 (run 35864751345):  ceremony PASS, --advance PASS, --check PASS, branch pushed PASS, gh pr create FAIL
+```
+
+Both runs are `workflow_dispatch`, `completed/failure`, and are **preserved as-is**. They are not re-run to green,
+hidden, or rewritten: they are the evidence that the defect was real, repeatable, and independent of the epoch.
+
+**In both cases the epoch was correctly produced and anchored and the workflow was reported FAILED.** The defect is
+semantic before it is operational: the workflow's terminal state described its TRANSPORT rather than its CEREMONY, so
+no reader could distinguish "the epoch is wrong" from "the epoch is right and nobody was told". A governance signal
+that cannot be told apart from its own opposite is worse than a missing one, because it trains operators to re-run a
+trust ceremony until it reports something else.
+
+**The recurrence is the finding.** One failure is an incident; two identical failures across independently authorized
+ceremonies is a design property. The step's success depended on something outside the ceremony — an authority the
+workflow never held — which is the sixth member of this phase family's recurring defect class, after §L, §M, §N and
+the two §Q content failures.
+
+## R-3 — `CORRECTION`: authority is REDUCED, not moved
+
+`CORRECTION`. The step is replaced by a terminal decision that consumes only facts the run has already measured, and
+by a machine-readable handoff the repository's existing machine identity consumes:
+
+```text
+produce + verify (--check) + push + hand off   ->  SUCCESS  (EPOCH_BRANCH_READY)
+nothing to migrate                             ->  SUCCESS  (NO_MIGRATION, nothing written)
+branch already exactly right                   ->  SUCCESS  (EPOCH_BRANCH_ALREADY_READY, no re-advance)
+branch exists and disagrees                    ->  FAILURE  (EPOCH_BRANCH_CONFLICT, fail closed)
+```
+
+The repair removes `pull-requests: write` because the permission existed **only to fail**. Nothing replaces it: no
+Owner credential, no App private key, no PAT, no broader scope. Transport moves to the Codex-Boss App machine
+identity, which already exists for this purpose and which already has `pull_request.create` **ALLOW**ed by the
+repository's own guardian policy. Measured on executable workflow lines:
+
+```text
+gh pr create            = ABSENT   (documented only in the header, as the failure being repaired)
+pull-requests: write    = ABSENT
+GH_TOKEN                = ABSENT
+permissions             = contents: write   (only)
+OWNER_PAT / PRIVATE KEY / administration: write / pull_request_target / schedule / workflow_run = ABSENT
+```
+
+**The protected ceremony is untouched**: `workflow_dispatch` only, the `refs/heads/main` refusal failing closed
+with `TRUST_EPOCH_FINALIZATION_REQUIRES_MAIN`, the `boss-root-trust-owner` environment with its required human
+reviewer, `--advance` immediately followed by `--check`, and the epoch branch push. The only thing that changed is
+what the workflow claims about itself when it is done, and who is told.
+
+```text
+GATE_PENDING != STOP_WORKING
+  the transport repair was BLOCKED on epoch 27 finalization (it is rebased onto the post-merge main, not onto a
+  future tree); every independent lane -- the decision module, its CLI, the workflow's static contract, the
+  regression guards and their falsification -- proceeded while the gate was open.
+```
+
+## R-4 — `FAILURE`: four defects in my own prepared repair, found by auditing it rather than by shipping it
+
+`FAILURE` + `CORRECTION`. With the gate open and no further independent evidence obtainable from the remote, the
+mission's §45 rule turned the work onto the repair itself. Four real defects were found in the **idempotency and
+no-op paths**, none of which any remote measurement would have exposed:
+
+```text
+1. the handoff compared against the COMMITTED record. The committed epoch is the stale one by definition -- that is
+   why a migration was warranted at all -- so a branch carrying exactly the proposed record would be compared
+   against a record that disagrees with it and reported as EPOCH_BRANCH_CONFLICT.
+2. the already-ready path never seeded the proposed epoch hash, leaving it null. A null hash compares unequal to the
+   real one, which inverted the same verdict by a different route.
+3. EPOCH_COMMIT is exported by the commit step, which is SKIPPED when the branch already exists, so the reused-branch
+   handoff named no commit and was refused by its own validator. EPOCH_BRANCH_ALREADY_READY was therefore
+   UNREACHABLE, and a rerun would have failed forever instead of succeeding idempotently.
+4. the no-migration success ended without naming its terminal state, so the workflow's own correct no-op --
+   "the repository is already anchored" -- looked identical to falling through doing nothing.
+```
+
+**Defects 1, 2 and 3 compose into one inversion**: the idempotency rule, whose entire purpose is to make a rerun
+safe, was implemented such that a rerun could never succeed. A path that has never been executed is a path whose
+defects are invisible to every green run, which is why "the tests pass" was not evidence about it and why the audit
+had to be aimed deliberately at the branch that no live ceremony had ever taken.
+
+**A pre-existing spelling weakness was found in the guard while falsifying it.** The first regression guard matched
+the bad argument as `--expected-record "trust-policy/trust-epoch.json"`, with double quotes. The same defect can be
+written with single quotes, so the guard would have passed while the defect was present. The guard now asserts the
+handoff step's own argument **value** — that the comparison source is the record this run proposed — which is
+spelling-independent and is checked on the step rather than on the whole file, where the commit step legitimately
+names the committed record because that is the file it stages.
+
+## R-5 — `MEASUREMENT`: every guard was falsified by reintroducing the defect
+
+`MEASUREMENT`. A guard that has never been observed to fail is not evidence. Each defect was reintroduced
+mechanically, the suite was run, and the run was required to be RED naming the intended guard. Restoration was a
+byte-for-byte rewrite from an in-memory backup — deliberately **not** `git checkout --`, which discards every
+uncommitted fix in the file; that command destroyed the first attempt at this exact step and is the reason the
+harness now restores from memory and verifies the restore byte-for-byte.
+
+```text
+mutation                       expected guard   observed
+committed-record compare       T16              1 failed | 31 passed   RED
+committed-record, single-quote T16              1 failed | 31 passed   RED
+unseeded expected hash         T16              1 failed | 31 passed   RED
+no commit fallback             T17              1 failed | 31 passed   RED
+commit resolved but not passed T17              1 failed | 31 passed   RED
+epoch hash not passed          T17              1 failed | 31 passed   RED
+no terminal state named        T18              1 failed | 31 passed   RED
+CLI stops accepting the commit T17              2 failed | 30 passed   RED
+restore byte-identical         all eight        TRUE
+```
+
+Eight mutations, eight RED, each naming the guard it was aimed at, no false positives, and every restore verified
+byte-identical. The fabricated variant of this record — "the guard would catch it" — is not what is written here.
+
+## R-6 — `MEASUREMENT`: the qualification actually run, on the rebased tree
+
+`MEASUREMENT`. Every figure below was measured after the rebase onto the post-epoch27 `main`, on commit
+`0060bf3e`:
+
+```text
+EPOCH27_ANCHORS_LIVE_SURFACE = MATCH   (72 files, aggregate 57b1db44…)
+FULL_UNIT_SUITE             = 3447 passed / 3447, 268 files, 0 failed
+TYPECHECK_TESTS             = exit 0
+TRANSPORT_SUITE             = 32 passed / 32   (was 29; +3 regression guards)
+CITY_QUALIFICATION_BATTERY  = 88 passed / 88   (transport + S1 shadow + S2 enforce + live probe)
+TRUST_EPOCH_STALENESS_TEST  = PASS on the rebased tree; RED on the pre-merge base, as diagnosed
+```
+
+The transport workflow is classified `VERIFICATION_SURFACE`, and it is **not** one of the 30 declared Root Trust
+Surface paths. Measured, not assumed:
+
+```text
+.github/workflows/trust-epoch-finalization.yml              in Root Trust Surface = false
+scripts/trust-epoch-finalize-handoff.cjs                    in Root Trust Surface = false
+scripts/trust-epoch-finalization-handoff.cjs                in Root Trust Surface = false
+tests/unit/city/trust-epoch-finalization-transport.test.ts  in Root Trust Surface = false
+.github/workflows/ci.yml                                    in Root Trust Surface = true  (note the contrast)
+```
+
+This is why the hardening could land without re-finalization: it moves no part of the certified surface. It is also
+why `ci.yml` — which **is** surface — is untouched by this mission and remains the file that would correctly make
+the committed epoch stale.
+
+## R-7 — what this section does and does not claim
+
+`CORRECTION`. **It claims** that epoch 27 is stable on `main` at `86ee83a9`, Owner-merged under required
+code-owner review; that the finalization workflow no longer contains, or holds authority for, PR transport; that its
+terminal states are decidable from measured facts and exit non-zero only on a genuine refusal; that four defects in
+the idempotency and no-op paths are repaired; and that each repair is pinned by a guard observed to fail when the
+defect was reintroduced.
+
+**It does not claim** that the repair is live. The live end-to-end proof is the epoch-28 ceremony, and it has not run.
+Explicitly prepared and not activated:
+
+```text
+TRANSPORT_REPAIR_LIVE_PROOF = NOT YET  (requires the epoch-28 dispatched, Owner-approved ceremony)
+EPOCH28_CEREMONY            = PREPARED_NOT_ACTIVATED
+```
+
+Unchanged and not performed, restated here so the boundary is on the record in this section too:
+
+```text
+RULESET_CHANGED = NO        ARCHITECTURE_REQUIRED = NO      BASELINE_WIDENED = NO
+S3 = NOT AUTHORIZED         LEGACY_RATCHET = REQUIRED_AND_UNCHANGED
+NEGATIVE_CONTROL_EXECUTED = NO   PHASE2_MIGRATION = NOT STARTED
+OWNER_BYPASS_USED = NO      MAIN_PUSHED_DIRECTLY = NO       EPOCH_ADVANCED_OUTSIDE_THE_PROTECTED_WORKFLOW = NO
+```
+
+`github-actions[bot]` authority was reduced by this change and was not expanded anywhere. No repository setting,
+ruleset, environment, branch protection or required-context list was modified to make any result above pass.

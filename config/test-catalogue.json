@@ -535,6 +535,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/trust-epoch-finalization-transport.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the Trust Epoch Finalization workflow is reduced to contents:write only (pull-requests:write, GH_TOKEN and `gh pr create` are gone, and no Owner credential, App private key, privileged trigger or administration endpoint replaces them), while its authority-preserving properties are proven intact — the protected boss-root-trust-owner environment, the refs/heads/main refusal, dispatch-only triggering, `--advance` followed by `--check`, the branch push with no direct main push or --force, and a bounded evidence upload; the commit step no longer stages the gitignored artifacts path, so its outcome no longer depends on the shell's native-command error preference; the terminal decision is exercised as a pure function and through the shipped CLI — NO_MIGRATION, EPOCH_BRANCH_READY and EPOCH_BRANCH_ALREADY_READY exit 0 while EPOCH_BRANCH_CONFLICT and an unreadable existing record exit 1 and are never handed off for a PR, a rerun onto a matching branch does not re-advance the epoch, and a ready handoff naming no commit is refused; and the machine-readable epoch-pr-handoff.json validates its binding to the run, base, epoch, branch and commit, is state-aware about which fields a non-producing run may omit, and refuses to carry credential material anywhere in the document",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/closure-terminal-logic.test.ts",
       "tier": "unit",
       "covers": [
