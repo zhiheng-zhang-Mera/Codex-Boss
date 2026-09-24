@@ -117,6 +117,71 @@ re-attribute the directory in one step. This is deliberately NOT decided here, b
 capability owns a 39-file tree and therefore which suites the impact selector selects for it — a decision that must
 be made with the consumers in hand, not from a directory name.
 
+### 4a. The consumers have now been read, and they answer the question
+
+**Measured: `electron/commander/**` has 129 importing statements in files OUTSIDE its own directory, spread across
+more than twenty capabilities** — `bootstrap` (five boot modules including persistence and state-core), `computer`,
+`emergency-control`, `engineering` (eight files), `evaluation`, `experience`, `fleet`, `hardening`, `host`,
+`identity`, `ingestion`, `input`, and more.
+
+A directory that a majority of the city's buildings import is not a feature's implementation. It is the **task
+execution engine** — its own file list says so: `main-commander`, `scheduler`, `role-router`, `plan-compiler`,
+`plan-runner`, `task-ledger`, `task-state-machine`, `task-finalizer`, `task-policy`, `execution-gate`,
+`execution-supervisor`, `budget-manager`, `token-budget-manager`, `resource-controller`, `context-manager`,
+`recovery-scheduler`, `web-recovery`, `degraded-controller`, `provider-session-registry`, `verification-collector`,
+`workbook-dispatch`, `workbook-production`.
+
+**By the programme's own vocabulary this is a ROAD, not a building**, and the decision is therefore not "which
+capability should own it" but "it should not be owned by a capability at all":
+
+```text
+principle 15.8   a capability needed by several independent buildings is a road candidate
+principle 15.5   a shared sink is extracted deliberately, with its consumers and its contract named
+spec section 3.2 class 1 is composition-root wiring; this is the same shape one level down -- shared machinery that
+                 is not any one capability's business
+```
+
+**Decision:** classify `electron/commander/**` as **explicitly shared task-execution infrastructure** and remove it
+from `tenx`'s ownership, with its consumer list recorded as the evidence that it is shared. **Rejected:** handing
+it to `tasks`. `tasks` is a feature whose manifest declares two IPC boot modules; giving it a 39-file engine that
+twenty other capabilities import would move the mis-description rather than fix it, and would make `tasks` the new
+apparent owner of `runtime`'s and `persistence`'s dependencies. **Deferred, with its reason:** moving the files
+themselves under a shared-infrastructure path is a structural migration (129 import statements) and belongs to the
+P2-E road-extraction increment, which is required to justify every extraction on five named points.
+
+### 4b. The ownership map is a generated artifact that has been hand-edited — and regenerating it LOSES files
+
+While establishing where the `tenx -> electron/commander` entry came from, a second, sharper defect was measured:
+
+```text
+node scripts/extend-capability-modules.cjs     the map's declared generator (it prints "wrote config/…")
+git status --short                             config/capability-modules.json becomes MODIFIED
+grep -c commander scripts/extend-capability-modules.cjs   0 -- the entry is NOT in the generator
+```
+
+So the committed map contains an entry its own generator does not produce. **Regenerating the map silently drops
+`electron/commander/**` from every capability's ownership**, which turns 39 files from owned into unowned — and the
+closure validator (`unowned scanned files: 0` → non-zero) is what would catch it, on a commit that merely ran a
+documented generator to refresh the file.
+
+```text
+CLASSIFICATION   a generated-artifact/derivation-currency defect: the file claims machine generation, is
+                 reproducible ONLY from its own committed bytes, and is LOST by the command that regenerates it
+WHY IT MATTERS   it is the P2-A thesis in its sharpest form. The map is the model every downstream number depends
+                 on, and the map cannot be rebuilt from its declared source.
+WHAT IT IS NOT   a correctness defect in the CLI: the committed map is the working one, and nothing shipped is
+                 broken by it. It is a REPRODUCIBILITY defect with a silent data-loss mode.
+```
+
+**Decision:** record it, and make the next P2-A increment's FIRST act the repair of the generator so its output
+equals the committed map — either by adding the missing entries to the generator's tables (preferred, since the map
+is the file everything reads) or by making the generator refuse to write a map that drops an owned path. A
+regeneration that cannot be reproduced must not be runnable at all.
+
+**This document did not leave the tree modified:** the regeneration was performed to measure the claim and the file
+was restored with `git checkout`; `git status` is clean, and the closure validator reports `unowned scanned files:
+0` and `VERDICT=PASS` on the committed state.
+
 ## 5. What this changes about increment 2
 
 ```text
