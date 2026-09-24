@@ -1072,3 +1072,62 @@ CC-0xx  OWNER_CONTINUOUS_CONSTRUCTION = CLOSED (§32)
 ```
 
 **Status of this ledger:** OPEN — construction in progress. This ledger is closed only at final seal.
+
+---
+
+## CC-017 — A third load-sensitive failure, in `test:postbuild`, and it is a real measurement boundary
+
+```text
+ENTRY_ID                    CC-017
+timestamp_utc               2026-09-24T14:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 classification; then an Owner workflow action (re-run the failed job)
+main_before                 7f125ce4e59d4cea69642151ec276ae02944abb5  (unit RED)
+main_after                  7f125ce4e59d4cea69642151ec276ae02944abb5  (unchanged -- the re-run is the same commit)
+branch                      main
+PR                          #42 (docs-only, merged)
+workflow_run_ids            36012762253 (Desktop CI on 7f125ce, unit FAILED in test:postbuild) ; the same run
+                            re-run --failed (ALL FIVE GREEN)
+checks_observed             FIRST ATTEMPT: quality=success, architecture=success, unit=FAILURE (in the
+                            `pnpm run test:postbuild` step), acceptance=skipped, package=skipped
+                            RE-RUN OF THE FAILED JOB, SAME COMMIT: all five success
+problem                     tests/acceptance/platform-soak-report.test.ts failed with
+                            `AssertionError: expected 3 to be greater than 3` at
+                            `expect(report.samples).toBeGreaterThan(3)`, on a commit whose only change was
+                            documentation.
+classification              R1 -- known hosted timing/load effect, disproved on the SAME TREE by re-run
+                            (workbook section 5). NOT R2/R4: the same commit passed all five checks on re-run.
+normal_path                 Classify, capture the exact assertion, re-run bounded, continue when supported.
+why_normal_path_was_not_used
+                            Not applicable -- the normal path was used in full.
+action_taken                Captured the failing assertion and its context; confirmed the same tree is green on
+                            the PR run; re-ran the failed job on the SAME commit; got all five green. Recorded it.
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  THIS ONE IS DIFFERENT FROM CC-015/CC-016 IN A WAY THAT MATTERS. Those were TIMEOUTS
+                            against a per-test ceiling -- a budget problem. This is an ASSERTION about a
+                            measured QUANTITY: the soak runs `--minutes 0.25 --interval 250`, so ~60 samples are
+                            expected in 15 seconds, and the loaded runner produced exactly 3. The suite asserts
+                            `samples > 3` twice (lines 76 and 187) as its evidence that "real measurements"
+                            happened. On a contended runner that is not a budget question but a measurement
+                            floor: the lower the sample count, the weaker the claim the report makes, and a
+                            threshold lowered to `>= 1` would let a report with ONE sample count as evidence.
+                            So the fix is NOT "relax the assertion". It is either to lengthen the soak enough
+                            that a contended runner still produces a real series, or to make the suite state
+                            what it actually needs (`--minutes` and `--interval` chosen so the expected sample
+                            count is a measured bound rather than an assumption) -- decided with the sample
+                            timing in hand, which this session's remaining budget did not allow.
+evidence_preserved          Run 36012762253 first attempt (unit FAILED, `expected 3 to be greater than 3`) and
+                            its re-run (all five green) on the SAME commit 7f125ce.
+rollback                    n/a (classification plus a re-run)
+temporary_debt_created      no
+debt_id                     deliberately NOT opened: it is a measurement-floor question with a specified repair
+                            path, and it changes no guarantee's correctness. It becomes debt if a later increment
+                            declines to fix it.
+exit_condition              the soak report suite passes on a contended runner without lowering its evidence
+                            threshold, proven by either a longer soak or a stated sampling bound
+closure_status              OPEN -- recorded with the distinction above; the repair is a named next-increment task
+research_value              Two flakes in one class (a timeout against a ceiling) and one that LOOKS like the
+                            same class but is not: a threshold on a MEASURED QUANTITY degrades the claim rather
+                            than the schedule. Recording the distinction is what stops the next reader from
+                            applying the timeout remedy to an evidence problem.
+```
