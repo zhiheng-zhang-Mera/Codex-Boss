@@ -1193,3 +1193,59 @@ research_value              THE SAME DEFECT CLASS, FOURTH INSTANCE, AND THIS TIM
                             the tool lied; it is that the tool answered a different question than the one being
                             asked, and the answer was accepted without reading the question.
 ```
+
+---
+
+## CC-019 — The soak sample floor is a machine-throughput threshold, and the slope degrades silently below it
+
+CC-017 recorded that `tests/acceptance/platform-soak-report.test.ts` failed on `main` with
+`expected 3 to be greater than 3` at `expect(report.samples).toBeGreaterThan(3)`, and specified the repair as
+"lengthen the soak, or state the sampling bound from measured timing -- NOT relax the assertion". This entry
+measures the mechanism so that repair is now decidable, and it found why relaxing the assertion would be worse
+than CC-017 already said.
+
+```text
+THE TEST      runSoak(["--minutes", "0.25", "--interval", "250"])   -> 15 seconds at a nominal 250 ms sampling
+              expect(report.samples).toBeGreaterThan(3)             -> lines 76 and 187
+
+THE LOOP      electron/state-core/platform-soak.ts:241
+                while (Date.now() - startedAtMs < options.durationMs) {
+                  ... per-cycle work ...
+                  samples.push(sampleNow(...))                      -> line 413
+                  await new Promise((resolve) => setTimeout(resolve, Math.min(options.sampleIntervalMs, 25)))
+                }                                                   -> line 416
+
+WHAT IT MEANS The interval is a sleep AFTER each cycle's work, not the cycle's period. So the sample count is
+              `15 000 ms / (per-cycle work + 250 ms)`, and per-cycle work is a property of the MACHINE. A healthy
+              run yields ~60 samples; the contended runner yielded 3, i.e. per-cycle work of roughly 4.25 s.
+              The test's floor of `> 3` is therefore a MACHINE-THROUGHPUT assertion wearing the clothes of an
+              evidence-completeness assertion.
+```
+
+**Why "relax it to `>= 1`" is not merely weak but actively wrong**, which CC-017 did not know:
+
+```text
+scripts/platform-soak.cjs:45        function slopePerMinute(samples, pick) {
+                                      if (points.length < 3) return 0;        <-- placeholder, not a measurement
+                                      ...
+
+platform-soak-report.test.ts:188    expect(Number.isFinite(report.trends.rssMiBPerMinute)).toBe(true)
+```
+
+`slopePerMinute` returns **`0`** when there are fewer than three samples, and `0` is finite. So a lowered sample
+floor would let a run with one or two samples report a **placeholder zero** as a trend and pass every assertion
+that checks the trend is a finite number. The count floor is load-bearing precisely because it is the only thing
+standing between the report and a fabricated flat trend -- which is why CC-017's instinct, "do not relax the
+assertion", was right and why the reason is stronger than it stated.
+
+```text
+DECISION      NOT taken here: lengthening `--minutes`, raising `--interval`, or asserting a sample floor derived
+              from measured per-cycle cost. Each is a defensible repair and each needs the per-cycle cost measured
+              on a contended runner, which this round's remaining budget did not allow.
+WHAT IS DONE  the mechanism, the numbers, and the slope-placeholder coupling are recorded, so the repair is a
+              decision with data rather than a guess. The repair must keep the count floor load-bearing OR make a
+              degraded series FAIL rather than report 0 -- the second is the more honest fix, because it makes
+              the guarantee explicit instead of relying on the test's threshold to stand in for it.
+CLASSIFICATION R1 (load-sensitive, disproved on the same tree by re-run, per CC-017), now with its mechanism
+              pinned. No CITY-DEBT created.
+```
