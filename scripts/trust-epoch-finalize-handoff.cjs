@@ -59,7 +59,8 @@ function parseArgs(argv) {
     // from the branch itself and passes it here. Without it the already-ready handoff would name no commit and be
     // refused by its own validator -- making the idempotent success path unreachable.
     epochCommit: value("--epoch-commit") ?? process.env.EPOCH_COMMIT ?? "",
-    // Section 9 B1: the checkout binding. `--dispatch-sha` is `${{ github.sha }}` from the dispatch and
+    // The checkout binding of `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1. `--dispatch-sha` is
+    // `${{ github.sha }}` from the dispatch and
     // `--checked-out-sha` is `git rev-parse HEAD`. The workflow asserts the two are equal before this program runs,
     // and the artifact states both so the equality is readable afterwards rather than inferred from the run id.
     dispatchSha: value("--dispatch-sha") ?? process.env.DISPATCH_SHA ?? null,
@@ -130,7 +131,8 @@ function main() {
     rootSurfaceHash: args.rootSurfaceHash,
     epochHash: args.epochHash ?? expected?.epoch_hash ?? null,
     prRequired: branchReady,
-    // Section 9 B1: what the run was dispatched on, and what it actually measured. Passed through verbatim -- this
+    // The dispatch-SHA binding of `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1: what the run was
+    // dispatched on, and what it actually measured. Passed through verbatim -- this
     // program does not resolve a git ref itself, because a governance artifact that invented the commit it was
     // bound to would be the one thing such an artifact must never do.
     dispatchSha: args.dispatchSha,

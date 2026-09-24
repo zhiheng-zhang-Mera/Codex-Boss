@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * Trust epoch finalization — the DISPATCH AND APPROVAL HELPER (workbook section 9 B2).
+ * Trust epoch finalization — the DISPATCH AND APPROVAL HELPER.
+ *
+ * Read together with `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B2, which states the four properties
+ * this file must have: no write without an explicit confirmation, a true read-only path, the exact write printed
+ * before confirmation, and tests proving the read-only path cannot dispatch.
  *
  * WHAT THIS FILE EXISTS FOR
  *
@@ -160,7 +164,8 @@ function pendingDeploymentsCommand(request, commandsOverride) {
  *   - `commands` is what `execute` runs, and it is EMPTY unless `--confirm` was given. A plan with no commands cannot
  *     dispatch, whatever the caller does with it.
  *   - `preview_commands` is the exact argv a confirmation would produce. It is populated in every mode, so a dry run
- *     can PRINT the write it would perform (workbook section 9 B2) without that print ever being runnable.
+ *     can PRINT the write it would perform, as the workbook requires
+ *     (`docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B2), without that print ever being runnable.
  *
  * The required dispatch inputs are shown as placeholders when they have not been supplied, because the point of a
  * preview is the shape of the command, not a promise that an incomplete request would be accepted -- and an

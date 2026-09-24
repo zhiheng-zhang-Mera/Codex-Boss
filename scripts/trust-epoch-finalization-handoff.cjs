@@ -67,7 +67,8 @@ function normalizeCommit(value) {
 }
 
 /**
- * Section 9 B1 — the checkout binding, declared in the artifact rather than only in the workflow.
+ * The dispatch-SHA binding required by `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1 — declared in the
+ * artifact rather than only in the workflow.
  *
  * WHY THE HANDOFF CARRIES IT
  *   The workflow now checks out `${{ github.sha }}` and asserts `git rev-parse HEAD` equals it. That assertion is
@@ -216,7 +217,8 @@ function buildHandoff(input) {
     pr_required: Boolean(prRequired),
     // A NAME, never a credential. The App private key lives in the platform vault and is never in this artifact.
     pr_creator: "codex-boss-machine-identity",
-    // Section 9 B1: which commit the run was DISPATCHED on, and which commit it actually MEASURED. A reader must
+    // The dispatch-SHA binding of `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1: which commit the run
+    // was DISPATCHED on, and which commit it actually MEASURED. A reader must
     // not have to infer either from the run id, and the two must be equal -- `validateHandoff` refuses otherwise.
     provenance: {
       dispatch_sha: provenance.dispatch_sha,
@@ -300,7 +302,8 @@ function validateHandoff(value) {
     problems.push(`epoch_branch ${value.epoch_branch} disagrees with epoch ${value.epoch}`);
   }
 
-  // Section 9 B1: the checkout provenance. Half a binding is refused rather than tolerated, and a mismatch between
+  // The checkout provenance required by `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1. Half a binding
+  // is refused rather than tolerated, and a mismatch between
   // the two stated commits is the exact condition the repair exists to make impossible -- so the artifact refuses to
   // validate when it is present, rather than leaving the disagreement for a reader to notice.
   //
