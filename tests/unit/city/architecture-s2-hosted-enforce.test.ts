@@ -173,21 +173,22 @@ function jobRunText(job: Job): string {
 // 1, 2, 3, 12 — the S2 job stays NOT required, independent and additive
 // =============================================================================================
 
-describe("Phase 1B S2: the hosted enforce job is visible, independent and NOT required", () => {
-  it("1/12 the job exists and is not in the ruleset's required contexts", () => {
+describe("Phase 1B S2: the hosted enforce job is visible, independent and required by S3", () => {
+  it("1/12 the job exists, and S3 has since added it to the ruleset's required contexts", () => {
     const { parsed, job } = architectureJob();
     expect(Object.keys(parsed.jobs ?? {})).toContain("architecture");
     expect(job["runs-on"]).toBe("windows-latest");
 
-    // The ruleset is the only thing that can make a check required, and this phase must not touch it. The
-    // repository's own statement of the ruleset contract is checked here; the live ruleset is asserted in the
-    // S1 suite (which has the credential-aware branch) and measured out of band by the mission.
+    // The ruleset is the only thing that can make a check required. S2 itself did NOT touch it -- that was stage
+    // S3, an Owner act -- but S3 has since been performed, so the repository's own statement of the ruleset
+    // contract now names five contexts. This case fails if S3's activation is reverted from the contract, and the
+    // live ruleset is asserted in the S1 suite (which has the credential-aware branch).
     const codeowners = fs.readFileSync(path.join(PROJECT, ".github", "CODEOWNERS"), "utf8");
     const requiredLine = codeowners.split(/\r?\n/).find((line) => /Required status checks\s*=/.test(line));
     expect(requiredLine, "CODEOWNERS no longer states the required status-check contract").toBeTruthy();
     expect(requiredLine).toMatch(/quality,\s*unit,\s*acceptance,\s*package/);
-    expect(requiredLine, "S2 must not add the architecture check to the required list").not.toMatch(/architecture/);
-    // And no workflow file may claim a required context of its own.
+    expect(requiredLine, "S3 activated the architecture check but CODEOWNERS does not record it").toMatch(/\barchitecture\b/);
+    // And no workflow file may claim a required context of its own -- a workflow cannot make one required.
     expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8"))).not.toMatch(/required_status_checks/);
   });
 

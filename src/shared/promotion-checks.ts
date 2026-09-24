@@ -21,13 +21,17 @@
  *
  * ## Not every job in `ci.yml` is required, deliberately
  *
- * Phase 1B-B (hosted stage S1) added an `architecture` job that runs the prospective architecture enforcer in
- * shadow mode. It is a real job in the same workflow and it is **not** required: making it required is stage S3,
- * a ruleset edit and nothing else, and an Owner act. So `Desktop CI`'s job list and this list are no longer the
- * same set, and they are not supposed to be — the property this file asserts is "every REQUIRED context is
- * produced and declared", not "every produced context is required". A gate that demanded the latter would either
- * block promotion on a check the platform never required, or force a non-required check into the required set to
- * keep a test green, which is exactly the activation this phase must not perform.
+ * Phase 1B-B (hosted stage S1) added an `architecture` job that runs the prospective architecture enforcer — in
+ * shadow mode at S1, and in the real governing enforce mode at S2. At those stages it was a real job in the same
+ * workflow and deliberately **not** required: making it required is stage S3, a ruleset edit and nothing else, and
+ * an Owner act.
+ *
+ * **Stage S3 has now been performed.** The Owner-authorised `Main-Protection` ruleset edit added the `architecture`
+ * context (integration id 15368), so the list below names five contexts and `Desktop CI` produces all five. The
+ * property this file asserts is unchanged and is why the drift cannot come back: "every REQUIRED context is
+ * produced by a job in `ci.yml` and is named by the CODEOWNERS ruleset contract", with the converse also asserted —
+ * the declaration may not name anything the platform does not require, because a check required by the autonomous
+ * gate but not by the platform would park every promotion on a gate the platform never demanded.
  *
  * ## What this file is NOT
  *
@@ -39,12 +43,12 @@
  */
 
 /**
- * The four status contexts `Desktop CI` produces and `Main-Protection` requires, in the order the workflow
- * declares them. Every one of them must be `success` on the EXACT candidate SHA; see
- * `GitHubPromotionAdapter.readRequiredCheck`.
+ * The five status contexts `Desktop CI` produces and `Main-Protection` requires, in the order the workflow
+ * declares them (`architecture` is listed last because that is where its job appears in `ci.yml`). Every one of
+ * them must be `success` on the EXACT candidate SHA; see `GitHubPromotionAdapter.readRequiredCheck`.
  */
-export const REQUIRED_PROMOTION_CHECKS = ["quality", "unit", "acceptance", "package"] as const;
+export const REQUIRED_PROMOTION_CHECKS = ["quality", "unit", "acceptance", "package", "architecture"] as const;
 
 /** Where the list comes from, recorded in evidence so a reader can check it rather than trust it. */
 export const REQUIRED_PROMOTION_CHECKS_SOURCE =
-  ".github/workflows/ci.yml — the four Desktop CI job ids (quality, unit, acceptance, package), which the live Main-Protection ruleset requires with strict_required_status_checks_policy = true and integration_id 15368";
+  ".github/workflows/ci.yml — the five Desktop CI job ids (quality, unit, acceptance, package, architecture), which the live Main-Protection ruleset requires with strict_required_status_checks_policy = true and integration_id 15368";
