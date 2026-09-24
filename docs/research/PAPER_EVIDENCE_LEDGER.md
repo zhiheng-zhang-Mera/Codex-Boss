@@ -4097,8 +4097,26 @@ Commit B — the legitimate declaration (`- ref: attachment.store@1` plus its re
 ```
 
 So the *semantics* of the negative control are proven. What is **not** proven, and is recorded here as not proven, is
-the hosted half. `NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE`, and the local control **must not** be presented
-as satisfying the S2 hosted exit condition.
+the hosted half. `NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE` as of the measurement above, and the local
+control **must not** be presented as satisfying the S2 hosted exit condition.
+
+**Correction, added after the repair was measured.** `NOT_ACHIEVABLE` describes the state *before* the integrity
+split, and it is retained rather than overwritten because it is what motivated the repair. Once the split is in
+place the hosted half becomes achievable, and that was measured on the repair branch with the injection present:
+
+```text
+Commit A (injection only)   baseline --check exit 0 (integrity true, drift REPORTED)
+                            shadow  EXECUTES exit 0, POLICY_VIOLATION, violations 1, engine_errors 0
+                            enforce EXECUTES exit 1, violations 1, engine_errors 0   <- the job goes red HERE
+Commit B (declaration via `optional`)
+                            baseline --check exit 0  shadow exit 0 PASS  enforce exit 0 PASS, violations 0
+                            the finding flips to NEW_EDGE_DECLARED_ENDPOINT (INFO)
+```
+
+So `NEGATIVE_CONTROL_HOSTED_EVIDENCE` is `ACHIEVABLE_AFTER_THE_REPAIR` and `NOT_YET_RUN`; the hosted runs still
+have to be produced before the S2 exit condition is satisfied. The declaration must use `optional`, not `requires`:
+`requires` raises the legacy ratchet's `requiredEdgeCount` 3 -> 4 and fails on that metric, while `optional` leaves
+it at 3. Either form authorises the edge for the enforcement engine. See T-5a.
 
 ## T-5 — `CORRECTION`: the repair this finding requires
 
@@ -4146,10 +4164,36 @@ semantics are nonetheless proven locally with measured evidence.
 S2_EXIT_COMPLETE = NOT YET            (the hosted counterfactual has not run)
 S3_READY         = NOT YET            (blocked on the above)
 S3 = NOT ACTIVATED
-NEGATIVE_CONTROL_EXECUTED = YES (local, reproducible)   NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE
+NEGATIVE_CONTROL_EXECUTED = YES (local, reproducible)
+NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE as measured BEFORE the repair;
+                                   ACHIEVABLE_AFTER_THE_REPAIR and NOT_YET_RUN once it lands
 BASELINE_WIDENED = NO   RULESET_CHANGED = NO   ARCHITECTURE_REQUIRED = NO
-LEGACY_RATCHET = REQUIRED_AND_UNCHANGED   PHASE2_MIGRATION = NOT STARTED   EPOCH = 28 (unmoved)
+LEGACY_RATCHET = REQUIRED_AND_UNCHANGED   PHASE2_MIGRATION = NOT STARTED
+EPOCH = 28 when this section was written; the repair moves the Root Trust Surface, so epoch 29 is required
 ```
+
+## T-5a — `MEASUREMENT`: the second gate conflict the counterfactual exposed
+
+`MEASUREMENT`. Repairing the first conflation exposed an independent tension between the two overlapping gates,
+and it is recorded rather than worked around. On the repaired tree, with the injected edge declared:
+
+```text
+enforcement engine   a DECLARED new edge is NEW_EDGE_DECLARED_ENDPOINT, severity INFO   -> PASS
+legacy ratchet       the same declaration raises dependencyEdgeCount 3 -> 4
+                     -> FAIL "dependencyEdgeCount density", against config/architecture-baseline.json
+```
+
+Declaring through `requires` fails the ratchet on `requiredEdgeCount` (3 -> 4); declaring through `optional` leaves
+`requiredEdgeCount` at 3 and fails on `dependencyEdgeCount` instead. Both forms authorise the edge for the engine,
+so **there is no declaration form that satisfies the engine without raising a legacy density metric**.
+
+This is **not** the conflation the integrity split repaired, and the legacy baseline's own header states its design:
+*"Absolute ratchets are never recorded here — only the monotone metrics a growing capability set legitimately
+raises. Updated only by `node scripts/architecture-baseline.cjs --reason "..."`, never by a test."* The legacy
+ratchet is therefore intended to be updated as the architecture legitimately grows. A fully green repaired run
+would need that sanctioned update, which this campaign's rules forbade, so the `quality` job is expected to be red
+on the declaration commit while the `architecture` job is green. No baseline was updated to produce this record.
+
 
 The ordered path forward is: repair the gate with its regression tests; carry the repair through a normal trust epoch
 ceremony because it touches Root Trust Surface; re-run the original hosted negative control; and only then restore
