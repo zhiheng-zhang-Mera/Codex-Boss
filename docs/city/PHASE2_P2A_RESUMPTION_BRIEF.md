@@ -71,6 +71,43 @@ config/capability-modules.json gains a THIRD top-level section beside `capabilit
                                      cover it -- and the choice must be recorded, not inferred
 ```
 
+### 3a. THE BASELINE IS MEASURED — capture the AFTER result against these numbers
+
+Taken on `main` at `c6d65868`, before any change, with the selector's own CLI:
+
+```powershell
+node scripts/test-impact.cjs select --base HEAD --changed electron/main.ts
+```
+
+```text
+changedFiles   ["electron/main.ts"]
+seeds          ["runtime"]        affected ["runtime"]
+selected       36 suites          {"acceptance": 5, "unit": 31}
+because "runtime"        7        <- the suites the ownership map actually attributes to this file
+because "always-run"    29        <- independent of ownership
+catalogue size          289        <- what a FULL RUN would be
+```
+
+**The number that matters for the decision is the 7, not the 36.** Thirty-six suites are selected today for a change
+to the composition root, but twenty-nine of them are always-run and have nothing to do with the ownership map. So
+the blast radius the new `platform` class can actually affect is **seven suites**, and the choice narrows to:
+
+```text
+OPTION A  platform-owned files select NOTHING                        -> 36 become 29 (a 7-suite narrowing, silent)
+OPTION B  platform-owned files select every suite that covers them today  -> stays 36; the mapping is explicit
+                                                                        and moves with the tests
+OPTION C  platform-owned files force a FULL RUN                      -> 36 become 289 for these two files
+```
+
+**Option A is the silent narrowing CC-020 warned about, and it is now quantified: seven suites, with no test
+currently asserting they stay selected.** Option B is the conservative correct answer *if* the seven suites really do
+cover composition-root behaviour — which must be checked, not assumed. Option C is honest but turns every
+composition-root edit into a 289-suite run.
+
+**Record the AFTER numbers from the same command, with the same fields.** A change to this model that alters the
+selection without those two sets of numbers side by side is exactly the failure the brief exists to prevent.
+
+
 ## 4. Verification that must pass before the step is called done
 
 ```powershell
