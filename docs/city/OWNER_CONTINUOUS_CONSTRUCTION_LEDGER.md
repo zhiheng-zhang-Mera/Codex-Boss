@@ -1249,3 +1249,59 @@ WHAT IS DONE  the mechanism, the numbers, and the slope-placeholder coupling are
 CLASSIFICATION R1 (load-sensitive, disproved on the same tree by re-run, per CC-017), now with its mechanism
               pinned. No CITY-DEBT created.
 ```
+
+---
+
+## CC-020 — Step 2 measured: the composition root's re-attribution needs a model change, not an edit
+
+Step 2 of the P2-A increment-2 work list is "CLASSIFY `electron/main.ts` and `electron/preload.ts` as the composition
+root by name, so that class-1 wiring is declared rather than counted as an inversion". Reading the mechanism before
+editing it shows the step is not an edit; it is a small model change with three consumers. Recorded so the next
+increment makes a decision rather than a one-line guess.
+
+```text
+WHERE THE ATTRIBUTION LIVES
+  scripts/extend-capability-modules.cjs:248-249   the generator's `runtime` EXTRA block lists
+                                                    "electron/main.ts" and "electron/preload.ts" as PATTERNS
+  config/capability-modules.json                  `runtime` therefore owns both, by the map's own prefix rule
+  config/architecture-enforcement-baseline.json   both files are recorded as "UNDECLARED", because the enforcement
+                                                    baseline derives ownership from the MANIFESTS, and no manifest
+                                                    declares them
+
+CONSEQUENCE FOR THE COUNT
+  Every `runtime -> *` edge whose SOURCE is main.ts or preload.ts is counted as a kernel-into-feature inversion
+  (inventory section 3a). Removing the two patterns from `runtime` is what the step asks for.
+```
+
+**Why it cannot simply be removed.** The closure validator requires every scanned source file to be owned **or**
+exempt with a reason, and there is no third class. Deleting the two patterns makes both files **unowned**, so
+`unowned scanned files` goes from 0 to 2 and `VERDICT=PASS` becomes a failure. An exemption is wrong here — these
+are not files nobody owns, they are the composition root, which owns the wiring — so the model needs a **named
+non-capability owner class**, and that is the actual deliverable of step 2.
+
+```text
+WHAT THE CLASS MUST SATISFY (all three consumers, measured)
+  1  the closure validator            must accept a platform/composition-root owner as neither a capability nor an
+                                      exemption, and must still refuse a file with NO owner at all
+  2  electron/platform/test-impact.ts the impact selector's `buildModuleOwnership` (line 119) iterates
+                                      `extra.capabilities` keys and requires each to be a declared capability id,
+                                      so a new top-level key must not be read as a capability
+                                      -- or, if it is one, its suites must be selected for it
+  3  scripts/generate-test-catalogue.cjs:284,350  derives `covers` from the same map and prints
+                                      "N of M capabilities covered"; a new key changes M
+  AND the 10 capabilities whose suites cover these files today must not silently lose that coverage: a change of
+  owner is a change of which suites a change to main.ts selects, which is a blast-radius change and must be
+  recorded as one.
+```
+
+```text
+DECISION      NOT taken in this round. The mechanics are pinned and the three consumers are named, but choosing
+              the class's name, its selector semantics and its coverage consequences is a design act with a
+              measured blast radius, and this round's remaining budget did not allow verifying it. Doing it as a
+              one-line edit would have produced a red closure validator at best, and a silently narrowed impact
+              selector at worst -- the second of which no test in this repository currently catches.
+CLASSIFICATION Deferred step with its mechanism measured. No CITY-DEBT created: step 2 is already a named
+              work-list item and this entry makes it more specified, not less.
+WHAT IT IS NOT  A defect. The current attribution is a model limitation, not a falsehood the code depends on:
+              the enforcement baseline already records both files as UNDECLARED, so no verdict moves today.
+```
