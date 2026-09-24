@@ -553,6 +553,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/p2b-kernel-feature-ratchet.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the P2-B/P2-C regression ratchet holds on the committed tree and refuses a report that violates exactly one recorded value, so it is shown to ratchet rather than only to pass: a new kernel -> feature edge, a new kernel -> feature pair and a new mutual capability pair each fail with the value, the recorded floor and the ownership model named, and every problem names the model because neither number means anything without it; the ANTI-GAMING floors matter most and each is exercised, because a fall in the edge count that comes from scanning fewer files is not progress -- fewer owned files, a kernel that lost its kind and a hidden composition root each fail, and the composition root being counted as a kernel is refused outright, which is the exact shape the re-attribution in CC-023 removed; a measurement that cannot be compared fails closed rather than treating a missing number as an improvement, since a ratchet whose comparison no-ops on undefined reports HOLDS for a report it could not read; improvements are reported with the artifact to edit so lowering the floor is the obvious next act rather than a discovery, a rise is never called an improvement and a rise in a FLOOR is neither; the committed artifact names its ownership model, its measurement command, its reason, its two zero targets and the kernels it measured; and the JUDGE is kept separate from the INSTRUMENT -- the inventory keeps its stated boundary of not deciding whether an edge is a defect, holds no threshold and names no ratchet artifact, while the ratchet itself stays read-only and loadable by plain node",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/phase2-edge-inventory.test.ts",
       "tier": "unit",
       "covers": [

@@ -198,8 +198,22 @@ the 154 count             30% of it is the two attribution errors above. It is a
 ## 7. Open items that are NOT P2-A
 
 ```text
-§10  hosted negative control + evidence tag      NOT STARTED   (S2 exit depends on it)
-§11  S2 exit certification                       NOT STARTED
+§10  hosted negative control + evidence tag      DONE  — RUN on the hosted runner; runs 36068999761 /
+                                                       36069017063 on 57aeede5, evidence tag
+                                                       city-evidence-s2-negative-control-v1.
+                                                       Records: docs/city/S2_HOSTED_NEGATIVE_CONTROL_RECORD.md,
+                                                       paper-ledger section V, ledger CC-024.
+§11  S2 exit certification                       DONE  — S2_EXIT_COMPLETE = YES. 36 consecutive valid hosted
+                                                       runs, 0 excluded, ONE finding digest throughout across
+                                                       eight root-trust epochs. Re-derivable with
+                                                       `node scripts/s2-exit-audit.cjs`.
+                                                       Record: docs/city/S2_EXIT_CERTIFICATION.md, ledger CC-025.
+§16  P2-B regression check                       DONE  — `node scripts/p2b-kernel-feature-ratchet.cjs` records the
+                                                       REAL graph's floor (82 kernel -> feature edges over 25
+                                                       pairs, under the OWNERSHIP MAP, which the manifests-only
+                                                       legacy ratchet cannot see) and refuses a silent regression,
+                                                       including progress achieved by scanning fewer files.
+                                                       Ledger CC-026. The MIGRATION to 0 is still open.
 CC-017/CC-019  the soak sample floor: a MACHINE-THROUGHPUT assertion, and `slopePerMinute` returns a placeholder 0
                below three samples. The honest trend is now null and the gate fails closed (epoch 32), so an
                under-sampled run FAILS with a readable reason. The remaining work is to choose between a longer
