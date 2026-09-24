@@ -1745,3 +1745,159 @@ research_value              The repair's value was not visible in the engine at 
                             indistinguishable from a gate that has none, and the difference is invisible from
                             inside the gate that was repaired.
 ```
+
+---
+
+## CC-025 — Stage D: S2 exit certified from real hosted history — 36 consecutive valid runs, 0 excluded, one finding digest
+
+```text
+ENTRY_ID                    CC-025
+timestamp_utc               2026-09-24T23:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 audit + L1 documentation. Read-only against GitHub; no protected-path write, no
+                            ruleset change, no epoch ceremony, no dispatch.
+main_before                 5dd6c7b66c65d6c995d5d7cdc200e45377636ee4  (five checks green)
+main_after                  5dd6c7b66c65d6c995d5d7cdc200e45377636ee4  (unchanged by the audit itself)
+branch                      docs/city-s2-exit-certification
+PR                          the PR that carries this entry
+problem                     Workbook section 11 (Stage D) requires S2 to be re-audited from real GitHub hosted
+                            history rather than inherited from a prior report, and Stage C (section 10) had to
+                            be proven before S2 could be exited. Stage C is certified in CC-024; this entry
+                            performs the audit that Stage D asks for.
+classification              R0/none -- not a defect. An evidence-producing act over existing history.
+normal_path                 Recompute the S2 claim from the artifacts the hosted job publishes, enumerate every
+                            run including the excluded ones, and record the window with its boundary.
+why_normal_path_was_not_used  Not applicable -- used in full.
+action_taken                Built scripts/s2-exit-audit.cjs: a READ-ONLY auditor that walks completed
+                            `Desktop CI` push runs on main, reads each run's `architecture` job and its
+                            ENF-12 parity step from the API, and parses the two lines the job itself
+                            publishes. Pinned by tests/unit/city/s2-exit-audit.test.ts (26 cases), then run
+                            against 100 runs of real history. Wrote docs/city/S2_EXIT_CERTIFICATION.md.
+files_or_rules_changed      scripts/s2-exit-audit.cjs                          (new, read-only)
+                            tests/unit/city/s2-exit-audit.test.ts               (new, 26 cases)
+                            docs/city/S2_EXIT_CERTIFICATION.md                  (new — the Stage D record)
+                            docs/city/S2_HOSTED_NEGATIVE_CONTROL_RECORD.md      (status note appended)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md   (this entry)
+```
+
+```text
+THE EXIT CONDITION, AND THE MEASUREMENT AGAINST IT
+  The condition is quoted from its source rather than paraphrased
+  (docs/city/PHASE1B_HOSTED_ENFORCEMENT_SPEC.md section 3, stage S2): ">= 10 consecutive runs in which enforce
+  and shadow produce identical finding sets and enforce's exit code is explained by a declaration in the change,
+  plus one deliberate negative control: a known-undeclared-edge PR fails enforce and passes shadow."
+
+  consecutive valid runs                        36        (required >= 10)      MET
+  runs excluded WITHIN the window                0
+  distinct findings digests across the window    1        (eight root-trust epochs!)
+  engine errors across the window                0 in all 36
+  policy violations across the window            0 in all 36
+  shadow verdict / enforce verdict               PASS / PASS in all 36
+  ENF-12 parity step                             success in all 36
+  findings count                                 1677 in all 36, both modes
+  not_yet_enforced classes                       5 in all 36 (listed, not hidden)
+  deliberate negative control                    RUN hosted (CC-024)           MET
+```
+
+```text
+WINDOW
+  population   completed `Desktop CI` `push` runs on `main`
+  first        run 35863273132 @ f2aedd27a890fae38748eea7c5de7a4cde40a99a   (epoch 26)
+  last         run 36068773868 @ 5740b7ca7b83d78990d4ca14da437d8d775f9db8   (epoch 33)
+  count        36 valid, 0 excluded
+
+  THE BOUNDARY IS STRUCTURAL, NOT A QUERY LIMIT. Widening the audit to 100 runs did not grow the count beyond
+  36, because the 46 older runs cannot satisfy the criterion at all:
+     5 runs  have an `architecture` job but NO ENF-12 parity step (they predate the S2 rollout)
+    41 runs  have NO `architecture` job at all (they predate the job; the S1 rollout and earlier)
+  None of the 46 is a gate failure, and none is inside the window. The window is the whole usable history.
+```
+
+```text
+THE IDENTITIES (section 11 asks for both)
+  SHADOW  findings hash  db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+  ENFORCE findings hash  db536b066ec8eeb5c7a54fcddd146d1646630f9c0258712892d644efb7aab1ba
+  comparison             finding identity (code + subject + severity + policy_class + detail digest), MULTISET
+                         with multiplicity; count_only_match_cannot_fake_parity true, trap not observed
+  only_shadow / only_enforce / multiplicity_differences   [] / [] / []
+
+  LOCAL/HOSTED PARITY, measured with the repository's own comparator, not a hand-written comparison:
+    --mode shadow-enforce : SHADOW_FINDINGS_HASH == ENFORCE_FINDINGS_HASH  HASHES_EQUAL true
+    --mode local-hosted   : LOCAL_FINDINGS_HASH  == HOSTED_FINDINGS_HASH   HASHES_EQUAL true, counts equal 1677
+  So the local tree, the hosted run at 5740b7ca, and all 36 historical runs agree by identity.
+```
+
+```text
+EXCLUSIONS, RETRIES, FLAKES
+  excluded runs           46, all outside the window, all structural (above). ZERO excluded from inside it.
+  retries/flakes inside   3: 36043113229 @ 9182ffb7 (the CC-022 run, re-run on the identical commit, green),
+                             36012762253 @ 7f125ce4, 35989272641 @ 0429d59d
+  retries/flakes outside  3: 35436872129 @ 2129576e, 35423339856 @ 8a8d12a8, 35417327632 @ ac3865b0
+  every retry is a FLAKE -- in all six the same commit went green on the second attempt, which is the
+  definition of R1 under workbook section 5.
+  non-green runs inside   9 of 36: 8 failed in `unit`, 1 in `acceptance`, and ALL NINE had a GREEN
+  `architecture` job. That is why all nine remain valid S2 observations: the S2 claim is about the architecture
+  gate's evidence, and a red in a different job neither supplies nor withholds it.
+  pending                 1 run (36071175401 @ 5dd6c7b) was still executing; it is counted as neither valid nor
+                          excluded, so an unfinished run at the head of the window cannot understate it.
+
+  THE PRIOR REPORT'S "30 consecutive valid runs, 0 excluded, 0 unexplained, same findings hash throughout"
+  IS CONFIRMED AND EXCEEDED: the recomputed count is 36, the exclusion count inside the window is 0, and the
+  digest is constant. It was recomputed rather than inherited, as section 11 requires.
+```
+
+```text
+THE AUDIT'S OWN CORRECTNESS, AND TWO BUGS IT HAD
+  1  ABSENT READ AS ZERO. The first version returned 0 for a key the job had not printed. `ENGINE_ERRORS=0` is
+     the strongest possible result and an unreadable line is the weakest; collapsing them would have counted a
+     run whose evidence never arrived as a clean run -- inflating the window with exactly the runs that should
+     exclude it. Now absent keys are null, and a unit case fails if that changes.
+  2  AN UNFINISHED RUN COUNTED AS AN EXCLUSION. This one was real and was caught by running the audit against
+     reality: the newest push run was still in progress, and counting it as an exclusion reported
+     `consecutiveValidFromNewest = 0` while 32 completed runs behind it were all valid -- UNDERSTATING the
+     window because a run had not finished. Pending runs are now reported separately and belong to neither the
+     numerator nor the denominator.
+  Both were falsified by mutation: disabling the null-vs-zero rule produced
+  "an absent engine-error count was reported as a number: expected +0 to be null", and narrowing the digest set
+  produced "two different finding digests were reported as one: expected 1 to be 2".
+  A third property is pinned because a window audit is uniquely able to fake its own subject: the audit's only
+  `gh` verbs are reads, and a case fails if a write, re-run, dispatch, cancel, merge, close, edit or create is
+  ever added to it.
+```
+
+```text
+known_risk                  The certificate PROVES the refusing direction hosted (an undeclared edge fails
+                            enforce) and the passing direction for changes that introduce no undeclared edge.
+                            It does NOT prove hosted that the gate ACCEPTS a deliberately declared new edge:
+                            that counterfactual was measured locally only (paper-ledger section T-4). The S2
+                            exit condition does not require it, and the certificate says so explicitly rather
+                            than leaving a reader to infer otherwise.
+                            Section T-5a's tension (no declaration form lets the engine accept a legitimate
+                            new edge without raising a legacy density metric) is a property of the LEGACY
+                            ratchet and remains OPEN. This entry does not close it.
+evidence_preserved          docs/city/S2_EXIT_CERTIFICATION.md carries the full 36-run table with run id, head
+                            sha, epoch, digest, attempt, overall conclusion and failing job per run.
+                            scripts/s2-exit-audit.cjs re-derives all of it from the API on demand.
+                            Hosted artifacts for run 36068773868 downloaded and compared (architecture-shadow,
+                            architecture-enforce-visible).
+rollback                    None required: the audit is read-only, nothing was dispatched or retried, and no
+                            baseline, epoch or ruleset was touched.
+temporary_debt_created      no
+debt_id                     none.
+exit_condition              Workbook section 11 satisfied: the S2 exit record contains the window definition,
+                            first and last run id, commit SHAs, both finding identities, engine error counts,
+                            every excluded run and why, all retries, all flakes, the negative-control PR, run
+                            ids and exact violation, and local/hosted parity evidence.
+closure_status              CLOSED for Stage D. S2_EXIT_COMPLETE = YES. S3 was already activated (CC-011) and
+                            S4 remains RETAIN_LEGACY_RATCHET (CC-012); neither is changed by this certificate.
+research_value              The enforcement finding set was IDENTICAL across eight root-trust epoch ceremonies
+                            (epochs 26 through 33) -- one digest, db536b066ec8, over 36 runs. Two governance
+                            mechanisms that both sound like "the architecture is frozen" are in fact
+                            independent: the epoch surface governs which files may change and by whose
+                            authority, and the enforcement sensor governs which cross-capability edges exist.
+                            The constant digest is what shows they are independent, and it would have been
+                            impossible to see from either mechanism alone. Second: 9 of the 36 runs were
+                            overall red while the architecture gate was green on every one of them, so a
+                            window counted by run CONCLUSION would have reported 27 where the gate's own
+                            evidence supports 36 -- the population you count is part of the claim.
+```

@@ -129,15 +129,17 @@ process while reporting the violation; that enforce failed the process with the 
 hosted `architecture` job reached enforce; that engine errors were zero; that the failure reason was exactly the
 injected violation; and that T-5's integrity split is what made any of this observable.
 
-**It does not claim** that S2 is exited. Workbook Stage D (§11) requires a re-audit of S2 over real hosted
-history — window definition, first/last run id, commit SHAs, shadow and enforce finding identities, engine error
-counts, every excluded run and why, all retries and flakes, and this control's PR/run/violation. That audit has
-not been performed. It also does not claim the declaration-repair counterfactual (the legitimate fix that must
-turn the finding INFO and green the engine) has been observed hosted; only its local half exists, in §T-4.
+**It does not claim** the declaration-repair counterfactual (the legitimate fix that must turn the finding INFO
+and green the engine) has been observed hosted; only its local half exists, in §T-4.
 
 ```text
 NEGATIVE_CONTROL_EXECUTED        YES (local, reproducible, and now hosted)
 NEGATIVE_CONTROL_HOSTED_EVIDENCE RUN — produced by runs 36068999761 / 36069017063 on 57aeede5
-S2_EXIT_COMPLETE                 NOT YET  (Stage D audit outstanding)
-S3                               NOT ACTIVATED
+S2_EXIT_COMPLETE                 YES — certified in docs/city/S2_EXIT_CERTIFICATION.md (ledger CC-025):
+                                 36 consecutive valid hosted runs, 0 excluded, one finding digest throughout
+S3                               ALREADY ACTIVATED (ruleset edit recorded in ledger CC-011)
 ```
+
+**Status note, appended.** When this record was written, the Stage D audit below it had not been performed and
+`S2_EXIT_COMPLETE` was `NOT YET`. The audit has since been performed and S2 is certified exited; the statements
+above about what the *control* proves are unchanged, and §7's caveat about the accepting direction still stands.
