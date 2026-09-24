@@ -113,6 +113,23 @@ export const SLOW_ACCEPTANCE_TESTS = {
     kind: "in-process",
     measured: "~75s as a file (~45s of soak at the smoke tier's audit floor, plus five further runs)",
     because: "drives the real platform loop against a real database for the tier's full audit duration; no process is started, but the cost is the workload's"
+  },
+  // The slowest suite in the default tier, by a factor: measured at 91 867 ms as a file in the green `unit` job of
+  // run 35997570148, against the next slowest default-tier suite's 28 645 ms. Its file duration is 1.53x the
+  // default tier's 60s PER-TEST ceiling, so individual cases inside it are running close to that ceiling, and it
+  // has already turned two green commits red on `main`:
+  //
+  //   run 35989272641 (main at 0429d59d)  unit FAILED  AD-36  Error: Test timed out in 60000ms.
+  //   run 35977080133 (main at e121d84)   unit FAILED  AD-36  the same way
+  //
+  // Both were re-run on the IDENTICAL commit and returned all five green, which is what makes this a timing
+  // problem rather than a defect -- and why the answer is the measure the tier split already applies to
+  // `review-loop.test.ts`, whose ~29s slowest scenario "exceeded the 60s default per-test ceiling under the load
+  // of a full parallel run, failing green commits three times". This is the same mechanism at a larger size.
+  "tests/acceptance/autonomous-evolution-adversarial.test.ts": {
+    kind: "spawns",
+    measured: "91 867 ms as a file in the green unit job of run 35997570148; AD-36 timed out at 60 000 ms in run 35989272641 and in run 35977080133, and both were green on a re-run of the same commit",
+    because: "drives real adversarial scenarios end to end, including a build artifact produced by a real compiler and then copied from a previous commit, which is what AD-36 asserts"
   }
 };
 

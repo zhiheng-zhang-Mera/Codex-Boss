@@ -185,7 +185,36 @@ function patchCertificate(lab: Lab, mutate: (record: Record<string, unknown>) =>
  * Group AD — §20's hostile cases
  * ------------------------------------------------------------------ */
 
-describe("Phase E §20–§23 adversarial expansion", () => {
+/**
+ * AN EXPLICIT PER-CASE BUDGET, because the tier default is not a margin for this file.
+ *
+ * Measured in the green `unit` job of run 35997570148: this file takes **91 867 ms**, against the next slowest
+ * default-tier suite's 28 645 ms. That is 1.53x the default tier's 60 000 ms per-test ceiling for the FILE, so
+ * individual cases inside it run close to a ceiling that was never sized for them. It has already turned two green
+ * commits on `main` red, both times on the same case and the same way:
+ *
+ *   run 35989272641 (main at 0429d59d)   AD-36  Error: Test timed out in 60000ms.
+ *   run 35977080133 (main at e121d84)    AD-36  Error: Test timed out in 60000ms.
+ *
+ * Both were re-run on the IDENTICAL commit and returned all five green, which is what makes this a timing problem
+ * rather than a defect -- and it is the mechanism `vitest.tiers.mjs` already records for `review-loop.test.ts`,
+ * whose ~29s slowest scenario "exceeded the 60s default per-test ceiling under the load of a full parallel run,
+ * failing green commits three times".
+ *
+ * 120 000 ms is not a guess and not a blanket relaxation:
+ *   - it is applied to THIS FILE, not to a tier's global ceiling, so it cannot hide a case elsewhere that hangs;
+ *   - it is ~1.3x the file's whole measured duration, so a case that needs the full budget is a case that has
+ *     grown by an order of magnitude, not one that met a slow runner;
+ *   - a case that genuinely hangs still fails, 120s later, instead of at 60s.
+ *
+ * The file is ALSO declared in the slow tier (`vitest.tiers.mjs`), which runs it one file at a time with a 180s
+ * ceiling, because its cost is a property of the adversarial scenarios rather than of the runner. The budget below
+ * exists because the same suite is invoked directly by the `acceptance` job (`acceptance:evolution-adversarial`),
+ * which uses the root config's 60s ceiling -- so a tier move alone would leave that invocation exposed.
+ */
+const ADVERSARIAL_CASE_BUDGET_MS = 120_000;
+
+describe("Phase E §20–§23 adversarial expansion", { timeout: ADVERSARIAL_CASE_BUDGET_MS }, () => {
   it("AD-21 HEAD changed after the session started is refused", async () => {
     await run.scenario("AD-21", "a new commit after session start", (item) => {
       const lab = createLab({ git: true });
