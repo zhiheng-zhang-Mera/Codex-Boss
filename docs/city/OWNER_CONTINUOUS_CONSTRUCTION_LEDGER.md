@@ -1305,3 +1305,54 @@ CLASSIFICATION Deferred step with its mechanism measured. No CITY-DEBT created: 
 WHAT IT IS NOT  A defect. The current attribution is a model limitation, not a falsehood the code depends on:
               the enforcement baseline already records both files as UNDECLARED, so no verdict moves today.
 ```
+
+---
+
+## CC-021 — Round close: state verified green, and the next step deliberately not started
+
+```text
+ENTRY_ID                    CC-021
+timestamp_utc               2026-09-24T18:10Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (verification)
+main_before                 889ff09fef0c01b887a59a2a953deda1e803a934
+main_after                  889ff09fef0c01b887a59a2a953deda1e803a934  (unchanged)
+branch                      docs/city-cc021-round-close
+PR                          (this record's PR)
+workflow_run_ids            36038524991  Desktop CI on 889ff09f
+checks_observed             quality = success
+                            architecture = success
+                            unit = success
+                            package = success
+                            acceptance = success
+problem                     Verification of the binding acceptance condition, and an explicit statement that the
+                            next work-list step was NOT begun.
+classification              Verification (not a defect)
+normal_path                 Read the hosted checks on main; confirm the epoch anchor and the closure validator on a
+                            clean checkout.
+why_normal_path_was_not_used
+                            Not applicable.
+action_taken                Verified all five required contexts on main at 889ff09f (the ruleset requires
+                            quality, unit, acceptance, package, architecture, strict); verified
+                            `acceptance-evolution-bless.cjs --check` reports epoch 32 MATCHES the live surface (74
+                            files); verified the closure validator reports VERDICT=PASS; verified the working tree is
+                            clean with no open pull requests.
+                            DID NOT START step 2 of the P2-A work list (the composition-root owner class). See below.
+files_or_rules_changed      none
+known_risk                  The programme is NOT complete: sections 10, 11, 15-23, 30-32 remain. This entry is a
+                            checkpoint, not a seal.
+evidence_preserved          Run 36038524991 (five jobs success); the local `--check` and closure-validator output;
+                            the ruleset read showing five required contexts.
+rollback                    n/a
+temporary_debt_created      no
+debt_id                     -
+exit_condition              n/a
+closure_status              CLOSED
+research_value              A checkpoint is only useful if it says what it did NOT do. Step 2 of the P2-A work list
+                            is a MODEL change whose three consumers are named in CC-020, and the second of them --
+                            the impact selector -- can be silently narrowed with no test in this repository
+                            catching it. Beginning it without the budget to run the closure validator, the
+                            catalogue generator and the selector's own suite against the change would risk exactly
+                            the class of error this ledger has already had to correct twice: a claim published
+                            before it was measured. The step is left named, specified, and unstarted.
+```
