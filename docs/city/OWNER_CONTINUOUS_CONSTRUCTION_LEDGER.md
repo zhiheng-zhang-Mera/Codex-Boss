@@ -874,6 +874,68 @@ research_value              THE CAVEAT IS THE FINDING. A debt count derived from
 
 ---
 
+## CC-015 — Main went red on the increment's merge commit, and a re-run of the same tree was green (R1)
+
+```text
+ENTRY_ID                    CC-015
+timestamp_utc               2026-09-24T21:00Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 for the classification; L2 for the Owner workflow action (re-run a run)
+main_before                 0429d59d6b3e5d63ff0c1d2f454a9c61d07e38cf  (unit RED)
+main_after                  0429d59d6b3e5d63ff0c1d2f454a9c61d07e38cf  (unchanged -- the re-run is the same commit)
+branch                      main
+PR                          #35 (merged)
+workflow_run_ids            35989272641 (Desktop CI on 0429d59, unit FAILED) ; the same run re-run --failed
+                            (ALL FIVE GREEN) ; 35977080133 (the earlier flake, at the S3 merge)
+checks_observed             RUN 35989272641, FIRST ATTEMPT: architecture=success, quality=success,
+                            unit=FAILURE, acceptance=skipped, package=skipped
+                            THE SAME RUN, RE-RUN OF THE FAILED JOB: all five success
+problem                     `tests/acceptance/autonomous-evolution-adversarial.test.ts` case AD-36 failed with
+                            `Error: Test timed out in 60000ms.` on `main`, while the IDENTICAL tree was green on
+                            the pull request minutes earlier.
+classification              R1 -- known hosted timing flake, disproved on the SAME TREE by re-run (workbook §5).
+                            NOT R2/R4: the same commit passed all five checks on the re-run, so there is no
+                            residual defect in the code that commit changed.
+normal_path                 Classify, capture the exact failing test, perform a bounded re-run, and continue when
+                            the classification is supported.
+why_normal_path_was_not_used
+                            Not applicable -- the normal path was used in full.
+action_taken                Captured the failing job log with the exact case and the timeout; confirmed the same
+                            tree was green on PR #35's own run; re-ran the FAILED JOB ONLY on the same commit; the
+                            re-run returned all five green. Recorded the observation, the evidence and a
+                            recommendation in docs/city/PHASE2_P2A_EDGE_INVENTORY.md section 6.
+files_or_rules_changed      docs/city/PHASE2_P2A_EDGE_INVENTORY.md (section 6 carries this record's evidence)
+known_risk                  The flake is an AVAILABILITY defect in the merge gate: a red `unit` blocks a merge
+                            and, on main, fails this programme's binding acceptance condition. It has now
+                            occurred twice in this session on two different heavy cases
+                            (`durable-event-correctness` at the S3 merge; `autonomous-evolution-adversarial`
+                            here), so it is a pattern rather than a one-off.
+                            NOT contained by weakening anything: no timeout was raised, no case was excluded
+                            from measurement, and no assertion was softened. The next increment is instructed to
+                            MEASURE the heavy cases' cost under CI parallel load and then either give each an
+                            explicit budget justified by that measurement or move it to a tier that declares
+                            its cost -- keeping it inside the merge gate either way.
+evidence_preserved          Run 35989272641 first attempt (unit FAILED, AD-36, 60000ms) and its re-run (all five
+                            green) on the SAME commit; run 35977080133 for the earlier
+                            `durable-event-correctness` timeout, which measured 123s against a ~24s unloaded
+                            cost.
+rollback                    n/a (classification plus a re-run)
+temporary_debt_created      no
+debt_id                     deliberately NOT opened as CITY-DEBT: the defect is the timing budget of two heavy
+                            cases; it is recorded with a recommendation, and it changes no guarantee's
+                            correctness. It becomes debt only if a later increment declines to fix it.
+exit_condition              no run of the required `unit` job fails on a timing ceiling under normal hosted
+                            load, proven by the heavy cases carrying a measured budget or a declared-cost tier
+closure_status              OPEN -- recorded with a recommendation; the timing work is a named next-increment task
+research_value              "The PR was green and main is red on the same tree" reads like a contradiction and is
+                            neither: the two are different EXECUTIONS of one commit on a shared runner, and only
+                            a re-run on the identical tree separates a flake from a defect. Recording the re-run
+                            as the evidence is what makes this R1 rather than R4 -- and it is why the
+                            observation may not be quoted without it.
+```
+
+---
+
 ## Stage status at CC-012
 
 ```text
