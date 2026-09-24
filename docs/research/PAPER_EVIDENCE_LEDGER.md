@@ -4198,3 +4198,109 @@ on the declaration commit while the `architecture` job is green. No baseline was
 The ordered path forward is: repair the gate with its regression tests; carry the repair through a normal trust epoch
 ceremony because it touches Root Trust Surface; re-run the original hosted negative control; and only then restore
 `S2_EXIT_COMPLETE` and `S3_READY`.
+
+---
+
+# U — `FAILURE` / `CORRECTION`: one defect class at three levels of construction machinery
+
+**EVIDENCE_ID** U-1 · **timestamp** 2026-09-24 · **source** construction session on `Codex-Boss` main, commits
+`1892e61` (epoch 29) → `5c589e4` (§9 repair) → `90c5e48` (epoch 30) · **evidence class** `FAILURE` + `CORRECTION`
+· **claim being tested** that a governance artifact's *declared subject* is the thing it actually measures or acts
+on.
+
+**Prior assumption.** Each of the three artifacts below was believed to operate on the object its name and
+documentation named:
+
+```text
+1  .github/workflows/trust-epoch-finalization.yml   "finalize the epoch for THIS run"
+2  the operator's dispatch helper                   "a dry run shows what would be dispatched"
+3  the test fixture written to prove (2) safe       "a fake executor that records instead of dispatching"
+```
+
+**Method.** Three independent measurements, each an execution rather than a reading:
+
+```text
+1  a waiting Owner-gated finalization run was dispatched at SHA A while main moved to SHA B. The workflow
+   checked out `ref: main`. Measured: the checked-out commit is not the dispatch SHA, and the artifact said
+   nothing about the difference.
+2  a helper described as a dry run was invoked. Measured: it performed a real `workflow_dispatch` of the
+   protected ceremony (run 35961897353, head_sha 8897ddc3).
+3  the fixture that fakes the executor was injected through PATH and NODE_OPTIONS. Measured: the real `gh` on
+   this host is a native binary that ignores NODE_OPTIONS, so the injection failed OPEN and the fixture
+   dispatched the protected ceremony four times (runs 35965428473, 35965431153, 35965446098, 35965449267).
+```
+
+**Observed result.** All three artifacts acted on a different object than the one they named:
+
+```text
+1  declared subject = the dispatch SHA;   actual object = whatever `main` was at approval time
+2  declared intent  = show, not do;       actual effect = do
+3  declared fake    = a recorder;         actual object = the real executor
+```
+
+**Expected result.** The declared subject and the actual object are equal, and the artifact fails closed when
+they cannot be shown to be.
+
+**Discrepancy.** In every case the two were *equal in practice* at the moment of the observed failure only by
+luck of timing (1), by accident of invocation (2), or were unequal and unnoticed (3). None of the three could
+report the disagreement, which is what made the defect class invisible from inside each artifact.
+
+**Interpretation.** This is one defect class, not three bugs: **an artifact whose declared subject and actual
+object can diverge without the artifact being able to say so is not a guard, it is a description.** The severity
+is not bounded by the artifact's intent — artifact 3 existed solely to make artifact 2 safe, and it reintroduced
+artifact 2's failure mode. A repair at one level therefore does not confine the class: the fix for (2) was the
+fixture that became (3).
+
+**Which repairs actually closed each case:**
+
+```text
+1  bind the checkout to the object named (`ref: ${{ github.sha }}`), ASSERT the equality in the job, publish
+   both values into the artifact, and make the artifact's validator refuse a disagreement. Proven live: the
+   epoch-30 run's own log states checked_out_sha == dispatch_sha.
+2  require an explicit confirmation, make the default mode a true read-only plan whose runnable command list is
+   empty, print the exact argv before confirmation, and refuse a confirmation that omits the inputs the
+   protected workflow requires.
+3  inject the executor as the PROCESS THE HELPER SPAWNS (its own command route) rather than through PATH or an
+   environment variable the real tool ignores, and assert that the route is what was used.
+```
+
+**Alternative explanation.** For (1), that the workflow's `--check` after `--advance` made the mismatch
+impossible. Rejected by measurement: `--check` verifies that the record anchors the surface *the run measured*;
+it says nothing about whether that surface is the one the run was dispatched for, and under `ref: main` the run
+could be approved after main moved. For (2) and (3), that no harm occurred, so the artifacts were adequate.
+Rejected: the environment gate bounded the blast radius (an unapproved run cannot start), which is a property of
+a *different* artifact. Bounded harm is not evidence that the artifact measured what it claimed.
+
+**Independently corroborated.** Yes, across levels: the same class appeared in a workflow, an operator tool and
+a test harness, written by the same author in one session, each time in the artifact meant to make the previous
+one safe.
+
+**Reproducible.** Yes. (1) is pinned by a parameterised checkout counterfactual
+(`tests/unit/city/trust-finalization-sha-binding.test.ts`, 14 cases) that reproduces the old shape and fails if
+either the workflow's `ref` or its assertion step is reverted. (2) is pinned by
+`tests/unit/city/trust-epoch-dispatch-helper.test.ts` (17 cases), which proves the dry-run path reaches no
+executor at all against a real child process, and that the confirmed path reaches exactly one.
+
+**Artifact/file/hash references.**
+
+```text
+incident  docs/city/incidents/2026-09-24-spurious-trust-epoch-dispatch.md      (INC-2026-09-24-01)
+incident  docs/city/incidents/2026-09-24-repeated-spurious-epoch-dispatch.md  (INC-2026-09-24-02)
+debt      CITY-DEBT-001, CITY-DEBT-002, CITY-DEBT-004 (all CLOSED)
+record    docs/city/EPOCH_30_FINALIZATION_RECORD.md
+runs      35961897353 (spurious, cancelled) · 35962014554 (epoch 29, old shape)
+          35965428473 / 35965431153 / 35965446098 / 35965449267 (spurious burst, all cancelled)
+          35969656991 (epoch 30, repaired shape, SHA-bound)
+```
+
+**Paper-use category.** Mechanism illustration: *the safety of a construction artifact is a property of the
+object it actually touches, not of the intent in its name; and a repair at one level of a toolchain does not
+confine the class, because the repair's own test fixture is another artifact of the same kind.*
+
+**Limitations.** N is small and the three instances share one author, one session and one repository, so this is
+a mechanism illustration rather than a prevalence estimate. It says nothing about how often such divergence
+exists unnoticed in artifacts whose effects are not observable at all. And it does not establish that the
+repairs are sufficient in general — only that each of the three instances now fails closed and is pinned by a
+test that fails if the property is reverted.
+
+**Supersedes / superseded_by.** none / none.

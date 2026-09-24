@@ -494,31 +494,156 @@ research_value              The same defect appeared three times at three levels
 
 ---
 
+## CC-009 — Epoch 30 finalization; the first ceremony run through the repaired, SHA-bound path
+
+```text
+ENTRY_ID                    CC-009
+timestamp_utc               2026-09-24T07:28:32Z (run success) ; 2026-09-24T07:45Z (merged) ; recorded 07:52Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L2 (Owner environment approval) + L3 for the merge that preceded it (CC-008)
+main_before                 09e68cd (docs corpus) -> 5c589e4 (the repair, unit RED)
+main_after                  90c5e4832ba87cd48fa107625e31746bfad5b20b
+branch                      trust-epoch/boss-root-trust-30
+PR                          #29 (the repair, merged with the documented bypass) ; #30 (the epoch record)
+workflow_run_ids            35969656991 (finalization, success) ; 35969635809 (Desktop CI on 5c589e4, unit FAIL)
+                            ; 35971361792 (Desktop CI on 90c5e48, ALL FIVE GREEN)
+checks_observed             ON PR #30: quality=pass, architecture=pass, unit=pass (9m19s), package=pass,
+                            acceptance=pass (4m40s) — all five green
+                            ON MAIN 90c5e48: architecture, quality, unit, package, acceptance = all success
+problem                     The §9 provenance repair changes `scripts/trust-epoch-finalization-handoff.cjs`, which
+                            is Root Trust Surface, so the surface aggregate moved
+                            2abacb6f... -> f6e811d6... (74 files, no path added or removed) and epoch 29 stopped
+                            anchoring it. Main was therefore correctly RED between the repair's merge and this
+                            epoch's promotion.
+classification              R2 — city defect with understood repair (workbook §5); R3 for the PR-head red
+                            (a gate that cannot be repaired by the branch it blocks).
+normal_path                 Run the protected finalization ceremony for the new main SHA, promote the epoch
+                            branch through a normal reviewed PR, merge when all five checks are green.
+why_normal_path_was_not_used
+                            The normal path WAS used for the epoch itself. What needed a decision was the REPAIR's
+                            merge (CC-008, L3, unit only) — because an epoch cannot be advanced FOR a branch:
+                            `--advance` is authorised only through the protected workflow, and that workflow is
+                            `refs/heads/main`-only. The red was stated in PR #29's body before it was observed.
+action_taken                - merged PR #29 with the documented L3 bypass after confirming that its ONLY red was
+                              the expected `unit` epoch guard (270 passed, 1 failed: TRUST_EPOCH_ROOT_SURFACE_MISMATCH);
+                            - dispatched epoch 30 through the NEW helper `scripts/trust-epoch-dispatch.cjs
+                              --confirm`, so the dispatch itself printed the exact argv and refused to run without
+                              the confirmation, the reason, the risk and the rollback;
+                            - approved deployment 6632502688 for run 35969656991;
+                            - promoted the epoch record in PR #30, required ALL FIVE checks green, merged normally.
+files_or_rules_changed      trust-policy/trust-epoch.json (epoch 30)
+known_risk                  Expressed and bounded in CC-008; realised only as the intended red window, which
+                            lasted from 07:26Z (merge) to ~07:45Z (epoch-30 merge).
+evidence_preserved          Run 35969656991's log proving the new assertion ran LIVE: DISPATCH_SHA and
+                            CHECKED_OUT_SHA both 5c589e4aa487313c4b8f44bd0682092ec1aac424, i.e. SHA-BOUND — the
+                            first epoch finalized through the repaired path. PR #29 and #30 bodies. The epoch branch
+                            at 0184008c3f97a29c72669b3cf86cf4258d70bb9c. Main CI run 35971361792.
+rollback                    Repair forward. The epoch branch is never force-pushed, rebased or deleted.
+temporary_debt_created      no
+debt_id                     CITY-DEBT-001, -002 CLOSED with this entry; CITY-DEBT-004 remains CONTAINED
+exit_condition              Epoch 30 on main; `acceptance-evolution-bless.cjs --check` = MATCHES; the five hosted
+                            checks green on the resulting main SHA.
+closure_status              CLOSED
+research_value              THE LIVE PROOF OF THE REPAIR. The epoch-29 ceremony was approved under the old shape
+                            (floating `main`); the epoch-30 ceremony ran under the new one and its own log states
+                            that the checked-out commit equalled the dispatch SHA. Two consecutive ceremonies, one
+                            before and one after the repair, with the same workflow file name — which is exactly the
+                            kind of before/after pair the TOCTOU counterfactual predicted and no unit test could
+                            produce.
+```
+
+---
+
+## CC-010 — Main restored to all-five-green; the Owner directive's binding condition is met
+
+```text
+ENTRY_ID                    CC-010
+timestamp_utc               2026-09-24T07:48Z (run success) ; recorded 07:52Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (verification)
+main_before                 5c589e4aa487313c4b8f44bd0682092ec1aac424  (unit RED)
+main_after                  90c5e4832ba87cd48fa107625e31746bfad5b20b  (ALL FIVE GREEN)
+branch                      main
+PR                          #27, #28, #29, #30
+workflow_run_ids            35971361792  Desktop CI on 90c5e4832ba87cd48fa107625e31746bfad5b20b
+checks_observed             architecture = success
+                            quality      = success
+                            unit         = success
+                            package      = success
+                            acceptance   = success
+problem                     The Owner directive for this programme states that the final acceptance condition is
+                            that the submitted cloud branch CI must be ALL GREEN. Before this entry, main had been
+                            red since PR #26 (epoch 28 stale), and two of the five checks had been SKIPPED rather
+                            than passing on every commit in between.
+classification              Verification of a binding acceptance condition (not a defect)
+normal_path                 Read the hosted checks on the final main SHA; confirm locally that the committed epoch
+                            anchors the live surface and the tree is clean.
+why_normal_path_was_not_used
+                            Not applicable — this is the normal path.
+action_taken                Verified from GitHub that run 35971361792 reports all five jobs `success` on
+                            90c5e4832ba87cd48fa107625e31746bfad5b20b; verified locally on a clean checkout of that
+                            SHA that `acceptance-evolution-bless.cjs --check` reports
+                            "epoch 30 (boss-root-trust-30) MATCHES the live surface" (74 files, aggregate
+                            f6e811d6...); verified `git status` is clean.
+files_or_rules_changed      none
+known_risk                  "All green" is a property of ONE SHA. Any later commit must re-earn it; this entry
+                            does not transfer.
+evidence_preserved          Run 35971361792 (conclusion success, five jobs success); the local `--check` output;
+                            root trust surface 74 files / aggregate f6e811d6...
+rollback                    n/a
+temporary_debt_created      no
+debt_id                     -
+exit_condition              n/a — satisfied
+closure_status              CLOSED
+research_value              A red that persisted across four merges (PR #26's epoch staleness through PR #29's
+                            surface move) was cleared by one governed ceremony plus one reviewed promotion, with no
+                            test, threshold or baseline weakened, and with every intermediate red classified and
+                            preserved.
+```
+
+---
+
+## Stage status at CC-010
+
+```text
+WORKBOOK STAGE                                        STATE
+§4   cloud audit corpus                               LANDED (PR #28)
+§8   epoch 29 closed and promoted                     DONE (PR #27, all five checks green)
+§9   trust-finalization provenance repair (B1)        LANDED (PR #29) — proven live by CC-009
+§9   dispatch-helper hardening (B2)                   LANDED (PR #29)
+§9   TOCTOU counterfactual (B3)                       LANDED (PR #29, 14 cases)
+§9   Root Trust handling (B4)                         DONE — epoch 30 (PR #30)
+§14  Phase 2 spec + frozen starting measurement       LANDED (PR #28, frozen at 5ade1cd)
+§10  hosted negative control + evidence tag           NOT STARTED
+§11  S2 exit certification                            NOT STARTED
+§12  S3 ruleset activation                            NOT STARTED
+§13  S4 RETAIN_LEGACY_RATCHET decision                NOT STARTED
+§15-§23 Phase 2 P2-A .. P2-I                          NOT STARTED (spec and acceptance landed)
+§30  final acceptance suite                           NOT REACHED
+§31  final debt review                                NOT REACHED (CITY-DEBT-004 CONTAINED)
+§32  final governance restoration                     NOT REACHED
+```
+
+---
+
 ## Pending entries (will be appended as the stages complete)
 
 The following workbook stages are known to be outstanding. Each will produce its own entry; none is claimed as
 done here:
 
 ```text
-CC-0xx  epoch 29 promoted and merged (workbook §8 A4/A5)                          -> CC-006 CLOSED
-CC-0xx  docs/city audit corpus merged (workbook §4)                               -> this PR
-CC-0xx  trust-finalization provenance repair, CITY-DEBT-002 (§9)                  -> CC-008 (PR #29)
-CC-0xx  dispatch-helper hardening, CITY-DEBT-001 (§9 B2)                          -> CC-008 (PR #29)
-CC-0xx  TOCTOU counterfactual test (§9 B3)                                        -> CC-008 (PR #29)
+CC-006  epoch 29 promoted and merged (workbook §8 A4/A5)                          -> CLOSED
+CC-007  four spurious finalization dispatches, cancelled                          -> recorded
+CC-008  trust-finalization provenance repair, dispatch helper, TOCTOU test         -> CLOSED (PR #29)
+CC-009  epoch 30 finalization; first SHA-bound ceremony; main restored             -> CLOSED
+CC-010  all-five-green verified on main 90c5e48                                    -> CLOSED
+CC-0xx  docs/city audit corpus merged (workbook §4)                               -> DONE (PR #28)
 CC-0xx  hosted negative control + evidence tag (§10)
 CC-0xx  S2 exit certification (§11)
 CC-0xx  S3 ruleset activation — architecture becomes required (§12)
 CC-0xx  S4 decision recorded: RETAIN_LEGACY_RATCHET (§13)
-CC-0xx  Phase 2 spec + frozen starting measurement (§14)
-CC-0xx  P2-A truthful capability map and closure validator (§15)
-CC-0xx  P2-B foundation inversions to zero (§16)
-CC-0xx  P2-C cycles / lateral bearing to zero (§17)
-CC-0xx  P2-D private-state access and multi-writer stores to zero (§18)
-CC-0xx  P2-E shared roads explicitly classified (§19)
-CC-0xx  P2-F flatness registry enforced (§20)
-CC-0xx  P2-G replacement lifecycle with one real proof (§21)
-CC-0xx  P2-H Core budget enforced (§22)
-CC-0xx  P2-I principles 15.1-15.9 enforcement matrix (§23)
+CC-0xx  Phase 2 P2-A truthful capability map and closure validator (§15)
+CC-0xx  Phase 2 P2-B..P2-I (§16-§23)
 CC-0xx  final acceptance suite green on the final main SHA (§30)
 CC-0xx  final debt review, all debt CLOSED or ACCEPTED_PERMANENT (§31)
 CC-0xx  final governance restoration (§32)

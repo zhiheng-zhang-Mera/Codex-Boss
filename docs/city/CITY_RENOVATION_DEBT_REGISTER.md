@@ -231,10 +231,25 @@ owner                Hns (temporary Owner-authorised City construction executor)
 exit_condition       (a) an ordinary `pnpm test` on a clean main opens ZERO protected workflow runs, proven by
                      observing the Actions history after a full main test cycle; and (b) the harness asserts the
                      injected route rather than assuming it.
-latest_review        2026-09-24T07:00Z — the harness repair is committed on branch
-                     fix/trust-finalization-sha-bound; (a) still to be confirmed against the live history.
-status               CONTAINED (repair committed; the live "no protected runs" confirmation is pending)
-closure_evidence     (pending — see exit condition (a))
+latest_review        2026-09-24T07:52Z — (a) CONFIRMED against the live Actions history. After the repair landed
+                     on main, the full hosted `pnpm test` cycle ran twice (runs 35969925450 on the epoch branch and
+                     35971361792 on main 90c5e48) and the Actions history contains exactly ONE
+                     `workflow_dispatch` run for the whole window — the intended epoch-30 ceremony (35969656991,
+                     approved and successful) — and no spurious run. The two remaining waiting runs from the
+                     earlier burst (35965608676, 35965612178) were cancelled in the same review. (b) is asserted by
+                     the suite itself.
+status               CLOSED
+closure_evidence     - the fixture now injects the executor as the process the helper spawns
+                       (`TRUST_EPOCH_DISPATCH_GH`), so the real `gh` is unreachable from that test by
+                       construction, and the "confirmed run reaches the fake executor" case asserts it did;
+                     - `tests/unit/city/trust-epoch-dispatch-helper.test.ts` (17 cases) proves the dry run reaches
+                       no executor at all against a real child process, and that the confirmed path reaches
+                       exactly one;
+                     - the repair is on main (PR #29, commit 5c589e4) and merged up through epoch 30 (90c5e48);
+                     - exit condition (a) verified: two full hosted test cycles, zero unexpected dispatches.
+                     Residual, recorded rather than claimed: `git push` and `gh run view` were the only other
+                     commands used around the window, so the observation covers the CI cycles and this host's
+                     session, not every possible trigger in the world.
 ```
 
 ---
@@ -245,15 +260,17 @@ closure_evidence     (pending — see exit condition (a))
 CITY-DEBT-001  dispatch helper can dispatch without --confirm                  CLOSED
 CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    CLOSED
 CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      CLOSED
-CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CONTAINED
+CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CLOSED
 ```
 
 ```text
 OPEN               0
-CONTAINED          1   (CITY-DEBT-004, repair committed; live confirmation pending)
-CLOSED             3   (CITY-DEBT-001, CITY-DEBT-002, CITY-DEBT-003)
+CONTAINED          0
+CLOSED             4   (CITY-DEBT-001, -002, -003, -004)
 ACCEPTED_PERMANENT 0
 ```
 
-**Status of this register:** OPEN — final seal requires zero OPEN and zero CONTAINED entries (workbook §31).
-CITY-DEBT-004 is the only outstanding entry; its exit condition is a live observation, not further construction.
+**Status of this register:** no OPEN and no CONTAINED entry. This is **not** the final debt review: Phase 2
+(workbook §15–§23) has not started, and it is expected to create new `CITY-DEBT-*` entries for every temporary
+bridge and every baseline change it needs. Final seal requires the register to close at zero OPEN and zero
+CONTAINED **at that time** (workbook §31).
