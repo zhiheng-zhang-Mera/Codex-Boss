@@ -4002,3 +4002,155 @@ NEGATIVE_CONTROL_EXECUTED = NO
 
 The agent did not approve the protected environment (the run sat in `waiting` until the Root Owner did) and did not
 merge the promotion PR. Hosted CI, not a local claim, is what returned the required contexts to green.
+# §T — `FAILURE`: the baseline gate conflates "is the frozen baseline valid?" with "does the candidate tree equal it?", and that makes the S2 negative control structurally unreachable
+
+**This section is appended. §A through §S are byte-for-byte unchanged.**
+
+## T-1 — `FAILURE`: what the S2 negative control could not do, and why
+
+`FAILURE`. The Phase 1B specification's S2 exit condition requires, in addition to ten consecutive positive
+observations, *"one deliberate negative control: a known-undeclared-edge PR fails enforce and passes shadow."* The
+control was constructed, measured locally, and **cannot be observed on the hosted runner**. The reason is a gate
+semantic defect, not an instrumentation problem:
+
+```text
+the hosted `architecture` job step order (ci.yml) — and NONE of these steps carries an `if:` guard:
+  146  pnpm run architecture:enforce:baseline:series
+  151  pnpm run architecture:enforce:baseline -- --check        <- fails first
+  159  pnpm run architecture:enforce:shadow -- --out …          <- SKIPPED
+  164  node scripts/architecture-shadow-hosted.cjs              <- SKIPPED
+  212  pnpm run architecture:enforce -- --out …                 <- SKIPPED
+  223  Hosted shadow/enforce parity (ENF-12)                    <- SKIPPED
+  259/267  actions/upload-artifact   (the ONLY steps with `if: always()`) — upload nothing
+```
+
+So the step that would produce the required evidence never runs. The workbook forbids regenerating the baseline to
+clear the path, and the machine did not widen one.
+
+## T-2 — `MEASUREMENT`: three injection classes, and the baseline gate refuses all three
+
+`MEASUREMENT`. Each class was applied to a clean tree at `c4c2e278…`, measured, and reverted. The tree, both
+baselines and epoch 28 were verified unchanged afterwards.
+
+| # | injection class | engine violation | `baseline -- --check` | legacy ratchet |
+|---|---|---|---|---|
+| 1 | add an import edge (`export type { AttachmentService } from "./attachment-ipc"` in `status-ipc.ts`) | **YES** — `NEW_UNDECLARED_CROSS_CAPABILITY_EDGE`, violations 1, findings 1677→1678 | **FAIL** `identical: false`, `internal_edges` 1671→**1672** | PASS |
+| 2 | add a plain single-line `import type` | YES | **FAIL** | FAIL (`feature-imports-undeclared-surface`) |
+| 3 | ownership-only (drop `modules: [status-ipc.ts]`, keep `bootModules`) | **NO** — `violations 0`, `verdict PASS`; the file stays owned through `bootModules` | **FAIL** with `tracked_source_files 612` and `internal_edges 1671` **unchanged** | FAIL (`bootModules … is not in modules`) |
+
+Class 3 is the decisive one: the baseline gate failed even though **neither the file set nor the edge set changed**,
+because the frozen baseline also binds the **ownership mapping**. The baseline therefore binds exactly what the
+engine evaluates, so *no* injection can trip the engine without first tripping the baseline gate. This is not an
+accident of the experiment; it is a property of the comparison.
+
+## T-3 — `CORRECTION`: the responsibility boundary, audited
+
+`CORRECTION`. Four scripts answer four different questions today, and two of them ask the wrong one:
+
+```text
+scripts/architecture-baseline-series.cjs            the RIGHT question, already separate:
+    "is the frozen baseline's (version, parent_hash, hash) triple named by an Owner-authorised series?"
+    -> authorization_problems, series_authorized
+
+scripts/architecture-enforcement-baseline.cjs:311   the CONFLATION:
+    matches = recomputed.baseline_hash === baselineHash && baselineHash === existing.baseline_hash
+    where `recomputed` is rebuilt FROM THE CANDIDATE TREE by buildBaseline()
+    -> "does the candidate tree still equal the frozen baseline?" is asked as if it were "is the baseline valid?"
+
+scripts/architecture-shadow-hosted.cjs:366          the SAME CONFLATION, repeated on the hosted runner:
+    selfConsistent = buildError === null && recomputed !== null && declared !== null && recomputed === declared
+    -> reordering ci.yml would NOT fix this; the same semantics live inside the runner
+
+scripts/architecture-enforcement.cjs                the CORRECT prospective classifier:
+    grandfathered -> NEW_EDGE_UNDECLARED_ENDPOINT -> same-owner/authorised (INFO) -> NEW_UNDECLARED_CROSS_CAPABILITY_EDGE
+```
+
+The consequence is a gate that cannot classify a prospective change. A pull request whose whole purpose is to *add a
+declared, legitimate* edge — the normal prospective case — is rejected by the baseline gate before any enforcement
+evaluation happens, and the same is true of the negative control. **The gate is currently only able to certify a tree
+that has not changed the architecture at all**, which is the opposite of what an enforcement gate is for.
+
+## T-4 — `MEASUREMENT`: what the negative control did prove, locally
+
+`MEASUREMENT`. The control is real and reproducible
+(`.cache/m4d/phaseE-commitA-injection.diff`, `.cache/m4d/phaseE-commitB-declaration.diff`):
+
+```text
+Commit A — the injection only:
+  build                exit 0
+  architecture:ratchet exit 0, violations []
+  architecture:enforce:shadow  exit 0  violations 1  engine_errors 0     <- shadow PASSES the violation
+  architecture:enforce         exit 1  violations 1  engine_errors 0     <- enforce BLOCKS it
+  root trust --check           MATCH   epoch 28 still anchors
+  the finding, byte-identical in shadow and enforce:
+    {"code":"NEW_UNDECLARED_CROSS_CAPABILITY_EDGE","severity":"VIOLATION",
+     "subject":"electron/bootstrap/status-ipc.ts -> electron/bootstrap/attachment-ipc.ts",
+     "detail":"new cross-capability edge not authorized by any declaration: status -> attachments"}
+  ENF-12 parity, re-measured with the repository's own comparator: parity true,
+    SHADOW_FINDINGS_HASH == ENFORCE_FINDINGS_HASH ==
+    30f2208753845411529afdfd717af13e9261360ffc8e645e023c959b1ba242b7
+
+Commit B — the legitimate declaration (`- ref: attachment.store@1` plus its required `reason:`):
+  architecture:enforce  exit 0  verdict PASS  violations 0    <- THE COUNTERFACTUAL HOLDS
+  the finding flips NEW_UNDECLARED_CROSS_CAPABILITY_EDGE (VIOLATION) -> NEW_EDGE_DECLARED_ENDPOINT (INFO)
+  ratchet exit 1 ("requiredEdgeCount is 4, above baseline 3"); baseline --check still fails
+```
+
+So the *semantics* of the negative control are proven. What is **not** proven, and is recorded here as not proven, is
+the hosted half. `NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE`, and the local control **must not** be presented
+as satisfying the S2 hosted exit condition.
+
+## T-5 — `CORRECTION`: the repair this finding requires
+
+`CORRECTION`. Split the two questions so the gate can classify a prospective change:
+
+```text
+1. ACCEPTED BASELINE INTEGRITY   the frozen artifact is well-formed, internally consistent, and its
+                                 (version, parent_hash, hash) triple is Owner-authorised by the series.
+                                 It verifies the FROZEN BASELINE ITSELF — not the candidate tree.
+2. PROSPECTIVE ENFORCEMENT       the candidate tree is classified AGAINST the frozen baseline by the engine:
+                                 grandfathered / declared / undeclared, with the machine codes that already exist.
+```
+
+The fix must change the semantics in **both** places that hold the conflation
+(`architecture-enforcement-baseline.cjs` and `architecture-shadow-hosted.cjs`), and must not achieve the split by
+merely reordering `ci.yml` steps or by adding `if:`/`continue-on-error` guards — either would move the evidence
+rather than correct the gate.
+
+Required regression tests:
+
+```text
+untouched tree            baseline VALID
+debt reduction            baseline VALID and allowed (a shrink must not read as tampering)
+undeclared new edge       baseline VALID; shadow reports it and exits 0; enforce reports the SAME identity and is non-zero
+declaration repair        baseline UNCHANGED; shadow and enforce green
+tampered baseline         fail closed
+unauthorised series       fail closed
+```
+
+`config/architecture-enforcement-baseline.json`, `scripts/architecture-enforcement.cjs`,
+`scripts/architecture-enforcement-baseline.cjs`, `scripts/architecture-baseline-series.cjs` and
+`.github/workflows/ci.yml` are all declared Root Trust paths, so this repair moves the Root Trust Surface and
+requires an Owner-authorised trust epoch (epoch 29) through the protected finalization workflow — not a hand edit.
+
+## T-6 — what this section does and does not claim
+
+`CORRECTION`. **It claims** that the baseline gate conflates frozen-baseline integrity with candidate-tree identity;
+that this conflation is implemented in two places, one of them on the hosted runner; that it makes both the S2
+negative control and ordinary prospective classification structurally unreachable; and that the negative control's
+semantics are nonetheless proven locally with measured evidence.
+
+**It does not claim** that S2 is complete. On the contrary:
+
+```text
+S2_EXIT_COMPLETE = NOT YET            (the hosted counterfactual has not run)
+S3_READY         = NOT YET            (blocked on the above)
+S3 = NOT ACTIVATED
+NEGATIVE_CONTROL_EXECUTED = YES (local, reproducible)   NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE
+BASELINE_WIDENED = NO   RULESET_CHANGED = NO   ARCHITECTURE_REQUIRED = NO
+LEGACY_RATCHET = REQUIRED_AND_UNCHANGED   PHASE2_MIGRATION = NOT STARTED   EPOCH = 28 (unmoved)
+```
+
+The ordered path forward is: repair the gate with its regression tests; carry the repair through a normal trust epoch
+ceremony because it touches Root Trust Surface; re-run the original hosted negative control; and only then restore
+`S2_EXIT_COMPLETE` and `S3_READY`.
