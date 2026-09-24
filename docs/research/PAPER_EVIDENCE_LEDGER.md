@@ -4304,3 +4304,134 @@ repairs are sufficient in general — only that each of the three instances now 
 test that fails if the property is reverted.
 
 **Supersedes / superseded_by.** none / none.
+
+---
+
+# V — `CORRECTION` / `MEASUREMENT`: the S2 hosted negative control is now RUN, and the T-5 integrity split is what made it reachable
+
+**This section is appended. §A through §U are byte-for-byte unchanged.**
+
+**EVIDENCE_ID** V-1 · **timestamp** 2026-09-24T22:46Z · **source** construction session on `Codex-Boss` main,
+parent commit `5740b7ca7b83d78990d4ca14da437d8d775f9db8`, experimental commit
+`57aeede5021f69392280cbea1bc58375fed43d82`, annotated evidence tag `city-evidence-s2-negative-control-v1`
+(tag object `d85217d97dad63ae71e18fa4dbd5f8b55ce4ad1f`) · **evidence class** `CORRECTION` + `MEASUREMENT`
+· **claim being tested** that the repair T-5 requires — splitting *frozen-baseline integrity* from
+*candidate-tree identity* — converts the S2 negative control from structurally unreachable into observable on
+the hosted runner.
+
+**Prior status, superseded here and left visible in §T.** §T-4 recorded:
+
+```text
+NEGATIVE_CONTROL_HOSTED_EVIDENCE = NOT_ACHIEVABLE as measured BEFORE the repair;
+                                   ACHIEVABLE_AFTER_THE_REPAIR and NOT_YET_RUN once it lands
+```
+
+and §T-6 closed with the ordered path: *repair the gate; carry it through a trust epoch; re-run the original
+hosted negative control; only then restore S2_EXIT_COMPLETE and S3_READY.* The repair landed and was carried
+through epoch 29. This section is the re-run.
+
+**Method.** From exact `main`, one side-effect import was added to a manifest-declared boot module:
+
+```ts
+// electron/bootstrap/persistence.ts
+import "./theme-ipc";
+```
+
+`persistence` is a KERNEL and `theme-ipc` is owned by the `theme` FEATURE; no manifest declares that
+relation (the declared capability pairs are knowledge -> persistence, research -> knowledge, theme ->
+knowledge), and the pair was verified ABSENT from the frozen baseline's 1671 edges **before** injecting. The
+injection is therefore one new edge and nothing else. The local half was measured first, then the branch was
+pushed and the hosted `architecture` job was observed. The experiment PR (#56) was closed without merge;
+nothing was injected into `main`.
+
+**Observed result — local, both modes, one identity.**
+
+```text
+baseline artifact integrity    exit 0   PASS   (frozen artifact's recorded hash == hash of its own content)
+baseline series authorization  exit 0   PASS   authorized = true in BOTH modes
+shadow                         exit 0   verdict POLICY_VIOLATION
+enforce                        exit 1   verdict POLICY_VIOLATION
+engine_errors                  0 in both modes
+legacy ratchet                 exit 1   {"ratchet":"kernel-imports-feature",
+                                        "file":"electron/bootstrap/persistence.ts",
+                                        "detail":"...persistence.ts -> ...theme-ipc.ts"}
+
+exactly one non-INFO finding in BOTH modes, byte-identical:
+  code     NEW_UNDECLARED_CROSS_CAPABILITY_EDGE
+  subject  electron/bootstrap/persistence.ts -> electron/bootstrap/theme-ipc.ts
+  detail   new cross-capability edge not authorized by any declaration: persistence -> theme
+  identity sha256 b9682ef67c874267945503f4f4e9881f6beb3b33f1d7f7fd7468ac58bfa3e4b6  (shadow == enforce)
+
+summary (identical in both modes)
+  NEW_UNDECLARED_CROSS_CAPABILITY_EDGE 1 · PASS_AS_GRANDFATHERED 1671 · NON_SOURCE_ASSET 1 ·
+  NOT_YET_ENFORCED 5 · violations 1 · engine_errors 0
+```
+
+**Observed result — hosted.** Runs `36068999761` (push) and `36069017063` (pull_request), both on
+`57aeede5`:
+
+```text
+quality        FAILED at step 8   pnpm run architecture:ratchet
+architecture   FAILED at step 13  pnpm run architecture:enforce -- --out artifacts/city/phase1/engine-enforce
+               steps 1-12 PASSED, so the job REACHED enforce
+                 baseline series check      ok
+                 baseline -- --check        ok   (exit 0: integrity true, drift REPORTED, not failed)
+                 shadow                     ok   exit 0 with the violation reported
+                 shadow-hosted              ok
+                 parity / evidence steps    ok
+               enforce output: {"verdict":"POLICY_VIOLATION"}, NEW_UNDECLARED_CROSS_CAPABILITY_EDGE 1,
+                 grandfathered_edges 1671, violations 1, engine_errors 0
+unit, acceptance, package   SKIPPED (unit needs quality) — predicted before the red existed
+```
+
+**Expected result.** Shadow passes the process while reporting the violation; enforce fails the process with the
+SAME finding identity; the hosted job reaches enforce; engine errors zero. **All four hold.**
+
+**Discrepancy.** None against the post-repair prediction. The contrast with §T is the finding: pre-repair the
+hosted `architecture` job failed at step 151 (`baseline -- --check`) and steps 159/164/212 were **SKIPPED**, so
+the evidence-producing steps never ran; post-repair the same injection reaches step 212 and fails *there*. The
+observable difference between the two states is not the engine — its verdict and finding identity are the same
+in both local measurements — but **which gate speaks first**.
+
+**Interpretation.** T-5 is confirmed in production rather than only in the local counterfactual. The repair did
+not merely move a check; it changed the gate from one that could only certify a tree that had not changed the
+architecture into one that classifies a prospective change. That property, not the engine's verdict, is what
+the S2 exit condition depends on: an enforcement gate whose baseline step refuses every prospective change
+cannot be shown to refuse a *bad* one, because it refuses all of them.
+
+**A difference from §T's class-1 injection, recorded deliberately.** §T injected a feature -> feature edge
+(`status-ipc.ts -> attachment-ipc.ts`) whose legacy-ratchet row reads PASS. This control injected a
+KERNEL -> FEATURE edge, so the legacy ratchet reports the same defect independently as
+`kernel-imports-feature` and the `quality` job is red as well. The two gates therefore AGREE about the
+injected violation, which the feature -> feature class did not establish. §T-5a's separate tension — that no
+declaration form lets the engine accept a legitimate new edge without raising a legacy density metric — is NOT
+touched by this section and remains open.
+
+**Artifact/file/hash references.**
+
+```text
+record    docs/city/S2_HOSTED_NEGATIVE_CONTROL_RECORD.md
+ledger    docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md   (CC-024)
+commit    57aeede5021f69392280cbea1bc58375fed43d82            (the exact experimental state)
+tag       city-evidence-s2-negative-control-v1 = d85217d97dad63ae71e18fa4dbd5f8b55ce4ad1f   (never moved)
+parent    5740b7ca7b83d78990d4ca14da437d8d775f9db8            (exact current main when created)
+PR        #56, CLOSED without merge, evidence comment 5823478991
+runs      36068999761 (push) · 36069017063 (pull_request)
+finding   b9682ef67c874267945503f4f4e9881f6beb3b33f1d7f7fd7468ac58bfa3e4b6  (local, shadow == enforce)
+```
+
+**Paper-use category.** Mechanism illustration: *a check that conflates two questions cannot produce negative
+evidence, because it refuses the experiment along with the defect; and separating the questions is what turns
+an untestable gate into a testable one — the repair's value shows up as the order in which the gates speak, not
+as a change in the engine's verdict.*
+
+**Limitations.** One injection class, one repository, one author, and one hosted observation per event type.
+The **declaration-repair counterfactual (commit B) was not run hosted**, so what is proven hosted is that the
+gate refuses an undeclared edge, not that it accepts a declared one — §T recorded the local half of that and it
+remains local. The legacy-ratchet red on `quality` is expected and is not evidence about the enforcement gate.
+Finally, this section does not claim S2 is exited: the §11 window re-audit over real hosted history is still
+required, and S3 remains unactivated.
+
+**Supersedes / superseded_by.** Supersedes the `NEGATIVE_CONTROL_HOSTED_EVIDENCE` status of §T-4 and §T-6
+(`NOT_YET_RUN` → `RUN`; the hosted half is now produced and measured). §T itself is unmodified, including
+its `NOT_ACHIEVABLE` line, which remains the correct description of the pre-repair state. / none.

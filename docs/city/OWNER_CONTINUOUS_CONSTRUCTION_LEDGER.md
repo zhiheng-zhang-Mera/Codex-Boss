@@ -1603,3 +1603,145 @@ research_value              Two findings worth more than the change. (1) A list 
                             has to subtract, or the claim is immortal. Both are the same shape: the instrument
                             was believed instead of read.
 ```
+
+---
+
+## CC-024 — Stage C: the S2 hosted negative control is RUN, and the T-5 integrity split is what made it reachable
+
+```text
+ENTRY_ID                    CC-024
+timestamp_utc               2026-09-24T22:52Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0/L1 — an experiment on a throwaway branch plus documentation. No protected-path
+                            write, no ruleset change, no epoch ceremony.
+main_before                 5740b7ca7b83d78990d4ca14da437d8d775f9db8  (five checks green)
+main_after                  5740b7ca7b83d78990d4ca14da437d8d775f9db8  (UNCHANGED — the experiment was never
+                                                                      merged; only documentation lands)
+branch                      s2-negative-control-v1  (experiment, CLOSED; and this entry's docs branch)
+PR                          #56 (experiment, CLOSED without merge, evidence comment 5823478991)
+experimental_commit         57aeede5021f69392280cbea1bc58375fed43d82
+evidence_tag                city-evidence-s2-negative-control-v1
+                            annotated tag object d85217d97dad63ae71e18fa4dbd5f8b55ce4ad1f  (NEVER moved)
+workflow_run_ids            36068999761 (push) · 36069017063 (pull_request), both on 57aeede5
+problem                     Workbook Stage C requires a hosted negative control: one known undeclared
+                            cross-capability edge, injected on an isolated branch, which shadow must report
+                            while PASSING the process and enforce must reject while FAILING it. It had never
+                            been observed hosted. The PAPER_EVIDENCE_LEDGER section T-4 recorded
+                            NEGATIVE_CONTROL_HOSTED_EVIDENCE = ACHIEVABLE_AFTER_THE_REPAIR and NOT_YET_RUN,
+                            and T-6 named the outstanding step: "re-run the original hosted negative control;
+                            only then restore S2_EXIT_COMPLETE and S3_READY".
+classification              R0 — EXPECTED EXPERIMENTAL RED (workbook section 5). The red IS the evidence.
+                            Not R1: it was predicted before it existed and reproduced on both event types.
+normal_path                 Record as R0; prove it is the expected red; do not repair the experiment into
+                            green; continue. Workbook section 26 also requires the expected red to be
+                            documented BEFORE it appears.
+why_normal_path_was_not_used  Not applicable — the normal path was used in full.
+action_taken                From exact main, injected ONE side-effect import in a manifest-declared boot
+                            module: electron/bootstrap/persistence.ts now imports ./theme-ipc. `persistence`
+                            is a KERNEL and `theme-ipc` belongs to the `theme` feature; no manifest declares
+                            the relation, and the pair was verified ABSENT from the frozen baseline's 1671
+                            edges before injecting. Measured locally, pushed, observed hosted, captured the
+                            evidence, closed the PR without merge, and preserved the exact experimental state
+                            under an annotated tag.
+files_or_rules_changed      electron/bootstrap/persistence.ts        (ON THE EXPERIMENT BRANCH ONLY: +12 lines)
+                            docs/city/S2_HOSTED_NEGATIVE_CONTROL_RECORD.md            (new)
+                            docs/research/PAPER_EVIDENCE_LEDGER.md                    (appended section V; 131
+                                                                                       insertions, 0 deletions —
+                                                                                       sections A-U byte-identical)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md         (this entry)
+```
+
+```text
+THE REQUIREMENTS, AND WHAT EACH ONE MEASURED
+  baseline artifact integrity    PASS  exit 0; the frozen artifact's recorded hash equals its own content
+  baseline series authorization  PASS  exit 0; authorized = true in BOTH modes
+  shadow                         PASS process   exit 0, verdict POLICY_VIOLATION, violation reported
+  enforce                        FAIL process   exit 1, verdict POLICY_VIOLATION, SAME finding identity
+  engine_errors                  0 in both modes
+  legacy ratchet behavior        recorded: exit 1, kernel-imports-feature, on the same edge
+  hosted architecture job        REACHED enforce (steps 1-12 passed; failed AT the enforce step)
+  failure reason                 EXACTLY the injected violation, and nothing else
+
+THE FINDING, ONE IDENTITY IN BOTH MODES
+  code     NEW_UNDECLARED_CROSS_CAPABILITY_EDGE
+  subject  electron/bootstrap/persistence.ts -> electron/bootstrap/theme-ipc.ts
+  detail   new cross-capability edge not authorized by any declaration: persistence -> theme
+  identity sha256 b9682ef67c874267945503f4f4e9881f6beb3b33f1d7f7fd7468ac58bfa3e4b6   (shadow == enforce)
+  summary  NEW_UNDECLARED_CROSS_CAPABILITY_EDGE 1 · PASS_AS_GRANDFATHERED 1671 · violations 1 ·
+           engine_errors 0
+```
+
+```text
+WHY THIS IS A RESULT AND NOT A ROUTINE EXERCISE
+  PAPER_EVIDENCE_LEDGER section T established that the control was STRUCTURALLY UNREACHABLE before the T-5
+  repair: the hosted `architecture` job failed at `architecture:enforce:baseline -- --check` (step 151) and the
+  evidence-producing steps 159 (shadow), 164 (shadow-hosted) and 212 (enforce) were SKIPPED. Section T's own
+  measurement of three injection classes showed that ALL THREE were refused by the baseline gate, one of them
+  with the file set and the edge set BOTH unchanged.
+
+  This run is the re-run section T asked for, after the split landed and was carried through epoch 29. The
+  observable difference is not the engine — its verdict and finding identity match the local measurement — but
+  WHICH GATE SPEAKS FIRST: pre-repair the job died at the baseline step, post-repair the same injection reaches
+  the enforce step and fails there. That is the property the S2 exit condition actually depends on: a gate whose
+  baseline step refuses every prospective change cannot be shown to refuse a BAD one, because it refuses all of
+  them.
+```
+
+```text
+A DELIBERATE DIFFERENCE FROM SECTION T'S INJECTION
+  Section T's class-1 injection was feature -> feature (status-ipc.ts -> attachment-ipc.ts) and its legacy
+  ratchet row reads PASS. This control injected KERNEL -> FEATURE, so the legacy ratchet reports the same defect
+  independently as kernel-imports-feature and `quality` is red as well. The two gates therefore AGREE about the
+  injected violation, which the feature -> feature class did not establish.
+  Section T-5a's separate and still-open tension is untouched: no declaration form lets the engine accept a
+  legitimate new edge without raising a legacy density metric.
+```
+
+```text
+CORRECTION RECORDED, NOT A REWRITE
+  PAPER_EVIDENCE_LEDGER sections A through U are byte-for-byte unchanged, including T-4's NOT_ACHIEVABLE line
+  and T-6's NOT_YET_RUN status. The new section V supersedes only the STATUS of NEGATIVE_CONTROL_HOSTED_EVIDENCE
+  and says so explicitly. This follows the ledger's own rule: a correction is appended and points back, so the
+  statement that motivated the repair stays visible.
+```
+
+```text
+MECHANICAL LESSON WORTH KEEPING
+  Appending LF-terminated text to this repository's CRLF documentation files with a string write made git
+  classify the WHOLE file as binary (ls-files --eol reported w/-text) and produced a 4436/4306 full-file diff
+  for a 131-line addition, because core.autocrlf=true could no longer normalise it. Appending the same content
+  as CRLF BYTES to the untouched original produced 131 insertions and 0 deletions. Nothing was lost — the file
+  was restored from HEAD and re-appended — but a documentation edit that reports the whole file as rewritten is
+  exactly the kind of evidence-destroying noise this ledger exists to avoid.
+```
+
+```text
+known_risk                  The negative control proves the gate REFUSES an undeclared edge. It does not prove
+                            the gate ACCEPTS a declared one on the hosted runner: the declaration-repair
+                            counterfactual (section T's "commit B") was measured locally only and was NOT run
+                            hosted. S2 exit therefore still needs the Stage D audit.
+                            The `quality` red is expected for this injection class (the legacy ratchet sees the
+                            same kernel -> feature edge) and is NOT evidence about the enforcement gate.
+evidence_preserved          Annotated tag city-evidence-s2-negative-control-v1 (tag object d85217d), the
+                            immutable experimental commit 57aeede5, PR #56 with its closing evidence comment,
+                            hosted runs 36068999761 and 36069017063, and the local finding identity
+                            b9682ef67c874267945503f4f4e9881f6beb3b33f1d7f7fd7468ac58bfa3e4b6.
+                            Also docs/city/S2_HOSTED_NEGATIVE_CONTROL_RECORD.md and paper-ledger section V.
+rollback                    None required: main is unchanged, the injected line exists only on the closed
+                            branch and on the tag, and the tag must never be moved or deleted.
+temporary_debt_created      no
+debt_id                     none. Section T-5a's declaration/ratchet tension is a recorded open finding, not
+                            this entry's debt.
+exit_condition              Workbook Stage C is satisfied: the negative control has been executed hosted with
+                            shadow passing and enforce failing on the same finding identity, and the exact
+                            experimental commit is preserved under an immutable annotated tag.
+closure_status              CLOSED for Stage C. Stage D (S2 exit certification) is now the blocking item for
+                            S2_EXIT_COMPLETE; S3 remains unactivated and nothing was unblocked by this entry
+                            beyond removing Stage C as an obstacle.
+research_value              The repair's value was not visible in the engine at all. Local measurements before
+                            and after the T-5 split produce the SAME verdict, the SAME code and the SAME finding
+                            identity; what changed is which gate fails first, and therefore whether the
+                            evidence-producing steps run at all. A gate that cannot produce negative evidence is
+                            indistinguishable from a gate that has none, and the difference is invisible from
+                            inside the gate that was repaired.
+```
