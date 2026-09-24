@@ -149,39 +149,46 @@ apparent owner of `runtime`'s and `persistence`'s dependencies. **Deferred, with
 themselves under a shared-infrastructure path is a structural migration (129 import statements) and belongs to the
 P2-E road-extraction increment, which is required to justify every extraction on five named points.
 
-### 4b. The ownership map is a generated artifact that has been hand-edited — and regenerating it LOSES files
+### 4b. CORRECTION — the map IS reproducible; my first reading of it was wrong
 
-While establishing where the `tenx -> electron/commander` entry came from, a second, sharper defect was measured:
+In the round-6 revision of this document I recorded, as a "second, sharper defect", that
+`config/capability-modules.json` is a generated artifact that has been hand-edited and that **regenerating it loses
+`electron/commander/**` from ownership**. **That claim was false, and it is retracted here rather than deleted**,
+because the way it was wrong is itself the finding.
 
-```text
-node scripts/extend-capability-modules.cjs     the map's declared generator (it prints "wrote config/…")
-git status --short                             config/capability-modules.json becomes MODIFIED
-grep -c commander scripts/extend-capability-modules.cjs   0 -- the entry is NOT in the generator
-```
-
-So the committed map contains an entry its own generator does not produce. **Regenerating the map silently drops
-`electron/commander/**` from every capability's ownership**, which turns 39 files from owned into unowned — and the
-closure validator (`unowned scanned files: 0` → non-zero) is what would catch it, on a commit that merely ran a
-documented generator to refresh the file.
+What was actually observed, and what it means:
 
 ```text
-CLASSIFICATION   a generated-artifact/derivation-currency defect: the file claims machine generation, is
-                 reproducible ONLY from its own committed bytes, and is LOST by the command that regenerates it
-WHY IT MATTERS   it is the P2-A thesis in its sharpest form. The map is the model every downstream number depends
-                 on, and the map cannot be rebuilt from its declared source.
-WHAT IT IS NOT   a correctness defect in the CLI: the committed map is the working one, and nothing shipped is
-                 broken by it. It is a REPRODUCIBILITY defect with a silent data-loss mode.
+OBSERVED   running `node scripts/extend-capability-modules.cjs` leaves `git status --short` reporting
+           ` M config/capability-modules.json`
+INFERRED   "so the generator's output differs from the committed file -- the committed file has hand edits"
+MEASURED   git diff --stat config/capability-modules.json          -> EMPTY (no content difference)
+           `git show HEAD:...` === the working file as strings    -> TRUE
+           per-capability set difference, committed vs regenerated -> lost [] gained [] for all 27 capabilities
+           exempt before/after                                    -> ["src/renderer"] both
+CONCLUSION the regeneration is BYTE-IDENTICAL. The `M` came from the file's STAT being touched by the writer
+           (the `warning: ... LF will be replaced by CRLF` line is about that index refresh), not from any
+           content change. Nothing is lost. `electron/commander` is in the regenerated map, under `tenx`.
 ```
 
-**Decision:** record it, and make the next P2-A increment's FIRST act the repair of the generator so its output
-equals the committed map — either by adding the missing entries to the generator's tables (preferred, since the map
-is the file everything reads) or by making the generator refuse to write a map that drops an owned path. A
-regeneration that cannot be reproduced must not be runnable at all.
+So the ownership map is reproducible from its declared generator, and the generator does not drop owned paths. The
+"39 files would go from owned to unowned" risk does not exist.
 
-**This document did not leave the tree modified:** the regeneration was performed to measure the claim and the file
-was restored with `git checkout`; `git status` is clean, and the closure validator reports `unowned scanned files:
-0` and `VERDICT=PASS` on the committed state.
+**Why this is recorded as a correction and not simply removed.** The inference was made from `git status` — a
+*status* signal — and treated as a *content* signal. Two commands would have settled it immediately (`git diff
+--stat`, or a set comparison of the two maps), and every one of them was available. The programme has now produced
+this failure mode three times in different clothes: a declared subject that is not the object actually measured
+(`github run head_sha` versus the checked-out tree; a helper's declared intent versus its effect; a test fixture's
+declared fake versus the real executor), and now a **status line standing in for content**. The lesson is the same
+one, applied to my own tooling rather than to the repository's.
 
+**What survives from the round-6 text:** the classification of `electron/commander/**` as shared task-execution
+infrastructure (section 4a), which was measured independently of this mistake — 129 importing statements outside
+the directory, across more than twenty capabilities — and does not depend on it.
+
+**What does not survive:** the claim that the map cannot be rebuilt from its source, and the instruction to the
+next increment to make repairing the generator its first act. That instruction is withdrawn; there is nothing to
+repair.
 ## 5. What this changes about increment 2
 
 ```text

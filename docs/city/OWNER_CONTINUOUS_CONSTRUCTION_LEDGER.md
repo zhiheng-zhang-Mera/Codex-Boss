@@ -1131,3 +1131,65 @@ research_value              Two flakes in one class (a timeout against a ceiling
                             than the schedule. Recording the distinction is what stops the next reader from
                             applying the timeout remedy to an evidence problem.
 ```
+
+---
+
+## CC-018 — CORRECTION of CC-017's sibling: my round-6 claim that the ownership map is not reproducible was FALSE
+
+```text
+ENTRY_ID                    CC-018
+timestamp_utc               2026-09-24T15:20Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (correction and re-measurement)
+main_before                 340309608c9c397251ad4b130151c7f648b9ff3f
+main_after                  340309608c9c397251ad4b130151c7f648b9ff3f  (unchanged)
+branch                      docs/city-cc018-correction
+PR                          (this record's PR)
+workflow_run_ids            -
+checks_observed             -
+problem                     CORRECTS the round-6 PR #42, whose body and the section 4b it introduced claimed that
+                            `config/capability-modules.json` "is a generated artifact that has been hand-edited"
+                            and that "regenerating it LOSES files" -- 39 files going from owned to unowned. The
+                            claim is FALSE. It was inferred from `git status --short` reporting ` M` after running
+                            the generator, and treated as a content difference without checking for one.
+classification              CORRECTION (workbook section 4.1: a correction is a new entry pointing back at the one it
+                            corrects; the earlier entry is never rewritten)
+normal_path                 Re-measure the claim, then record the correction against the original entry.
+why_normal_path_was_not_used
+                            Not applicable -- the correction IS the normal path. What was NOT done in round 6 was
+                            the two commands that would have settled the inference before it was published.
+action_taken                RE-MEASURED:
+                              node scripts/extend-capability-modules.cjs   -> "wrote config/capability-modules.json:
+                                27 capabilities, 272 owned paths, 1 exempt"
+                              git diff --stat config/capability-modules.json          -> EMPTY
+                              git show HEAD:... === working file as strings          -> TRUE
+                              per-capability set difference (all 27)                 -> lost [] gained [] for every one
+                              exempt before/after                                    -> ["src/renderer"] both
+                            CONCLUSION: the regeneration is byte-identical. The `M` came from the writer touching
+                            the file's STAT (with the `LF will be replaced by CRLF` index-refresh warning), not
+                            from any content change. `electron/commander` IS in the regenerated map, under `tenx`.
+                            Corrected `docs/city/PHASE2_P2A_REATTRIBUTION_ANALYSIS.md` section 4b in place, and
+                            WITHDREW its instruction to make repairing the generator the next increment's first act
+                            -- there is nothing to repair.
+files_or_rules_changed      docs/city/PHASE2_P2A_REATTRIBUTION_ANALYSIS.md (section 4b replaced by the correction)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  The false claim was published in a merged PR body, which cannot be edited without
+                            rewriting history. Contained by this correction naming the exact PR (#42) and the exact
+                            sentence, so a reader searching for the claim finds the retraction beside it. Residual:
+                            the PR body still asserts it, and the ledger is now the authority.
+evidence_preserved          The four measurements above; `git diff --stat` empty on the regenerated map; the
+                            unchanged `tenx` entry list (24 patterns, including `electron/commander`).
+rollback                    n/a (correction)
+temporary_debt_created      no
+debt_id                     -
+exit_condition              n/a
+closure_status              CLOSED
+research_value              THE SAME DEFECT CLASS, FOURTH INSTANCE, AND THIS TIME IN MY OWN TOOLING: a declared
+                            subject that is not the object actually measured. The first three were a workflow's
+                            declared SHA versus its checked-out tree, a helper's declared intent versus its effect,
+                            and a test fixture's declared fake versus the real executor. This one is a STATUS LINE
+                            standing in for CONTENT -- `git status` says a file differs; `git diff` says it does
+                            not, and `git diff` is the one that answers "does it differ". The failure is not that
+                            the tool lied; it is that the tool answered a different question than the one being
+                            asked, and the answer was accepted without reading the question.
+```
