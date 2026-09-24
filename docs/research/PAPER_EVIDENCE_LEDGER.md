@@ -3840,3 +3840,165 @@ OWNER_BYPASS_USED = NO      MAIN_PUSHED_DIRECTLY = NO       EPOCH_ADVANCED_OUTSI
 
 `github-actions[bot]` authority was reduced by this change and was not expanded anywhere. No repository setting,
 ruleset, environment, branch protection or required-context list was modified to make any result above pass.
+# §S — Epoch 28: the epoch that the repaired transport actually delivered
+
+**This section is appended. §A through §R are byte-for-byte unchanged.**
+
+## S-1 — `MEASUREMENT`: the surface change that made epoch 28 necessary
+
+`MEASUREMENT`. PR #22 declared the trust-epoch finalization handoff decision as Root Trust Surface. Before it, the
+module that decides whether a produced epoch branch is handed off for merging — and that writes the machine-readable
+handoff the PR transport consumes — classified `PRODUCT_SURFACE`, while the bless machinery that *advances* an epoch
+was already protected by `acceptance-evolution-*.cjs`. A terminal decision the machine may rewrite is a gate the
+machine can turn green, so the two files were declared, together with the review boundary that must agree with them.
+
+```text
+DECLARED_PATHS        30 -> 32
+BOUNDARY_HASH         0141acecec911904… -> ec55cf569c1af9fd2863f979dd6eac253eae2ef91e8b4d0d20ab7af2efc47347
+SURFACE_FILES         72 -> 74
+AGGREGATE             57b1db44… -> bb17f834ad818eb2b3e5f7655f316f9650c998702ad1f56f7868df44abdc245a
+```
+
+Declaring a path Root Trust is only **half** the boundary. `ProtectedSurfaceGuard` carries its own compiled manifest
+and `tests/unit/owner-authority.test.ts` requires the two to agree, so adding the paths to the trust model without
+adding them to the manifest left them Root Trust by one boundary and ORDINARY by the other — a change set made only of
+them still returned ALLOW and the Promotion Gate could reach PROMOTABLE without the Owner step. The hosted runner
+caught that; my own local check, which ran only the suites I expected to be affected, did not. That miss is recorded
+rather than tidied away, because it is the reason the second commit exists.
+
+## S-2 — `FAILURE` (deliberate, and load-bearing): the anchor went red on purpose
+
+`FAILURE`. Moving the surface made epoch 27 stale by construction — an epoch cannot certify the surface it is part
+of — so the epoch-anchor invariant failed closed and `main` went red:
+
+```text
+PR #22 unit job:  TRUST_EPOCH_ROOT_SURFACE_MISMATCH
+                  epoch 27 certifies 57b1db44… but the surface is bb17f834…
+post-merge push run 35938815380 @ f6e0274f…   completed/failure
+                  267/268 files, 3446/3447 tests — the single expected failure
+```
+
+**This red was never worked around.** No test was skipped, no epoch-28 special case added, no invariant softened, no
+required context altered, and the Main-Protection ruleset was not touched. That is the whole point: the correct
+repair was to *complete the legitimate finalization*, not to make CI quiet. A green built by weakening this gate
+would have certified a boundary nobody had anchored.
+
+## S-3 — `MEASUREMENT`: the protected ceremony, and what the repaired transport changed
+
+`MEASUREMENT`. The Owner-authorised finalization ran on `refs/heads/main` at `f6e0274f…`:
+
+```text
+FINALIZATION_RUN_ID        35939883816
+DISPATCH_REF               refs/heads/main
+BASE_SHA                   f6e0274f62d5366b9429e5c472cb1223eea7fde6
+OWNER_ENVIRONMENT_APPROVAL boss-root-trust-owner — the job sat in `waiting` until the Root Owner approved
+FINALIZATION_RESULT        EPOCH_BRANCH_READY
+PR_HANDOFF_REQUIRED        true
+RUN_CONCLUSION             completed/success
+```
+
+The suite of terminal states the workflow can now reach, all four proven locally with the real epoch-28 record before
+the live run:
+
+```text
+fresh          EPOCH_BRANCH_READY          exit 0  pr_required true  validation OK
+already-ready  EPOCH_BRANCH_ALREADY_READY  exit 0  no re-advance
+conflict       EPOCH_BRANCH_CONFLICT       exit 1  not handed off for a PR
+no-migration   NO_MIGRATION                exit 0  no epoch write
+```
+
+**The comparison that matters.** Epoch 26 (run 35816107209) and epoch 27 (run 35864751345) both ended
+`completed/failure` on the same final step — `gh pr create`, a step the workflow had no authority to perform. Epoch
+28's run ends `completed/success`, and its step list contains **no PR-creation step at all**; transport moved to the
+Codex-Boss App machine identity, which opened PR #23 as `app/codex-boss`. The workflow's executable surface was
+measured after the merge: `gh pr create`, `pull-requests: write` and `GH_TOKEN` occur **zero** times outside
+comments. Its terminal state now describes its ceremony rather than its transport.
+
+## S-4 — `MEASUREMENT`: the epoch, and the required CI returning to normal green
+
+`MEASUREMENT`.
+
+```text
+EPOCH28_BRANCH    trust-epoch/boss-root-trust-28
+EPOCH28_COMMIT    54d29373d0692e6a2bde9f25f59b33ead91b9455
+ahead(main)=1  behind(main)=0     diff = trust-policy/trust-epoch.json ONLY
+
+trust_epoch           28
+root_contract_version boss-root-trust-28
+root_surface_hash     bb17f834ad818eb2b3e5f7655f316f9650c998702ad1f56f7868df44abdc245a
+parent_epoch_hash     d2531f749f176dd4a366e955ba6bd937889553c297ab619313d4a9c140c5c2cd  (epoch 27's hash)
+EPOCH28_HASH          8260b7d4d8b9aded154a7ac8f3fd7c331a622a5b828dcb667441edfacd7225f5
+```
+
+The new `epoch_hash` was read from the artifact the ceremony produced. It was never hard-coded, and it could not have
+been known in advance.
+
+On PR #23 (run 35940312317, author `app/codex-boss`), **every required context returned to normal green**:
+
+```text
+quality SUCCESS   architecture SUCCESS   unit SUCCESS   package SUCCESS   acceptance SUCCESS
+unit: 268/268 files, 3447/3447 tests;  TRUST_EPOCH_ROOT_SURFACE_MISMATCH occurrences = 0
+tests/unit/test-layers.test.ts ✓ 12 tests — the previously failing Phase N anchor assertion now PASSES
+```
+
+The `SELF_CERTIFICATION_FORBIDDEN:TRUST_EPOCH_MIGRATION` refusal is gone: the `acceptance:autonomous-evolution`
+step, skipped on PR #22, now runs and succeeds. **No bootstrap bypass was needed for this PR** — which is the
+distinction between the merge that *established* the new surface and the merge that *anchored* it.
+
+## S-5 — `MEASUREMENT`: promotion, and main restored
+
+`MEASUREMENT`. The Root Owner merged PR #23 (2026-09-24T01:10:34Z) producing `a6bacfc7…`, and the repository's own
+ceremony check then reported, on the new main:
+
+```text
+[bless] root trust surface: 74 files, aggregate bb17f834…
+[bless] epoch 28 (boss-root-trust-28) MATCHES the live surface      exit 0
+
+POST_MERGE_PUSH_RUN 35941761018 @ a6bacfc7…  completed/SUCCESS
+  quality SUCCESS  architecture SUCCESS  unit SUCCESS  package SUCCESS  acceptance SUCCESS
+```
+
+## S-6 — the causal sequence, preserved
+
+`CORRECTION`. The useful evidence is the sequence, and flattening it into one synthetic all-green history would
+destroy it:
+
+```text
+protected surface changed
+  -> old epoch deliberately became stale
+  -> fail-closed CI turned red
+  -> Root Owner bootstrap merge established the new live surface
+  -> protected Owner ceremony measured and anchored it
+  -> machine identity transported the epoch record
+  -> ordinary required CI returned green
+  -> Root Owner promoted the epoch
+```
+
+Preserved and not rewritten: PR #22's red CI; merge commit `f6e0274f…`; post-merge red run `35938815380`; the
+single expected failure; epoch 27's stale hash; epoch 28's candidate hash; run `35939883816`; commit
+`54d29373…`; the handoff artifact; PR #23; pre-merge green run `35940312317`; the final merge `a6bacfc7…`; final
+post-merge green run `35941761018`. The two historical failures `35816107209` and `35864751345` remain
+`completed/failure` and were never re-run to green.
+
+## S-7 — what this section does and does not claim
+
+`CORRECTION`. **It claims** that the Trust Finalization PR-transport failure mode is removed and was proven removed
+live: epoch 28 was produced, `--check`-verified, pushed, handed off by a workflow holding no PR authority, and
+transported to a mergeable PR by the App machine identity; that all required contexts returned to green without any
+bypass; and that epoch 28 anchors the live surface on `main`.
+
+**It does not claim** anything beyond that. Unchanged and not performed throughout:
+
+```text
+RULESET_CHANGED = NO            (22746755; updated_at 2026-09-19, predates this work)
+DIRECT_MAIN_PUSH = NO           FORCE_PUSH_USED = NO          HISTORY_REWRITTEN = NO
+TEST_SKIPPED_OR_SOFTENED = NO   REQUIRED_CONTEXTS_ALTERED = NO
+OWNER_PAT_IN_AUTOMATION = NO    FAKE_OWNER_MARKER = NO
+EPOCH_ADVANCED_OUTSIDE_THE_PROTECTED_WORKFLOW = NO
+ARCHITECTURE_REQUIRED = NO      BASELINE_WIDENED = NO         LEGACY_RATCHET = REQUIRED_AND_UNCHANGED
+S3 = NOT AUTHORIZED             PHASE2_MIGRATION = NOT STARTED
+NEGATIVE_CONTROL_EXECUTED = NO
+```
+
+The agent did not approve the protected environment (the run sat in `waiting` until the Root Owner did) and did not
+merge the promotion PR. Hosted CI, not a local claim, is what returned the required contexts to green.
