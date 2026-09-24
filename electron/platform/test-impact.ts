@@ -39,6 +39,16 @@ import {
 export const TEST_CATALOGUE_PATH = "config/test-catalogue.json";
 export const CAPABILITY_MODULES_PATH = "config/capability-modules.json";
 
+/**
+ * The ownership id for the composition root, from the map's third class.
+ *
+ * Deliberately not a capability id and deliberately not spelled `platform`: `electron/platform/**` is
+ * the `runtime` capability's own directory, so a class of that name would read as the owner of the
+ * modules that read it. The composition root is the wiring BETWEEN the capabilities, which is why the
+ * map records it beside `capabilities` and `exempt` rather than inside either.
+ */
+export const COMPOSITION_ROOT_OWNER_ID = "composition_root";
+
 /** The catalogue file's shape. Validated on load; an invalid one throws rather than degrading. */
 interface CatalogueFile {
   $comment?: string;
@@ -56,6 +66,14 @@ interface CatalogueFile {
 interface CapabilityModulesFile {
   $comment?: string;
   capabilities: Record<string, string[]>;
+  /**
+   * Paths the PLATFORM owns: the composition root, each with the reason it is not a capability.
+   *
+   * A third class, not a capability and not an exemption. Read here so that a composition-root change is
+   * ATTRIBUTED -- to a named owner with an unbounded blast radius -- rather than left unattributed,
+   * which would report a mapped file as a hole in the map and reach the full run for the wrong reason.
+   */
+  composition_root?: Record<string, string>;
   /** Paths deliberately owned by no capability, each with the reason it is exempt. */
   exempt?: Record<string, string>;
 }
@@ -68,6 +86,12 @@ export interface ImpactRepository {
   /** Every source path any capability owns, so an unattributed change is visible. */
   modulesByCapability: Map<string, string[]>;
   criticalCapabilities: Set<CapabilityId>;
+  /**
+   * Owners whose blast radius the dependency graph cannot bound, so a change to one requires the full
+   * suite. Derived from the map's `composition_root` class rather than named here, so adding a
+   * composition-root file is a data change and not a code change.
+   */
+  unboundedCapabilities: Set<string>;
 }
 
 function readJson(file: string): unknown {
@@ -125,8 +149,15 @@ export function buildModuleOwnership(repoRoot: string, manifests: readonly Capab
     const entry = registry.find((candidate) => candidate.id === capabilityId);
     if (entry) entry.modules.push(...modules);
   }
+  // The composition root is a separate class, so it is added after the manifest check above rather than
+  // through it: an id in `capabilities` that no manifest declares is a mistake, and this one is
+  // deliberately not a capability at all. Adding it under its own id keeps every composition-root file
+  // attributed -- an unattributed file reads as a gap in the map and forces a full run for the wrong
+  // reason -- while keeping it out of the capability ids the catalogue may name in `covers`.
+  const compositionRoot = Object.keys(extra.composition_root ?? {}).sort();
   const byCapability = new Map<string, string[]>();
   for (const entry of registry) byCapability.set(entry.id, [...new Set(entry.modules)].sort());
+  if (compositionRoot.length > 0) byCapability.set(COMPOSITION_ROOT_OWNER_ID, compositionRoot);
   return byCapability;
 }
 
@@ -143,7 +174,8 @@ export function loadImpactRepository(repoRoot: string = process.cwd(), presentTe
     graph: registry.graph,
     catalogue,
     modulesByCapability: byCapability,
-    criticalCapabilities: critical
+    criticalCapabilities: critical,
+    unboundedCapabilities: new Set(byCapability.has(COMPOSITION_ROOT_OWNER_ID) ? [COMPOSITION_ROOT_OWNER_ID] : [])
   };
 }
 
@@ -175,6 +207,7 @@ export function selectForChange(
     modulesByCapability: repository.modulesByCapability,
     impactRadius: radius,
     criticalCapabilities: repository.criticalCapabilities,
+    ...(repository.unboundedCapabilities.size === 0 ? {} : { unboundedCapabilities: repository.unboundedCapabilities }),
     ...(options.trigger === undefined ? {} : { trigger: options.trigger }),
     ...(options.changedSetUnknown === undefined ? {} : { changedSetUnknown: options.changedSetUnknown })
   });

@@ -29,7 +29,7 @@ const SCRIPT = "scripts/phase2-edge-inventory.cjs";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const inventory = require(path.join(PROJECT, SCRIPT)) as {
   report: {
-    measured: { filesOwned: number; capabilitiesWithKinds: number; declaredModulePaths: number; declaredRequirementPairs: number };
+    measured: { filesOwned: number; capabilitiesWithKinds: number; declaredModulePaths: number; declaredRequirementPairs: number; compositionRootFiles: number };
     edges: {
       totalCrossCapabilityFileEdges: number;
       distinctCapabilityPairs: number;
@@ -39,6 +39,8 @@ const inventory = require(path.join(PROJECT, SCRIPT)) as {
       fullyDeclaredCrossCapabilityEdges: number;
       realPairsAlreadyDeclared: number;
       realPairsUndeclared: number;
+      edgesFromCompositionRoot: number;
+      edgesToCompositionRoot: number;
     };
     topPairs: Array<{ pair: string; count: number }>;
     kernelToFeaturePairs: Array<{ pair: string; count: number }>;
@@ -120,5 +122,24 @@ describe("P2-A increment 2 — the cross-capability edge inventory", () => {
       expect(entry.forward, `${entry.a} <-> ${entry.b} has no forward edge`).toBeGreaterThan(0);
       expect(entry.backward, `${entry.a} <-> ${entry.b} has no backward edge`).toBeGreaterThan(0);
     }
+  });
+
+  it("RE-ATTRIBUTES the composition root's edges instead of deleting them from the work list", () => {
+    // The map's third class, and the reason the kernel -> feature count moved: `electron/main.ts` registers
+    // every capability's boot module, so while it belonged to `runtime` a KERNEL appeared to import half the
+    // features in the tree. Re-attributing those edges is a measurement change. DELETING them would have
+    // moved the same number by hiding part of the work list, so the counts that must NOT change are asserted
+    // alongside the one that does.
+    const { measured, edges } = inventory.report;
+    expect(measured.compositionRootFiles, "the composition root owns no file, so its edges have no owner to be attributed to").toBeGreaterThan(0);
+    expect(edges.edgesFromCompositionRoot, "the composition root has no outgoing edge, so the scan skipped it or hid its edges").toBeGreaterThan(0);
+    // An entry point is imported by nothing: zero incoming edges is the property, not an accident.
+    expect(edges.edgesToCompositionRoot, "something now imports the composition root, so 'entry point' no longer describes it").toBe(0);
+    // The property the step exists to establish: no kernel -> feature pair is anchored at the composition root.
+    for (const entry of inventory.report.kernelToFeaturePairs) {
+      expect(entry.pair.startsWith("<composition-root>"), `the composition root is still counted as a kernel: ${entry.pair}`).toBe(false);
+    }
+    // ...and no kernel -> feature edge has the composition root at either end.
+    expect(inventory.report.sampleKernelToFeatureEdges.some((line) => line.includes("<composition-root>")), "a kernel -> feature edge is anchored at the composition root").toBe(false);
   });
 });

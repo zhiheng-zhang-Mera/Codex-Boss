@@ -59,6 +59,22 @@ function walk(dir, out = []) {
 const { parse } = require(path.join(ROOT, "node_modules", "yaml"));
 const map = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "capability-modules.json"), "utf8"));
 
+/**
+ * The composition root's owner id, from the map's third class.
+ *
+ * It is deliberately NOT a capability and has no manifest `kind`. The map records it so that the
+ * composition root's imports stop being read as a KERNEL's imports of features: `electron/main.ts`
+ * registers every capability's boot module, so its import of `electron/commander/**` is class-1
+ * composition-root wiring, not `runtime` reaching into `tenx`.
+ *
+ * The edges are RE-ATTRIBUTED, never dropped. Deleting them would shrink the work list by hiding part
+ * of it, which is the failure mode this instrument exists to prevent: the inventory's job is to say how
+ * many cross-capability file edges exist and which of them are inversions, so a change of attribution
+ * has to move the second number and leave the first one traceable.
+ */
+const COMPOSITION_ROOT = "<composition-root>";
+const compositionRootEntries = Object.entries(map.composition_root ?? {});
+
 // owner of every file, using the map's own prefix rule
 function ownsPath(entries, file) {
   for (const entry of entries) {
@@ -68,10 +84,16 @@ function ownsPath(entries, file) {
   return false;
 }
 const owner = new Map();
+const allFiles = walk(path.join(ROOT, "electron")).concat(walk(path.join(ROOT, "src")));
 for (const [capability, patterns] of Object.entries(map.capabilities)) {
-  for (const file of walk(path.join(ROOT, "electron")).concat(walk(path.join(ROOT, "src")))) {
+  for (const file of allFiles) {
     if (ownsPath(patterns, file)) owner.set(file, capability);
   }
+}
+// The composition root wins over a capability claim, which the closure validator refuses outright; the
+// precedence here only decides which way a future contradiction would be read, not whether one exists.
+for (const file of allFiles) {
+  if (compositionRootEntries.some(([entry]) => ownsPath([entry], file))) owner.set(file, COMPOSITION_ROOT);
 }
 const files = [...owner.keys()].sort();
 
@@ -84,6 +106,11 @@ for (const name of fs.readdirSync(path.join(ROOT, "config", "capabilities")).sor
   kinds[doc.id] = doc.kind;
   for (const module of doc.modules ?? []) declaredModules.set(module, doc.id);
 }
+/** Counted before the composition root is added, so the field keeps meaning "capabilities with a kind". */
+const capabilitiesWithKinds = Object.keys(kinds).length;
+// The composition root's kind is the repository's own name for the class and matches no manifest kind,
+// so it can never satisfy a `kernel -> feature` test.
+kinds[COMPOSITION_ROOT] = "composition-root";
 
 // every cross-capability edge
 const edges = [];
@@ -145,13 +172,20 @@ for (const name of fs.readdirSync(path.join(ROOT, "config", "capabilities")).sor
 const realPairs = new Set(pairList.map((entry) => entry.pair));
 const declaredRealPairs = [...realPairs].filter((pair) => declaredPairs.has(pair));
 
+// The composition root's own edges, counted separately so the re-attribution is a visible number rather
+// than a silently smaller kernel -> feature total.
+const compositionRootFiles = files.filter((file) => owner.get(file) === COMPOSITION_ROOT);
+const edgesFromCompositionRoot = edges.filter((edge) => edge.from === COMPOSITION_ROOT);
+const edgesToCompositionRoot = edges.filter((edge) => edge.to === COMPOSITION_ROOT);
+
 const report = {
   schema: "city-phase2-edge-inventory/1",
   measured: {
     filesOwned: files.length,
-    capabilitiesWithKinds: Object.keys(kinds).length,
+    capabilitiesWithKinds,
     declaredModulePaths: declaredModules.size,
     declaredRequirementPairs: declaredPairs.size,
+    compositionRootFiles: compositionRootFiles.length,
   },
   edges: {
     totalCrossCapabilityFileEdges: edges.length,
@@ -162,6 +196,8 @@ const report = {
     fullyDeclaredCrossCapabilityEdges: declaredCrossCapability.length,
     realPairsAlreadyDeclared: declaredRealPairs.length,
     realPairsUndeclared: realPairs.size - declaredRealPairs.length,
+    edgesFromCompositionRoot: edgesFromCompositionRoot.length,
+    edgesToCompositionRoot: edgesToCompositionRoot.length,
   },
   topPairs: pairList.slice(0, 60),
   kernelToFeaturePairs: [...kfPairs.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0])).map(([pair, count]) => ({ pair, count })),
@@ -177,6 +213,7 @@ function render(report) {
   const { measured, edges: counts } = report;
   return [
     `[p2-edges] owned files ${measured.filesOwned}; manifests declare ${measured.declaredModulePaths} module paths`,
+    `[p2-edges] composition root: ${measured.compositionRootFiles} file(s), ${counts.edgesFromCompositionRoot} outgoing edge(s), ${counts.edgesToCompositionRoot} incoming  (reattributed, not removed)`,
     `[p2-edges] cross-capability file edges ${counts.totalCrossCapabilityFileEdges} over ${counts.distinctCapabilityPairs} pairs`,
     `[p2-edges] kernel -> feature: ${counts.kernelToFeatureFileEdges} edges over ${counts.kernelToFeaturePairs} pairs  (P2-B target: 0)`,
     `[p2-edges] mutual pairs: ${counts.mutualCapabilityPairs}  (P2-C target: 0)`,

@@ -44,9 +44,14 @@ const validator = require(path.join(PROJECT, SCRIPT)) as {
       bootOrSurfaceNotDeclaredInModules: Array<{ manifest: string; path: string }>;
       ownedFiles: number;
       exemptEntries: number;
+      compositionRootEntries: number;
+      compositionRootFiles: number;
       doubleClaims: Array<{ file: string; owners: string[] }>;
       missingExemptionReasons: string[];
+      missingCompositionRootReasons: string[];
       ownedAndExempt: string[];
+      ownedAndCompositionRoot: string[];
+      compositionRootAndExempt: string[];
       unowned: string[];
       withoutDeclaredPurpose: string[];
       mapWithoutManifest: string[];
@@ -58,7 +63,7 @@ const validator = require(path.join(PROJECT, SCRIPT)) as {
   ownsPath: (entries: string[], file: string) => boolean;
   scanSet: (root?: string) => string[];
   readManifests: (root?: string) => Array<{ source: string; id: string | null; modules: string[] }>;
-  readOwnershipMap: (root?: string) => { capabilities: Record<string, string[]>; exempt: Record<string, string> };
+  readOwnershipMap: (root?: string) => { capabilities: Record<string, string[]>; compositionRoot: Record<string, string>; exempt: Record<string, string> };
 };
 
 /** Run the CLI against the real repository and report its verdict. */
@@ -93,7 +98,7 @@ permissions: []
 function fixture(options: {
   files?: Record<string, string>;
   manifests?: Record<string, string>;
-  ownership?: { capabilities: Record<string, string[]>; exempt: Record<string, string> };
+  ownership?: { capabilities: Record<string, string[]>; composition_root?: Record<string, string>; exempt: Record<string, string> };
 }): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "p2a-closure-"));
   const write = (relative: string, content: string) => {
@@ -268,5 +273,91 @@ describe("P2-A — the validator is not satisfiable by emptying the declarations
   it("the script is loadable by a plain Node process, like every other scripts/*.cjs", () => {
     const probe = spawnSync(process.execPath, ["-e", `const m=require(${JSON.stringify(path.join(PROJECT, SCRIPT))}); if(!m.validate) process.exit(1);`], { encoding: "utf8", timeout: 60000 });
     expect(probe.status, `the validator could not be loaded by plain node: ${probe.stderr}`).toBe(0);
+  });
+});
+
+/**
+ * P2-A increment 2 — the composition root, the third owner class.
+ *
+ * WHY A THIRD CLASS WAS NEEDED AT ALL. `electron/main.ts` registers every capability's boot module, so it
+ * imports across the whole tree while implementing none of it. Owned by `runtime` it made a KERNEL the
+ * source of those imports, which is what inflated the kernel -> feature measurement; exempt, it would have
+ * claimed that nobody owns the most heavily attributed file in the repository. Both existing classes were
+ * false, so the class was named: owned by the platform, not a capability, not an exemption.
+ *
+ * These cases pin the class in BOTH directions, like the rest of this file: the committed tree passes with
+ * it, and every way of misusing it fails.
+ */
+describe("P2-A increment 2 — the composition root is a third owner class", () => {
+  const REASON = "the composition root: it wires the capabilities together, so it belongs to none of them";
+
+  it("owns a file without being a capability or an exemption", () => {
+    const root = fixture({
+      files: { "electron/main.ts": "export const boot = 1;\n" },
+      manifests: {},
+      ownership: { capabilities: {}, composition_root: { "electron/main.ts": REASON }, exempt: {} },
+    });
+    const { status, report } = validateFixture(root);
+    expect(status, `a composition-root file failed: ${JSON.stringify(report.problems)}`).toBe(0);
+    expect(report.findings.compositionRootFiles).toBe(1);
+    expect(report.findings.compositionRootEntries).toBe(1);
+    // The two numbers that must NOT move: the file is not exempt, and no capability claims it.
+    expect(report.findings.exemptEntries).toBe(0);
+    expect(report.findings.ownedFiles).toBe(0);
+    expect(report.findings.unowned).toEqual([]);
+  });
+
+  it("does not become a blanket excuse: a file with NO owner is still a failure", () => {
+    const root = fixture({ files: { "electron/orphan.ts": "export const o = 1;\n" }, manifests: {}, ownership: { capabilities: {}, exempt: {} } });
+    const { status, report } = validateFixture(root);
+    expect(status, "an unowned file passed once a third class existed").toBe(1);
+    expect(report.findings.unowned).toContain("electron/orphan.ts");
+  });
+
+  it("refuses a composition-root entry that carries no substantive reason", () => {
+    const root = fixture({
+      files: { "electron/main.ts": "export const boot = 1;\n" },
+      manifests: {},
+      ownership: { capabilities: {}, composition_root: { "electron/main.ts": "wiring" }, exempt: {} },
+    });
+    const { status, report } = validateFixture(root);
+    expect(status, "a composition-root entry with no reason passed").toBe(1);
+    expect(report.findings.missingCompositionRootReasons).toContain("electron/main.ts");
+  });
+
+  it("refuses a file owned by a capability AND by the composition root", () => {
+    const root = fixture({
+      files: { "electron/a.ts": "export const a = 1;\n" },
+      ownership: { capabilities: { alpha: ["electron/a.ts"] }, composition_root: { "electron/a.ts": REASON }, exempt: {} },
+    });
+    const { status, report } = validateFixture(root);
+    expect(status, "a file claimed as both a capability's implementation and the wiring passed").toBe(1);
+    expect(report.findings.ownedAndCompositionRoot).toContain("electron/a.ts");
+  });
+
+  it("refuses a file the composition root owns AND exempts: 'the platform owns this' is not 'nobody owns this'", () => {
+    const root = fixture({
+      files: { "electron/main.ts": "export const boot = 1;\n" },
+      manifests: {},
+      ownership: { capabilities: {}, composition_root: { "electron/main.ts": REASON }, exempt: { "electron/main.ts": REASON } },
+    });
+    const { status, report } = validateFixture(root);
+    expect(status, "a file owned by the composition root and exempt at once passed").toBe(1);
+    expect(report.findings.compositionRootAndExempt).toContain("electron/main.ts");
+  });
+
+  it("reads the class out of the committed map, where the two composition-root files now live", () => {
+    const report = validator.validate(PROJECT);
+    const map = validator.readOwnershipMap();
+    expect(Object.keys(map.compositionRoot), "the composition root is empty, so the wiring is a capability's again").toContain("electron/main.ts");
+    expect(report.findings.compositionRootFiles).toBe(Object.keys(map.compositionRoot).length);
+    expect(report.findings.ownedAndCompositionRoot, "a file is both a capability's and the composition root's").toEqual([]);
+    expect(report.findings.compositionRootAndExempt, "a file is both the composition root's and exempt").toEqual([]);
+    for (const [entry, reason] of Object.entries(map.compositionRoot)) {
+      expect(String(reason).length, `the composition-root entry ${entry} carries no substantive reason`).toBeGreaterThan(20);
+    }
+    // The repair itself: `runtime` -- a kernel -- no longer owns the composition root.
+    expect(map.capabilities.runtime, "runtime still owns the composition root, so the inversion count is inflated again").not.toContain("electron/main.ts");
+    expect(map.capabilities.runtime).not.toContain("electron/preload.ts");
   });
 });

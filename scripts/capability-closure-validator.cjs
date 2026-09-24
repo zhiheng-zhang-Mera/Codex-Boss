@@ -15,9 +15,11 @@
  *     2  boot subset           `bootModules` is a subset of `modules` (architecture.cjs checks the same thing;
  *                              repeated here because this program's verdict must be self-contained for CI)
  *     3  ownership coverage    every tracked source file under the scan roots is owned by exactly one capability,
- *                              or is named in the exemption table WITH A REASON
+ *                              or named in the composition-root table, or exempted WITH A REASON
  *     4  no double claim       no file is owned by two capabilities
- *     5  no owned-and-exempt   the exemption table and the ownership map are disjoint
+ *     5  no contradictory      the three owner tables are pairwise disjoint: capability, composition root and
+ *         ownership            exemption are three different answers to "whose change is this?", so a file in
+ *                              two of them is a contradiction rather than a precedence rule
  *     6  one purpose           every capability declares at least one `provides` id -- a capability with no
  *                              declared external purpose is a directory, not a building
  *     7  model agreement       the ownership map and the manifests must agree: each manifest's declared modules
@@ -120,10 +122,11 @@ function readManifests(root = ROOT) {
 
 function readOwnershipMap(root = ROOT) {
   const absolute = path.join(root, OWNERSHIP_MAP);
-  if (!fs.existsSync(absolute)) return { capabilities: {}, exempt: {} };
+  if (!fs.existsSync(absolute)) return { capabilities: {}, compositionRoot: {}, exempt: {} };
   const raw = JSON.parse(fs.readFileSync(absolute, "utf8"));
   return {
     capabilities: raw.capabilities && typeof raw.capabilities === "object" ? raw.capabilities : {},
+    compositionRoot: raw.composition_root && typeof raw.composition_root === "object" ? raw.composition_root : {},
     exempt: raw.exempt && typeof raw.exempt === "object" ? raw.exempt : {},
   };
 }
@@ -194,22 +197,41 @@ function validate(root = ROOT) {
     }
   }
   const exemptEntries = Object.entries(map.exempt);
+  const compositionRootEntries = Object.entries(map.compositionRoot);
+  const isExempt = (file) => exemptEntries.some(([entry]) => ownsPath([entry], file));
+  const isCompositionRoot = (file) => compositionRootEntries.some(([entry]) => ownsPath([entry], file));
   const missingExemptionReasons = exemptEntries.filter(([, reason]) => typeof reason !== "string" || reason.trim().length < 20).map(([entry]) => entry);
-  const ownedAndExempt = files.filter((file) => ownedBy.has(file) && exemptEntries.some(([entry]) => ownsPath([entry], file)));
-  const unowned = files.filter((file) => !ownedBy.has(file) && !exemptEntries.some(([entry]) => ownsPath([entry], file)));
+  const missingCompositionRootReasons = compositionRootEntries.filter(([, reason]) => typeof reason !== "string" || reason.trim().length < 20).map(([entry]) => entry);
+  const ownedAndExempt = files.filter((file) => ownedBy.has(file) && isExempt(file));
+  // A third class means three more ways to contradict, and each pair is two different answers to the
+  // same question -- "whose change is this?" -- so all three are failures rather than precedence rules:
+  //   capability + composition root   two owners, one of which claims to be wiring rather than a building
+  //   composition root + exempt       "the platform owns this" alongside "nobody owns this"
+  const ownedAndCompositionRoot = files.filter((file) => ownedBy.has(file) && isCompositionRoot(file));
+  const compositionRootAndExempt = files.filter((file) => isCompositionRoot(file) && isExempt(file));
+  const compositionRootFiles = files.filter((file) => isCompositionRoot(file));
+  const unowned = files.filter((file) => !ownedBy.has(file) && !isExempt(file) && !isCompositionRoot(file));
 
   findings.scannedSourceFiles = files.length;
   findings.ownedFiles = ownedBy.size;
   findings.exemptEntries = exemptEntries.length;
+  findings.compositionRootEntries = compositionRootEntries.length;
+  findings.compositionRootFiles = compositionRootFiles.length;
   findings.doubleClaims = doubleClaims;
   findings.missingExemptionReasons = missingExemptionReasons;
+  findings.missingCompositionRootReasons = missingCompositionRootReasons;
   findings.ownedAndExempt = ownedAndExempt;
+  findings.ownedAndCompositionRoot = ownedAndCompositionRoot;
+  findings.compositionRootAndExempt = compositionRootAndExempt;
   findings.unowned = unowned;
   findings.unownedCount = unowned.length;
   if (doubleClaims.length > 0) problems.push(`${doubleClaims.length} file(s) are claimed by two capabilities`);
   if (missingExemptionReasons.length > 0) problems.push(`${missingExemptionReasons.length} exemption(s) carry no substantive reason`);
+  if (missingCompositionRootReasons.length > 0) problems.push(`${missingCompositionRootReasons.length} composition-root entr(ies) carry no substantive reason`);
   if (ownedAndExempt.length > 0) problems.push(`${ownedAndExempt.length} file(s) are owned by a capability AND exempt: ${ownedAndExempt.join(", ")}`);
-  if (unowned.length > 0) problems.push(`${unowned.length} scanned source file(s) are owned by no capability and exempt from none`);
+  if (ownedAndCompositionRoot.length > 0) problems.push(`${ownedAndCompositionRoot.length} file(s) are owned by a capability AND by the composition root: ${ownedAndCompositionRoot.join(", ")}`);
+  if (compositionRootAndExempt.length > 0) problems.push(`${compositionRootAndExempt.length} file(s) are owned by the composition root AND exempt: ${compositionRootAndExempt.join(", ")}`);
+  if (unowned.length > 0) problems.push(`${unowned.length} scanned source file(s) are owned by no capability, by no composition-root entry and exempt from none`);
 
   // --- 6. one declared external purpose ---------------------------------------------------------------
   const withoutPurpose = manifests.filter((manifest) => !manifest.unreadable && manifest.provides.length === 0).map((manifest) => manifest.source);
@@ -262,6 +284,7 @@ function render(report) {
   lines.push(`[closure] scanned ${report.scannedSourceFiles} source files under ${SCAN_ROOTS.join(", ")}`);
   lines.push(`[closure] ${report.manifests} manifests declare ${findings.declaredModulePaths} module path(s)`);
   lines.push(`[closure] the ownership map (${OWNERSHIP_MAP}) owns ${findings.ownedFiles} file(s), exempts ${findings.exemptEntries}`);
+  lines.push(`[closure] the composition root owns ${findings.compositionRootFiles} file(s) over ${findings.compositionRootEntries} entr(ies): not a capability, not an exemption`);
   lines.push(`[closure] two-model agreement: ${findings.modelsAgree ? "AGREE" : "DISAGREE"}`
     + ` (map-without-manifest ${findings.mapWithoutManifest.length}, manifest-without-map ${findings.manifestWithoutMap.length},`
     + ` declared-but-unowned ${findings.declaredButUnowned.length})`);

@@ -1420,3 +1420,186 @@ research_value              Four random failures, one cause, three steps, and on
                             to make one helper safe reintroduced the helper's defect. Fixes do not generalise
                             themselves; the ledger is where the generalisation is recorded.
 ```
+
+
+---
+
+## CC-023 — P2-A increment 2, step ②: the composition root becomes a third owner class, and the kernel→feature work list is re-measured
+
+```text
+ENTRY_ID                    CC-023
+timestamp_utc               2026-09-24T22:19Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction -- an ordinary code change on a branch, no protected-path write,
+                            no ruleset change, no epoch ceremony (see trust_consequence below)
+main_before                 91eb915cd4100b1635288a6f8b42c4bc4fd4291b  (five checks green)
+branch                      p2a-composition-root-class
+PR                          the PR that carries this entry
+problem                     scripts/extend-capability-modules.cjs listed "electron/main.ts" and
+                            "electron/preload.ts" in the `runtime` capability's EXTRA block, so `runtime` --
+                            a KERNEL -- owned the 89 KB composition root. Consequence measured by
+                            scripts/phase2-edge-inventory.cjs: every `runtime -> *` edge whose SOURCE is one of
+                            those two files was counted as a kernel-into-feature INVERSION.
+classification              R2 (real City defect, understood repair) -- NOT R1. The step was specified in the
+                            P2-A work list and its mechanism pinned in CC-020; this round implements it.
+action_taken                Added a THIRD top-level ownership class, `composition_root` (path -> reason) beside
+                            `capabilities` and `exempt`; taught all five consumers; re-measured. See
+                            docs/city/PHASE2_P2A_COMPOSITION_ROOT_CLASS.md for the full record.
+files_or_rules_changed      config/capability-modules.json          (regenerated; 272 -> 270 owned patterns,
+                                                                    `composition_root` added)
+                            scripts/extend-capability-modules.cjs    (COMPOSITION_ROOT table; subtracts before
+                                                                    validating)
+                            scripts/capability-closure-validator.cjs (third class + three contradiction checks)
+                            scripts/phase2-edge-inventory.cjs        (RE-ATTRIBUTES the edges)
+                            src/shared/test-impact.ts                (SelectOptions.unboundedCapabilities)
+                            electron/platform/test-impact.ts         (composition root in the ownership map;
+                                                                    ImpactRepository.unboundedCapabilities)
+                            electron/self-cognition/facts.ts         (reads the section)
+                            src/shared/self-cognition/anatomy.ts     (keeps the composition root's components)
+                            tests/unit/platform/test-impact.test.ts               (+5 cases)
+                            tests/unit/city/capability-closure-validator.test.ts  (+6 cases)
+                            tests/unit/city/phase2-edge-inventory.test.ts         (+1 case)
+                            docs/city/PHASE2_P2A_COMPOSITION_ROOT_CLASS.md        (new)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md     (this entry)
+```
+
+```text
+THE MEASUREMENT THE STEP EXISTS TO PRODUCE   (node scripts/phase2-edge-inventory.cjs, same tree both sides)
+                                       BEFORE            AFTER
+  owned files                            597               597      <- UNCHANGED: nothing was dropped
+  composition root                       (no such class)   2 file(s), 95 outgoing, 0 incoming
+  cross-capability file edges            794 / 187 pairs   797 / 192 pairs   <- WENT UP, not down
+  kernel -> feature (P2-B target: 0)     154 / 43 pairs    82 / 25 pairs
+  mutual pairs (P2-C target: 0)          53                38
+
+  THE EDGE TOTAL GOING UP IS THE PROOF THAT NOTHING WAS HIDDEN. Implementing this class by deleting the two
+  patterns would have taken `filesOwned` to 595 and removed all 95 outgoing edges from the inventory, so the
+  kernel -> feature number would have fallen for exactly the wrong reason. The inventory RE-ATTRIBUTES: the
+  composition root's edges are counted, owned, and excluded from the kernel test by a kind of
+  "composition-root" that no manifest can produce.
+
+  runtime's pair `runtime -> tenx` fell 22 -> 7 and every other `runtime -> *` pair left the list. The brief's
+  estimate was that the two attribution errors were "30%" of the 154; measured, the composition root alone was
+  72 of them (47%). Both figures describe a model under repair and neither is a defect count.
+```
+
+```text
+THE FIVE CONSUMERS, NOT THE THREE CC-020 NAMED
+  1  closure validator            required the class, or `unowned` goes 0 -> 2
+  2  electron/platform/test-impact.ts   the selector's ownership map
+  3  generate-test-catalogue.cjs  reads `.capabilities` only -> unaffected BY CONSTRUCTION; measured 27 of 27
+                                  capabilities covered and config/test-catalogue.json byte-identical
+  4  phase2-edge-inventory.cjs    NOT IN CC-020. Builds its owner map from `.capabilities`, so a file owned by
+                                  nothing is REMOVED from `files` and its edges vanish. This is the program the
+                                  step exists to move, so its behaviour is the deliverable, not a detail.
+  5  electron/self-cognition/facts.ts + src/shared/self-cognition/anatomy.ts
+                                  NOT IN CC-020. Left alone, the composition root disappears from Boss's
+                                  description of its own anatomy: `facts.ts` reads only `capabilities`/`exempt`,
+                                  and `anatomy.ts` builds a MODULE component only for a path an owner covers.
+  Finding: CC-020's list of consumers was incomplete in the direction that matters -- both omissions would have
+  DELETED the files from their own instrument, silently and with no test failing.
+```
+
+```text
+THE TRAP: THE GENERATOR HAD TO SUBTRACT, NOT MERELY STOP ADDING
+  scripts/extend-capability-modules.cjs:327-330    capabilities[id] = union(FILE, EXTRA)
+  The file IS the base the table widens, so removing the two entries from EXTRA leaves `runtime` owning them
+  for ever -- the union re-asserts the claim from the file on every run. VERIFIED before editing: after taking
+  the entries out of EXTRA, config/capability-modules.json still listed electron/main.ts under `runtime`.
+  main() now subtracts Object.keys(COMPOSITION_ROOT) from every capability BEFORE validating, so re-running the
+  generator REPAIRS the misattribution instead of preserving it. Idempotence verified by two consecutive runs.
+```
+
+```text
+THE SELECTOR'S BLAST RADIUS, MEASURED BOTH SIDES   (node scripts/test-impact.cjs select --changed electron/main.ts)
+                                  BEFORE                             AFTER
+  seeds                           ["runtime"]                        ["composition_root"]
+  selected                        36 {acceptance 5, unit 31}         29 {acceptance 3, unit 26}
+  because "runtime"               7                                  (n/a -- always-run only)
+  because "always-run"            29                                 29
+  fullRunRequired                 false                              TRUE
+  fullRunReasons                  []                                 ["composition_root has no bounded blast
+                                                                      radius, so no subset of the suite can be
+                                                                      justified for a change to it"]
+  unattributedFiles               []                                 []      <- attributed, NOT a hole
+  blind                           false                              false
+  catalogue                       289                                289
+
+  OPTION C, AND OPTION B REFUTED BY MEASUREMENT RATHER THAN PREFERENCE. The brief's option B was "keep selecting
+  the seven suites if they really cover composition-root behaviour -- which must be checked, not assumed". It was
+  checked: NONE of the seven references electron/main.ts or electron/preload.ts. They are selected because they
+  cover the `runtime` capability, and they assert the invariants of electron/bootstrap/runtime.ts,
+  runtime-paths.ts and src/shared/provider-models.ts. Their selection was an artefact of the misattribution, so
+  option A would have removed a false positive rather than real coverage -- and is still wrong, because the
+  composition root's blast radius genuinely is the application and nothing in the catalogue said so.
+  Two facts make C cheap here: CI DOES NOT USE THE SELECTOR (ci.yml runs `pnpm test`, `test:postbuild` and
+  `test:slow` -- full runs), and `fullRunRequired` is a first-class recorded outcome, not a failure. The
+  alternative reached the same full run by accident, while reporting a mapped file as a hole in the map; the new
+  `unboundedCapabilities` option exists so those two facts stay distinguishable.
+```
+
+```text
+NORMAL PATH / WHAT WAS NOT DONE
+normal_path                 Build the class behind a test that fails without it, measure the consumers, then
+                            verify: closure PASS, catalogue --check, inventory, ratchet, security scan, three
+                            tsconfigs, and the affected unit suites.
+why_normal_path_was_not_used  Not applicable -- used in full.
+THE GUARDS WERE FALSIFIED, NOT MERELY OBSERVED TO PASS (CC-019's lesson). Each new rule was disabled in turn:
+  MUTATION 1  the `unboundedCapabilities` rule disabled
+              -> "a change to the wiring selected a subset of the suite: expected false to be true"
+                 "an unbounded seed selected a subset: expected false to be true"
+              THE SILENT NARROWING CC-020 SAID NO TEST IN THIS REPOSITORY CATCHES IS NOW CAUGHT.
+  MUTATION 2  the composition root removed from the inventory's owner map
+              -> "the composition root owns no file, so its edges have no owner to be attributed to"
+  MUTATION 3  the class ignored by the closure validator's coverage check
+              -> the three unowned cases fail, including the two that predate this round
+  ONE CASE PASSED FOR THE WRONG REASON AND WAS REPAIRED. The first constructed selector case gave its catalogue
+  a single suite, so an unbounded seed emptied the selection and the full run arrived through `blind` instead --
+  it would have passed with the new rule deleted. It now carries an always-run suite, asserts `blind === false`,
+  and asserts the negative direction: the same change WITHOUT the declaration must not force a full run.
+  Re-falsified after the repair; it fails as intended.
+files_or_rules_changed      (see above)
+trust_consequence           NO ROOT TRUST SURFACE FILE WAS TOUCHED. Measured before editing: of the 32 declared
+                            surface paths, none matches config/capability-modules.json, config/test-catalogue.json,
+                            src/shared/test-impact.ts, electron/platform/test-impact.ts,
+                            electron/self-cognition/facts.ts, src/shared/self-cognition/anatomy.ts,
+                            scripts/extend-capability-modules.cjs, scripts/capability-closure-validator.cjs or
+                            scripts/phase2-edge-inventory.cjs. The surface lists `tests/acceptance/**` as a glob
+                            and these cases are under tests/unit/, so no epoch ceremony is required. Confirmed by
+                            `node scripts/acceptance-evolution-bless.cjs --check` BEFORE the change and by
+                            tests/unit/test-layers.test.ts ("keeps the graduation gate in push CI and the
+                            committed epoch anchored to the live surface") after it.
+known_risk                  The composition root is now a SEED capability id in `modulesByCapability` and in
+                            `selection.seeds`/`affected`, though it is not a capability. `node
+                            scripts/test-impact.cjs audit` will list it under `capabilitiesWithoutASuite`, which
+                            is TRUE and visible rather than hidden: no suite in the catalogue claims to cover the
+                            wiring, and the selector's answer for it is a full run. If a future increment gives
+                            it a real covering suite, that report is where the change becomes visible.
+                            SECOND: the subtraction in the generator only removes EXACT path matches. A
+                            capability that owned a DIRECTORY containing a composition-root file would keep the
+                            claim and the generator would refuse to run (it reports the file as
+                            both-owned), which is fail-closed rather than silent.
+evidence_preserved          BEFORE and AFTER numbers from the selector CLI, the closure validator and the edge
+                            inventory, side by side in docs/city/PHASE2_P2A_COMPOSITION_ROOT_CLASS.md §4-§5;
+                            the three mutation runs recorded above.
+rollback                    git revert of the merge commit. The map is regenerated from
+                            scripts/extend-capability-modules.cjs, so reverting the generator restores the old
+                            attribution on the next run; nothing else consumes `composition_root` except by an
+                            explicit read.
+temporary_debt_created      no
+debt_id                     none. The remaining 82 kernel -> feature edges are a WORK LIST, not debt: two named
+                            attribution errors (src/shared/contracts.ts; electron/commander/**) already have
+                            their steps in the P2-A work list.
+exit_condition              `node scripts/capability-closure-validator.cjs` reports VERDICT=PASS with a third
+                            owner class, and the composition root is owned by it rather than by `runtime`.
+closure_status              CLOSED for step ②; steps ③ (split src/shared/contracts.ts) and ④ (expand the
+                            manifests' `modules`) remain open.
+research_value              Two findings worth more than the change. (1) A list of consumers derived from
+                            memory of the mechanism is not a list of consumers: two of the five would have
+                            DELETED the files from their own instrument with every test still green, and the
+                            one CC-020 named as "the dangerous one" (the selector) turned out to be the one
+                            whose failure was loudest. (2) A generated artifact that is WIDENED BY UNION from
+                            itself cannot be repaired by removing a row from the generator's table; the repair
+                            has to subtract, or the claim is immortal. Both are the same shape: the instrument
+                            was believed instead of read.
+```
