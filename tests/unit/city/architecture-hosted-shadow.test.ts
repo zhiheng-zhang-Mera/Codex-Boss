@@ -411,24 +411,28 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
     }
   });
 
-  it("H7 the repository contract keeps architecture non-required, and the live ruleset agrees when readable", () => {
+  it("H7 the repository contract records architecture as required after S3, and the live ruleset agrees when readable", () => {
     // "Required" is a RULESET property, and a workflow cannot set it -- so the invariant has to be asserted
     // where it actually lives. It is asserted in two independent ways:
     //
     //   (a) the repository's own statement of the ruleset contract, `.github/CODEOWNERS`, which names the exact
-    //       required context list and would have to be edited to make `architecture` required;
+    //       required context list;
     //   (b) the live ruleset, read through the GitHub API WHEN READABLE.
     //
-    // Making the check required is stage S3 -- a ruleset edit and nothing else -- and it is an Owner act this
-    // mission may not take. If `architecture` appears in either place, this mission has activated a gate it was
-    // forbidden to activate.
+    // THIS CASE WAS INVERTED BY STAGE S3, DELIBERATELY. Through S1 and S2 the property was "architecture is
+    // emitted but NOT required", and this case failed if anyone activated it early. S3 is that activation: an
+    // Owner-authorised ruleset edit. The case now fails if `architecture` is MISSING from either place, so the
+    // activation cannot be silently reverted -- which is the same guard pointed in the direction the programme
+    // has actually reached. Reverting it is a ruleset edit, not a test edit.
     const codeowners = fs.readFileSync(path.join(PROJECT, ".github", "CODEOWNERS"), "utf8");
     const requiredLine = codeowners.split(/\r?\n/).find((line) => /Required status checks\s*=/.test(line));
     expect(requiredLine, "CODEOWNERS no longer states the required status-check contract").toBeTruthy();
-    expect(requiredLine, "CODEOWNERS no longer names the legacy four as the required contexts").toMatch(/quality,\s*unit,\s*acceptance,\s*package/);
-    expect(requiredLine, "the architecture check was added to the required list in this mission").not.toMatch(/architecture/);
+    // The legacy four must still be there: S3 adds a context and removes nothing.
+    expect(requiredLine, "CODEOWNERS no longer names the legacy four as required contexts").toMatch(/quality,\s*unit,\s*acceptance,\s*package/);
+    expect(requiredLine, "S3 activated the architecture check but CODEOWNERS does not record it").toMatch(/\barchitecture\b/);
 
-    // The workflow side: no workflow file may name a required architecture context or add one.
+    // The workflow side: still no workflow may claim a required context of its own. A workflow CANNOT make a
+    // check required, so a `required_status_checks` block in a workflow would be a lie about the platform.
     expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8"))).not.toMatch(/required_status_checks/);
 
     // (b) The live read, bounded.
@@ -444,16 +448,15 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
     if (probe.state === "LIVE_NOT_MEASURED") {
       // The platform fact was NOT measured, and this branch does not pretend otherwise. What it does instead is
       // re-assert the deterministic repository-side contract, which is genuinely available on any runner:
-      // CODEOWNERS still states the legacy four, no workflow mutated a required context, and the architecture job
-      // is structurally independent and non-required.
+      // CODEOWNERS names all five contexts, no workflow claims a required context, and the architecture job is
+      // structurally independent.
       //
-      // A GREEN H7 HERE IS NOT PROOF ABOUT THE LIVE PLATFORM. The Mission-4D live ruleset fact is measured
-      // separately by a read-only API inspection and reported independently; it is never inferred from this test.
+      // A GREEN H7 HERE IS NOT PROOF ABOUT THE LIVE PLATFORM. The live ruleset fact is measured separately by a
+      // read-only API inspection and reported independently; it is never inferred from this test.
       const contract = codeowners.split(/\r?\n/).filter((line) => /Required status checks\s*=/.test(line)).join("\n");
-      for (const check of ["quality", "unit", "acceptance", "package"]) {
+      for (const check of ["quality", "unit", "acceptance", "package", "architecture"]) {
         expect(contract, `the CODEOWNERS ruleset contract no longer names ${check}`).toContain(check);
       }
-      expect(contract, "the CODEOWNERS ruleset contract now names the architecture check").not.toContain("architecture");
       expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8")), "a workflow gained a required_status_checks block").not.toMatch(/required_status_checks/);
       const architectureJob = ciWorkflow().parsed.jobs?.architecture;
       expect(architectureJob, "the architecture job is gone from ci.yml").toBeTruthy();
@@ -464,8 +467,8 @@ describe("Phase 1B-B H1..H7: the hosted `architecture` job is visible and cannot
 
     // LIVE_MEASURED: the ruleset really was read, so the platform facts may be asserted.
     expect(probe.ruleset_id).toBe(22746755);
-    expect(probe.required_contexts, "the live ruleset no longer names exactly the legacy required contexts").toEqual(["quality", "unit", "acceptance", "package"]);
-    expect(probe.architecture_required, "the architecture check must NOT be required in this mission").toBe(false);
+    expect(probe.required_contexts, "the live ruleset no longer names exactly the five required contexts").toEqual(["quality", "unit", "acceptance", "package", "architecture"]);
+    expect(probe.architecture_required, "S3 activated the architecture check but the live ruleset does not require it").toBe(true);
     // The bound is part of the contract, not a detail: a probe that could outlive its enclosing timeout is the
     // defect this repair fixes, so it is asserted where it can be seen.
     expect(probe.elapsed_ms, "the live probe exceeded its own bound").toBeLessThan(LIVE_PROBE_TIMEOUT_MS);
@@ -1004,22 +1007,30 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
     expect(jobs.architecture?.needs).toBeUndefined();
   });
 
-  it("the architecture job is not required, and no workflow claims that it is", () => {
+  it("the architecture job is REQUIRED after S3, and no workflow pretends to have required it", () => {
     const { raw } = architectureJob();
     const lines = executableLines(raw);
     // A workflow cannot make a check required -- that is a ruleset property -- but it can lie about it, so the
-    // claim is asserted absent from the executable text.
+    // claim is asserted absent from the executable text. This remains true after S3: the activation was a ruleset
+    // edit, and a workflow that grew a `required_status_checks` block to "record" it would be a lie.
     expect(lines).not.toMatch(/required_status_checks/);
-    // And the new job must not be added to `needs` anywhere, which is the only mechanism a workflow has to gate
-    // another job on it.
+    // And the new job must not be added to `needs` anywhere. Requiring the check must not couple it to the other
+    // jobs: a `needs:` would let it vanish from the required-check UI whenever an earlier job failed, which is
+    // precisely the failure mode a REQUIRED check must not have.
     const { parsed } = ciWorkflow();
     for (const [name, job] of Object.entries(parsed.jobs ?? {})) {
       if (name === "architecture") continue;
       expect(JSON.stringify(job.needs ?? null), `${name} gates on architecture`).not.toContain("architecture");
     }
-    // The ruleset measurement is asserted in H7, from CODEOWNERS and from the live API when one is reachable.
-    // Nothing in this phase may make the check required, and nothing here may claim that it did.
+    // The required-ness itself is a PLATFORM fact and is therefore asserted from CODEOWNERS and, when reachable,
+    // from the live API in H7. What this case pins is that after S3 the three records agree: the job exists in
+    // ci.yml, CODEOWNERS names the context, and `src/shared/promotion-checks.ts` declares it.
     expect(executableLines(fs.readFileSync(path.join(PROJECT, WORKFLOW), "utf8"))).not.toMatch(/required_status_checks/);
+    const codeowners = fs.readFileSync(path.join(PROJECT, ".github", "CODEOWNERS"), "utf8");
+    const requiredLine = codeowners.split(/\r?\n/).find((line) => /Required status checks\s*=/.test(line)) ?? "";
+    expect(requiredLine, "S3 activated architecture but CODEOWNERS does not record it as required").toMatch(/\barchitecture\b/);
+    const declaration = fs.readFileSync(path.join(PROJECT, "src", "shared", "promotion-checks.ts"), "utf8");
+    expect(declaration, "S3 activated architecture but the shared promotion declaration omits it").toMatch(/REQUIRED_PROMOTION_CHECKS\s*=\s*\[[^\]]*"architecture"/);
   });
 
   it("no workflow can make the architecture step optional with continue-on-error", () => {

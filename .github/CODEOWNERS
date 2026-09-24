@@ -23,8 +23,8 @@
 #       - Require pull request before merging
 #       - Required approvals = 0
 #       - Require review from Code Owners = ON
-#       - Required status checks = quality, unit, acceptance, package
-#         (all four pinned to the GitHub Actions integration id 15368)
+#       - Required status checks = quality, unit, acceptance, package, architecture
+#         (all five pinned to the GitHub Actions integration id 15368)
 #       - Require branch to be up to date = ON
 #       - Block force pushes = ON
 #       - Restrict deletions = ON
@@ -34,6 +34,15 @@
 #    The required check list used to read `validate`, which no workflow
 #    produced; it was repaired (Owner-authorized) to the four checks
 #    `Desktop CI` actually emits.
+#
+#    `architecture` was added by stage S3 (Phase 1B, Owner-authorized
+#    ruleset edit). It had been emitted and deliberately NOT required since
+#    S1/S2, so that the check accumulated hosted evidence before it was
+#    allowed to block a merge; S3 is the activation, and it is a ruleset
+#    edit and nothing else. `tests/unit/city/architecture-hosted-shadow.test.ts`
+#    and `tests/unit/promotion-gate.test.ts` assert this contract, the jobs
+#    `ci.yml` produces and the declaration in `src/shared/promotion-checks.ts`
+#    cannot drift into three opinions.
 #
 # 3. Owner credentials / private keys / PATs / emergency secrets must NEVER
 #    be committed to this repository. CODEOWNERS is a review boundary, not

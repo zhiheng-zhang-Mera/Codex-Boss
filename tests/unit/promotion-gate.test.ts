@@ -549,11 +549,17 @@ describe("GitHub promotion adapter is the only remote path (§9.4, §11.5, RT-22
     const statedRequired = (requiredLine ?? "").match(/\b(quality|unit|acceptance|package|architecture|validate)\b/g) ?? [];
     expect([...new Set(statedRequired)].sort(), "the declaration and the ruleset contract disagree").toEqual([...REQUIRED_PROMOTION_CHECKS].sort());
 
-    // The non-required shadow job exists and is NOT required: present as a job, absent from the declaration and
-    // from the ruleset contract. This is the property Phase 1B-B is about, asserted where the drift would show.
-    expect(jobIds, "the hosted `architecture` shadow job is gone from ci.yml").toContain("architecture");
-    expect(REQUIRED_PROMOTION_CHECKS as readonly string[]).not.toContain("architecture");
-    expect(requiredLine ?? "", "the architecture check was added to the required set").not.toMatch(/architecture/);
+    // STAGE S3: the hosted `architecture` check IS required now. It was emitted and deliberately not required
+    // through S1/S2 so that it could accumulate hosted evidence before being allowed to block a merge; S3 is that
+    // activation, and this case is where the three records of it -- the job in `ci.yml`, the CODEOWNERS contract
+    // and the shared declaration -- must agree. The job must still be structurally independent: a `needs:` would
+    // let the check vanish from the required-check UI rather than report, which is the one way a required check
+    // can be absent at exactly the moment it matters.
+    expect(jobIds, "the hosted `architecture` job is gone from ci.yml").toContain("architecture");
+    expect(REQUIRED_PROMOTION_CHECKS as readonly string[], "the architecture check is missing from the promotion declaration after S3 activated it").toContain("architecture");
+    expect(requiredLine ?? "", "the architecture check is required by the platform but CODEOWNERS still states the legacy four").toMatch(/\barchitecture\b/);
+    const architectureJobLine = workflow.slice(jobsAt + 1).findIndex((line) => /^ {2}architecture:\s*$/.test(line));
+    expect(architectureJobLine, "the architecture job is not a job block in ci.yml").toBeGreaterThanOrEqual(0);
   });
 
   it("refuses to push the protected base branch directly", async () => {
