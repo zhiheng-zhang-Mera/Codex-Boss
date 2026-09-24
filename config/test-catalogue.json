@@ -562,6 +562,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/s2-exit-audit.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the Stage D S2 exit audit reads the two lines the hosted `architecture` job publishes, and its two failure modes are pinned as failures: an ABSENT key is reported as null and NEVER as zero, because `ENGINE_ERRORS=0` is the strongest possible result while an unreadable line is the weakest and collapsing them would admit a run whose evidence never arrived as a clean run; and the digest set is reported in full rather than truncated to its first element, because \"same findings hash throughout\" is the claim under audit and a summariser that took the first digest would make it hold by construction; it also strips the workflow's `job<TAB>step<TAB>` prefix where the timestamp SHARES a field with the content, does not mistake the echoed Write-Host source for the printed result, refuses a run without naming the machinery that failed (a skipped or failed `architecture` job, a missing or failed ENF-12 parity step, a missing evidence line, a non-PASS verdict, a policy violation, an engine error, or a line carrying no digest), counts the streak from the newest run and STOPS at the first exclusion rather than counting all valid runs, distinguishes an empty window from a constant one so an empty window cannot pass vacuously, counts retries and flakes separately, judges an unfinished run neither valid nor excluded so a pending run at the head of the window cannot understate it, and is proven read-only: its only `gh` verbs are reads and the case fails if a write, re-run, dispatch, cancel, merge, close, edit or create is ever added",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/trust-epoch-dispatch-helper.test.ts",
       "tier": "unit",
       "covers": [
