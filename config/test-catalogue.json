@@ -553,6 +553,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/phase2-edge-inventory.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the cross-capability edge inventory agrees with the repository's own edge definition (a real import resolves through it, a bare package specifier stays unresolved rather than becoming an internal edge, and the ownership map's directory-prefix rule is mirrored so the work list and the selector cannot disagree), measures the real tree rather than a subset (hundreds of owned files, 27 capabilities, the declared-path deficit, hundreds of cross-capability edges over dozens of pairs, zero edges with both endpoints declared), names both classes the programme must drive to zero (kernel -> feature edges and mutual capability pairs, neither zero yet, every kernel -> feature pair starting with a kernel capability), and pins the state of the historical inversion electron/bootstrap/persistence.ts -> electron/runtime-intelligence/live-capture that the workbook forbids assuming away, so the case asserting it is still live is the case a repair must change deliberately rather than the number drifting silently; it also keeps the mutual-pair list a work list rather than a verdict by distinguishing a strongly asymmetric pair, which is usually a missing contract, from a genuine two-way cycle",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/trust-epoch-dispatch-helper.test.ts",
       "tier": "unit",
       "covers": [

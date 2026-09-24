@@ -278,8 +278,14 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
   2  expand each manifest's `modules` to its capability's full implementation surface (341 electron/** + 217
      src/shared/** files that only the map owns today), and re-house electron/platform/** (12) and
      electron/bootstrap/** (2) as platform instrumentation rather than `runtime` implementation
+     -- THE SIZE OF THIS INCREMENT IS NOW MEASURED, in `docs/city/PHASE2_P2A_EDGE_INVENTORY.md`
+        (`scripts/phase2-edge-inventory.cjs`): 794 cross-capability file edges over 187 capability pairs,
+        154 of them kernel -> feature over 43 pairs, 53 mutual pairs, and 186 of the 187 pairs undeclared.
+        Expanding `modules` is what makes the required ratchet read those edges, so increment 2 cannot land
+        without the per-pair decisions (declare / invert / extract a road), or the ratchet goes red
   3  resolve the 14 manifest metadata rows: 9 manifests declaring modules:[]/state:[] over 1-108 real files,
-     and `research` declaring a `knowledge.store@1` requirement with no real edge
+     and `research` declaring a `knowledge.store@1` requirement with no real edge -- CONFIRMED against the
+     real graph by the inventory, which finds zero research -> knowledge import edges
   4  choose ONE canonical model and generate the other from it, then re-point its readers
   5  regenerate the enforcement baseline and obtain the Owner-authorised series entry (see below -- this is
      an Owner act and it moves the Root Trust Surface)

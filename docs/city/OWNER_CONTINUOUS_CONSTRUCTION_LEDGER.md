@@ -805,6 +805,75 @@ research_value              Two ownership declarations can coexist indefinitely 
 
 ---
 
+## CC-014 — Phase 2 P2-A increment 2 preparation: the cross-capability edge inventory, and the caveat it forced
+
+```text
+ENTRY_ID                    CC-014
+timestamp_utc               2026-09-24T20:35Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (measurement under the workbook section 0 lease; no gate crossed)
+main_before                 ba39c88150053ea757314267184e840641158b3d
+main_after                  (pending merge)
+branch                      phase2/p2a-edge-inventory
+PR                          (this record's PR)
+workflow_run_ids            (pending)
+checks_observed             (pending)
+problem                     P2-A increment 2 (expand each manifest's `modules` to its capability's real surface)
+                            CANNOT BE SIZED FROM THE MANIFESTS, because they declare 25 module paths against ~600
+                            owned files. Expanding them is what makes the required `architecture:ratchet` read
+                            the real graph, so the work list has to be measured before the migration starts.
+classification              Measurement (no defect); the FINDING inside it is a new structural problem category
+normal_path                 Measure the real cross-capability edge set with the repository's own import pattern
+                            and resolver, so the work list and the ratchet cannot measure two different graphs.
+why_normal_path_was_not_used
+                            Not applicable -- this is the normal path.
+action_taken                - scripts/phase2-edge-inventory.cjs: read-only inventory, `--json` for the full
+                              report, with up to three REAL sample edges per pair so every count is traceable
+                              back to files without re-running the measurement.
+                            - tests/unit/city/phase2-edge-inventory.test.ts: 5 cases pinning the instrument's
+                              agreement with the repository's edge definition, the non-triviality of the
+                              measurement, both classes that must reach zero, and the state of the historical
+                              inversion -- a case a repair must change DELIBERATELY rather than the number
+                              drifting silently.
+                            - docs/city/PHASE2_P2A_EDGE_INVENTORY.md: the measurement, its provenance, and the
+                              caveat below.
+files_or_rules_changed      scripts/phase2-edge-inventory.cjs             (new)
+                            tests/unit/city/phase2-edge-inventory.test.ts  (new)
+                            docs/city/PHASE2_P2A_EDGE_INVENTORY.md         (new)
+                            docs/city/PHASE2_ARCHITECTURE_MIGRATION_SPEC.md (section 3.1 increment 2 now cites
+                              the measured size)
+                            scripts/generate-test-catalogue.cjs            (curated entry)
+                            config/test-catalogue.json                     (regenerated; 289 suites)
+                            package.json                                   (phase2:edge-inventory)
+known_risk                  The headline number (154 kernel -> feature edges over 43 pairs) is an UPPER BOUND
+                            produced by a model under repair, and it is exactly the kind of number a programme is
+                            tempted to quote as a defect count. Contained by section 3a of the inventory document,
+                            which shows the implausible attributions and states the three-way decision each pair
+                            needs.
+evidence_preserved          `node scripts/phase2-edge-inventory.cjs --json`: 597 owned files, 794
+                            cross-capability file edges over 187 pairs, 154 kernel -> feature file edges over 43
+                            pairs, 53 mutual pairs, 0 edges with both endpoints declared, 1 of 187 pairs already
+                            declared; traceable sample edges per pair. The historical inversion read directly:
+                            `electron/bootstrap/persistence.ts` imports `../runtime-intelligence/live-capture`.
+rollback                    Revert this PR. It is measurement plus a script; no architecture number, baseline or
+                            behaviour changed (ratchet pass, enforcement shadow PASS with the same 1677 findings,
+                            closure validator PASS, full local unit suite 273 files / 3505 tests green).
+temporary_debt_created      no
+debt_id                     -
+exit_condition              n/a -- a measurement
+closure_status              CLOSED on merge
+research_value              THE CAVEAT IS THE FINDING. A debt count derived from ownership attributions inherits
+                            those attributions' errors. The instrument reported the three largest kernel ->
+                            feature pairs; reading their real edges showed `src/shared/contracts.ts` owned by
+                            `status`, `electron/main.ts` owned by a kernel capability, and `electron/commander/**`
+                            -- task ledger, budget manager, context manager, recovery -- owned by `tenx`. Several
+                            "inversions" are therefore ATTRIBUTION errors, where the correct repair is to name
+                            the owner rather than to invert a dependency. The verification is what produced the
+                            caveat; the number alone would have sent the migration after the wrong 43 pairs.
+```
+
+---
+
 ## Stage status at CC-012
 
 ```text

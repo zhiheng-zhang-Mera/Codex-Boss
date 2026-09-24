@@ -76,6 +76,7 @@
     "architecture:baseline:update": "node scripts/architecture-baseline.cjs",
     "architecture:manifests:generate": "node scripts/generate-capability-manifests.cjs",
     "capability:closure": "node scripts/capability-closure-validator.cjs",
+    "phase2:edge-inventory": "node scripts/phase2-edge-inventory.cjs",
     "state:migration-report": "node scripts/state-migration-report.cjs",
     "state:probe": "node scripts/probe-sqlite.cjs",
     "capability:surface": "node scripts/permission-surface-report.cjs",
