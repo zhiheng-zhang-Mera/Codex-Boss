@@ -33,7 +33,7 @@ const SCRIPT = "scripts/capability-closure-validator.cjs";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const validator = require(path.join(PROJECT, SCRIPT)) as {
-  validate: (root: string) => {
+  validate: (root?: string) => {
     scannedSourceFiles: number;
     manifests: number;
     problems: string[];
@@ -56,6 +56,9 @@ const validator = require(path.join(PROJECT, SCRIPT)) as {
     };
   };
   ownsPath: (entries: string[], file: string) => boolean;
+  scanSet: (root?: string) => string[];
+  readManifests: (root?: string) => Array<{ source: string; id: string | null; modules: string[] }>;
+  readOwnershipMap: (root?: string) => { capabilities: Record<string, string[]>; exempt: Record<string, string> };
 };
 
 /** Run the CLI against the real repository and report its verdict. */
@@ -139,7 +142,7 @@ describe("P2-A — the real repository passes the closure validator", () => {
     // The map's exemption table, after the owned-and-exempt repair: the renderer, and nothing else.
     expect(report.findings.exemptEntries, `the exemption table has grown: ${JSON.stringify(report.findings.exemptEntries)}`).toBe(1);
     for (const [entry, reason] of Object.entries(validator.readOwnershipMap().exempt)) {
-      expect(reason.length, `the exemption ${entry} carries no substantive reason`).toBeGreaterThan(20);
+      expect(String(reason).length, `the exemption ${entry} carries no substantive reason`).toBeGreaterThan(20);
     }
   });
 
