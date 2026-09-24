@@ -61,6 +61,50 @@ function normalizeHash(value) {
   return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) ? value : null;
 }
 
+/** A git object id (40-hex), or null. */
+function normalizeCommit(value) {
+  return typeof value === "string" && /^[0-9a-f]{40}$/.test(value) ? value : null;
+}
+
+/**
+ * The dispatch-SHA binding required by `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1 — declared in the
+ * artifact rather than only in the workflow.
+ *
+ * WHY THE HANDOFF CARRIES IT
+ *   The workflow now checks out `${{ github.sha }}` and asserts `git rev-parse HEAD` equals it. That assertion is
+ *   the mechanism, but a mechanism proves nothing to a reader of the ARTIFACT: the handoff is what the App consumes
+ *   and what an auditor reads months later, and until now it named `base_sha` (a value Stage A measured) without
+ *   ever stating which commit the runner actually had checked out. A handoff that says "finalization of epoch N"
+ *   while being silent about the tree would leave exactly the ambiguity this repair exists to remove.
+ *
+ *   So the record states both facts and refuses to be well-formed when they disagree. This is the same shape the
+ *   workflow's `github run head_sha != checked-out tree` defect had, moved into the artifact where it is testable
+ *   without a runner.
+ *
+ *   Both fields are OPTIONAL as a pair, because a caller that has not been taught the binding must not be able to
+ *   fabricate one: absent means "this handoff does not state the binding" (visible as an absence), while a single
+ *   present field is refused rather than half-answered.
+ *
+ *   An UNPARSEABLE value is preserved rather than normalized away. `normalizeCommit` returns null for `main`, for a
+ *   short SHA and for a non-string, and if that null were stored then a handoff stating `dispatch_sha: "main"` would
+ *   look exactly like a handoff that stated nothing -- the validator would accept it and the disagreement would be
+ *   invisible again. So the raw value is kept, and `validateHandoff` refuses a present-but-not-a-commit value.
+ */
+function provenanceOf(dispatchSha, checkedOutSha) {
+  const dispatch = normalizeCommit(dispatchSha);
+  const checkedOut = normalizeCommit(checkedOutSha);
+  return {
+    // The normalized commits, when each value IS a commit.
+    dispatch_sha: dispatch,
+    checked_out_sha: checkedOut,
+    // What the caller actually stated, so a value that is not a commit stays visible to the validator instead of
+    // being normalized into the same shape as an absent one.
+    stated_dispatch_sha: dispatchSha ?? null,
+    stated_checked_out_sha: checkedOutSha ?? null,
+    bound: Boolean(dispatch && checkedOut),
+  };
+}
+
 /**
  * Compare the epoch record this run produced with the one already on the remote branch.
  *
@@ -154,8 +198,9 @@ function decideTerminalState(input) {
 function buildHandoff(input) {
   const {
     repository, finalizationRunId, baseBranch, baseSha, epoch, epochBranch, epochCommit,
-    rootSurfaceHash, epochHash, prRequired, result,
+    rootSurfaceHash, epochHash, prRequired, result, dispatchSha = null, checkedOutSha = null,
   } = input;
+  const provenance = provenanceOf(dispatchSha, checkedOutSha);
   return {
     schema_version: SCHEMA_VERSION,
     schema: HANDOFF_SCHEMA,
@@ -172,6 +217,17 @@ function buildHandoff(input) {
     pr_required: Boolean(prRequired),
     // A NAME, never a credential. The App private key lives in the platform vault and is never in this artifact.
     pr_creator: "codex-boss-machine-identity",
+    // The dispatch-SHA binding of `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1: which commit the run
+    // was DISPATCHED on, and which commit it actually MEASURED. A reader must
+    // not have to infer either from the run id, and the two must be equal -- `validateHandoff` refuses otherwise.
+    provenance: {
+      dispatch_sha: provenance.dispatch_sha,
+      checked_out_sha: provenance.checked_out_sha,
+      stated_dispatch_sha: provenance.stated_dispatch_sha,
+      stated_checked_out_sha: provenance.stated_checked_out_sha,
+      checkout_is_sha_bound: provenance.bound,
+      basis: "the workflow checks out ${{ github.sha }} and asserts `git rev-parse HEAD` equals it before measuring",
+    },
     // Stated in the artifact itself so a consumer does not have to infer it from absence.
     authority: {
       workflow_permissions: { contents: "write" },
@@ -246,6 +302,35 @@ function validateHandoff(value) {
     problems.push(`epoch_branch ${value.epoch_branch} disagrees with epoch ${value.epoch}`);
   }
 
+  // The checkout provenance required by `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` §9 B1. Half a binding
+  // is refused rather than tolerated, and a mismatch between
+  // the two stated commits is the exact condition the repair exists to make impossible -- so the artifact refuses to
+  // validate when it is present, rather than leaving the disagreement for a reader to notice.
+  //
+  // The STATED values are what is validated, not the normalized ones: `normalizeCommit` maps `"main"` and `""` to the
+  // same `null`, so validating the normalized form would make a handoff that was dispatched on the literal string
+  // `main` indistinguishable from one that stated nothing at all. That is the defect in miniature.
+  if (value.provenance !== undefined) {
+    const provenance = value.provenance;
+    if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) {
+      problems.push("provenance is present but is not an object");
+    } else {
+      const stated = (raw, normalized) => (raw === undefined || raw === null || raw === "" ? normalized ?? null : raw);
+      const dispatchSha = stated(provenance.stated_dispatch_sha, provenance.dispatch_sha);
+      const checkedOutSha = stated(provenance.stated_checked_out_sha, provenance.checked_out_sha);
+      const present = (candidate) => candidate !== undefined && candidate !== null && candidate !== "";
+      if (present(dispatchSha) !== present(checkedOutSha)) {
+        problems.push("provenance states the dispatch SHA without the checked-out SHA, or the reverse; a half-stated checkout binding is not a binding");
+      }
+      for (const [name, candidate] of [["dispatch_sha", dispatchSha], ["checked_out_sha", checkedOutSha]]) {
+        if (present(candidate) && !normalizeCommit(candidate)) problems.push(`provenance.${name} is not a git object id`);
+      }
+      if (present(dispatchSha) && present(checkedOutSha) && dispatchSha !== checkedOutSha) {
+        problems.push(`provenance.dispatch_sha (${dispatchSha}) and provenance.checked_out_sha (${checkedOutSha}) disagree: the run was approved for one commit and measured another`);
+      }
+    }
+  }
+
   // CREDENTIAL REFUSAL. An artifact that carried a token would put it in the Actions artifact store and in every
   // download of it, which is exactly the boundary this repair is tightening. The check is deliberately blunt: it
   // scans the serialized document for shapes that must never appear.
@@ -270,6 +355,8 @@ module.exports = {
   REQUIRED_HANDOFF_FIELDS,
   isSuccessState,
   normalizeHash,
+  normalizeCommit,
+  provenanceOf,
   compareEpochRecord,
   decideTerminalState,
   buildHandoff,

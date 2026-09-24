@@ -91,10 +91,47 @@ jobs:
           }
           Write-Host "ref is refs/heads/main"
 
+      # THE DISPATCH SHA, NOT FLOATING `main`. (Workbook section 9 B1.)
+      #
+      # `ref: main` made this workflow a TOCTOU hole. A `workflow_dispatch` run whose job targets an environment
+      # with required reviewers does not start until the named reviewer approves it, and between the dispatch and
+      # that approval `main` can move. With `ref: main` the approved run would measure and anchor whatever `main`
+      # had become, while the run reports `head_sha` of the commit it was dispatched on -- so the run's reported
+      # subject and the tree it actually measured could differ, and the epoch record (whose subject is "the surface
+      # at this commit") would certify a tree no one dispatched or approved.
+      #
+      # `ref: ${{ github.sha }}` binds the checkout to the commit the dispatch named. That is the whole repair:
+      # after it, approving a waiting run can only ever finalize the commit the run was opened for.
+      #
+      # `fetch-depth: 0` is kept: the advance reads history, and the assertion step below uses `git rev-parse HEAD`.
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
+
+      # The provenance assertion, in the JOB rather than in a comment. `ref:` above is the mechanism; this step is
+      # the proof that the mechanism is in force on THIS run, and it fails closed and by name.
+      #
+      # It is deliberately the first thing after the checkout: every later step's meaning depends on the tree being
+      # the dispatched one, so a run that cannot establish that must not reach the measure/advance/verify sequence at
+      # all. The failure code is its own (`TRUST_EPOCH_FINALIZATION_SHA_MISMATCH`), so a reader can tell "the
+      # checkout was bound but the runner disagreed" from the ordinary "this is not main" refusal above.
+      #
+      # Both SHAs are published to `$GITHUB_ENV` so the handoff step can state them in the artifact as well as in
+      # the log: a mechanism that only appears in a log line is not evidence a reader of the artifact can check.
+      - name: Assert the checked-out commit IS the dispatch SHA (fail closed)
+        shell: pwsh
+        run: |
+          $dispatchSha = "${{ github.sha }}"
+          $checkedOut = (git rev-parse HEAD).Trim()
+          Write-Host "dispatch_sha=$dispatchSha"
+          Write-Host "checked_out_sha=$checkedOut"
+          if ($checkedOut -ne $dispatchSha) {
+            Write-Error "TRUST_EPOCH_FINALIZATION_SHA_MISMATCH: the run was dispatched on $dispatchSha but the checked-out tree is $checkedOut. A waiting run approved after main moved would otherwise anchor a surface it was never dispatched or approved for."
+            exit 1
+          }
+          "DISPATCH_SHA=$dispatchSha`nCHECKED_OUT_SHA=$checkedOut" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "TRUST_EPOCH_FINALIZATION_SHA_BOUND=$checkedOut"
 
       - uses: pnpm/action-setup@v4
 
@@ -277,6 +314,20 @@ jobs:
                          elseif (Test-Path $existingPath) { (git rev-parse FETCH_HEAD) }
                          else { "" }
           $epochHash = if (Test-Path $existingPath) { (Get-Content $existingPath -Raw | ConvertFrom-Json).epoch_hash } else { $null }
+          # Section 9 B1: the checkout binding, restated in the artifact. These are the two facts the assertion step
+          # above proved equal before any measurement happened; refusing to state them here would leave the artifact
+          # silent about the very property this repair added.
+          #
+          # The environment values come from the assertion step's own two lines of `$GITHUB_ENV`. They are read as
+          # separate variables and each is checked: a single joined read would bind the whole multi-line block to the
+          # first name and hand the handoff a string that is not a commit -- which the artifact's own validator would
+          # then have to refuse, turning a transport mistake into a governance refusal.
+          $dispatchSha = $env:DISPATCH_SHA
+          $checkedOutSha = $env:CHECKED_OUT_SHA
+          if (-not $dispatchSha -or -not $checkedOutSha) {
+            Write-Error "TRUST_EPOCH_FINALIZATION_NO_PROVENANCE: the assertion step did not publish DISPATCH_SHA/CHECKED_OUT_SHA, so the handoff cannot state the checkout binding"
+            exit 1
+          }
           $handoffDir = "artifacts/platform-foundation/trust"
           New-Item -ItemType Directory -Force -Path $handoffDir | Out-Null
           $handoffPath = "$handoffDir/epoch-pr-handoff.json"
@@ -292,6 +343,8 @@ jobs:
             --existing-record "$existingArg" `
             --epoch-commit "$epochCommit" `
             --epoch-hash "$epochHash" `
+            --dispatch-sha "$dispatchSha" `
+            --checked-out-sha "$checkedOutSha" `
             --out $handoffPath
           if ($LASTEXITCODE -ne 0) { Write-Error "TRUST_EPOCH_FINALIZATION_TERMINAL: the finalization did not reach a success state"; exit 1 }
           $decision = Get-Content "$handoffDir/epoch-pr-decision.json" -Raw | ConvertFrom-Json
