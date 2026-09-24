@@ -340,6 +340,13 @@ function baselineSelfConsistency(root, baselineOverride) {
     };
   }
   const baseline = loaded.value;
+  // THE SPLIT, applied here too: reordering ci.yml would not have fixed this, because the same conflation lived
+  // inside this function. `self_consistent` is now the ARTIFACT-LEVEL question — is this file consistent with the
+  // hash it records? — which is exactly what this control was written for ("a baseline edited in place after
+  // acceptance is caught"). The tree re-derivation is kept, but as a REPORTED drift measurement: a candidate tree
+  // that legitimately changed the architecture must remain classifiable by the enforcement engine rather than fail
+  // the job before enforcement runs.
+  const integrity = baselineModule.verifyBaselineArtifactIntegrity(baselinePath);
   let recomputed = null;
   let buildError = null;
   try {
@@ -362,17 +369,28 @@ function baselineSelfConsistency(root, baselineOverride) {
   } catch (error) {
     buildError = error && error.message ? error.message : String(error);
   }
-  const declared = baseline.baseline_hash ?? null;
-  const selfConsistent = buildError === null && recomputed !== null && declared !== null && recomputed === declared;
+  const declared = integrity.recorded_baseline_hash;
+  const selfConsistent = integrity.valid;
+  const candidateTreeMatchesFrozen = buildError === null && recomputed !== null && declared !== null && recomputed === declared;
   return {
     path: path.relative(root, baselinePath).split(path.sep).join("/"),
     exists: true,
+    // GATING: the frozen artifact is consistent with the hash it records. No tree was read.
     self_consistent: selfConsistent,
     code: selfConsistent ? null : "BASELINE_HASH_MISMATCH",
-    detail: selfConsistent ? null : (buildError !== null ? `the baseline could not be re-derived: ${buildError}` : `the declared baseline hash ${String(declared).slice(0, 12)}… is not the recomputed content hash ${String(recomputed).slice(0, 12)}…`),
+    detail: selfConsistent ? null : integrity.problems.join("; "),
+    // REPORTED: how far the candidate tree has moved from the frozen baseline. The enforcement engine classifies
+    // this; a legitimate architectural change or a debt reduction must not read as tampering here.
+    candidate_tree_matches_frozen: candidateTreeMatchesFrozen,
+    candidate_tree_drift_detail: candidateTreeMatchesFrozen
+      ? null
+      : (buildError !== null
+        ? `the baseline could not be re-derived from this tree: ${buildError}`
+        : `this tree reproduces content hash ${String(recomputed).slice(0, 12)}… while the frozen baseline records ${String(declared).slice(0, 12)}…`),
     baseline_version: Number(baseline.baseline_version ?? 1),
     baseline_hash: declared,
-    recomputed_baseline_hash: recomputed,
+    recomputed_baseline_hash: integrity.recomputed_baseline_hash,
+    candidate_tree_baseline_hash: recomputed,
   };
 }
 

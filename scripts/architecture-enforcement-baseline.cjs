@@ -258,6 +258,65 @@ function serialize(baseline) {
   return `${JSON.stringify(baseline, null, 2)}\n`;
 }
 
+/**
+ * ARTIFACT-LEVEL integrity: is the frozen baseline's recorded hash the hash of its OWN content?
+ *
+ * This reads the baseline file and NOTHING else — no tree, no scan set, no ownership map. That is the whole point,
+ * and it is a correction rather than a refactor:
+ *
+ *   The check used to ask "does the candidate tree still reproduce this baseline byte-for-byte?", which answers a
+ *   DIFFERENT question from "is this baseline valid?". Conflating them made the gate unable to certify any tree
+ *   that legitimately changed the architecture: a prospective pull request that adds a declared edge, or a
+ *   negative control that adds an undeclared one, both failed here BEFORE enforcement ever evaluated them. An
+ *   enforcement gate that can only pass a tree that has not changed the architecture is not an enforcement gate.
+ *
+ * The two questions are now separate:
+ *
+ *   THIS function          "is the frozen artifact internally consistent and untampered?"      -> gates
+ *   architecture-enforcement.cjs   "does the candidate tree conform to the frozen baseline?"   -> gates
+ *   candidate-tree drift   "how far has the tree moved from the frozen baseline?"              -> reported only
+ *
+ * Tamper detection is preserved rather than weakened: editing any edge, file, ownership entry or count in the
+ * frozen file changes its canonical content and therefore no longer matches the hash the file itself records — and
+ * the same hash is what the Owner-authorised series names, so an in-place edit is caught here AND by the series.
+ */
+function verifyBaselineArtifactIntegrity(baselinePath = BASELINE_PATH) {
+  let value;
+  try {
+    value = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
+  } catch (error) {
+    return {
+      valid: false,
+      path: baselinePath,
+      recorded_baseline_hash: null,
+      recomputed_baseline_hash: null,
+      problems: [`the baseline could not be read or parsed: ${error && error.message ? error.message : String(error)}`],
+    };
+  }
+  const problems = [];
+  const { baseline_hash: recorded, ...content } = value ?? {};
+  if (typeof recorded !== "string" || !/^[0-9a-f]{64}$/.test(recorded)) {
+    problems.push(`baseline_hash is absent or is not a 64-character lowercase hex digest: ${JSON.stringify(recorded)}`);
+  }
+  if (content.schema !== "city-architecture-enforcement-baseline/1") {
+    problems.push(`unexpected schema ${JSON.stringify(content.schema)}`);
+  }
+  const recomputed = sha256(observatory.canonicalJson(content));
+  if (recorded !== recomputed) {
+    problems.push(
+      `the recorded baseline_hash ${String(recorded).slice(0, 12)}… is not the hash of this file's own content ${recomputed.slice(0, 12)}…, ` +
+      "so the frozen baseline has been edited in place"
+    );
+  }
+  return {
+    valid: problems.length === 0,
+    path: baselinePath,
+    recorded_baseline_hash: typeof recorded === "string" ? recorded : null,
+    recomputed_baseline_hash: recomputed,
+    problems,
+  };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const check = argv.includes("--check");
@@ -369,18 +428,30 @@ function main() {
     const current = fs.existsSync(BASELINE_PATH) ? fs.readFileSync(BASELINE_PATH, "utf8") : null;
     const identical = current !== null && normalize(current) === normalize(text);
     const hashMatches = Boolean(existing) && existing.baseline_hash === baselineHash;
-    // Two different questions, reported separately, because a laundered baseline answers the first one yes.
+    // THE SPLIT. Three questions, no longer one boolean:
+    //   artifact_integrity            is the FROZEN FILE consistent with the hash it records?          GATES
+    //   series_authorized             does an Owner-authorised series entry name that hash?             GATES
+    //   candidate_tree_matches_frozen how far has the CANDIDATE TREE moved from the frozen baseline?    REPORTED
+    // The third is the input to prospective enforcement (architecture-enforcement.cjs), which classifies each
+    // edge as grandfathered / declared / undeclared and decides. It is no longer a failure by itself: a tree that
+    // legitimately changed the architecture must still be classifiable, and debt reduction must not read as
+    // tampering.
+    const integrity = verifyBaselineArtifactIntegrity(BASELINE_PATH);
     const governing = series.verifyGoverningBaseline();
     const summary = {
       mode: "check",
       path: BASELINE_PATH,
       exists: current !== null,
+      // GATING
+      artifact_integrity: integrity.valid,
+      artifact_integrity_problems: integrity.problems,
+      series_authorized: governing.ok,
+      // REPORTED (candidate-tree drift against the frozen baseline; the input to prospective enforcement)
+      candidate_tree_matches_frozen: identical && hashMatches,
       identical,
       recorded_baseline_hash: existing?.baseline_hash ?? null,
       recomputed_baseline_hash: baselineHash,
       hash_matches: hashMatches,
-      self_consistent: identical && hashMatches,
-      series_authorized: governing.ok,
       series_path: path.relative(ROOT, governing.seriesPath).split(path.sep).join("/"),
       authorization_reference: governing.entry?.authorization_reference ?? null,
       authorization_problems: governing.problems,
@@ -388,11 +459,18 @@ function main() {
       baseline_version: baseline.baseline_version,
       tracked_source_files: baseline.counts.tracked_source_files,
       internal_edges: baseline.counts.internal_edges,
+      semantics: {
+        artifact_integrity: "the frozen file's recorded hash equals the hash of its own content; no tree was read",
+        candidate_tree_matches_frozen: "whether the candidate tree still reproduces the frozen edge set; NOT a failure, it is what prospective enforcement classifies against",
+      },
     };
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    if (!integrity.valid) {
+      for (const problem of integrity.problems) process.stderr.write(`BASELINE_ARTIFACT_INTEGRITY: ${problem}\n`);
+    }
     // A baseline that is current but unauthorized does not govern, and the check says so with its own code.
     if (!governing.ok) process.stderr.write(`${governing.code ?? series.CODE.BASELINE_SERIES_UNAUTHORISED}\n`);
-    return identical && hashMatches && governing.ok ? 0 : 1;
+    return integrity.valid && governing.ok ? 0 : 1;
   }
 
   const relativeTarget = path.relative(ROOT, targetPath).split(path.sep).join("/");
@@ -495,6 +573,7 @@ module.exports = {
   classifyUnresolved,
   validateReason,
   buildBaseline,
+  verifyBaselineArtifactIntegrity,
   serialize,
   listTracked,
   loadOwnership,

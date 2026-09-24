@@ -481,6 +481,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/architecture-baseline-integrity-split.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the baseline gate answers integrity and tree identity as separate questions: an untouched tree is valid and reproduces the frozen baseline; a self-consistent baseline whose edge set legitimately differs from the tree (debt reduction, an added declared edge, an undeclared new edge) is VALID as an artifact and is NOT a gate failure, because the candidate comparison is prospective enforcement's input rather than its verdict; the exit code is a conjunction of artifact integrity and series authorisation ONLY, so candidate-tree drift cannot fail the step; the check is read-only and leaves the tracked baseline byte-identical, which is what lets a declaration repair be baseline-unchanged; and tamper detection survives the split, with an edge added or removed without re-hashing, a forged baseline_hash, a tampered count, a tampered ownership map and malformed JSON each failing closed while an untouched copy still passes, and a missing, malformed or non-naming series still refusing rather than reading as empty",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/architecture-enforcement.test.ts",
       "tier": "unit",
       "covers": [

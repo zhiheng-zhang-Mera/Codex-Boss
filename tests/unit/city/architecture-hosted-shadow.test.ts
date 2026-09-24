@@ -503,12 +503,13 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     const result = spawnSync(process.execPath, [BASELINE_CHECK, "--check"], { cwd: PROJECT, encoding: "utf8", timeout: 900000, maxBuffer: 64 * 1024 * 1024 });
     if (result.error) throw result.error;
     const report = JSON.parse(String(result.stdout ?? "")) as Json;
-    expect(report).toHaveProperty("self_consistent");
-    expect(report).toHaveProperty("hash_matches");
+    expect(report).toHaveProperty("artifact_integrity");
     expect(report).toHaveProperty("series_authorized");
-    expect(report.hash_matches).toBe(true);
+    expect(report).toHaveProperty("candidate_tree_matches_frozen");
+    expect(report).toHaveProperty("hash_matches");
+    expect(report.artifact_integrity).toBe(true);
     expect(report.series_authorized).toBe(true);
-    expect(report.self_consistent).toBe(true);
+    expect(report.candidate_tree_matches_frozen).toBe(true);
     expect(result.status).toBe(0);
 
     // Part two, which is what the previous revision was missing: an assertion that this command is GREEN today is
@@ -522,14 +523,23 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     const consistency = hostedShadowRunner.baselineSelfConsistency(PROJECT, tamperedPath);
     expect(consistency.self_consistent, "a baseline edited in place was reported as self-consistent").toBe(false);
     expect(consistency.code, "the refusal was not named").toBe("BASELINE_HASH_MISMATCH");
-    expect(String(consistency.detail)).toMatch(/not the recomputed content hash/);
-    // The check's own contract, asserted as the conjunction the exit code is made of: a red answer to ANY of the
-    // three questions means the hosted step exits non-zero, which fails the `architecture` job.
-    const exitZeroRequires = (r: Json) => r.identical === true && r.hash_matches === true && r.series_authorized === true;
+    expect(String(consistency.detail)).toMatch(/not the hash of (this file's own content|its own content)/);
+    // The check's own contract, asserted as the conjunction the exit code is made of. Since the integrity split,
+    // exit 0 requires the FROZEN ARTIFACT to be valid and the series to authorise it — deliberately NOT that the
+    // candidate tree still reproduces it. Requiring the latter is what made every legitimate architectural change
+    // fail the hosted job at this step, before shadow and enforce could run.
+    const exitZeroRequires = (r: Json) => r.artifact_integrity === true && r.series_authorized === true;
     expect(exitZeroRequires(report), "the green report does not satisfy the exit-0 conjunction").toBe(true);
-    expect(exitZeroRequires({ ...report, hash_matches: false }), "a report with hash_matches false would still exit 0").toBe(false);
+    expect(exitZeroRequires({ ...report, artifact_integrity: false }), "a report with artifact_integrity false would still exit 0").toBe(false);
     expect(exitZeroRequires({ ...report, series_authorized: false }), "a report with series_authorized false would still exit 0").toBe(false);
-    expect(exitZeroRequires({ ...report, identical: false }), "a report with identical false would still exit 0").toBe(false);
+    // THE POINT OF THE SPLIT, asserted directly: candidate-tree drift must NOT be able to fail this step. If this
+    // assertion ever flips, the conflation is back and the S2 negative control is unreachable again.
+    expect(
+      exitZeroRequires({ ...report, identical: false, hash_matches: false, candidate_tree_matches_frozen: false }),
+      "candidate-tree drift still fails the baseline step — the defect this split removed has returned"
+    ).toBe(true);
+    // While the drift is still REPORTED rather than dropped, so a reader can see how far the tree has moved.
+    expect(report).toHaveProperty("candidate_tree_matches_frozen");
   });
 
   it("S2b the runner's own self-consistency check fails the job when the accepted baseline is not reproducible", () => {
