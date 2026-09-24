@@ -24,6 +24,18 @@ import { ExperienceStore } from "../experience/experience-store";
 import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
+// ---------------------------------------------------------------------------------------------
+// S2 NEGATIVE CONTROL -- STAGE C EXPERIMENT. NOT FOR MERGE.
+//
+// This single line injects exactly ONE undeclared cross-capability edge: `persistence`, a KERNEL, now
+// imports `theme-ipc`, owned by the `theme` FEATURE, and no manifest declares that relation (the
+// declared capability pairs are knowledge -> persistence, research -> knowledge, theme -> knowledge).
+// The enforcement engine is required to reject it with NEW_UNDECLARED_CROSS_CAPABILITY_EDGE in enforce
+// mode, while shadow mode reports the same finding identity and passes the process. The commit that
+// contains this line is preserved by the annotated tag city-evidence-s2-negative-control-v1.
+// ---------------------------------------------------------------------------------------------
+import "./theme-ipc";
+
 /**
  * The durable stores (convergence book, Phase F).
  *
