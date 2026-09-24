@@ -64,7 +64,24 @@ function runSoak(args: string[]): Run {
   };
 }
 
-describe("Phase 05 Task F / gate 6 — the soak report covers every dimension the book names", () => {
+/**
+ * AN EXPLICIT PER-CASE BUDGET, because this suite sits AT the tier's ceiling.
+ *
+ * Measured in the green `unit` job of run 36048933514, in the `pnpm run test:postbuild` step: **59 833 ms as a
+ * file**, against that step's 60 000 ms per-test ceiling. Four of its cases run a real 15-second soak each, so one
+ * case is a large fraction of the budget and the suite has NO headroom: a slightly slower runner turns the ceiling
+ * into a failure rather than into a slow run.
+ *
+ * 120 000 ms is applied to THIS SUITE, not to the tier's global ceiling, so it cannot hide a hanging case
+ * elsewhere. It is ~2x the file's measured cost, and a case needing the whole budget has grown by an order of
+ * magnitude rather than met a slow runner. A case that genuinely hangs still fails, 120 s later instead of 60.
+ *
+ * This is the remedy CC-016 established for the default tier -- measured cost, declared, in a lane without the
+ * contention -- which CC-022 recorded as not yet generalised. Same shape, applied here.
+ */
+const SOAK_REPORT_CASE_BUDGET_MS = 120_000;
+
+describe("Phase 05 Task F / gate 6 — the soak report covers every dimension the book names", { timeout: SOAK_REPORT_CASE_BUDGET_MS }, () => {
   it("writes a report with memory, storage, queue, handle and recovery evidence", () => {
     const result = runSoak(["--minutes", "0.25", "--interval", "250"]);
     const report = result.report as Record<string, any>;

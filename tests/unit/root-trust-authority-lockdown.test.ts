@@ -408,7 +408,25 @@ describe("Root Trust Authority Lockdown — break-glass stays external (A11)", (
   });
 });
 
-describe("Root Trust Authority Lockdown — the qualification lane cannot be reached by untrusted code", () => {
+/**
+ * AN EXPLICIT PER-CASE BUDGET for this group, because it is the case that has failed on `main`.
+ *
+ * Measured in the green `unit` job of run 36048933514, in the `pnpm run test:postbuild` step: this FILE costs
+ * 23 671 ms, which is a quarter of that step's 60 000 ms per-test ceiling for one case among eight suites. It has
+ * already turned a green `main` red once:
+ *
+ *   run 36043113229 (main at 9182ffb, a DOCUMENTATION-ONLY commit)
+ *     "holds no public real-host dispatch surface, and uploads no corpus"
+ *     Error: Test timed out in 60000ms.
+ *   -- and a re-run on the IDENTICAL commit returned all five green, which is what makes it timing, not a defect.
+ *
+ * 120 000 ms is applied to THIS GROUP, not to the tier's global ceiling, so it cannot hide a hanging case
+ * elsewhere. The group reads the workflow directory and parses every workflow, so its cost is a property of the
+ * repository's workflow set rather than of the assertion, and it grows as workflows are added.
+ */
+const QUALIFICATION_LANE_CASE_BUDGET_MS = 120_000;
+
+describe("Root Trust Authority Lockdown — the qualification lane cannot be reached by untrusted code", { timeout: QUALIFICATION_LANE_CASE_BUDGET_MS }, () => {
   const WORKFLOW_DIR = path.join(PROJECT, ".github/workflows");
   const workflows = fs.readdirSync(WORKFLOW_DIR).filter((name) => name.endsWith(".yml"));
 
