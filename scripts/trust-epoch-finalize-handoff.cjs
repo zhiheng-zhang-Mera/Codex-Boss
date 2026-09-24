@@ -59,6 +59,11 @@ function parseArgs(argv) {
     // from the branch itself and passes it here. Without it the already-ready handoff would name no commit and be
     // refused by its own validator -- making the idempotent success path unreachable.
     epochCommit: value("--epoch-commit") ?? process.env.EPOCH_COMMIT ?? "",
+    // Section 9 B1: the checkout binding. `--dispatch-sha` is `${{ github.sha }}` from the dispatch and
+    // `--checked-out-sha` is `git rev-parse HEAD`. The workflow asserts the two are equal before this program runs,
+    // and the artifact states both so the equality is readable afterwards rather than inferred from the run id.
+    dispatchSha: value("--dispatch-sha") ?? process.env.DISPATCH_SHA ?? null,
+    checkedOutSha: value("--checked-out-sha") ?? process.env.CHECKED_OUT_SHA ?? null,
     out: value("--out"),
     // The workflow sets this when Stage A found nothing to migrate. It is passed as a flag rather than inferred so
     // the no-migration success is an explicit statement rather than a default reached by omission.
@@ -125,6 +130,11 @@ function main() {
     rootSurfaceHash: args.rootSurfaceHash,
     epochHash: args.epochHash ?? expected?.epoch_hash ?? null,
     prRequired: branchReady,
+    // Section 9 B1: what the run was dispatched on, and what it actually measured. Passed through verbatim -- this
+    // program does not resolve a git ref itself, because a governance artifact that invented the commit it was
+    // bound to would be the one thing such an artifact must never do.
+    dispatchSha: args.dispatchSha,
+    checkedOutSha: args.checkedOutSha,
     result: decision,
   });
 
