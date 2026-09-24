@@ -1356,3 +1356,67 @@ research_value              A checkpoint is only useful if it says what it did N
                             the class of error this ledger has already had to correct twice: a claim published
                             before it was measured. The step is left named, specified, and unstarted.
 ```
+
+---
+
+## CC-022 — A fourth load-sensitive failure, now in `test:postbuild`, and the pattern is the finding
+
+```text
+ENTRY_ID                    CC-022
+timestamp_utc               2026-09-24T18:55Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 classification; then an Owner workflow action (re-run the failed job)
+main_before                 9182ffb74b5f5a454a701d2ab71f7e4afae0b045  (unit RED)
+main_after                  9182ffb74b5f5a454a701d2ab71f7e4afae0b045  (unchanged -- the re-run is the same commit)
+branch                      main
+PR                          #49 (documentation-only, merged)
+workflow_run_ids            36043113229 (Desktop CI on 9182ffb, unit FAILED in test:postbuild) ; the same run
+                            re-run --failed (ALL FIVE GREEN)
+checks_observed             FIRST ATTEMPT: quality=success, architecture=success, unit=FAILURE (in the
+                            `pnpm run test:postbuild` step), acceptance=skipped, package=skipped
+                            RE-RUN OF THE FAILED JOB, SAME COMMIT: all five success
+problem                     tests/unit/root-trust-authority-lockdown.test.ts failed with
+                            `Error: Test timed out in 60000ms.` in the case "holds no public real-host dispatch
+                            surface, and uploads no corpus", on a commit whose only change was documentation.
+classification              R1 -- known hosted timing effect, disproved on the SAME TREE by re-run
+                            (workbook section 5). NOT R2/R4: the same commit passed all five checks on re-run.
+normal_path                 Classify, capture the exact case, re-run bounded, continue when supported.
+why_normal_path_was_not_used
+                            Not applicable -- the normal path was used in full.
+action_taken                Captured the failing case and the timeout; confirmed the same tree is green on
+                            PR #49's own run; re-ran the failed job on the SAME commit; all five green. Recorded.
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  THE PATTERN IS NOW THE FINDING, and it is no longer about one suite. Four failures
+                            this session, all R1, all disproved by a re-run on the identical commit, in THREE
+                            different CI steps:
+                              CC-015  unit / `pnpm test`          autonomous-evolution-adversarial  (timeout)
+                              CC-016  measured and FIXED -- slow tier + a 120s suite budget
+                              CC-017  unit / `pnpm run test:postbuild`  platform-soak-report  (an assertion on a
+                                      measured quantity, later fixed properly in CC-019)
+                              CC-022  unit / `pnpm run test:postbuild`  root-trust-authority-lockdown (timeout)
+                            Three of the four are TIME UNDER CONTENTION, and the response that has WORKED -- CC-016
+                            -- was to give the heavy suite a declared cost and a lane that runs it without the
+                            contention. The remaining exposure is the whole of `test:postbuild`, which runs
+                            EIGHT suites in one job with the root config's 60s per-test ceiling, and one of them
+                            (platform-soak-report) is a 15-second real soak per case. That job is the next place
+                            the same remedy applies, and it should be applied from a measurement of that step's
+                            per-suite cost under load -- the method that worked in CC-016 -- rather than
+                            reactively, one timeout at a time.
+evidence_preserved          Run 36043113229 first attempt (unit FAILED in test:postbuild,
+                            `root-trust-authority-lockdown.test.ts`, 60000ms) and its re-run (all five green) on
+                            the SAME commit 9182ffb.
+rollback                    n/a (classification plus a re-run)
+temporary_debt_created      no
+debt_id                     deliberately NOT opened: the repair is named, precedented and measured elsewhere;
+                            it becomes debt if a later increment declines to apply it
+exit_condition              no run of the required `unit` job fails on a timing ceiling under normal hosted load,
+                            with the `test:postbuild` step carrying declared per-suite costs in the same shape
+                            CC-016 established for the default tier
+closure_status              OPEN -- recorded with the pattern and the specified remedy
+research_value              Four random failures, one cause, three steps, and one WORKING remedy already in the
+                            repository: measure the suite's cost, declare it, and give it a lane without the
+                            contention. The finding is that a remedy proved once was not then applied to the
+                            sibling lane -- which is the same shape as the earlier finding that a fixture written
+                            to make one helper safe reintroduced the helper's defect. Fixes do not generalise
+                            themselves; the ledger is where the generalisation is recorded.
+```
