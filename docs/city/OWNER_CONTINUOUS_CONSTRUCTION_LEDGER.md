@@ -417,6 +417,83 @@ research_value              A test fixture that can reach the real system is not
 
 ---
 
+## CC-008 — Trust-finalization provenance repaired, dispatch helper created, TOCTOU counterfactual pinned
+
+```text
+ENTRY_ID                    CC-008
+timestamp_utc               2026-09-24T07:05Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 for the repair itself; L3 Owner merge bypass is required and is stated below
+main_before                 1892e61c89596b7cd66257ae5b4cedb4bae8dfc0
+main_after                  (pending merge)
+branch                      fix/trust-finalization-sha-bound
+PR                          #29
+workflow_run_ids            (pending)
+checks_observed             (pending)
+problem                     Three related defects, all of one class — an artifact whose declared intent and its
+                            effect can disagree:
+                              CITY-DEBT-002  finalization checked out floating `main`, so an Owner approval of a
+                                             waiting run could anchor a tree the run was never dispatched for;
+                              CITY-DEBT-001  the dispatch helper had no read-only path, so the only invocation
+                                             that existed was a write;
+                              CITY-DEBT-004  the TEST FIXTURE written to prove the second one injected its fake
+                                             executor through PATH/NODE_OPTIONS, which the real `gh` (a native
+                                             binary) ignores, so the injection failed open and opened four
+                                             protected runs.
+classification              R3 — governance/gate defect (workbook §5), repaired in place.
+normal_path                 Land the repair through a reviewed PR, then advance the epoch it moves.
+why_normal_path_was_not_used
+                            The normal path IS used for the repair. The merge needs an Owner bypass at L3, and
+                            only for the `unit` check, because:
+                              - `scripts/trust-epoch-finalization-handoff.cjs` is Root Trust Surface, so this PR
+                                moves the surface aggregate 2abacb6f... -> e0da26e1...;
+                              - the fail-closed guard therefore reports TRUST_EPOCH_ROOT_SURFACE_MISMATCH on the
+                                PR head, which is CORRECT — the committed record is legitimately stale;
+                              - an epoch cannot be advanced FOR a branch: `--advance` is authorised only through
+                                the protected workflow, and that workflow is `refs/heads/main`-only.
+                            The red is stated in the PR body BEFORE it is observed, with BYPASS_USED,
+                            BYPASS_LEVEL, BLOCKING_CHECKS, EXPECTED_RED, UNEXPECTED_RED and FOLLOWUP filled in
+                            (workbook §26).
+action_taken                - workflow: `ref: ${{ github.sha }}` + fetch-depth 0, and a fail-closed assertion step
+                              as the first step after the checkout
+                              (TRUST_EPOCH_FINALIZATION_SHA_MISMATCH), publishing both SHAs;
+                            - handoff: `provenance.dispatch_sha` / `provenance.checked_out_sha`, refusal of a
+                              half-stated binding, refusal of two SHAs that disagree, validated on the STATED
+                              value so `"main"` cannot look like an absent binding;
+                            - CLI: `--dispatch-sha` / `--checked-out-sha`, exit 1 on disagreement;
+                            - NEW `scripts/trust-epoch-dispatch.cjs`: no write without `--confirm`, true dry run,
+                              exact argv printed first, argv arrays and never a shell;
+                            - NEW TOCTOU counterfactual (14 cases) and dry-run-cannot-dispatch proof (17 cases);
+                            - the harness injection defect (CITY-DEBT-004) repaired in the same commit.
+files_or_rules_changed      .github/workflows/trust-epoch-finalization.yml
+                            scripts/trust-epoch-finalization-handoff.cjs          (Root Trust Surface)
+                            scripts/trust-epoch-finalize-handoff.cjs
+                            scripts/trust-epoch-dispatch.cjs                      (new)
+                            tests/unit/city/trust-finalization-sha-binding.test.ts (new)
+                            tests/unit/city/trust-epoch-dispatch-helper.test.ts    (new)
+                            tests/fixtures/fake-gh.cjs                             (new)
+known_risk                  The bypass merge puts a RED `unit` on main until epoch 30 anchors the new surface.
+                            Bounded by performing the epoch-30 ceremony immediately and requiring all five hosted
+                            checks green on the resulting main before any further construction.
+evidence_preserved          PR #29 body (including the pre-stated expected red and the bypass statement); the four
+                            cancelled spurious runs from CC-007; the failing guard's own message; 63 unit cases
+                            passing locally; CITY-DEBT-004's incident record.
+rollback                    Revert PR #29 through a normal reviewed PR. The provenance fields are optional as a
+                            pair, so a revert restores the previous accepting behaviour; the epoch-30 advance is
+                            repaired forward and its branch is never force-pushed.
+temporary_debt_created      no new debt; CITY-DEBT-003 is the existing tracker for the expected-red construct
+debt_id                     CITY-DEBT-001 (CLOSED), CITY-DEBT-002 (CLOSED), CITY-DEBT-004 (CONTAINED; repair here)
+exit_condition              PR #29 merged; epoch 30 advanced and promoted; main green on all five checks;
+                            `acceptance-evolution-bless.cjs --check` = MATCHES on main.
+closure_status              OPEN — the merge and the epoch-30 ceremony are the remaining steps
+research_value              The same defect appeared three times at three levels: a workflow's declared subject vs
+                            the tree it measures, a helper's declared intent vs its effect, and a fixture's
+                            declared fake vs the real executor it actually reached. Recorded as one class rather
+                            than as three unrelated bugs.
+```
+
+---
+
 ## Pending entries (will be appended as the stages complete)
 
 The following workbook stages are known to be outstanding. Each will produce its own entry; none is claimed as
@@ -425,9 +502,9 @@ done here:
 ```text
 CC-0xx  epoch 29 promoted and merged (workbook §8 A4/A5)                          -> CC-006 CLOSED
 CC-0xx  docs/city audit corpus merged (workbook §4)                               -> this PR
-CC-0xx  trust-finalization provenance repair, CITY-DEBT-002 (§9)                  -> CC-008 (in review)
-CC-0xx  dispatch-helper hardening, CITY-DEBT-001 (§9 B2)                          -> CC-008 (in review)
-CC-0xx  TOCTOU counterfactual test (§9 B3)                                        -> CC-008 (in review)
+CC-0xx  trust-finalization provenance repair, CITY-DEBT-002 (§9)                  -> CC-008 (PR #29)
+CC-0xx  dispatch-helper hardening, CITY-DEBT-001 (§9 B2)                          -> CC-008 (PR #29)
+CC-0xx  TOCTOU counterfactual test (§9 B3)                                        -> CC-008 (PR #29)
 CC-0xx  hosted negative control + evidence tag (§10)
 CC-0xx  S2 exit certification (§11)
 CC-0xx  S3 ruleset activation — architecture becomes required (§12)
