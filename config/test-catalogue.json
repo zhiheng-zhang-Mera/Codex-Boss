@@ -544,6 +544,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/capability-closure-validator.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the capability closure validator passes on the committed tree and FAILS on a fixture that breaks exactly one rule, in both directions: it catches a declared module path that does not exist or that names a directory rather than a file, a bootModules/surface entry outside modules, a scanned source file owned by no capability and exempt from none, a file claimed by two capabilities, a file that is both owned and exempt, an exemption carrying no substantive reason, a capability declaring no provided id, a manifest absent from the ownership map, an ownership map naming a capability no manifest declares, and a declared module the declaring capability does not own; it reports every problem class at once rather than the first, so one broken tree cannot hide five defects; its path-matching rule mirrors the selector's directory-prefix rule exactly, so the two cannot disagree about coverage while both being defensible; and it is not satisfiable by emptying a manifest, because an unowned file stays unowned whatever any manifest declares",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/trust-epoch-dispatch-helper.test.ts",
       "tier": "unit",
       "covers": [

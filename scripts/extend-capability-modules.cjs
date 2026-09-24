@@ -260,12 +260,19 @@ const EXTRA = {
  *
  * A file here selects no suite, so a change to it forces a full run. Each entry states why that is
  * the right answer rather than a mapping the phase has not got to yet.
+ *
+ * `src/shared/compatibility.ts` USED TO BE LISTED HERE AND IS NOT ANY MORE. It was both owned by
+ * `persistence` (in `EXTRA`) and exempt, which is a contradiction rather than a policy: the file had a
+ * capability whose blast radius claimed it and an exemption saying nobody owned it, so the two answers
+ * disagreed about whether a change to it selects a suite. Its own exemption reason stated the problem
+ * out loud -- "owning it here as well would make two capabilities claim the same file" -- but the
+ * second claimant it was guarding against was `persistence`, which had it all along. Removing the
+ * exemption is the repair: the file keeps exactly one owner, and
+ * `scripts/capability-closure-validator.cjs` fails if any file becomes owned-and-exempt again.
  */
 const EXEMPT = {
   "src/renderer":
-    "the renderer is exercised by the desktop black-box contract, which launches the real application; that suite is always-run, so a renderer change cannot be under-tested by being unowned",
-  "src/shared/compatibility.ts":
-    "the compatibility registry is consumed by providers and by the certificate, and both of their suites guard it; owning it here as well would make two capabilities claim the same file and inflate both blast radii"
+    "the renderer is exercised by the desktop black-box contract, which launches the real application; that suite is always-run, so a renderer change cannot be under-tested by being unowned"
 };
 
 function walkFiles(rel) {

@@ -329,7 +329,6 @@
     ]
   },
   "exempt": {
-    "src/renderer": "the renderer is exercised by the desktop black-box contract, which launches the real application; that suite is always-run, so a renderer change cannot be under-tested by being unowned",
-    "src/shared/compatibility.ts": "the compatibility registry is consumed by providers and by the certificate, and both of their suites guard it; owning it here as well would make two capabilities claim the same file and inflate both blast radii"
+    "src/renderer": "the renderer is exercised by the desktop black-box contract, which launches the real application; that suite is always-run, so a renderer change cannot be under-tested by being unowned"
   }
 }

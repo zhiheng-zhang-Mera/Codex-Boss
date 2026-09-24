@@ -246,21 +246,95 @@ The check is part of the deliverable — a package that fixes numbers without ad
 The measured starting state contains **two** ownership models that disagree by 572 files. No migration may
 proceed on top of that, because every downstream number depends on which model is used.
 
-Deliverables:
+A first increment has landed and is recorded here so the remaining work is not confused with it.
 
 ```text
-1. choose ONE canonical model and make the other derive from it or be deleted;
-2. repair every FALSE_METADATA row (9 manifests declaring modules:[]/state:[] over real files);
-3. repair every STATE_OWNERSHIP_MISMATCH (a manifest claiming a namespace another capability writes);
-4. repair the FALSE_DEPENDENCY row (research declares a knowledge.store@1 edge that does not exist);
-5. add a validator that FAILS on: a declared module path that does not exist, a declared state ownership that
-   disagrees with reality, a source module with no owner and no explicit infrastructure classification, a
-   cross-capability relation that does not resolve, and a capability with no single declared external purpose;
-6. run the validator in CI.
+LANDED (increment 1 — "the closure validator")
+  scripts/capability-closure-validator.cjs
+      the part of the check below that is decidable against the declarations that exist TODAY:
+        1  declared module path exists on disk and is a FILE (not a directory)
+        2  bootModules/surface are subsets of modules
+        3  every scanned source file (electron/, src/) is owned by exactly one capability, or exempt WITH a
+           substantive reason
+        4  no file is claimed by two capabilities
+        5  the exemption table and the ownership map are disjoint
+        6  every capability declares at least one provided id (one external purpose)
+        7  the two models AGREE: no map capability without a manifest, no manifest absent from the map, no
+           declared module the declaring capability does not own
+  npm run capability:closure
+      the same check, named
+  tests/unit/city/capability-closure-validator.test.ts
+      16 cases: PASS on the committed tree, and FAIL on a fixture that breaks exactly one rule, per check
+
+  FIXED BY IT
+    src/shared/compatibility.ts was BOTH owned by `persistence` and listed in the exemption table -- a file
+    with a claim on it and an exemption saying nobody owned it, so the repository gave two answers about
+    whether a change to that file selects a suite. The exemption is removed; the file keeps exactly one
+    owner; the validator fails if any file becomes owned-and-exempt again. The contradiction lived in the
+    tables of `scripts/extend-capability-modules.cjs`, the map's only writer, which is why the fix is there
+    and not in the JSON.
+
+NOT YET LANDED (increments 2+), and deliberately not claimed
+  2  expand each manifest's `modules` to its capability's full implementation surface (341 electron/** + 217
+     src/shared/** files that only the map owns today), and re-house electron/platform/** (12) and
+     electron/bootstrap/** (2) as platform instrumentation rather than `runtime` implementation
+  3  resolve the 14 manifest metadata rows: 9 manifests declaring modules:[]/state:[] over 1-108 real files,
+     and `research` declaring a `knowledge.store@1` requirement with no real edge
+  4  choose ONE canonical model and generate the other from it, then re-point its readers
+  5  regenerate the enforcement baseline and obtain the Owner-authorised series entry (see below -- this is
+     an Owner act and it moves the Root Trust Surface)
+  6  run the validator as a CI step of the `quality` job (today it is enforced through its test)
 ```
 
+**The measured disagreement, unchanged by increment 1:**
+
+```text
+manifests (config/capabilities/*.yaml)    declare 25 module paths
+ownership map (capability-modules.json)   owns 597 of 613 scanned files, exempts 1
+agreement on what BOTH declare            0 map-without-manifest, 0 manifest-without-map, 0 declared-but-unowned
+coverage                                  0 unowned, 0 double-claimed, 0 owned-and-exempt
+```
+
+The remaining divergence is therefore **of payload, not of contradiction**: the map owns 572 files no manifest
+mentions. The validator reports agreement over the overlap it can decide and does not pretend that 25 declared
+against 597 owned is agreement; check 7 is what will flip when increment 2 lands. **Do not cite a cycle count, an
+owned-file count or a blast radius without naming which model produced it** until then.
+
+**Where each of the five originally-required checks now lives:**
+
+| Required check | Where it is enforced |
+|---|---|
+| declared module exists | validator check 1 (and as a FILE, not a directory) |
+| declared state ownership matches reality | `scripts/architecture.cjs` loader, already enforced |
+| every source module has an owner or explicit infrastructure classification | validator check 3, where the exemption must carry a substantive reason |
+| every cross-capability relation resolves to known endpoints | `scripts/architecture.cjs` (`requires` resolution), and P2-C |
+| capability boundary has one declared external purpose | validator check 6 |
+
 The validator must not be satisfiable by emptying the manifests: a manifest with `modules: []` over real files
-is a failure, not an exemption.
+is a failure, not an exemption, and the unowned-file check fires whatever any manifest declares.
+
+#### The Owner act increment 5 requires, stated before it is attempted
+
+`config/architecture-enforcement-baseline.json` records a capability or `UNDECLARED` for each scanned file, and its
+identity is `baseline_hash = sha256(canonicalJson(content))`. Re-owning the 572 files changes that content and
+therefore that hash. The only ACCEPTED series entry names `b211c052…`
+(`trust-policy/architecture-enforcement-baselines.json`), so the new baseline is **unauthorised** and
+`architecture-enforcement.cjs` returns `BASELINE_SERIES_UNAUTHORISED` in **both** shadow and enforce mode — the
+hosted `architecture` job fails closed rather than skipping.
+
+Recovery is a two-part act, and the second part is an Owner act:
+
+```text
+a  regenerate a CANDIDATE baseline (--reason is mandatory and placeholder reasons are refused)
+b  add the new (version, parent_baseline_hash = b211c052…, baseline_hash) triple to the series BEFORE --accept,
+   because authorization must precede acceptance -- and trust-policy/** is Root Trust Surface and
+   CODEOWNERS-bound, so (b) is an Owner act, and it will move the Root Trust Surface aggregate and require the
+   next epoch. That is the same cadence this session already performed twice, for epochs 29 and 30.
+```
+
+The re-accept is a **hash-identity change, not a debt change**: the edge set is unaffected by ownership, and the
+comparison is over edge/file **keys** rather than ownership values, so the acceptance accounting will show
+re-owned files and zero added debt. Increment 5 must not be attempted as a side effect of an ordinary PR.
 
 ### 3.2 P2-B — the two classes of kernel → feature edge must not be conflated
 
