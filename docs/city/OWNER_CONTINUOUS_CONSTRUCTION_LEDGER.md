@@ -603,7 +603,161 @@ research_value              A red that persisted across four merges (PR #26's ep
 
 ---
 
-## Stage status at CC-010
+## CC-011 — Stage E: S3 ruleset activation — `architecture` becomes a required status check
+
+```text
+ENTRY_ID                    CC-011
+timestamp_utc               2026-09-24T08:24:14Z (ruleset write) ; 08:33Z (merged) ; recorded 08:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L5 (Owner direct governance write — a ruleset edit), plus a normal L0 merge
+main_before                 476388bd90a11f460f3afcee8781d9fc4ff1c699
+main_after                  e121d84 (Merge pull request #32)
+branch                      governance/s3-architecture-required
+PR                          #32
+workflow_run_ids            35975193561 and 35975223095 (Desktop CI on the PR head, both all-five green)
+checks_observed             quality=pass, architecture=pass, unit=pass, package=pass, acceptance=pass
+problem                     The hosted architecture enforcer has been emitted since S1 and run in the real
+                            governing mode since S2, but was deliberately NOT required: workbook §12 / spec S3.
+                            Until it is required, the enforcement is visible policy advice rather than
+                            enforcement, and the workbook's completion definition ("architecture is a required
+                            status check") cannot hold.
+classification              R3 resolved as a governance act (workbook §5/§12), not a defect
+normal_path                 Owner edits `Main-Protection` so required status checks become quality, unit,
+                            acceptance, package, architecture, pinned to the GitHub Actions integration id
+                            15368, with strict policy preserved; then the repository-side records are updated to
+                            agree.
+why_normal_path_was_not_used
+                            Not applicable — this IS the normal path, performed by the delegated executor under
+                            the workbook's construction lease (§0, §12).
+action_taken                RULESET (the platform fact):
+                              snapshot before: sha256 6377b2ab… of the read, updated_at
+                                2026-09-19T18:08:25.639+10:00, 4 contexts
+                              PUT /rulesets/22746755 with the full rule array, adding context `architecture`
+                                (integration_id 15368)
+                              read back after: sha256 04ee3b51…, updated_at 2026-09-24T18:24:14.722+10:00,
+                                5 contexts, strict=true, rules set unchanged
+                                 (deletion, non_fast_forward, creation, required_status_checks, pull_request),
+                                bypass_actors unchanged (Owner only, bypass_mode always)
+                            REPOSITORY (PR #32), so the three records cannot drift:
+                              src/shared/promotion-checks.ts: REQUIRED_PROMOTION_CHECKS gains "architecture"
+                              .github/CODEOWNERS: the contract line names all five, with the reason recorded
+                              three test cases INVERTED rather than deleted:
+                                tests/unit/promotion-gate.test.ts
+                                tests/unit/city/architecture-hosted-shadow.test.ts (H7 + the job-identity case)
+                                tests/unit/city/architecture-s2-hosted-enforce.test.ts (1/12)
+files_or_rules_changed      PLATFORM: Main-Protection ruleset id 22746755 (one context added; nothing else)
+                            REPO: src/shared/promotion-checks.ts, .github/CODEOWNERS, the three test files above
+known_risk                  Adding a required context can block every future merge if the check is unreliable.
+                            Bounded by the S1/S2 evidence trail: the check has been emitted on every push and
+                            pull_request since S1 with no paths/branches filter, no `if:`, no `needs:`, and its
+                            parity (ENF-12) and engine-error behaviour are pinned by tests. A required check that
+                            could vanish is the specific failure mode guarded against: nothing gates on it.
+evidence_preserved          Both ruleset reads (before/after JSON, sha256 6377b2ab… and 04ee3b51…) preserved out
+                            of band; the live-probe line measured after the write
+                            (H7_LIVE_RULESET = LIVE_MEASURED ruleset_id=22746755
+                             required=quality,unit,acceptance,package,architecture architecture_required=true
+                             elapsed_ms=644); PR #32 body with the same before/after table.
+rollback                    Remove the `architecture` context from the ruleset (a second L5 act) AND revert
+                            PR #32. Both are needed: reverting only the repository side leaves the three records
+                            disagreeing; reverting only the ruleset leaves the declaration and CODEOWNERS
+                            claiming a requirement the platform no longer imposes. That drift is now itself
+                            caught by tests, which is why the activation is durable.
+temporary_debt_created      no — the ruleset was changed once, to its intended final state; no relaxation was
+                            made and none remains
+debt_id                     -
+exit_condition              architecture is required; architecture is emitted by the workflow; the integration id
+                            matches; strict mode remains enabled; no required check was removed; the legacy
+                            ratchet still runs in the required quality job; the bypass actor set did not expand;
+                            and a benign PR proves a normal green architecture check satisfies the context.
+closure_status              CLOSED — verified by the read-back above and by PR #32 merging with all five green
+research_value              The interesting part is not the edit but the GUARDS: three test cases existed whose
+                            whole purpose was to assert "emitted but NOT required", and they were correct for
+                            two stages. Activating the gate therefore required INVERTING them rather than
+                            deleting them — so the activation cannot be silently reverted by an ordinary code
+                            change, and the invariant that a workflow cannot make a check required survives the
+                            transition.
+```
+
+---
+
+## CC-012 — Stage F: S4 decision recorded — `RETAIN_LEGACY_RATCHET`
+
+```text
+ENTRY_ID                    CC-012
+timestamp_utc               2026-09-24T08:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (an explicit decision, recorded; no gate crossed)
+main_before                 e121d84 (Merge pull request #32)
+main_after                  e121d84 (unchanged by this entry)
+branch                      docs/s3-activation-and-s4-decision
+PR                          (this record's PR)
+workflow_run_ids            -
+checks_observed             -
+problem                     Stage S4 requires a decision: retire `pnpm run architecture:ratchet` from the
+                            required `quality` job, or keep it and record the decision not to. The Phase 1B
+                            specification permits retirement only when all four H5 conditions hold.
+classification              Explicit S4 Owner decision (workbook §13) — NOT debt, NOT a failure, NOT unfinished
+                            work
+normal_path                 Measure H5's four conditions against the live repository and record the decision.
+why_normal_path_was_not_used
+                            Not applicable — this is the normal path.
+action_taken                Measured H5 and recorded RETAIN_LEGACY_RATCHET in
+                            docs/city/PHASE1B_S4_LEGACY_RATCHET_DECISION.md, with the failing condition named:
+                            the 30-consecutive-promotion-merge window has progress 0 of 30, because the S3
+                            activation is live only from 476388b onward. Condition 2 (a class-by-class superset
+                            mapping with a named proof per legacy detection class) is also unmet. The workbook's
+                            own instruction — "Do not create meaningless PRs merely to satisfy this number" —
+                            rules out manufacturing the window, so the ratchet is retained.
+files_or_rules_changed      docs/city/PHASE1B_S4_LEGACY_RATCHET_DECISION.md (new)
+known_risk                  A retained redundant gate costs a step in the required `quality` job, and a future
+                            reader could mistake the retention for an oversight. Mitigated by the decision
+                            document stating the four conditions that would change it, and by this entry.
+evidence_preserved          The H5 condition table with the measured value per condition; the Phase 1B spec
+                            line 166 (the "or keep it and record the decision not to" alternative); the S3
+                            activation timestamp that starts the window.
+rollback                    A later Owner act may retire the ratchet once H5 holds, with its own evidence
+                            record, taken separately from any activation (H5 condition 4).
+temporary_debt_created      NO — deliberately. This is a decision, not a compromise, and it must never appear
+                            in the debt register.
+debt_id                     -
+exit_condition              n/a — the decision is the deliverable
+closure_status              CLOSED
+research_value              A specification that offers "do it, or record why not" is only honest if the second
+                            branch is used when the evidence is absent. The measurable content here is that the
+                            window's progress is 0 of 30, not "not yet enough": the number cannot move until the
+                            gate it depends on has been required for a while, so the decision is forced rather
+                            than chosen.
+```
+
+---
+
+## Stage status at CC-012
+
+```text
+WORKBOOK STAGE                                        STATE
+§4   cloud audit corpus                               LANDED (PR #28)
+§8   epoch 29 closed and promoted                     DONE (PR #27, all five checks green)
+§9   trust-finalization provenance repair (B1/B2/B3)  LANDED (PR #29) — proven live by CC-009
+§9   Root Trust handling (B4)                         DONE — epoch 30 (PR #30)
+§12  S3 ruleset activation (Stage E)                  DONE (PR #32, ruleset id 22746755, 5 contexts)
+§13  S4 decision: RETAIN_LEGACY_RATCHET (Stage F)     DONE (CC-012 + decision document)
+§14  Phase 2 spec + frozen starting measurement       LANDED (frozen at 5ade1cd)
+§10  hosted negative control + evidence tag           NOT STARTED
+§11  S2 exit certification                            NOT STARTED
+§15-§23 Phase 2 P2-A .. P2-I                          NOT STARTED (spec, acceptance and two analyses ready)
+§30  final acceptance suite                           NOT REACHED
+§31  final debt review                                NOT REACHED (0 OPEN / 0 CONTAINED today)
+§32  final governance restoration                     NOT REACHED
+```
+
+Note on §11: S2 exit certification is NOT STARTED and is deliberately not claimed. The workbook makes S2 exit
+conditional on the hosted negative control (§10), which has not been run. The S3 activation landed first because
+the workbook treats it as an independent governance act (§12) — but that ordering does not certify S2, and this
+table says so.
+
+---
+
+## Stage status at CC-010 (superseded by CC-012, retained for the history)
 
 ```text
 WORKBOOK STAGE                                        STATE

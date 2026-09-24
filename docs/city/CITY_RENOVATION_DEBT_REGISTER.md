@@ -18,10 +18,16 @@ not temporary debt. "We ran out of time" is never an accepted-permanent reason.
 **Final seal preconditions (workbook §31):** no `OPEN` debt, no `CONTAINED` temporary debt. Only `CLOSED` and
 `ACCEPTED_PERMANENT` may remain.
 
-**Not debt:** the retained legacy ratchet. Workbook §13 records `RETAIN_LEGACY_RATCHET` as an explicit S4
-Owner decision permitted by the Phase 1B specification because the organic H5 window (30 real promotion merges
-after `architecture` is required) has not been earned. It must never be represented as renovation debt or as a
-failure.
+**Not debt:** the retained legacy ratchet. The S4 decision
+(`docs/city/PHASE1B_S4_LEGACY_RATCHET_DECISION.md`, ledger CC-012) records `RETAIN_LEGACY_RATCHET` because the
+Phase 1B specification's H5 conditions are not met — the 30-consecutive-promotion-merge window has progress
+**0 of 30**, since the `architecture` check became required only at commit `476388b` (S3). The specification
+permits retirement *or* recording the decision not to, and the workbook forbids manufacturing meaningless merges
+to satisfy the number. This retention must never be represented as renovation debt or as a failure.
+
+**Not debt:** the S3 ruleset activation (ledger CC-011). It adds a required gate; it retires nothing and
+compromises nothing. The ruleset was changed once, to its intended final state, so there is no temporary
+relaxation to account for.
 
 ## Required fields
 
