@@ -39,10 +39,18 @@ function parseArgs(argv) {
   return options;
 }
 
-/** Least-squares slope in MiB per minute over a set of samples. */
+/**
+ * Least-squares slope in MiB per minute over a set of samples, or `null` when there are too few to derive one.
+ *
+ * `null` RATHER THAN `0`, and that is the whole point of the return type. Three points is the minimum a slope can
+ * be read from, so a run with one or two samples cannot report a trend — and reporting `0` instead said "I measured
+ * a flat trend" when the truth was "I could not measure one". `0` is finite and far below every allowance, so the
+ * placeholder passed each check that asked whether the trend was a number and within its bound. The trend is now
+ * either a measurement or `null`, and `evaluatePlatformSoakAcceptance` refuses to accept an unmeasurable one.
+ */
 function slopePerMinute(samples, pick) {
   const points = samples.map((sample) => ({ x: sample.elapsedMs / 60_000, y: pick(sample) }));
-  if (points.length < 3) return 0;
+  if (points.length < 3) return null;
   const meanX = points.reduce((total, point) => total + point.x, 0) / points.length;
   const meanY = points.reduce((total, point) => total + point.y, 0) / points.length;
   const covariance = points.reduce((total, point) => total + (point.x - meanX) * (point.y - meanY), 0);
@@ -141,9 +149,15 @@ function main() {
     process.stdout.write(`[soak] cycles=${result.totals.cycles} writes=${result.totals.stateWrites} events=${result.totals.eventsAppended} restarts=${result.totals.restarts} recoveredTx=${result.totals.recoveredTransactions}\n`);
     process.stdout.write(`[soak] gc planned=${result.totals.gcPlanned} collected=${result.totals.gcCollected} misdeleted=${result.totals.gcMisdeleted}\n`);
     process.stdout.write(`[soak] storage: ${(result.storage.databaseBytes / 1048576).toFixed(2)} MiB, ${result.storage.journalEvents} events, backlog ${result.storage.eventBacklog}\n`);
-    process.stdout.write(`[soak] trend: rss ${trends.rssMiBPerMinute.toFixed(2)} MiB/min, heap ${trends.heapMiBPerMinute.toFixed(2)} MiB/min\n`);
+    // A `null` trend is printed as NOT MEASURED rather than as `0.00`, so a reader of the log cannot mistake an
+    // under-sampled run for a flat one -- the same distinction the report now makes.
+    const trendText = (value) => (value === null ? "NOT MEASURED" : `${value.toFixed(2)} MiB/min`);
+    process.stdout.write(`[soak] trend: rss ${trendText(trends.rssMiBPerMinute)}, heap ${trendText(trends.heapMiBPerMinute)}\n`);
     const allowancePerMinute = longRunAllowancePerMinute();
     process.stdout.write(`[soak] allowance: rss < ${allowancePerMinute.rssMiB.toFixed(1)} MiB/min, heap < ${allowancePerMinute.heapMiB.toFixed(1)} MiB/min => ${trendWithinLongRunAllowance ? "within" : "EXCEEDED"}\n`);
+    if (trends.rssMiBPerMinute === null || trends.heapMiBPerMinute === null) {
+      process.stdout.write(`[soak] WARNING: too few samples to derive a trend; the run CANNOT be accepted on trend grounds and is reported as unmeasurable rather than as flat\n`);
+    }
     process.stdout.write(`[soak] report: ${path.relative(ROOT, out)}\n`);
 
     // The verdict is the production decision, not a re-derivation of it: accepted = nothing failed AND the
