@@ -731,6 +731,80 @@ research_value              A specification that offers "do it, or record why no
 
 ---
 
+## CC-013 — Phase 2 P2-A increment 1: the capability closure validator, and the owned-and-exempt contradiction
+
+```text
+ENTRY_ID                    CC-013
+timestamp_utc               2026-09-24T19:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (construction under the workbook §0 lease; no gate crossed)
+main_before                 ae2cb8f78f09ae42007fff83eb5b1ca55060c3f8
+main_after                  (pending merge)
+branch                      phase2/p2a-capability-closure-validator
+PR                          (this record's PR)
+workflow_run_ids            (pending)
+checks_observed             (pending)
+problem                     Phase 2's first deliverable (workbook §15) is a capability ownership map that is
+                            TRUE and machine-validated. The repository carries two ownership declarations that
+                            disagree: the 27 manifests declare 25 module paths, while
+                            config/capability-modules.json owns 597 of 613 scanned files. Nothing failed when they
+                            disagreed, which is how the disagreement survived long enough to be described in a
+                            report — and measured while writing this check, one file was simultaneously OWNED and
+                            EXEMPT.
+classification              R3-adjacent / structural debt with an understood repair (workbook §5, §15); the
+                            owned-and-exempt file is a plain contradiction, not a judgement call
+normal_path                 Add the closure validator named in the Phase 2 spec, fix what it finds, and pin both
+                            directions with tests.
+why_normal_path_was_not_used
+                            Not applicable — this is the normal path.
+action_taken                - scripts/capability-closure-validator.cjs: seven checks over the declarations that
+                              exist today (stale/directory module paths, boot/surface subset, coverage of every
+                              scanned source file, double claims, owned-and-exempt, one declared purpose per
+                              capability, and agreement between the two models). Root-aware, so a rule can be
+                              exercised against a fixture that breaks only that rule.
+                            - npm run capability:closure, and 16 test cases that PASS on the committed tree and
+                              FAIL per rule on a fixture.
+                            - FIXED src/shared/compatibility.ts, which was both owned by `persistence` and
+                              exempt. Its own exemption reason stated the problem -- "owning it here as well would
+                              make two capabilities claim the same file" -- while the second claimant it was
+                              guarding against was `persistence`, which had it all along. Removed from the
+                              EXEMPT table of scripts/extend-capability-modules.cjs (the map's only writer) and
+                              the map regenerated.
+files_or_rules_changed      scripts/capability-closure-validator.cjs        (new)
+                            tests/unit/city/capability-closure-validator.test.ts (new)
+                            scripts/extend-capability-modules.cjs             (EXEMPT table repaired)
+                            config/capability-modules.json                    (regenerated; exempt 2 -> 1)
+                            config/test-catalogue.json                        (regenerated; 288 suites)
+                            scripts/generate-test-catalogue.cjs               (curated entry for the new suite)
+                            package.json                                      (capability:closure)
+                            docs/city/PHASE2_ARCHITECTURE_MIGRATION_SPEC.md   (§3.1 records landed vs not-landed)
+known_risk                  The validator's check 7 reports the two models as agreeing over their overlap while
+                            572 files are owned by only one of them. A reader could take `modelsAgree: true` as
+                            "the ownership map is truthful". Mitigated by the spec and this entry naming the
+                            remaining payload divergence explicitly, and by check 7 flipping only when the
+                            manifests declare the real surface.
+evidence_preserved          scripts/capability-closure-validator.cjs --json (modelsAgree, ownedFiles 597,
+                            declaredModulePaths 25, exemptEntries 1, unowned 0, doubleClaims 0,
+                            ownedAndExempt 0); the pre-repair failure
+                            ("1 file(s) are owned by a capability AND exempt: src/shared/compatibility.ts");
+                            architecture:ratchet pass, enforcement shadow PASS with the same 1677 findings after
+                            the map regeneration, so no architecture number moved.
+rollback                    Revert this PR. The exemption removal is the only behavioural change, and it
+                            moves a file from "owned by nobody and exempt" to "owned by persistence" — i.e. from
+                            a full run to a selected run, which is the direction the selector is designed for.
+temporary_debt_created      no
+debt_id                     -
+exit_condition              n/a — a validator plus a contradiction repair
+closure_status              CLOSED on merge
+research_value              Two ownership declarations can coexist indefinitely when the only artifact that
+                            would notice is a report a human has to read. The measurable content of "the model is
+                            wrong" is not the size of the disagreement (572 files) but the existence of a check
+                            that fails on it — and writing that check immediately found a second, smaller
+                            contradiction (one file owned AND exempt) that no report had mentioned.
+```
+
+---
+
 ## Stage status at CC-012
 
 ```text
