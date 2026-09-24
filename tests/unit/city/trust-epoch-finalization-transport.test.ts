@@ -480,7 +480,7 @@ describe("Trust finalization handoff CLI: the exit codes the workflow depends on
     return file;
   }
 
-  function runCli(extraArgs: string[], env: Record<string, string> = {}): { status: number | null; state: string; prRequired: boolean; stderr: string } {
+  function runCli(extraArgs: string[], env: Record<string, string> = {}): { status: number | null; state: string; prRequired: boolean; epochHash: string | null; validationOk: boolean; validationProblems: string[]; stderr: string } {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trust-finalize-cli-"));
     const out = path.join(dir, "epoch-pr-handoff.json");
     const result = spawnSync(process.execPath, [
@@ -489,9 +489,15 @@ describe("Trust finalization handoff CLI: the exit codes the workflow depends on
       "--branch", "trust-epoch/boss-root-trust-28", "--root-surface-hash", "a".repeat(64),
       "--out", out, ...extraArgs,
     ], { cwd: PROJECT, encoding: "utf8", timeout: 120000, env: { ...process.env, ...env } });
-    const decision = JSON.parse(fs.readFileSync(path.join(dir, "epoch-pr-decision.json"), "utf8")) as { state: string };
-    const handoffJson = JSON.parse(fs.readFileSync(out, "utf8")) as { pr_required: boolean };
-    return { status: result.status, state: decision.state, prRequired: handoffJson.pr_required, stderr: String(result.stderr ?? "") };
+    const decision = JSON.parse(fs.readFileSync(path.join(dir, "epoch-pr-decision.json"), "utf8")) as { state: string; validation_problems?: string[] };
+    const handoffJson = JSON.parse(fs.readFileSync(out, "utf8")) as { pr_required: boolean; epoch_hash?: string | null };
+    return {
+      status: result.status, state: decision.state, prRequired: handoffJson.pr_required,
+      epochHash: handoffJson.epoch_hash ?? null,
+      validationOk: (decision.validation_problems ?? []).length === 0,
+      validationProblems: decision.validation_problems ?? [],
+      stderr: String(result.stderr ?? ""),
+    };
   }
 
   it("NO_MIGRATION exits 0 and requires no PR", () => {
@@ -508,6 +514,12 @@ describe("Trust finalization handoff CLI: the exit codes the workflow depends on
     expect(run.status, `the produced-branch path must succeed: ${run.stderr}`).toBe(0);
     expect(run.state).toBe(handoff.STATE.EPOCH_BRANCH_READY);
     expect(run.prRequired, "the produced branch must be handed off for a PR").toBe(true);
+    // The handoff the App will consume must itself be valid, and it must publish the epoch hash that came from the
+    // RECORD rather than from the environment. On the fresh-branch path the workflow passes `--epoch-hash` from the
+    // record the advance produced, and EPOCH_COMMIT alone supplies the commit; a handoff assembled with a missing or
+    // mismatched hash is one the App cannot key a pull request against, and `validateHandoff` is what refuses it.
+    expect(run.validationOk, `the produced-path handoff failed its own validator: ${run.validationProblems.join("; ")}`).toBe(true);
+    expect(run.epochHash, "the fresh path did not publish the epoch hash carried by the expected record").toBe("c".repeat(64));
   });
 
   it("a produced branch with no commit is refused rather than handed off", () => {

@@ -28,6 +28,8 @@
       "src/shared/trust-problems.ts",
       "tests/acceptance/autonomous-evolution-*.test.ts",
       "tests/helpers/acceptance-report.ts",
+      "scripts/trust-epoch-finalize-handoff.cjs",
+      "scripts/trust-epoch-finalization-handoff.cjs",
       "config/architecture-enforcement-baseline.json",
       "config/architecture-baseline.json",
       "scripts/architecture-enforcement.cjs",
@@ -37,7 +39,7 @@
       "scripts/architecture.cjs",
       "scripts/architecture-baseline.cjs"
     ],
-    "count": 30,
-    "boundary_hash": "0141acecec911904a02b3ea302c1bd1b30532d48d0a94d3ef3a030d5a422d14c"
+    "count": 32,
+    "boundary_hash": "ec55cf569c1af9fd2863f979dd6eac253eae2ef91e8b4d0d20ab7af2efc47347"
   }
 }

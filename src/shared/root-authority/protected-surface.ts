@@ -195,6 +195,16 @@ export const ROOT_PROTECTED_MANIFEST: readonly string[] = [
   "/tests/**/autonomous-evolution*.test.*",
   "/tests/**/acceptance-evolution*.test.*",
 
+  // The trust-epoch finalization terminal decision (Mission-4D). Same disagreement as the architecture block
+  // above, measured again for the epoch: the bless machinery that ADVANCES an epoch was already protected via
+  // `/scripts/acceptance-*.cjs`, but the module that decides whether a produced epoch branch is handed off for
+  // merging — and that writes the machine-readable handoff the PR transport consumes — classified
+  // PRODUCT_SURFACE, so a change set made only of it returned ALLOW and the run could have rewritten its own
+  // terminal decision without opening an epoch. Named one file at a time: `/scripts/` holds ordinary product
+  // tooling that must stay autonomous.
+  "/scripts/trust-epoch-finalize-handoff.cjs",
+  "/scripts/trust-epoch-finalization-handoff.cjs",
+
   // The tier declarations and configurations decide WHICH gates run at all, so
   // they are part of the boundary even though no test lives in them.
   "/vitest.tiers.mjs",
