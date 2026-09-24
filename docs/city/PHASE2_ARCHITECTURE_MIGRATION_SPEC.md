@@ -283,6 +283,15 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
         154 of them kernel -> feature over 43 pairs, 53 mutual pairs, and 186 of the 187 pairs undeclared.
         Expanding `modules` is what makes the required ratchet read those edges, so increment 2 cannot land
         without the per-pair decisions (declare / invert / extract a road), or the ratchet goes red
+     -- AND 30% OF THAT COUNT IS TWO ATTRIBUTION ERRORS, established by READING the three files the inventory
+        named, in `docs/city/PHASE2_P2A_REATTRIBUTION_ANALYSIS.md`:
+          `runtime -> tenx` (22) and `persistence -> tenx` (11) are ONE directory, `electron/commander/**`
+            (39 files), attributed to `tenx` although its contents are a task ledger, a budget manager, a
+            context manager and a recovery scheduler
+          `providers -> status` (13) is ONE FILE, `src/shared/contracts.ts`, attributed to `status` although it
+            is a 48-importer shared type module bundling at least seven independent purposes
+        Reading them first turns 43 capability-pair decisions into THREE deliberate decisions (one directory,
+        one file, one composition root) followed by a re-measurement. That order is the increment's plan.
   3  resolve the 14 manifest metadata rows: 9 manifests declaring modules:[]/state:[] over 1-108 real files,
      and `research` declaring a `knowledge.store@1` requirement with no real edge -- CONFIRMED against the
      real graph by the inventory, which finds zero research -> knowledge import edges
