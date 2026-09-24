@@ -198,7 +198,43 @@ NOT CLAIMED  that the enforcement baseline can stay as it is. Re-owning the file
              states the two-part recovery before it is attempted.
 ```
 
-## 6. How to reproduce
+## 6. A CI-flake observation from shipping this increment (recorded, not fixed here)
+
+The merge of this work produced one red `unit` job on `main` at `0429d59d` **while the identical tree was green on
+the pull request**, and a re-run of the failed job on the same commit returned success. That is a flake by
+definition, and it is the second of the same class in this programme:
+
+```text
+commit      0429d59d6b3e5d63ff0c1d2f454a9c61d07e38cf   run 35989272641   unit FAILED
+            tests/acceptance/autonomous-evolution-adversarial.test.ts :: AD-36
+            Error: Test timed out in 60000ms.
+same commit, re-run of that failed job                ALL FIVE GREEN
+
+earlier     e121d84 (the S3 merge)                     run 35977080133   unit FAILED
+            tests/unit/platform/durable-event-correctness.test.ts :: the 10k-event case
+            Error: Test timed out in 60000ms.   (measured 123s under load; ~24s when runner load is low)
+```
+
+Both are the same mechanism: a heavy case in the default `unit` tier against that tier's 60 s per-test ceiling
+(`vitest.unit.config.mjs`), where the case's cost depends on how many of the 273 files are running in parallel on a
+shared Windows runner. Neither is a defect in the code those commits changed. Both ARE real availability defects in
+the merge gate, because a red `unit` blocks the merge and, on `main`, fails this programme's binding acceptance
+condition.
+
+**What is deliberately NOT done here:** no timeout was raised, no case was excluded from measurement, and no
+assertion was weakened to make the gate green. A per-test timeout is a legitimate performance declaration, but
+raising one without measuring the case's cost under contention would be guessing. The honest fix belongs to the
+increment that can measure it, and it is written down so that increment starts from this observation:
+
+```text
+RECOMMENDATION FOR THE NEXT INCREMENT
+  1  measure the per-case duration of the heavy cases under the parallel load CI actually produces;
+  2  give each load-dependent case an explicit per-test budget justified by that measurement, or move it to a
+     tier that runs it with a declared cost -- keeping it inside the merge gate either way;
+  3  do NOT widen the global tier timeout, which would hide every future case that genuinely hangs.
+```
+
+## 7. How to reproduce
 
 ```powershell
 cd D:\Codex-Boss
