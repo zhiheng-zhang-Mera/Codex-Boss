@@ -234,7 +234,11 @@ describe("phase 1b-a: the shipped CLI enforces the same rules", () => {
     const result = run(GENERATOR, ["--check"]);
     expect(result.status, String(result.stderr ?? "")).toBe(0);
     const summary = parseStdout(result);
-    expect(summary.self_consistent).toBe(true);
+    // The integrity split: `self_consistent` became `artifact_integrity` (the frozen file against the hash it
+    // records), and the tree comparison became the REPORTED `candidate_tree_matches_frozen`. Both are asserted so
+    // the question cannot silently collapse back into one boolean.
+    expect(summary.artifact_integrity).toBe(true);
+    expect(summary.candidate_tree_matches_frozen).toBe(true);
     expect(summary.series_authorized).toBe(true);
     expect(String(summary.authorization_reference ?? "")).toContain("PR #12");
   });
