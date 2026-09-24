@@ -302,17 +302,132 @@ research_value              Distinguishes "the epoch moved because a protected f
 
 ---
 
+## CC-006 — Epoch 29 promoted and merged; main restored to green
+
+```text
+ENTRY_ID                    CC-006
+timestamp_utc               2026-09-24T06:33:49Z (merge) ; 2026-09-24T06:52Z (recorded)
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L2 (Owner environment approval in CC-003) — the merge itself was NORMAL
+main_before                 79af142b9c0e9f634dc099bd2ad289cff5f31301
+main_after                  1892e61c89596b7cd66257ae5b4cedb4bae8dfc0
+branch                      trust-epoch/boss-root-trust-29
+PR                          #27
+workflow_run_ids            35962014554 (finalization, success) ; 35964121701 (promotion PR Desktop CI, success)
+                            ; 35965095036 (main Desktop CI after merge) ; 35961901372 (the red this repairs)
+checks_observed             ON THE PROMOTION PR: quality=pass, architecture=pass, unit=pass (8m16s),
+                            package=pass, acceptance=pass — ALL FIVE GREEN before merge
+                            ON THE RESULTING MAIN: quality=success, architecture=success, unit=success,
+                            package and acceptance run after
+problem                     Committed epoch 28 no longer anchored the live Root Trust Surface after PR #26, so
+                            main's `unit` job failed with TRUST_EPOCH_ROOT_SURFACE_MISMATCH and `acceptance`
+                            and `package` were skipped (CITY-DEBT-003, ledger CC-004).
+classification              R2 — city defect with understood repair (workbook §5)
+normal_path                 Produce the epoch-29 record through the Owner-authorised finalization workflow, open
+                            the promotion PR, prove all five hosted checks green, merge normally.
+why_normal_path_was_not_used
+                            The normal path WAS used in full. NO BYPASS WAS NEEDED: the promotion PR was green on
+                            all five checks, because the epoch branch's tree makes the guard pass — the red existed
+                            only on main, where the epoch record was stale.
+action_taken                Merged PR #27 as a history-preserving merge commit. Verified the epoch branch was
+                            based on the then-current main (no rebase, no drift), that its diff was exactly
+                            trust-policy/trust-epoch.json, and that the candidate epoch derived from live state
+                            (29, not hard-coded) with parent_epoch_hash = epoch 28's hash.
+files_or_rules_changed      trust-policy/trust-epoch.json (via PR #27)
+known_risk                  Between PR #26 and this merge, main carried a correctly red fail-closed guard and
+                            two unproven checks (acceptance, package were SKIPPED, not passing). That window is
+                            closed by this merge; the unproven-ness is recorded rather than glossed.
+evidence_preserved          Run ids above; PR #27 body; the failing unit job 107512217870 from run 35961901372;
+                            cancelled spurious run 35961897353; the local `--check` on the epoch branch before
+                            merge (74 files, aggregate 2abacb6f..., MATCHES).
+rollback                    A wrong epoch is repaired forward through the governed trust-migration path. The
+                            Owner-authorised epoch branch is never force-pushed or rewritten.
+temporary_debt_created      no
+debt_id                     CITY-DEBT-003 (CLOSED by this entry — see the register)
+exit_condition              Epoch 29 on main; `--check` MATCHES; five hosted checks green on the merge commit.
+closure_status              CLOSED
+research_value              An epoch promotion can be fully green on its own PR while the branch it repairs is
+                            red: the guard fails on the stale record, not on the new one. "Main is red" and "the
+                            repair PR is red" are different facts, and conflating them is how a bypass gets used
+                            where none was needed.
+```
+
+---
+
+## CC-007 — Owner continuous construction is itself capable of a spurious protected dispatch
+
+```text
+ENTRY_ID                    CC-007
+timestamp_utc               2026-09-24T06:38:13Z (last of four) ; recorded 2026-09-24T06:55Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L2 (Owner workflow action: cancel four waiting protected runs)
+main_before                 1892e61c89596b7cd66257ae5b4cedb4bae8dfc0
+main_after                  1892e61c89596b7cd66257ae5b4cedb4bae8dfc0
+branch                      main (workflow_dispatch runs)
+PR                          -
+workflow_run_ids            35965428473, 35965431153, 35965446098, 35965449267 — all Trust Epoch Finalization,
+                            all workflow_dispatch, all head_sha 1892e61c..., all CANCELLED, none approved
+checks_observed             Four waiting runs on the protected environment `boss-root-trust-owner`, created
+                            06:37:58Z, 06:38:00Z, 06:38:11Z, 06:38:13Z — i.e. within 15 seconds, on a commit that
+                            was already correctly anchored by epoch 29.
+problem                     Four spurious dispatches of the protected ceremony, in a burst, from a commit that
+                            needed no migration. The immediate cause is recorded below; the general cause is
+                            that nothing in the construction workflow made "did I just open a protected run by
+                            accident?" a question the executor was forced to ask.
+classification              R3-adjacent operational defect (workbook §5): a governance artifact, not a code
+                            check. Recorded as an incident and a debt. This is the SECOND occurrence of the
+                            same failure class as CITY-DEBT-001.
+normal_path                 The protected ceremony is dispatched deliberately, once, with a stated reason/risk/
+                            rollback, and is either the intended epoch advance or nothing at all.
+why_normal_path_was_not_used
+                            The dispatches had already happened by the time they were observed. The normal path
+                            is the repair: no write without an explicit confirmation (the helper in §9 B2) and
+                            the elimination of the automatable route that produced the burst.
+action_taken                Cancelled all four runs. Did NOT approve any of them — approving one would have
+                            advanced an epoch from a commit that was already anchored, producing a
+                            NO_MIGRATION no-op at best and a spurious ceremony record at worst.
+                            Then found and FIXED the cause: a test fixture of this very repair was injecting its
+                            fake executor through PATH and NODE_OPTIONS, and the real `gh` on this host is a
+                            native binary that ignores NODE_OPTIONS, so the "confirmed" case of the new
+                            dispatch-helper test reached the REAL gh and dispatched the protected workflow four
+                            times. The fixture now injects the executor through the helper's own command
+                            override, so the real `gh` is unreachable from that test by construction.
+files_or_rules_changed      tests/fixtures/fake-gh.cjs (new, then corrected)
+                            tests/unit/city/trust-epoch-dispatch-helper.test.ts (new, then corrected)
+known_risk                  The corrective change is itself a test harness; if it regresses, a future test run
+                            could again open protected runs. Contained by making injection explicit and by the
+                            assertion that the helper resolves its command from the overridable route.
+evidence_preserved          The four runs are preserved as `cancelled` and are never deleted or hidden. Their
+                            run ids, SHA, environment, timestamps and the cancelling decision are recorded here
+                            and in docs/city/incidents/2026-09-24-repeated-spurious-epoch-dispatch.md.
+rollback                    Not applicable: cancelled runs are the evidence and must not be re-dispatched.
+temporary_debt_created      yes
+debt_id                     CITY-DEBT-004
+exit_condition              The corrective injection is on main; a full `pnpm test` on a clean main opens no
+                            protected run; and the dispatch helper requires an explicit confirmation for every
+                            write.
+closure_status              OPEN (see CITY_DEBT_REGISTER.md) — the harness repair is committed, the
+                            "no protected run is opened by an ordinary test run" check is still to be proven on
+                            main after the next test cycle.
+research_value              A test fixture that can reach the real system is not a test. The defect is the
+                            same one as the original incident, one level down: an artifact whose declared
+                            intent ("a fake executor") and effect ("the real executor") disagreed, and the
+                            disagreement was invisible because the injection path silently did nothing.
+```
+
+---
+
 ## Pending entries (will be appended as the stages complete)
 
 The following workbook stages are known to be outstanding. Each will produce its own entry; none is claimed as
 done here:
 
 ```text
-CC-0xx  epoch 29 promoted and merged (workbook §8 A4/A5)
-CC-0xx  docs/city audit corpus merged (workbook §4)
-CC-0xx  trust-finalization provenance repair, CITY-DEBT-002 (§9)
-CC-0xx  dispatch-helper hardening, CITY-DEBT-001 (§9 B2)
-CC-0xx  TOCTOU counterfactual test (§9 B3)
+CC-0xx  epoch 29 promoted and merged (workbook §8 A4/A5)                          -> CC-006 CLOSED
+CC-0xx  docs/city audit corpus merged (workbook §4)                               -> this PR
+CC-0xx  trust-finalization provenance repair, CITY-DEBT-002 (§9)                  -> CC-008 (in review)
+CC-0xx  dispatch-helper hardening, CITY-DEBT-001 (§9 B2)                          -> CC-008 (in review)
+CC-0xx  TOCTOU counterfactual test (§9 B3)                                        -> CC-008 (in review)
 CC-0xx  hosted negative control + evidence tag (§10)
 CC-0xx  S2 exit certification (§11)
 CC-0xx  S3 ruleset activation — architecture becomes required (§12)

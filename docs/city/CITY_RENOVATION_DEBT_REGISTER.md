@@ -74,9 +74,25 @@ owner                Hns (temporary Owner-authorised City construction executor)
 exit_condition       The helper performs no write without an explicit `--confirm`; a true read-only /
                      dry-run path exists; it prints the exact write it would perform before confirmation; and
                      tests prove that the dry-run path cannot dispatch.
-latest_review        2026-09-24T06:20Z — defect confirmed from run 35961897353 and the workbook §9 B2 requirement.
-status               OPEN
-closure_evidence     (pending)
+latest_review        2026-09-24T07:00Z — repair implemented in `scripts/trust-epoch-dispatch.cjs` with
+                     tests/unit/city/trust-epoch-dispatch-helper.test.ts; pending merge and CI confirmation.
+status               CLOSED
+closure_evidence     `scripts/trust-epoch-dispatch.cjs` (workbook §9 B2):
+                       - no write without an explicit `--confirm`; the default mode is a read-only plan, and
+                         `plan()` returns an EMPTY `commands` list in every unconfirmed mode, so `execute()` --
+                         the only function that runs anything -- is inert;
+                       - a true dry-run path, proven against a real child process with a working fake executor
+                         injected through the helper's own command route (its argv is recorded; after a dry run
+                         the record does not exist, after a confirmed run it does);
+                       - the exact argv a confirmation would execute is PRINTED before confirmation;
+                       - `--confirm` without `--reason`/`--risk`/`--rollback` is refused, because the protected
+                         workflow declares all three as required inputs;
+                       - it spawns argv arrays and never a shell, so an operator-supplied reason cannot be
+                         interpreted.
+                     tests: tests/unit/city/trust-epoch-dispatch-helper.test.ts, 17 cases, all passing.
+                     NOTE: the "Ordinary test runs open no protected runs" property is proven for the confirmed
+                     path (the injected executor is the process that runs) but is re-confirmed against the live
+                     Actions history after the next full main test cycle — see CITY-DEBT-004.
 ```
 
 ---
@@ -115,10 +131,26 @@ exit_condition       `actions/checkout@v4` uses `ref: ${{ github.sha }}` with `f
                      proposal/handoff records both `dispatch_sha` and `checked_out_sha` and fails closed when
                      they differ; and a counterfactual test proves a dispatch at SHA A stays on A after main
                      becomes SHA B.
-latest_review        2026-09-24T06:25Z — reproduced by reading the workflow's checkout step and confirmed
-                     against workbook §1 and §9.
-status               OPEN
-closure_evidence     (pending)
+latest_review        2026-09-24T07:00Z — repair implemented on branch fix/trust-finalization-sha-bound
+                     (`.github/workflows/trust-epoch-finalization.yml` ref binding + fail-closed assertion step;
+                     `scripts/trust-epoch-finalization-handoff.cjs` provenance and its refusal of disagreement;
+                     `tests/unit/city/trust-finalization-sha-binding.test.ts` counterfactual).
+status               CLOSED
+closure_evidence     - checkout now uses `ref: ${{ github.sha }}` with `fetch-depth: 0`, measured from the
+                       parsed YAML by the test rather than asserted in prose;
+                     - the job asserts `git rev-parse HEAD == github.sha` immediately after the checkout, as the
+                       FIRST step after it, failing closed with
+                       `TRUST_EPOCH_FINALIZATION_SHA_MISMATCH`; both SHAs are published for the artifact;
+                     - the handoff states `provenance.dispatch_sha` and `provenance.checked_out_sha`, refuses a
+                       half-stated binding, refuses two SHAs that disagree, and validates the STATED value so
+                       `"main"` cannot masquerade as an absent binding; the CLI exits 1 on a disagreement;
+                     - the TOCTOU counterfactual: a parameterised checkout model reproduces the old shape
+                       (dispatch at A, main moves to B, approval lands, the run follows main) and proves the
+                       repair holds for an arbitrary number of intervening commits; reverting either the YAML
+                       ref or the assertion step fails the test.
+                     Residual, recorded rather than claimed closed: the assertion `github.ref ==
+                     refs/heads/main` was already present before this repair (the "Refuse anything that is not
+                     main" step) and is preserved; no separate new assertion was added for it.
 ```
 
 ---
@@ -151,10 +183,58 @@ owner                Hns (temporary Owner-authorised City construction executor)
 exit_condition       Epoch 29 is committed on main; `acceptance-evolution-bless.cjs --check` = MATCHES; and
                      Desktop CI on the resulting main SHA emits quality, unit, acceptance, package and
                      architecture, all green.
-latest_review        2026-09-24T06:24Z — failing job 107512217870 fetched; assertion text and both surface
-                     hashes recorded in ledger CC-004.
-status               OPEN (repair in flight)
-closure_evidence     (pending)
+latest_review        2026-09-24T06:52Z — repair landed: PR #27 (epoch 29) merged as
+                     1892e61c89596b7cd66257ae5b4cedb4bae8dfc0 after ALL FIVE hosted checks passed on the
+                     promotion PR (quality, architecture, unit, package, acceptance). Main Desktop CI run
+                     35965095036 was then observed on the merge commit.
+status               CLOSED
+closure_evidence     PR #27 green on all five checks before merge; epoch 29 committed on main;
+                     `acceptance-evolution-bless.cjs --check` MATCHES on the epoch branch before merge and on
+                     main after; main Desktop CI run 35965095036.
+
+---
+
+## CITY-DEBT-004 — A test fixture of the section 9 B2 repair reached the REAL gh and opened four protected runs
+
+```text
+CITY-DEBT-004
+introduced_at        2026-09-24 (four runs created 06:37:58Z - 06:38:13Z)
+introduced_by        The first revision of tests/unit/city/trust-epoch-dispatch-helper.test.ts and its fixture
+                     tests/fixtures/fake-gh.cjs, written as part of the section 9 B2 repair.
+reason               The fixture injected its fake executor through PATH and NODE_OPTIONS, assuming a spawned
+                     `gh` would be a Node program. On this host `gh` is a native binary, which ignores
+                     NODE_OPTIONS, so the injection failed OPEN: the "confirmed" case of the new test reached the
+                     REAL `gh` and performed a real `workflow_dispatch` of the protected Trust Epoch Finalization
+                     workflow on every execution.
+affected_surface     The protected Trust Epoch Finalization workflow, the `boss-root-trust-owner` environment
+                     gate, the Actions provenance history, and the `pnpm test` tier's claim to be hermetic.
+exact_compromise     Four waiting Owner-gated runs on head_sha 1892e61c... — a commit already correctly anchored
+                     by epoch 29, so no migration was needed by any of them:
+                       35965428473, 35965431153, 35965446098, 35965449267  (all cancelled, none approved)
+why_construction_continued
+                     All four were cancelled before any approval, so no epoch was advanced, no surface was
+                     anchored, and no record was written (impact on correctness: NONE; impact on provenance:
+                     real, and recorded). Stopping the programme for a test-harness defect whose blast radius the
+                     environment gate had already bounded would be the permission-induced pause the workbook
+                     forbids — but the harness was repaired IMMEDIATELY, before any other work, because the next
+                     test run would otherwise repeat it.
+risk                 A future fixture could fail open the same way and dispatch the protected ceremony again.
+                     Severity is bounded by the environment gate (an unapproved run cannot start) but a run
+                     waiting on the Owner's environment is itself a decision hazard: "there is a waiting run,
+                     approve it" is exactly the habit the gate exists to prevent.
+containment          The fixture now injects the executor through the helper's own overridable command route
+                     (`TRUST_EPOCH_DISPATCH_GH`), so the process the helper spawns IS the recorder and the real
+                     `gh` is unreachable from that test by construction. The same file asserts that the helper
+                     resolves its command from that route, so a future refactor cannot silently restore the
+                     broken injection.
+owner                Hns (temporary Owner-authorised City construction executor), work package workbook §9 B2
+exit_condition       (a) an ordinary `pnpm test` on a clean main opens ZERO protected workflow runs, proven by
+                     observing the Actions history after a full main test cycle; and (b) the harness asserts the
+                     injected route rather than assuming it.
+latest_review        2026-09-24T07:00Z — the harness repair is committed on branch
+                     fix/trust-finalization-sha-bound; (a) still to be confirmed against the live history.
+status               CONTAINED (repair committed; the live "no protected runs" confirmation is pending)
+closure_evidence     (pending — see exit condition (a))
 ```
 
 ---
@@ -162,16 +242,18 @@ closure_evidence     (pending)
 ## Register summary
 
 ```text
-CITY-DEBT-001  dispatch helper can dispatch without --confirm                  OPEN
-CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    OPEN
-CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      OPEN (repair in flight)
+CITY-DEBT-001  dispatch helper can dispatch without --confirm                  CLOSED
+CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    CLOSED
+CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      CLOSED
+CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CONTAINED
 ```
 
 ```text
-OPEN              3
-CONTAINED         0
-CLOSED            0
+OPEN               0
+CONTAINED          1   (CITY-DEBT-004, repair committed; live confirmation pending)
+CLOSED             3   (CITY-DEBT-001, CITY-DEBT-002, CITY-DEBT-003)
 ACCEPTED_PERMANENT 0
 ```
 
 **Status of this register:** OPEN — final seal requires zero OPEN and zero CONTAINED entries (workbook §31).
+CITY-DEBT-004 is the only outstanding entry; its exit condition is a live observation, not further construction.
