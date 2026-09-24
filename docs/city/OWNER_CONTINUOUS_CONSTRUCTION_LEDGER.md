@@ -936,6 +936,68 @@ research_value              "The PR was green and main is red on the same tree" 
 
 ---
 
+## CC-016 — The timing-flake measurement, and the precedent that makes the fix procedural
+
+```text
+ENTRY_ID                    CC-016
+timestamp_utc               2026-09-24T21:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0 (measurement and classification; no gate crossed)
+main_before                 3ebe9e3b0c584d790973249b6a82b66181a02b48  (green)
+main_after                  3ebe9e3b0c584d790973249b6a82b66181a02b48  (unchanged)
+branch                      docs/cc016-flake-measurement
+PR                          (this record's PR)
+workflow_run_ids            35993659352 (the GREEN unit job the per-file durations were extracted from)
+                            ; 35989272641 (the failed run this measurement explains)
+checks_observed             main is green on 3ebe9e3; the last four main runs are all success
+problem                     CC-015 classified two `unit`-tier timeouts as R1 flakes but left the fix to a later
+                            increment, instructing it to MEASURE first. This entry takes that measurement so the
+                            fix stops being a judgment call.
+classification              Measurement + classification supporting CC-015's R1 verdict. NOT a defect entry.
+normal_path                 Extract the real per-file durations from the GREEN run of the same job that fails, then
+                            compare them with the tier's 60s per-test ceiling and with the tier split the repository
+                            already maintains.
+why_normal_path_was_not_used
+                            Not applicable -- this is the normal path.
+action_taken                Parsed the unit job of run 35993659352 and found:
+                              tests/acceptance/autonomous-evolution-adversarial.test.ts   107 968 ms
+                              tests/unit/platform/durable-event-correctness.test.ts        22 532 ms green,
+                                                                                        123 450 ms in the failing run
+                              next slowest suites: 32s, 31s, 30s as files; slowest single CASE in the green run 31s
+                            Confirmed the tier's other heavy suites (`platform-soak`, `scale-synthetic`,
+                            `evolution-sandbox`, `review-loop`) are ALREADY in the slow tier -- independent
+                            confirmation that this diagnosis agrees with the split the repository already made.
+                            Found the PRECEDENT: `vitest.slow.config.mjs` records that
+                            `tests/acceptance/review-loop.test.ts` had a ~29s slowest scenario which
+                            "exceeded the 60s default per-test ceiling under the load of a full parallel run,
+                            failing green commits three times" -- the same mechanism -- and the response was to
+                            move that file to the slow tier, raise that tier's ceiling to 180s, and run it one
+                            file at a time so the bound is measured rather than guessed.
+                            Recorded all of it in docs/city/PHASE2_P2A_EDGE_INVENTORY.md section 6a.
+files_or_rules_changed      docs/city/PHASE2_P2A_EDGE_INVENTORY.md (section 6a)
+known_risk                  The measurement is from ONE green run, and the failure mode is load-dependent, so
+                            the green number is a lower bound rather than the contended cost. Mitigated by
+                            reporting both numbers (22.5s green, 123s when it failed) and by NOT making the tier
+                            change on this evidence alone.
+evidence_preserved          107 968 ms and 22 532 ms measured in the green unit job of run 35993659352;
+                            123 450 ms from the failing case in run 35989272641; the slow tier's own recorded
+                            precedent for `review-loop.test.ts`; the four heavy suites already tiered.
+rollback                    Revert this PR (documentation only).
+temporary_debt_created      no
+debt_id                     -
+exit_condition              the two suites carry a measured per-test budget or a declared-cost tier, with the
+                            test-layers guard's evidence satisfied
+closure_status              OPEN -- measured and specified; the file moves are the next increment's work
+research_value              Two things. First: a suite's own documented safety margin can be false, and only a
+                            measurement from the FAILING job exposes it -- `durable-event-correctness.test.ts`
+                            claims "roughly an order of magnitude of margin on a shared runner" while measuring
+                            2.7x green and negative under contention. Second: once a repository has solved a
+                            class of problem once (the slow tier), the next occurrence is not a design question
+                            but a procedure -- which is why this entry's value is the CITATION, not the numbers.
+```
+
+---
+
 ## Stage status at CC-012
 
 ```text
