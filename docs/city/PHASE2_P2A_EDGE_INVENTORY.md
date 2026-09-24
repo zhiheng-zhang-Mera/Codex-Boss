@@ -234,6 +234,50 @@ RECOMMENDATION FOR THE NEXT INCREMENT
   3  do NOT widen the global tier timeout, which would hide every future case that genuinely hangs.
 ```
 
+### 6a. The measurement has been taken, and the fix is NOT a judgment call
+
+Step 1 is done. Per-file durations were extracted from the **green** `unit` job of run `35993659352` (`main` at
+`3ebe9e3`) — the same job that intermittently fails:
+
+```text
+107 968 ms  tests/acceptance/autonomous-evolution-adversarial.test.ts   (its AD-36 case timed out at 60 000 ms)
+ 22 532 ms  tests/unit/platform/durable-event-correctness.test.ts       (measured 123 450 ms in the run that failed)
+```
+
+Nothing else in the tier is close: the next slowest suites are 32s, 31s and 30s as files, and the slowest single
+CASE anywhere in that green run was 31s against the 60s ceiling. The tier's other heavy suites (`platform-soak`,
+`scale-synthetic`, `evolution-sandbox`, `review-loop`) are **already** in the slow tier, which is why they appear in
+the log without being part of the default run — an independent confirmation that this diagnosis and the existing
+split agree.
+
+**So the fix follows a precedent this repository already set and needs no new design decision.** The slow tier exists
+for exactly this: `vitest.slow.config.mjs` records that `tests/acceptance/review-loop.test.ts` had a slowest scenario
+of ~29s that "exceeded the 60s default per-test ceiling under the load of a full parallel run, failing green commits
+three times" — the identical mechanism — and the response was to move that file to the slow tier, raise that tier's
+ceiling to 180s, and run it with `maxWorkers: 1` so the bound is the measured one rather than a guess.
+
+One of the two suites makes the argument for itself: the header of `durable-event-correctness.test.ts` claims
+"roughly an order of magnitude of margin on a shared runner". The measurement is 22.5s green against a 60s ceiling —
+a factor of 2.7, not 10 — and 123s under contention. The documented margin does not exist, and that claim should be
+corrected in the same commit that moves the file.
+
+**What ships in this increment:** this measurement and the citation of the precedent. **What does NOT:** the file
+moves, because moving a suite into the slow tier is governed by `tests/unit/test-layers.test.ts`, which requires each
+entry to declare a `kind` (`spawns` or `in-process`), its `measured` cost and its `because` reason, and to back the
+claim with evidence inside the file:
+
+```text
+autonomous-evolution-adversarial.test.ts   1 spawn marker  -> declarable as `spawns`, whose evidence the guard checks
+durable-event-correctness.test.ts          0 spawn markers AND 0 database markers: it opens its database through
+                                           `runDurableEventContract`, so the guard's evidence regex would have to
+                                           accept the helper call as durable-work evidence -- a REFINEMENT of the
+                                           guard's evidence, stated and justified, not a weakening of it.
+```
+
+The increment that moves them must make that declaration and carry the guard's evidence with it. Doing it here, on a
+measurement taken minutes earlier and with no local reproduction of the contended case, would be the guess this
+section exists to refuse.
+
 ## 7. How to reproduce
 
 ```powershell
