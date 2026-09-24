@@ -122,8 +122,29 @@ describe("Phase 05 Task F / gate 6 — the soak report covers every dimension th
   it("refuses a trend above the published allowance, through the production decision the generator uses", async () => {
     const { evaluatePlatformSoakAcceptance, longRunAllowancePerMinute } = await import("../../src/shared/soak-harness");
     const allowance = longRunAllowancePerMinute();
-    const decide = (rssMiBPerMinute: number, heapMiBPerMinute: number) =>
+    const decide = (rssMiBPerMinute: number | null, heapMiBPerMinute: number | null) =>
       evaluatePlatformSoakAcceptance({ invariants: [], rssMiBPerMinute, heapMiBPerMinute });
+
+    // AN UNMEASURABLE TREND IS REFUSED, AND IT IS NOT ZERO.
+    //
+    // `scripts/platform-soak.cjs` used to return `0` from `slopePerMinute` when a run produced fewer than the
+    // three samples a slope needs. `0` is finite and far below every allowance, so a run that could not measure a
+    // trend reported a placeholder ZERO, passed `Number.isFinite`, and read as a flat trend -- "I could not
+    // measure" silently becoming "I measured no growth". On a contended runner that is what happened (measured:
+    // run 36012762253, `expected 3 to be greater than 3`).
+    //
+    // The trend is now a measurement or `null`, and `null` is never within the allowance. This is the regression
+    // guard: it fails if the placeholder zero comes back, from either axis.
+    const unmeasurable: Array<[number | null, number | null, string]> = [
+      [null, allowance.heapMiB / 2, "no rss trend"],
+      [allowance.rssMiB / 2, null, "no heap trend"],
+      [null, null, "no trend at all"]
+    ];
+    for (const [rss, heap, label] of unmeasurable) {
+      const verdict = decide(rss, heap);
+      expect(verdict.trendWithinLongRunAllowance, `${label} was reported as within the allowance`).toBe(false);
+      expect(verdict.accepted, `${label} was accepted on the strength of a number that was never produced`).toBe(false);
+    }
 
     // Comfortably inside the allowance: accepted, and the trend is reported as within it.
     expect(decide(allowance.rssMiB / 2, allowance.heapMiB / 2)).toEqual({

@@ -439,14 +439,27 @@ export interface SoakAcceptance {
  */
 export function evaluatePlatformSoakAcceptance(input: {
   invariants: readonly InvariantOutcome[];
-  rssMiBPerMinute: number;
-  heapMiBPerMinute: number;
+  /**
+   * The measured trend, or `null` when the run produced too few samples to derive one.
+   *
+   * `null` IS NOT `0`. `scripts/platform-soak.cjs` used to return `0` for fewer than the three samples a slope
+   * needs, and `0` is finite and far below every allowance — so a run that could not measure a trend reported a
+   * PLACEHOLDER ZERO and passed each check that asked whether the trend was a number and within its bound. That
+   * turns "I could not measure" into "I measured a flat trend". The trend is now a measurement or `null`, and
+   * `null` is never within the allowance.
+   */
+  rssMiBPerMinute: number | null;
+  heapMiBPerMinute: number | null;
 }): SoakAcceptance {
   const allowance = longRunAllowancePerMinute();
   const failedInvariantIds = input.invariants
     .filter((invariant) => invariant.status === "FAIL")
     .map((invariant) => invariant.id);
+  // FAIL CLOSED ON AN UNMEASURABLE TREND: a run whose trend was never derived cannot be accepted on the strength
+  // of the number it failed to produce.
   const trendWithinLongRunAllowance =
+    input.heapMiBPerMinute !== null &&
+    input.rssMiBPerMinute !== null &&
     input.heapMiBPerMinute < allowance.heapMiB &&
     input.rssMiBPerMinute < allowance.rssMiB;
   return {
