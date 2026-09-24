@@ -59,7 +59,19 @@ export interface SelfFacts {
   repositoryRoot: string;
   capabilities: SelfCapabilityFact[];
   /** The ownership map: capability id to the paths it owns, directories or files. */
-  ownership: { capabilities: Record<string, string[]>; exempt: Record<string, string> };
+  ownership: {
+    capabilities: Record<string, string[]>;
+    /**
+     * Paths the PLATFORM owns -- the composition root -- each with the reason it is not a capability.
+     *
+     * A third class rather than a capability, because the wiring between the capabilities belongs to no
+     * single one of them. Optional so that a facts object built by hand stays valid, and read here
+     * because a model that dropped these paths would describe the repository as having less in it than
+     * it does.
+     */
+    compositionRoot?: Record<string, string>;
+    exempt: Record<string, string>;
+  };
   /** The composition root's own module wiring, read from its source. */
   bootWiring: Array<{ file: string; factory: string; wired: boolean }>;
   /** Package scripts, so the repository's runnable entry points are part of the anatomy. */
@@ -114,6 +126,25 @@ function ownerCapabilityOf(path: string, facts: SelfFacts): string | undefined {
   return undefined;
 }
 
+/** How the model names a path's owner when that owner is the platform's composition root. */
+const COMPOSITION_ROOT_OWNER = "the composition root";
+
+/**
+ * The owner of a path: a capability id, or the composition root, or undefined when nobody owns it.
+ *
+ * The composition root is not a capability -- it wires the capabilities together and is defined by the
+ * set of them it bridges -- but it does own files, and a path it owns must not be reported as unowned.
+ * Kept separate from `ownerCapabilityOf` because that function's answer is used as a dependency edge for
+ * boot modules, and the composition root is not a node any capability can depend on.
+ */
+function ownerOfPath(path: string, facts: SelfFacts): string | undefined {
+  const capability = ownerCapabilityOf(path, facts);
+  if (capability !== undefined) return capability;
+  const entries = Object.keys(facts.ownership.compositionRoot ?? {});
+  const covers = (entry: string): boolean => (entry.endsWith("/") ? path.startsWith(entry) : path === entry || path.startsWith(`${entry}/`));
+  return entries.some(covers) ? COMPOSITION_ROOT_OWNER : undefined;
+}
+
 /**
  * Builds the self model.
  *
@@ -122,7 +153,11 @@ function ownerCapabilityOf(path: string, facts: SelfFacts): string | undefined {
  */
 export function buildSelfModel(facts: SelfFacts): BossSelfModel {
   const notes: string[] = [];
-  const allPaths = sorted([...facts.authority.map((entry) => entry.path), ...Object.values(facts.ownership.capabilities).flat()]);
+  const allPaths = sorted([
+    ...facts.authority.map((entry) => entry.path),
+    ...Object.values(facts.ownership.capabilities).flat(),
+    ...Object.keys(facts.ownership.compositionRoot ?? {})
+  ]);
   const baseline: Availability<{ metrics: Record<string, number>; updatedAt: string; reason: string }> = facts.architectureBaseline === undefined
     ? absent("NOT_MEASURED", "the repository holds no architecture baseline, so no density metric is available to describe", "config/architecture-baseline.json")
     : available(facts.architectureBaseline, "config/architecture-baseline.json");
@@ -257,7 +292,7 @@ export function buildSelfModel(facts: SelfFacts): BossSelfModel {
   // names the directory above it. Listing only the explicitly-named files would make the model
   // silently incomplete for most of the tree.
   for (const entry of sorted(facts.authority.map((fact) => fact.path).filter((file) => /\.tsx?$/.test(file)))) {
-    const owner = ownerCapabilityOf(entry, facts);
+    const owner = ownerOfPath(entry, facts);
     if (owner === undefined) continue;
     const verdict = authorityOfPaths([entry], facts);
     components.push({

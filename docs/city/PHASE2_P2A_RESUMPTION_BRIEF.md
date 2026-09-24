@@ -12,9 +12,18 @@ claim published before it was measured; CC-019, a guard that only looked right u
 
 ## 1. Where to start, and why there
 
-**Step ② — the composition-root owner class.** It is the smallest of the four remaining steps and it unblocks the
-count that steps ③ and ④ depend on. Its mechanism is already pinned in `OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md`
-CC-020; what is missing is the design and its verification.
+**STEP ② IS DONE.** Landed in P2-A increment 2. `electron/main.ts` and `electron/preload.ts` are owned by
+`composition_root`, a third owner class beside `capabilities` and `exempt`. The full record, including the
+BEFORE/AFTER numbers for the selector, the closure validator and the edge inventory, is
+`docs/city/PHASE2_P2A_COMPOSITION_ROOT_CLASS.md`; the ledger entry is CC-023. **Do not re-derive it, and do not
+re-litigate Option B** — it was checked and refuted by measurement: none of the seven `runtime`-selected suites
+references `electron/main.ts` at all. The next steps are ③ (`src/shared/contracts.ts`) and ④ (the manifests'
+`modules`), below.
+
+**§6 of this brief is unchanged and still binding**, except that the 154 count is now re-measured: the
+composition root was 72 of it. The remaining model-under-repair number is 82 edges over 25 pairs.
+
+The original framing of step ②, kept so the reasoning is auditable:
 
 ```text
 THE PROBLEM
@@ -71,7 +80,27 @@ config/capability-modules.json gains a THIRD top-level section beside `capabilit
                                      cover it -- and the choice must be recorded, not inferred
 ```
 
-### 3a. THE BASELINE IS MEASURED — capture the AFTER result against these numbers
+### 3a. THE BASELINE IS MEASURED — and the AFTER result is now recorded
+
+**RESOLVED.** Option C was chosen: a composition-root change forces a full run, announced with the reason
+`"composition_root has no bounded blast radius, so no subset of the suite can be justified for a change to it"`,
+with `unattributedFiles` empty. Option B was refuted by reading the seven suites: none of them references
+`electron/main.ts` or `electron/preload.ts`. The construction of those seven was an artefact of the
+misattribution. Measured with the same command, before and after:
+
+```text
+                                  BEFORE                                  AFTER
+seeds                             ["runtime"]                             ["composition_root"]
+selected                          36 suites {acceptance 5, unit 31}       29 suites {acceptance 3, unit 26}
+because "runtime"                 7                                       (n/a -- always-run only)
+because "always-run"              29                                      29
+fullRunRequired                   false                                   TRUE
+unattributedFiles                 []                                      []
+blind                             false                                   false
+catalogue                         289                                     289
+```
+
+The pre-change numbers below are kept as the record of what was measured first.
 
 Taken on `main` at `c6d65868`, before any change, with the selector's own CLI:
 

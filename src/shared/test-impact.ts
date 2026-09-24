@@ -162,6 +162,18 @@ interface SelectOptions {
   /** Set by the caller when a full-run trigger applies. Never inferred. */
   trigger?: FullRunTrigger;
   /**
+   * Capabilities whose blast radius the dependency graph cannot bound, so no subset can be justified.
+   *
+   * The composition root is the reason this exists. It is owned by the platform and wires every
+   * capability together, so a change to it is a change to the wiring of the whole application: reverse
+   * reachability over declared capability edges describes which capabilities depend on each OTHER, and
+   * says nothing about a file that every one of them is constructed by. A caller that owns such a path
+   * names its owner here rather than leaving it unowned, because "we know exactly who owns this and its
+   * radius is everything" and "we cannot tell who owns this" are different facts and only the second
+   * one is a gap in the map.
+   */
+  unboundedCapabilities?: ReadonlySet<string>;
+  /**
    * The changed set could not be computed — a base commit that is not an ancestor, a shallow clone.
    *
    * Fails closed to a full run rather than selecting a subset from an unknown change set, which is
@@ -206,6 +218,17 @@ export function selectTests(options: SelectOptions): TestSelection {
   if (options.changedSetUnknown === true) fullRunReasons.push("the changed set could not be computed, so no subset can be justified");
   if (options.changedSetUnknown !== true && changedFiles.length > 0 && seedList.length === 0) {
     fullRunReasons.push("no changed file could be attributed to a capability, so the impact radius is unknown");
+  }
+  // A seed with no bounded radius is a full run even though every changed file WAS attributed. The
+  // reason names the owner, so the two cases cannot be confused in a report: an unattributed change is a
+  // hole in the ownership map, and this one is a correctly attributed change whose radius is the whole
+  // application.
+  if (options.changedSetUnknown !== true) {
+    for (const capabilityId of seedList) {
+      if (options.unboundedCapabilities?.has(capabilityId)) {
+        fullRunReasons.push(`${capabilityId} has no bounded blast radius, so no subset of the suite can be justified for a change to it`);
+      }
+    }
   }
 
   const selected: SelectedSuite[] = [];

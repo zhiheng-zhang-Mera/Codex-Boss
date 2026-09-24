@@ -13,7 +13,7 @@ import {
 import { buildDependencyGraph } from "../../../electron/platform/dependency-graph";
 import { loadCapabilityManifests } from "../../../electron/platform/capability-manifest";
 import { impactRadius } from "../../../electron/platform/dependency-graph";
-import { loadImpactRepository, discoverTestFiles, unattributedSourceFiles } from "../../../electron/platform/test-impact";
+import { loadImpactRepository, discoverTestFiles, unattributedSourceFiles, selectForChange, COMPOSITION_ROOT_OWNER_ID } from "../../../electron/platform/test-impact";
 
 /**
  * Phase 05 Task A — the impact selector, and the reasons it can be trusted.
@@ -367,5 +367,90 @@ describe("Phase 05 Task B — the real registry drives the selector", () => {
     for (const capabilityId of repository.criticalCapabilities) {
       expect(manifests.find((entry) => entry.id === capabilityId)?.health.critical).toBe(true);
     }
+  });
+});
+
+/**
+ * P2-A increment 2 — the composition root's blast radius, measured rather than inferred.
+ *
+ * The dangerous half of giving the composition root its own class: if the selector stops reading it as a
+ * capability and nothing replaces that reading, `electron/main.ts` becomes an UNATTRIBUTED change. The
+ * selector still fails closed -- an unattributed change reaches the full run -- but it would do so while
+ * reporting that the repository owns a file it does not, and a file the map names would be indistinguishable
+ * from a hole in the map. These cases pin the difference between "we know who owns this and its radius is the
+ * whole application" and "we cannot tell who owns this", because only the second is a defect.
+ */
+describe("P2-A increment 2 — the composition root is a named owner with an unbounded radius", () => {
+  it("owns the composition-root files instead of leaving them unattributed", () => {
+    const repository = loadImpactRepository(PROJECT);
+    expect(repository.modulesByCapability.get(COMPOSITION_ROOT_OWNER_ID), "the composition root owns nothing, so the wiring is unattributed").toEqual(["electron/main.ts", "electron/preload.ts"]);
+    expect(ownersOf("electron/main.ts", repository.modulesByCapability)).toEqual([COMPOSITION_ROOT_OWNER_ID]);
+    expect(repository.unboundedCapabilities.has(COMPOSITION_ROOT_OWNER_ID), "the composition root is not declared unbounded, so a change to the wiring would be treated as bounded").toBe(true);
+    // ...and it is NOT a capability: no manifest declares it, so the catalogue can never claim a suite covers it.
+    expect(repository.manifests.some((manifest) => manifest.id === COMPOSITION_ROOT_OWNER_ID)).toBe(false);
+    expect(repository.criticalCapabilities.has(COMPOSITION_ROOT_OWNER_ID)).toBe(false);
+  });
+
+  it("requires the FULL suite for a change to the composition root, and names a true reason", () => {
+    const repository = loadImpactRepository(PROJECT);
+    const selection = selectForChange(repository, ["electron/main.ts"]);
+    expect(selection.seeds).toEqual([COMPOSITION_ROOT_OWNER_ID]);
+    expect(selection.fullRunRequired, "a change to the wiring selected a subset of the suite").toBe(true);
+    // The distinction that matters: attributed, not a hole. An unattributed file would also force a full
+    // run, and would report the repository as owning a file that it does.
+    expect(selection.unattributedFiles, "the composition root is owned by nothing, so the map has a hole").toEqual([]);
+    expect(selection.blind).toBe(false);
+    expect(selection.fullRunReasons.join(" "), "the full run does not say why").toContain(COMPOSITION_ROOT_OWNER_ID);
+    // The catalogue is the whole suite, so "full run" is comparable with what a full run would do.
+    expect(selection.selected.length + selection.skipped.length).toBe(repository.catalogue.length);
+    expect(selection.shouldRecord).toBe(true);
+  });
+
+  it("holds for preload.ts too, so the class is not a single-file special case", () => {
+    const repository = loadImpactRepository(PROJECT);
+    const selection = selectForChange(repository, ["electron/preload.ts"]);
+    expect(selection.seeds).toEqual([COMPOSITION_ROOT_OWNER_ID]);
+    expect(selection.fullRunRequired).toBe(true);
+    expect(selection.unattributedFiles).toEqual([]);
+  });
+
+  it("does not widen a bounded capability's change, so the class cannot become a full-run switch", () => {
+    const repository = loadImpactRepository(PROJECT);
+    const selection = selectForChange(repository, ["electron/state-core/database.ts"]);
+    expect(selection.fullRunRequired, `a state-core change now requires a full run: ${selection.fullRunReasons.join("; ")}`).toBe(false);
+    expect(selection.unattributedFiles).toEqual([]);
+  });
+
+  it("separates an unbounded seed from an unattributed change, on a constructed map", () => {
+    // `always.test.ts` is always-run, so a selection is never EMPTY here. That matters: with an empty
+    // selection the selector reaches the full run through `blind` instead, and this case would pass whatever
+    // the unbounded rule did. The always-run suite keeps `blind` false, so the unbounded declaration is the
+    // only thing that can force the full run -- which is the property being pinned.
+    const options = {
+      catalogue: [suite("tests/unit/store.test.ts", "unit", ["store"]), suite("tests/unit/always.test.ts", "unit", ["store"], { alwaysRun: true })],
+      modulesByCapability: new Map<string, string[]>([["store", ["electron/store.ts"]], ["root", ["electron/main.ts"]]]),
+      impactRadius: () => [],
+      criticalCapabilities: new Set<string>()
+    };
+    expect(selectTests({ ...options, changedFiles: ["electron/store.ts"] }).fullRunRequired).toBe(false);
+    // Declared unbounded: a full run, reached through the unbounded rule and not through `blind`.
+    const unbounded = selectTests({ ...options, changedFiles: ["electron/main.ts"], unboundedCapabilities: new Set(["root"]) });
+    expect(unbounded.seeds).toEqual(["root"]);
+    expect(unbounded.blind, "the selection was empty, so this case cannot tell the unbounded rule from the blind rule").toBe(false);
+    expect(unbounded.fullRunRequired, "an unbounded seed selected a subset").toBe(true);
+    expect(unbounded.fullRunReasons.join(" ")).toContain("root");
+    expect(unbounded.unattributedFiles).toEqual([]);
+    // Declared bounded -- the same change, the same map, minus the declaration: no full run. This is the
+    // narrowing the class exists to make explicit, asserted in the direction that catches its absence.
+    const bounded = selectTests({ ...options, changedFiles: ["electron/main.ts"] });
+    expect(bounded.seeds).toEqual(["root"]);
+    expect(bounded.fullRunRequired, "the unbounded declaration makes no difference, so it is not read at all").toBe(false);
+    // The same shape of change with NOBODY claiming the file: still a full run, but for the OTHER reason.
+    const unowned = selectTests({ ...options, changedFiles: ["electron/unknown.ts"] });
+    expect(unowned.fullRunRequired).toBe(true);
+    expect(unowned.unattributedFiles).toEqual(["electron/unknown.ts"]);
+    // A seeded but bounded capability is not affected by declaring an unrelated one unbounded.
+    const unrelated = selectTests({ ...options, changedFiles: ["electron/store.ts"], unboundedCapabilities: new Set(["root"]) });
+    expect(unrelated.fullRunRequired).toBe(false);
   });
 });

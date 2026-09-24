@@ -254,17 +254,30 @@ LANDED (increment 1 — "the closure validator")
       the part of the check below that is decidable against the declarations that exist TODAY:
         1  declared module path exists on disk and is a FILE (not a directory)
         2  bootModules/surface are subsets of modules
-        3  every scanned source file (electron/, src/) is owned by exactly one capability, or exempt WITH a
-           substantive reason
+        3  every scanned source file (electron/, src/) is owned by exactly one capability, named in the
+           composition-root table, or exempt WITH a substantive reason
         4  no file is claimed by two capabilities
-        5  the exemption table and the ownership map are disjoint
+        5  the three owner tables are pairwise disjoint: capability, composition root and exemption are three
+           different answers to "whose change is this?", so a file in two of them is a contradiction
         6  every capability declares at least one provided id (one external purpose)
         7  the two models AGREE: no map capability without a manifest, no manifest absent from the map, no
            declared module the declaring capability does not own
   npm run capability:closure
       the same check, named
   tests/unit/city/capability-closure-validator.test.ts
-      16 cases: PASS on the committed tree, and FAIL on a fixture that breaks exactly one rule, per check
+      22 cases: PASS on the committed tree, and FAIL on a fixture that breaks exactly one rule, per check
+
+  LANDED BY INCREMENT 2 (step 2): THE COMPOSITION ROOT IS A THIRD OWNER CLASS
+    electron/main.ts and electron/preload.ts were owned by `runtime` -- a KERNEL -- so every edge whose source
+    is one of them was counted as a kernel-into-feature INVERSION. They are now owned by `composition_root`,
+    a named non-capability class beside `capabilities` and `exempt`, each entry carrying the reason it is not a
+    capability. Measured consequence, same tree both sides: kernel -> feature 154 edges / 43 pairs -> 82 / 25,
+    mutual pairs 53 -> 38, with owned files UNCHANGED at 597 and the cross-capability edge total UP from 794 to
+    797 -- the edges were RE-ATTRIBUTED, not deleted. Full record:
+    `docs/city/PHASE2_P2A_COMPOSITION_ROOT_CLASS.md`. The impact selector's blast radius for
+    `electron/main.ts` was measured before and after: 36 suites selected for `runtime` (7 of them because of the
+    misattribution, and none of the seven referencing the composition root) becomes `fullRunRequired` with a
+    named reason and `unattributedFiles` EMPTY.
 
   FIXED BY IT
     src/shared/compatibility.ts was BOTH owned by `persistence` and listed in the exemption table -- a file
@@ -292,6 +305,9 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
             is a 48-importer shared type module bundling at least seven independent purposes
         Reading them first turns 43 capability-pair decisions into THREE deliberate decisions (one directory,
         one file, one composition root) followed by a re-measurement. That order is the increment's plan.
+        THE COMPOSITION ROOT IS NOW DONE (increment 2, step 2 -- see LANDED above). The other two remain:
+        `electron/commander/**` (step 1, decided: it is a road, and handing it to `tasks` is REJECTED; the FILE
+        migration belongs to P2-E) and `src/shared/contracts.ts` (step 3, untouched).
   3  resolve the 14 manifest metadata rows: 9 manifests declaring modules:[]/state:[] over 1-108 real files,
      and `research` declaring a `knowledge.store@1` requirement with no real edge -- CONFIRMED against the
      real graph by the inventory, which finds zero research -> knowledge import edges

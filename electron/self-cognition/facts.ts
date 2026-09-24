@@ -196,14 +196,14 @@ export function collectSelfFacts(options: SelfFactOptions): SelfFacts {
     if (result.problem !== undefined) unreadable.push({ path: `config/capabilities/${name}`, reason: result.problem.reason });
   }
 
-  let ownership: SelfFacts["ownership"] = { capabilities: {}, exempt: {} };
+  let ownership: SelfFacts["ownership"] = { capabilities: {}, compositionRoot: {}, exempt: {} };
   const ownershipRead = readText(path.join(repositoryRoot, "config", "capability-modules.json"));
   if (!ownershipRead.ok) {
     unreadable.push({ path: "config/capability-modules.json", reason: ownershipRead.reason });
   } else {
     try {
-      const parsed = JSON.parse(ownershipRead.text) as { capabilities?: Record<string, string[]>; exempt?: Record<string, string> };
-      ownership = { capabilities: parsed.capabilities ?? {}, exempt: parsed.exempt ?? {} };
+      const parsed = JSON.parse(ownershipRead.text) as { capabilities?: Record<string, string[]>; composition_root?: Record<string, string>; exempt?: Record<string, string> };
+      ownership = { capabilities: parsed.capabilities ?? {}, compositionRoot: parsed.composition_root ?? {}, exempt: parsed.exempt ?? {} };
     } catch (error) {
       unreadable.push({ path: "config/capability-modules.json", reason: `the ownership map is not valid JSON: ${error instanceof Error ? error.message : String(error)}` });
     }
@@ -215,7 +215,10 @@ export function collectSelfFacts(options: SelfFactOptions): SelfFacts {
     "config/capability-modules.json",
     "config/architecture-baseline.json",
     ...files.map((name) => `config/capabilities/${name}`),
-    ...Object.values(ownership.capabilities).flat()
+    ...Object.values(ownership.capabilities).flat(),
+    // The composition root is owned by the platform rather than by a capability, so it is read from its
+    // own class: leaving it out would drop the wiring from the anatomy it is the centre of.
+    ...Object.keys(ownership.compositionRoot ?? {})
   ];
   const authority = authoritySurfacesOf([...new Set([...sources, ...anatomyPaths])], guard);
 

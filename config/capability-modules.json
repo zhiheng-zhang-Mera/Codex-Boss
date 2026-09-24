@@ -1,5 +1,5 @@
 {
-  "$comment": "Phase 05 Task A: the implementation surface each capability owns, beyond the boot module its manifest declares. A changed file that maps to no capability is reported by the impact selector and forces a full run, so this list is deliberately conservative: a path listed is a claim that the capability's suites cover it. `exempt` records paths deliberately owned by nobody, each with its reason.",
+  "$comment": "Phase 05 Task A: the implementation surface each capability owns, beyond the boot module its manifest declares. A changed file that maps to no capability is reported by the impact selector and forces a full run, so this list is deliberately conservative: a path listed is a claim that the capability's suites cover it. `composition_root` records the paths the PLATFORM owns -- the wiring between the capabilities, which is defined by the set of capabilities it bridges and so belongs to no single one of them -- each with the reason it is not a capability. `exempt` records paths deliberately owned by nobody, each with its reason.",
   "capabilities": {
     "attachments": [
       "electron/input/attachment-router.ts",
@@ -180,10 +180,8 @@
       "electron/capability",
       "electron/fs-util.ts",
       "electron/git/git-gateway.ts",
-      "electron/main.ts",
       "electron/platform",
       "electron/platform/coordination-store.ts",
-      "electron/preload.ts",
       "electron/process/process-gateway.ts",
       "electron/runtime-paths.ts",
       "src/shared/bootstrap-audit.ts",
@@ -330,5 +328,9 @@
   },
   "exempt": {
     "src/renderer": "the renderer is exercised by the desktop black-box contract, which launches the real application; that suite is always-run, so a renderer change cannot be under-tested by being unowned"
+  },
+  "composition_root": {
+    "electron/main.ts": "the composition root: it builds the window, registers every capability's boot module and wires them to each other, so it is defined by the wiring BETWEEN the capabilities and not by any one of them. It is a file the platform owns, not a file nobody owns.",
+    "electron/preload.ts": "the other half of the composition root's boundary: it narrows the main process's surface down to what the renderer may call, so its content is the set of capabilities it bridges rather than the behaviour of one of them."
   }
 }

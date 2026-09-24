@@ -8,6 +8,8 @@
  *
  *   - `electron/<dir>` and `src/shared/<name>.ts` follow the table below, which pairs a path prefix
  *     with the capability whose behaviour it implements;
+ *   - the composition root is written into `composition_root`, a third class beside `capabilities` and
+ *     `exempt`, because it is owned by the platform and by no capability;
  *   - anything matching no rule is written into `exempt` WITH A REASON, so an unowned file is a
  *     recorded decision rather than an oversight. The engine reports that list, so it cannot grow
  *     quietly.
@@ -245,14 +247,43 @@ const EXTRA = {
     "electron/bootstrap/shared/require-provider.ts",
     "electron/git/git-gateway.ts",
     "electron/process/process-gateway.ts",
-    "electron/main.ts",
-    "electron/preload.ts",
     "src/shared/bootstrap-audit.ts",
     "src/shared/capability-graph.ts",
     "src/shared/capability-needs.ts",
     "src/shared/semver.ts",
     "src/shared/test-impact.ts"
   ]
+};
+
+/**
+ * Paths owned by the PLATFORM ITSELF rather than by any capability: the composition root.
+ *
+ * A third class, because the two that existed were both wrong for these files:
+ *
+ *   - a CAPABILITY is a building with one declared purpose. The composition root wires the buildings
+ *     together, so attributing it to one of them is not a small inaccuracy: `electron/main.ts` imports
+ *     `electron/commander/**` (owned by `tenx`), the research capability and the workspace capability,
+ *     so calling it part of `runtime` -- a KERNEL -- counted every one of those imports as a
+ *     kernel-into-feature INVERSION. Measured before this class existed, that reading produced 154
+ *     kernel -> feature edges; the composition root's share of it is an artefact of the attribution,
+ *     not a defect in the wiring.
+ *   - `exempt` means NOBODY owns this and a change therefore forces a full run. That is a claim that
+ *     the file is unattributed. These files are the most heavily attributed files in the repository:
+ *     they are the wiring. Recording them as exempt would trade a false ownership claim for a false
+ *     absence, which is the same error wearing the other hat.
+ *
+ * The value is the REASON, as in `exempt`, so the map states why each file is not a capability and the
+ * decision is reviewable rather than merely encoded.
+ */
+const COMPOSITION_ROOT = {
+  "electron/main.ts":
+    "the composition root: it builds the window, registers every capability's boot module and wires "
+    + "them to each other, so it is defined by the wiring BETWEEN the capabilities and not by any one of "
+    + "them. It is a file the platform owns, not a file nobody owns.",
+  "electron/preload.ts":
+    "the other half of the composition root's boundary: it narrows the main process's surface down to "
+    + "what the renderer may call, so its content is the set of capabilities it bridges rather than the "
+    + "behaviour of one of them."
 };
 
 /**
@@ -297,6 +328,18 @@ function main() {
   const capabilities = config.capabilities;
   const problems = [];
 
+  // The composition root is owned by the platform, not by a capability, so it is subtracted from every
+  // capability BEFORE anything is validated. This ordering is the whole repair: `capabilities` is read
+  // from the file and then widened by `EXTRA`, so a path deleted from `EXTRA` alone would survive in
+  // the file for ever -- the union would keep re-asserting the old attribution and the table would stop
+  // being the artifact's description. Subtracting first means re-running this generator REPAIRS the
+  // misattribution instead of preserving it.
+  const compositionRootPaths = Object.keys(COMPOSITION_ROOT).sort();
+  for (const [capabilityId, paths] of Object.entries(capabilities)) {
+    const kept = paths.filter((rel) => !compositionRootPaths.includes(rel));
+    if (kept.length !== paths.length) capabilities[capabilityId] = kept;
+  }
+
   // Every EXTRA path must exist, and no file may be claimed by two capabilities.
   const claimed = new Map();
   for (const [capabilityId, paths] of Object.entries(capabilities)) {
@@ -318,6 +361,18 @@ function main() {
       }
     }
   }
+  // The composition root must be a real FILE, owned by nothing else, and not exempt: "the platform
+  // owns this" and "nobody owns this" are contradictory claims about one file, so both at once is a
+  // contradiction rather than a policy. Named file by file rather than by directory so that each entry
+  // has to state its own reason.
+  for (const rel of compositionRootPaths) {
+    if (!fs.existsSync(path.join(ROOT, rel))) { problems.push(`COMPOSITION_ROOT: ${rel} does not exist`); continue; }
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) { problems.push(`COMPOSITION_ROOT: ${rel} is a directory; the composition root is named file by file`); continue; }
+    if (claimed.has(rel)) problems.push(`${rel} is the composition root and is also claimed by ${[...new Set(claimed.get(rel))].join(" and ")}`);
+    if (Object.prototype.hasOwnProperty.call(EXEMPT, rel)) problems.push(`${rel} is the composition root and is also exempt: the platform owns it, so it is not owned by nobody`);
+    if (String(COMPOSITION_ROOT[rel] ?? "").trim().length < 20) problems.push(`COMPOSITION_ROOT: ${rel} carries no substantive reason`);
+  }
+
   if (problems.length > 0) {
     process.stderr.write(`the ownership table is inconsistent:\n  ${problems.join("\n  ")}\n`);
     process.exitCode = 1;
@@ -329,13 +384,14 @@ function main() {
     capabilities[capabilityId] = [...merged].sort();
   }
   config.capabilities = Object.fromEntries(Object.entries(capabilities).sort(([left], [right]) => (left < right ? -1 : 1)));
+  config.composition_root = Object.fromEntries(compositionRootPaths.map((rel) => [rel, COMPOSITION_ROOT[rel]]));
   config.exempt = Object.fromEntries(Object.entries(EXEMPT).sort(([left], [right]) => (left < right ? -1 : 1)));
-  config.$comment = "Phase 05 Task A: the implementation surface each capability owns, beyond the boot module its manifest declares. A changed file that maps to no capability is reported by the impact selector and forces a full run, so this list is deliberately conservative: a path listed is a claim that the capability's suites cover it. `exempt` records paths deliberately owned by nobody, each with its reason.";
+  config.$comment = "Phase 05 Task A: the implementation surface each capability owns, beyond the boot module its manifest declares. A changed file that maps to no capability is reported by the impact selector and forces a full run, so this list is deliberately conservative: a path listed is a claim that the capability's suites cover it. `composition_root` records the paths the PLATFORM owns -- the wiring between the capabilities, which is defined by the set of capabilities it bridges and so belongs to no single one of them -- each with the reason it is not a capability. `exempt` records paths deliberately owned by nobody, each with its reason.";
   fs.writeFileSync(CONFIG, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 
   let paths = 0;
   for (const list of Object.values(config.capabilities)) paths += list.length;
-  process.stdout.write(`wrote config/capability-modules.json: ${Object.keys(config.capabilities).length} capabilities, ${paths} owned paths, ${Object.keys(config.exempt).length} exempt\n`);
+  process.stdout.write(`wrote config/capability-modules.json: ${Object.keys(config.capabilities).length} capabilities, ${paths} owned paths, ${Object.keys(config.composition_root).length} composition-root file(s), ${Object.keys(config.exempt).length} exempt\n`);
 }
 
 main();
