@@ -611,3 +611,62 @@ hash covers the tracked-file inventory (so any new tracked file moves it), where
 covers the *scan set* and the resolved graph. A baseline that moved every time an unrelated file was added
 would be unusable as a ratchet; a semantic hash that did not move would not be a hash of the measurement.
 
+
+---
+
+## 17. Phase 1B-B implementation addendum — the PRE-08 stage-scope reconciliation
+
+This section is **appended**. Sections 0–16 above are unchanged, and no earlier normative text is rewritten. It
+records a specification discrepancy found during the S2-exit audit, its provenance, and the evidence-based
+resolution. The discrepancy is recorded rather than silently reinterpreted.
+
+### 17.1 The inconsistency as written
+
+The stage table (§3) states the S3 entry condition as *"S2 exit conditions; §4 fully satisfied; §10 Owner-authority
+move completed; §11 rollback rehearsed and recorded"*. §4 still lists **PRE-08** unchanged:
+
+> `PRE-08` — `.github/workflows/ci.yml` is unchanged by the freezing round and still contains no enforcement step.
+
+That requirement is coherent for **S1**, whose entry condition explicitly cites it. It cannot hold at **S3**:
+`ci.yml` must by then contain `architecture:enforce`, because adding that step *is* stage S2.
+
+```text
+SPEC_DISCREPANCY_PRE08_STAGE_SCOPE = PRESENT
+```
+
+### 17.2 Provenance, measured
+
+```text
+1. PRE-08 WAS SATISFIED AT THE S1 ENTRY POINT.
+   S1's parent commit 4a89ff1e has NO `architecture` job at all; ci.yml blob ff344cc08e50e5a0a9de576f0b86d6004fb6bab5.
+   grep for `architecture:enforce` in that tree: absent.
+
+2. S1 ADDED THE JOB, SHADOW ONLY.
+   commit eca87987 "feat(city): the architecture judge enters hosted CI in shadow, and does ..."
+
+3. S2 INTENTIONALLY SUPERSEDED THAT STATE.
+   commit 388dec8b "city(phase1b-s2): hosted enforce visible, not required"
+     parent 5da81700:  `architecture:enforce` ABSENT   ci.yml blob 45b17862281afa27dac926082f36e11e0faf0dca
+     the commit:       `architecture:enforce` PRESENT  ci.yml blob 9fd6b58eeab3087a99b93425d3f0c9599d028d1c
+
+4. NO EARLIER RECORD ALREADY SUPERSEDES IT.
+   Section 16 (the Phase 1B-A implementation record) exists and does not mention PRE-08, so this addendum is the
+   first correction rather than a duplicate.
+```
+
+### 17.3 The resolution
+
+```text
+PRE-08 is an S1-ENTRY HISTORICAL PRECONDITION.
+
+For S3, the evidence must prove that PRE-08 was satisfied at S1 entry, and that the only later evolution of the
+workflow is the authorised S1 -> S2 rollout described in §3. It is NOT a current-state requirement that enforce be
+absent during S3 activation: requiring that would make S3 unreachable by construction, because the very change S3
+certifies is the presence of the enforcement step.
+
+Consequently PRE-08's status at S3 is SUPERSEDED_BY_STAGE_PROGRESSION, not FAIL and not waived. Every other
+precondition in §4 remains a live current-state requirement, and nothing here licenses waiving any of them.
+```
+
+This addendum is evidence about a specification's internal consistency. It changes no code, no workflow, no baseline,
+no ruleset and no required context, and it does not by itself assert that S2 has exited.
