@@ -1,0 +1,38 @@
+{
+  "$comment": "The Core growth budget (workbook section 22, principle 15.9; see docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md). Core is defined by a STABLE CLASSIFICATION -- a capability is Core if and only if its manifest declares kind: kernel -- and the surface at the city-phase start is recorded here and PINNED BY NAME, because a count of four would still read four if a kernel lost its kind and an unrelated capability gained one, and the budget would hold while the foundation had been swapped underneath it. The composition root is recorded on its own line and is NEVER folded into the capability total, because section 22 forbids treating shared infrastructure as automatic Core. The starting measurement is anchored to an append-only ledger entry, so re-recording the baseline is a visible act rather than an edit to a number. The ceilings do NOT ratchet down when Core shrinks: section 22's acceptance is against the STARTING surface, and a rolling ceiling would make a temporary shrink into spendable budget, which is the count compensation section 24 refuses.",
+  "schema": "city-core-budget/1",
+  "classification": "Core = a capability whose manifest declares kind: kernel. The composition root is measured separately and is never folded into the capability total.",
+  "recorded_at": "2026-09-25T04:15Z",
+  "measured_by": "node scripts/core-budget-validator.cjs --measure",
+  "anchored_by": "the starting measurement below is the one recorded in the ledger entry named by starting.recordedByLedgerEntry; the ledger is append-only, so the record of where this baseline came from cannot be withdrawn",
+  "starting": {
+    "coreCapabilities": ["persistence", "providers", "runtime", "state-core"],
+    "coreOwnedFiles": 115,
+    "compositionRootFiles": 2,
+    "filesPerCoreCapability": {
+      "persistence": 13,
+      "providers": 51,
+      "runtime": 36,
+      "state-core": 15
+    },
+    "capabilityOwnedFiles": 596,
+    "scannedSourceFiles": 614,
+    "manifestCount": 27,
+    "capabilityCount": 27,
+    "recordedByLedgerEntry": "CC-035"
+  },
+  "floors": {
+    "capabilityOwnedFiles": "a smaller Core that comes from a smaller ownership map is not a smaller Core, it is a smaller measurement",
+    "scannedSourceFiles": "Core cannot be shrunk by narrowing the scan, which would lower every count while nothing was repaired",
+    "manifestCount": "a capability that lost its manifest stops being classified without being retired"
+  },
+  "target": {
+    "growth": 0
+  },
+  "exceptions": [],
+  "exception_protocol": {
+    "why": "Section 22 permits Core to grow only through a separate architecture record, and requires that the record answer four questions and that the increase be separately Owner-approved. Section 24 adds that an exception must not silently redefine the baseline. An exception here is therefore an object with an identity, a positive file allowance, a debt id, an exit condition, an Owner authorization and an append-only ledger record naming BOTH itself and the entry -- none of which the baseline absorbs.",
+    "reviewer_note": "Adding an entry to this array is a governance act, not a configuration change. The validator refuses any entry that leaves one of the required fields unstated, and refuses any growth not covered by one."
+  },
+  "reason": "Recorded at the start of stage P2-H from `node scripts/core-budget-validator.cjs --measure`: four capabilities declare kind: kernel and own 115 of the 596 capability-owned files across the 614 scanned source files, and the composition root owns 2 more. The number is deliberately the STARTING surface and not the best surface achieved later: section 22's acceptance is `Core size <= Phase 2 starting Core size`, so lowering this block would not be progress, it would be spending the improvement in advance."
+}
