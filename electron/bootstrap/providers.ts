@@ -1,12 +1,30 @@
 import type { BootModule } from "./boot-module";
 import type { StateStore } from "../store";
 import type { ApiSettingsStore } from "../api-settings";
-import type { RuntimeRegistry } from "../commander/runtime-registry";
 import { ProviderApiClient } from "../provider-api";
 import { ApiRuntime } from "../runtimes/native-api-runtime";
 import { createGitHubMachineRuntime } from "../github/github-machine-runtime";
 import type { Provider, ProviderId } from "../../src/shared/provider-contracts";
 import type { WorkspaceViewState } from "../../src/shared/workspace-layout";
+
+/**
+ * WHAT THIS MODULE NEEDS FROM A RUNTIME REGISTRY, declared here rather than imported.
+ *
+ * `registerRuntimes` used to take `RuntimeRegistry`, imported as a TYPE from `electron/commander/runtime-registry.ts`.
+ * That made `providers` (a KERNEL) depend on `tenx` (a building) for the SHAPE of a parameter it merely receives, and
+ * that one type import was the whole of the inversion: it was the only `providers -> tenx` edge, and together with
+ * its reverse (`tenx -> providers`, 27 edges) it formed the mutual pair `providers <-> tenx` -- a cycle whose two
+ * directions are a kernel reaching into a building and a building reaching into a kernel.
+ *
+ * The direction is INVERTED here rather than the import being deleted: the consumer states what it needs, TypeScript's
+ * structural typing lets the implementation satisfy it, and every call site keeps passing the real registry --
+ * `electron/main.ts` wires it at the composition root, which is where that decision belongs. The shape is deliberately
+ * minimal (a method accepting a runtime with an id) so this file does not become a second declaration of the
+ * registry's contract.
+ */
+export interface RuntimeRegistrar {
+  register(runtime: { id: string; compatibility?: unknown }): void;
+}
 
 /**
  * Provider-side integration and the pool's policies.
@@ -96,7 +114,7 @@ export interface ProvidersService {
    * Registers one API runtime per provider in the state document. Returns how many
    * were registered, which is what the health line reports.
    */
-  registerRuntimes(registry: RuntimeRegistry): number;
+  registerRuntimes(registry: RuntimeRegistrar): number;
   /** The provider record, or a throw naming the unknown id. */
   provider(id: ProviderId): Provider;
   /**

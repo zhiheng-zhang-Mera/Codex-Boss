@@ -4119,3 +4119,98 @@ research_value              (1) A helper that validates a request's SHAPE while 
                             its check results say exactly which side of the certificate gate an unanchored surface
                             falls on.
 ```
+
+## CC-046 — The first structural repair: `providers -> tenx` inverted, baseline v3 accepted as retired debt, and the ratchet rule that was wrong
+
+```text
+ENTRY_ID                    CC-046
+timestamp_utc               2026-09-25T11:42:42Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction WITH the §24 baseline-acceptance ceremony and the §28 epoch cadence:
+                            the change touches electron/, and the regenerated baseline lives in trust-policy/** and
+                            config/architecture-enforcement-baseline.json, which are Root Trust Surface.
+main_before                 314992ae70b33b1a1a2bc59a193723c7171401a9  (five checks green, epoch 35)
+branch                      feat/invert-providers-tenx
+PR                          the PR that carries this entry
+problem                     P2-B's remaining work is 61 kernel -> feature edges, and one of them was also one half
+                            of a MUTUAL PAIR: providers <-> tenx. The kernel side was a single TYPE import --
+                            electron/bootstrap/providers.ts took `RuntimeRegistry` from electron/commander/
+                            runtime-registry.ts purely to declare the parameter of `registerRuntimes`. A kernel was
+                            depending on a building for the SHAPE of something it merely receives.
+the_repair                  The dependency is INVERTED, not deleted: providers.ts now declares the minimal shape it
+                            needs (`RuntimeRegistrar`, a method accepting a runtime with an id) and the implementation
+                            satisfies it structurally. Every call site is unchanged -- electron/main.ts wires the real
+                            registry at the composition root, which is where that decision belongs, and the unit test
+                            passes a real RuntimeRegistry -- so nothing was moved and no behaviour changed.
+measurement_BEFORE_AFTER    kernel -> feature file edges   62 -> 61
+                            kernel -> feature pairs        23 -> 22
+                            mutual capability pairs        34 -> 33    (the providers <-> tenx 2-cycle is GONE)
+                            total cross-capability edges  801 -> 800   (a repair DELETES an edge)
+                            files owned                   598 -> 598
+                            largest SCC                    20 -> 20    (the knot is held by other edges, and this
+                                                                       entry claims only what it repaired)
+the_RATCHET_RULE_WAS_WRONG  The raw-total floor added in CC-040 FIRED on this change, and it was wrong. The
+                            distinction it missed: a ROAD DECLARATION moves an edge from one column to another and
+                            must leave the total untouched, but a REPAIR DELETES an edge outright -- re-pointing an
+                            import at its owner, or inverting a dependency -- and section 16's target IS a falling
+                            total. The floor would have failed the very migration the ratchet exists to drive, while
+                            still not catching what it was written for: deleting an edge to hide an inversion also
+                            lowers the kernel -> feature count that is already ratcheted, and dropping a file from
+                            the scan is already floored by `files_owned`. It is now a CEILING (`risen`): the total
+                            may fall and must never rise.
+the_baseline_CEREMONY       The removal made the accepted enforcement baseline stale, and §24 says a baseline may
+                            evolve only through the governed mechanism. So: a CANDIDATE was measured with a reason; an
+                            ACCEPTED entry was added to trust-policy/architecture-enforcement-baselines.json naming
+                            its triple; `--accept` wrote the tracked baseline only because that entry existed; and
+                            `--check` now reports artifact_integrity_problems [] and authorization_problems [].
+                            Version 2 remains ACCEPTED and is the parent; retiring it is a separate act and was NOT
+                            performed. CLASSIFICATION, as §24 requires: one edge RETIRED; no NEW LEGITIMATE RELATION
+                            (the change removes one edge and adds none); no NEW GRANDFATHERED DEBT.
+a_hash_that_covers_its_reason
+                            The first acceptance attempt failed with BASELINE_SERIES_UNAUTHORISED naming a triple
+                            the series did not have, because the baseline hash covers the artifact INCLUDING its
+                            reason string and the candidate had been measured with slightly different words than
+                            the acceptance used. One canonical reason for both steps fixed it. Worth recording: a
+                            governance artifact whose hash includes its own justification is a good design, and it
+                            makes the justification part of the identity rather than a comment.
+A_TEST_FIXTURE_THAT_COULD_NOT_SURVIVE_A_THIRD_VERSION
+                            architecture-hosted-shadow.test.ts builds a series to authorise an injected baseline,
+                            and it emitted exactly TWO entries -- version 1 and the version under test. Contiguous
+                            while the accepted version is 2, and a GAP the moment a third is accepted, so S2b
+                            reported NOT_AUTHORISED and stopped measuring the self-consistency check it exists for.
+                            It now carries every version below the one under test, READ FROM THE COMMITTED SERIES,
+                            so it is correct for any future acceptance instead of needing this repair again.
+THE_EPOCH                   The surface moved from ac3ee7d7 to 0efe54ee because trust-policy/** and
+                            config/architecture-enforcement-baseline.json are Root Trust Surface. `--advance`
+                            established epoch 36 under the delegated lease, with the cadence §28 requires: measure,
+                            propose, authorise, advance exactly one, verify. `--check` -> epoch 36 MATCHES.
+measurement                 node scripts/p2b-kernel-feature-ratchet.cjs -> VERDICT=HOLDS (61 / 22 / 33, total 800)
+                            node scripts/architecture-enforcement-baseline.cjs --check -> integrity [] and
+                              authorization []
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+                            npx vitest run tests/unit/city/ -> 25 files, 450 tests, all passed
+                            npx tsc --noEmit over tsconfig.json, tsconfig.electron.json and tsconfig.tests.json -> 0
+RECORDED_DEBT               The 22 flatness plots' `why` strings carry TYPED NUMBERS ("23 kernel -> feature edges
+                            over 9 pairs and eight mutual pairs") that are now stale -- the same defect class CC-039
+                            found in the matrix's prose and CC-041 in the registry's stage measurements. The
+                            repair is the same one: forbid a typed measurement in `why` and let the number be
+                            resolved from the instrument, which needs 22 plot edits and is therefore deferred with
+                            this entry naming it rather than left for a reader to discover. Exit condition: the
+                            flatness validator fails a plot whose `why` contains a measurement, and every plot names
+                            the ratchet instead.
+rollback                    Restore the type import in electron/bootstrap/providers.ts, delete the RuntimeRegistrar
+                            interface, revert the recorded ratchet values, and re-accept the previous baseline:
+                            because the inversion is a pure type change, restoring it cannot alter behaviour, and
+                            the tracked baseline can be re-accepted under its own series entry.
+temporary_debt_created      no, beyond the recorded flatness-prose debt named above.
+closure_status              CLOSED for this inversion, the baseline acceptance and the ratchet-rule correction. OPEN
+                            for the remaining 61 kernel -> feature edges, 33 mutual pairs and the SCC of 20.
+research_value              (1) A ratchet rule can be wrong in the direction that BLOCKS the work it exists to drive,
+                            and only USING it reveals that: the raw-total floor looked like the strongest anchor
+                            available and would have refused the first real repair. (2) A governance artifact whose
+                            hash covers its own justification makes the justification part of the identity -- which
+                            is why a one-word difference in the reason produced a serialisation failure rather than
+                            a silently accepted baseline. (3) A test fixture that synthesises a governance chain
+                            rather than reading it has an expiry date measured in acceptances; reading the committed
+                            series is the repair that does not need repeating.
+```

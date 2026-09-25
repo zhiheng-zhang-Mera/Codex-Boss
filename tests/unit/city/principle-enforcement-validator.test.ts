@@ -350,11 +350,11 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     expect(report.ok).toBe(true);
 
     const measured = (id: string) => report.rows.find((entry) => entry.id === id)!.measured.map((item) => [item.key, item.value]);
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 62]]);
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 61]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
-      ["p2b:mutualCapabilityPairs", 34],
+      ["p2b:mutualCapabilityPairs", 33],
       ["p2b:largestSccSize", 20],
       ["p2d:confirmedAccesses", 5],
     ]);
