@@ -117,13 +117,13 @@
       "id": "15.9",
       "claim": "Core growth ban",
       "requiredStrength": "MACHINE ENFORCED",
-      "strength": "NOT_GUARDED",
-      "guards": [],
-      "wiredBy": [],
-      "measuredFrom": null,
-      "target": null,
-      "why_not_enforced": "no stable Core classification exists, so there is no surface to measure and no budget to enforce. The legacy ratchet records monotone metrics (bootModuleCount, capabilityCount, dependencyEdgeCount) and refuses a rise, but it does not define Core, so citing it here would be a different claim wearing this row's name.",
-      "gap": "stage P2-H has not been started"
+      "strength": "MACHINE_ENFORCED",
+      "guards": ["scripts/core-budget-validator.cjs"],
+      "wiredBy": ["tests/unit/city/core-budget-validator.test.ts"],
+      "measuredFrom": "core:growth",
+      "target": 0,
+      "why_not_enforced": null,
+      "note": "Core is defined by a stable classification -- a capability is Core if and only if its manifest declares kind: kernel -- and the city-phase starting surface (four capabilities, 115 owned files, plus a separately counted composition root of 2) is recorded in config/core-budget.json and pinned BY NAME, because a count of four would still read four if a kernel lost its kind and an unrelated capability gained one. The measured quantity is growth NOT covered by an Owner-approved exception, so this row stays at 0 when section 22's exception path is used and rises when growth is unapproved. What is proved today is the BAN: no exception has yet been recorded, so the exception path is exercised only on fixtures, and the budget says so rather than implying a governance mechanism has been used."
     }
   ]
 }

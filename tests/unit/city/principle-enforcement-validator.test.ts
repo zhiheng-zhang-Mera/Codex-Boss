@@ -25,10 +25,12 @@ const P2B = "scripts/p2b-kernel-feature-ratchet.cjs";
 const P2D = "scripts/phase2-private-state.cjs";
 const FLATNESS = "scripts/city-flatness-validator.cjs";
 const CLOSURE = "scripts/capability-closure-validator.cjs";
+const CORE = "scripts/core-budget-validator.cjs";
 const T_P2B = "tests/unit/city/p2b-kernel-feature-ratchet.test.ts";
 const T_P2D = "tests/unit/city/phase2-private-state.test.ts";
 const T_FLATNESS = "tests/unit/city/city-flatness-validator.test.ts";
 const T_CLOSURE = "tests/unit/city/capability-closure-validator.test.ts";
+const T_CORE = "tests/unit/city/core-budget-validator.test.ts";
 const T_UNRELATED = "tests/unit/city/s2-exit-audit.test.ts";
 const CLOSURE_DOC = "docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md";
 const SPEC_DOC = "docs/city/PHASE2_ARCHITECTURE_MIGRATION_SPEC.md";
@@ -60,6 +62,7 @@ const BASE_MEASURED: Record<string, number> = {
   "p2b:mutualCapabilityPairs": 38,
   "p2b:largestSccSize": 20,
   "p2d:confirmedAccesses": 5,
+  "core:growth": 0,
 };
 
 function baseRow(id: string): Row {
@@ -148,6 +151,18 @@ function baseRow(id: string): Row {
         ],
         why_not_enforced: "all guards refuse a regression and every part is still above zero",
         gap: "stages P2-C and P2-D",
+      };
+    case "15.9":
+      return {
+        id,
+        claim: "Core growth ban",
+        requiredStrength: "MACHINE ENFORCED",
+        strength: "MACHINE_ENFORCED",
+        guards: [CORE],
+        wiredBy: [T_CORE],
+        measuredFrom: "core:growth",
+        target: 0,
+        why_not_enforced: null,
       };
     default:
       return {
@@ -318,7 +333,7 @@ describe("P2-I the principle enforcement matrix is checked against the tree, not
 
   it("rejects NOT_GUARDED without naming the stage that owns the gap", () => {
     const matrix = baseMatrix();
-    row(matrix, "15.9").gap = null;
+    row(matrix, "15.8").gap = null;
     expect(validateFixture(matrix).problems.join("\n")).toContain("NOT_GUARDED without naming the stage");
   });
 });
@@ -343,6 +358,10 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
       ["p2b:largestSccSize", 20],
       ["p2d:confirmedAccesses", 5],
     ]);
+    expect(measured("15.9")).toEqual([["core:growth", 0]]);
+    // The distribution section 23's targets produce today: three enforced, two ratchets, two requiring only that
+    // the evidence exists, and two whose stage has not been started.
+    expect(report.counts).toEqual({ MACHINE_ENFORCED: 3, MACHINE_RATCHET: 2, EVIDENCE_REQUIRED: 2, NOT_GUARDED: 2 });
   });
 
   it("records no measurement as a number in the matrix file, so none can drift", () => {
@@ -361,7 +380,7 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
   });
 
   it("cites only guards that are read-only and exit zero when run directly", () => {
-    for (const guard of [P2B, P2D, FLATNESS, CLOSURE]) {
+    for (const guard of [P2B, P2D, FLATNESS, CLOSURE, CORE]) {
       const result = validator.runGuard(guard, PROJECT);
       expect(result.exists).toBe(true);
       expect(result.writeTokens).toEqual([]);
@@ -389,10 +408,13 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     expect(validator.regionMatches(stale, table)).toBe(false);
   });
 
-  it("names the three unguarded principles explicitly rather than leaving them to inference", () => {
-    const regions = validator.docRegion(PROJECT)!;
-    expect(regions.current).toContain("15.4");
+  it("names the two remaining unguarded principles explicitly rather than leaving them to inference", () => {
+    const region = validator.docRegion(PROJECT)!;
+    expect(region.current).toContain("15.4");
     const text = fs.readFileSync(path.join(PROJECT, DOC), "utf8");
     for (const id of ["15.4", "15.8", "15.9"]) expect(text).toContain(`\`${id}\``);
+    // 15.9 left this list when P2-H gave it a mechanism; the document must not still call it unguarded.
+    expect(text).toContain("**2 unguarded**");
+    expect(text).toContain("**3 enforced**");
   });
 });

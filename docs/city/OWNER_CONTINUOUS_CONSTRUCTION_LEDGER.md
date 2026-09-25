@@ -3077,3 +3077,111 @@ closure_status              CLOSED. CC-033's claims stand as measured; this entr
                             checks was environment-dependent until this repair, and names how it is prevented
                             from becoming one again.
 ```
+
+## CC-035 — P2-H: the Core growth ban, its stable classification, and the budget that pins the starting surface by name
+
+```text
+ENTRY_ID                    CC-035
+timestamp_utc               2026-09-25T04:06:25Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new
+                            files are a config record, a script, a document and a test, none of which the
+                            enforcement sensor scans (its roots are electron and src).
+main_before                 the merge commit of PR #67
+branch                      feat/p2h-core-growth-budget
+PR                          the PR that carries this entry
+problem                     Section 22 requires three things: "Measure the city-phase starting Core/foundation
+                            surface using a stable classification"; "Create a machine-enforced budget"; and, as
+                            the final acceptance, "Core size <= Phase 2 starting Core size -- unless every
+                            increase has a separate Owner-approved architecture exception". Nothing defined
+                            Core, nothing measured it, and nothing stopped it growing. Principle 15.9 was
+                            recorded as NOT_GUARDED in the enforcement matrix (CC-033) with this stage named
+                            as the owner of the gap.
+the_stable_classification   A capability is Core if and only if its MANIFEST declares `kind: kernel`. That
+                            field already exists and is already what the P2-B/P2-C ratchet measures
+                            kernel -> feature edges against, so this is not a second opinion about the tree,
+                            it is the same opinion. The COMPOSITION ROOT is recorded on its own line and is
+                            never folded into the capability total, because section 22 forbids treating shared
+                            infrastructure as automatic Core and conflating the two is how a road would enter
+                            Core unnoticed.
+the_starting_surface_MEASURED
+                            Four capabilities declare kind: kernel -- persistence, providers, runtime,
+                            state-core -- and they own 115 of the 596 capability-owned files across 614
+                            scanned source files, with the composition root owning 2 more. Per capability:
+                            persistence 13, providers 51, runtime 36, state-core 15. Measured by
+                            `node scripts/core-budget-validator.cjs --measure`, which resolves the ownership
+                            map's PATTERNS to FILES through the closure validator's own scan set and
+                            `ownsPath` rule.
+why_THE_FOUR_ARE_PINNED_BY_NAME
+                            A count would still read four if a kernel lost its `kind` and some unrelated
+                            capability gained one: the budget would hold while the foundation had been swapped
+                            underneath it. So the four NAMES are recorded and the first rule is that each must
+                            still be Core. This is the lesson of CC-032 applied to a budget -- pin the expected
+                            members by name, because a total cannot tell you that its members changed.
+why_the_size_is_in_FILES_not_patterns
+                            The first measurement of this artifact counted the ownership map's entries and
+                            produced 271, which looks like a size and is not one: the map stores 271 PATTERNS
+                            that expand to 596 owned files. The number recorded here is in the same currency
+                            the P2-B/P2-C ratchet already uses, so the two artifacts can be read together.
+what_the_budget_ENFORCES    1 the four pinned names must still be Core; 2 a capability that is Core now but
+                            was not at the start must be covered by an exception naming it; 3 Core owned
+                            files must not exceed the starting count plus approved allowances; 4 the
+                            composition root is a ceiling of its own; 5 the capability-owned file count, the
+                            scanned source file count and the manifest count are FLOORS, because shrinking
+                            Core by scanning fewer files is the same fraud the P2-B ratchet already refuses;
+                            6 an exception must enumerate its identity, answer section 22's four questions,
+                            carry a debt id and an exit condition, name an Owner authorization, and be
+                            recorded in the construction ledger; 7 the starting measurement cites the ledger
+                            entry that recorded it.
+why_the_ceiling_does_NOT_ratchet_down
+                            Section 22's acceptance is against the STARTING surface, not against the best
+                            surface reached later, so a fall in Core does not buy budget for a future rise.
+                            A rolling ceiling would turn a temporary improvement into spendable allowance,
+                            which is exactly the count compensation section 24 refuses: removing one old edge
+                            does not license adding another. The artifact therefore records the starting
+                            surface once and the check is `measured <= starting + allowances`.
+an_EXCEPTION_is_not_a_comment
+                            Section 22 permits growth only through a separate architecture record answering:
+                            why an existing road or foundation element cannot carry it; why it is not a
+                            building; what invariant only Core can hold; and what breaks if it remains outside
+                            Core. Section 22 also says an exception does not silently redefine the baseline.
+                            So an exception is an object with an identity, a POSITIVE file allowance, a debt
+                            id, an exit condition, an Owner authorization and an append-only LEDGER record
+                            naming both itself and the entry -- and it does not touch the starting block. The
+                            ledger is append-only, so an exception cannot be withdrawn from the record later.
+the_honest_reading          Core is inside its budget: growth 0, unexcused growth 0, no exceptions recorded. The
+                            budget has never yet been tested by a real increase -- there is no exception in
+                            the artifact -- so what is proved today is the BAN, not the exception path. The
+                            exception path is exercised only on fixtures, and the artifact says so rather
+                            than implying a governance mechanism has been used.
+falsification               One case per rule, each breaking exactly that rule on a fixture: a kernel losing its
+                            kind; a fifth kernel appearing without an exception; Core growing with no
+                            exception; growth exceeding the recorded allowance; a fall in each of the three
+                            floors; an exception missing each required field in turn -- identity, allowance,
+                            debt id, exit condition, Owner authorization, and each of section 22's four
+                            answers; an exception citing a ledger entry that does not exist; an exception
+                            whose cited entry does not mention it; a duplicate exception id; a budget whose
+                            classification differs from the program's; a missing starting baseline anchor;
+                            and a baseline anchor naming an entry the ledger does not contain.
+measurement                 node scripts/core-budget-validator.cjs --measure -> the starting surface above
+                            node scripts/core-budget-validator.cjs -> VERDICT=HOLDS, unexcused growth 0
+                            npx tsc --noEmit -p tsconfig.tests.json -> exit 0
+rollback                    Delete config/core-budget.json, scripts/core-budget-validator.cjs, its test and
+                            docs/city/PHASE2_P2H_CORE_BUDGET.md, revert the principle-enforcement matrix row
+                            for 15.9 to NOT_GUARDED, and revert the catalogue entry.
+temporary_debt_created      no
+exit_condition              `node scripts/core-budget-validator.cjs` passes on the committed budget and every one
+                            of the rules fails on a fixture that breaks exactly it.
+closure_status              CLOSED for the budget, the classification and the ban. OPEN for the exception path,
+                            which no real migration has yet had reason to use, and OPEN for the Core surface
+                            itself, which the workbook does not ask to shrink -- only to stop growing.
+research_value              (1) A growth ban needs a STARTING point, and the starting point needs an anchor outside
+                            the file that states it: pointing the baseline at an append-only ledger entry makes
+                            re-recording it a visible act rather than an edit, which is the same move as
+                            anchoring the trust surface to hashed artifacts. (2) Pinning members BY NAME is
+                            what makes a budget about a surface rather than about a number -- the second
+                            consecutive round where a count was insufficient and the identity was the check.
+                            (3) A ceiling that does not ratchet down is what separates a budget from a
+                            ratchet, and the difference is not bookkeeping: a rolling ceiling pays you for a
+                            temporary improvement, which section 24 names as unacceptable.
+```

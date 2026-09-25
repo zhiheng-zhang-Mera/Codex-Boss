@@ -74,6 +74,7 @@ const KEY_GUARD = {
   "p2b:addedLateralLoad": "scripts/p2b-kernel-feature-ratchet.cjs",
   "p2d:confirmedAccesses": "scripts/phase2-private-state.cjs",
   "flatness:shapeProblems": "scripts/city-flatness-validator.cjs",
+  "core:growth": "scripts/core-budget-validator.cjs",
 };
 
 // Source-text proxies for "this program does not write to the tree". A guard that mutates the tree while being
@@ -183,6 +184,14 @@ function resolveMeasured(key, getGuard, root = ROOT) {
     }
     const value = guard.json.measured?.[field];
     if (typeof value !== "number") return { key, ok: false, reason: `${guardPath} --json publishes no measured.${field}` };
+    return { key, ok: true, value };
+  }
+  if (source === "core") {
+    // The core budget publishes the quantity principle 15.9 is about: growth NOT covered by an Owner-approved
+    // exception. An approved exception leaves this at 0, because docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 22 permits excepted growth; unapproved
+    // growth raises it, and the guard fails at the same time.
+    const value = guard.json.decision?.measured?.[field];
+    if (typeof value !== "number") return { key, ok: false, reason: `${guardPath} --json publishes no decision.measured.${field}` };
     return { key, ok: true, value };
   }
   if (source === "p2d") {

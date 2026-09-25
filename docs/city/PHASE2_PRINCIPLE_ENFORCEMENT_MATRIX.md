@@ -39,7 +39,7 @@ apart. So the matrix is data, and this document is generated from it by the vali
 | 15.6 | every plot has exactly one valid flatness state | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/city-flatness-validator.cjs` | 0 | 0 |
 | 15.7 | no cycles, no uncontrolled lateral bearing, no cross-domain private state access | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs`, `scripts/phase2-private-state.cjs` | mutual capability pairs: 38; largest strongly connected component: 20; cross-domain private-state accesses: 5 | 0; 0; 0 |
 | 15.8 | shared roads are explicitly classified | MACHINE CHECK / explicit road classification | NOT_GUARDED | -- | -- | -- |
-| 15.9 | Core growth ban | MACHINE ENFORCED | NOT_GUARDED | -- | -- | -- |
+| 15.9 | Core growth ban | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/core-budget-validator.cjs` | 0 | 0 |
 <!-- END GENERATED MATRIX -->
 
 ## 4. What the validator refuses to let the matrix do
@@ -72,14 +72,14 @@ that breaks the rule and asserts the validator rejects it.
 
 The honest reading, as measured:
 
-- **2 enforced** — `15.5` (no *added* lateral load) and `15.6` (exactly one valid flatness state per plot).
+- **3 enforced** — `15.5` (no *added* lateral load), `15.6` (exactly one valid flatness state per plot) and `15.9`
+  (Core growth ban, over the stable classification and the starting surface recorded in `config/core-budget.json`).
 - **2 ratchets** — `15.1` (foundation→building edges, 73 against a target of 0) and `15.7` (38 mutual pairs, a
   largest component of 20 of 28 capabilities, and 5 cross-domain private-state accesses).
 - **2 evidence-required** — `15.2` and `15.3`, the two principles about the *reasoning* behind a migration: no rule
   here keys a threshold on a file count, and whether a given bundle of files is one purpose or seven is a design
   judgement. The machine can only require that the judgement was written down and point at where.
-- **3 unguarded** — `15.4` (replacement lifecycle, P2-G), `15.8` (road classification, P2-E), `15.9` (Core growth
-  ban, P2-H).
+- **2 unguarded** — `15.4` (replacement lifecycle, P2-G) and `15.8` (road classification, P2-E).
 
 `15.5` and `15.1` are the pair worth reading together. Section 23 asks `15.5` for a check on **added** lateral load
 and `15.1` for the absolute. The ratchet supplies exactly the former — a rise in kernel→feature edges, in
@@ -90,18 +90,29 @@ problem. Recording both as `MACHINE ENFORCED` would have been the easy and wrong
 a refusal to record `FLAT` on a plot that a measured defect implicates. That the seal is not ready is a different
 fact — `config/city-flatness.json` records 22 plots still mid-migration, and the seal gate reports it.
 
+`15.9` is the row that moved in this stage, and the move is worth reading because it shows what the matrix is for.
+It was `NOT_GUARDED` with the gap assigned to P2-H. The stage supplied a **mechanism** — a stable classification
+(`kind: kernel`), a starting surface pinned **by name**, and a budget with an Owner-approved exception path — and
+only then did the row become `MACHINE_ENFORCED`. The measured quantity is growth *not covered by an approved
+exception*, so the row stays at 0 when the exception path is used legitimately and rises when growth is unapproved.
+What is proved is the **ban**: no exception has yet been recorded, so the exception path is exercised only on
+fixtures, and the budget says so rather than implying that a governance mechanism has been used.
+
 ## 6. Consequences for the remaining work
 
-The three `NOT_GUARDED` rows are not an oversight; they are the same three stages the workbook has not yet started,
-and they are the ones that need a **mechanism** before they can need a check:
+The two `NOT_GUARDED` rows are not an oversight; they are the two stages the workbook has not yet started, and
+they are the ones that need a **mechanism** before they can need a check:
 
 | principle | needs | stage |
 | --- | --- | --- |
 | `15.4` | replacement governance with machine state and one real proof | P2-G |
 | `15.8` | an explicit road classification that does not hide edges | P2-E |
-| `15.9` | a stable Core classification and a budget over it | P2-H |
 
 `15.8` carries a measured refutation worth keeping in view: `electron/commander/**` was the road candidate, and
 re-attributing it was **measured and refused** (ledger `CC-030`) — 132 incoming and 122 outgoing edges across 24
 owners and 13 capabilities, 39 of them onto three kernels. A road label would have *hidden* those edges rather than
 classified them, so the correct treatment is extraction, not relabelling.
+
+`15.4` is the last mechanism with no check behind it. Section 21 asks for a replacement lifecycle with observable
+state, an executable rollback, and one real bounded migration to prove it — machinery that can be built
+ceremony-free, but whose *proof* requires a real capability migration, so it is the largest remaining step.
