@@ -209,11 +209,25 @@ the 154 count             30% of it is the two attribution errors above. It is a
                                                        `node scripts/s2-exit-audit.cjs`.
                                                        Record: docs/city/S2_EXIT_CERTIFICATION.md, ledger CC-025.
 §16  P2-B regression check                       DONE  — `node scripts/p2b-kernel-feature-ratchet.cjs` records the
-                                                       REAL graph's floor (82 kernel -> feature edges over 25
-                                                       pairs, under the OWNERSHIP MAP, which the manifests-only
-                                                       legacy ratchet cannot see) and refuses a silent regression,
-                                                       including progress achieved by scanning fewer files.
+                                                       REAL graph's floor (now 73 kernel -> feature edges over 25
+                                                       pairs, lowered from 82 by the provider closure; under the
+                                                       OWNERSHIP MAP, which the manifests-only legacy ratchet
+                                                       cannot see) and refuses a silent regression, including
+                                                       progress achieved by scanning fewer files.
                                                        Ledger CC-026. The MIGRATION to 0 is still open.
+§17  P2-C cycle/SCC measurement + floor          DONE  — `node scripts/phase2-cycles.cjs`: 28 capability nodes,
+                                                       193 directed edges, 9 SCCs and ONE of them holds 20 of 28,
+                                                       with 8 capabilities already outside the knot. History was
+                                                       one SCC of 25 of 27. Ratcheted by the same judge as §16,
+                                                       with node/edge FLOORS so the component cannot be shrunk by
+                                                       losing an edge. Ledger CC-030.
+                                                       THE PLANNING CONSEQUENCE: pairwise repairs do not split a
+                                                       component of 20, so P2-C is one connected problem.
+                                                       ALSO IN CC-030: re-attributing electron/commander/** to a
+                                                       road class was REFUTED by measurement -- 132 incoming and
+                                                       122 outgoing edges, 39 onto three kernels -- so it would
+                                                       hide those edges rather than repair them. The MIGRATION to
+                                                       0 cycles is still open.
 CC-017/CC-019  the soak sample floor: a MACHINE-THROUGHPUT assertion, and `slopePerMinute` returns a placeholder 0
                below three samples. The honest trend is now null and the gate fails closed (epoch 32), so an
                under-sampled run FAILS with a readable reason. The remaining work is to choose between a longer
