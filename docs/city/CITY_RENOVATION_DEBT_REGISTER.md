@@ -322,6 +322,25 @@ outstanding_instance tests/unit/root-trust-authority-lockdown.test.ts, "holds no
                      check proves. Until that decision exists, this entry stays OPEN.
 status               OPEN (narrowed: the four soak-style instances are repaired; one duration-budget instance
                      remains, named above)
+occurrence_eleven   2026-09-25, PR #88 (docs-only) -- a SIXTH instance appeared while this entry was being
+                     rewritten, in a file already repaired twice:
+                       run 36186092756  test:slow  tests/unit/platform/platform-soak.test.ts
+                                                      "exercises every stage the book names, without intervention"
+                                                      AssertionError: expected 3 to be greater than 5
+                     A parallel run of the identical commit was 5/5 green again, and the change under test was
+                     documentation that no test reads. This is the strongest evidence in this entry that the
+                     enumeration above is ILLUSTRATIVE and not the family: the register was made accurate and
+                     went stale within the same round, which is precisely why the condition is now stated
+                     positively rather than as a list of assertions. A future reader should treat the positive
+                     statement as the debt and the list as examples of it.
+                     The repair is the same shape as CC-056's: `cycles > 5` is a host-supplied count inside a
+                     test about which STAGES ran, not how many cycles a loaded runner could fit into the run.
+enumeration_is_illustrative
+                     The five instances above and this sixth are examples, not the debt. The debt is the
+                     condition stated in occurrence_ten: an environmental budget or a host-supplied count read
+                     as a correctness verdict. Closing it requires either every such assertion in the soak and
+                     lifecycle families to be re-read against that condition -- which is a sweep of the family,
+                     not a list of fixes -- or the quarantine in exit condition (b).
 ```
 
 ---
