@@ -89,10 +89,30 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
     // GC is dry-run and executed every cycle against a corpus containing a PROTECTED record and a
     // platform-foundation artifact; zero misdeletion is the gate's requirement, checked per cycle.
     expect(result.totals.gcMisdeleted).toBe(0);
-    // A restart that lost committed work increments `failed`; the soak asserts the count itself.
-    const restarts = result.cycles.filter((cycle) => cycle.restarts > 0);
-    expect(restarts.length).toBeGreaterThan(0);
-    for (const cycle of restarts) expect(cycle.restarts).toBeGreaterThan(0);
+    // "Never loses committed work" is a SAFETY property: it must hold whether or not this host
+    // restarted, so it is asserted unconditionally. A restart that lost committed work increments
+    // `failed`, and a correct soak never increments it.
+    expect(result.samples[result.samples.length - 1].failed).toBe(0);
+
+    // "Across a restart" is a LIVENESS precondition, and it is deliberately NOT asserted here.
+    // Whether the harness restarts at all depends on host load, so requiring one turns a safety
+    // test into a load test: on a loaded runner it fails while proving nothing about durability.
+    // That is exactly occurrence nine of INC-2026-09-25-01, where this file produced
+    // `expected 0 to be greater than 0` (docs/city/incidents/2026-09-25-same-commit-ci-flake.md §7).
+    // The previous second line was also a tautology -- `restarts` was already filtered to
+    // `cycle.restarts > 0`, so asserting it again could never fail and gated nothing.
+    // The dimension is REPORTED instead, and reports NOT_MEASURED when it has no sample, which is the
+    // exit condition CITY-DEBT-005 names ("report NOT_MEASURED instead of a wrong value").
+    const restarts = result.cycles.reduce((total, cycle) => total + cycle.restarts, 0);
+    if (restarts === 0) {
+      console.log(
+        "[soak] NOT_MEASURED restart-safety: this host completed the run with zero restarts, so " +
+          "'no committed work is lost across a restart' has no sample on this run. The durability " +
+          "assertions below still ran. This dimension is NOT reported as a pass."
+      );
+    } else {
+      console.log(`[soak] restart-safety measured across ${restarts} restart(s): no committed work was lost`);
+    }
 
     // Independently of the soak's own bookkeeping: the database it produced is durable.
     const handle = openDatabase(stateDatabasePath(root));

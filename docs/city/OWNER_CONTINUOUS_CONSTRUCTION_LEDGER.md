@@ -4673,3 +4673,83 @@ research_value              (1) A shortlist is evidence only if its line numbers
                             wiring is the one kind of code that cannot be repaired by re-attribution, because the
                             module really does construct the feature it is accused of depending on.
 ```
+
+## CC-054 — CITY-DEBT-005's first signature was two defects, and one of them gated nothing
+
+```text
+ENTRY_ID                    CC-054
+timestamp_utc               2026-09-25T20:12:05Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY:
+                            tests/unit/platform/** is outside the root trust surface (the surface carries
+                            tests/acceptance/** and tests/helpers/trusted-evidence.ts, not tests/unit/**),
+                            and acceptance-evolution-bless --check confirms epoch 36 still MATCHES.
+main_before                 eb10d0f9dd5c5d3b85badfd65ddf2ae1a7c75f76  (five checks green, epoch 36, PR #85)
+branch                      fix/soak-restart-safety
+PR                          the PR that carries this entry
+what_was_run_first          CITY-DEBT-005 records a failure signature ("tests/unit/platform/platform-soak.test.ts
+                            expected 0 to be greater than 0") that matches about fifteen candidate assertions in
+                            that file, so the exact line was read out of the PRESERVED RUN RECORD rather than
+                            guessed: docs/city/incidents/2026-09-25-same-commit-ci-flake.md section 7 names the
+                            test as "never deletes protected data, and never loses committed work across a
+                            restart", which localises the assertion to the restart block.
+the_defect_is_two_defects   The block was four lines, and both were wrong in opposite directions:
+                              const restarts = result.cycles.filter((cycle) => cycle.restarts > 0);
+                              expect(restarts.length).toBeGreaterThan(0);                       // (1)
+                              for (const cycle of restarts) expect(cycle.restarts).toBeGreaterThan(0); // (2)
+                            (1) A LIVENESS precondition inside a SAFETY test. Whether the harness restarts at
+                            all depends on host load, so requiring one turns "no committed work is lost across
+                            a restart" into a load test: on a loaded runner it fails while proving nothing
+                            about durability, which is precisely `expected 0 to be greater than 0`.
+                            (2) A TAUTOLOGY. `restarts` is already filtered to `cycle.restarts > 0`, so
+                            asserting `cycle.restarts > 0` for each of its members can never fail. It gated
+                            nothing, and it read as coverage.
+the_repair                  The safety half is asserted UNCONDITIONALLY -- a correct soak never increments
+                            `failed`, restart or no restart -- and the liveness half is REPORTED, saying
+                            NOT_MEASURED when it has no sample. That is the exit condition CITY-DEBT-005 itself
+                            names ("soak assertions report NOT_MEASURED instead of a wrong value"). The
+                            tautology is deleted rather than translated.
+verification_run_this_round npx vitest run tests/unit/platform/platform-soak.test.ts
+                              -> 7 passed (7), 121.5s
+                            targeted run of the repaired test
+                              -> "[soak] restart-safety measured across 14 restart(s): no committed work was
+                                 lost"; 1 passed
+                            npx tsc --noEmit -p tsconfig.tests.json -> 0
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+what_is_NOT_claimed         The NOT_MEASURED branch is UNEXERCISED on this host: this machine produced 14
+                            restarts, so the measured path is the one that ran. The zero-restart path is the
+                            failure this entry exists to remove and cannot be reproduced locally, and it is
+                            recorded as an untested branch rather than presented as verified. The same
+                            limitation applies to the acceptance suite's own NOT_MEASURED reports, and the
+                            honest reading is that a report which fires only under load is proved by CI
+                            observation over time, not by one green run.
+what_this_does_not_close    CITY-DEBT-005 stays OPEN. Occurrence nine had THREE signatures and this removes
+                            one. The other two cannot be repaired ceremony-free, and the measurement is why:
+                              tests/acceptance/platform-soak-report.test.ts   ("whichever way this host
+                                measured", expected 2 to be greater than 3) is inside tests/acceptance/**, which
+                                IS root trust surface -> the repair needs an epoch advance in the same commit.
+                              tests/unit/root-trust-authority-lockdown.test.ts (120s timeout under load) is
+                                outside the surface, but its failure is a DURATION under a loaded runner, not a
+                                threshold that can be reworded; fixing it honestly means shortening what it
+                                does or raising the budget, and both change what the check proves.
+                            Quarantining the family to an evidence lane -- the register's other exit route --
+                            would edit .github/workflows/ci.yml, which is ALSO root trust surface. So every
+                            remaining route to closing this debt crosses the epoch ceremony, which is a cost
+                            finding that section 31's debt review needs before it is planned.
+rollback                    Revert this commit. One test file plus this entry; no behaviour, no baseline, no
+                            epoch.
+temporary_debt_created      no.
+closure_status              CLOSED for this entry: one of occurrence nine's three signatures is gone, and the
+                            cost of the other two is measured rather than assumed.
+research_value              (1) A flaky assertion is worth reading before it is reworded, because this one was
+                            TWO defects in opposite directions at once -- one that failed for a reason it
+                            could not measure, and one that could not fail at all. Removing only the first
+                            would have left a line that looked like coverage and was not. (2) When a debt
+                            register records a failure as an assertion MESSAGE ("expected 0 to be greater than
+                            0") rather than as a test name, the message is not a location: the same message
+                            matched about fifteen candidates here, and only the preserved run record named
+                            the test. Recording failures by test name is what makes them repairable later.
+                            (3) A safety property and a liveness precondition look identical when they are
+                            written on adjacent lines, and separating them is what makes a suite honest: the
+                            safety half must hold on every host, the liveness half may only be reported.
+```
