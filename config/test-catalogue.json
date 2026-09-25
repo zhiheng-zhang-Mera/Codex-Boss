@@ -588,6 +588,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/phase2-pair-edges.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the pair inspector decomposes the inventory per pair WITHOUT disagreeing with it, which is the whole point: the counts are what CI enforces, so an inspector that counted differently from the ratchet would be worse than useless, and --verify therefore re-derives the whole graph and asserts equality with the inventory on every total and all 193 pair counts; that gate failed on its FIRST run and the failure was real -- 867 edges against 801 and 84 kernel -> feature against 73 -- because the inventory unit of measurement is a (source file, distinct SPECIFIER) pair rather than an import statement, so a file importing the same module twice, once as a type and once as a value, is ONE edge, and section 16 target of zero is in that currency; the cases then falsify the gate itself rather than trusting it -- an edge dropped or invented must fail it, and a single PAIR count drifting while the total is unchanged must fail it -- after the first version of verify was found to compare the scan own summary instead of re-summarising the edge list it was handed, which is the same class of error as a check that watches the wrong artifact; the currency is pinned as an invariant, every edge is asserted to join two different capabilities with a real target and a positive line, the closure function is asserted to report a common directory ONLY when the targets share one, a named pair prints its edges with line and specifier while a non-existent pair says so, the work list is reported in the inventory currency, and the leaf marking is asserted to follow the measurement in BOTH directions -- a target imported by two or more capabilities is listed, a target with exactly one importer is not, and the list is therefore about sharing rather than popularity -- with two members pinned BY NAME: the shared sink reaching nine capabilities is NOT a leaf, while the popular leaf owned by tenx IS",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/phase2-private-state.test.ts",
       "tier": "unit",
       "covers": [

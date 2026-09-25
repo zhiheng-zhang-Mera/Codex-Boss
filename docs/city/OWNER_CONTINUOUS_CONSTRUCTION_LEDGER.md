@@ -3251,3 +3251,122 @@ research_value              (1) An unexplained intermittent failure in a require
                             degradation of the merge gate visible, and a policy that only ever says
                             "probably load" would hide exactly that.
 ```
+
+## CC-037 — P2-E re-measured: the §16 work list splits 34 attribution / 39 extraction, and the workbook's historical road candidates do not survive as one problem
+
+```text
+ENTRY_ID                    CC-037
+timestamp_utc               2026-09-25T05:22:19Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new files
+                            are a script, a document and a test, none of which the enforcement sensor scans (its
+                            roots are electron and src).
+main_before                 050960c0dcad81ba1c969b2a8de33bf415d6abdf  (five checks green, epoch 34)
+branch                      feat/p2e-road-candidates
+PR                          the PR that carries this entry
+problem                     Section 19 requires identifying shared concerns trapped inside buildings, gives five
+                            proofs per extraction, names historical candidates -- learning episode/metric
+                            surfaces, theme and knowledge namespace ownership -- and then says "Re-measure before
+                            acting". Section 16 has 73 kernel -> feature edges to drive to zero. The programme
+                            had a COUNT for all of it and no per-edge view, because the inventory deliberately
+                            publishes counts and at most three sample edges per pair: not deciding is what keeps
+                            the classification out of the instrument. A pair cannot be decided from a count.
+what_was_built              scripts/phase2-pair-edges.cjs -- read-only, with four modes: a named pair printed
+                            edge by edge with file, LINE, raw specifier and target shape; the kernel -> feature
+                            work list with each pair's target directories and common closure; the importers of
+                            every kernel-imported file; and road candidates marked LEAF or NOT LEAF. Its
+                            --verify mode re-derives the whole graph and asserts equality with the inventory.
+the_defect_it_found_first   --verify failed on its FIRST run: 867 edges against the inventory's 801, and 84
+                            kernel -> feature against 73. The inventory's unit of measurement is a (source file,
+                            distinct SPECIFIER) pair, not an import statement: it deduplicates specifiers per
+                            file, so a file importing the same module twice -- once as a type, once as a value,
+                            which this repository does -- is ONE edge. Section 16's target of zero is in the
+                            inventory's currency, so a work list in any other currency would have over-scoped the
+                            migration by 15%. Corrected, the inspector agrees exactly: 801 edges / 193 pairs.
+a_second_weaker_gate         verify() was then found to compare the scan's own summarised totals against the
+                            inventory, without re-summarising the edge list it was handed -- so mutating the
+                            edges did not falsify it. The falsification cases caught that too. It now recomputes
+                            the summary from the edges and compares BOTH that recomputation and the inventory,
+                            which is what makes the two "this gate bites" cases meaningful.
+the_leaf_test               Ledger CC-030 REFUTED labelling electron/commander/** a road: a road that imports a
+                            kernel is not a road, it is a feature with a lot of callers. That refutation was
+                            about the DIRECTORY. This stage applies the same test to individual files: a LEAF is
+                            imported across a capability boundary by two or more capabilities and imports NO
+                            other capability. A leaf's owner is the only thing that can be said about it, so
+                            every importer's edge onto it is an ATTRIBUTION question; a non-leaf reaches other
+                            capabilities, so CC-030 applies and the repair is EXTRACTION.
+the_measurement             kernel -> feature 73 edges over 25 pairs, of which 34 edges over 25 files land on
+                            LEAF targets and 39 edges over 26 files land on NON-LEAF targets. Road candidates
+                            (targets with two or more importing capabilities): 116, of which 57 are leaves. So
+                            47% of section 16's work list is an attribution question and the rest is extraction,
+                            and a plan written from the total of 73 would have treated the two halves alike.
+the_largest_sinks           electron/bootstrap/boot-module.ts -- 18 importing capabilities, a LEAF, owned by
+                            `runtime`, a KERNEL. The most-imported file in the repository is already
+                            foundation, and it is the shape a road SHOULD have. electron/commander/durable-json.ts
+                            -- 17 importers, a LEAF, owned by `tenx`. src/shared/contracts.ts -- 13 importers,
+                            NOT a leaf, reaches NINE capabilities: the second most-imported file, and the one the
+                            provider closure (CC-029) already showed how to repair, by splitting a module off it.
+the_historical_candidates   The workbook names learning episode/metric surfaces and theme/knowledge namespace
+                            ownership, and says re-measure. The measurement splits the hint three ways.
+                            src/shared/learning-episode.ts IS OWNED BY `knowledge`, NOT BY `learning`: the file
+                            a reader would call the learning episode surface belongs to another capability, and
+                            it reaches providers and tasks -- a misattribution AND an extraction, neither visible
+                            from the name. All three `learning`-owned candidates are NON-LEAVES, so none can be
+                            re-attributed. Only the smaller surfaces are leaves: src/shared/knowledge.ts,
+                            src/shared/ui-surface.ts, src/shared/theme-visual-check.ts.
+the_five_proofs             "which consumers use it" is now MACHINE-MEASURED for every candidate and
+                            cross-checked against the inventory. The other four -- why it is shared
+                            infrastructure, why it is not business capability, what invariant it owns, what its
+                            minimal contract is -- are architecture judgements, and the document deliberately
+                            does not invent them. What it removes is the guesswork: who consumes what is now a
+                            reproducible number rather than a reading.
+why_NOT_classified_yet      Every repair identified needs a CLASS, not a label. The ownership map has three
+                            (capabilities, composition_root, exempt) and the closure validator refuses a file in
+                            two at once, so calling a leaf a "road" means adding a FOURTH class, and with it:
+                            the map's only writer; the closure validator (a road must not be capability-owned,
+                            not be exempt, state a reason, and MUST BE A LEAF -- CC-030's refutation as a machine
+                            rule rather than a convention); the inventory and this inspector (road edges counted
+                            on their own line, as <composition-root> already is, so the re-attribution is a
+                            visible number and not a silently smaller total); the P2-B/C ratchet (new counts plus
+                            a floor on road-file count, so a road cannot be un-declared to move the numbers); and
+                            the cycle and private-state instruments, where roads become nodes that must not
+                            become a way to hide a cycle. That is a SCHEMA change across five instruments, and
+                            shipping the class together with its first four decisions in one round would leave
+                            no round in between to check the class itself.
+one_acriterion_already_met  Section 19's "new road does not expand Core without separate justification" is
+                            enforced TODAY, by a different stage: config/core-budget.json (CC-035) pins the
+                            starting Core surface by name and refuses growth not covered by an Owner-approved
+                            exception, so a road cannot enter Core silently whether or not a road class exists.
+falsification               10 cases: the cross-check agrees (801 edges / 193 pairs); the gate FAILS when an
+                            edge is dropped or invented; it FAILS when a single pair count drifts while the
+                            total is unchanged; the (file, specifier) currency is pinned as an invariant; every
+                            edge joins two different capabilities with a real target and a positive line; the
+                            closure function reports a common directory only when the targets share one; a named
+                            pair prints its edges and a non-existent pair says so; the work list is reported in
+                            the inventory's currency (73 over 25); the leaf marking follows the measurement and
+                            only shared targets are listed, with the "reaches no capability" and "reaches one"
+                            directions BOTH asserted, plus two members pinned BY NAME (contracts.ts is NOT a
+                            leaf; commander/durable-json.ts IS).
+measurement                 node scripts/phase2-pair-edges.cjs --verify
+                              -> VERDICT=AGREES, 801 edge(s) over 193 pair(s)
+                            node scripts/phase2-pair-edges.cjs --kernel-to-feature  -> 73 / 25
+                            node scripts/phase2-pair-edges.cjs --road-candidates     -> 116 candidates, 57 leaves
+                            npx vitest run tests/unit/city/phase2-pair-edges.test.ts -> 10 passed
+rollback                    Delete scripts/phase2-pair-edges.cjs, its test and
+                            docs/city/PHASE2_P2E_ROAD_CANDIDATES.md, and revert the catalogue entry.
+temporary_debt_created      no
+closure_status              CLOSED for the instrument and the measurement. OPEN for the road CLASS and the
+                            first four classifications, which is the next bounded step, and OPEN for the 39
+                            non-leaf edges, which are extraction work rather than attribution work.
+research_value              (1) A count cannot be decided and a decision cannot be counted: the inventory's
+                            refusal to classify is what kept the gate trustworthy, and this program is the
+                            other half of that split rather than a replacement for it. (2) The cross-check found
+                            a real defect in its own first run and then a WEAKER GATE inside itself -- "verify
+                            agrees" was true while verify compared a summary instead of the edges, which is the
+                            same class of error as a check that watches the wrong artifact. (3) A named
+                            historical candidate is a hypothesis, not a finding: re-measuring the workbook's
+                            own examples split one hint into three unrelated problems, including a file whose
+                            NAME says learning and whose OWNER is knowledge. (4) The distinguishing test for a
+                            road is its OUT-degree, not its in-degree -- CC-030 and this entry agree that
+                            popularity is not roadness.
+```
