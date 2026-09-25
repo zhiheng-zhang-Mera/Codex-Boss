@@ -292,7 +292,36 @@ exit_condition       Either (a) each soak assertion states the load it requires 
                      evidence instead of false evidence -- or (b) the family is explicitly quarantined to a lane
                      whose result is recorded as evidence rather than as a required check. Until one of those is
                      done, CITY-DEBT-005 is live.
-status               OPEN
+occurrence_ten       2026-09-25, PR #87: three failures across TWO runs of ONE commit, in THREE different tests,
+                     two of them files this entry did not previously name:
+                       run 1  test:postbuild (unit)  tests/unit/platform/durable-event-correctness.test.ts
+                                                      "holds every property the 100k scale case holds, at 10k events"
+                                                      Test timed out in 60000ms (the case ran 78.8s)
+                       run 2  test:slow (unit)       tests/unit/platform/platform-soak.test.ts
+                                                      "reports the resource trend, and does not claim a short run
+                                                       proves bounded growth"  expected 2 to be greater than 2
+                     A PARALLEL run of the same commit was 5/5 green, so this is the family rather than a change:
+                     the failures were REPLACED, not reproduced -- the third time that signature has appeared, and
+                     now across three files. The condition is therefore stated positively: an environmental budget
+                     (a duration) or a host-supplied sample count is being read as a correctness verdict, inside
+                     tests that each say in their own words that the quantity is not a property of the platform.
+repairs_so_far       Four of the five observed instances are repaired under exit condition (a), named here so the
+                     register does not have to be reconstructed from the ledger:
+                       CC-055  tests/acceptance/platform-soak-report.test.ts  (the only one INSIDE the Root Trust
+                               Surface: the epoch advanced 36 -> 37 in the same commit as the change)
+                       CC-054  tests/unit/platform/platform-soak.test.ts      restart-safety (0 > 0)
+                       CC-056  tests/unit/platform/platform-soak.test.ts      resource-trend (2 > 2)
+                       CC-056  tests/unit/platform/durable-event-correctness.test.ts  60s budget -> 180s
+                     Each replaces a host-dependent demand with either an unconditional safety assertion or an
+                     explicit NOT_MEASURED absence, so a loaded runner produces an absence of evidence instead of
+                     false evidence -- which is exit condition (a) literally.
+outstanding_instance tests/unit/root-trust-authority-lockdown.test.ts, "holds no public real-host dispatch surface,
+                     and uploads no corpus" -- Test timed out in 120000ms under load. It is NOT a soak assertion, so
+                     exit condition (a) does not reach it as written: what is needed is a recorded decision about
+                     whether that check's work is too large for the required `unit` lane, which changes what the
+                     check proves. Until that decision exists, this entry stays OPEN.
+status               OPEN (narrowed: the four soak-style instances are repaired; one duration-budget instance
+                     remains, named above)
 ```
 
 ---

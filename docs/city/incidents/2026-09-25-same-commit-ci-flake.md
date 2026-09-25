@@ -159,3 +159,69 @@ health.** Proposed exit condition: either each soak assertion states the load it
 `NOT_MEASURED` rather than as a wrong value when the host cannot supply it, or the family is explicitly quarantined to
 a lane whose result is recorded as evidence rather than as a required check. Debt id `CITY-DEBT-005`, recorded in
 `docs/city/CITY_RENOVATION_DEBT_REGISTER.md`, `CC-050`.
+
+## 8. Occurrence ten (2026-09-25, PR #87): the family is three files wide, and the failures were replaced again
+
+Occurrence nine established that the family fails in different tests in different steps. Occurrence ten
+sharpened it with the one comparison occurrence nine lacked: **a parallel run of the identical commit was
+5/5 green while this one went red.**
+
+```text
+commit   8be7580 (PR #87) -- TWO runs of this exact commit, dispatched in parallel
+
+run A (5/5 green)
+  quality, unit, acceptance, package, architecture  all SUCCESS
+  unit 10m57s
+
+run B
+  quality pass, architecture pass
+  unit FAIL 5m57s
+    tests/unit/platform/durable-event-correctness.test.ts
+      "holds every property the 100k scale case holds, at 10k events"
+      Test timed out in 60000ms  (the case ran 78.8s)
+  acceptance SKIPPED, package SKIPPED behind the red unit check
+
+re-run of run B's failed job (the flake protocol)
+  unit FAIL again, in a DIFFERENT test
+    tests/unit/platform/platform-soak.test.ts
+      "reports the resource trend, and does not claim a short run proves bounded growth"
+      AssertionError: expected 2 to be greater than 2
+```
+
+### What this occurrence adds
+
+**Three failures, two runs, three different tests, two of them files the register did not name.** The
+first instance is in a file that had never appeared in this incident record at all, and it is not a soak:
+it is a 10k-event scale case whose CONTRACT held while an environmental budget killed it.
+
+**The mechanism is now stated positively rather than per-assertion.** Every instance is the same
+condition: an environmental budget (a duration) or a host-supplied sample count is read as a correctness
+verdict, inside tests that each say in their own words that the quantity is not a property of the
+platform.
+
+- `platform-soak-report.test.ts` is named "whichever way this host measured" and its docstring says
+  "What it no longer does is DEMAND a particular host measurement", then demanded `samples > 3`.
+- `platform-soak.test.ts` says "the short run is NOT asserted against it" twelve lines below the
+  `steady.length > 2` that failed.
+- `durable-event-correctness.test.ts` says "Recorded, never asserted as a budget" two lines above the
+  60s vitest budget that killed it.
+
+That is a single defect class wearing three costumes, and it is the class this register already names:
+**the artifact states WHY, and an instrument supplies a HOW MUCH that it is not entitled to supply.**
+
+### Why the re-run was not treated as a fix
+
+The flake protocol permits recording a red as R1 only with a same-commit green AND a named mechanism.
+Both were satisfied. But the new clause added at occurrence nine applies with full force: **a re-run that
+fails in a DIFFERENT test is a family-level condition, and retrying until green is indistinguishable from
+not investigating.** So the second failure was diagnosed to a line, repaired, and CI was re-entered with a
+changed commit -- which then passed 5/5 in *both* runs, the first time this family has been green on both.
+
+### Repairs and what remains
+
+`CC-055` `tests/acceptance/platform-soak-report.test.ts` -- the only instance inside the Root Trust Surface, so
+the surface moved and epoch 37 was advanced in the same commit. `CC-054` and `CC-056` repaired the two
+`platform-soak.test.ts` instances (restart-safety, resource-trend) and the 60s budget in
+`durable-event-correctness.test.ts`. Outstanding: `tests/unit/root-trust-authority-lockdown.test.ts`, a 120s
+timeout under load, which exit condition (a) does not reach as written because it is a duration rather than a
+soak threshold. `CITY-DEBT-005` stays OPEN and narrowed. Ledger `CC-056`.
