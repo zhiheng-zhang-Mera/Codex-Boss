@@ -6,19 +6,20 @@
   "measured_by": "node scripts/phase2-edge-inventory.cjs --json",
   "why_the_model_is_named": "The manifests declare 25 module paths and therefore see 3 capability edges; the ownership map owns 596 files (plus 2 composition-root files) and sees 801 cross-capability file edges. Every number below is meaningless without saying which model produced it, and the legacy `architecture:ratchet` -- which reads the manifests -- cannot see any of these edges at all. That is why this ratchet exists beside it rather than inside it.",
   "recorded": {
-    "kernel_to_feature_file_edges": 66,
-    "kernel_to_feature_pairs": 24,
+    "kernel_to_feature_file_edges": 62,
+    "kernel_to_feature_pairs": 23,
     "mutual_capability_pairs": 34,
     "files_owned": 598,
     "capabilities_with_kinds": 27,
     "composition_root_files": 2,
-    "road_files": 2,
-    "edges_to_roads": 64,
+    "total_cross_capability_file_edges": 801,
+    "road_files": 6,
+    "edges_to_roads": 75,
     "largest_scc_size": 20,
     "non_trivial_scc_count": 1,
     "scc_count": 10,
     "capability_nodes": 29,
-    "capability_edges": 206
+    "capability_edges": 204
   },
   "target": {
     "kernel_to_feature_file_edges": 0,
@@ -27,13 +28,13 @@
   },
   "measured_kernels": ["persistence", "providers", "runtime", "state-core"],
   "measured_cycles_by": "node scripts/phase2-cycles.cjs (read by this ratchet, not recomputed here)",
-  "reason": "Lowered twice. From 82 to 73 by the provider closure extraction (see docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md): the provider types moved out of src/shared/contracts.ts -- owned by `status` -- into src/shared/provider-contracts.ts, owned by `providers`, and the 30 importers were re-pointed. From 73 to 66 by the first ROAD declarations (see docs/city/PHASE2_P2E_ROAD_CANDIDATES.md and config/capability-roads.json): electron/commander/durable-json.ts (owned by `tenx`, 17 consuming capabilities, 4 kernel edges) and src/shared/input-object.ts (owned by `tasks`, 9 consumers, 3 kernel edges) are LEAF shared surface owned by a building, so edges whose target is one of them are attributed to the class `<road>` instead of to the building. Nothing was deleted: `files_owned` stayed at 598, the total cross-capability edge count stayed at 801, and the 64 moved edges are published as `edges_to_roads`. Four mutual pairs also dissolved (38 -> 34) because in four cases a capability's ONLY dependency on another was the shared file primitive, so the two were never in a cycle of implementation. The change is not count compensation: a road must be a leaf AND must carry no policy of its own, and the two measured refutations in config/capability-roads.json -- src/shared/execution.ts and src/shared/permission.ts -- are files that PASS the leaf test and are still refused, because they export their owner's decision procedure. The largest surviving inversion is still `persistence -> tenx` (11), one directory, electron/commander/**, attributed to `tenx` although its contents are a task ledger, a budget manager, a context manager and a recovery scheduler.",
+  "reason": "Lowered three times. From 82 to 73 by the provider closure extraction (see docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md): the provider types moved out of src/shared/contracts.ts -- owned by `status` -- into src/shared/provider-contracts.ts, owned by `providers`, and the 30 importers were re-pointed. From 73 to 66 by the first ROAD declarations (CC-038), and from 66 to 62 by the second batch (CC-040): six files are now classified as roads, each a LEAF shared sink owned by a building -- electron/commander/durable-json.ts (tenx), src/shared/input-object.ts (tasks), src/shared/workspace.ts (workspace), src/shared/behaviour-epoch.ts (promotion), src/shared/model-identity.ts (tasks) and src/shared/github-url.ts (security). Nothing was deleted at any point: `files_owned` has stayed at 598 and the total cross-capability edge count at 801, and the moved edges are published as `edges_to_roads`, now 75. The second batch also established the line the first batch only gestured at: a verdict about MECHANICAL WELL-FORMEDNESS is a road (is this id shaped like an id, what is the canonical key for this scope, is this a repository URL), while a verdict about a DOMAIN OUTCOME is not (may this execution run, did this work pass, which roles execute, how is this conversation handled, should the epoch roll). Nine candidates were refused on that line in the second batch, and every one of them PASSES the leaf test -- including src/shared/owner-result.ts, the Owner-Result decision layer, and electron/commander/execution-gate.ts, whose own header calls it the question asked before an execution runs. The pair count fell 206 -> 204 rather than rising, because two pairs collapsed into one where a capability's only edge to another was onto a road; that is why the anti-gaming anchor is now the RAW total and not the pair count. The largest surviving inversion is still `persistence -> tenx` (11), one directory, electron/commander/**, attributed to `tenx` although its contents are a task ledger, a budget manager, a context manager and a recovery scheduler.",
   "anti_gaming": {
     "files_owned_is_a_floor": "A drop in edges that comes from a drop in SCANNED FILES is not progress. `files_owned` is asserted to stay at or above its recorded value, so a file cannot be removed from the scanner -- or handed to the composition-root class to make it invisible -- to make the migration look finished.",
     "capabilities_with_kinds_is_pinned": "`kernel` is read from the manifests' `kind` field, so a kernel that lost its kind would silently stop being counted. The kind count is pinned so that cannot happen quietly.",
     "the_composition_root_must_stay_visible": "The composition root is present and its edges are counted separately. If it were removed from the map instead of re-attributed, `files_owned` would fall; if it were re-attributed back to `runtime`, `kernel_to_feature_file_edges` would jump by about 72.",
     "roads_must_stay_visible_and_leafless": "A road declaration MOVES edges out of a building's column without deleting anything, so both of its numbers are FLOORS: `road_files` (a declared road cannot be un-declared to push its edges back) and `edges_to_roads` (the moved edges are published on their own line precisely so they cannot vanish). The ratchet also fails if ANY edge leaves a road, because a road that imports another capability is not a road at all -- it is a building dependency, and attributing it to the road class would hide that edge (ledger CC-030's refutation).",
-    "the_cycle_graph_has_floors": "`largest_scc_size` is a CEILING -- section 17's target is 0 and a large component does not split from pairwise repairs -- but the GRAPH it is computed over has FLOORS (`capability_nodes`, `capability_edges`). Shrinking the largest component by losing an edge from the measurement is the same fraud as shrinking the inversion count by scanning fewer files, and it would be invisible from the component size alone.",
+    "the_cycle_graph_has_floors": "`largest_scc_size` is a CEILING -- section 17's target is 0 and a large component does not split from pairwise repairs -- but the GRAPH it is computed over has FLOORS (`capability_nodes`, `capability_edges`). Shrinking the largest component by losing an edge from the measurement is the same fraud as shrinking the inversion count by scanning fewer files, and it would be invisible from the component size alone. `capability_edges` is a PAIR count, so a road declaration can legitimately reduce it -- two pairs collapse into one when a capability's only edge to another capability was onto a road -- which is why the RAW total (`total_cross_capability_file_edges`) is floored as well, and it is the stronger anchor of the two: a declaration MOVES an edge and must leave the total untouched, so a fall there means edges were actually lost.",
     "the_two_cycle_count_is_measured_twice": "`mutual_capability_pairs` is asserted from BOTH the inventory's pair rollup and the cycle instrument's own edge list. If the two instruments ever disagree, both problems fire: a number nobody can reproduce is worse than a number that is wrong."
   }
 }

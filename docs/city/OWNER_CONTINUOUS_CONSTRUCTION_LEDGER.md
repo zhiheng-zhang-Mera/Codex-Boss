@@ -3567,3 +3567,122 @@ research_value              (1) A machine-checked artifact protects exactly the 
                             not is that the validator's approval is not the same claim as the principle's
                             satisfaction.
 ```
+
+## CC-040 — P2-E second batch: four more roads, nine measured refutations, and the line between a verdict about shape and a verdict about an outcome
+
+```text
+ENTRY_ID                    CC-040
+timestamp_utc               2026-09-25T07:25:27Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are config records and tests, and no file under electron/ or src/ is touched.
+main_before                 79b718da045cab1d52fdc49ce2a812abc3e02b1d  (five checks green, epoch 34, PR #72)
+branch                      feat/p2e-road-batch-2
+PR                          the PR that carries this entry
+problem                     The first batch (CC-038) declared two roads and refused two candidates, and established
+                            that leafness is NECESSARY and NOT SUFFICIENT. That left the line between the two
+                            halves stated as "a function that decides an outcome is not a road" -- which is too
+                            coarse to apply, because a shape validator, a key derivation, a URL parser and a
+                            fingerprint ALL return a verdict. Thirteen undeclared leaf candidates carried one
+                            kernel edge each, and applying the coarse version of the rule would either have
+                            declared all thirteen or refused all thirteen.
+the_line_made_usable        A verdict about MECHANICAL WELL-FORMEDNESS is a road: is this id shaped like an id, what
+                            is the canonical key for this scope, is this string a repository URL, what is the
+                            stable fingerprint of this record. A verdict about a DOMAIN OUTCOME is not: may this
+                            execution run, did this work pass, which roles execute, how is this conversation
+                            handled, should the epoch roll. The question is not whether the function returns
+                            something, it is WHAT THE VERDICT IS ABOUT.
+the_FOUR_declared           src/shared/workspace.ts (owner `workspace`) -- the workspace model: a schema version,
+                            two id constants, two interfaces, and two shape validators.
+                            src/shared/behaviour-epoch.ts (owner `promotion`) -- the epoch CONTRACT: the trigger
+                            and metric vocabularies, the two interfaces, and epochScopeKey / epochIdFor, which
+                            derive a name from a scope, an instant and a sequence. It contains no function that
+                            decides WHEN an epoch opens.
+                            src/shared/model-identity.ts (owner `tasks`) -- the identity vocabulary: source
+                            ordering and confidence tables, predicates over a LABEL, and a fingerprint. Its point
+                            is that a capability CANNOT fabricate a precise version, which is a constraint on
+                            shape rather than an outcome.
+                            src/shared/github-url.ts (owner `security`) -- the URL parser: recognize, split
+                            owner/repo/ref/subpath, derive a cache key. It makes no access decision, and the
+                            capability that decides what may be cloned does not own the parser that says whether a
+                            string is a repository URL at all.
+the_NINE_refused            electron/workspace/path-utils.ts -- it owns path SEMANTICS and validation CODES
+                            (`WorkspacePathError`, `WorkspacePathValidation`), so legality of a path is a domain
+                            verdict; the TYPES already live apart in src/shared/workspace-path and the RULES have
+                            to follow them out (the CC-029 shape).
+                            src/shared/work-mode.ts -- it is the role-assignment ENGINE: rolesForAgentCount,
+                            assignRoles, effectiveRoles, defaultRolesForWorkers. It decides which review roles
+                            run, which is orchestration policy.
+                            src/shared/owner-result.ts -- the Owner-Result DECISION LAYER: run modes, the HB1-HB4
+                            hard-blocker vocabulary, question classification, the auto-decision rule, and the
+                            escalation ladder. A file that decides when the system may proceed without the Owner
+                            is the opposite of shared surface.
+                            src/shared/result-validator.ts -- the verification policy: MODEL_DONE is not
+                            COMPLETED, and the gates for a risk level.
+                            src/shared/conversation-policy.ts -- conversationPolicyFor decides how a
+                            conversation is handled, which is a domain outcome about history and cleanup.
+                            electron/commander/execution-gate.ts -- the ExecutionGate class authorizes shell,
+                            filesystem, git and network execution; its own header calls it the question asked
+                            immediately before an execution runs.
+                            src/shared/optional-review.ts -- runOptionalReview is async and performs provider
+                            work, and optionalReviewPrompt builds the request; an implementation with side
+                            effects rather than a primitive.
+                            electron/runtime-intelligence/live-capture.ts -- a 561-line live shadow capture
+                            ADAPTER that attaches to the task ledger's write path and the event domain bus,
+                            holds a bounded failure retention list, and wraps the ledger without changing it.
+                            electron/workspace/durable-roots.ts -- twenty-one lines, so it LOOKS like a
+                            primitive, but durableRootFor encodes a layout policy: default and scratch keep the
+                            legacy app-global root while other workspaces get a sub-root. Being small is not
+                            being policy-free, which is the one place section 15.2's size rule needed a
+                            companion.
+measurement_BEFORE_AFTER    kernel -> feature file edges   66 -> 62
+                            kernel -> feature pairs        24 -> 23
+                            mutual capability pairs        34 -> 34  (unchanged)
+                            edges to roads                 64 -> 75  (published, not deleted)
+                            edges LEAVING roads             0 ->  0  (must be 0)
+                            total cross-capability edges  801 -> 801  (unchanged, still the anchor)
+                            files owned                   598 -> 598  (unchanged)
+                            capability PAIRS              206 -> 204  (see below)
+                            largest SCC 20; capability nodes 29; capability edges 206 -> 204
+why_the_pair_count_FELL_and_why_that_matters
+                            The pair count fell rather than rose: two pairs COLLAPSED into one, where a
+                            capability's only edge to another capability was onto a road and it already had a
+                            pair to the road class. So `capability_edges` -- a pair count -- is a quantity a
+                            road declaration may legitimately reduce, and the ratchet FAILED on its floor the
+                            moment this batch was applied. The repair is not to lower the floor quietly: the
+                            ratchet gains a floor on the RAW total (`total_cross_capability_file_edges`, 801),
+                            which is the stronger anchor, because a declaration MOVES an edge between columns
+                            and must leave the total untouched -- a fall there means edges were actually lost.
+                            The pair floor is lowered with that reasoning recorded, and the two now say
+                            different things instead of duplicating each other.
+the_ratchet_was_lowered     config/p2b-kernel-feature-ratchet.json records 62 / 23 / 34, road_files 6,
+                            edges_to_roads 75, capability_edges 204, the new total floor 801, and the reason for
+                            all three lowerings in one place.
+falsification               The roads validator's cases already refuse a road that imports a capability, one
+                            owned by a kernel, one with fewer than two consumers, one missing any of the five
+                            proofs, a refutation for a file that was never a candidate, and a file both declared
+                            and refuted. This batch adds nine refutations that MUST pass the leaf test, and the
+                            validator enforces exactly that -- so the record cannot be padded with files that
+                            were never candidates. The committed set is asserted by NAME for its members rather
+                            than by an exact set, so a future batch cannot silently drop a declaration.
+measurement                 node scripts/capability-roads-validator.cjs -> VERDICT=HOLDS, 73 -> 62
+                            node scripts/p2b-kernel-feature-ratchet.cjs -> VERDICT=HOLDS
+                            node scripts/phase2-pair-edges.cjs --verify -> VERDICT=AGREES (801 edges)
+                            node scripts/capability-closure-validator.cjs -> VERDICT=PASS
+rollback                    Remove the four declarations and nine refutations from config/capability-roads.json
+                            and restore the previous recorded values in config/p2b-kernel-feature-ratchet.json.
+temporary_debt_created      no. Each declaration carries an exit condition naming the extraction that removes it.
+closure_status              CLOSED for the second batch. OPEN for the 40 remaining undeclared leaf candidates, and
+                            OPEN for the extraction of all six declared roads.
+research_value              (1) A rule stated as a slogan cannot be applied; "decides an outcome" admitted and
+                            refused the same files depending on how it was read, and the usable form is the
+                            distinction between a verdict about SHAPE and a verdict about an OUTCOME. (2) A
+                            floor on a DERIVED quantity is a trap: the pair count legitimately fell while nothing
+                            was lost, and the repair was to floor the raw quantity that cannot move instead of
+                            adjusting the derived one to fit -- the second time in this stage that the right
+                            answer was a better anchor rather than a better number. (3) Small is not the same as
+                            policy-free: a twenty-one-line path helper turned out to encode a layout rule, which
+                            is the companion section 15.2 needs to its ban on treating size as a defect signal.
+                            (4) Nine refutations for four declarations is a healthy ratio and the wrong thing
+                            to optimise: the batch where every candidate passes is the batch to distrust.
+```

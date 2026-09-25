@@ -73,7 +73,8 @@ describe("P2-E the road class holds its own line", () => {
     const report = run(baseRoads());
     expect(report.problems).toEqual([]);
     expect(report.ok).toBe(true);
-    expect(report.effect.roads).toBe(2);
+    expect(report.effect.roads).toBe(Object.keys(baseRoads().roads).length);
+    expect(report.effect.roads).toBeGreaterThanOrEqual(2);
   });
 
   it("refuses a road that imports another capability -- CC-030's refutation as an executable rule", () => {
@@ -167,19 +168,28 @@ describe("P2-E the committed road set, as measured", () => {
     expect(report.effect.kernelToFeatureBefore).toBeGreaterThan(report.effect.kernelToFeatureNow);
   });
 
-  it("declares two leafless roads and records two real refutations", () => {
+  it("declares leafless roads and records real refutations, pinning MEMBERS by name rather than an exact set", () => {
     const report = validator.validate(PROJECT);
-    expect(report.roads.map((entry) => entry.file).sort()).toEqual([ROAD_FILE, SECOND_ROAD].sort());
+    const declared = report.roads.map((entry) => entry.file);
+    // Pinned by name, so a later batch cannot silently DROP a declaration: the members that were reasoned about are
+    // asserted to still be there, while the set is free to grow. An exact-set assertion would have to be edited by
+    // every batch and would fail on growth rather than on loss.
+    expect(declared).toContain(ROAD_FILE);
+    expect(declared).toContain(SECOND_ROAD);
     for (const entry of report.roads) {
-      expect(entry.leaf).toBe(true);
-      expect(entry.consumers.length).toBeGreaterThanOrEqual(2);
-      expect(entry.owner).not.toBeNull();
+      expect(entry.leaf, entry.file).toBe(true);
+      expect(entry.consumers.length, entry.file).toBeGreaterThanOrEqual(2);
+      expect(entry.owner, entry.file).not.toBeNull();
     }
-    // The refutations are the valuable half: both files PASS the leaf test and are refused for carrying a policy.
-    expect(report.refutations.map((entry) => entry.file).sort()).toEqual([REFUTED_FILE, "src/shared/permission.ts"].sort());
+    // The refutations are the valuable half: every one PASSES the leaf test and is refused for carrying a policy.
+    const refused = report.refutations.map((entry) => entry.file);
+    expect(refused).toContain(REFUTED_FILE);
+    expect(refused).toContain("src/shared/permission.ts");
+    expect(refused).toContain("src/shared/owner-result.ts");
+    expect(refused.length).toBeGreaterThan(report.roads.length);
     for (const entry of report.refutations) {
-      expect(entry.leaf).toBe(true);
-      expect(entry.consumers.length).toBeGreaterThanOrEqual(2);
+      expect(entry.leaf, entry.file).toBe(true);
+      expect(entry.consumers.length, entry.file).toBeGreaterThanOrEqual(2);
     }
   });
 
