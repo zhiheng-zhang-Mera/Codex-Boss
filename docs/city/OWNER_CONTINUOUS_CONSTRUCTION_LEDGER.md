@@ -3783,3 +3783,89 @@ research_value              (1) Reading the acceptance criteria of a FINAL stage
                             it reads as "not yet due"; fail-closed is the only safe direction for an expiry
                             check.
 ```
+
+## CC-042 — §30's acceptance suite: the seal becomes a measurement, and §33's checklist becomes machine-checked
+
+```text
+ENTRY_ID                    CC-042
+timestamp_utc               2026-09-25T09:04:30Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new files
+                            are two scripts, a document and a test, and no file under electron/ or src/ is touched.
+main_before                 430114697ac21dceb912fff3db3f46a97f109fd6  (five checks green, epoch 34, PR #74)
+branch                      feat/final-acceptance-suite
+PR                          the PR that carries this entry
+problem                     Section 33 enumerates the conditions for completion -- nine Governance, fourteen
+                            Structure, five Evidence and six Final-main items -- and section 30 enumerates what must
+                            run, adding "No final result may depend solely on a local run". Both were prose, so
+                            "are we done?" was a READING exercise, and that is exactly how section 30's own bridge
+                            expiry validator went unwritten for a whole programme (CC-041): a required artifact,
+                            named in the workbook, found only by reading its last section.
+what_was_built              scripts/city-final-acceptance.cjs -- 34 items, one per line of section 33, each with a
+                            verifier that resolves its answer from the artifact that owns it. --json for a machine,
+                            --seal to gate, --main-sha=<sha> and --hosted to read the two things a tree cannot.
+THREE_STATUSES              PASS is machine-verified; OPEN is machine-verified as NOT satisfied and always blocks;
+                            UNVERIFIED is what the tree cannot decide, and it blocks UNLESS the run carries
+                            --attest AND the final acceptance record exists -- because the workbook's own vehicle
+                            for an Owner attestation is that record. A machine that silently passes what it cannot
+                            check is worse than one that refuses, and "--attest without the record grants nothing"
+                            is pinned by a case rather than explained in a document.
+what_the_tree_CANNOT_DECIDE E1 completeness of the cloud ledger (a tree shows the entries, not the absence of a
+                            missing one); E4 that no historical failure was erased (the check that can disprove it
+                            is the GIT HISTORY, not a tree); G2/G3 the live ruleset (the committed record is prose);
+                            F1/F2/F4 the named final SHA and its five hosted checks. Section 30's rule is
+                            therefore enforced IN THE TOOL: without --hosted and --main-sha those items are
+                            reported UNVERIFIED rather than passed.
+the_measurement             34 items: 16 PASS, 11 OPEN, 7 UNVERIFIED -> VERDICT=NOT_READY (18 blocking).
+                            GOVERNANCE 7/9, STRUCTURE 6/14, EVIDENCE 2/5, FINAL_MAIN 1/6.
+                            The OPEN set IS the remaining programme, and it names its own evidence:
+                              S2 kernel -> feature file edges = 62 (target 0)
+                              S3 mutual capability pairs = 34 (target 0)
+                              S4 largest SCC = 20 of 29 nodes (target <= 1)
+                              S5 confirmed cross-domain private-state accesses = 5 (target 0)
+                              S6 1 namespace touched by more than one non-owner capability: tasks
+                              S10 22 plots in MIGRATION_IN_PROGRESS
+                              S12 stage P2-G has not been built
+                              S14 the matrix reports 1 unguarded (15.4) and 2 ratcheted (15.1, 15.7)
+the_item_this_round_VERIFIED_FIRST
+                            S7 "shared roads are explicitly classified" now HOLDS under a machine predicate:
+                            every leaf that a kernel imports across a capability boundary is either declared a
+                            road or refused as one -- 6 declared, 11 refused, ZERO undispositioned (CC-038,
+                            CC-040). The count is computed by capability-roads-validator.cjs, which gained an
+                            `undispositioned` field for it, so one program owns the number and the acceptance
+                            suite resolves it rather than recomputing it.
+a_FALSE_ALARM_found_and_fixed
+                            The first version read acceptance-evolution-bless.cjs through a --json mode it has
+                            never had, so it reported a MATCHING epoch as OPEN. That is the failure a checklist
+                            has to avoid most: a false alarm teaches a reader to ignore the list. G6 now
+                            resolves the program's EXIT CODE, which is what the program actually publishes.
+falsification               9 cases: the checklist carries every item of all four blocks with unique ids and
+                            substantive text and evidence; the items section 30 forbids a local run from settling
+                            are UNVERIFIED and say why; S7 is verified while S2/S3/S5/S12 are OPEN WITH their
+                            measurements in the evidence; a root that lacks a required artifact reports that item
+                            OPEN (the path that would have caught CC-041); the render never emits the final
+                            status while anything blocks; and the seal decision is falsified in both directions
+                            -- ready only when nothing is OPEN and nothing is unverifiable, blocked by one OPEN
+                            whatever else passes, blocked by UNVERIFIED unless BOTH --attest and the record are
+                            present, and counting the three statuses it claims to count.
+measurement                 node scripts/city-final-acceptance.cjs -> VERDICT=NOT_READY (18 blocking)
+                            node scripts/city-final-acceptance.cjs --seal -> exit 1 (correctly blocked)
+                            node scripts/city-final-acceptance.cjs --json -> 34 items, ready false
+                            npx vitest run tests/unit/city/city-final-acceptance.test.ts -> 9 passed
+rollback                    Delete scripts/city-final-acceptance.cjs, its test and
+                            docs/city/PHASE2_FINAL_ACCEPTANCE_SUITE.md; revert the `undispositioned` field in
+                            capability-roads-validator.cjs and the catalogue entry.
+temporary_debt_created      no.
+closure_status              CLOSED for the suite. OPEN for the 18 blocking items it names, which is the point: the
+                            remaining programme is now a list a machine prints rather than a reading.
+research_value              (1) The acceptance criteria of a final stage are the most valuable thing to read
+                            early: they name artifacts nobody has written, and reading them cost one pass and
+                            recovered a required validator (CC-041) plus this list. (2) A checklist needs a third
+                            status or it lies: with only pass/fail, everything a local tree cannot decide gets
+                            either passed (dishonest) or failed (unusable), and UNVERIFIED-with-an-attestation-
+                            vehicle is what makes "no final result may depend solely on a local run" enforceable
+                            inside the tool rather than aspirational in a document. (3) The first version's false
+                            alarm on a matching epoch is the exact failure mode a checklist has to avoid, because
+                            a list that cries wolf is a list that gets skimmed -- and it was found by running the
+                            tool against the real tree, not by reading it.
+```

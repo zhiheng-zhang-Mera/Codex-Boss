@@ -188,12 +188,28 @@ function validate(root = ROOT, options = {}) {
   const kernelToFeatureNow = inspect.totals.kernelToFeatureFileEdges;
   const kernelToFeatureBefore = kernelToFeatureNow + kernelEdgesOntoFeatureRoads;
 
+  // The disposition work list of docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 16: leaves that a KERNEL imports across a boundary and that are neither declared a
+  // road nor refused as one. Each is either shared surface (declare it) or a building dependency (extract it), and
+  // until it is dispositioned the kernel -> feature count cannot honestly reach zero. Resolved HERE rather than in
+  // the acceptance suite, so that one program owns the number.
+  const undispositioned = [];
+  for (const [file, consumers] of importers) {
+    if ((reached.get(file)?.size ?? 0) !== 0) continue;
+    if (consumers.size < 2) continue;
+    if (Object.prototype.hasOwnProperty.call(roads.roads ?? {}, file)) continue;
+    if (Object.prototype.hasOwnProperty.call(roads.refuted ?? {}, file)) continue;
+    if ((kernelEdgesOnto.get(file) ?? 0) === 0) continue;
+    undispositioned.push({ file, owner: ownerOf.get(file) ?? null, consumers: [...consumers].sort(), kernelEdges: kernelEdgesOnto.get(file) ?? 0 });
+  }
+  undispositioned.sort((a, b) => b.kernelEdges - a.kernelEdges || a.file.localeCompare(b.file));
+
   return {
     schema: "city-capability-roads-report/1",
     ok: problems.length === 0,
     problems,
     roads: entries,
     refutations,
+    undispositioned,
     effect: {
       roads: roadEntries.length,
       refutedCandidates: refuted.length,

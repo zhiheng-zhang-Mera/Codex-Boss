@@ -570,6 +570,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/city-final-acceptance.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "section 33 of docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md enumerates the conditions for completion -- nine Governance, fourteen Structure, five Evidence and six Final-main items -- and section 30 enumerates what must run and adds no final result may depend solely on a local run, so the suite carries all 34 items with unique ids and substantive text AND EVIDENCE, because a checklist entry that does not explain itself is an assertion; three statuses rather than two, and the difference is the design: PASS is machine-verified, OPEN is machine-verified as NOT satisfied and always blocks, UNVERIFIED is what the tree cannot decide and blocks UNLESS the run carries --attest AND the final acceptance record exists, since the workbook own vehicle for an Owner attestation is that record, and the cases falsify the seal decision in both directions -- ready only when nothing is OPEN and nothing is unverifiable, blocked by a single OPEN item whatever else passes, and blocked by UNVERIFIED for every combination except attest plus record, with --attest alone granting nothing; the items section 30 forbids a local run from settling are reported UNVERIFIED rather than passed, including completeness of the cloud ledger and the claim that no historical failure was erased, where the evidence says out loud that the check which can disprove it is the GIT HISTORY and not a working tree; OPEN is decided from the artifact and not from hope, proven by a root that lacks a required artifact reporting exactly those items OPEN -- the path that would have caught section 30's unwritten bridge expiry validator -- and by the road item being verified for the first time under a machine predicate while the structural items print the measurement that keeps them open; and the render never emits the final status while anything blocks",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/city-flatness-validator.test.ts",
       "tier": "unit",
       "covers": [
