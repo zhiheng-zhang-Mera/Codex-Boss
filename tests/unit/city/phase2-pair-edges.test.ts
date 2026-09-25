@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 
@@ -94,8 +95,33 @@ describe("P2-E the pair inspector decomposes the inventory without disagreeing w
     expect(distinct.size).toBe(result.edges.length);
   });
 
-  it("attributes every edge to two different capabilities, and every edge target to a real file", () => {
+  it("points EVERY edge at a line that actually contains the specifier it reports", () => {
+    // The invariant the tool exists to serve: a reviewer opens the line and finds the import. It was wrong twice over.
+    // The import pattern begins `(?:^|\n)`, so a match can START on the preceding newline and every such edge was
+    // reported one line too high; and a MULTI-LINE import puts the specifier on its LAST line while the match starts on
+    // the first, so twenty of 800 edges pointed at a blank line between `import {` and `} from "./x"`. Following the
+    // report landed on a DIFFERENT import, which is the kind of wrong answer a reader cannot detect without checking
+    // by hand -- so the check is here, over every edge, rather than in a note.
     const result = inspector.scan();
+    const cache = new Map<string, string[]>();
+    const mismatches: string[] = [];
+    for (const edge of result.edges) {
+      if (!cache.has(edge.fromFile)) cache.set(edge.fromFile, fs.readFileSync(path.join(PROJECT, edge.fromFile), "utf8").split("\n"));
+      const line = cache.get(edge.fromFile)![edge.line - 1] ?? "";
+      if (!line.includes(edge.specifier)) mismatches.push(`${edge.fromFile}:${edge.line} should contain ${edge.specifier}`);
+    }
+    expect(mismatches.slice(0, 5)).toEqual([]);
+    expect(mismatches.length).toBe(0);
+    // And the two shapes are pinned by name, so a future change to the pattern cannot silently reintroduce either.
+    // A statement found through the preceding newline: the import is on line 12, not 11.
+    expect(inspector.renderPair(result, "persistence -> attachments")).toMatch(/persistence\.ts:12\s+imports "\.\.\/input\/attachment-store"/);
+    // A multi-line import: the specifier is reported on the line that carries it.
+    const multiLine = result.edges.find((edge) => edge.fromFile === "src/shared/autonomous-evolution-trust.ts" && edge.specifier === "./acceptance-contracts");
+    expect(multiLine, "the multi-line import this case exists for is gone; pick another").toBeDefined();
+    expect(fs.readFileSync(path.join(PROJECT, multiLine!.fromFile), "utf8").split("\n")[multiLine!.line - 1]).toContain("./acceptance-contracts");
+  });
+
+  it("attributes every edge to two different capabilities, and every edge target to a real file", () => {    const result = inspector.scan();
     for (const edge of result.edges) {
       expect(edge.from).not.toBe(edge.to);
       expect(edge.toFile.startsWith("src/") || edge.toFile.startsWith("electron/")).toBe(true);
