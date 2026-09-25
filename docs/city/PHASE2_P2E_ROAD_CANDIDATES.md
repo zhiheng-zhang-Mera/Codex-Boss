@@ -225,3 +225,72 @@ classifies two **individual files**, and gives the machine three refusals that a
 declared roads still need their **extraction** out of `electron/commander/**` and `src/shared/`, which is what their
 exit conditions name; and the 39 non-leaf edges of section 4 are extraction work that no declaration can address.
 `config/capability-roads.json` is the class; `scripts/capability-roads-validator.cjs` is the gate.
+
+## 9. Update (`CC-040`) — the second batch, and the line the first batch only gestured at
+
+`CC-038` stated the second half of the test as *"a function that decides an outcome is not a road"*. That is too
+coarse to apply, because a shape validator, a key derivation, a URL parser and a fingerprint **all** return a
+verdict. Applied literally it would have declared all thirteen remaining leaf candidates, or refused all thirteen.
+
+The usable form is what the verdict is **about**:
+
+> A verdict about **mechanical well-formedness** is a road — is this id shaped like an id, what is the canonical key
+> for this scope, is this string a repository URL, what is the stable fingerprint of this record. A verdict about a
+> **domain outcome** is not — may this execution run, did this work pass, which roles execute, how is this
+> conversation handled, should the epoch roll.
+
+### Four declared
+
+| road | owner | consumers | why it is shape, not outcome |
+| --- | --- | --- | --- |
+| `src/shared/workspace.ts` | `workspace` | 9 | schema version, two id constants, two interfaces, two shape validators |
+| `src/shared/behaviour-epoch.ts` | `promotion` | 2 | the trigger and metric vocabularies plus `epochScopeKey`/`epochIdFor`; no function decides **when** an epoch opens |
+| `src/shared/model-identity.ts` | `tasks` | 2 | source ordering and confidence tables, predicates over a **label**, a fingerprint — its point is that a capability *cannot* fabricate a version |
+| `src/shared/github-url.ts` | `security` | 2 | recognize, split owner/repo/ref/subpath, derive a cache key; it makes **no access decision** |
+
+### Nine refused — every one passes the leaf test
+
+| candidate | why it is the owner's policy |
+| --- | --- |
+| `electron/workspace/path-utils.ts` | owns path **semantics and validation codes**; the types already live apart in `src/shared/workspace-path`, the rules must follow them out (`CC-029` shape) |
+| `src/shared/work-mode.ts` | the role-assignment **engine**: `rolesForAgentCount`, `assignRoles`, `effectiveRoles` — it decides which review roles run |
+| `src/shared/owner-result.ts` | the Owner-Result **decision layer**: run modes, HB1–HB4 vocabulary, question classification, auto-decision, escalation ladder |
+| `src/shared/result-validator.ts` | the verification **policy**: `MODEL_DONE` is not `COMPLETED`; gates by risk level |
+| `src/shared/conversation-policy.ts` | `conversationPolicyFor` decides how a conversation is handled |
+| `electron/commander/execution-gate.ts` | the `ExecutionGate` class **authorizes** execution; its own header calls it the question asked before a run |
+| `src/shared/optional-review.ts` | `runOptionalReview` is async and performs provider work — an implementation, not a primitive |
+| `electron/runtime-intelligence/live-capture.ts` | a 561-line shadow capture **adapter** attached to the ledger's write path and the event bus |
+| `electron/workspace/durable-roots.ts` | 21 lines, so it *looks* like a primitive, but `durableRootFor` encodes a **layout policy** (default/scratch keep the legacy root) |
+
+`durable-roots.ts` is the case worth keeping: **small is not the same as policy-free**, which is the companion
+section 15.2 needs to its own ban on treating size as a signal.
+
+### Before / after
+
+```text
+kernel -> feature file edges   66 -> 62
+kernel -> feature pairs        24 -> 23
+mutual capability pairs        34 -> 34   (unchanged)
+edges to roads                 64 -> 75   (published, not deleted)
+edges LEAVING roads             0 ->  0
+total cross-capability edges  801 -> 801  (unchanged -- still the anchor)
+files owned                   598 -> 598
+capability PAIRS              206 -> 204  (two pairs COLLAPSED into one, see below)
+```
+
+### The floor that was wrong, and the anchor that replaced it
+
+The pair count **fell**, so the ratchet failed on its `capability_edges` floor the moment this batch was applied. Two
+pairs collapsed into one where a capability's only edge to another capability was onto a road and it already had a
+pair to the road class. That is legitimate, and the repair was **not** to quietly lower a number: the ratchet gains a
+floor on the **raw total** (`total_cross_capability_file_edges`, 801), which is the stronger anchor, because a
+declaration *moves* an edge between columns and must leave the total untouched — a fall there means edges were
+actually lost. The pair floor is lowered alongside it, with the reasoning recorded, so the two floors now say
+different things instead of duplicating each other.
+
+That is the second time in this stage that the right answer was a better **anchor** rather than a better number.
+
+### Nine refutations for four declarations
+
+That ratio is healthy and the wrong thing to optimise. **The batch where every candidate passes is the batch to
+distrust.** 40 leafless candidates remain undeclared, and the six declared roads still need their extraction.

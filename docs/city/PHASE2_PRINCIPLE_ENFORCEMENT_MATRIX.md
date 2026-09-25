@@ -31,7 +31,7 @@ apart. So the matrix is data, and this document is generated from it by the vali
 <!-- BEGIN GENERATED MATRIX -->
 | principle | claim | section 23 requires | measured strength | guard | measured | target |
 | --- | --- | --- | --- | --- | --- | --- |
-| 15.1 | foundation must not depend on building | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs` | 66 | 0 |
+| 15.1 | foundation must not depend on building | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs` | 62 | 0 |
 | 15.2 | size is not itself a defect signal | MACHINE SEMANTICS PINNED | EVIDENCE_REQUIRED | -- | see decision record | -- |
 | 15.3 | minimum stable closure is the unit of migration | MACHINE CHECKED where decidable + explicit review record | EVIDENCE_REQUIRED | `scripts/capability-closure-validator.cjs` | see decision record | -- |
 | 15.4 | capability replacement lifecycle exists and carries one real proof | MACHINE-STATEFUL + real proof | NOT_GUARDED | -- | -- | -- |

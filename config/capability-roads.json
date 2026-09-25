@@ -4,7 +4,8 @@
   "classification": {
     "necessary_condition": "The file must be a LEAF: imported across a capability boundary by two or more capabilities, and importing NO other capability. This is ledger CC-030's refutation as a machine rule -- a road that reaches into a capability is not a road, it is that capability's surface with many callers, and relabelling it would HIDE its edges rather than classify them.",
     "sufficient_condition": "Leafness is NECESSARY and NOT SUFFICIENT. A leaf that exports its owner's decision procedure is that owner's implementation, and calling it a road would hide a real inversion. So a road must also carry NO POLICY OF ITS OWN: types, enumerations, tables, and mechanical primitives over data are roads; a function that decides an outcome is not. The refutations below are the measured cases that establish this, and every one of them passes the leaf test.",
-    "why_this_is_not_count_compensation": "Section 24 refuses count compensation: removing one edge does not license adding another, and a rebadged dependency is still a dependency. The distinction here is not a rebadge but a measurement -- a leaf with many consumers is not the owning capability's implementation, and the owning capability is not load-bearing for its consumers in the sense section 16 is about. The total cross-capability edge count is unchanged by a declaration, so nothing can be moved into a road to make it disappear."
+    "why_this_is_not_count_compensation": "Section 24 refuses count compensation: removing one edge does not license adding another, and a rebadged dependency is still a dependency. The distinction here is not a rebadge but a measurement -- a leaf with many consumers is not the owning capability's implementation, and the owning capability is not load-bearing for its consumers in the sense section 16 is about. The total cross-capability edge count is unchanged by a declaration, so nothing can be moved into a road to make it disappear.",
+    "the_line_between_no_policy_and_policy": "The second batch made the line explicit, because 'decides an outcome' alone is too coarse: a validator that rejects a malformed id, a key derivation, a URL parser and a fingerprint all return a verdict. The test is WHAT the verdict is about. A decision about MECHANICAL WELL-FORMEDNESS -- is this id shaped like an id, is this a GitHub URL, what is the canonical key for this scope -- is a road. A decision about a DOMAIN OUTCOME -- may this action run, did this work pass, which roles execute, how is this conversation handled, should the epoch roll -- is the capability's policy and is not a road. Twelve candidates were measured against it in the second batch: four were contracts or mechanical derivations and were declared, and nine carried their owner's policy and were refused."
   },
   "roads": {
     "electron/commander/durable-json.ts": {
@@ -24,6 +25,42 @@
       "contract": "InputObjectSource, InputObjectKind, INPUT_OBJECT_SOURCES, INPUT_OBJECT_KINDS, InputObjectRef, InputObject, WorkspaceRef, TaskInput and the extension table -- types and readonly tables, with no function that decides an outcome.",
       "exitCondition": "Move it to the shared surface that owns input vocabulary, then delete this declaration. It is an exact entry in the ownership map, so the extraction is a one-line ownership change rather than a directory rewiring.",
       "ledgerEntry": "CC-038"
+    },
+    "src/shared/workspace.ts": {
+      "owner": "workspace",
+      "whyShared": "Nine capabilities reach the workspace model, including two kernels (persistence, providers) and the composition root, and the boot module electron/workspace/durable-roots.ts imports its two id constants rather than defining its own. Every capability that stores or addresses workspace-scoped data needs the same model and the same id vocabulary.",
+      "whyNotBusiness": "It is a pure contract by its own header, with constants, two interfaces and two shape validators. validWorkspaceId and validateWorkspace answer whether a value is SHAPED like a workspace -- mechanical well-formedness -- and decide nothing about what a workspace does or which one a task may use.",
+      "invariant": "The schema version, the default and scratch ids, and the shape of a workspace record are one vocabulary: a capability that wrote a record with its own schema version or its own idea of a valid id would produce data the other eight cannot read.",
+      "contract": "WORKSPACE_SCHEMA_VERSION, DEFAULT_WORKSPACE_ID, SCRATCH_WORKSPACE_ID, the Workspace and WorkspaceRegistryFile interfaces, validWorkspaceId(id): boolean and validateWorkspace(value): Workspace -- constants, shapes and shape checks, with no decision about a domain outcome.",
+      "exitCondition": "Move it to the shared surface that owns the workspace model, then delete this declaration. It is an exact entry in the ownership map, so the extraction is a one-line ownership change rather than a directory rewiring.",
+      "ledgerEntry": "CC-040"
+    },
+    "src/shared/behaviour-epoch.ts": {
+      "owner": "promotion",
+      "whyShared": "The epoch contract is consumed by learning and by providers, and it is the vocabulary that lets a behaviour change be recorded once and read by both. A provider's undisclosed backend change is not a promotion concern, yet the epoch contract that describes it lives inside promotion.",
+      "whyNotBusiness": "It declares the epoch's SHAPE and derives its KEYS: a schema version, the trigger and metric vocabularies, the two interfaces, epochScopeKey and epochIdFor. It contains no function that decides WHEN an epoch opens or closes -- that decision belongs to the capability that owns promotion, and it is not in this file.",
+      "invariant": "An epoch's identity is a pure function of its scope, its start instant and its sequence, so the same epoch is named the same thing by every capability that records or reads it, and old epochs stay queryable by that name.",
+      "contract": "EPOCH_SCHEMA_VERSION, the EpochTrigger and BehaviourMetricKey vocabularies, BEHAVIOUR_METRIC_KEYS, the BehaviourEpoch and EpochScope interfaces, epochScopeKey(scope) and epochIdFor(scope, startedAt, sequence) -- vocabulary and key derivation only.",
+      "exitCondition": "Extract the epoch contract out of promotion into a foundation location owned by no building, then delete this declaration. The file is an exact entry in the ownership map, so the extraction is an ownership change rather than a directory rewiring.",
+      "ledgerEntry": "CC-040"
+    },
+    "src/shared/model-identity.ts": {
+      "owner": "tasks",
+      "whyShared": "Model execution identity is needed by learning and by providers, which are the two capabilities that observe a backend answering, and it is owned by neither. The identity vocabulary is what lets one of them record an observation the other can read.",
+      "whyNotBusiness": "Its functions are predicates over a LABEL and derivations from a record: isAutoSelection and isConcreteModelId test a string, sourceRank and provenanceOf read a confidence table, and modelIdentityFingerprint derives a stable key. None of them decides anything about a task, a run or a provider -- the file exists so that a capability CANNOT fabricate a precise version, which is a constraint on shape, not an outcome.",
+      "invariant": "An identity belongs to an invocation and never to a conversation, and it always records HOW it was learned: the source ordering and confidence tables are the single ranking, so an unobservable backend stays undefined rather than acquiring a plausible-looking version from a self-report.",
+      "contract": "The ModelIdentitySource vocabulary, MODEL_IDENTITY_SOURCE_ORDER, MODEL_IDENTITY_SOURCE_CONFIDENCE, AUTO_MODEL_LABEL, SELF_REPORTED_CONFIDENCE, the ModelExecutionIdentity and ModelSnapshot interfaces, isAutoSelection, isConcreteModelId, modelIdentityFingerprint, sourceRank and provenanceOf -- vocabularies, tables, predicates over a label, and key derivation.",
+      "exitCondition": "Move it to the shared surface that owns model identity vocabulary, then delete this declaration. It is an exact entry in the ownership map.",
+      "ledgerEntry": "CC-040"
+    },
+    "src/shared/github-url.ts": {
+      "owner": "security",
+      "whyShared": "Recognizing a repository URL is needed by the composition root and by providers, and it is owned by security: the capability that decides what may be cloned does not own the string parser that says whether a string is a repository URL at all.",
+      "whyNotBusiness": "It parses and recognizes strings: looksLikeGithubUrl tests a shape, extractGithubUrlFromMessage scans a message, parseGithubUrl splits owner, repo, ref and subpath, and githubCacheKey derives a key. It makes no access decision and knows nothing about whether a repository may be cloned -- that is security's policy and it is not in this file.",
+      "invariant": "One parser decides what a GitHub URL means, so the cache key, the clone target and the subpath cannot disagree about which repository a string names.",
+      "contract": "The GithubTarget interface, looksLikeGithubUrl(text), extractGithubUrlFromMessage(message), parseGithubUrl(input) and githubCacheKey(target) -- recognition, splitting and key derivation over a string.",
+      "exitCondition": "Extract the URL parser from security into a foundation location owned by no building, then delete this declaration. It is an exact entry in the ownership map.",
+      "ledgerEntry": "CC-040"
     }
   },
   "refuted": {
@@ -36,6 +73,51 @@
       "owner": "security",
       "reason": "A leaf imported by providers and tenx, so it PASSES the leaf test -- and it is still not a road. It exports manifestAllows, manifestNarrow and desktopMutationGate, which are `security`'s decision procedure over a permission manifest: the vocabulary could be shared, but the decision is the capability's, and both are in one file today. Leafness is necessary and not sufficient, and this is the second measured case that establishes it.",
       "measuredAt": "2026-09-25T05:45Z"
+    },
+    "electron/workspace/path-utils.ts": {
+      "owner": "workspace",
+      "reason": "A leaf reached by nine capabilities, and refused. Its own header says it owns path SEMANTICS for the whole application -- normalize, validate, resolve, persist -- and its exports include the WorkspacePathError class and WorkspacePathValidation codes. Whether a path is legal for a workspace is a decision about that capability's domain, not about mechanical well-formedness, so the file is `workspace`'s path policy wearing a utility's name. Its repair is the CC-029 shape: the TYPES already live apart in src/shared/workspace-path, and the RULES have to follow them out.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "src/shared/work-mode.ts": {
+      "owner": "tasks",
+      "reason": "A leaf reached by five capabilities, and refused. It is the role-assignment ENGINE, not a role vocabulary: rolesForAgentCount, roleForWorkerIndex, effectiveRoles, assignRoles, defaultRolesForWorkers and defaultConfigForWorkerCount decide which review roles run for a given agent count and which worker holds which role. That is orchestration policy, and the tables and type unions in the same file are the vocabulary half that would be extracted from it.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "src/shared/owner-result.ts": {
+      "owner": "status",
+      "reason": "A leaf reached by four capabilities, and refused -- the clearest case in the batch. It is the Owner-Result DECISION LAYER: run modes, the HB1-HB4 hard-blocker vocabulary, worker-question classification into DECIDABLE and HARD_BLOCKER, the certainty rule that auto-decides a decidable question, and the directional-stop escalation ladder. A file that decides when the system may proceed without the Owner is the opposite of shared surface.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "src/shared/result-validator.ts": {
+      "owner": "tasks",
+      "reason": "A leaf reached by three capabilities, and refused. Its header states the policy it implements -- MODEL_DONE is not COMPLETED, and a task ends PASS only when the verification gates for its risk level actually pass -- and it enumerates the engineering and research gates by risk. That is the verification policy of the capability that owns task completion, and the contract half is the VerificationContract interface inside the same file.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "src/shared/conversation-policy.ts": {
+      "owner": "tasks",
+      "reason": "A leaf reached by three capabilities, and refused. conversationPolicyFor(input) returns PERSISTENT, REUSABLE, TEMPORARY or AUTO_DELETE for a task -- it decides how a provider conversation is handled, which is a domain outcome about history, cleanup and account safety. The vocabulary and the input interface are the contract half.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "electron/commander/execution-gate.ts": {
+      "owner": "tenx",
+      "reason": "A leaf reached by runtime and the composition root, and refused. It exports the ExecutionGate class and ExecutionDeniedError, and its own header calls it the capability question asked immediately before an execution runs: it AUTHORIZES shell, filesystem, git and network execution. A gate is a decision procedure by definition, so this is the capability's policy rather than a shared sink.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "src/shared/optional-review.ts": {
+      "owner": "tenx",
+      "reason": "A leaf reached by persistence and status, and refused. runOptionalReview is async and performs provider work, optionalReviewPrompt builds the request, and parseOptionalReview interprets the answer: this is an implementation with side effects and a provider contract, not a shared primitive. Calling it a road would classify running work as shared surface.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "electron/runtime-intelligence/live-capture.ts": {
+      "owner": "tenx",
+      "reason": "A leaf reached by automation and persistence, and refused. It is the live shadow capture ADAPTER: 561 lines that attach to the task ledger's single write path and to the domain event bus, wrapping the ledger so that writes are observed without changing them. It holds state, keeps a bounded failure retention list, and its exports include the attachment table and the capture options and status. That is an implementation of one capability's concern, not a contract.",
+      "measuredAt": "2026-09-25T07:20Z"
+    },
+    "electron/workspace/durable-roots.ts": {
+      "owner": "workspace",
+      "reason": "A leaf reached by the composition root and by persistence, and refused. It is twenty-one lines, so it looks like a primitive, but durableRootFor encodes a LAYOUT policy: the default and scratch workspaces keep the legacy app-global root while every other workspace gets a sub-root, which is a decision about where state lives and how existing data stays readable. That decision belongs to the capability that owns the workspace layout, and src/shared/workspace-layout.ts is the related candidate.",
+      "measuredAt": "2026-09-25T07:20Z"
     }
   }
 }

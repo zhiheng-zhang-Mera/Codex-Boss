@@ -83,6 +83,7 @@ function report(overrides: {
   kernelToFeatureFileEdges?: number;
   kernelToFeaturePairs?: number;
   mutualCapabilityPairs?: number;
+  totalCrossCapabilityFileEdges?: number;
   filesOwned?: number;
   capabilitiesWithKinds?: number;
   compositionRootFiles?: number;
@@ -98,6 +99,9 @@ function report(overrides: {
       kernelToFeatureFileEdges: overrides.kernelToFeatureFileEdges ?? 82,
       kernelToFeaturePairs: overrides.kernelToFeaturePairs ?? 25,
       mutualCapabilityPairs: overrides.mutualCapabilityPairs ?? 38,
+      // The RAW total, which the ratchet floors as its strongest anchor: a road declaration MOVES an edge between
+      // columns and must leave this untouched, so a fall here means edges were actually lost.
+      totalCrossCapabilityFileEdges: overrides.totalCrossCapabilityFileEdges ?? 801,
     },
     kernelToFeaturePairs: overrides.kernelToFeaturePairsList ?? [],
   };
@@ -106,7 +110,7 @@ function report(overrides: {
 const baseline = {
   ownershipModel: "config/capability-modules.json -- the OWNERSHIP MAP, not the manifests",
   measuredAt: "2026-09-25T00:05Z",
-  recorded: { kernel_to_feature_file_edges: 82, kernel_to_feature_pairs: 25, mutual_capability_pairs: 38, files_owned: 597, capabilities_with_kinds: 27, composition_root_files: 2 },
+  recorded: { kernel_to_feature_file_edges: 82, kernel_to_feature_pairs: 25, mutual_capability_pairs: 38, files_owned: 597, capabilities_with_kinds: 27, composition_root_files: 2, total_cross_capability_file_edges: 801 },
   target: { kernel_to_feature_file_edges: 0, mutual_capability_pairs: 0 },
 };
 

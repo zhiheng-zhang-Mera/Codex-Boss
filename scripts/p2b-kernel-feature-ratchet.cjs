@@ -94,6 +94,11 @@ function decide(report, ratchet, cycles) {
   floor("owned files", measured.filesOwned, recorded.files_owned, "fewer files scanned is not fewer inversions; a file removed from the map, or absorbed by another class to hide its edges, makes the migration look finished without being finished");
   floor("capabilities with a kind", measured.capabilitiesWithKinds, recorded.capabilities_with_kinds, "`kernel` is read from the manifests' kind field, so a kernel that lost its kind would stop being counted while still being a kernel");
   floor("composition-root files", measured.compositionRootFiles, recorded.composition_root_files, "the composition root must stay visible; removing it from the map instead of re-attributing it would make its ~95 outgoing edges disappear");
+  // The RAW edge count, the strongest anchor this ratchet has: a road declaration MOVES an edge from one column to
+  // another and must leave the total untouched, so a fall here means edges were actually lost. The PAIR count is
+  // deliberately not used as that anchor, because it is derived and a declaration may legitimately reduce it -- two
+  // pairs collapse into one when a capability's only edge to another capability was onto a road.
+  floor("total cross-capability file edges", edges.totalCrossCapabilityFileEdges, recorded.total_cross_capability_file_edges, "the raw graph lost an edge: a file left the scan, an ownership rule changed, or a declaration DELETED edges instead of moving them");
   // ---- Roads (workbook section 19; see docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md) ------------------
   //
   // A road declaration MOVES edges out of a building's column without deleting anything, so the two numbers it
