@@ -224,6 +224,14 @@ function decide(report, ratchet) {
   // The CANDIDATE tier is a ceiling too, but a looser one: it is the tier whose members a reader still has to
   // classify, so it must not grow either -- it is where an unclassified access would hide.
   risen("unclassified namespace joins", report.candidates, recorded.unclassified_namespace_joins, "a namespace join that is neither confirmed nor explained by a durable-root marker; each one needs a classification, not a count");
+  // The SECOND HALF of docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 18, and the artifact section 30 names as the "durable-writer validator". This artifact's target block has declared
+  // `uncontrolled_multi_writer_durable_stores: 0` since it was written, and NOTHING ASSERTED IT: the count was
+  // printed in the report and carried in the decision's `measured` block, and no rule compared it with anything, so a
+  // namespace acquiring a second non-owner writer would have been displayed and passed. A DECLARED TARGET THAT
+  // NOTHING ASSERTS is a target in name only -- the same defect class as an artifact the workbook names and nobody
+  // writes (ledger CC-041), which is why the rule is here rather than in a note. Recorded as a CEILING at its
+  // currently accepted value, so a rise fails and a fall is reported as the improvement to record.
+  risen("uncontrolled multi-writer durable stores", Array.isArray(report.multiWriterCandidates) ? report.multiWriterCandidates.length : undefined, recorded.uncontrolled_multi_writer_durable_stores, "section 18's target is 0: a namespace written by more than one non-owner capability has no single authoritative writer");
   floor("declared durable namespaces", report.declaredNamespaces, recorded.declared_namespaces, "a namespace removed from the manifests stops being declared, which turns every access to it into an access to state nobody owns -- the opposite of progress");
   floor("scanned source files", report.scannedSourceFiles, recorded.scanned_source_files, "fewer files scanned is not fewer accesses; a file removed from the scan set makes the count fall without anything being repaired");
 
