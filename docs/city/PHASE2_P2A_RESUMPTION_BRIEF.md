@@ -219,3 +219,48 @@ CC-017/CC-019  the soak sample floor: a MACHINE-THROUGHPUT assertion, and `slope
                under-sampled run FAILS with a readable reason. The remaining work is to choose between a longer
                soak and a sampling bound derived from measured per-cycle cost -- NOT to relax the assertion.
 ```
+
+## 8. READ THIS BEFORE STARTING ANY STRUCTURAL STEP: the gate prices it as an Owner act
+
+Measured while attempting step ③a (the provider closure). It changes how every remaining migration step must be
+planned, so it is recorded on `main` rather than only in the branch that found it.
+
+```text
+THE MEASUREMENT
+  Step ③a was built, typechecked and measured: the provider closure moved out of src/shared/contracts.ts into
+  src/shared/provider-contracts.ts, 30 importers re-pointed, ownership map and providers.yaml moved with it.
+  Effect under the ownership map: kernel -> feature 82 -> 73, `providers -> status` 13 -> 3, mutual pairs
+  unchanged at 38, all three tsconfigs clean, closure VERDICT=PASS, legacy ratchet pass: true.
+
+  IT CANNOT LAND WITHOUT AN OWNER-AUTHORISED CEREMONY, and `architecture:enforce` says exactly why: 29
+  violations, being
+    25  NEW_EDGE_UNDECLARED_ENDPOINT   new edges onto the new module whose SOURCE file no manifest declares.
+                                       NO DECLARATION CAN FIX THESE -- the sources are 25 files no manifest lists.
+     4  NEW_UNDECLARED_CROSS_CAPABILITY_EDGE  the four feature boot modules that name a provider type without
+                                       declaring a `requires:` on `providers`.
+
+  So ANY structural change -- a new module, a moved type, a split file -- costs:
+    1  the manifest declarations that can be made (these raise the legacy ratchet's dependencyEdgeCount), then
+    2  config/architecture-baseline.json                       (Root Trust Surface)
+    3  trust-policy/architecture-enforcement-baselines.json     the (version, parent, hash) TRIPLE, added BEFORE
+                                                                regenerating, or the engine returns
+                                                                BASELINE_SERIES_UNAUTHORISED in BOTH modes
+    4  config/architecture-enforcement-baseline.json            regenerated (Root Trust Surface)
+    5  an epoch ceremony, because 2, 3 and 4 are all on the surface
+
+  This is deliberate -- it is what "no new architecture debt without an Owner act" means operationally -- but it
+  was invisible until a refactor was attempted, and it means the P2 migration is gated on a ceremony PER STEP,
+  not only on code. Budget for it.
+
+A SECOND, SMALLER TRAP
+  The architecture sensor scans TRACKED files. A new module measured BEFORE `git add` is invisible to it, and the
+  run reports 32 UNRESOLVED_SOURCE_TARGET_MISSING instead of the two real classes -- same exit code, same
+  POLICY_VIOLATION verdict, different meaning. Commit (or at least `git add`) before measuring, or the
+  measurement describes a tree the sensor cannot see.
+
+WHERE THE PREPARED WORK IS
+  branch   feat/p2a-provider-closure  (pushed; NOT merged, no PR)
+  entries  ledger CC-027 and docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md, both ON THAT BRANCH
+  next     perform steps 1-5 above, then land the branch. The measured effect is already recorded, so the
+           ceremony is the only remaining work.
+```
