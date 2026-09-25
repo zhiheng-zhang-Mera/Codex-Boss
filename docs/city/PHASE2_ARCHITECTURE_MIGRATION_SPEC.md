@@ -341,6 +341,22 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
      commander has 132 incoming edges and 122 outgoing across 13 capabilities, 39 of them onto three kernels, so
      re-labelling it would move those edges out of the measurement without repairing anything.
      STILL OPEN: P2-C's migration (cycles to 0).
+  9  (LANDED, increment 2) the P2-D measurement and its validator, which section 30 names as the
+     "private-state-access validator" and which did not exist. `node scripts/phase2-private-state.cjs` reports
+     FIVE cross-domain private-state accesses over THREE (namespace, capability) pairs, ALL into one namespace:
+     `tasks`, declared by `persistence`, resolved by hard-coded path from `host-status`, `runtime` and `tenx`.
+     `host-status` reaching the task ledger is the WORKBOOK'S OWN HISTORICAL EXAMPLE from section 18
+     ("host-status parsing persistence state.json"), so the instrument finds the defect it was written for.
+     THE DEFINITION is a PATH rather than a name -- a `path.join` whose last segment is a declared namespace --
+     because matching a name as a string reported a SKIP set and a field name as "accesses". A join is CONFIRMED
+     only with a durable-root marker; the rest is a separate tier with a recorded reason each, and BOTH tiers are
+     ceilings so an access cannot hide by being unclassifiable. One level of indirection is resolved on each side
+     (a local name bound to the durable root, a module constant bound to a namespace), because without the root
+     indirection the historical example classified as unclassified -- found by falsifying, not by reading.
+     NOT CLAIMED: read-versus-write. The open mode is not in the source, so the artifact records an explicit
+     NOT CLAIMED note and machine-enforces the DECLARED property (one owner per namespace) instead.
+     Ledger CC-031. STILL OPEN: P2-D's migration (accesses to 0), and the multi-writer property, which needs a
+     read/write signal the source does not carry.
 ```
 
 **The measured disagreement, unchanged by increment 1:**

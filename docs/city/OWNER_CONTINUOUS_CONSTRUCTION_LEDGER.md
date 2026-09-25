@@ -2665,3 +2665,121 @@ research_value              Three things, and the middle one is the point. (1) T
                             synthetic SCC cases were insensitive to the algorithm's central step until a mutation
                             said so.
 ```
+
+---
+
+## CC-031 — P2-D measured: 5 cross-domain private-state accesses over 3 pairs, including the workbook's own historical example, and the two rules the instrument got wrong first
+
+```text
+ENTRY_ID                    CC-031
+timestamp_utc               2026-09-25T03:50Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new
+                            program lives under scripts/ and tests/, which the enforcement sensor does not scan.
+main_before                 700104e8d014f2c97bd98e95ed5893ed15da34d7  (five checks green, epoch 34)
+branch                      feat/p2d-private-state-validator
+PR                          the PR that carries this entry
+problem                     Section 18 says "Freshly measure all cross-domain private-state reads/writes" and the
+                            final acceptance suite names a "private-state-access validator" and a
+                            "durable-writer validator". Neither existed, and of section 33's Structure checklist
+                            these two -- "cross-domain private-state access = 0" and "uncontrolled multi-writer
+                            durable stores = 0" -- were the only items with NO measurement at all, so the
+                            programme could not even size them.
+classification              R2 (missing required validator). The 5 accesses it found are a WORK LIST.
+normal_path                 Build the instrument, correct it until it finds the defect the workbook names,
+                            record the floor, ratchet both directions, falsify the rules.
+why_normal_path_was_not_used  Not applicable -- used in full.
+files_or_rules_changed      scripts/phase2-private-state.cjs                     (NEW validator, read-only)
+                            config/p2d-private-state-ratchet.json                (NEW recorded floor + reasons)
+                            tests/unit/city/phase2-private-state.test.ts        (NEW, 22 cases)
+                            scripts/generate-test-catalogue.cjs                 (curated entry)
+                            config/test-catalogue.json                          (292 -> 293 suites)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md (untouched)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md   (this entry)
+```
+
+```text
+THE MEASUREMENT (node scripts/phase2-private-state.cjs, under the OWNERSHIP MAP)
+  CONFIRMED cross-domain private-state accesses   5, over 3 (namespace, capability) pairs
+    tasks (owner persistence) <- host-status   electron/host/host-observer-collector.ts:256
+    tasks (owner persistence) <- runtime       electron/platform/coordination-recorder.ts:159
+    tasks (owner persistence) <- tenx          electron/runtime-intelligence/live-capture.ts:519
+    tasks (owner persistence) <- tenx          electron/runtime-intelligence/replay-corpus-io.ts:111
+    tasks (owner persistence) <- tenx          electron/runtime-intelligence/replay-corpus-io.ts:411
+  unclassified namespace joins   5   (kept separate; each has a recorded reason)
+  declared durable namespaces    32
+  multi-writer candidates        1   (tasks touched by host-status, runtime, tenx)
+
+  ALL FIVE ACCESSES GO INTO ONE NAMESPACE, and `host-status` reaching the task ledger by hard-coded path is
+  SECTION 18'S OWN HISTORICAL EXAMPLE: "host-status parsing persistence state.json". An instrument that cannot
+  find the defect it was written for is measuring something else, which is exactly what the first version did.
+```
+
+```text
+THE TWO RULES THE INSTRUMENT GOT WRONG, AND HOW EACH WAS FOUND
+  1  A NAME IS NOT AN ACCESS. The first measurement matched a declared namespace as a quoted STRING and reported
+     12 cross-domain "accesses". Reading them showed the rule was wrong: `"history"` inside a SKIP set,
+     `FleetAggregate["tasks"]` and `"tasks"` as a component id are not state access. The rule became a PATH JOIN
+     whose LAST segment is a declared namespace.
+  2  A PATH JOIN IS NOT ALWAYS DURABLE STATE. `path.join(artifacts, "history")` is an acceptance session's own
+     quarantine subdirectory and `path.join(context.dir, "tasks")` is a fault-lab SANDBOX. Counting them would
+     make the number depend on how many directories happen to share a namespace's name. So a join is CONFIRMED
+     only with a durable-root marker, and the rest is a separate tier with a recorded reason each.
+  3  AND THE MARKER LIST WAS TOO NARROW -- found by FALSIFYING, not by reading. `host-status` reaches the task
+     ledger through `path.join(boss, "tasks")` where `const boss = path.join(sources.dataRoot, ".boss")`, so the
+     workbook's own historical example classified as "unclassified". The rule now resolves ONE level of
+     indirection on the ROOT as well as on the NAMESPACE. Falsification proves the two indirections are
+     load-bearing: with the root indirection disabled the historical example DISAPPEARS from the pair list
+     (pairs fall to `tasks <- runtime`, `tasks <- tenx`) and the access reappears in the unclassified tier.
+```
+
+```text
+WHY THERE ARE TWO CEILINGS
+  `cross_domain_state_accesses` (5) bounds the CONFIRMED subset; `namespace_joins_into_anothers_state` (10)
+  bounds EVERY namespace join into another capability's declared state, classified or not.
+  With only the confirmed ceiling an access could grow inside the unclassified tier -- and the falsification
+  showed exactly that happening (the tier rose to 6 when an access was misclassified into it). With only the
+  total, the confirmed/unclassified split would be unrecorded. BOTH are asserted, and each unclassified join
+  carries a recorded reason so the tier is a classification rather than a dumping ground.
+  FLOORS: `declared_namespaces` (32) and `scanned_source_files` (612). Removing a namespace from the manifests
+  does not remove the access -- it converts it into an access to state NOBODY declares, which is worse.
+```
+
+```text
+WHAT IS EXPLICITLY NOT CLAIMED
+  READ VERSUS WRITE IS NOT MEASURED. The stores here are constructed with a path and the open mode is not in the
+  source, so read-versus-write is not statically decidable from this analysis, and a validator that guessed it
+  would be inventing the number section 18 asks for. What is reported instead is the namespaces TOUCHED by more
+  than one non-owner capability, as a candidate list, and what is machine-enforced for multiple writers is the
+  DECLARED property: exactly one declared owner per namespace, and no code path resolving into a namespace owned
+  by someone else. The artifact says so in a `multi_writer.claim` field beginning "NOT CLAIMED", and a test
+  asserts that field says it.
+```
+
+```text
+known_risk                  The unclassified tier holds three joins in `electron/runtime-paths.ts` whose roots
+                            are PARAMETERS, so no static rule can tell whether a caller passes a durable root.
+                            That module's declared purpose IS resolving durable paths, so those may be layout
+                            rather than access -- but the instrument cannot decide, and the recorded reason says
+                            so rather than the count deciding it.
+                            The 5 confirmed accesses are UNREPAIRED. Section 18's repair tactics (explicit owner
+                            API, event stream, read model, shared road) change src/ and electron/ edges, so they
+                            cost a trust ceremony; this entry measures and gates, and does not repair.
+rollback                    Delete the validator, its artifact and its test; nothing else reads them.
+temporary_debt_created      no
+exit_condition              `node scripts/phase2-private-state.cjs` reports the accesses with their files and
+                            lines, the ratchet refuses both directions with anti-gaming floors, and the
+                            read-versus-write limitation is stated in the artifact rather than implied.
+closure_status              CLOSED for the P2-D measurement and validator. OPEN for P2-D's migration
+                            (cross-domain accesses to 0) and for the multi-writer property, which needs a
+                            read/write signal the source does not currently carry.
+research_value              Three findings. (1) A measurement rule can be plausible, pass on the tree, and be
+                            measuring the wrong thing: matching a namespace as a string reported 12 "accesses"
+                            of which several were a SKIP set and a field name, and only reading the lines showed
+                            it. (2) The correction that mattered was found by FALSIFYING -- disabling one
+                            indirection made the workbook's own historical example vanish from the pair list,
+                            which no amount of reading the rule would have shown, because the rule looked
+                            right. (3) A tiered measurement needs a ceiling on EVERY tier: the confirmed
+                            ceiling alone would have let an access hide in the tier whose members are by
+                            definition unclassified, and the falsification run demonstrated that exact escape.
+```

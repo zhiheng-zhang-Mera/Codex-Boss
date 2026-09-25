@@ -1,0 +1,37 @@
+{
+  "$comment": "P2-D regression ratchet for cross-domain private-state access, recorded from a measurement and never hand-tuned. `cross_domain_state_accesses` is the number workbook section 18 must drive to ZERO ('cross-domain private-state accesses = 0'); until it is zero this artifact is the floor that stops it silently growing back. Lowering a value here is the point of the migration and happens in the same commit that lowers it.",
+  "schema": "city-p2d-private-state-ratchet/1",
+  "ownership_model": "config/capability-modules.json -- the OWNERSHIP MAP, not the manifests",
+  "measured_at": "2026-09-25T03:20Z",
+  "measured_by": "node scripts/phase2-private-state.cjs",
+  "recorded": {
+    "cross_domain_state_accesses": 5,
+    "cross_domain_state_pairs": 3,
+    "namespace_joins_into_anothers_state": 10,
+    "unclassified_namespace_joins": 5,
+    "declared_namespaces": 32,
+    "scanned_source_files": 612
+  },
+  "target": {
+    "cross_domain_state_accesses": 0,
+    "uncontrolled_multi_writer_durable_stores": 0
+  },
+  "multi_writer": {
+    "claim": "NOT CLAIMED as a measurement. The stores here are constructed with a path and the open mode is not in the source, so read-versus-write is not statically decidable, and a validator that guessed it would be inventing the number section 18 asks for.",
+    "machine_enforced_instead": "exactly one declared owner per namespace, and no code path resolving into a namespace owned by someone else",
+    "current_candidates": 1
+  },
+  "reason": "First measurement of section 18's property. FIVE confirmed accesses over THREE (namespace, capability) pairs, ALL of them into ONE namespace: `tasks`, declared by `persistence`, resolved by hard-coded path from `host-status`, `runtime` and `tenx`. `host-status` reaching the task ledger through `path.join(boss, \"tasks\")` is the workbook's OWN historical example ('host-status parsing persistence state.json'), so the instrument finds the defect it was written to find. The five are: host-status electron/host/host-observer-collector.ts:256; runtime electron/platform/coordination-recorder.ts:159; tenx electron/runtime-intelligence/live-capture.ts:519 and replay-corpus-io.ts:111 and :411.",
+  "the_five_unclassified": {
+    "$comment": "Reported, not counted as accesses. Each is a namespace join WITHOUT a durable-root marker, and each has a reason it is not durable state access. The TOTAL (10) is also a ceiling, so an access cannot hide by being unclassifiable.",
+    "history <- engineering electron/engineering/acceptance-session.ts:240": "path.join(artifacts, HISTORY_DIRECTORY) -- the acceptance session's OWN quarantine subdirectory, which happens to share the namespace's name",
+    "tasks <- host-status electron/host/fault-lab.ts:451": "path.join(context.dir, \"tasks\") -- a fault-lab SANDBOX directory, not the durable root",
+    "history <- runtime electron/runtime-paths.ts:53, :175, :244": "the path-LAYOUT module and its legacy migration; the roots are PARAMETERS, so no static rule can tell whether a caller passes a durable root, and resolving durable paths is that module's declared purpose rather than another capability's private state"
+  },
+  "why_two_ceilings": "`namespace_joins_into_anothers_state` (10) bounds EVERY namespace join into another capability's declared state, classified or not, and `cross_domain_state_accesses` (5) bounds the confirmed subset. With only the confirmed ceiling an access could grow inside the unclassified tier; with only the total, the split would be unrecorded. Both are asserted.",
+  "anti_gaming": {
+    "declared_namespaces_is_a_floor": "Removing a namespace from the manifests does not remove the access; it converts it into an access to state NOBODY declares, which is worse. The count of declared namespaces is asserted to stay at or above its recorded value.",
+    "scanned_files_is_a_floor": "Fewer files scanned is not fewer accesses. A file dropped from the scan set makes the count fall without anything being repaired.",
+    "one_level_of_indirection_for_each_side": "The ROOT may be a local name bound to a durable root in the same file (`const boss = path.join(sources.dataRoot, \".boss\")`) and the NAMESPACE may be a module constant (`export const HISTORY_DIRECTORY = \"history\"`). Both are resolved, because without them the workbook's own historical example classified as 'unclassified' -- which is how the rule was found to be wrong."
+  }
+}
