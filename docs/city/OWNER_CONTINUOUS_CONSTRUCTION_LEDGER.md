@@ -4571,3 +4571,105 @@ research_value              (1) An unexercised code path in an acceptance suite 
                             likely failure of a governance checklist is not that it misses a problem but that it
                             invents one.
 ```
+
+## CC-053 — The next structural step is measured, and the pair that looks cheapest is not
+
+```text
+ENTRY_ID                    CC-053
+timestamp_utc               2026-09-25T18:41:12Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: no protected-path write, NO EPOCH
+                            CEREMONY. docs/city/** is outside the trust surface, so
+                            acceptance-evolution-bless --check still reports epoch 36 MATCHES.
+main_before                 f5b41d98ed766fe64a9d45e6669fadc2cf052c86  (five checks green, epoch 36, PR #84)
+branch                      docs/city-cc-053
+PR                          the PR that carries this entry
+what_was_run_first          The shortlist of "smallest mutual capability pairs" was produced in an earlier round
+                            by an inspector whose `lineAt` was off by one, so it printed the import ABOVE the
+                            real edge -- for `persistence -> identity` it named
+                            `import { GithubResolver } from "../input/github-resolver"`, which is not the edge at
+                            all. The defect has since been fixed and both invariants are now asserted (the
+                            specifier is matched, the leading newline is skipped), so the list was re-measured
+                            through the repaired inspector before being used to plan any work:
+                              node -e "require('./scripts/phase2-pair-edges.cjs').scan()" filtered to pairs whose
+                              kernel->feature side is exactly one edge, with each reported line re-read from
+                              disk and compared against its own specifier.
+the_corrected_shortlist     Three mutual pairs have a single kernel->feature edge. The corrected lines:
+                              persistence -> attachments   kf=1 value
+                                electron/bootstrap/persistence.ts:12
+                                  import { AttachmentStore } from "../input/attachment-store";
+                              persistence -> identity      kf=1 value
+                                electron/bootstrap/persistence.ts:15
+                                  import { SessionLifecycleLedger } from "../identity/session-lifecycle-ledger";
+                              providers -> automation       kf=1 value
+                                electron/bootstrap/provider-pool.ts:3
+                                  import { ProviderAutomation } from "../provider-automation";
+why_the_cheap_pair_is_not_cheap
+                            A mutual pair is not dissolved by removing one edge: it dissolves only when BOTH
+                            directions are gone, so the price of a pair is kernel->feature PLUS feature->kernel,
+                            and on that cost function the ranking inverts. `providers -> automation` carries TEN
+                            reverse value edges (electron/bootstrap/automation.ts:8, and nine out of
+                            electron/provider-automation.ts itself), so closing that pair costs eleven edge
+                            retirements. The two genuinely cheap pairs cost two each -- but neither is a
+                            re-attribution away from being cheap:
+                              attachments -> persistence  1 value
+                                electron/input/attachment-upload.ts:10 -> electron/store.ts
+                              identity -> persistence     1 value
+                                electron/identity/session-lifecycle-ledger.ts:4 -> src/shared/session-lifecycle.ts
+                            and both kernel->feature edges are VALUE imports inside
+                            electron/bootstrap/persistence.ts, which is a composition ROOT. That module does not
+                            merely call attachments or identity: it OPENS and WIRES them (line 87 declares the
+                            field, line 133 runs `open("attachments", () => new AttachmentStore(boss("attachments")))`,
+                            line 142 does the same for the lifecycle ledger). Re-attributing the module to a
+                            composition-root class would erase the edge on paper while the module kept
+                            constructing the feature, which is a lie of exactly the kind the ratchet exists to
+                            detect. The honest repair is to move the wiring out of the persistence capability.
+the_repair_shape            (1) electron/bootstrap/persistence.ts keeps ownership of the persistence store and
+                            of nothing else; (2) the AttachmentStore and the SessionLifecycleLedger are
+                            constructed by the composition root that consumes them; (3) the enforcement baseline
+                            is regenerated through the section-24 ceremony with a series entry naming the triple
+                            (retired debt: two kernel->feature value edges; new legitimate relation: the
+                            composition root's own wiring; new grandfathered debt: none expected); (4) the epoch
+                            advances in the SAME commit only if trust-policy/** or tests/acceptance/** move.
+why_this_round_did_not_do_it
+                            It is a src/ change: it removes and adds edges, so it obliges the full section-24
+                            baseline ceremony (candidate -> ACCEPTED series entry -> --accept -> --check) and,
+                            at this size, likely a section-28 epoch advance and a five-check CI cycle. Measured
+                            against the budget actually remaining in this session, that chain cannot be carried
+                            to a merged PR with its evidence intact, and starting it and abandoning it would
+                            leave an unreviewed baseline candidate on a branch -- the exact state the series
+                            discipline exists to prevent. The measurement is therefore written down instead, so
+                            the next round begins at the repair rather than at the shortlist. No branch carrying
+                            a half-regenerated baseline was created.
+measured_now                kernel->feature file edges 61; mutual capability pairs 33; files owned 598;
+                            road files 6; edges to roads 75; total cross-capability file edges 800 (CEILING);
+                            capability nodes 29; capability edges 203; largest SCC 20 of 29; scc_count 10;
+                            uncontrolled multi-writer durable stores 1 (target 0).
+acceptance_effect           Section 33 structure items are unchanged by this entry, and the effect of the
+                            repair is stated in advance so the next round can report a true before/after:
+                            S2 61 -> 60 and S3 33 -> 32 for the first pair, S2 61 -> 59 and S3 33 -> 31 for both.
+                            The remaining 21 kernel->feature edges of S2 do not live in one-edge pairs and are a
+                            longer programme than one round.
+verification_run_this_round node scripts/phase2-pair-edges.cjs --verify  (union of both key sets, every
+                            reported line re-read and matched against its specifier)
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+                            node scripts/city-final-acceptance.cjs --hosted --main-sha=f5b41d9... -> unchanged,
+                            22 PASS / 10 OPEN / 2 UNVERIFIED
+rollback                    Revert this commit. The entry is append-only documentation and changes no
+                            behaviour, no baseline and no epoch.
+temporary_debt_created      no.
+closure_status              CLOSED. The shortlist is corrected against the repaired inspector, the cost
+                            function for a mutual pair is stated, and the next structural step is specified
+                            down to the file, the line and the ceremony order.
+research_value              (1) A shortlist is evidence only if its line numbers are true: this one was
+                            measured through the very defect that was fixed two rounds later, so it named the
+                            wrong import for two of its three pairs. Re-measuring after repairing an instrument
+                            is not redundancy, it is the only way to know which earlier conclusions the defect
+                            touched. (2) The intuitive "smallest pair" metric -- count the kernel->feature edges
+                            -- is the wrong cost function for a mutual pair, because the price is the sum of both
+                            directions; on the correct metric the pair that looks cheapest carries ten edges on
+                            its other side. (3) Both genuinely cheap pairs sit in a composition root, which is
+                            the general shape of this migration: kernel->feature edges concentrate in WIRING, and
+                            wiring is the one kind of code that cannot be repaired by re-attribution, because the
+                            module really does construct the feature it is accused of depending on.
+```
