@@ -4976,3 +4976,76 @@ research_value              (1) Fixing the same condition six times is evidence 
                             same shape as the artifact-states-the-why class this register already names: a
                             document asserting something the machine cannot yet resolve.
 ```
+
+## CC-058 — The next structural repair is two lines wide, and it needs no epoch
+
+```text
+ENTRY_ID                    CC-058
+timestamp_utc               2026-09-26T05:02:11Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 175fa469b2d95eb8715c5ca7f7ad1ca5bc4f8006  (five checks green, epoch 37, PR #90)
+branch                      docs/city-cc-058
+PR                          the PR that carries this entry
+what_was_measured           CC-053 specified the next structural step as "move the wiring out of the persistence
+                            capability" and left its WIDTH unmeasured, which is the fact that decides whether the
+                            step is one round or five. Measured this round:
+                              electron/main.ts:54   import { createPersistenceModule } from "./bootstrap/persistence";
+                              electron/main.ts:632  attachmentStore = persistence.service.attachments;
+                              electron/main.ts:703  sessionLifecycleLedger = persistence.service.sessionLifecycle;
+                              electron/main.ts:794  accountSessions = new AccountSessionManager(store, publish, sessionLifecycleLedger);
+                              electron/main.ts:972, 1039, 1242  distribute both onward
+                            So main.ts IS the composition root and already consumes both objects as FIELDS of the
+                            persistence module. bootstrap/persistence.ts constructs them only to hand them over.
+why_that_is_the_whole_story
+                            The two kernel->feature edges CC-053 named are the two constructions:
+                              electron/bootstrap/persistence.ts:12  import { AttachmentStore } from "../input/attachment-store";
+                              electron/bootstrap/persistence.ts:15  import { SessionLifecycleLedger } from "../identity/session-lifecycle-ledger";
+                            Nothing else in the persistence capability uses either type, and no other module
+                            imports bootstrap/persistence -- a repository-wide search for that path returns
+                            main.ts (the consumer), plus a seam record and a comment in the architecture sensors.
+                            The repair therefore touches TWO files: the construction moves from the module that
+                            merely forwards it to the module that already decides every other wiring question.
+the_expected_deltas         Removing both constructions removes two VALUE edges and dissolves two MUTUAL pairs,
+                            because a pair is mutual only while both directions exist and the reverse edges
+                            (attachments -> persistence, 1 value; identity -> persistence, 1 value) are the only
+                            others in their pairs:
+                              S2  kernel_to_feature_file_edges   61 -> 59
+                              S3  mutual_capability_pairs        33 -> 31
+                            Recorded BEFORE the change so the next round can be checked against it rather than
+                            trusted, which is the discipline CC-053 set and CC-054 had to correct.
+the_ceremony_is_baseline_only
+                            No trust-policy file and no tests/acceptance file moves, so NO EPOCH ADVANCE is
+                            required: the surface hash does not change. What IS required is the section-24
+                            baseline ceremony, because the edge set changes:
+                              candidate -> series entry naming the triple (retired debt: two kernel->feature
+                              value edges; new legitimate relation: main.ts constructing what it already owns;
+                              new grandfathered debt: none expected) -> --accept --reason -> --check
+                            config/p2b-kernel-feature-ratchet.json records both counts as CEILINGS, so a
+                            decrease is admissible and must be re-measured in the same commit.
+why_this_entry_stops_here
+                            The change is small but its ceremony is not free, and this round's budget was spent
+                            measuring rather than guessing. Writing the measurement first is what makes the next
+                            round start at the edit instead of at the question, and CC-057 established the
+                            ordering rule this entry obeys: the record is written before the change that cites
+                            it, not after.
+what_this_does_not_do       It does not reduce S2 to zero. 59 remaining kernel->feature edges are not
+                            concentrated in one composition root -- CC-053 measured that the two cheapest pairs
+                            cost two edges each while the third costs eleven -- so S2's exit is a programme, not
+                            a step. This entry makes the FIRST step exact.
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no.
+closure_status              CLOSED. The next structural repair has a measured width, a measured price, an
+                            expected delta, and no epoch obligation.
+research_value              (1) "Move the wiring out of the capability" is a plan; "two lines in main.ts, which
+                            already reads those two fields" is a step, and the difference was one search command.
+                            The unmeasured part of a plan is almost always its width, and width is what decides
+                            whether it fits in a round. (2) A kernel->feature edge produced by construction rather
+                            than by use is a category error in the ownership map, not a design fault: the module
+                            that FORWARDS a dependency looked like the module that HAS it. Reading who consumes
+                            the value, not who creates it, is what exposed that. (3) A repair that touches no
+                            surface file should be checked for its ceremony rather than assumed to have one:
+                            CC-054 found the epoch assumption too pessimistic, and this entry finds it absent
+                            entirely -- only the baseline moves.
+```
