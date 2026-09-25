@@ -359,9 +359,9 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
       ["p2d:confirmedAccesses", 5],
     ]);
     expect(measured("15.9")).toEqual([["core:growth", 0]]);
-    // The distribution section 23's targets produce today: three enforced, two ratchets, two requiring only that
-    // the evidence exists, and two whose stage has not been started.
-    expect(report.counts).toEqual({ MACHINE_ENFORCED: 3, MACHINE_RATCHET: 2, EVIDENCE_REQUIRED: 2, NOT_GUARDED: 2 });
+    // The distribution section 23's targets produce today: three enforced, two ratchets, three requiring only that
+    // the evidence exists (15.8 joined them when P2-E built the road class), and one whose stage has not started.
+    expect(report.counts).toEqual({ MACHINE_ENFORCED: 3, MACHINE_RATCHET: 2, EVIDENCE_REQUIRED: 3, NOT_GUARDED: 1 });
   });
 
   it("records no measurement as a number in the matrix file, so none can drift", () => {
@@ -408,13 +408,15 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     expect(validator.regionMatches(stale, table)).toBe(false);
   });
 
-  it("names the two remaining unguarded principles explicitly rather than leaving them to inference", () => {
+  it("names the one remaining unguarded principle explicitly rather than leaving it to inference", () => {
     const region = validator.docRegion(PROJECT)!;
     expect(region.current).toContain("15.4");
     const text = fs.readFileSync(path.join(PROJECT, DOC), "utf8");
     for (const id of ["15.4", "15.8", "15.9"]) expect(text).toContain(`\`${id}\``);
-    // 15.9 left this list when P2-H gave it a mechanism; the document must not still call it unguarded.
-    expect(text).toContain("**2 unguarded**");
+    // 15.9 left the unguarded list when P2-H gave it a mechanism, and 15.8 when P2-E gave it a classification; the
+    // document must not still call either of them unguarded.
+    expect(text).toContain("**1 unguarded**");
     expect(text).toContain("**3 enforced**");
+    expect(text).toContain("**3 evidence-required**");
   });
 });

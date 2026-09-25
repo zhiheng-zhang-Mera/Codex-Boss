@@ -38,7 +38,7 @@ apart. So the matrix is data, and this document is generated from it by the vali
 | 15.5 | least-sufficient repair: no PROHIBITED ADDED lateral load | MACHINE CHECK on prohibited added lateral load | MACHINE_ENFORCED | `scripts/p2b-kernel-feature-ratchet.cjs` | 0 (added) | 0 |
 | 15.6 | every plot has exactly one valid flatness state | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/city-flatness-validator.cjs` | 0 | 0 |
 | 15.7 | no cycles, no uncontrolled lateral bearing, no cross-domain private state access | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs`, `scripts/phase2-private-state.cjs` | mutual capability pairs: 34; largest strongly connected component: 20; cross-domain private-state accesses: 5 | 0; 0; 0 |
-| 15.8 | shared roads are explicitly classified | MACHINE CHECK / explicit road classification | NOT_GUARDED | -- | -- | -- |
+| 15.8 | shared roads are explicitly classified | MACHINE CHECK / explicit road classification | EVIDENCE_REQUIRED | `scripts/capability-roads-validator.cjs` | see decision record | -- |
 | 15.9 | Core growth ban | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/core-budget-validator.cjs` | 0 | 0 |
 <!-- END GENERATED MATRIX -->
 
@@ -74,23 +74,24 @@ The honest reading, as measured:
 
 - **3 enforced** — `15.5` (no *added* lateral load), `15.6` (exactly one valid flatness state per plot) and `15.9`
   (Core growth ban, over the stable classification and the starting surface recorded in `config/core-budget.json`).
-- **2 ratchets** — `15.1` (foundation→building edges, 73 against a target of 0) and `15.7` (38 mutual pairs, a
-  largest component of 20 of 28 capabilities, and 5 cross-domain private-state accesses).
-- **2 evidence-required** — `15.2` and `15.3`, the two principles about the *reasoning* behind a migration: no rule
+- **2 ratchets** — `15.1` (foundation→building edges, 66 against a target of 0) and `15.7` (34 mutual pairs, a
+  largest component of 20 of 29 capability-graph nodes, and 5 cross-domain private-state accesses).
+- **3 evidence-required** — `15.2` and `15.3`, the two principles about the *reasoning* behind a migration: no rule
   here keys a threshold on a file count, and whether a given bundle of files is one purpose or seven is a design
-  judgement. The machine can only require that the judgement was written down and point at where.
-- **2 unguarded** — `15.4` (replacement lifecycle, P2-G) and `15.8` (road classification, P2-E).
+  judgement. The machine can only require that the judgement was written down and point at where. `15.8` joins them
+  on the same footing — see below.
+- **1 unguarded** — `15.4` (replacement lifecycle, P2-G).
 
 `15.5` and `15.1` are the pair worth reading together. Section 23 asks `15.5` for a check on **added** lateral load
 and `15.1` for the absolute. The ratchet supplies exactly the former — a rise in kernel→feature edges, in
-kernel→feature pairs or in mutual capability pairs fails — while the absolute count of 73 remains `15.1`'s open
+kernel→feature pairs or in mutual capability pairs fails — while the absolute count of 66 remains `15.1`'s open
 problem. Recording both as `MACHINE ENFORCED` would have been the easy and wrong move.
 
 `15.6` is enforced as a **state machine**: exactly one state per plot from the five, the per-state obligations, and
 a refusal to record `FLAT` on a plot that a measured defect implicates. That the seal is not ready is a different
 fact — `config/city-flatness.json` records 22 plots still mid-migration, and the seal gate reports it.
 
-`15.9` is the row that moved in this stage, and the move is worth reading because it shows what the matrix is for.
+`15.9` is the row that moved in stage P2-H, and the move is worth reading because it shows what the matrix is for.
 It was `NOT_GUARDED` with the gap assigned to P2-H. The stage supplied a **mechanism** — a stable classification
 (`kind: kernel`), a starting surface pinned **by name**, and a budget with an Owner-approved exception path — and
 only then did the row become `MACHINE_ENFORCED`. The measured quantity is growth *not covered by an approved
@@ -98,20 +99,35 @@ exception*, so the row stays at 0 when the exception path is used legitimately a
 What is proved is the **ban**: no exception has yet been recorded, so the exception path is exercised only on
 fixtures, and the budget says so rather than implying that a governance mechanism has been used.
 
+`15.8` is the second row to move, in stage P2-E, and it moved to `EVIDENCE_REQUIRED` rather than to
+`MACHINE_ENFORCED` — deliberately. The road class makes the classification **explicit** and the machine check is
+real: a declaration that imports any capability fails (ledger `CC-030`'s refutation as an executable rule), and so
+does one owned by a kernel or by no capability, one with fewer than two consumers, one whose declared owner
+disagrees with the ownership map, one missing any of the five proofs section 19 requires, and a *refutation* for a
+file that was never a candidate. What cannot be automated is whether a given leaf carries a **policy of its own** —
+and that is the half that actually decides: `src/shared/execution.ts` and `src/shared/permission.ts` both **pass**
+the leaf test and are refused, because they export their owner's decision procedure. So the judgement is recorded
+as evidence and as a measured refutation instead of being dressed up as a test, and the row says out loud that 53
+measured leaf candidates remain undeclared. `15.8` is not "enforced"; it is **checked, with its judgement on the
+record** — which is exactly what section 23 asks for when a principle cannot be fully automated.
+
 ## 6. Consequences for the remaining work
 
-The two `NOT_GUARDED` rows are not an oversight; they are the two stages the workbook has not yet started, and
-they are the ones that need a **mechanism** before they can need a check:
+**One** `NOT_GUARDED` row remains, and it is not an oversight: it is the stage the workbook has not yet started, and
+it needs a **mechanism** before it can need a check.
 
 | principle | needs | stage |
 | --- | --- | --- |
 | `15.4` | replacement governance with machine state and one real proof | P2-G |
-| `15.8` | an explicit road classification that does not hide edges | P2-E |
 
-`15.8` carries a measured refutation worth keeping in view: `electron/commander/**` was the road candidate, and
-re-attributing it was **measured and refused** (ledger `CC-030`) — 132 incoming and 122 outgoing edges across 24
-owners and 13 capabilities, 39 of them onto three kernels. A road label would have *hidden* those edges rather than
-classified them, so the correct treatment is extraction, not relabelling.
+`15.8` left this list when P2-E built the road class (`CC-038`), and it left it **honestly**: it is
+`EVIDENCE_REQUIRED`, not `MACHINE_ENFORCED`, because the deciding half of the test — does this leaf carry a policy of
+its own? — is a judgement that is now recorded rather than automated. Two files prove the judgement is doing work:
+`src/shared/execution.ts` and `src/shared/permission.ts` both **pass** the machine-checked leaf test and are refused
+for exporting their owner's decision procedure. The measured refutation of `electron/commander/**` as a *directory*
+still stands (ledger `CC-030`: 132 incoming and 122 outgoing edges, 39 onto three kernels), and the class handles it
+the only honest way — individual **leaf** files are classified, the directory is not, and any declaration that
+imports a capability fails.
 
 `15.4` is the last mechanism with no check behind it. Section 21 asks for a replacement lifecycle with observable
 state, an executable rollback, and one real bounded migration to prove it — machinery that can be built
