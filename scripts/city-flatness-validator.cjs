@@ -164,6 +164,21 @@ function validate(root = ROOT, options = {}) {
     if (typeof tests === "string" && !fs.existsSync(path.join(root, tests))) problems.push(`bridge ${id}: its test file ${tests} does not exist`);
   }
 
+  // --- shape: a STAGE carries no typed measurement, as required by docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 30 ---------
+  //
+  // All three stages carried one until ledger CC-041 -- "73 edges over 25 pairs", "38 mutual pairs; one SCC holding
+  // 20 of 28 nodes", "5 accesses over 3 pairs" -- and all three were stale the moment P2-E lowered the real
+  // numbers, because a copy of a measurement is a second thing to keep true. The copy is gone: `trackedBy` names the
+  // artifact, `decidedBy` names the keys that decide the exit condition, and this rule stops the copy coming back.
+  for (const [id, stage] of Object.entries(stages)) {
+    if (Object.prototype.hasOwnProperty.call(stage ?? {}, "measured")) {
+      problems.push(`stage ${id} carries a typed measurement ("measured"), which is a second copy of a number ${JSON.stringify(stage.trackedBy ?? "(no artifact)")} already holds; declare decidedBy keys and let the number be resolved from the instrument`);
+    }
+    if (!Object.prototype.hasOwnProperty.call(stage ?? {}, "decidedBy")) {
+      problems.push(`stage ${id} declares no decidedBy keys, so its exit condition cannot be decided by any machine and a bridge due before it could not be checked`);
+    }
+  }
+
   // --- the CROSS-CHECK that makes the registry a gate ---------------------------------------------------
   const implicated = implicatedPlots(root, options.reports);
   const falselyFlat = [];
@@ -179,6 +194,13 @@ function validate(root = ROOT, options = {}) {
   const sealProblems = [];
   if (options.seal === true && sealBlockingPlots.length > 0) {
     sealProblems.push(`${sealBlockingPlots.length} plot(s) are in a seal-blocking state: ${sealBlockingPlots.slice(0, 12).join(", ")}${sealBlockingPlots.length > 12 ? ", ..." : ""}`);
+  }
+  // A DECLARED BRIDGE BLOCKS THE SEAL REGARDLESS OF ITS PLOTS. The check above reads the PLOT states, so if every
+  // plot were ever moved to FLAT while a bridge was still declared, the seal gate would have passed with a live
+  // temporary bridge in the tree -- and docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 33's checklist item is "no expired temporary bridge remains".
+  // scripts/bridge-expiry-validator.cjs decides the bridge's own deadline; this gate refuses while any exists.
+  if (options.seal === true && Object.keys(bridges).length > 0) {
+    sealProblems.push(`${Object.keys(bridges).length} temporary bridge(s) are still declared (${Object.keys(bridges).join(", ")}): a bridge is retired before the seal, not at it`);
   }
 
   return {

@@ -3686,3 +3686,100 @@ research_value              (1) A rule stated as a slogan cannot be applied; "de
                             (4) Nine refutations for four declarations is a healthy ratio and the wrong thing
                             to optimise: the batch where every candidate passes is the batch to distrust.
 ```
+
+## CC-041 — §30's missing bridge expiry validator, the two stale copies it removed, and the seal gate hole it closed
+
+```text
+ENTRY_ID                    CC-041
+timestamp_utc               2026-09-25T08:10:30Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are a registry record, two scripts, a document and tests, and no file under
+                            electron/ or src/ is touched.
+main_before                 4cde3b5d50211aa90cb8db55b9c2b4fd323f8527  (five checks green, epoch 34, PR #73)
+branch                      feat/bridge-expiry-validator
+PR                          the PR that carries this entry
+problem                     docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 30 names a "bridge expiry
+                            validator" among the artifacts the final acceptance suite must run; section 15
+                            requires eight fields per temporary bridge and states "a bridge without an exit
+                            condition is not allowed"; section 33 puts "no expired temporary bridge remains" in the
+                            completion checklist. NONE OF IT EXISTED -- there was no script whose name contained
+                            "bridge" at all. The flatness registry checked only that a bridge is named by a plot and
+                            that its record and test files exist, so a bridge past its deadline, or one whose code
+                            had already been deleted while the declaration stayed, was invisible.
+the_two_failures_it_now_catches
+                            A bridge PAST ITS DEADLINE, and a bridge whose CODE IS GONE. The second is the one a
+                            reader would never notice: the declaration outlives the thing it describes, and the
+                            registry keeps describing a bridge that no longer exists.
+what_was_built              scripts/bridge-expiry-validator.cjs, read-only, checking six things: the eight fields
+                            of section 15 are present and substantive; deadline_phase names a DECLARED stage or
+                            the seal; the bridge's `literal` source text is still present in its source file
+                            EXACTLY ONCE; the bridge is still declared by at least one plot; the deadline phase is
+                            resolved from MEASUREMENTS rather than prose; and a bridge whose deadline phase has
+                            COMPLETED is EXPIRED, which fails.
+the_check_that_makes_it_falsifiable
+                            The `literal` field. P2A-BRIDGE-01 declares
+                            `export type { ProviderId } from "./provider-contracts";` and the validator asserts
+                            that exact statement appears in src/shared/contracts.ts ONCE. Zero occurrences means the
+                            bridge was removed and the record is stale; more than one means the "bridge" is not one
+                            statement and its exit condition does not describe it. Until this stage the bridge's
+                            form was prose only, so nothing connected the declaration to the tree.
+THE_STALE_COPIES            All three stages in config/city-flatness.json carried a typed measurement. Two were
+                            stale: "73 edges over 25 pairs" (live 62 over 23) and "38 mutual pairs; one SCC
+                            holding 20 of 28 nodes" (live 34 mutual pairs, 29 nodes). They went stale the moment
+                            P2-E lowered the real numbers. This is the SECOND instance of the same defect --
+                            CC-039 found it in the enforcement matrix's prose and recorded the lesson that a
+                            machine-checked artifact protects exactly the fields the machine checks -- so the
+                            copies are GONE rather than updated: each stage now carries `trackedBy` (the artifact
+                            that holds the number) and `decidedBy` (the keys that DECIDE its exit condition), and
+                            scripts/city-flatness-validator.cjs FAILS if a stage carries a `measured` field, so a
+                            duplicate of a number cannot come back.
+a_DEADLINE_that_cannot_be_measured_MUST_FAIL_CLOSED
+                            A stage with no decidedBy, or one whose keys cannot be resolved, reads UNRESOLVED and a
+                            bridge due before it is a FAILURE. An unmeasurable deadline that reads as "not yet
+                            due" is exactly how a bridge outlives its phase, so the validator refuses to assume.
+the_SEAL_GATE_HOLE          --seal read the PLOT states. Had every plot ever been moved to FLAT while a bridge was
+                            still declared, the gate would have PASSED with a live temporary bridge in the tree,
+                            and section 33's checklist item would have been satisfied on paper. The gate now
+                            refuses while ANY bridge is declared, independently of the plots, and both reasons
+                            are printed.
+measurement                 node scripts/bridge-expiry-validator.cjs -> VERDICT=HOLDS
+                              phases resolved live: P2-B 62<=0 IN_PROGRESS; P2-C 34<=0 and 20<=1 IN_PROGRESS;
+                              P2-D 5<=0 IN_PROGRESS; P2A-BRIDGE-01 PENDING_SEAL, declaration 1 occurrence
+                            node scripts/city-flatness-validator.cjs -> VERDICT=PASS
+                            node scripts/city-flatness-validator.cjs --seal -> VERDICT=SEAL_BLOCKED with BOTH
+                              reasons: 22 plots seal-blocking AND 1 bridge still declared
+                            the three existing instruments are unaffected: p2b HOLDS, p2d HOLDS, roads HOLDS
+falsification               13 cases, one per rule: each of the eight fields removed in turn; a declaration
+                            whose text is gone from the tree; one whose text appears many times; no literal at
+                            all; an unrecognised deadline; a deadline phase forced COMPLETE and EXPIRED; a phase
+                            left IN_PROGRESS and shown to be resolved from the instrument rather than typed; a
+                            phase made UNMEASURABLE, both by an unregistered key and by removing decidedBy, and
+                            shown to FAIL CLOSED; an orphan bridge; a missing source file; a missing test file;
+                            plus a case asserting the SEAL GATE blocks independently of the plot states.
+the_live_bridge             P2A-BRIDGE-01 re-exports ONE symbol so that five tests/acceptance/** suites keep
+                            importing ProviderId from ./contracts while src/shared/contracts.ts is owned by
+                            `status` and the type lives in src/shared/provider-contracts.ts, owned by
+                            `providers`. Its exit condition is to delete the re-export and re-point those five
+                            imports IN A COMMIT THAT IS ALREADY MOVING THE ROOT TRUST SURFACE FOR ANOTHER
+                            REASON, so it is retired by piggy-backing on a ceremony that has to happen anyway
+                            rather than by spending one of its own.
+rollback                    Delete scripts/bridge-expiry-validator.cjs, its test and docs/city/PHASE2_BRIDGE_EXPIRY.md;
+                            remove `decidedBy` and `literal` from the registry and restore the `measured`
+                            strings; revert the two rules in scripts/city-flatness-validator.cjs; revert the
+                            catalogue entry.
+temporary_debt_created      no.
+closure_status              CLOSED for the validator, the registry repair and the seal gate. OPEN for the bridge
+                            itself, which is retired before the seal and is now enforced by two independent
+                            gates.
+research_value              (1) Reading the acceptance criteria of a FINAL stage is productive long before that
+                            stage: section 30's list named an artifact that had never been written, and finding
+                            that cost one reading and closed a required item that no amount of local progress
+                            would have surfaced. (2) The second occurrence of a defect class is the one that
+                            should change a RULE rather than a value: CC-039 fixed the matrix's stale sentence
+                            by hand, and this entry fixed the same class in the registry by forbidding a typed
+                            measurement outright -- a hand fix teaches the reader, a machine rule teaches the
+                            artifact. (3) A deadline that cannot be measured is worse than no deadline, because
+                            it reads as "not yet due"; fail-closed is the only safe direction for an expiry
+                            check.
+```
