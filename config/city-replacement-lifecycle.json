@@ -1,0 +1,44 @@
+{
+  "$comment": "THE REPLACEMENT LIFECYCLE (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 21, principle 15.4). Section 21 requires a REUSABLE mechanism, not a one-off migration, and says plainly: 'Do not attempt to replace every capability merely to exercise this.' So this artifact is the PROTOCOL -- a state machine plus the seven pieces of machinery section 21 enumerates -- and instances are declared against it. The reason it is machine-checked rather than documented is the failure mode: a replacement that reports RETIRED without ever having run both sides side by side is indistinguishable, in prose, from one that did. The validator refuses a history that SKIPS a state, so the lifecycle cannot be claimed without being walked.",
+  "schema": "city-replacement-lifecycle/1",
+  "states": ["DECLARED", "SHADOW", "DUAL_VALIDATED", "TRAFFIC_SWITCHED", "OLD_FALLBACK", "DRAINED", "RETIRED", "ROLLED_BACK"],
+  "transitions": [
+    { "from": "DECLARED", "to": "SHADOW" },
+    { "from": "SHADOW", "to": "DUAL_VALIDATED" },
+    { "from": "DUAL_VALIDATED", "to": "TRAFFIC_SWITCHED" },
+    { "from": "TRAFFIC_SWITCHED", "to": "OLD_FALLBACK" },
+    { "from": "OLD_FALLBACK", "to": "DRAINED" },
+    { "from": "DRAINED", "to": "RETIRED" },
+    { "from": "SHADOW", "to": "ROLLED_BACK" },
+    { "from": "DUAL_VALIDATED", "to": "ROLLED_BACK" },
+    { "from": "TRAFFIC_SWITCHED", "to": "ROLLED_BACK" },
+    { "from": "OLD_FALLBACK", "to": "ROLLED_BACK" }
+  ],
+  "terminalStates": ["RETIRED", "ROLLED_BACK"],
+  "requiredMachinery": ["authoritativeSide", "successorSide", "shadowMode", "dualOutputComparison", "trafficSwitch", "rollback", "drain"],
+  "evidenceByState": {
+    "SHADOW": "shadowEvidence",
+    "DUAL_VALIDATED": "dualValidationEvidence",
+    "TRAFFIC_SWITCHED": "trafficEvidence",
+    "OLD_FALLBACK": "fallbackEvidence",
+    "DRAINED": "drainEvidence",
+    "RETIRED": "retirementEvidence"
+  },
+  "adoptionProtocol": "A capability that wants to be replaced declares an instance here with the seven pieces of machinery section 21 names, then walks the history one state at a time, recording for each state the evidence the machine asks for and the ledger entry that records the step. No new protocol is needed: the states, the transitions and the evidence requirements are in this artifact, and the validator is generic over instances -- a case in tests/unit/city/replacement-lifecycle.test.ts drives a SECOND synthetic instance for a different capability through the same validator to prove that no capability-specific logic is hiding in it.",
+  "instances": {
+    "P2A-BRIDGE-01-RETIREMENT": {
+      "capability": "providers",
+      "whatIsReplaced": "an import PATH, not a capability: the one-symbol re-export of ProviderId added by the P2-A provider closure (ledger CC-029) so that five tests/acceptance/** suites could keep importing from ./contracts while the type moved to src/shared/provider-contracts.ts. The retained unit is a symbol's import path; a capability-level instance remains for a future migration, and section 21's acceptance is met by this one only in the 'one real, bounded migration' sense, which the record states explicitly rather than implying more.",
+      "authoritativeSide": "src/shared/contracts.ts, owned by `status`: the statement `export type { ProviderId } from \"./provider-contracts\";`",
+      "successorSide": "src/shared/provider-contracts.ts, owned by `providers`: the ProviderId declaration itself",
+      "shadowMode": "the successor is ALREADY serving every consumer that imports it directly, while the old side serves only the five tests/acceptance/** suites that still import from ./contracts -- so both sides are live at once and the comparison is available before any switch",
+      "dualOutputComparison": "typecheck IS the comparison: both paths must resolve ProviderId to the same declaration. `npx tsc --noEmit` over tsconfig.json, tsconfig.electron.json and tsconfig.tests.json, plus tests/unit/city/provider-closure.test.ts, prove the two sides are the same type rather than two types that merely look alike.",
+      "trafficSwitch": "change the five imports in tests/acceptance/** from ./contracts to ./provider-contracts, in one commit, and delete the re-export in the same commit",
+      "rollback": "restore the re-export line in src/shared/contracts.ts and revert the five import edits; the successor file is never modified by this migration, so a rollback cannot lose work and cannot leave a half-moved surface",
+      "rollbackVerifiedBy": "tests/unit/city/replacement-lifecycle.test.ts",
+      "drain": "the measurement that no consumer remains: a scan of tests/acceptance/** for a ProviderId import from ./contracts must return zero, which is the check that turns 'I moved them' into a number",
+      "state": "DECLARED",
+      "history": []
+    }
+  }
+}

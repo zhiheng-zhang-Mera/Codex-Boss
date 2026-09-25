@@ -207,10 +207,15 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
       ? verdict(PASS, `no bridge is past its deadline; ${bridge.json?.sealGate?.liveBridges ?? 0} live bridge(s) are enforced by the seal gate`)
       : verdict(OPEN, expired > 0 ? `${expired} bridge(s) are EXPIRED` : "the bridge expiry validator fails"));
 
+  // S12 used to pass on the EXISTENCE of an artifact, which is the weakest predicate a checklist can carry: a file
+  // named city-replacement-lifecycle.json would have satisfied it. The mechanism docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 21 asks for now exists, so this resolves the protocol's own validator AND requires an
+  // instance that has actually reached RETIRED.
+  const lifecycle = runJson("scripts/replacement-lifecycle-validator.cjs", root, cache);
+  const retired = lifecycle.json?.retiredInstances ?? 0;
   add("STRUCTURE", "S12", "reusable replacement lifecycle exists and has one real proof",
-    exists("config/city-replacement-lifecycle.json", root)
-      ? verdict(PASS, "the replacement lifecycle artifact exists")
-      : verdict(OPEN, "stage P2-G has not been built: there is no replacement-governance mechanism and therefore no lifecycle proof"));
+    lifecycle.exitCode === 0 && retired > 0
+      ? verdict(PASS, `the lifecycle protocol holds and ${retired} instance(s) have reached RETIRED with evidence at every state`)
+      : verdict(OPEN, `the lifecycle protocol ${lifecycle.exitCode === 0 ? "HOLDS" : "fails"} but ${retired} instance(s) have reached RETIRED: stage P2-G's mechanism now exists, and section 21's proof is one real bounded migration -- until one is retired, the protocol is machinery without a demonstration`));
 
   const core = runJson("scripts/core-budget-validator.cjs", root, cache);
   add("STRUCTURE", "S13", "Core budget is enforced and final Core does not exceed the permitted budget",

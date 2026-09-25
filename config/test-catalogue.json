@@ -651,6 +651,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/replacement-lifecycle.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "section 21 requires a REUSABLE replacement-governance mechanism -- do not attempt to replace every capability merely to exercise this -- names seven pieces of machinery, and asks for one real bounded migration as its proof, and principle 15.4 was the LAST row of the enforcement matrix still NOT_GUARDED; the reason it is a state machine and not a checklist is that a replacement reporting RETIRED without ever having run the old and new sides side by side is indistinguishable IN PROSE from one that did, so the ORDER is what is checked -- every instance carries a history of the states it actually entered and the validator refuses a history that skips a state or arrives by an undeclared transition, with a case asserting the REASON in the failure: a RETIRED instance that never passed DUAL_VALIDATED is the specific forgery this refuses; the refusals are each falsified -- a skipped state, a step with no substantive evidence for the state it enters, a step citing a ledger entry the ledger lacks, a clock that runs backwards, a state CLAIMED that the history never entered, and a rollback proof file that does not exist, because rollback is executable is otherwise an assertion; the protocol is checked too, that DECLARED is first, that all six named stages exist and each requires evidence, that no transition returns to DECLARED, that terminal states have no outgoing transition and that no non-terminal state is a dead end; the rollback proof is REAL rather than a pointer: the successor declares ProviderId and the authoritative side carries EXACTLY ONE re-export pointing at it, so the old side is a PURE ALIAS and restoring it cannot change semantics; and GENERICITY IS DEMONSTRATED rather than claimed, by driving a SECOND synthetic instance for a DIFFERENT capability down the full path through the SAME validator using only the fields the protocol declares, which is section 21 acceptance that future capabilities can adopt it without inventing a new protocol",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/s2-exit-audit.test.ts",
       "tier": "unit",
       "covers": [

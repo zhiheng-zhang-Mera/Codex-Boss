@@ -52,13 +52,15 @@
       "id": "15.4",
       "claim": "capability replacement lifecycle exists and carries one real proof",
       "requiredStrength": "MACHINE-STATEFUL + real proof",
-      "strength": "NOT_GUARDED",
-      "guards": [],
-      "wiredBy": [],
+      "strength": "EVIDENCE_REQUIRED",
+      "guards": ["scripts/replacement-lifecycle-validator.cjs"],
+      "wiredBy": ["tests/unit/city/replacement-lifecycle.test.ts"],
       "measuredFrom": null,
       "target": null,
-      "why_not_enforced": "no replacement-governance mechanism exists, so there is nothing to check and no state for a lifecycle to be in.",
-      "gap": "stage P2-G has not been started"
+      "evidenceRequirement": "one declared replacement instance must walk DECLARED, SHADOW, DUAL_VALIDATED, TRAFFIC_SWITCHED, OLD_FALLBACK, DRAINED and RETIRED in that order, with substantive evidence recorded at each state and a ledger entry for each step -- and because the machine refuses a history that skips a state, that evidence cannot be claimed without the order having actually happened",
+      "decisionRecords": ["config/city-replacement-lifecycle.json", "docs/city/PHASE2_P2G_REPLACEMENT_LIFECYCLE.md"],
+      "why_not_enforced": "The MACHINE-STATEFUL half of section 23's target IS built and IS enforced: an eight-state protocol with ten transitions, a required evidence field per state, a refusal of a history that skips a state or arrives by an undeclared transition, a refusal of a state claimed but never entered, and a refusal of a rollback proof file that does not exist. What is missing is the second half of section 23's own target -- the REAL PROOF, one actual bounded migration walked end to end -- and section 21 is explicit that a synthetic-only proof is insufficient, so this row records the mechanism as done and the demonstration as pending rather than claiming the principle.",
+      "note": "The first instance, P2A-BRIDGE-01-RETIREMENT, sits in DECLARED with an empty history, which is the honest state: the protocol exists and the proof has not run. Section 23 asked for MACHINE-STATEFUL and the mechanism supplies it; what it did not supply is a retirement to point at."
     },
     {
       "id": "15.5",
