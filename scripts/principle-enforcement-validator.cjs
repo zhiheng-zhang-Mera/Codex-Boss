@@ -361,11 +361,10 @@ function validateMatrix(matrix, root = ROOT, options = {}) {
   };
 }
 
-function renderTable(report) {
+function renderTable(report, matrix = readMatrix()) {
   const lines = [];
   lines.push("| principle | claim | section 23 requires | measured strength | guard | measured | target |");
   lines.push("| --- | --- | --- | --- | --- | --- | --- |");
-  const matrix = readMatrix();
   const byId = new Map(matrix.principles.map((entry) => [entry.id, entry]));
   for (const row of report.rows) {
     const entry = byId.get(row.id) ?? {};
@@ -395,6 +394,10 @@ function renderSummary(report) {
   return lines.join("\n");
 }
 
+function normalizeEol(text) {
+  return text.replace(/\r\n/g, "\n");
+}
+
 function docRegion(root) {
   const absolute = path.join(root, DOC_PATH);
   if (!fs.existsSync(absolute)) return null;
@@ -402,19 +405,42 @@ function docRegion(root) {
   const start = text.indexOf(BEGIN);
   const end = text.indexOf(END);
   if (start === -1 || end === -1 || end < start) return null;
-  return { text, start, end, current: text.slice(start + BEGIN.length, end).trim() };
+  return {
+    text,
+    start,
+    end,
+    eol: text.includes("\r\n") ? "\r\n" : "\n",
+    current: normalizeEol(text.slice(start + BEGIN.length, end)).trim(),
+  };
 }
 
-function writeDoc(report, root = ROOT) {
+/**
+ * Whether the committed document's generated region is the table this program generates.
+ *
+ * The comparison is LINE-ENDING AGNOSTIC, and that is not a convenience: the table is generated with LF, while
+ * `git` checks the document out with CRLF on Windows, so a byte comparison passes on the machine that wrote the
+ * file and fails on the runner that verifies it. The first CI run of this stage failed exactly that way. The
+ * check still bites on real staleness, which is what the cases for this function pin.
+ */
+function regionMatches(text, table) {
+  const start = text.indexOf(BEGIN);
+  const end = text.indexOf(END);
+  if (start === -1 || end === -1 || end < start) return false;
+  return normalizeEol(text.slice(start + BEGIN.length, end)).trim() === normalizeEol(table).trim();
+}
+
+function writeDoc(report, matrix = readMatrix(), root = ROOT) {
   const absolute = path.join(root, DOC_PATH);
-  const table = renderTable(report);
+  const table = renderTable(report, matrix);
   const region = docRegion(root);
   if (!region) {
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
     fs.writeFileSync(absolute, `${BEGIN}\n${table}\n${END}\n`, "utf8");
     return { written: true, created: true };
   }
-  const next = `${region.text.slice(0, region.start + BEGIN.length)}\n${table}\n${region.text.slice(region.end)}`;
+  // Preserve the document's own line ending so regenerating it on a CRLF checkout does not rewrite every line.
+  const body = region.eol === "\r\n" ? table.replace(/\n/g, "\r\n") : table;
+  const next = `${region.text.slice(0, region.start + BEGIN.length)}${region.eol}${body}${region.eol}${region.text.slice(region.end)}`;
   fs.writeFileSync(absolute, next, "utf8");
   return { written: true, created: false };
 }
@@ -426,13 +452,13 @@ function main(argv, root = ROOT) {
   if (argv.includes("--json")) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   } else if (argv.includes("--matrix")) {
-    process.stdout.write(`${renderTable(report)}\n`);
+    process.stdout.write(`${renderTable(report, matrix)}\n`);
   } else {
     process.stdout.write(`${renderSummary(report)}\n`);
   }
 
   if (argv.includes("--write")) {
-    const result = writeDoc(report, root);
+    const result = writeDoc(report, matrix, root);
     if (!argv.includes("--json") && !argv.includes("--matrix")) {
       process.stderr.write(`[principles] wrote ${DOC_PATH}${result.created ? " (created)" : ""}\n`);
     }
@@ -440,13 +466,12 @@ function main(argv, root = ROOT) {
   }
 
   if (argv.includes("--check")) {
-    const region = docRegion(root);
-    if (!region) {
+    const absolute = path.join(root, DOC_PATH);
+    if (!fs.existsSync(absolute) || docRegion(root) === null) {
       process.stderr.write(`[principles] ${DOC_PATH} has no ${BEGIN} ... ${END} region\n`);
       return 1;
     }
-    const table = renderTable(report);
-    if (region.current !== table.trim()) {
+    if (!regionMatches(fs.readFileSync(absolute, "utf8"), renderTable(report, matrix))) {
       process.stderr.write(`[principles] ${DOC_PATH} is STALE; run --write\n`);
       return 1;
     }
@@ -474,6 +499,8 @@ module.exports = {
   resolveMeasured,
   mentionsGuard,
   docRegion,
+  regionMatches,
+  normalizeEol,
   writeDoc,
   KEY_GUARD,
   REQUIRED_IDS,

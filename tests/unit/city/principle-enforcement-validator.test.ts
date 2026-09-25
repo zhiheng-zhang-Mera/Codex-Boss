@@ -43,7 +43,8 @@ const validator = require(path.join(PROJECT, "scripts/principle-enforcement-vali
   renderTable: (report: unknown) => string;
   readMatrix: (root?: string) => { principles: Array<Record<string, unknown>> };
   runGuard: (relPath: string, root?: string) => { exists: boolean; readOnly: boolean | null; writeTokens: string[]; exitCode: number | null; json: unknown };
-  docRegion: (root?: string) => { current: string } | null;
+  docRegion: (root?: string) => { current: string; eol: string } | null;
+  regionMatches: (text: string, table: string) => boolean;
   KEY_GUARD: Record<string, string>;
   REQUIRED_IDS: string[];
   MATRIX_PATH: string;
@@ -370,11 +371,22 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     }
   });
 
-  it("keeps the committed document's table identical to the table it generates", () => {
+  it("keeps the committed document's table identical to the table it generates, across line endings", () => {
     const report = validator.validateMatrix(validator.readMatrix(PROJECT), PROJECT);
-    const region = validator.docRegion(PROJECT);
-    expect(region).not.toBeNull();
-    expect(region!.current).toBe(validator.renderTable(report).trim());
+    const table = validator.renderTable(report);
+    const text = fs.readFileSync(path.join(PROJECT, DOC), "utf8");
+
+    expect(validator.regionMatches(text, table)).toBe(true);
+    // Line-ending agnostic, and that is not a convenience: the table is generated with LF while git checks the
+    // document out with CRLF on Windows, so a byte comparison passes on the machine that wrote the file and fails
+    // on the runner that verifies it -- which is exactly how the first CI run of this stage failed.
+    expect(validator.regionMatches(text.replace(/\r?\n/g, "\r\n"), table)).toBe(true);
+    expect(validator.regionMatches(text.replace(/\r?\n/g, "\n"), table)).toBe(true);
+
+    // And it still bites on real staleness, so being EOL-agnostic did not turn it into a check that always passes.
+    const stale = text.replace("| 15.1 ", "| 15.1x ");
+    expect(stale).not.toBe(text);
+    expect(validator.regionMatches(stale, table)).toBe(false);
   });
 
   it("names the three unguarded principles explicitly rather than leaving them to inference", () => {

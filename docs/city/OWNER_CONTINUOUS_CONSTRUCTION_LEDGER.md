@@ -3016,3 +3016,64 @@ research_value              (1) A matrix about enforcement is a claim about clai
                             rather than by re-reading it -- the sixth consecutive round in which falsification
                             found a wrong-watching check.
 ```
+
+## CC-034 — CORRECTION to CC-033: the document-currency check validated the machine that wrote the file, not the tree
+
+```text
+ENTRY_ID                    CC-034
+timestamp_utc               2026-09-25T03:45:24Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on the same branch as CC-033. No protected-path write, no epoch
+                            ceremony.
+corrects                    CC-033 (appended, not rewritten: the ledger is append-only)
+main_before                 65c755a9675fe5ee88a72b793044895e508b981c
+branch                      feat/p2i-principle-enforcement-matrix
+PR                          67
+what_happened               The first CI run of PR 67 failed the unit tier on CC-033's own test file:
+                            "keeps the committed document's table identical to the table it generates".
+                            The check compared the document's generated region against the generated table
+                            BYTE FOR BYTE. The table is generated with LF; git checks the document out with
+                            CRLF on Windows. So the comparison PASSED on the workstation that wrote the file
+                            and FAILED on the runner that verified it -- a check whose result depends on
+                            which machine runs it, which is not a check but a coincidence.
+why_this_is_not_a_load_flake
+                            Five previous main-branch failures in this programme were load-sensitive and were
+                            disproved by a re-run on an identical commit. This one was not: the local FULL
+                            unit tier passed 278 files / 3619 tests on the same commit, and the CI log named
+                            the exact case and the exact assertion. It was reproduced by reasoning about the
+                            checkout, then reproduced again in a temporary root with a CRLF copy of the
+                            document before the fix was trusted.
+the_repair                  (1) regionMatches() compares the two texts with line endings NORMALISED, so the
+                            check is about the table's CONTENT. (2) writeDoc() now preserves the document's
+                            OWN line ending when regenerating, so a Windows regeneration is not a 100-line
+                            diff and does not leave mixed endings -- verified: a CRLF document regenerates
+                            with 107 CRLF and ZERO bare LF. (3) renderTable() and writeDoc() now honour the
+                            root they are given; both had been calling readMatrix() with no argument, so a
+                            caller passing a different root would have been shown the real repository's
+                            claims while believing it was looking at its own.
+how_the_repair_was_falsified
+                            The one risk in making a comparison EOL-agnostic is turning it into a check that
+                            always passes. So the case asserts BOTH directions: an LF document, a CRLF
+                            document and the committed document all match, AND a document whose table has a
+                            single character changed does NOT -- with an assertion that the mutation
+                            actually changed the text, so the negative case cannot silently become a no-op.
+research_value              (1) A check that reads a file must be written for the CHECKOUT, not for the
+                            author's working copy: the byte-level comparison was correct in content and
+                            wrong in contract, and only CI could tell the difference -- which is the one
+                            thing local verification structurally cannot do. (2) When relaxing a comparison
+                            to make it portable, the negative case is what keeps it a check; the pairing of
+                            "portable" with "still fails on a one-character change" has to be asserted
+                            together, in the same test, because relaxing is the exact move that removes the
+                            failure mode the check existed for. (3) This is the seventh consecutive round
+                            in which falsification found a wrong-watching check, and the first where the
+                            instrument that found it was CI rather than a local case.
+measurement                 npx vitest run tests/unit/city/principle-enforcement-validator.test.ts
+                              -> 23 passed
+                            npx vitest run tests/unit/comment-citation.test.ts -> passed
+                            npx tsc --noEmit -p tsconfig.tests.json -> exit 0
+                            node scripts/principle-enforcement-validator.cjs --check -> exit 0
+                            CRLF round-trip in a temporary root -> 107 CRLF, 0 bare LF, still matches
+closure_status              CLOSED. CC-033's claims stand as measured; this entry records that one of its
+                            checks was environment-dependent until this repair, and names how it is prevented
+                            from becoming one again.
+```
