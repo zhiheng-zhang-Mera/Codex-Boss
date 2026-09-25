@@ -14,16 +14,13 @@ import type {
 } from "./provider-contracts";
 
 /**
- * BRIDGE P2A-BRIDGE-01 — `ProviderId` is re-exported from here for the five `tests/acceptance/**` suites that
- * import it from `./contracts`, so that the provider closure could move WITHOUT the Root Trust Surface moving.
- *
- * `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` permits a temporary bridge only when it declares its own
- * exit; this one does, in `docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md`. Deliberately ONE symbol wide: every other
- * importer of the moved types was re-pointed in the same commit, so the bridge cannot quietly become the place
- * the whole closure still lives. Deleting it is the last act of the migration, and it is deferred only because
- * `tests/acceptance/**` is Root Trust Surface and changing it for this reason alone would cost an epoch ceremony.
+ * The provider closure (ledger CC-029) moved the provider types out of this file into
+ * `src/shared/provider-contracts.ts`, owned by `providers`. BRIDGE P2A-BRIDGE-01 re-exported `ProviderId` from here
+ * so that five `tests/acceptance/**` suites could keep importing it from `./contracts` without the Root Trust
+ * Surface moving. That bridge was RETIRED (ledger CC-044) when those five suites were re-pointed to the owner, which
+ * is exactly the exit condition its own record declared, and it was retired in a commit that moved the Surface for
+ * another reason rather than spending a ceremony of its own.
  */
-export type { ProviderId } from "./provider-contracts";
 
 export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";

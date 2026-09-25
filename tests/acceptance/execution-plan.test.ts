@@ -26,7 +26,7 @@ import { buildRequirementsGraph } from "../../src/shared/requirements-graph";
 import { compileTaskContract } from "../../src/shared/task-contract";
 import { ingestDocuments } from "../../electron/ingestion/ingest";
 import type { InputObjectRef } from "../../src/shared/input-object";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "boss-plan-acceptance-"));
 const REPORT_DIR = path.join(process.cwd(), "artifacts", "acceptance");

@@ -28,7 +28,7 @@ import {
   type RequirementsGraph
 } from "../../src/shared/requirements-graph";
 import type { InputObjectRef } from "../../src/shared/input-object";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "boss-req-acceptance-"));
 const REPORT_DIR = path.join(process.cwd(), "artifacts", "acceptance");

@@ -144,9 +144,12 @@ describe("P2-F — the committed registry passes, and the SEAL correctly does no
     }
   });
 
-  it("declares the live bridge with every obligation, and each named file exists", () => {
-    const registry = validator.readRegistry(PROJECT) as { bridges: Record<string, Record<string, unknown>> };
-    expect(report.bridges).toBeGreaterThan(0);
+  it("declares NO bridge, and still carries the obligations of the one it retired", () => {
+    const registry = validator.readRegistry(PROJECT) as { bridges: Record<string, Record<string, unknown>>; $bridges_comment?: string };
+    // Ledger CC-044 retired P2A-BRIDGE-01, so the object is empty. That is a RESULT and this case pins it; the loop
+    // below still runs, so a bridge reappearing here without a record and an exit condition fails.
+    expect(Object.keys(registry.bridges)).toEqual([]);
+    expect(report.bridges).toBe(0);
     for (const [id, bridge] of Object.entries(registry.bridges)) {
       for (const field of ["owner", "reason", "source", "target", "exitCondition", "deadline_phase", "tests", "record"]) {
         expect(String(bridge[field] ?? "").length, `bridge ${id} has no substantive ${field}`).toBeGreaterThan(10);
@@ -154,6 +157,11 @@ describe("P2-F — the committed registry passes, and the SEAL correctly does no
       expect(fs.existsSync(path.join(PROJECT, String(bridge.record))), `bridge ${id} record does not exist`).toBe(true);
       expect(fs.existsSync(path.join(PROJECT, String(bridge.tests))), `bridge ${id} test file does not exist`).toBe(true);
     }
+    // The obligations of the retired bridge stay on the record rather than being erased with the declaration.
+    const closureDoc = fs.readFileSync(path.join(PROJECT, "docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md"), "utf8");
+    expect(closureDoc).toContain("P2A-BRIDGE-01");
+    expect(closureDoc).toContain("NO LONGER EXISTS");
+    expect(String(registry.$bridges_comment ?? "")).toContain("CC-044");
   });
 
   it("says out loud that FLAT is not a certification", () => {

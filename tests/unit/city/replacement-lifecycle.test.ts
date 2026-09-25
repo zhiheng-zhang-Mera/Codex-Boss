@@ -67,9 +67,10 @@ describe("§21 the replacement lifecycle refuses a history that was not walked",
     expect(report.problems).toEqual([]);
     expect(report.ok).toBe(true);
     expect(report.instances).toHaveLength(1);
-    expect(report.instances[0].state).toBe("DECLARED");
-    // Nothing is retired yet, which is the honest state: the mechanism exists and the proof has not run.
-    expect(report.retiredInstances).toBe(0);
+    expect(report.instances[0].state).toBe("RETIRED");
+    // The first instance has WALKED to RETIRED (ledger CC-044): section 21 asks for one real migration as its proof,
+    // and that proof now exists rather than being pending.
+    expect(report.retiredInstances).toBe(1);
   });
 
   it("refuses a history that SKIPS a state", () => {
@@ -164,22 +165,27 @@ describe("§21 the replacement lifecycle refuses a history that was not walked",
     const report = run(config);
     expect(report.problems).toEqual([]);
     expect(report.ok).toBe(true);
-    expect(report.retiredInstances).toBe(1);
+    // The committed instance is retired too, so the synthetic one is the SECOND retirement the same validator accepts.
+    expect(report.retiredInstances).toBe(2);
     expect(report.instances.find((entry) => entry.id === "SYNTHETIC-SECOND-INSTANCE")?.retired).toBe(true);
   });
 });
 
 describe("§21 the rollback is executable, which is why this file is named as its proof", () => {
-  it("shows the authoritative side is a pure alias of the successor, so restoring it cannot change semantics", () => {
+  it("shows the retirement is COMPLETE and the recorded rollback is still a pure-alias restore", () => {
     const authoritative = fs.readFileSync(path.join(PROJECT, AUTHORITATIVE), "utf8");
     const successor = fs.readFileSync(path.join(PROJECT, SUCCESSOR), "utf8");
-    // The old side is ONE re-export statement pointing at the successor file...
-    expect(authoritative).toContain(RE_EXPORT);
-    expect(authoritative.split(RE_EXPORT).length - 1).toBe(1);
-    // ...and the successor really declares the type, so the alias resolves to a declaration and not to nothing.
+    // The successor really declares the type, so the type has an owner rather than having been orphaned by the move.
     expect(/export\s+(type|interface)\s+ProviderId\b|export\s+type\s*\{[^}]*\bProviderId\b/.test(successor)).toBe(true);
-    // Therefore restoring the re-export is a no-op for every consumer: the rollback cannot half-move a surface.
+    // The old side NO LONGER re-exports it: the bridge is retired (ledger CC-044), not merely unused. The assertion
+    // INVERTED here rather than being deleted, so a re-export coming back fails a case.
+    expect(authoritative).not.toContain(RE_EXPORT);
+    // The type is still imported for contracts.ts's own declarations, which is what made the re-export a BRIDGE.
+    expect(/^\s+ProviderId,$/m.test(authoritative)).toBe(true);
+    // And the recorded rollback is executable precisely because it was a pure alias: restoring the one line would
+    // restore every consumer without touching the successor file at all.
     expect(RE_EXPORT).toContain("./provider-contracts");
+    expect(lifecycle.readLifecycle(PROJECT).instances[INSTANCE_ID].state).toBe("RETIRED");
   });
 
   it("names a rollback proof that exists, because the validator refuses one that does not", () => {
