@@ -3869,3 +3869,98 @@ research_value              (1) The acceptance criteria of a final stage are the
                             a list that cries wolf is a list that gets skimmed -- and it was found by running the
                             tool against the real tree, not by reading it.
 ```
+
+## CC-043 — P2-G: the replacement lifecycle as a state machine, and the first declared instance
+
+```text
+ENTRY_ID                    CC-043
+timestamp_utc               2026-09-25T09:48:26Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new files
+                            are a config record, a script, a document and a test, and no file under electron/ or
+                            src/ is touched.
+main_before                 6c536c1cfd63d48e14e3340701de04bf028320ba  (five checks green, epoch 34, PR #75)
+branch                      feat/replacement-lifecycle
+PR                          the PR that carries this entry
+problem                     Principle 15.4 was the LAST row of the enforcement matrix still recorded NOT_GUARDED, and
+                            section 33's S12 read "reusable replacement lifecycle exists and has one real proof".
+                            Section 21 requires a reusable MECHANISM -- "Do not attempt to replace every capability
+                            merely to exercise this" -- and names seven pieces of machinery. Nothing existed.
+why_a_STATE_MACHINE         A replacement that reports RETIRED without ever having run the old side and the new side
+                            side by side is indistinguishable, IN PROSE, from one that did: both read like a
+                            completed migration. The difference is the ORDER of the steps, so the order is what is
+                            checked. Every instance carries a history of the states it has actually ENTERED, and the
+                            validator refuses a history that skips a state or arrives by an undeclared transition.
+the_protocol                DECLARED -> SHADOW -> DUAL_VALIDATED -> TRAFFIC_SWITCHED -> OLD_FALLBACK -> DRAINED ->
+                            RETIRED, with ROLLED_BACK reachable from the four middle states. Eight states, ten
+                            transitions, a required evidence field per state, and an adoptionProtocol that tells the
+                            next capability what to declare.
+the_six_refusals            1 a history that skips a state -- the case states the reason out loud, that a RETIRED
+                            instance which never passed DUAL_VALIDATED is the specific forgery this refuses;
+                            2 a step with no substantive evidence for the state it enters, because a history walked
+                            without doing anything is not a history;
+                            3 a step citing a ledger entry the construction ledger does not contain;
+                            4 a clock that runs backwards;
+                            5 a state CLAIMED that the history never entered;
+                            6 a rollback proof file that does not exist -- "rollback is executable" is otherwise an
+                            assertion. The protocol is checked too: DECLARED is first, all six named stages exist
+                            and each requires evidence, no transition returns to DECLARED, terminal states have no
+                            outgoing transition, and no non-terminal state is a dead end.
+the_first_instance          P2A-BRIDGE-01-RETIREMENT -- the one-symbol re-export added by the provider closure
+                            (CC-029), which is ALSO the temporary bridge the seal gate refuses to seal past (CC-041).
+                            It fits all seven pieces of machinery because both sides already run side by side: the
+                            successor serves every direct importer while the old side serves only five
+                            tests/acceptance/** suites; TYPECHECK IS THE COMPARISON, because three tsconfigs plus
+                            the provider-closure test prove both paths resolve to the SAME declaration; the switch
+                            moves the five imports; the drain is a scan that must return zero.
+                            WHAT IS REPLACED IS AN IMPORT PATH, NOT A CAPABILITY, and the artifact says so in its
+                            own field rather than glossing it: the retained unit is a symbol's import path, and a
+                            capability-level instance remains for a future migration.
+the_rollback_IS_executable  The rollback proof is the stage's own test file, and it is a real check rather than a
+                            pointer: src/shared/provider-contracts.ts declares ProviderId and src/shared/
+                            contracts.ts carries EXACTLY ONE re-export pointing at it, so the authoritative side is
+                            a PURE ALIAS and restoring it cannot change semantics. A case asserts both files, the
+                            single occurrence, and the alias target.
+GENERICITY_is_DEMONSTRATED Section 21's acceptance is that future capabilities can adopt it without inventing a new
+                            protocol, so the suite drives a SECOND synthetic instance FOR A DIFFERENT CAPABILITY
+                            down the full path through the SAME validator, using only the fields the protocol
+                            declares. If any capability-specific logic were hiding in the validator, that case
+                            would fail -- so reuse is a demonstration, not a claim.
+S12_WAS_STRENGTHENED        S12 used to pass on the mere EXISTENCE of an artifact, which is the weakest predicate a
+                            checklist can carry: a file named city-replacement-lifecycle.json would have satisfied
+                            it. It now resolves the protocol's validator AND requires an instance that has reached
+                            RETIRED, so it correctly stays OPEN with the reason printed.
+measurement                 node scripts/replacement-lifecycle-validator.cjs -> VERDICT=HOLDS, 8 states, 10
+                              transitions, 1 instance in DECLARED, 0 retired
+                            node scripts/city-final-acceptance.cjs -> 16 PASS, 11 OPEN, 7 UNVERIFIED; S12 OPEN with
+                              "the protocol HOLDS but 0 instance(s) have reached RETIRED"
+                            npx vitest run tests/unit/city/replacement-lifecycle.test.ts -> 10 passed
+falsification               10 cases: the committed protocol and its instance are accepted; a skipped state; RETIRED
+                            without DUAL_VALIDATED, asserting the REASON in the failure; a step with no evidence; a
+                            step citing a missing ledger entry; a backwards clock; a state claimed but never
+                            entered; missing machinery; an unverifiable rollback; a protocol missing a stage; a
+                            stage that requires no evidence; a transition back to DECLARED; a terminal state that
+                            is not terminal; the SYNTHETIC second instance accepted end to end; and the two
+                            rollback proofs -- the pure alias and the named file that exists.
+what_remains                The PROOF: walk the path for P2A-BRIDGE-01-RETIREMENT. That is a src/ plus
+                            tests/acceptance/** change, so it needs a Root Trust EPOCH, and the bridge's own exit
+                            condition says to retire it in a commit that is ALREADY moving the surface for another
+                            reason rather than spending a ceremony on it. The mechanism's value until then is that
+                            the next capability that needs a replacement has a protocol to walk instead of one to
+                            invent.
+rollback                    Delete config/city-replacement-lifecycle.json, scripts/replacement-lifecycle-
+                            validator.cjs, its test and docs/city/PHASE2_P2G_REPLACEMENT_LIFECYCLE.md; revert S12
+                            in the acceptance suite and the catalogue entry.
+temporary_debt_created      no.
+closure_status              CLOSED for the mechanism, the protocol and the genericity demonstration. OPEN for the
+                            one real migration section 21 asks for as its proof, which is recorded as an instance in
+                            DECLARED with an empty history rather than as a completion.
+research_value              (1) The ONE row of principle 15.4 that could not be automated was the one about
+                            ORDER, and order is exactly what a state machine enforces and a document cannot --
+                            prose cannot distinguish a migration that skipped dual validation from one that did
+                            it. (2) "Reusable" is a testable claim: driving a second synthetic instance for a
+                            different capability through the same validator turns "future capabilities can adopt
+                            it" from an assertion into a demonstration. (3) A checklist item that passes on the
+                            EXISTENCE of a file is a checklist item that will eventually be satisfied by a file,
+                            which is why S12 was strengthened in the same commit that gave the file its meaning.
+```

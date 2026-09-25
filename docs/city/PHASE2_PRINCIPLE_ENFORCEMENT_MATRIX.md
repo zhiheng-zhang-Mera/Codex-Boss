@@ -34,7 +34,7 @@ apart. So the matrix is data, and this document is generated from it by the vali
 | 15.1 | foundation must not depend on building | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs` | 62 | 0 |
 | 15.2 | size is not itself a defect signal | MACHINE SEMANTICS PINNED | EVIDENCE_REQUIRED | -- | see decision record | -- |
 | 15.3 | minimum stable closure is the unit of migration | MACHINE CHECKED where decidable + explicit review record | EVIDENCE_REQUIRED | `scripts/capability-closure-validator.cjs` | see decision record | -- |
-| 15.4 | capability replacement lifecycle exists and carries one real proof | MACHINE-STATEFUL + real proof | NOT_GUARDED | -- | -- | -- |
+| 15.4 | capability replacement lifecycle exists and carries one real proof | MACHINE-STATEFUL + real proof | EVIDENCE_REQUIRED | `scripts/replacement-lifecycle-validator.cjs` | see decision record | -- |
 | 15.5 | least-sufficient repair: no PROHIBITED ADDED lateral load | MACHINE CHECK on prohibited added lateral load | MACHINE_ENFORCED | `scripts/p2b-kernel-feature-ratchet.cjs` | 0 (added) | 0 |
 | 15.6 | every plot has exactly one valid flatness state | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/city-flatness-validator.cjs` | 0 | 0 |
 | 15.7 | no cycles, no uncontrolled lateral bearing, no cross-domain private state access | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs`, `scripts/phase2-private-state.cjs` | mutual capability pairs: 34; largest strongly connected component: 20; cross-domain private-state accesses: 5 | 0; 0; 0 |
@@ -74,13 +74,13 @@ The honest reading, as measured:
 
 - **3 enforced** — `15.5` (no *added* lateral load), `15.6` (exactly one valid flatness state per plot) and `15.9`
   (Core growth ban, over the stable classification and the starting surface recorded in `config/core-budget.json`).
-- **2 ratchets** — `15.1` (foundation→building edges, 66 against a target of 0) and `15.7` (34 mutual pairs, a
+- **2 ratchets** — `15.1` (foundation→building edges, 62 against a target of 0) and `15.7` (34 mutual pairs, a
   largest component of 20 of 29 capability-graph nodes, and 5 cross-domain private-state accesses).
-- **3 evidence-required** — `15.2` and `15.3`, the two principles about the *reasoning* behind a migration: no rule
+- **4 evidence-required** — `15.2` and `15.3`, the two principles about the *reasoning* behind a migration: no rule
   here keys a threshold on a file count, and whether a given bundle of files is one purpose or seven is a design
-  judgement. The machine can only require that the judgement was written down and point at where. `15.8` joins them
-  on the same footing — see below.
-- **1 unguarded** — `15.4` (replacement lifecycle, P2-G).
+  judgement. `15.8` joins them on the same footing, and so does `15.4` — see below.
+- **0 unguarded** — every principle now has at least a machine-checked evidence requirement. `15.4` was the last one
+  to leave this list, when stage P2-G built the replacement lifecycle (`CC-043`).
 
 `15.5` and `15.1` are the pair worth reading together. Section 23 asks `15.5` for a check on **added** lateral load
 and `15.1` for the absolute. The ratchet supplies exactly the former — a rise in kernel→feature edges, in
@@ -113,22 +113,23 @@ record** — which is exactly what section 23 asks for when a principle cannot b
 
 ## 6. Consequences for the remaining work
 
-**One** `NOT_GUARDED` row remains, and it is not an oversight: it is the stage the workbook has not yet started, and
-it needs a **mechanism** before it can need a check.
+**No `NOT_GUARDED` row remains.** `15.4` was the last one, and it left the list when stage P2-G built the replacement
+lifecycle (`CC-043`) — an eight-state protocol with ten transitions, a required evidence field per state, and refusals
+for a history that skips a state, a state claimed but never entered, and a rollback proof file that does not exist. It
+left it **honestly**, as `EVIDENCE_REQUIRED` rather than `MACHINE_ENFORCED`, because section 23's target has two
+halves and only one is built: the mechanism is **machine-stateful**, and the **real proof** — one actual bounded
+migration walked end to end — has not run. Section 21 is explicit that a synthetic-only proof is insufficient, so the
+row says the mechanism is done and the demonstration is pending.
 
-| principle | needs | stage |
-| --- | --- | --- |
-| `15.4` | replacement governance with machine state and one real proof | P2-G |
+`15.8` left the same list earlier, when P2-E built the road class (`CC-038`), and it left it on the same footing: the
+deciding half of the test — does this leaf carry a policy of its own? — is a judgement that is recorded rather than
+automated. Two files prove the judgement is doing work: `src/shared/execution.ts` and `src/shared/permission.ts` both
+**pass** the machine-checked leaf test and are refused for exporting their owner's decision procedure. The measured
+refutation of `electron/commander/**` as a *directory* still stands (ledger `CC-030`: 132 incoming and 122 outgoing
+edges, 39 onto three kernels), and the class handles it the only honest way — individual **leaf** files are
+classified, the directory is not, and any declaration that imports a capability fails.
 
-`15.8` left this list when P2-E built the road class (`CC-038`), and it left it **honestly**: it is
-`EVIDENCE_REQUIRED`, not `MACHINE_ENFORCED`, because the deciding half of the test — does this leaf carry a policy of
-its own? — is a judgement that is now recorded rather than automated. Two files prove the judgement is doing work:
-`src/shared/execution.ts` and `src/shared/permission.ts` both **pass** the machine-checked leaf test and are refused
-for exporting their owner's decision procedure. The measured refutation of `electron/commander/**` as a *directory*
-still stands (ledger `CC-030`: 132 incoming and 122 outgoing edges, 39 onto three kernels), and the class handles it
-the only honest way — individual **leaf** files are classified, the directory is not, and any declaration that
-imports a capability fails.
-
-`15.4` is the last mechanism with no check behind it. Section 21 asks for a replacement lifecycle with observable
-state, an executable rollback, and one real bounded migration to prove it — machinery that can be built
-ceremony-free, but whose *proof* requires a real capability migration, so it is the largest remaining step.
+**What remains is therefore not a missing guard but two unmet targets**, and the acceptance suite prints both:
+`15.1` and `15.7` are ratchets whose measured values are 62 kernel→feature edges, 34 mutual pairs and 5 private-state
+accesses — all of which need `src/` or `electron/` changes and therefore a Root Trust epoch — and `15.4` needs its
+first real retirement, which is the same kind of change and is already declared as an instance in `DECLARED`.
