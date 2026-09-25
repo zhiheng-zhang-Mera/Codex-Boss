@@ -217,6 +217,26 @@ describe("P2-F — the registry's shape, each obligation failed on a fixture tha
     expect(report.verdict).toBe("PASS");
   });
 
+  it("refuses a MEASUREMENT in a plot's reason, and accepts a ledger or stage reference in the same place", () => {
+    // The third place this programme has found a typed measurement going stale: the matrix's prose (CC-039), this
+    // registry's stage measurements (CC-041), and now the plots' reasons. The registry states WHY, in words, and the
+    // instruments supply HOW MUCH.
+    for (const claim of ["persistence reaches it in 3 kernel -> feature edges", "9 mutual pairs implicate it", "it holds 20 nodes"]) {
+      const registry = base();
+      plots(registry).alpha.why = claim;
+      const report = withRegistry(registry);
+      expect(report.problems.join("\n"), claim).toContain("states a MEASUREMENT");
+    }
+    // And the pattern is deliberately NARROW: naming a ledger entry or a stage must not trip it, or the rule would
+    // forbid the very references that keep the reason traceable.
+    for (const allowed of ["the BRIDGE it used to declare was retired by ledger CC-044", "stage P2-B owns this migration's exit condition"]) {
+      const registry = base();
+      plots(registry).alpha.why = `${allowed}, which is why the plot is not FLAT yet`;
+      const report = withRegistry(registry);
+      expect(report.problems.join("\n"), allowed).not.toContain("states a MEASUREMENT");
+    }
+  });
+
   it("fails when a declared capability has no state", () => {
     const registry = base();
     delete plots(registry).beta;

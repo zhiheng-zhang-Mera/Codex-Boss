@@ -2,25 +2,61 @@
   "$comment": "The canonical city state registry (workbook section 20, P2-F; see docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md). Every capability (plot) has EXACTLY ONE state here. FLAT means 'no defect on this plot was measured by the four instruments this programme runs' -- it is NOT a certification that the plot is well designed, and the instruments do not yet cover everything section 33 asks for. A plot implicated by a MEASURED defect may not be recorded FLAT: scripts/city-flatness-validator.cjs fails if it is, so the registry cannot be made true by editing it.",
   "schema": "city-flatness-registry/1",
   "unit_of_state": "one capability manifest. The composition root is not a plot: it is the platform's wiring, classified in config/capability-modules.json.",
-  "states": ["FLAT", "TEMPORARILY_BRIDGED", "PARTIALLY_DEGRADED", "MIGRATION_IN_PROGRESS", "UNSAFE_GAP"],
+  "states": [
+    "FLAT",
+    "TEMPORARILY_BRIDGED",
+    "PARTIALLY_DEGRADED",
+    "MIGRATION_IN_PROGRESS",
+    "UNSAFE_GAP"
+  ],
   "precedence": "when more than one state applies, the MOST BLOCKING one is recorded: UNSAFE_GAP > MIGRATION_IN_PROGRESS > PARTIALLY_DEGRADED > TEMPORARILY_BRIDGED > FLAT. A plot whose state is more blocking than a bridge it also carries still lists that bridge under `bridges`, so no declaration is lost by the precedence rule.",
-  "seal_blocking": ["UNSAFE_GAP", "MIGRATION_IN_PROGRESS", "PARTIALLY_DEGRADED", "TEMPORARILY_BRIDGED"],
+  "seal_blocking": [
+    "UNSAFE_GAP",
+    "MIGRATION_IN_PROGRESS",
+    "PARTIALLY_DEGRADED",
+    "TEMPORARILY_BRIDGED"
+  ],
   "seal_note": "The five states are all that may appear here; the SEAL may contain only FLAT, and section 20 also forbids an undeclared PARTIALLY_DEGRADED and an expired TEMPORARILY_BRIDGED. `node scripts/city-flatness-validator.cjs --seal` fails while any plot is seal-blocking, which is the honest state of a programme mid-migration.",
   "stages": {
     "P2-B": {
       "exitCondition": "kernel -> feature file edges = 0, measured under the ownership map",
       "trackedBy": "config/p2b-kernel-feature-ratchet.json",
-      "decidedBy": { "all": [{ "key": "p2b:kernelToFeatureFileEdges", "target": 0 }] }
+      "decidedBy": {
+        "all": [
+          {
+            "key": "p2b:kernelToFeatureFileEdges",
+            "target": 0
+          }
+        ]
+      }
     },
     "P2-C": {
       "exitCondition": "capability-level mutual pairs = 0 and no SCC larger than one capability",
       "trackedBy": "config/p2b-kernel-feature-ratchet.json",
-      "decidedBy": { "all": [{ "key": "p2b:mutualCapabilityPairs", "target": 0 }, { "key": "p2b:largestSccSize", "target": 1 }] }
+      "decidedBy": {
+        "all": [
+          {
+            "key": "p2b:mutualCapabilityPairs",
+            "target": 0
+          },
+          {
+            "key": "p2b:largestSccSize",
+            "target": 1
+          }
+        ]
+      }
     },
     "P2-D": {
       "exitCondition": "cross-domain private-state accesses = 0, by explicit owner API, event stream, query API or declared read model",
       "trackedBy": "config/p2d-private-state-ratchet.json",
-      "decidedBy": { "all": [{ "key": "p2d:confirmedAccesses", "target": 0 }] }
+      "decidedBy": {
+        "all": [
+          {
+            "key": "p2d:confirmedAccesses",
+            "target": 0
+          }
+        ]
+      }
     }
   },
   "$stages_comment": "A stage carries NO typed measurement. It carried three until ledger CC-041 -- '73 edges over 25 pairs', '38 mutual pairs; one SCC holding 20 of 28 nodes', '5 accesses over 3 pairs' -- and all three had gone stale the moment P2-E lowered the real numbers, because a copy of a measurement is a second thing to keep true. The copy is gone: `trackedBy` names the artifact that holds the number and `decidedBy` names the keys that DECIDE the exit condition, so the completion of a phase is resolved live by scripts/bridge-expiry-validator.cjs and scripts/city-flatness-validator.cjs forbids a typed `measured` field here from coming back.",
@@ -29,166 +65,355 @@
   "plots": {
     "attachments": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "persistence reaches it in 1 kernel -> feature edge, and the two are mutually dependent",
+      "why": "persistence reaches it across a kernel boundary, and the two are mutually dependent",
       "migrations": [
-        { "stage": "P2-B", "source": "persistence -> attachments (1 edge)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with persistence", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "persistence -> attachments (1 edge)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with persistence",
+          "target": "no capability-level cycle"
+        }
       ]
     },
     "automation": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "providers reaches it in 1 edge, and it is mutually dependent with providers and tenx",
+      "why": "providers reaches it across a kernel boundary, and it is mutually dependent with providers and tenx",
       "migrations": [
-        { "stage": "P2-B", "source": "providers -> automation (1 edge)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with providers and tenx", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "providers -> automation (1 edge)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with providers and tenx",
+          "target": "no capability-level cycle"
+        }
       ]
     },
-    "conversation": { "state": "FLAT", "why": "no defect measured by the inversion, cycle, private-state or multi-writer instruments; it is one of the eight nodes outside the 20-member component" },
-    "dispatch": { "state": "FLAT", "why": "no defect measured; outside the 20-member component" },
+    "conversation": {
+      "state": "FLAT",
+      "why": "no defect measured by the inversion, cycle, private-state or multi-writer instruments; it is one of the eight nodes outside the 20-member component"
+    },
+    "dispatch": {
+      "state": "FLAT",
+      "why": "no defect measured; outside the 20-member component"
+    },
     "engineering": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "providers reaches it in 2 edges, and it is mutually dependent with eight capabilities",
+      "why": "providers reaches it across a kernel boundary, and it is mutually dependent with several capabilities",
       "migrations": [
-        { "stage": "P2-B", "source": "providers -> engineering (2 edges)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with knowledge, promotion, providers, security, status, tasks and tenx", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "providers -> engineering (2 edges)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with knowledge, promotion, providers, security, status, tasks and tenx",
+          "target": "no capability-level cycle"
+        }
       ]
     },
     "experience": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "persistence reaches it in 1 kernel -> feature edge",
-      "migrations": [{ "stage": "P2-B", "source": "persistence -> experience (1 edge)", "target": "no kernel reaches a feature implementation" }]
+      "why": "persistence reaches it across a kernel boundary",
+      "migrations": [
+        {
+          "stage": "P2-B",
+          "source": "persistence -> experience (1 edge)",
+          "target": "no kernel reaches a feature implementation"
+        }
+      ]
     },
     "host-status": {
       "state": "MIGRATION_IN_PROGRESS",
       "why": "it resolves persistence's `tasks` namespace by hard-coded path -- the workbook's own historical example",
       "migrations": [
-        { "stage": "P2-D", "source": "electron/host/host-observer-collector.ts:256 resolves persistence's `tasks` namespace by hard-coded path", "target": "read the task ledger through persistence's declared query API or read model" }
+        {
+          "stage": "P2-D",
+          "source": "electron/host/host-observer-collector.ts:256 resolves persistence's `tasks` namespace by hard-coded path",
+          "target": "read the task ledger through persistence's declared query API or read model"
+        }
       ]
     },
     "identity": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "persistence and providers reach it in 1 edge each, and it is mutually dependent with persistence",
+      "why": "persistence and providers each reach it across a kernel boundary, and it is mutually dependent with persistence",
       "migrations": [
-        { "stage": "P2-B", "source": "persistence -> identity (1), providers -> identity (1)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with persistence", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "persistence -> identity (1), providers -> identity (1)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with persistence",
+          "target": "no capability-level cycle"
+        }
       ]
     },
     "knowledge": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "state-core reaches it in 2 edges, and it is mutually dependent with engineering, tenx and theme",
+      "why": "state-core reaches it across a kernel boundary, and it is mutually dependent with engineering, tenx and theme",
       "migrations": [
-        { "stage": "P2-B", "source": "state-core -> knowledge (2 edges)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with engineering, tenx and theme", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "state-core -> knowledge (2 edges)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with engineering, tenx and theme",
+          "target": "no capability-level cycle"
+        }
       ]
     },
     "learning": {
       "state": "MIGRATION_IN_PROGRESS",
       "why": "mutually dependent with tenx",
-      "migrations": [{ "stage": "P2-C", "source": "mutually dependent with tenx", "target": "no capability-level cycle" }]
+      "migrations": [
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with tenx",
+          "target": "no capability-level cycle"
+        }
+      ]
     },
     "node": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "persistence reaches it in 1 kernel -> feature edge",
-      "migrations": [{ "stage": "P2-B", "source": "persistence -> node (1 edge)", "target": "no kernel reaches a feature implementation" }]
+      "why": "persistence reaches it across a kernel boundary",
+      "migrations": [
+        {
+          "stage": "P2-B",
+          "source": "persistence -> node (1 edge)",
+          "target": "no kernel reaches a feature implementation"
+        }
+      ]
     },
     "persistence": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "the largest single source of inversions (35 edges over 10 pairs), in seven mutual pairs, and its `tasks` namespace is resolved by hard-coded path from three other capabilities",
+      "why": "the largest single source of inversions, in several mutual pairs, and its `tasks` namespace is resolved by hard-coded path from other capabilities",
       "migrations": [
-        { "stage": "P2-B", "source": "35 kernel -> feature edges over 10 pairs, the largest being tenx (11), tasks (9) and workspace (6)", "target": "no kernel reaches a feature implementation", "blockedBy": "the tenx and tasks edges are the electron/commander/** road, whose extraction belongs to P2-E" },
-        { "stage": "P2-C", "source": "mutually dependent with attachments, identity, providers, status, tasks, tenx and workspace", "target": "no capability-level cycle" },
-        { "stage": "P2-D", "source": "its `tasks` namespace is resolved by hard-coded path from host-status, runtime and tenx", "target": "publish a declared query API or read model for the task ledger" }
+        {
+          "stage": "P2-B",
+          "source": "35 kernel -> feature edges over 10 pairs, the largest being tenx (11), tasks (9) and workspace (6)",
+          "target": "no kernel reaches a feature implementation",
+          "blockedBy": "the tenx and tasks edges are the electron/commander/** road, whose extraction belongs to P2-E"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with attachments, identity, providers, status, tasks, tenx and workspace",
+          "target": "no capability-level cycle"
+        },
+        {
+          "stage": "P2-D",
+          "source": "its `tasks` namespace is resolved by hard-coded path from host-status, runtime and tenx",
+          "target": "publish a declared query API or read model for the task ledger"
+        }
       ]
     },
     "project": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "persistence reaches it in 1 kernel -> feature edge",
-      "migrations": [{ "stage": "P2-B", "source": "persistence -> project (1 edge)", "target": "no kernel reaches a feature implementation" }]
+      "why": "persistence reaches it across a kernel boundary",
+      "migrations": [
+        {
+          "stage": "P2-B",
+          "source": "persistence -> project (1 edge)",
+          "target": "no kernel reaches a feature implementation"
+        }
+      ]
     },
     "promotion": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "providers reaches it in 1 edge, and it is mutually dependent with engineering, security and status",
+      "why": "providers reaches it across a kernel boundary, and it is mutually dependent with engineering, security and status",
       "migrations": [
-        { "stage": "P2-B", "source": "providers -> promotion (1 edge)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with engineering, security and status", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "providers -> promotion (1 edge)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with engineering, security and status",
+          "target": "no capability-level cycle"
+        }
       ]
     },
     "providers": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "23 kernel -> feature edges over 9 pairs and eight mutual pairs; the BRIDGE it used to declare was retired by ledger CC-044",
+      "why": "kernel -> feature edges and mutual pairs implicate it; the BRIDGE it used to declare was retired by ledger CC-044",
       "bridges": [],
       "migrations": [
-        { "stage": "P2-B", "source": "23 kernel -> feature edges over 9 pairs, the largest being tasks (5), security (4) and tenx (4)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with automation, engineering, persistence, runtime, status, tasks and tenx", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "23 kernel -> feature edges over 9 pairs, the largest being tasks (5), security (4) and tenx (4)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with automation, engineering, persistence, runtime, status, tasks and tenx",
+          "target": "no capability-level cycle"
+        }
       ]
     },
-    "remote": { "state": "FLAT", "why": "no defect measured; outside the 20-member component" },
+    "remote": {
+      "state": "FLAT",
+      "why": "no defect measured; outside the 20-member component"
+    },
     "research": {
       "state": "MIGRATION_IN_PROGRESS",
       "why": "mutually dependent with status and tenx",
-      "migrations": [{ "stage": "P2-C", "source": "mutually dependent with status and tenx", "target": "no capability-level cycle" }]
+      "migrations": [
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with status and tenx",
+          "target": "no capability-level cycle"
+        }
+      ]
     },
     "runtime": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "10 kernel -> feature edges over 3 pairs, four mutual pairs, and it resolves persistence's `tasks` namespace by hard-coded path",
+      "why": "kernel -> feature edges and mutual pairs implicate it, and it resolves persistence's `tasks` namespace by hard-coded path",
       "migrations": [
-        { "stage": "P2-B", "source": "10 kernel -> feature edges over 3 pairs: tenx (7), status (2), tasks (1)", "target": "no kernel reaches a feature implementation", "blockedBy": "the tenx edges are the electron/commander/** road (P2-E)" },
-        { "stage": "P2-C", "source": "mutually dependent with providers, status, tasks and tenx", "target": "no capability-level cycle" },
-        { "stage": "P2-D", "source": "electron/platform/coordination-recorder.ts:159 resolves persistence's `tasks` namespace by hard-coded path", "target": "resolve it through persistence's published path or query API" }
+        {
+          "stage": "P2-B",
+          "source": "10 kernel -> feature edges over 3 pairs: tenx (7), status (2), tasks (1)",
+          "target": "no kernel reaches a feature implementation",
+          "blockedBy": "the tenx edges are the electron/commander/** road (P2-E)"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with providers, status, tasks and tenx",
+          "target": "no capability-level cycle"
+        },
+        {
+          "stage": "P2-D",
+          "source": "electron/platform/coordination-recorder.ts:159 resolves persistence's `tasks` namespace by hard-coded path",
+          "target": "resolve it through persistence's published path or query API"
+        }
       ]
     },
     "security": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "providers reaches it in 4 edges and persistence in 1, and it is mutually dependent with engineering, promotion and tenx",
+      "why": "providers and persistence reach it across a kernel boundary, and it is mutually dependent with engineering, promotion and tenx",
       "migrations": [
-        { "stage": "P2-B", "source": "providers -> security (4), persistence -> security (1)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with engineering, promotion and tenx", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "providers -> security (4), persistence -> security (1)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with engineering, promotion and tenx",
+          "target": "no capability-level cycle"
+        }
       ]
     },
-    "settings": { "state": "FLAT", "why": "no defect measured; outside the 20-member component" },
+    "settings": {
+      "state": "FLAT",
+      "why": "no defect measured; outside the 20-member component"
+    },
     "state-core": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "5 kernel -> feature edges over 3 pairs",
-      "migrations": [{ "stage": "P2-B", "source": "5 kernel -> feature edges over 3 pairs: knowledge (2), tenx (2), status (1)", "target": "no kernel reaches a feature implementation" }]
+      "why": "kernel -> feature edges implicate it",
+      "migrations": [
+        {
+          "stage": "P2-B",
+          "source": "5 kernel -> feature edges over 3 pairs: knowledge (2), tenx (2), status (1)",
+          "target": "no kernel reaches a feature implementation"
+        }
+      ]
     },
     "status": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "9 kernel -> feature edges over 4 pairs in, eight mutual pairs, and the BRIDGE it used to declare was retired by ledger CC-044",
+      "why": "kernel -> feature edges and mutual pairs implicate it; the BRIDGE it used to declare was retired by ledger CC-044",
       "bridges": [],
       "migrations": [
-        { "stage": "P2-B", "source": "9 kernel -> feature edges over 4 pairs: persistence (3), providers (3), runtime (2), state-core (1)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with engineering, persistence, promotion, providers, research, runtime, tasks and tenx", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "9 kernel -> feature edges over 4 pairs: persistence (3), providers (3), runtime (2), state-core (1)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with engineering, persistence, promotion, providers, research, runtime, tasks and tenx",
+          "target": "no capability-level cycle"
+        }
       ]
     },
-    "task-creation": { "state": "FLAT", "why": "no defect measured; outside the 20-member component" },
+    "task-creation": {
+      "state": "FLAT",
+      "why": "no defect measured; outside the 20-member component"
+    },
     "tasks": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "15 kernel -> feature edges over 3 pairs in, and eight mutual pairs",
+      "why": "kernel -> feature edges and mutual pairs implicate it",
       "migrations": [
-        { "stage": "P2-B", "source": "15 kernel -> feature edges over 3 pairs: persistence (9), providers (5), runtime (1)", "target": "no kernel reaches a feature implementation", "blockedBy": "the persistence edges are the electron/commander/** road (P2-E)" },
-        { "stage": "P2-C", "source": "mutually dependent with engineering, persistence, providers, runtime, status, tenx, theme and workspace", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "15 kernel -> feature edges over 3 pairs: persistence (9), providers (5), runtime (1)",
+          "target": "no kernel reaches a feature implementation",
+          "blockedBy": "the persistence edges are the electron/commander/** road (P2-E)"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with engineering, persistence, providers, runtime, status, tenx, theme and workspace",
+          "target": "no capability-level cycle"
+        }
       ]
     },
     "tenx": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "24 kernel -> feature edges over 4 pairs in, twelve mutual pairs, and three hard-coded accesses into persistence's `tasks` namespace",
+      "why": "kernel -> feature edges and mutual pairs implicate it, and it makes hard-coded accesses into persistence's `tasks` namespace",
       "migrations": [
-        { "stage": "P2-B", "source": "24 kernel -> feature edges over 4 pairs: persistence (11), runtime (7), providers (4), state-core (2)", "target": "no kernel reaches a feature implementation", "blockedBy": "these are the electron/commander/** road (P2-E); re-attributing commander to a road class was measured and REFUTED (ledger CC-030)" },
-        { "stage": "P2-C", "source": "mutually dependent with twelve capabilities", "target": "no capability-level cycle" },
-        { "stage": "P2-D", "source": "live-capture.ts:519 and replay-corpus-io.ts:111 and :411 resolve persistence's `tasks` namespace by hard-coded path", "target": "read the ledger through persistence's published query API or a declared read model" }
+        {
+          "stage": "P2-B",
+          "source": "24 kernel -> feature edges over 4 pairs: persistence (11), runtime (7), providers (4), state-core (2)",
+          "target": "no kernel reaches a feature implementation",
+          "blockedBy": "these are the electron/commander/** road (P2-E); re-attributing commander to a road class was measured and REFUTED (ledger CC-030)"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with twelve capabilities",
+          "target": "no capability-level cycle"
+        },
+        {
+          "stage": "P2-D",
+          "source": "live-capture.ts:519 and replay-corpus-io.ts:111 and :411 resolve persistence's `tasks` namespace by hard-coded path",
+          "target": "read the ledger through persistence's published query API or a declared read model"
+        }
       ]
     },
     "theme": {
       "state": "MIGRATION_IN_PROGRESS",
       "why": "mutually dependent with knowledge, tasks and tenx",
-      "migrations": [{ "stage": "P2-C", "source": "mutually dependent with knowledge, tasks and tenx", "target": "no capability-level cycle" }]
+      "migrations": [
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with knowledge, tasks and tenx",
+          "target": "no capability-level cycle"
+        }
+      ]
     },
     "workspace": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "persistence reaches it in 6 edges and providers in 2, and it is mutually dependent with persistence, tasks and tenx",
+      "why": "persistence and providers reach it across a kernel boundary, and it is mutually dependent with persistence, tasks and tenx",
       "migrations": [
-        { "stage": "P2-B", "source": "persistence -> workspace (6), providers -> workspace (2)", "target": "no kernel reaches a feature implementation" },
-        { "stage": "P2-C", "source": "mutually dependent with persistence, tasks and tenx", "target": "no capability-level cycle" }
+        {
+          "stage": "P2-B",
+          "source": "persistence -> workspace (6), providers -> workspace (2)",
+          "target": "no kernel reaches a feature implementation"
+        },
+        {
+          "stage": "P2-C",
+          "source": "mutually dependent with persistence, tasks and tenx",
+          "target": "no capability-level cycle"
+        }
       ]
     }
   }
