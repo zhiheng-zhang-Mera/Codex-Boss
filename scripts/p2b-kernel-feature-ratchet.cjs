@@ -94,6 +94,20 @@ function decide(report, ratchet, cycles) {
   floor("owned files", measured.filesOwned, recorded.files_owned, "fewer files scanned is not fewer inversions; a file removed from the map, or absorbed by another class to hide its edges, makes the migration look finished without being finished");
   floor("capabilities with a kind", measured.capabilitiesWithKinds, recorded.capabilities_with_kinds, "`kernel` is read from the manifests' kind field, so a kernel that lost its kind would stop being counted while still being a kernel");
   floor("composition-root files", measured.compositionRootFiles, recorded.composition_root_files, "the composition root must stay visible; removing it from the map instead of re-attributing it would make its ~95 outgoing edges disappear");
+  // ---- Roads (workbook section 19; see docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md) ------------------
+  //
+  // A road declaration MOVES edges out of a building's column without deleting anything, so the two numbers it
+  // affects are both floors: the declared road count, and the count of edges that now point at a road. A fall in
+  // either, while the kernel -> feature count rises, is the signature of a re-attribution being reversed without
+  // the consumers changing -- and a road that vanished from the declaration would otherwise be indistinguishable
+  // from one that was never needed.
+  if (typeof recorded.road_files === "number" || typeof recorded.edges_to_roads === "number") {
+    floor("road files", measured.roadFiles, recorded.road_files, "a declared road cannot be un-declared to move its edges back into the owning capability's column; extract the file and record that instead");
+    floor("edges to roads", edges.edgesToRoads, recorded.edges_to_roads, "the road edges are published on their own line precisely so they cannot vanish; a fall here is only legitimate when the consumers really stopped using the road");
+    if (typeof edges.edgesFromRoads === "number" && edges.edgesFromRoads !== 0) {
+      problems.push(`${edges.edgesFromRoads} edge(s) leave a road: a road that imports another capability is not a road, it is a building dependency, and attributing it to the road class would HIDE that edge (ledger CC-030)`);
+    }
+  }
 
   // ---- P2-C: the SCC decomposition, the decision-relevant half of the cycle section in
   // docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md (section 17) ------------------------------------
@@ -142,6 +156,9 @@ function decide(report, ratchet, cycles) {
       filesOwned: measured.filesOwned ?? null,
       capabilitiesWithKinds: measured.capabilitiesWithKinds ?? null,
       compositionRootFiles: measured.compositionRootFiles ?? null,
+      roadFiles: measured.roadFiles ?? null,
+      edgesToRoads: edges.edgesToRoads ?? null,
+      edgesFromRoads: edges.edgesFromRoads ?? null,
       largestSccSize: cycles?.largestSccSize ?? null,
       nonTrivialSccCount: cycles?.nonTrivialSccCount ?? null,
       sccCount: cycles?.sccCount ?? null,
@@ -157,6 +174,9 @@ function render(decision) {
   lines.push(`[p2b] recorded ${decision.recordedAt ?? "(no date)"}; targets ${JSON.stringify(decision.target)}`);
   lines.push(`[p2b] measured kernel -> feature file edges ${decision.measured.kernelToFeatureFileEdges} over ${decision.measured.kernelToFeaturePairs} pairs; mutual pairs ${decision.measured.mutualCapabilityPairs}`);
   lines.push(`[p2b] measured owned files ${decision.measured.filesOwned}; capabilities with a kind ${decision.measured.capabilitiesWithKinds}; composition-root files ${decision.measured.compositionRootFiles}`);
+  if (decision.measured.roadFiles !== null && decision.measured.roadFiles !== undefined) {
+    lines.push(`[p2b] measured roads ${decision.measured.roadFiles} file(s) carrying ${decision.measured.edgesToRoads} edge(s); ${decision.measured.edgesFromRoads} edge(s) leave a road (must be 0)`);
+  }
   if (decision.measured.largestSccSize !== null) {
     lines.push(`[p2b] measured capability graph ${decision.measured.capabilityNodes} node(s) / ${decision.measured.capabilityEdges} edge(s); SCCs ${decision.measured.sccCount} (${decision.measured.nonTrivialSccCount} non-trivial); LARGEST SCC ${decision.measured.largestSccSize}`);
   }

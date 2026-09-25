@@ -3370,3 +3370,132 @@ research_value              (1) A count cannot be decided and a decision cannot 
                             road is its OUT-degree, not its in-degree -- CC-030 and this entry agree that
                             popularity is not roadness.
 ```
+
+## CC-038 — P2-E: the first road declarations, and the two refutations that define what a road is not
+
+```text
+ENTRY_ID                    CC-038
+timestamp_utc               2026-09-25T06:08:55Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the files added
+                            are config records, a script, a document and tests. The ratchet artifact
+                            config/p2b-kernel-feature-ratchet.json is NOT on the Root Trust Surface, and no file
+                            under electron/ or src/ is touched -- the enforcement sensor's scan roots see an
+                            identical tree.
+main_before                 e099fe10202035c90603c67cc12856c30aaca1e6  (five checks green, epoch 34)
+branch                      feat/p2e-road-declarations
+PR                          the PR that carries this entry
+problem                     CC-037 measured 73 kernel -> feature edges and split them 34 attribution / 39 extraction,
+                            and named the next bounded step: a ROAD class. Section 19 defines a road as a shared
+                            concern trapped inside a building, requires five proofs per extraction, and section 24
+                            refuses count compensation. The danger is obvious and was already measured once: CC-030
+                            refuted labelling electron/commander/** a road because a road that imports a kernel is
+                            not a road. So the class had to be built with the refutation as a MACHINE RULE, not as a
+                            convention.
+the_two_part_test           NECESSARY -- the file must be a LEAF: imported across a capability boundary by two or
+                            more capabilities and importing NO other capability. SUFFICIENT -- the file must carry
+                            NO POLICY OF ITS OWN. Leafness is necessary and NOT sufficient, and that is this
+                            entry's central finding rather than a caveat: two of the strongest candidates pass the
+                            leaf test and are still refused.
+the_two_REFUTATIONS         src/shared/execution.ts -- a leaf imported by FOUR capabilities (persistence,
+                            providers, status, tenx) -- exports reviewResponse and defaultReviewPolicy, which
+                            DECIDE PASS, RETRY, HUMAN_REQUIRED or FAILED for a worker response. src/shared/
+                            permission.ts -- a leaf imported by providers and tenx -- exports manifestAllows,
+                            manifestNarrow and desktopMutationGate, which is security's decision procedure. A
+                            policy belongs to the capability that owns the outcome, so declaring either a road
+                            would HIDE an inversion rather than classify shared surface. Both are recorded as
+                            measured refutations, and the validator REFUSES a refutation for a file that is not a
+                            leaf with at least two consumers -- otherwise the record could look thorough while
+                            recording nothing.
+the_declarations            TWO roads, both leafless and both policy-free.
+                            electron/commander/durable-json.ts -- owned by tenx, 17 consuming capabilities, 4
+                            kernel edges. Exports writeJson / readJson / validId over node:fs, node:path and
+                            node:crypto. Its invariant is that a durable JSON file is never observed half written:
+                            the new generation is flushed and fsynced to a temporary file before the canonical
+                            path is replaced by rename, and the canonical file is never unlinked.
+                            src/shared/input-object.ts -- owned by tasks, 9 consumers, 3 kernel edges. A pure
+                            contract by its own header: enumerations, interfaces and one deterministic extension
+                            table, with no function that decides an outcome.
+what_the_declaration_DOES   An edge whose TARGET is a road is attributed to the class `<road>` instead of to the
+                            building that contains it. Nothing is deleted and nothing is hidden: the total
+                            cross-capability edge count is UNCHANGED at 801, files_owned is UNCHANGED at 598, and
+                            the moved edges are PUBLISHED as edges_to_roads.
+measurement_BEFORE_AFTER    kernel -> feature file edges   73 -> 66
+                            kernel -> feature pairs        25 -> 24
+                            mutual capability pairs        38 -> 34
+                            edges to roads                 -- -> 64   (published, not deleted)
+                            edges LEAVING roads            -- ->  0   (must be 0; a road with an out-edge is not a road)
+                            total cross-capability edges  801 -> 801  (unchanged, which is the point)
+                            files owned                   598 -> 598  (unchanged)
+                            largest SCC                    20 -> 20, capability nodes 28 -> 29, SCCs 9 -> 10
+why_the_four_mutual_pairs_dissolved
+                            In four cases a capability's ONLY dependency on another was the shared file primitive, so
+                            the two were never in a cycle of IMPLEMENTATION -- the cycle ran through shared surface.
+                            This is a derived consequence of the re-attribution and it is reported rather than
+                            quietly banked: the cycle instrument and the inventory's pair rollup both show 34, so
+                            the two measurements still agree.
+a_near_miss_worth_recording The first implementation INFLATED the total from 801 to 828. Attributing a road to
+                            `<road>` made the building that contains it look like a consumer of its own road, so
+                            every internal import of durable-json inside tenx and of input-object inside tasks
+                            became a "cross-capability" edge. The repair is the rule that a road stays PHYSICALLY
+                            inside its building: an import from the road's own owner is internal, exactly as it was
+                            before the declaration. Without that, the declaration would have moved 7 edges out of
+                            the kernel -> feature column and added 27 phantom ones to the total, and the gate that
+                            would have caught it is the one that had to exist first.
+TWO_MORE_WEAKER_GATES_FOUND
+                            (1) The inspector's `--verify` compared the totals the inspector COMPUTED against the
+                            inventory, and only over the inspector's OWN key list -- so the inventory's two new
+                            road keys were never asked about. It now compares the UNION of both key sets, and a
+                            key the inspector does not compute is itself a failure. (2) That closure immediately
+                            found THREE more keys it had never computed (fullyDeclaredCrossCapabilityEdges,
+                            realPairsAlreadyDeclared, realPairsUndeclared). All twelve keys are now cross-checked;
+                            the nine derivable from an edge list are additionally re-summarised from it, and the
+                            three manifest-derived ones are named as such rather than pretending to be recomputable.
+why_this_is_NOT_count_compensation
+                            Section 24 refuses count compensation, and the test is not intent but measurement. A
+                            road must be a leaf -- so it cannot be hiding a dependency, because it has none -- and
+                            it must carry no policy, so it is not a capability's implementation under another name.
+                            The total edge count does not change, so an edge cannot be made to disappear into a
+                            road; the road edges are published on their own line; and the ratchet now FLOORS both
+                            `road_files` and `edges_to_roads`, so a declaration cannot be withdrawn to move the
+                            numbers back, and FAILS if any edge leaves a road.
+the_ratchet_was_lowered     config/p2b-kernel-feature-ratchet.json records the new values in this same commit, as
+                            its own IMPROVED line instructs: 66 / 24 / 34, plus road_files 2, edges_to_roads 64 and
+                            the new graph floors (capability_nodes 29, capability_edges 206, scc_count 10). The
+                            anti-gaming section gains the roads rule.
+falsification               The validator's cases break each rule in turn: a road that imports a capability (the
+                            CC-030 refutation as an executable rule); a road with fewer than two consumers; a road
+                            owned by no capability, so not trapped in a building; a road whose declared owner
+                            disagrees with the ownership map; a road that is also a composition-root file or exempt;
+                            a road missing each of the five proofs; a road citing a ledger entry that does not
+                            exist; a refutation for a file that is not a leaf, and one with a single consumer; and a
+                            file declared a road AND refuted at once. Plus the inspector's cases: the union-of-keys
+                            gate, a dropped or invented edge, and a single pair count drifting with the total
+                            unchanged.
+measurement                 node scripts/phase2-edge-inventory.cjs   -> 801 edges, kernel->feature 66/24, edgesToRoads 64
+                            node scripts/phase2-pair-edges.cjs --verify -> VERDICT=AGREES, 801 edge(s) / 206 pair(s)
+                            node scripts/capability-roads-validator.cjs -> VERDICT=HOLDS, 73 -> 66
+                            node scripts/p2b-kernel-feature-ratchet.cjs -> VERDICT=HOLDS
+                            node scripts/capability-closure-validator.cjs -> VERDICT=PASS
+rollback                    Delete config/capability-roads.json, scripts/capability-roads-validator.cjs, its test
+                            and docs/city/PHASE2_P2E_ROAD_CLASS.md; revert the road attribution in the inventory and
+                            the inspector; restore the previous recorded values in config/p2b-kernel-feature-ratchet.json.
+temporary_debt_created      no. The declaration IS the recorded debt: each road carries an exit condition naming the
+                            extraction that removes it, and the road count is a ratchet floor so a declaration
+                            cannot be quietly withdrawn.
+closure_status              CLOSED for the class, the two declarations and the two refutations. OPEN for the 53
+                            remaining leafless shared candidates measured in CC-037, and OPEN for the extraction of
+                            the two declared roads out of electron/commander/** and src/shared/.
+research_value              (1) A necessary condition is not a sufficient condition, and the gap between them is
+                            where a whole class of fraud lives: the leaf test is machine-checkable and would have
+                            admitted src/shared/execution.ts, which is a POLICY -- so the machine rule that stops
+                            the fraud is the evidence requirement plus the refutation record, and the refutations
+                            are the valuable half of the artifact. (2) A re-attribution that does not change the
+                            total is the only kind that can be trusted, and finding that the total had RISEN by 27
+                            was the difference between a classification and a fudge -- a road must stay physically
+                            inside its building for the arithmetic to be honest. (3) A cross-check that iterates
+                            over its OWN key list silently stops covering keys added to the other side, which is
+                            the third instance in this programme of a gate that did not watch what it claimed to;
+                            the repair is to iterate the UNION and to treat a key the checker cannot compute as a
+                            failure rather than as an omission.
+```

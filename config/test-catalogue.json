@@ -552,6 +552,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/capability-roads-validator.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the road class is the cheapest way in this programme to make a metric move without repairing anything -- attribute an edge to the road class and a kernel stops depending on a building with no code change -- so a declaration must pass a NECESSARY condition the machine checks and a SUFFICIENT one it cannot; the necessary condition is LEAFNESS (imported across a capability boundary by two or more capabilities and importing NO other capability), which is ledger CC-030 refutation made executable, and the cases break it by declaring the shared sink that reaches nine capabilities; the sufficient condition is that the file carry NO POLICY OF ITS OWN, which cannot be automated without pretending to solve a semantic judgement, so the machine enforces the EVIDENCE -- five substantive proofs per road and a REFUTATION RECORD for the candidates that pass the leaf test and are still refused, with a case proving a refutation is rejected when the file is not a leaf or has a single consumer, because a record that records nothing is not evidence; leafness is NECESSARY AND NOT SUFFICIENT and that is the finding rather than a caveat: the committed artifact refuses src/shared/execution.ts, a leaf imported by four capabilities that exports reviewResponse and defaultReviewPolicy which DECIDE an outcome, and src/shared/permission.ts, a leaf that exports the security decision procedure; the remaining cases refuse a road owned by a KERNEL (already foundation, so declaring it a road moves nothing -- a gap the first version of the validator had and the falsification case found), a road owned by no capability (not trapped in a building), one whose declared owner disagrees with the ownership map, one that is also a composition-root file, one missing each of the five proofs in turn, one citing a ledger entry that does not exist, a classification too thin to be a rule, and a file declared a road and refuted at once; against the real tree it asserts two leafless roads with at least two consumers each, two real refutations that both PASS the leaf test, zero edges leaving a road, and that every road carries an exit condition naming the extraction that removes the declaration -- with the ratchet flooring road_files and edges_to_roads so a declaration cannot be withdrawn to push its edges back into a building column",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/city-flatness-validator.test.ts",
       "tier": "unit",
       "covers": [
