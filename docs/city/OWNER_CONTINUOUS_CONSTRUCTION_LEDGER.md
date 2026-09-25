@@ -4044,3 +4044,78 @@ research_value              (1) A bridge's exit condition can be DESIGNED to be 
                             surface change from landing unanchored, and it fired exactly once, on the change that
                             needed it.
 ```
+
+## CC-045 — CORRECTION to CC-044: the epoch was dispatched on a branch the workflow refuses, and the helper now refuses it too
+
+```text
+ENTRY_ID                    CC-045
+timestamp_utc               2026-09-25T10:52:53Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             Correction and completion of the epoch ceremony begun by CC-044. Same branch.
+corrects                    CC-044 (appended, not rewritten: the ledger is append-only)
+main_before                 7744be818e7e10be8cfe55eb57a70d5147e2f168
+branch                      feat/retire-bridge-p2a-01
+PR                          the PR that carries this entry
+WHAT_HAPPENED               CC-044's plan assumed the trust epoch could be advanced from the BRANCH that carries
+                            the surface-moving change, by dispatching the finalization workflow with --ref set to
+                            that branch. It cannot. The workflow's first step is a guard:
+                              TRUST_EPOCH_FINALIZATION_REQUIRES_MAIN: this workflow may only run on
+                              refs/heads/main, got refs/heads/feat/retire-bridge-p2a-01
+                            Run 36125878796 was dispatched on that ref, reached the guard and FAILED. The run is
+                            preserved in Actions history and is recorded here rather than hidden or deleted.
+THE_GUARD_WORKED            This is not a security failure and must not be read as one. The protected environment
+                            was never reached, nothing was anchored, no epoch moved and no branch was created. The
+                            workflow refused a dispatch it was designed to refuse, which is the mechanism behaving
+                            correctly.
+BUT_THE_HELPER_LET_IT_HAPPEN
+                            scripts/trust-epoch-dispatch.cjs planned and executed that dispatch without complaint,
+                            because it validates the SHAPE of a request -- repository, workflow, ref, and the three
+                            required inputs -- and not the POLICY of the workflow it names. It carried --ref all
+                            along, defaulting to main, so a ref the workflow always refuses was one flag away. That
+                            is the same class as the original spurious dispatch the helper was built after: an
+                            action whose DECLARED INTENT and whose EFFECT disagree.
+THE_REPAIR                  validateRequest now refuses any ref but main for the finalization workflow, naming the
+                            workflow's own guard and the sanctioned alternative: a surface-moving change is
+                            anchored with `node scripts/acceptance-evolution-bless.cjs --advance` IN THE SAME
+                            COMMIT, which is what ci.yml documents and what the cadence did. The guard is scoped to
+                            that workflow, so another workflow may still be dispatched on any ref. A case falsifies
+                            both directions -- a branch ref is refused and plans NO write, main is allowed, and a
+                            different workflow with a branch ref is allowed.
+THE_SANCTIONED_CADENCE      Confirmed by measurement rather than by reading: the epoch-34 branch
+                            (trust-epoch/boss-root-trust-34) has as its parent 11a0ad3, a MAIN merge commit, and
+                            11a0ad3's checks were `quality success, unit FAILURE, acceptance SKIPPED` while the
+                            epoch commit ca31133's checks were all five GREEN. So an unanchored surface is exactly
+                            the state the certificate gate refuses, and the epoch commit is the one CI certifies.
+                            The workflow is therefore the mechanism for a surface that a LATER commit has already
+                            moved onto main; the same-commit --advance is the mechanism for the change that moves
+                            it.
+WHAT_WAS_DONE               node scripts/acceptance-evolution-bless.cjs --advance on this branch:
+                              epoch 35 (boss-root-trust-35) established for
+                              ac3ee7d7a22c43dc07ac6b551530da618840bb64b007f82dfea8d258fa903993
+                              parent b19228be94fcd78efbabc7e90b3deb4c936a07a536435a5273fba6361ca23904
+                            then --check -> epoch 35 MATCHES the live surface. The epoch files are committed with
+                            the change they describe, which is what the tool itself instructs and what the
+                            certificate gate requires.
+AUTHORITY                   The advance was performed under the delegated Owner construction lease (ledger CC-001)
+                            exactly as the workbook's section 28 cadence requires: the live surface was measured,
+                            the proposal was generated by the tool, the Owner authorisation is recorded here and in
+                            the approved deployment comment for run 36125878796, exactly one epoch was advanced,
+                            and --check was verified. Not raising the lease; this is one advance for one surface
+                            movement.
+measurement                 node scripts/acceptance-evolution-bless.cjs --check -> epoch 35 MATCHES
+                            node scripts/trust-epoch-dispatch.cjs --ref feat/retire-bridge-p2a-01 -> now REFUSED
+                              with a message naming the workflow's guard
+                            npx vitest run tests/unit/city/trust-epoch-dispatch-helper.test.ts -> 18 passed
+closure_status              CLOSED. The dispatch that could only fail is now impossible to plan, the epoch is
+                            advanced and verified, and the failed run is recorded.
+research_value              (1) A helper that validates a request's SHAPE while the callee enforces its own POLICY
+                            will eventually plan something the callee refuses -- and the failure lands in CI history
+                            rather than at the planner, which is the wrong place to learn it. (2) The distinguishing
+                            question for a guard is not "did something bad happen" but "what did the action's
+                            declared intent promise that its effect did not deliver": here the helper promised a
+                            valid dispatch and delivered a refused one, which is why the repair is a rule and not a
+                            note. (3) Reading the previous epoch's commit GRAPH answered in one command what two
+                            documents could not: the parent of an epoch commit is the main state it anchored, and
+                            its check results say exactly which side of the certificate gate an unanchored surface
+                            falls on.
+```

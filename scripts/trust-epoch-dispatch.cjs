@@ -121,6 +121,17 @@ function validateRequest(request) {
   }
   if (!request.workflow || typeof request.workflow !== "string") problems.push("--workflow is required");
   if (!request.ref || typeof request.ref !== "string") problems.push("--ref is required");
+  // THE WORKFLOW'S OWN GUARD, ENFORCED IN THE HELPER. The finalization workflow's first step refuses any ref but main
+  // (TRUST_EPOCH_FINALIZATION_REQUIRES_MAIN), so a dispatch on a branch can only produce a failed run and an
+  // unaccounted dispatch. That happened on run 36125878796 (ledger CC-045): this helper planned and executed a
+  // dispatch the workflow was always going to refuse, because it validates the SHAPE of a request and not the policy
+  // of the workflow it names. That is the same class as the original spurious dispatch -- an action whose declared
+  // intent and its effect disagree -- so the rule belongs here, not in a runbook.
+  if (request.workflow === WORKFLOW_FILE && request.ref !== "main") {
+    problems.push(
+      `--ref ${JSON.stringify(request.ref)} is refused: ${WORKFLOW_FILE} refuses any ref but main, so this dispatch could only fail; a surface-moving change is anchored by running scripts/acceptance-evolution-bless.cjs --advance in the SAME commit, and the workflow is for a surface a later commit already moved onto main`,
+    );
+  }
   if (request.confirm) {
     for (const name of REQUIRED_REASON_INPUTS) {
       if (!request[name] || String(request[name]).trim() === "") {

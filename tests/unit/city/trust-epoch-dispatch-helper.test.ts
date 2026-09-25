@@ -152,6 +152,19 @@ describe("Trust epoch dispatch helper: nothing is written without --confirm", ()
     }
   });
 
+  it("REFUSES a ref the workflow itself refuses, so the helper cannot plan a dispatch that could only fail", () => {
+    // The finalization workflow's first step refuses any ref but main (TRUST_EPOCH_FINALIZATION_REQUIRES_MAIN). On
+    // run 36125878796 the helper planned and executed exactly that dispatch, because it validated the shape of the
+    // request and not the policy of the workflow it names (ledger CC-045). The rule now lives here.
+    const offMain = request({ ref: "feat/some-branch", confirm: true, reason: "r", risk: "k", rollback: "b" });
+    const problems = helper.validateRequest(offMain);
+    expect(problems.join(" "), "a dispatch on a non-main ref was accepted").toMatch(/refuses any ref but main/);
+    expect(helper.plan(offMain).commands, "a write was planned for a dispatch the workflow refuses").toEqual([]);
+    // Main is still allowed, and a DIFFERENT workflow may use any ref: the guard is the workflow's, not a blanket ban.
+    expect(helper.validateRequest(request({ ref: "main", confirm: true, reason: "r", risk: "k", rollback: "b" }))).toEqual([]);
+    expect(helper.validateRequest(request({ workflow: ".github/workflows/other.yml", ref: "feat/x" }))).toEqual([]);
+  });
+
   it("--confirm without the reason/risk/rollback inputs is REFUSED, because the protected workflow requires them", () => {
     // The protected workflow declares all three as required inputs and records them verbatim in the proposal, the
     // epoch commit message and the uploaded evidence. A confirmation that omitted them would dispatch a run whose
