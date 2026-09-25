@@ -66,7 +66,13 @@ describe("the durable-event contract, at a volume the hosted runner can decide",
     // Recorded, never asserted as a budget: the book's priority at this volume is correctness.
     expect(outcome.measurement.appendMillis).toBeGreaterThan(0);
     expect(outcome.measurement.totalMillis).toBeGreaterThanOrEqual(outcome.measurement.appendMillis);
-  }, 60_000);
+    // The budget below is a RUNNER allowance, not a property of the platform -- this file says so itself
+    // two lines up ("Recorded, never asserted as a budget"). 60s was too small for a hosted runner under
+    // load: this case ran 78.8s and the timeout killed it BEFORE its correctness assertions could report,
+    // so the run went red while the contract held (INC-2026-09-25-01 occurrence ten, first instance).
+    // Raising it weakens no assertion in this file -- it stops an environmental budget from being read as
+    // a correctness verdict.
+  }, 180_000);
 
   it("keeps a rolled-back transaction out of the journal, and commits the same work when it succeeds", () => {
     const root = temporaryDatabaseRoot("boss-durable-rollback-");

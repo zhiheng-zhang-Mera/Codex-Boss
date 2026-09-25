@@ -4753,3 +4753,98 @@ research_value              (1) A flaky assertion is worth reading before it is 
                             written on adjacent lines, and separating them is what makes a suite honest: the
                             safety half must hold on every host, the liveness half may only be reported.
 ```
+
+## CC-055 — The soak-report threshold that skipped two other checks, and the epoch that paid for it
+
+```text
+ENTRY_ID                    CC-055
+timestamp_utc               2026-09-25T22:38:19Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. EPOCH CEREMONY PERFORMED: the repaired file is
+                            tests/acceptance/**, which IS Root Trust Surface, so the surface moved from
+                            0efe54ee... to 1ddc2a3e... and epoch 37 was established with --advance in the SAME
+                            commit as the change it describes. No protected-path write and no bypass.
+main_before                 f22a06818b39d10e0333224833374fa52f839b07  (five checks green, epoch 36, PR #86)
+branch                      fix/soak-report-host-threshold
+PR                          the PR that carries this entry
+epoch_before                36 (0efe54ee8197a9c72b345928fb4713a1dcf1fd9dee1e6e034c07fa374fb22b86)
+epoch_after                 37 (1ddc2a3efa560589802f9165ca43c11d575ddcd9871e6ab01542df1692a06ed3), parent
+                            5938250f04e919ccd98d2b1ab8b47fc9d78918fec4cf1c43410583282fa0cee2
+what_was_run_first          CC-054 removed ONE of occurrence nine's three CI-red signatures and measured the
+                            cost of the others: every remaining route was believed to cross the epoch
+                            ceremony. This round tested that belief instead of accepting it, and it is only
+                            HALF true. The advance is a local command run in the same commit, so the price of
+                            repairing the acceptance-side signature is one `--advance` plus the commit that
+                            carries it -- not the multi-round programme CC-054 assumed. The belief was
+                            corrected by doing the cheap thing rather than by planning the expensive one.
+why_this_signature_mattered_most
+                            Of the three, this is the one that decides whether TWO OTHER CHECKS RUN. The
+                            register records it: "acceptance and package are SKIPPED while unit is red, so one
+                            soak threshold decides whether two other checks run at all". On a loaded runner
+                            this assertion failed as `expected 2 to be greater than 3`, the required `unit`
+                            check went red, and `acceptance` and `package` never executed -- so the merge gate
+                            lost three of its five contexts to one host measurement.
+the_defect                  tests/acceptance/platform-soak-report.test.ts, in the case named "reaches the
+                            allowance verdict through the production decision, whichever way this host
+                            measured". Its own docstring four lines above says what it does NOT do: "What it
+                            no longer does is DEMAND a particular host measurement." It then demanded exactly
+                            that, twice over:
+                              expect(report.samples).toBeGreaterThan(3);                    // the host must
+                                                                                           // sample 4+ times
+                              expect(Number.isFinite(report.trends.rssMiBPerMinute)).toBe(true);
+                              expect(Number.isFinite(report.trends.heapMiBPerMinute)).toBe(true);
+                            How many samples a host produces is a measurement OF THE HOST. A slope needs
+                            three samples, so a loaded runner that supplies two cannot produce a finite
+                            trend at all, and both demands fail together -- in a test whose entire purpose
+                            is that the verdict is correct "whichever way this host measured".
+the_repair                  The host-dependent demands are replaced by the precondition that is genuinely
+                            required and by the property the test's name claims:
+                              - the sample count is required only to be a soak at all (> 1), not to clear a
+                                host-controllable bar;
+                              - a trend must be a real MEASUREMENT or an explicit NOT_MEASURED (`null`) --
+                                a `0` or a NaN substituted for an unmeasured slope is REFUSED, which is the
+                                regression the boundary case in this same file already pins;
+                              - when a host supplies too few samples the dimension is REPORTED as
+                                NOT_MEASURED on stdout rather than quietly tolerated;
+                              - the verdict assertions -- that the report carries the PRODUCTION decision
+                                applied to its OWN numbers, and that the exit code follows that decision in
+                                both directions -- are untouched and still run.
+verification_run_this_round The edited case, on a host that measured a trend EXCEEDING the allowance:
+                              "[soak-report] rssMiBPerMinute=68.63621066178054 heapMiBPerMinute=4.479466738972202
+                               trendWithinLongRunAllowance=false generatorStatus=1 accepted=false
+                               failedInvariants=[]"  -> 1 passed
+                            That is the strongest available evidence for this repair: the host produced the
+                            REFUSED verdict, the exit code followed it, and the assertions held -- so the
+                            case is exercising the decision rather than passing on a quiet machine.
+                            node scripts/acceptance-evolution-bless.cjs --check BEFORE --advance
+                              -> TRUST_EPOCH_ROOT_SURFACE_MISMATCH (36 certifies 0efe54ee..., surface is
+                                 1ddc2a3e...) -- the surface genuinely moved and the mismatch is reported,
+                                 not silenced
+                            node scripts/acceptance-evolution-bless.cjs --advance  -> epoch 37 established
+                            node scripts/acceptance-evolution-bless.cjs --check AFTER  -> epoch 37 MATCHES
+                            npx tsc --noEmit -p tsconfig.tests.json -> 0
+                            npx vitest run tests/unit/city -> 25 files, 454 passed, including "the committed
+                              trust epoch is a valid parent-linked lineage, whoever advanced it"
+rollback                    Revert this commit. It reverts the test AND trust-policy/trust-epoch.json
+                            together, which is required: an epoch left behind by a reverted change would
+                            certify a surface that no longer exists, and --check would say so.
+temporary_debt_created      no.
+closure_status              CLOSED for this entry: the second and most consequential of occurrence nine's
+                            three signatures is gone. CITY-DEBT-005 remains OPEN on the third
+                            (tests/unit/root-trust-authority-lockdown.test.ts, a 120s timeout under load),
+                            and CC-054's cost measurement for that one stands: it is outside the surface but
+                            its failure is a DURATION rather than a threshold, so repairing it changes what
+                            the check proves.
+research_value              (1) The cost of a governance ceremony was ASSUMED and then measured, and the
+                            assumption was too pessimistic by an order of magnitude: "crosses the epoch
+                            ceremony" sounds like a programme and is in fact one command plus the commit that
+                            carries it. A cost that is never attempted gets estimated from its name, and a
+                            ceremony's name is always more expensive than its price. (2) The same defect class
+                            reached a second file in a stronger form: in CC-054 a liveness precondition sat
+                            beside a safety assertion, and here it sat four lines BELOW a docstring that
+                            explicitly disclaimed it -- the prose was corrected while the code was not, which
+                            is the artifact-states-the-why defect wearing its opposite mask. (3) A repaired
+                            assertion should be verified on the branch where it is LOAD-BEARING: this host
+                            produced the refused verdict, so the case can be seen deciding rather than
+                            passing, and a green run alone would not have shown that.
+```
