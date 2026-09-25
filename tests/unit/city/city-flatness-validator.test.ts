@@ -69,7 +69,7 @@ function defaultRegistry(capabilities: string[]): unknown {
     schema: "city-flatness-registry/1",
     states: validator.STATES,
     seal_blocking: validator.SEAL_BLOCKING,
-    stages: { "P2-B": { exitCondition: "kernel -> feature file edges = 0, measured under the ownership map", trackedBy: "config/p2b-kernel-feature-ratchet.json" } },
+    stages: { "P2-B": { exitCondition: "kernel -> feature file edges = 0, measured under the ownership map", trackedBy: "config/p2b-kernel-feature-ratchet.json", decidedBy: { all: [{ key: "p2b:kernelToFeatureFileEdges", target: 0 }] } } },
     bridges: {},
     plots: Object.fromEntries(capabilities.map((id) => [id, { state: "FLAT", why: "no defect was measured on this plot by any of the four instruments" }])),
   };

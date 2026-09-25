@@ -10,19 +10,20 @@
     "P2-B": {
       "exitCondition": "kernel -> feature file edges = 0, measured under the ownership map",
       "trackedBy": "config/p2b-kernel-feature-ratchet.json",
-      "measured": "73 edges over 25 pairs"
+      "decidedBy": { "all": [{ "key": "p2b:kernelToFeatureFileEdges", "target": 0 }] }
     },
     "P2-C": {
       "exitCondition": "capability-level mutual pairs = 0 and no SCC larger than one capability",
       "trackedBy": "config/p2b-kernel-feature-ratchet.json",
-      "measured": "38 mutual pairs; one SCC holding 20 of 28 nodes"
+      "decidedBy": { "all": [{ "key": "p2b:mutualCapabilityPairs", "target": 0 }, { "key": "p2b:largestSccSize", "target": 1 }] }
     },
     "P2-D": {
       "exitCondition": "cross-domain private-state accesses = 0, by explicit owner API, event stream, query API or declared read model",
       "trackedBy": "config/p2d-private-state-ratchet.json",
-      "measured": "5 accesses over 3 pairs, all into persistence's `tasks` namespace"
+      "decidedBy": { "all": [{ "key": "p2d:confirmedAccesses", "target": 0 }] }
     }
   },
+  "$stages_comment": "A stage carries NO typed measurement. It carried three until ledger CC-041 -- '73 edges over 25 pairs', '38 mutual pairs; one SCC holding 20 of 28 nodes', '5 accesses over 3 pairs' -- and all three had gone stale the moment P2-E lowered the real numbers, because a copy of a measurement is a second thing to keep true. The copy is gone: `trackedBy` names the artifact that holds the number and `decidedBy` names the keys that DECIDE the exit condition, so the completion of a phase is resolved live by scripts/bridge-expiry-validator.cjs and scripts/city-flatness-validator.cjs forbids a typed `measured` field here from coming back.",
   "bridges": {
     "P2A-BRIDGE-01": {
       "owner": "the P2-A increment-2 executor, under the delegated City construction lease (ledger CC-001)",
@@ -30,6 +31,7 @@
       "source": "src/shared/contracts.ts (owned by status)",
       "target": "src/shared/provider-contracts.ts (owned by providers)",
       "form": "exactly one symbol: `export type { ProviderId } from \"./provider-contracts\";`",
+      "literal": "export type { ProviderId } from \"./provider-contracts\";",
       "exitCondition": "delete the re-export and change those five imports to ./provider-contracts, in the same commit, in a change that is ALREADY moving the Root Trust Surface for another reason",
       "deadline_phase": "before the Phase 2 seal",
       "tests": "tests/unit/city/provider-closure.test.ts",

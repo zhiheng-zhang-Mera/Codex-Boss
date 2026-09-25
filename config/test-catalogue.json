@@ -543,6 +543,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/bridge-expiry-validator.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "section 30 of docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md names a bridge expiry validator among the artifacts the final acceptance suite must run, section 15 requires eight fields per temporary bridge and says a bridge without an exit condition is not allowed, and section 33 puts no expired temporary bridge remains in the completion checklist -- and NONE OF IT EXISTED, so a bridge past its deadline or one whose code had already been deleted while the declaration stayed was invisible; the check that makes a declaration falsifiable is the bridge LITERAL: the validator asserts that the exact source statement still appears in its source file EXACTLY ONCE, because zero occurrences means the bridge was removed and the record is stale while more than one means the bridge is not one statement and its exit condition does not describe it; the check that makes the deadline mean anything is that a phase is RESOLVED from measurements and not from prose -- each stage carries trackedBy and decidedBy instead of a typed measurement, and a stage whose keys cannot be resolved reads UNRESOLVED and FAILS CLOSED, because an unmeasurable deadline that reads as not yet due is exactly how a bridge outlives its phase; the cases break each rule in turn, removing each of the eight fields, deleting the literal from the tree, making it appear many times, dropping it entirely, naming an unrecognised deadline, forcing a phase COMPLETE so the bridge EXPIRES, leaving a phase IN_PROGRESS and proving it was resolved from the instrument rather than typed, making a phase unmeasurable two ways, orphaning the bridge, and breaking its source and test paths; against the committed registry it asserts the live bridge is due before the seal with exactly one declaration occurrence, that every declared phase is decidable, that NO stage carries a typed measurement -- the two stale copies this stage removed -- and that the SEAL GATE blocks while a bridge is declared independently of the plot states, which was a hole in the gate itself",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/capability-closure-validator.test.ts",
       "tier": "unit",
       "covers": [
