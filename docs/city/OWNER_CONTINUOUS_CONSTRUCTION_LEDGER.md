@@ -4469,3 +4469,46 @@ research_value              (1) A family-level flake and a run-level flake are i
                             keeping: the merge happened on a GREEN check and never on a red one, and the record
                             says out loud that the green is weaker than a first-attempt green.
 ```
+
+## CC-051 — An OPEN item must name its member: E2 said a problem existed and nothing about which
+
+```text
+ENTRY_ID                    CC-051
+timestamp_utc               2026-09-25T16:00:02Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are a script and a test, and acceptance-evolution-bless --check reports epoch 36
+                            still MATCHES.
+main_before                 edf832be1bcf74463d8cd6771eb2fd0694d65390  (five checks green, epoch 36, PR #82)
+branch                      feat/acceptance-e2-names-the-debt
+PR                          the PR that carries this entry
+problem                     CC-050 recorded CITY-DEBT-005, so the final-acceptance suite's E2 moved to OPEN -- which is
+                            the report telling the truth. But its evidence read "1 debt entr(ies) are still OPEN":
+                            it said a problem existed and nothing about WHICH. Every other OPEN item in that
+                            checklist names its member -- the road items name files, the matrix item names
+                            principle ids, the bridge item names the plot -- because an item a reader cannot act on
+                            is a red without a next step.
+the_repair                  E2 pairs each register entry's id with its own status and names the unsettled ones, which
+                            now reads "1 debt entr(ies) are still OPEN: CITY-DEBT-005". The pairing is
+                            id-first-then-status, taking the FIRST occurrence of an id rather than the summary table
+                            at the foot of the register.
+the_test_is_an_IMPLICATION  The case asserts that IF E2 is OPEN THEN its evidence names a CITY-DEBT- id, rather
+                            than asserting today's specific debt. Written that way it stays true when
+                            CITY-DEBT-005 closes, and it bites again the moment a new debt opens without being
+                            named -- which is the property, not the current value.
+measurement                 node scripts/city-final-acceptance.cjs -> E2 "1 debt entr(ies) are still OPEN:
+                              CITY-DEBT-005"
+                            npx vitest run tests/unit/city/city-final-acceptance.test.ts -> 9 passed
+                            npx vitest run tests/unit/comment-citation.test.ts -> 4 passed
+                            npx tsc --noEmit -p tsconfig.tests.json -> 0
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+rollback                    Restore the count-only evidence and remove the implication case.
+temporary_debt_created      no.
+closure_status              CLOSED. E2 now names the debt it is complaining about, and the property that it must do
+                            so is asserted.
+research_value              A checklist item that fails without naming its member is only half a report: the
+                            reader learns that the programme is not ready and not what would make it ready. The
+                            same discipline that made the matrix name its principles and the road item name its
+                            files applies to the evidence block, and it is the kind of gap that only shows up when
+                            an item first goes red -- which is why it was found here, one round after E2 moved.
+```
