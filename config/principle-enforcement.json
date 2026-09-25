@@ -1,0 +1,129 @@
+{
+  "$comment": "The enforcement matrix for city principles 15.1-15.9 (workbook section 23, stage P2-I; see docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md). The matrix is DATA rather than prose so that scripts/principle-enforcement-validator.cjs can check every claim in it: a row may not say MACHINE_ENFORCED unless the guard it names EXISTS, is READ-ONLY, exits 0 when run, is reached by a test the required tiers execute, and reports a measured value at or below a target of 0. That rule exists because the cheapest lie a matrix of this kind can tell is to promote a ratchet into an enforcement, and workbook section 23 says plainly: do not fake semantic certainty. Every row whose strength is below its required strength must carry why_not_enforced, so the gap is recorded rather than hidden.",
+  "schema": "city-principle-enforcement/1",
+  "strength_semantics": {
+    "MACHINE_ENFORCED": "a guard fails on ANY violation; the resolved measured value must be at or below the target and the target must be 0",
+    "MACHINE_RATCHET": "a guard refuses a REGRESSION but the principle's target is not met, so the measured value is above the target and the row must say so",
+    "EVIDENCE_REQUIRED": "the principle cannot be fully automated without pretending to solve a semantic judgement, so the machine enforces that the EVIDENCE exists and an explicit structured decision record names the judgement",
+    "NOT_GUARDED": "nothing checks this, and the row must name the stage that owns the gap"
+  },
+  "principles": [
+    {
+      "id": "15.1",
+      "claim": "foundation must not depend on building",
+      "requiredStrength": "MACHINE ENFORCED",
+      "strength": "MACHINE_RATCHET",
+      "guards": ["scripts/p2b-kernel-feature-ratchet.cjs"],
+      "wiredBy": ["tests/unit/city/p2b-kernel-feature-ratchet.test.ts"],
+      "measuredFrom": "p2b:kernelToFeatureFileEdges",
+      "target": 0,
+      "why_not_enforced": "the guard refuses a RISE, and the measured count is 73 rather than 0. Recording this row as MACHINE ENFORCED would promote a regression floor into a claim the tree does not support.",
+      "gap": "the migration to 0 is stage P2-B, declared per plot in config/city-flatness.json"
+    },
+    {
+      "id": "15.2",
+      "claim": "size is not itself a defect signal",
+      "requiredStrength": "MACHINE SEMANTICS PINNED",
+      "strength": "EVIDENCE_REQUIRED",
+      "guards": [],
+      "wiredBy": [],
+      "measuredFrom": null,
+      "target": null,
+      "evidenceRequirement": "every structural change records the MINIMUM STABLE SEMANTIC CLOSURE it migrated, and why that unit is semantic rather than a file count, in the construction ledger and in a closure record",
+      "decisionRecords": ["docs/city/PHASE2_P2A_COMPOSITION_ROOT_CLASS.md", "docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md"],
+      "why_not_enforced": "no enforcement rule in this repository keys its threshold on a file count, but nothing MACHINE-CHECKS that, and a check for 'did the author reason semantically' would be a judgement dressed up as a test.",
+      "gap": "the evidence requirement is enforced only as the EXISTENCE of a named decision record"
+    },
+    {
+      "id": "15.3",
+      "claim": "minimum stable closure is the unit of migration",
+      "requiredStrength": "MACHINE CHECKED where decidable + explicit review record",
+      "strength": "EVIDENCE_REQUIRED",
+      "guards": ["scripts/capability-closure-validator.cjs"],
+      "wiredBy": ["tests/unit/city/capability-closure-validator.test.ts"],
+      "measuredFrom": null,
+      "target": null,
+      "evidenceRequirement": "each migration step states the closure it moved, what it deliberately did NOT move, and the measured before/after counts, so the step can be reviewed as a closure rather than as a diff",
+      "decisionRecords": ["docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md", "docs/city/PHASE2_ARCHITECTURE_MIGRATION_SPEC.md"],
+      "why_not_enforced": "the decidable half IS checked -- whether a closure is complete and well-formed is what scripts/capability-closure-validator.cjs decides, and tests/unit/city/provider-closure.test.ts pins the provider closure's completeness by name. Whether a GIVEN bundle of files is one purpose or seven remains a design judgement.",
+      "gap": "the judgement half is a review record, not a check"
+    },
+    {
+      "id": "15.4",
+      "claim": "capability replacement lifecycle exists and carries one real proof",
+      "requiredStrength": "MACHINE-STATEFUL + real proof",
+      "strength": "NOT_GUARDED",
+      "guards": [],
+      "wiredBy": [],
+      "measuredFrom": null,
+      "target": null,
+      "why_not_enforced": "no replacement-governance mechanism exists, so there is nothing to check and no state for a lifecycle to be in.",
+      "gap": "stage P2-G has not been started"
+    },
+    {
+      "id": "15.5",
+      "claim": "least-sufficient repair: no PROHIBITED ADDED lateral load",
+      "requiredStrength": "MACHINE CHECK on prohibited added lateral load",
+      "strength": "MACHINE_ENFORCED",
+      "guards": ["scripts/p2b-kernel-feature-ratchet.cjs"],
+      "wiredBy": ["tests/unit/city/p2b-kernel-feature-ratchet.test.ts"],
+      "measuredFrom": "p2b:addedLateralLoad",
+      "target": 0,
+      "why_not_enforced": null,
+      "note": "This is the row where the distinction matters. Section 23 asks for a check on ADDED lateral load, not on the absolute count, and that is exactly what the guard does: a rise in kernel -> feature edges, in kernel -> feature pairs or in mutual capability pairs fails. The absolute count still being 73 is principle 15.1's problem, not this row's claim."
+    },
+    {
+      "id": "15.6",
+      "claim": "every plot has exactly one valid flatness state",
+      "requiredStrength": "MACHINE ENFORCED",
+      "strength": "MACHINE_ENFORCED",
+      "guards": ["scripts/city-flatness-validator.cjs"],
+      "wiredBy": ["tests/unit/city/city-flatness-validator.test.ts"],
+      "measuredFrom": "flatness:shapeProblems",
+      "target": 0,
+      "why_not_enforced": null,
+      "note": "Enforced as the STATE MACHINE: exactly one state per plot from the five, the per-state obligations, and a refusal to record FLAT on a plot that a measured defect implicates. That the seal is not ready is another row's fact -- config/city-flatness.json records 22 plots still mid-migration, and the seal gate says so rather than this one."
+    },
+    {
+      "id": "15.7",
+      "claim": "no cycles, no uncontrolled lateral bearing, no cross-domain private state access",
+      "requiredStrength": "MACHINE ENFORCED",
+      "strength": "MACHINE_RATCHET",
+      "guards": ["scripts/p2b-kernel-feature-ratchet.cjs", "scripts/phase2-private-state.cjs"],
+      "wiredBy": ["tests/unit/city/p2b-kernel-feature-ratchet.test.ts", "tests/unit/city/phase2-private-state.test.ts"],
+      "measuredFrom": null,
+      "target": 0,
+      "composite": [
+        { "part": "mutual capability pairs", "measuredFrom": "p2b:mutualCapabilityPairs", "target": 0 },
+        { "part": "largest strongly connected component", "measuredFrom": "p2b:largestSccSize", "target": 0 },
+        { "part": "cross-domain private-state accesses", "measuredFrom": "p2d:confirmedAccesses", "target": 0 }
+      ],
+      "why_not_enforced": "all guards refuse a REGRESSION and every part is still above 0: 38 mutual pairs, a largest component of 20 of 28 capabilities, and 5 private-state accesses over 3 (namespace, capability) pairs.",
+      "gap": "the migrations to 0 are stages P2-C and P2-D, declared per plot in config/city-flatness.json"
+    },
+    {
+      "id": "15.8",
+      "claim": "shared roads are explicitly classified",
+      "requiredStrength": "MACHINE CHECK / explicit road classification",
+      "strength": "NOT_GUARDED",
+      "guards": [],
+      "wiredBy": [],
+      "measuredFrom": null,
+      "target": null,
+      "why_not_enforced": "the ownership map has ONE named non-capability class -- composition_root -- and that is an explicit classification, but no ROAD class exists, and the one road candidate, electron/commander/**, is identified only in prose. Re-attributing it was measured and REFUTED (ledger CC-030): it has 132 incoming and 122 outgoing edges, so a road label would HIDE its edges rather than classify them.",
+      "gap": "stage P2-E has not been started; the extraction needs its five named proofs"
+    },
+    {
+      "id": "15.9",
+      "claim": "Core growth ban",
+      "requiredStrength": "MACHINE ENFORCED",
+      "strength": "NOT_GUARDED",
+      "guards": [],
+      "wiredBy": [],
+      "measuredFrom": null,
+      "target": null,
+      "why_not_enforced": "no stable Core classification exists, so there is no surface to measure and no budget to enforce. The legacy ratchet records monotone metrics (bootModuleCount, capabilityCount, dependencyEdgeCount) and refuses a rise, but it does not define Core, so citing it here would be a different claim wearing this row's name.",
+      "gap": "stage P2-H has not been started"
+    }
+  ]
+}
