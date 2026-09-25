@@ -4214,3 +4214,62 @@ research_value              (1) A ratchet rule can be wrong in the direction tha
                             rather than reading it has an expiry date measured in acceptances; reading the committed
                             series is the repair that does not need repeating.
 ```
+
+## CC-047 — The recorded debt paid: a plot's reason states WHY, the instruments state HOW MUCH
+
+```text
+ENTRY_ID                    CC-047
+timestamp_utc               2026-09-25T12:31:16Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are a config record, a script and a test, and acceptance-evolution-bless --check
+                            reports epoch 36 still MATCHES because none of them is Root Trust Surface.
+main_before                 ba607c4751078b1d9d1f731bd49547cceb237850  (five checks green, epoch 36, baseline v3, PR #78)
+branch                      feat/flatness-reasons-without-measurements
+PR                          the PR that carries this entry
+problem                     CC-046 recorded this as debt with an exit condition rather than leaving it for a reader:
+                            the 22 migrating plots' `why` strings carried TYPED MEASUREMENTS -- "23 kernel -> feature
+                            edges over 9 pairs and eight mutual pairs", "3 kernel -> feature edges over 3 pairs",
+                            "(35 edges over 10 pairs)" -- and every one had gone stale as the migration moved. It is
+                            the THIRD place this programme has found the same defect: CC-039 in the enforcement
+                            matrix's prose, CC-041 in this registry's stage measurements, and now the plots' reasons.
+the_repair                  Seventeen reasons were rewritten to state the defect in WORDS, keeping the substance the
+                            numbers carried -- who reaches the plot across a kernel boundary, whether the pair is
+                            mutual, whether the plot resolves persistence's `tasks` namespace by hard-coded path,
+                            whether it used to declare the retired BRIDGE. Not one claim was dropped; what was
+                            dropped is the COUNT, because the instruments supply it and a second copy is a second
+                            thing to keep true.
+THE_RULE_NOT_THE_VALUE      Updating 22 strings would have been the same mistake one migration later, so the
+                            validator now REFUSES a measurement in a reason. The pattern is deliberately narrow --
+                            a digit run followed by a measurement noun -- so an entry may still name a ledger entry
+                            (CC-044) or a stage (P2-B) without tripping it, and the test asserts BOTH directions:
+                            three numeric claims are refused, and a ledger reference and a stage reference in the
+                            same position are accepted. That narrowness is what keeps the rule from forbidding the
+                            references that make a reason traceable.
+why_this_is_the_third_time  The three occurrences share one shape: a machine-checked artifact whose PROSE carries a
+                            copy of a number the machine does not resolve. Each time the repair has been the same
+                            division of labour -- the artifact says WHY and names what tracks it, the instrument
+                            says HOW MUCH -- and each time the rule was placed in the validator so the copy cannot
+                            return. The pattern is now established enough to state plainly: a checked artifact
+                            protects exactly the fields it checks, and prose inside one is unguarded prose.
+measurement                 node scripts/city-flatness-validator.cjs -> VERDICT=PASS, 22 plots reported, 0 with a
+                              typed measurement
+                            node scripts/city-final-acceptance.cjs -> S8 PASS, S11 PASS, S12 PASS
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES (no epoch
+                              required for this change)
+                            npx vitest run tests/unit/city/ -> 25 files, 451 tests, all passed
+                            npx tsc --noEmit -p tsconfig.tests.json -> 0
+temporary_debt_created      no. This entry RETIRES debt recorded by CC-046, whose exit condition it satisfies.
+closure_status              CLOSED. The registry's reasons are qualitative, the rule that keeps them so is
+                            machine-enforced in both directions, and the counts live only in the instruments.
+rollback                    Restore the numeric reasons and remove the rule from scripts/city-flatness-validator.cjs
+                            and its case; nothing else reads either.
+research_value              (1) Recording debt WITH an exit condition is what made this round a bounded repayment
+                            rather than a discovery: the exit condition named the rule to add, and the rule is what
+                            stops the debt returning after the next 22 edits. (2) A rule that forbids something must
+                            be tested in BOTH directions, or it silently forbids the references -- a ledger id, a
+                            stage name -- that make an artifact auditable; the narrow pattern and the accepting
+                            cases are the same decision. (3) Three occurrences of one defect class in one programme
+                            is a pattern worth naming in the artifacts themselves, so the fourth occurrence is
+                            recognised rather than diagnosed.
+```

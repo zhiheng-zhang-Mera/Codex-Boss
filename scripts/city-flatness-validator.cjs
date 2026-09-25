@@ -46,6 +46,13 @@ const REGISTRY = "config/city-flatness.json";
 const STATES = ["FLAT", "TEMPORARILY_BRIDGED", "PARTIALLY_DEGRADED", "MIGRATION_IN_PROGRESS", "UNSAFE_GAP"];
 const SEAL_BLOCKING = ["UNSAFE_GAP", "MIGRATION_IN_PROGRESS", "PARTIALLY_DEGRADED", "TEMPORARILY_BRIDGED"];
 
+/**
+ * A count stated in a reason. Deliberately narrow: a digit run followed by a measurement NOUN, so an entry may still
+ * name a ledger entry (`CC-044`) or a stage (`P2-B`) without tripping it, while "23 kernel -> feature edges" and
+ * "(35 edges over 10 pairs)" are refused.
+ */
+const MEASUREMENT_CLAIM = /\b\d+\s+(kernel|feature|edge|edges|pair|pairs|mutual|access|accesses|node|nodes|plot|plots|capabilit)/i;
+
 /** Every capability the manifests declare: the plot set is DERIVED, so a new capability cannot go unregistered. */
 function plotSet(root = ROOT) {
   const directory = path.join(root, "config", "capabilities");
@@ -145,6 +152,14 @@ function validate(root = ROOT, options = {}) {
       if (!bridges[id]) problems.push(`${capability}: names bridge ${id}, which the registry does not declare`);
     }
     if (typeof entry.why !== "string" || entry.why.trim().length < 20) problems.push(`${capability}: the entry states no reason for its state`);
+    // A PLOT'S REASON CARRIES NO MEASUREMENT, for the third time in this programme. The `why` strings used to carry
+    // counts -- "23 kernel -> feature edges over 9 pairs and eight mutual pairs" -- and every one went stale as the
+    // migration moved. That is the defect ledger CC-039 found in the enforcement matrix's prose and CC-041 in this
+    // registry's stage measurements, and this is the same rule in a third place: the registry states WHY a plot is
+    // implicated, in words, and the instruments supply HOW MUCH. A count here is a second copy to keep true.
+    if (typeof entry.why === "string" && MEASUREMENT_CLAIM.test(entry.why)) {
+      problems.push(`${capability}: the entry's reason states a MEASUREMENT, which is a second copy of a number the instruments already hold; state the defect in words and let the instrument supply the count`);
+    }
   }
 
   // --- shape: every declared bridge carries its obligations, as required by
