@@ -92,8 +92,11 @@ describe("§30 the acceptance suite enumerates §33 completely, and says what it
       expect(item(items, id).status, id).toBe(acceptance.STATUSES.OPEN);
       expect(item(items, id).evidence, id).toContain(needle);
     }
-    expect(item(items, "S12").status).toBe(acceptance.STATUSES.OPEN);
-    expect(item(items, "S12").evidence).toContain("P2-G");
+    // §21's "one real migration" proof now EXISTS: ledger CC-044 walked the bridge retirement to RETIRED, so S12 is
+    // verified while the structural targets are not.
+    expect(item(items, "S12").status).toBe(acceptance.STATUSES.PASS);
+    expect(item(items, "S12").evidence).toContain("reached RETIRED");
+    expect(item(items, "S11").status).toBe(acceptance.STATUSES.PASS);
   });
 
   it("finds each REQUIRED artifact missing in a root that does not have it", () => {

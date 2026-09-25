@@ -24,7 +24,7 @@ import { UI_SURFACE_IDS } from "../../src/shared/ui-surface-ids";
 import { UI_TOKEN_NAMES, validateSurfaceOverride, validateUISurfaceRegistry } from "../../src/shared/ui-surface";
 import { impactOf, probeCapability, type RepoWorldModel } from "../../src/shared/repo-world-model";
 import type { InputObjectRef } from "../../src/shared/input-object";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 const PROJECT = process.cwd();
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "boss-arch-acceptance-"));

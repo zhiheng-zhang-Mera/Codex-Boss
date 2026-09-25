@@ -24,21 +24,8 @@
     }
   },
   "$stages_comment": "A stage carries NO typed measurement. It carried three until ledger CC-041 -- '73 edges over 25 pairs', '38 mutual pairs; one SCC holding 20 of 28 nodes', '5 accesses over 3 pairs' -- and all three had gone stale the moment P2-E lowered the real numbers, because a copy of a measurement is a second thing to keep true. The copy is gone: `trackedBy` names the artifact that holds the number and `decidedBy` names the keys that DECIDE the exit condition, so the completion of a phase is resolved live by scripts/bridge-expiry-validator.cjs and scripts/city-flatness-validator.cjs forbids a typed `measured` field here from coming back.",
-  "bridges": {
-    "P2A-BRIDGE-01": {
-      "owner": "the P2-A increment-2 executor, under the delegated City construction lease (ledger CC-001)",
-      "reason": "five tests/acceptance/** suites import `ProviderId` from ./contracts, and that glob is Root Trust Surface, so re-pointing them would have moved the epoch aggregate and cost a ceremony for a one-symbol import path",
-      "source": "src/shared/contracts.ts (owned by status)",
-      "target": "src/shared/provider-contracts.ts (owned by providers)",
-      "form": "exactly one symbol: `export type { ProviderId } from \"./provider-contracts\";`",
-      "literal": "export type { ProviderId } from \"./provider-contracts\";",
-      "exitCondition": "delete the re-export and change those five imports to ./provider-contracts, in the same commit, in a change that is ALREADY moving the Root Trust Surface for another reason",
-      "deadline_phase": "before the Phase 2 seal",
-      "tests": "tests/unit/city/provider-closure.test.ts",
-      "record": "docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md",
-      "declaredIn": ["providers", "status"]
-    }
-  },
+  "bridges": {},
+  "$bridges_comment": "EMPTY, and that is a result rather than a default. P2A-BRIDGE-01 lived here until ledger CC-044 retired it: five tests/acceptance/** suites were re-pointed from ./contracts to ./provider-contracts and the one-symbol re-export was deleted, which is the exit condition the bridge's own record declared. The retirement was walked through the replacement lifecycle in config/city-replacement-lifecycle.json -- DECLARED, SHADOW, DUAL_VALIDATED, TRAFFIC_SWITCHED, OLD_FALLBACK, DRAINED, RETIRED -- so the next temporary bridge has a protocol to walk instead of a precedent to copy. The flatness validator refuses a bridge without an exit condition, and the bridge expiry validator refuses a declaration whose literal is no longer in the tree; both were satisfied before this entry was removed.",
   "plots": {
     "attachments": {
       "state": "MIGRATION_IN_PROGRESS",
@@ -128,8 +115,8 @@
     },
     "providers": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "23 kernel -> feature edges over 9 pairs and eight mutual pairs; it also declares BRIDGE P2A-BRIDGE-01",
-      "bridges": ["P2A-BRIDGE-01"],
+      "why": "23 kernel -> feature edges over 9 pairs and eight mutual pairs; the BRIDGE it used to declare was retired by ledger CC-044",
+      "bridges": [],
       "migrations": [
         { "stage": "P2-B", "source": "23 kernel -> feature edges over 9 pairs, the largest being tasks (5), security (4) and tenx (4)", "target": "no kernel reaches a feature implementation" },
         { "stage": "P2-C", "source": "mutually dependent with automation, engineering, persistence, runtime, status, tasks and tenx", "target": "no capability-level cycle" }
@@ -166,8 +153,8 @@
     },
     "status": {
       "state": "MIGRATION_IN_PROGRESS",
-      "why": "9 kernel -> feature edges over 4 pairs in, eight mutual pairs, and it declares BRIDGE P2A-BRIDGE-01",
-      "bridges": ["P2A-BRIDGE-01"],
+      "why": "9 kernel -> feature edges over 4 pairs in, eight mutual pairs, and the BRIDGE it used to declare was retired by ledger CC-044",
+      "bridges": [],
       "migrations": [
         { "stage": "P2-B", "source": "9 kernel -> feature edges over 4 pairs: persistence (3), providers (3), runtime (2), state-core (1)", "target": "no kernel reaches a feature implementation" },
         { "stage": "P2-C", "source": "mutually dependent with engineering, persistence, promotion, providers, research, runtime, tasks and tenx", "target": "no capability-level cycle" }

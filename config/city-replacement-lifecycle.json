@@ -1,21 +1,71 @@
 {
   "$comment": "THE REPLACEMENT LIFECYCLE (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 21, principle 15.4). Section 21 requires a REUSABLE mechanism, not a one-off migration, and says plainly: 'Do not attempt to replace every capability merely to exercise this.' So this artifact is the PROTOCOL -- a state machine plus the seven pieces of machinery section 21 enumerates -- and instances are declared against it. The reason it is machine-checked rather than documented is the failure mode: a replacement that reports RETIRED without ever having run both sides side by side is indistinguishable, in prose, from one that did. The validator refuses a history that SKIPS a state, so the lifecycle cannot be claimed without being walked.",
   "schema": "city-replacement-lifecycle/1",
-  "states": ["DECLARED", "SHADOW", "DUAL_VALIDATED", "TRAFFIC_SWITCHED", "OLD_FALLBACK", "DRAINED", "RETIRED", "ROLLED_BACK"],
-  "transitions": [
-    { "from": "DECLARED", "to": "SHADOW" },
-    { "from": "SHADOW", "to": "DUAL_VALIDATED" },
-    { "from": "DUAL_VALIDATED", "to": "TRAFFIC_SWITCHED" },
-    { "from": "TRAFFIC_SWITCHED", "to": "OLD_FALLBACK" },
-    { "from": "OLD_FALLBACK", "to": "DRAINED" },
-    { "from": "DRAINED", "to": "RETIRED" },
-    { "from": "SHADOW", "to": "ROLLED_BACK" },
-    { "from": "DUAL_VALIDATED", "to": "ROLLED_BACK" },
-    { "from": "TRAFFIC_SWITCHED", "to": "ROLLED_BACK" },
-    { "from": "OLD_FALLBACK", "to": "ROLLED_BACK" }
+  "states": [
+    "DECLARED",
+    "SHADOW",
+    "DUAL_VALIDATED",
+    "TRAFFIC_SWITCHED",
+    "OLD_FALLBACK",
+    "DRAINED",
+    "RETIRED",
+    "ROLLED_BACK"
   ],
-  "terminalStates": ["RETIRED", "ROLLED_BACK"],
-  "requiredMachinery": ["authoritativeSide", "successorSide", "shadowMode", "dualOutputComparison", "trafficSwitch", "rollback", "drain"],
+  "transitions": [
+    {
+      "from": "DECLARED",
+      "to": "SHADOW"
+    },
+    {
+      "from": "SHADOW",
+      "to": "DUAL_VALIDATED"
+    },
+    {
+      "from": "DUAL_VALIDATED",
+      "to": "TRAFFIC_SWITCHED"
+    },
+    {
+      "from": "TRAFFIC_SWITCHED",
+      "to": "OLD_FALLBACK"
+    },
+    {
+      "from": "OLD_FALLBACK",
+      "to": "DRAINED"
+    },
+    {
+      "from": "DRAINED",
+      "to": "RETIRED"
+    },
+    {
+      "from": "SHADOW",
+      "to": "ROLLED_BACK"
+    },
+    {
+      "from": "DUAL_VALIDATED",
+      "to": "ROLLED_BACK"
+    },
+    {
+      "from": "TRAFFIC_SWITCHED",
+      "to": "ROLLED_BACK"
+    },
+    {
+      "from": "OLD_FALLBACK",
+      "to": "ROLLED_BACK"
+    }
+  ],
+  "terminalStates": [
+    "RETIRED",
+    "ROLLED_BACK"
+  ],
+  "requiredMachinery": [
+    "authoritativeSide",
+    "successorSide",
+    "shadowMode",
+    "dualOutputComparison",
+    "trafficSwitch",
+    "rollback",
+    "drain"
+  ],
   "evidenceByState": {
     "SHADOW": "shadowEvidence",
     "DUAL_VALIDATED": "dualValidationEvidence",
@@ -37,8 +87,47 @@
       "rollback": "restore the re-export line in src/shared/contracts.ts and revert the five import edits; the successor file is never modified by this migration, so a rollback cannot lose work and cannot leave a half-moved surface",
       "rollbackVerifiedBy": "tests/unit/city/replacement-lifecycle.test.ts",
       "drain": "the measurement that no consumer remains: a scan of tests/acceptance/** for a ProviderId import from ./contracts must return zero, which is the check that turns 'I moved them' into a number",
-      "state": "DECLARED",
-      "history": []
+      "state": "RETIRED",
+      "history": [
+        {
+          "to": "SHADOW",
+          "at": "2026-09-25T10:00Z",
+          "ledgerEntry": "CC-044",
+          "shadowEvidence": "the successor served every direct importer while the old side served only the five tests/acceptance suites, so both sides were live at once and the comparison was available before any switch"
+        },
+        {
+          "to": "DUAL_VALIDATED",
+          "at": "2026-09-25T11:00Z",
+          "ledgerEntry": "CC-044",
+          "dualValidationEvidence": "npx tsc --noEmit over tsconfig.json, tsconfig.electron.json and tsconfig.tests.json typechecked clean with BOTH paths present, which proves the two sides resolve ProviderId to the same declaration rather than to two that look alike"
+        },
+        {
+          "to": "TRAFFIC_SWITCHED",
+          "at": "2026-09-25T12:00Z",
+          "ledgerEntry": "CC-044",
+          "trafficEvidence": "the five tests/acceptance suites were re-pointed from ../../src/shared/contracts to ../../src/shared/provider-contracts in this commit, and src/shared/contracts.ts still declares ProviderId for its own use through its own import"
+        },
+        {
+          "to": "OLD_FALLBACK",
+          "at": "2026-09-25T13:00Z",
+          "ledgerEntry": "CC-044",
+          "fallbackEvidence": "the old side was a pure alias of the successor, so restoring the re-export would have restored every consumer without modifying the successor file at all, which is what makes this rollback executable rather than theoretical"
+        },
+        {
+          "to": "DRAINED",
+          "at": "2026-09-25T14:00Z",
+          "ledgerEntry": "CC-044",
+          "drainEvidence": "a scan of tests/acceptance for a ProviderId import from ../../src/shared/contracts returns zero occurrences, and the one-symbol re-export has been deleted from src/shared/contracts.ts"
+        },
+        {
+          "to": "RETIRED",
+          "at": "2026-09-25T15:00Z",
+          "ledgerEntry": "CC-044",
+          "retirementEvidence": "src/shared/contracts.ts no longer contains the re-export, all five suites import the type from its owner, and the P2A-BRIDGE-01 entry has been removed from config/city-flatness.json, so the seal gate no longer has a bridge to refuse"
+        }
+      ],
+      "retiredAt": "2026-09-25T15:00Z",
+      "retiredBy": "CC-044"
     }
   }
 }

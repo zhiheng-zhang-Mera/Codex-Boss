@@ -28,7 +28,7 @@ import { redactSecrets, scanSecrets } from "../../src/shared/secret-scan";
 import { classifyWorkBook } from "../../src/shared/workbook";
 import { buildPdf } from "../fixtures/workbook-fixtures";
 import type { InputObjectRef } from "../../src/shared/input-object";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 /* ------------------------------------------------------------------ *
  * Fixtures

@@ -32,7 +32,7 @@ import { WorkbookRegistry } from "../../electron/ingestion/workbook-registry";
 import { StateStore } from "../../electron/store";
 import type { InputObjectRef } from "../../src/shared/input-object";
 import type { KnowledgeObject, KnowledgeCandidate } from "../../src/shared/knowledge-object";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 /* ------------------------------------------------------------------ *
  * Fixtures: a small but real project directory

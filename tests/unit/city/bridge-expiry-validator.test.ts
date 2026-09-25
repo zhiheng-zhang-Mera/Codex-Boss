@@ -42,12 +42,37 @@ type Report = {
   sealGate: { declaredBridges: number; liveBridges: number };
 };
 
-const BRIDGE_ID = "P2A-BRIDGE-01";
+/**
+ * A SYNTHETIC bridge, because the committed registry declares none any more: ledger CC-044 retired P2A-BRIDGE-01,
+ * and a test whose subject is the VALIDATOR should not depend on the repository happening to have a live bridge. The
+ * literal below is a real statement in the source file it names, so the "declaration is still in the tree" check is
+ * exercised for real rather than against a fixture path that would fail for the wrong reason.
+ */
+const BRIDGE_ID = "FIXTURE-BRIDGE-01";
 const SOURCE = "src/shared/contracts.ts";
-const LITERAL = 'export type { ProviderId } from "./provider-contracts";';
+const LITERAL = 'export type TaskStatus = "queued"';
+
+function fixtureBridge(): Record<string, unknown> {
+  return {
+    owner: "the fixture executor, acting under a delegated construction lease recorded in the ledger",
+    reason: "a substantive reason for a fixture bridge, long enough that the validator's field rule is the thing under test",
+    source: `${SOURCE} (owned by status)`,
+    target: "src/shared/provider-contracts.ts (owned by providers)",
+    form: "exactly one symbol, described here in prose for the record rather than left to inference",
+    literal: LITERAL,
+    exitCondition: "delete the re-export and re-point every importer inside a commit that already moves the surface",
+    deadline_phase: "before the Phase 2 seal",
+    tests: "tests/unit/city/bridge-expiry-validator.test.ts",
+  };
+}
 
 function baseRegistry(): Registry {
-  return JSON.parse(JSON.stringify(validator.readRegistry(PROJECT))) as Registry;
+  const registry = JSON.parse(JSON.stringify(validator.readRegistry(PROJECT))) as Registry;
+  registry.bridges = { [BRIDGE_ID]: fixtureBridge() };
+  // Declared by a real plot, so it is not an orphan: the orphan rule is tested separately by removing it again.
+  const first = Object.keys(registry.plots)[0];
+  registry.plots[first].bridges = [BRIDGE_ID];
+  return registry;
 }
 
 function run(registry: Registry) {
@@ -55,12 +80,25 @@ function run(registry: Registry) {
 }
 
 describe("§30 the bridge expiry validator makes a temporary bridge falsifiable", () => {
-  it("accepts the committed registry, so every rejection below is the mutation's doing", () => {
+  it("accepts the fixture bridge, so every rejection below is the mutation's doing", () => {
     const report = run(baseRegistry());
     expect(report.problems).toEqual([]);
     expect(report.ok).toBe(true);
     expect(report.bridges).toHaveLength(1);
     expect(report.bridges[0].literalPresent).toBe(1);
+  });
+
+  it("accepts an EMPTY registry, which is the state the programme is actually in", () => {
+    // Ledger CC-044 retired the last bridge. Zero bridges is a result, not a missing file, and the validator must say
+    // so rather than treat an empty object as a malformed registry.
+    const registry = baseRegistry();
+    registry.bridges = {};
+    const report = run(registry);
+    expect(report.problems).toEqual([]);
+    expect(report.bridges).toEqual([]);
+    expect(report.sealGate.declaredBridges).toBe(0);
+    // And the committed registry really is empty, so the two agree.
+    expect(Object.keys(validator.readRegistry(PROJECT).bridges)).toEqual([]);
   });
 
   it("refuses a bridge that does not state each of section 15's fields", () => {
@@ -157,15 +195,22 @@ describe("§30 the bridge expiry validator makes a temporary bridge falsifiable"
   });
 });
 
-describe("§30 the committed bridge, and the gate that will retire it", () => {
-  it("is live, due before the seal, and its declaration is still exactly one statement in the tree", () => {
+describe("§30 the committed registry is EMPTY, and what that now means", () => {
+  it("declares no bridge, because ledger CC-044 retired the last one", () => {
     const report = validator.validate(PROJECT);
     expect(report.problems).toEqual([]);
-    expect(report.bridges[0].id).toBe(BRIDGE_ID);
-    expect(report.bridges[0].phaseStatus).toBe("PENDING_SEAL");
-    expect(report.bridges[0].literalPresent).toBe(1);
-    expect(fs.readFileSync(path.join(PROJECT, SOURCE), "utf8")).toContain(LITERAL);
-    expect(report.sealGate.liveBridges).toBe(1);
+    expect(report.bridges).toEqual([]);
+    expect(report.sealGate.declaredBridges).toBe(0);
+    expect(report.sealGate.liveBridges).toBe(0);
+  });
+
+  it("records the retirement as a WALKED lifecycle rather than as a deleted record", () => {
+    const lifecycle = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "city-replacement-lifecycle.json"), "utf8")) as {
+      instances: Record<string, { state: string; history: Array<{ to: string }> }>;
+    };
+    const instance = lifecycle.instances["P2A-BRIDGE-01-RETIREMENT"];
+    expect(instance.state).toBe("RETIRED");
+    expect(instance.history.map((step) => step.to)).toEqual(["SHADOW", "DUAL_VALIDATED", "TRAFFIC_SWITCHED", "OLD_FALLBACK", "DRAINED", "RETIRED"]);
   });
 
   it("resolves every declared phase from the instruments rather than from a sentence", () => {
@@ -186,13 +231,21 @@ describe("§30 the committed bridge, and the gate that will retire it", () => {
     }
   });
 
-  it("is enforced by the SEAL GATE too, independently of the plot states", () => {
+  it("keeps the seal gate's bridge rule, which is now merely UNEXERCISED rather than removed", () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const flatness = require(path.join(PROJECT, "scripts", "city-flatness-validator.cjs")) as {
       validate: (root?: string, options?: Record<string, unknown>) => { verdict: string; sealProblems: string[] };
     };
     const sealed = flatness.validate(PROJECT, { seal: true });
     expect(sealed.verdict).toBe("SEAL_BLOCKED");
-    expect(sealed.sealProblems.join("\n")).toContain("temporary bridge(s) are still declared");
+    // The seal is still blocked, but for the PLOTS: with zero bridges declared the bridge reason does not fire, and
+    // the retirement is what removed it. That is the honest reading of this state.
+    expect(sealed.sealProblems.join("\n")).not.toContain("temporary bridge(s) are still declared");
+    expect(sealed.sealProblems.join("\n")).toContain("seal-blocking state");
+    // And the rule itself is still in the validator, so a bridge coming back would be refused again. This is a
+    // source-presence check and is labelled as one: the rule cannot be EXERCISED while the registry is empty, and a
+    // check that claimed otherwise would be pretending.
+    const source = fs.readFileSync(path.join(PROJECT, "scripts", "city-flatness-validator.cjs"), "utf8");
+    expect(source, "the seal gate's bridge rule was deleted rather than left unexercised").toContain("a bridge is retired before the seal, not at it");
   });
 });

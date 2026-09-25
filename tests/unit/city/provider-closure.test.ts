@@ -108,28 +108,48 @@ describe("P2-A step 3a — every importer moved except the declared bridge", () 
     expect(stragglers, "these files still route a moved type through the old module, so the edge is unrepaired").toEqual([]);
   });
 
-  it("the ONLY remaining importers are the five bridged Root Trust suites", () => {
+  it("NO file routes a moved symbol through the old module, because the bridge was RETIRED", () => {
     const remaining: string[] = [];
     for (const file of files) {
       if (importedMovedFromContracts(file).length > 0) remaining.push(file);
     }
-    // Exact, not a subset: a NEW file appearing here is an unfinished move, and a bridged file disappearing is
-    // the bridge being retired -- both must be deliberate, so both fail here.
-    expect(remaining.sort()).toEqual(BRIDGED);
+    // This assertion used to be `toEqual(BRIDGED)` -- exactly the five Root Trust suites the bridge existed for.
+    // Ledger CC-044 retired the bridge, so the guard INVERTS instead of disappearing: the expectation is now an
+    // empty list, and a file appearing here is still an unfinished move.
+    expect(remaining.sort()).toEqual([]);
+    expect(BRIDGED.length, "the historical bridged list is part of the record and must not be quietly edited").toBe(5);
   });
 });
 
-describe("P2-A step 3a — the bridge is one symbol wide and has a declared exit", () => {
-  it("re-exports exactly one symbol, and only ProviderId", () => {
+describe("P2-A step 3a — the bridge was retired, and what it guarded is guarded harder", () => {
+  it("no longer re-exports ANY moved symbol from contracts.ts", () => {
     const text = read(CONTRACTS);
     const reExports = [...text.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["'][^"']*provider-contracts["']/g)];
-    expect(reExports.length, "the bridge is not a single re-export statement").toBe(1);
-    const names = reExports[0][1].split(",").map((s) => s.trim()).filter(Boolean);
-    expect(names, "the bridge widened; a bridge that can grow is how a split reverts").toEqual(["ProviderId"]);
+    expect(reExports.length, "a re-export came back: that IS the bridge, and it was retired by ledger CC-044").toBe(0);
   });
 
-  it("the bridge names its own id in the source, so a reader meets the constraint where it applies", () => {
+  it("keeps the bridge's name and fate in the source, so a reader meets the history where the constraint applied", () => {
     expect(read(CONTRACTS)).toMatch(/BRIDGE P2A-BRIDGE-01/);
+    expect(read(CONTRACTS)).toMatch(/RETIRED/);
+    // The type is still imported for contracts.ts's OWN declarations, which is what made the re-export a bridge
+    // rather than the place the closure lived.
+    expect(read(CONTRACTS)).toMatch(/^\s+ProviderId,$/m);
+  });
+
+  it("records the retirement as a walked lifecycle rather than as a deletion of the record", () => {
+    const lifecycle = JSON.parse(read("config/city-replacement-lifecycle.json")) as {
+      instances: Record<string, { state: string; history: Array<{ to: string }> }>;
+    };
+    const instance = lifecycle.instances["P2A-BRIDGE-01-RETIREMENT"];
+    expect(instance.state).toBe("RETIRED");
+    expect(instance.history.map((step) => step.to)).toEqual([
+      "SHADOW", "DUAL_VALIDATED", "TRAFFIC_SWITCHED", "OLD_FALLBACK", "DRAINED", "RETIRED",
+    ]);
+  });
+
+  it("declares no bridge in the flatness registry, so the seal gate has none to refuse", () => {
+    const registry = JSON.parse(read("config/city-flatness.json")) as { bridges: Record<string, unknown> };
+    expect(Object.keys(registry.bridges), "the registry still declares a bridge").toEqual([]);
   });
 
   it("the bridge is declared in a tracked document WITH an exit condition and a deadline", () => {

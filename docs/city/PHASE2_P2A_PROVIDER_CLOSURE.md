@@ -139,3 +139,16 @@ npx vitest run --config vitest.unit.config.mjs       the full unit tier
 **The Root Trust Surface did not move**, which is what the bridge was for: the aggregate is unchanged at
 `47859b5f21ca2d394be5c70914c26520b74ade5d8313121eb03dfa12b73f8b9c` and epoch 33 still anchors it. That is
 verified by measurement, not assumed from the fact that no surface file appears in the diff.
+
+## Retirement (ledger CC-044)
+
+BRIDGE P2A-BRIDGE-01 **NO LONGER EXISTS**. The five `tests/acceptance/**` suites it existed for were re-pointed from
+`./contracts` to `./provider-contracts`, and the one-symbol re-export was deleted from `src/shared/contracts.ts` in the
+same commit — which is exactly the exit condition this bridge declared for itself, and it was done inside a commit that
+moved the Root Trust Surface for another reason, so the retirement did not need a ceremony of its own.
+
+The retirement was **WALKED** through `config/city-replacement-lifecycle.json` rather than merely deleted: DECLARED,
+SHADOW, DUAL_VALIDATED, TRAFFIC_SWITCHED, OLD_FALLBACK, DRAINED, RETIRED, each state carrying the evidence it requires.
+The dual validation is `npx tsc --noEmit` over all three tsconfigs with **both** paths present, and the drain is a scan
+of `tests/acceptance` that must return zero. `tests/unit/city/provider-closure.test.ts` stopped asserting that the
+bridge **exists** and now asserts that it is **gone** — the guard inverted rather than disappeared.

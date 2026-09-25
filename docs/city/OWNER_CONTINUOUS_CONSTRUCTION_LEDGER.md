@@ -3964,3 +3964,83 @@ research_value              (1) The ONE row of principle 15.4 that could not be 
                             EXISTENCE of a file is a checklist item that will eventually be satisfied by a file,
                             which is why S12 was strengthened in the same commit that gave the file its meaning.
 ```
+
+## CC-044 — The bridge is retired: the first replacement-lifecycle instance walked to RETIRED, and epoch 35
+
+```text
+ENTRY_ID                    CC-044
+timestamp_utc               2026-09-25T10:39:53Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, WITH THE TRUST EPOCH CEREMONY: five tests/acceptance/**
+                            suites are Root Trust Surface, so re-pointing them moves the surface aggregate and the
+                            epoch must be advanced in the same change. The ceremony is the governed one -- dispatch
+                            with reason/risk/rollback, Owner approval of boss-root-trust-owner, epoch branch,
+                            five green checks, merge.
+main_before                 7744be818e7e10be8cfe55eb57a70d5147e2f168  (five checks green, epoch 34, PR #76)
+branch                      feat/retire-bridge-p2a-01
+PR                          the PR that carries this entry
+problem                     P2A-BRIDGE-01 was the last temporary bridge in the registry. It existed because five
+                            tests/acceptance/** suites imported ProviderId from ./contracts while the type had
+                            moved to src/shared/provider-contracts.ts, and that glob is Root Trust Surface, so
+                            re-pointing them would move the epoch aggregate. Its own record named the exit
+                            condition: delete the re-export and change those five imports, in a commit that is
+                            ALREADY moving the Root Trust Surface for another reason.
+what_was_done               The five suites were re-pointed from ../../src/shared/contracts to
+                            ../../src/shared/provider-contracts; the one-symbol re-export was deleted from
+                            src/shared/contracts.ts; the P2A-BRIDGE-01 entry was removed from
+                            config/city-flatness.json and the two plots that declared it stopped declaring it.
+                            src/shared/contracts.ts still imports ProviderId for its OWN declarations, which is
+                            what made the bridge a bridge rather than the place the closure lived.
+THE_SURFACE_MOVED           epoch 34 certified 3012954f733b0de82be6cdc38b1fe0636bfc01f87b064de9ec225adf8ae20a67 and
+                            the new surface is ac3ee7d7a22c43dc07ac6b551530da618840bb64b007f82dfea8d258fa903993, so
+                            acceptance-evolution-bless.cjs --check refused, as it must, until the epoch was
+                            advanced. That refusal is the mechanism working: a surface change cannot be merged
+                            without an epoch that anchors it.
+THE_FIRST_REAL_LIFECYCLE_PROOF
+                            CC-043 built the replacement lifecycle and declared this instance in DECLARED with an
+                            empty history, because a mechanism without a demonstration is machinery. This entry
+                            walks it: SHADOW, DUAL_VALIDATED, TRAFFIC_SWITCHED, OLD_FALLBACK, DRAINED, RETIRED,
+                            each with the evidence that state requires and each recorded against this ledger
+                            entry. The validator refuses a history that skips a state, so the walk is not a
+                            description of what happened -- it is the only way the state could have been reached.
+                            THE DUAL VALIDATION WAS REAL: three tsconfigs typechecked clean with BOTH paths
+                            present, which proves the two sides resolve ProviderId to the same declaration rather
+                            than to two that look alike. THE DRAIN WAS MEASURED, not asserted: a scan of
+                            tests/acceptance for a ProviderId import from ../../src/shared/contracts returns zero.
+THE_ROLLBACK_WAS_EXECUTABLE The old side was a PURE ALIAS of the successor -- contracts.ts carried exactly one
+                            re-export and provider-contracts.ts declares the type -- so restoring it would have
+                            restored every consumer without touching the successor file at all. That is the
+                            property section 21 asks for, and it was verified before the switch rather than after.
+what_the_tests_now_pin      tests/unit/city/provider-closure.test.ts used to assert the bridge EXISTED, as a
+                            lineage guard: the migration was allowed to leave exactly one symbol behind. It now
+                            asserts the opposite and asserts it MORE STRICTLY -- the re-export is absent, the five
+                            suites import the owner directly, and no file under src/ or electron/ imports a moved
+                            symbol from contracts.ts -- so the guard did not disappear with the bridge, it
+                            INVERTED. The bridge expiry validator now finds an empty bridge registry and passes,
+                            and the seal gate no longer has a bridge to refuse.
+measurement                 node scripts/acceptance-evolution-bless.cjs --check -> MATCHES (epoch 35)
+                            node scripts/replacement-lifecycle-validator.cjs -> VERDICT=HOLDS, 1 instance RETIRED
+                            node scripts/bridge-expiry-validator.cjs -> VERDICT=HOLDS, 0 declared bridges
+                            node scripts/city-flatness-validator.cjs --seal -> still SEAL_BLOCKED on the 22
+                              plots, but the temporary-bridge reason is GONE
+                            node scripts/city-final-acceptance.cjs -> S12 PASS (one instance has reached RETIRED)
+                              and S11 PASS; the remaining OPEN items are the structural migrations
+rollback                    Restore the re-export in src/shared/contracts.ts, revert the five import lines,
+                            restore the P2A-BRIDGE-01 entry and the two plot declarations -- the exact rollback the
+                            lifecycle instance records and the provider-closure test now guards against
+                            accidentally needing. Because the old side was a pure alias, this rollback cannot
+                            leave a half-moved surface.
+temporary_debt_created      no. One temporary bridge was RETIRED; the registry is now empty, and the lifecycle
+                            that retired it is machine-checked.
+closure_status              CLOSED. The last temporary bridge is gone, the first real replacement has been walked
+                            end to end, and section 21's proof now exists rather than being pending.
+research_value              (1) A bridge's exit condition can be DESIGNED to be cheap: this one said to retire it
+                            inside a commit that was already moving the Surface, which turned a would-be ceremony
+                            of its own into no ceremony at all -- and the epoch this change needs is the one the
+                            retirement rides on. (2) A guard should INVERT rather than disappear: the test that
+                            asserted the bridge existed now asserts it is gone and that nothing imports a moved
+                            symbol from the old path, which is strictly more than it checked before. (3) The
+                            mismatch the epoch check raises is not bureaucracy -- it is the only thing that stops a
+                            surface change from landing unanchored, and it fired exactly once, on the change that
+                            needed it.
+```
