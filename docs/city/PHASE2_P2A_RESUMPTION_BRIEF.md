@@ -247,6 +247,19 @@ CC-017/CC-019  the soak sample floor: a MACHINE-THROUGHPUT assertion, and `slope
                below three samples. The honest trend is now null and the gate fails closed (epoch 32), so an
                under-sampled run FAILS with a readable reason. The remaining work is to choose between a longer
                soak and a sampling bound derived from measured per-cycle cost -- NOT to relax the assertion.
+§20  P2-F flatness registry + validator  DONE  — `config/city-flatness.json` gives every plot ONE state from the
+                                               five; the plot set is DERIVED from the manifests. Measured: 27
+                                               plots, 5 FLAT, 22 MIGRATION_IN_PROGRESS, one bridge declared, 3
+                                               migration stages each with an exit condition.
+                                               `node scripts/city-flatness-validator.cjs` passes; `--seal`
+                                               reports SEAL_BLOCKED and exits 1, which IS the deliverable: the
+                                               seal is machine-checkable and cannot be made to pass by editing the
+                                               file, because the validator cross-checks the registry against the
+                                               three instruments and refuses FLAT on an implicated plot.
+                                               Ledger CC-032.
+                                               THE 22 MIGRATIONS ARE THE PROGRAMME'S REMAINING WORK, in one
+                                               place, each naming its stage and exit. Section 8 below is why they
+                                               cannot simply be done.
 ```
 
 ## 8. READ THIS BEFORE STARTING ANY STRUCTURAL STEP: the gate prices it as an Owner act

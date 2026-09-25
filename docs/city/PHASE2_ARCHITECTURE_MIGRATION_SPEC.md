@@ -357,6 +357,24 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
      NOT CLAIMED note and machine-enforces the DECLARED property (one owner per namespace) instead.
      Ledger CC-031. STILL OPEN: P2-D's migration (accesses to 0), and the multi-writer property, which needs a
      read/write signal the source does not carry.
+ 10  (LANDED, increment 2) the canonical city state registry and the flatness validator, which section 30 names
+     and section 20 requires. `config/city-flatness.json` gives every plot ONE state from the five, with 3
+     migration stages (P2-B, P2-C, P2-D) each carrying an exit condition and the instrument that tracks it, and
+     the one live bridge with all eight obligations. `node scripts/city-flatness-validator.cjs` reports 27 plots:
+     5 FLAT and 22 MIGRATION_IN_PROGRESS -- every plot a measured defect implicates -- and `--seal` reports
+     SEAL_BLOCKED and exits 1, because section 20 permits only FLAT at the seal. THAT GATE IS THE DELIVERABLE:
+     the seal is machine-checkable rather than declarable, and it cannot be made to pass by editing the file,
+     because the validator cross-checks the registry against the three instruments and fails when a plot
+     implicated by a measured defect is recorded FLAT. The plot set is DERIVED from the manifests, the registry is
+     deliberately NOT generated (a generated one would make the cross-check compare the instrument with its own
+     output), and FLAT is explicitly not a certification. Ledger CC-032.
+     RECORDED WEAKNESS, CLOSED: a cross-check between two artifacts cannot validate either of them -- because the
+     registry was authored from the instruments, weakening an instrument weakened both sides and the check still
+     passed. A mutation proved it (the implicated set fell from 22 to 21 and the real-tree cross-check did NOT
+     fail), and the gap is closed by a case that pins the expected members BY NAME, `host-status` being the one
+     implicated by that instrument alone.
+     STILL OPEN: the 22 declared migrations themselves, and PARTIALLY_DEGRADED / UNSAFE_GAP, which have no entries
+     because no instrument measures them yet.
 ```
 
 **The measured disagreement, unchanged by increment 1:**

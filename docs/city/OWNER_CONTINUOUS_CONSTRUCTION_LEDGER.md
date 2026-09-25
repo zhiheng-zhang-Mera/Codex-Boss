@@ -2783,3 +2783,109 @@ research_value              Three findings. (1) A measurement rule can be plausi
                             ceiling alone would have let an access hide in the tier whose members are by
                             definition unclassified, and the falsification run demonstrated that exact escape.
 ```
+
+---
+
+## CC-032 — P2-F: the canonical city state registry, and the cross-check that stops it being self-serving
+
+```text
+ENTRY_ID                    CC-032
+timestamp_utc               2026-09-25T04:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new
+                            files are a config record, a script and a test, none of which the enforcement sensor
+                            scans (its roots are electron and src).
+main_before                 98e6cc61285945ef7ca1b4ede81312dc264bf81b  (five checks green, epoch 34)
+branch                      feat/p2f-flatness-registry
+PR                          the PR that carries this entry
+problem                     Section 20 requires a canonical registry giving every plot ONE machine-readable state
+                            from five, with per-state obligations, and names the states the final seal may not
+                            contain. Section 30 names a "flatness registry validator". Neither existed. Four of
+                            section 33's Structure items depend on it: "every plot has a valid flatness state",
+                            "no unsafe gap remains", "no migration-in-progress remains", and "no expired
+                            temporary bridge remains".
+classification              R2 (missing required registry and validator).
+normal_path                 Author the registry from the measurements, derive the PLOT SET from the manifests,
+                            cross-check the registry against the instruments, pin every obligation by fixture.
+why_normal_path_was_not_used  Not applicable -- used in full.
+files_or_rules_changed      config/city-flatness.json                       (NEW: the canonical registry)
+                            scripts/city-flatness-validator.cjs             (NEW validator, read-only)
+                            tests/unit/city/city-flatness-validator.test.ts (NEW, 26 cases)
+                            scripts/generate-test-catalogue.cjs             (curated entry)
+                            config/test-catalogue.json                      (293 -> 294 suites)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+```
+
+```text
+THE STATE OF THE CITY, IN ONE PLACE (the number section 20 exists to produce)
+  plots                        27   (every capability manifest; the plot set is DERIVED, so a new capability
+                                     cannot go unregistered)
+  FLAT                          5   conversation, dispatch, remote, settings, task-creation -- the five outside
+                                     the 20-member component
+  MIGRATION_IN_PROGRESS        22   every plot a measured defect implicates
+  TEMPORARILY_BRIDGED           0
+  PARTIALLY_DEGRADED            0
+  UNSAFE_GAP                    0
+  bridges declared              1   P2A-BRIDGE-01, with all eight obligations
+  migration stages              3   P2-B, P2-C, P2-D, each with an exit condition and the instrument that
+                                     tracks it
+
+  `node scripts/city-flatness-validator.cjs --seal` reports VERDICT=SEAL_BLOCKED and exits 1, naming the 22
+  seal-blocking plots. THAT IS THE HONEST ANSWER AND THE POINT OF THE GATE: section 20 permits only FLAT at the
+  seal, so the seal is now MACHINE-CHECKABLE rather than declarable, and it says "not yet" for a reason that
+  cannot be edited away.
+```
+
+```text
+THE PROPERTY THAT MAKES IT A GATE RATHER THAN A DECLARATION
+  A registry a maintainer fills in is a registry a maintainer can fill in wrongly, and the cheapest wrong entry
+  is FLAT. So the validator does not only check the file's shape: it CROSS-CHECKS the registry against the three
+  instruments the programme runs -- the inventory's kernel -> feature pairs, the cycle instrument's mutual pairs,
+  and the private-state validator's confirmed accesses -- and FAILS when a plot implicated by a MEASURED defect
+  is recorded FLAT. The registry can be made true by repairing the architecture or by declaring the migration,
+  never by editing the file. 22 of 27 plots are implicated, which is why the registry is mostly MIGRATION_IN_PROGRESS
+  rather than mostly FLAT.
+```
+
+```text
+THE INSTRUMENT'S OWN WEAKNESS, FOUND BY FALSIFICATION AND THEN CLOSED
+  The cross-check is CIRCULAR IN ONE DIRECTION: the registry was authored FROM these instruments, so an
+  instrument that UNDER-REPORTS shrinks both sides together and the cross-check still passes. A deliberate
+  mutation that dropped one side of every private-state access made the implicated set fall from 22 to 21 --
+  `host-status` disappeared -- and the REAL-TREE cross-check case did NOT fail, because it compares the registry
+  against the same mutated instrument. Only one case caught it.
+  THE FIX IS A CASE THAT PINS THE MEMBERS BY NAME: the implicated set must contain host-status, persistence,
+  runtime and tenx, and host-status must be implicated BY THE PRIVATE-STATE REASON specifically. host-status is
+  implicated by NOTHING ELSE, so it is the member that disappears first when that half of the cross-check is
+  weakened. Re-falsified after the fix: the mutation now fails the real-tree case with "the implicated set lost
+  host-status".
+  This is the fourth time in this programme that a mutation found a check watching the wrong thing, and the first
+  time the finding was that a CROSS-CHECK between two artifacts cannot validate either of them.
+```
+
+```text
+WHAT IS DELIBERATELY NOT CLAIMED
+  FLAT IS NOT A CERTIFICATION. It means "no defect was measured on this plot by the instruments that exist", and
+  section 33 lists properties no instrument covers yet (Core budget, replacement lifecycle, the flatness
+  semantics themselves). The registry's `$comment` says so in those words and a test asserts it does.
+  THE REGISTRY IS NOT GENERATED, on purpose: a generated registry would make the cross-check compare the
+  instrument with its own output. It is an authored governance record and this program is what keeps it honest.
+  THE 22 MIGRATIONS ARE NOT REPAIRS. The registry records what each plot must migrate and which stage owns it;
+  the migrations themselves are structural changes and each costs the trust ceremony.
+rollback                    Delete the registry, the validator and its test; nothing else reads them.
+temporary_debt_created      no
+exit_condition              `node scripts/city-flatness-validator.cjs` passes on the committed registry, `--seal`
+                            correctly blocks, and every section 20 obligation fails on a fixture that breaks
+                            exactly it.
+closure_status              CLOSED for the registry and its validator. OPEN for the 22 migrations it declares,
+                            and for PARTIALLY_DEGRADED, UNSAFE_GAP, the Core budget and the replacement
+                            lifecycle, which have no entries because no instrument measures them yet.
+research_value              (1) A registry that states the city's condition is only as good as what stops it
+                            lying, and the cheapest lie is the most optimistic state; cross-checking it against
+                            the measurements converts a declaration into a gate, and it is why the honest answer
+                            here is "22 of 27 migrating" rather than "all flat". (2) A CROSS-CHECK BETWEEN TWO
+                            ARTIFACTS CANNOT VALIDATE EITHER: because the registry was authored from the
+                            instruments, weakening an instrument weakened both sides and the check passed -- the
+                            gap a mutation found and a named-member case closed. Independent evidence has to be
+                            anchored to something outside the pair.
+```
