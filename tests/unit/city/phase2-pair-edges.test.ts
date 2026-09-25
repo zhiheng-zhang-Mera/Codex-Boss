@@ -45,10 +45,22 @@ describe("P2-E the pair inspector decomposes the inventory without disagreeing w
     const verification = inspector.verify(result);
     expect(verification.problems).toEqual([]);
     expect(verification.ok).toBe(true);
-    // 193 distinct capability pairs: the graph the ratchets enforce.
-    expect(verification.pairsCompared).toBe(193);
+    // Every distinct pair endpoint in the graph the ratchets enforce. The count rose from 193 to 206 when the road
+    // class was declared, because `<road>` is an endpoint of its own: a consumer that reached `tenx` directly AND
+    // through a shared primitive now has two pairs rather than one.
+    expect(verification.pairsCompared).toBe(206);
     expect(verification.edgesCompared).toBe(result.edges.length);
-    expect(verification.edgesCompared).toBeGreaterThan(700);
+    expect(verification.edgesCompared).toBe(801);
+  });
+
+  it("cross-checks the UNION of both key sets, so a total it does not compute cannot be silently unchecked", () => {
+    // Iterating only over the inspector's own keys is how the inventory's two road totals went unnoticed when the
+    // inventory grew them: the loop simply never asked. A key the inspector cannot compute is now a failure.
+    const result = inspector.scan();
+    delete (result.totals as Record<string, number>).edgesToRoads;
+    const verification = inspector.verify(result);
+    expect(verification.ok).toBe(false);
+    expect(verification.problems.join("\n")).toContain("does not compute it at all");
   });
 
   it("fails its own cross-check when an edge is dropped or invented, so the gate is not decorative", () => {
@@ -124,8 +136,29 @@ describe("P2-E the closure and candidate readings the decisions rest on", () => 
     const result = inspector.scan();
     const text = inspector.renderKernelToFeature(result);
     expect(text).toContain(`${result.totals.kernelToFeatureFileEdges} edge(s) over ${result.totals.kernelToFeaturePairs} pair(s)`);
-    expect(result.totals.kernelToFeatureFileEdges).toBe(73);
-    expect(result.totals.kernelToFeaturePairs).toBe(25);
+    // 66 after the first two road declarations moved 7 edges out of this column, and 73 before them. The column
+    // falls while the TOTAL stays at 801, which is the invariant that makes the fall trustworthy.
+    expect(result.totals.kernelToFeatureFileEdges).toBe(66);
+    expect(result.totals.kernelToFeaturePairs).toBe(24);
+    expect(result.totals.totalCrossCapabilityFileEdges).toBe(801);
+  });
+
+  it("re-attributes road targets without deleting an edge, and never makes a building a consumer of its own road", () => {
+    const result = inspector.scan();
+    const roadEdges = result.edges.filter((edge) => edge.to === "<road>");
+    expect(roadEdges.length).toBe(result.totals.edgesToRoads);
+    expect(roadEdges.length).toBeGreaterThan(0);
+    // A road has no out-edges, which is the leaf rule seen from the graph rather than from the declaration.
+    expect(result.edges.filter((edge) => edge.from === "<road>")).toEqual([]);
+    // THE ANTI-INFLATION RULE. The first implementation of this attribution made each building a consumer of its own
+    // road and inflated the total from 801 to 828. The property that prevents it is checkable directly: no edge may
+    // point at a road from the capability that contains it.
+    const roads = require(path.join(PROJECT, "config", "capability-roads.json")) as { roads: Record<string, { owner: string }> };
+    for (const [file, entry] of Object.entries(roads.roads)) {
+      const fromOwner = result.edges.filter((edge) => edge.toFile === file);
+      expect(fromOwner.length).toBeGreaterThan(0);
+      for (const edge of fromOwner) expect(edge.from).not.toBe(entry.owner);
+    }
   });
 
   it("keeps the leaf test honest: a LEAF reaches no capability, a NON-LEAF does, and only shared targets are listed", () => {
@@ -157,19 +190,22 @@ describe("P2-E the closure and candidate readings the decisions rest on", () => 
     for (const file of single) expect(text).not.toContain(`LEAF    ${file}`);
 
     // Two named pins, so the reading cannot drift into a different graph without a case failing: the shared sink
-    // that reaches nine capabilities is NOT a road (it imports other capabilities, which is ledger CC-030's
-    // refutation), while the popular leaf owned by `tenx` IS a leaf candidate.
+    // that reaches nine capabilities is NOT a leaf (it imports other capabilities, which is ledger CC-030's
+    // refutation), while a popular leaf owned by a building IS a leaf candidate. Both are un-declared files: a
+    // declared road is re-attributed to `<road>` and therefore no longer appears here at all.
     expect(text).toMatch(/NOT LEAF src\/shared\/contracts\.ts\s+owned by status/);
-    expect(text).toMatch(/LEAF\s+electron\/commander\/durable-json\.ts\s+owned by tenx/);
+    expect(text).toMatch(/LEAF\s+electron\/workspace\/path-utils\.ts\s+owned by workspace/);
   });
 
   it("reports, for each kernel-imported file, every capability that imports it", () => {
     const result = inspector.scan();
     const text = inspector.renderKernelTargets(result);
     expect(text).toContain("src/shared/contracts.ts  owned by status");
-    expect(text).toContain("electron/commander/durable-json.ts  owned by tenx");
+    expect(text).toContain("electron/workspace/path-utils.ts  owned by workspace");
     // The pins: the same file read two ways must agree about who imports it.
     const importers = new Set(result.edges.filter((edge) => edge.toFile === "src/shared/contracts.ts").map((edge) => edge.from));
     expect(importers.size).toBeGreaterThanOrEqual(10);
+    const pathUtils = new Set(result.edges.filter((edge) => edge.toFile === "electron/workspace/path-utils.ts").map((edge) => edge.from));
+    expect(pathUtils.size).toBeGreaterThanOrEqual(8);
   });
 });

@@ -75,6 +75,27 @@ const map = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "capability-mod
 const COMPOSITION_ROOT = "<composition-root>";
 const compositionRootEntries = Object.entries(map.composition_root ?? {});
 
+/**
+ * ROADS -- shared surface trapped inside a building (workbook section 19; see
+ * docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md). A road is a leaf shared by several capabilities and owned by
+ * one of them; an edge whose TARGET is a road is attributed to this class instead of to the owner, because the
+ * consumer depends on shared surface rather than on that capability's implementation.
+ *
+ * The attribution is never a deletion: the edge count, the pair count and the file count are unchanged, and the road
+ * edges are published on their own line so a reader can see the number move from one column to another.
+ */
+const ROAD = "<road>";
+const roadsPath = path.join(ROOT, "config", "capability-roads.json");
+const roadConfig = fs.existsSync(roadsPath) ? JSON.parse(fs.readFileSync(roadsPath, "utf8")) : { roads: {} };
+/**
+ * The building each road is trapped inside. A road is re-attributed for the CONSUMER's sake, but it stays physically
+ * inside its owner, so the owner's own imports of it are still internal to that owner and must not become
+ * cross-capability edges. Without this map the declaration INFLATED the total by 27 edges the first time it was
+ * applied -- the distortion this instrument exists to prevent -- because every building imports its own road.
+ */
+const roadOwner = new Map(Object.entries(roadConfig.roads ?? {}).map(([file, entry]) => [file, String(entry.owner)]));
+const declaredRoads = [...roadOwner.keys()];
+
 // owner of every file, using the map's own prefix rule
 function ownsPath(entries, file) {
   for (const entry of entries) {
@@ -89,6 +110,12 @@ for (const [capability, patterns] of Object.entries(map.capabilities)) {
   for (const file of allFiles) {
     if (ownsPath(patterns, file)) owner.set(file, capability);
   }
+}
+// Roads are attributed first, so the composition root keeps its precedence below and a road that is also a
+// composition-root file resolves the way it always did -- the roads validator refuses that overlap outright, so the
+// precedence never decides anything that is not already a failure.
+for (const file of allFiles) {
+  if (declaredRoads.includes(file)) owner.set(file, ROAD);
 }
 // The composition root wins over a capability claim, which the closure validator refuses outright; the
 // precedence here only decides which way a future contradiction would be read, not whether one exists.
@@ -111,6 +138,9 @@ const capabilitiesWithKinds = Object.keys(kinds).length;
 // The composition root's kind is the repository's own name for the class and matches no manifest kind,
 // so it can never satisfy a `kernel -> feature` test.
 kinds[COMPOSITION_ROOT] = "composition-root";
+// A road's kind matches no manifest kind, so an edge onto a road can never satisfy a `kernel -> feature` test and
+// can never be counted as a building dependency. That is the whole arithmetic of the declaration.
+kinds[ROAD] = "road";
 
 // every cross-capability edge
 const edges = [];
@@ -122,7 +152,11 @@ for (const file of files) {
     if (!target || !owner.has(target)) continue;
     const from = owner.get(file);
     const to = owner.get(target);
-    if (from === to) continue;
+    // A road is attributed for the CONSUMER's sake, but the building that still contains it is not a consumer: an
+    // import from the road's own building is internal, exactly as it was before the declaration. Comparing against
+    // the road's owner here rather than against `<road>` is what keeps the total edge count unchanged.
+    const effectiveTo = to === ROAD ? roadOwner.get(target) : to;
+    if (from === effectiveTo) continue;
     edges.push({ from, to, fromFile: file, toFile: target, fromKind: kinds[from] ?? null, toKind: kinds[to] ?? null });
   }
 }
@@ -177,6 +211,11 @@ const declaredRealPairs = [...realPairs].filter((pair) => declaredPairs.has(pair
 const compositionRootFiles = files.filter((file) => owner.get(file) === COMPOSITION_ROOT);
 const edgesFromCompositionRoot = edges.filter((edge) => edge.from === COMPOSITION_ROOT);
 const edgesToCompositionRoot = edges.filter((edge) => edge.to === COMPOSITION_ROOT);
+// Road edges, counted the same way and for the same reason: the declaration moves edges out of the owning
+// capability's column, and a reader must be able to see how many moved and that none of them vanished.
+const roadOwnedFiles = files.filter((file) => owner.get(file) === ROAD);
+const edgesToRoads = edges.filter((edge) => edge.to === ROAD);
+const edgesFromRoads = edges.filter((edge) => edge.from === ROAD);
 
 const report = {
   schema: "city-phase2-edge-inventory/1",
@@ -186,6 +225,7 @@ const report = {
     declaredModulePaths: declaredModules.size,
     declaredRequirementPairs: declaredPairs.size,
     compositionRootFiles: compositionRootFiles.length,
+    roadFiles: roadOwnedFiles.length,
   },
   edges: {
     totalCrossCapabilityFileEdges: edges.length,
@@ -198,6 +238,8 @@ const report = {
     realPairsUndeclared: realPairs.size - declaredRealPairs.length,
     edgesFromCompositionRoot: edgesFromCompositionRoot.length,
     edgesToCompositionRoot: edgesToCompositionRoot.length,
+    edgesToRoads: edgesToRoads.length,
+    edgesFromRoads: edgesFromRoads.length,
   },
   topPairs: pairList.slice(0, 60),
   // The FULL pair list, because `topPairs` is truncated to 60 for the human summary and `--json` is documented

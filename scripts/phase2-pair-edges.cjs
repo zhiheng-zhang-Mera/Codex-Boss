@@ -48,6 +48,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
+const ROAD = "<road>";
 const inventory = require(path.join(ROOT, "scripts", "phase2-edge-inventory.cjs"));
 const { ownsPath, resolveSpecifier } = inventory;
 
@@ -100,6 +101,14 @@ function scan() {
   for (const [capability, patterns] of Object.entries(map.capabilities)) {
     for (const file of allFiles) if (ownsPath(patterns, file)) owner.set(file, capability);
   }
+  // Roads mirror the inventory EXACTLY: attributed before the composition root, and the road's own building is not
+  // a consumer of it. `--verify` compares this against the inventory pair by pair, so a difference in these lines
+  // would surface as a disagreement rather than as two plausible numbers.
+  const roadsPath = path.join(ROOT, "config", "capability-roads.json");
+  const roadConfig = fs.existsSync(roadsPath) ? JSON.parse(fs.readFileSync(roadsPath, "utf8")) : { roads: {} };
+  const roadOwner = new Map(Object.entries(roadConfig.roads ?? {}).map(([file, entry]) => [file, String(entry.owner)]));
+  kinds[ROAD] = "road";
+  for (const file of allFiles) if (roadOwner.has(file)) owner.set(file, ROAD);
   for (const file of allFiles) {
     if (compositionRootEntries.some(([entry]) => ownsPath([entry], file))) owner.set(file, COMPOSITION_ROOT);
   }
@@ -126,7 +135,10 @@ function scan() {
       if (!target || !owner.has(target)) continue;
       const from = owner.get(file);
       const to = owner.get(target);
-      if (from === to) continue;
+      // Same rule as the inventory, and for the same reason: a road stays physically inside its building, so an
+      // import from that building of its own road is internal and must not become a cross-capability edge.
+      const effectiveTo = to === ROAD ? roadOwner.get(target) : to;
+      if (from === effectiveTo) continue;
       edges.push({
         pair: `${from} -> ${to}`,
         from,
@@ -144,6 +156,20 @@ function scan() {
   }
 
   const { pairCounts, totals } = summarise(edges);
+
+  // The three totals that are NOT derivable from the edge list alone: they compare the real graph against what the
+  // MANIFESTS declare. They are computed here and cross-checked by `--verify`, but they cannot be re-summarised
+  // from edges, which is why `verify` distinguishes the two kinds instead of pretending every key is recomputable.
+  const declaredCrossCapability = edges.filter((edge) => declaredModules.get(edge.fromFile) === edge.from && declaredModules.get(edge.toFile) === edge.to);
+  const declaredPairSet = new Set();
+  for (const [capability, dependencies] of declaredDependencies) {
+    for (const dependency of dependencies) declaredPairSet.add(`${capability} -> ${dependency}`);
+  }
+  const realPairs = new Set(edges.map((edge) => edge.pair));
+  const declaredRealPairs = [...realPairs].filter((pair) => declaredPairSet.has(pair));
+  totals.fullyDeclaredCrossCapabilityEdges = declaredCrossCapability.length;
+  totals.realPairsAlreadyDeclared = declaredRealPairs.length;
+  totals.realPairsUndeclared = realPairs.size - declaredRealPairs.length;
 
   const compositionRootFiles = files.filter((file) => owner.get(file) === COMPOSITION_ROOT);
   return {
@@ -193,9 +219,25 @@ function summarise(edges) {
       mutualCapabilityPairs: mutual.length,
       edgesFromCompositionRoot: edges.filter((edge) => edge.from === COMPOSITION_ROOT).length,
       edgesToCompositionRoot: edges.filter((edge) => edge.to === COMPOSITION_ROOT).length,
+      edgesToRoads: edges.filter((edge) => edge.to === ROAD).length,
+      edgesFromRoads: edges.filter((edge) => edge.from === ROAD).length,
     },
   };
 }
+
+/** The totals that can be recomputed from an edge list alone. The manifest-derived ones cannot, and are named here
+ * so that `--verify` treats the two kinds differently instead of pretending every key is recomputable. */
+const RECOMPUTABLE = new Set([
+  "totalCrossCapabilityFileEdges",
+  "distinctCapabilityPairs",
+  "kernelToFeatureFileEdges",
+  "kernelToFeaturePairs",
+  "mutualCapabilityPairs",
+  "edgesFromCompositionRoot",
+  "edgesToCompositionRoot",
+  "edgesToRoads",
+  "edgesFromRoads",
+]);
 
 /** Everything `--verify` compares, so the list cannot silently shrink. */
 function verify(scanResult) {
@@ -206,8 +248,19 @@ function verify(scanResult) {
   for (const [key, value] of Object.entries(scanResult.measured)) {
     if (report.measured[key] !== value) problems.push(`measured.${key}: inventory ${report.measured[key]}, inspector ${value}`);
   }
-  for (const [key, value] of Object.entries(scanResult.totals)) {
-    if (recomputed.totals[key] !== value) problems.push(`edges.${key}: the edge list re-summarises to ${recomputed.totals[key]}, but the scan reported ${value}`);
+  // The UNION of keys, so a total this inspector does not compute cannot be silently unchecked. Iterating only over
+  // the inspector's own keys is how `edgesToRoads` and `edgesFromRoads` went unnoticed when the inventory grew
+  // them: the loop simply never asked about them.
+  const totalKeys = new Set([...Object.keys(report.edges), ...Object.keys(scanResult.totals)]);
+  for (const key of totalKeys) {
+    const value = scanResult.totals[key];
+    if (value === undefined) {
+      problems.push(`edges.${key}: the inventory publishes it (${report.edges[key]}) and this inspector does not compute it at all`);
+      continue;
+    }
+    if (RECOMPUTABLE.has(key) && recomputed.totals[key] !== value) {
+      problems.push(`edges.${key}: the edge list re-summarises to ${recomputed.totals[key]}, but the scan reported ${value}`);
+    }
     if (report.edges[key] !== value) problems.push(`edges.${key}: inventory ${report.edges[key]}, inspector ${value}`);
   }
   const pairs = new Set([...report.allPairs.map((entry) => entry.pair), ...scanResult.pairCounts.keys()]);

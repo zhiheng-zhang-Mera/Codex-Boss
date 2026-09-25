@@ -1,0 +1,41 @@
+{
+  "$comment": "ROADS -- shared surface trapped inside a building (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 19, P2-E). A road is a file that is needed by several independent capabilities, is currently OWNED by one of them, and carries no policy of its own. This file is a CLASSIFICATION, not a move: the file stays where it is and the exit condition records the extraction that removes the declaration. Attribution is applied downstream by the instruments -- an edge whose TARGET is a road is attributed to the class `<road>` rather than to the owning capability -- so the kernel -> feature count falls while the total cross-capability edge count stays identical and the road edges are reported on their own line. Nothing is hidden; a number moves from one column to another and both columns are published.",
+  "schema": "city-capability-roads/1",
+  "classification": {
+    "necessary_condition": "The file must be a LEAF: imported across a capability boundary by two or more capabilities, and importing NO other capability. This is ledger CC-030's refutation as a machine rule -- a road that reaches into a capability is not a road, it is that capability's surface with many callers, and relabelling it would HIDE its edges rather than classify them.",
+    "sufficient_condition": "Leafness is NECESSARY and NOT SUFFICIENT. A leaf that exports its owner's decision procedure is that owner's implementation, and calling it a road would hide a real inversion. So a road must also carry NO POLICY OF ITS OWN: types, enumerations, tables, and mechanical primitives over data are roads; a function that decides an outcome is not. The refutations below are the measured cases that establish this, and every one of them passes the leaf test.",
+    "why_this_is_not_count_compensation": "Section 24 refuses count compensation: removing one edge does not license adding another, and a rebadged dependency is still a dependency. The distinction here is not a rebadge but a measurement -- a leaf with many consumers is not the owning capability's implementation, and the owning capability is not load-bearing for its consumers in the sense section 16 is about. The total cross-capability edge count is unchanged by a declaration, so nothing can be moved into a road to make it disappear."
+  },
+  "roads": {
+    "electron/commander/durable-json.ts": {
+      "owner": "tenx",
+      "whyShared": "Seventeen capabilities import it, including two kernels (persistence, providers) and the composition root, and it depends on nothing but node:fs, node:path and node:crypto. Every capability that persists anything needs a durable-JSON file primitive, and none of them owns it.",
+      "whyNotBusiness": "It performs no command, task, budget or scheduling function. Its entire contract is 'write these bytes durably' and 'read them back'; it names no capability domain and holds no state between calls.",
+      "invariant": "A durable JSON file is never observed half written: the new generation is flushed and fsynced to a temporary file before the canonical path is replaced by rename, and the canonical file is never unlinked. The Windows retry loop exists to keep that true when an indexer or an antivirus product briefly denies the replacement.",
+      "contract": "writeJson(file, value): void, readJson<T>(file): T | undefined, validId(id): string -- three functions over a path and a JSON value, with no options object and no policy.",
+      "exitCondition": "Extract the file from electron/commander/** into a foundation location owned by no building, then delete this declaration. Until that happens the declaration is what stops `tenx` being load-bearing for seventeen capabilities, and the extraction is a real move rather than a label because the file is reached through a DIRECTORY pattern today, which the ownership writer cannot subtract without naming the directory's files explicitly.",
+      "ledgerEntry": "CC-038"
+    },
+    "src/shared/input-object.ts": {
+      "owner": "tasks",
+      "whyShared": "Nine capabilities import it, including two kernels (persistence, providers), the composition root, and feature capabilities that have nothing to do with task storage (attachments, dispatch, research).",
+      "whyNotBusiness": "It is a pure contract by its own header: renderer/electron shareable, with no filesystem and no network. It declares enumerations, interfaces and one deterministic extension table, and it contains no state and no behaviour that depends on a task.",
+      "invariant": "The source and kind enumerations together with the extension table are the single classification of an input without a model: a capability that classified an input differently would produce an input reference the other eight cannot resolve.",
+      "contract": "InputObjectSource, InputObjectKind, INPUT_OBJECT_SOURCES, INPUT_OBJECT_KINDS, InputObjectRef, InputObject, WorkspaceRef, TaskInput and the extension table -- types and readonly tables, with no function that decides an outcome.",
+      "exitCondition": "Move it to the shared surface that owns input vocabulary, then delete this declaration. It is an exact entry in the ownership map, so the extraction is a one-line ownership change rather than a directory rewiring.",
+      "ledgerEntry": "CC-038"
+    }
+  },
+  "refuted": {
+    "src/shared/execution.ts": {
+      "owner": "tasks",
+      "reason": "A leaf imported by four capabilities, so it PASSES the leaf test -- and it is still not a road. It exports reviewResponse and defaultReviewPolicy, which decide PASS, RETRY, HUMAN_REQUIRED or FAILED for a worker response: that is a policy, and a policy belongs to the capability that owns the outcome. Declaring it a road would hide the inversion rather than classify shared surface. Its repair is the provider-closure shape of ledger CC-029: the TYPES are a contract and the DECISION is `tasks`', and the two have to be split.",
+      "measuredAt": "2026-09-25T05:45Z"
+    },
+    "src/shared/permission.ts": {
+      "owner": "security",
+      "reason": "A leaf imported by providers and tenx, so it PASSES the leaf test -- and it is still not a road. It exports manifestAllows, manifestNarrow and desktopMutationGate, which are `security`'s decision procedure over a permission manifest: the vocabulary could be shared, but the decision is the capability's, and both are in one file today. Leafness is necessary and not sufficient, and this is the second measured case that establishes it.",
+      "measuredAt": "2026-09-25T05:45Z"
+    }
+  }
+}

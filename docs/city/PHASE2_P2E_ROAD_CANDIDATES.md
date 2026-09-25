@@ -107,16 +107,17 @@ ownership as one road problem; the measurement splits it three ways:
 
 ## 5. Section 19's five proofs: which are machine-measured, which are judgements
 
-| proof | state |
-| --- | --- |
-| which consumers use it | **MACHINE-MEASURED**, for every candidate, and cross-checked against the inventory (`--road-candidates`, `--kernel-targets`) |
-| why it is shared infrastructure | **NOT DECIDED** — a judgement, listed below as the work |
-| why it is not business capability | **NOT DECIDED** — a judgement |
-| what invariant it owns | **NOT DECIDED** — a judgement |
-| what its minimal contract is | **NOT DECIDED** — a judgement |
+| proof | state at `CC-037` | state at `CC-038` |
+| --- | --- | --- |
+| which consumers use it | **MACHINE-MEASURED**, for every candidate, cross-checked against the inventory (`--road-candidates`, `--kernel-targets`) | **MACHINE-ENFORCED** for every declared road |
+| why it is shared infrastructure | **NOT DECIDED** — a judgement | stated per road, and required to be substantive by the validator |
+| why it is not business capability | **NOT DECIDED** — a judgement | stated per road, and this is the proof `CC-038` found to be decisive |
+| what invariant it owns | **NOT DECIDED** — a judgement | stated per road |
+| what its minimal contract is | **NOT DECIDED** — a judgement | stated per road |
 
 Four of the five are architecture decisions, and this document deliberately does not invent them. What it does is
 remove the part that was guesswork: **who consumes what** is now a reproducible number rather than a reading.
+Section 8 below records what happened when the four judgements were finally made.
 
 ## 6. Why the classification is not done in this stage, and what the next bounded step is
 
@@ -148,3 +149,79 @@ or not a road class exists.
 
 Delete `scripts/phase2-pair-edges.cjs`, its test and this document, and revert the catalogue entry. Nothing else
 reads them.
+
+## 8. Update (`CC-038`) — the class was built, and the plan above was wrong in one important way
+
+The next bounded step was taken, but **not as scoped in section 6**. That plan would have added a fourth *ownership*
+class to the map's writer, which the writer cannot do for a file inside a directory pattern (it subtracts only exact
+entries). The class that was built instead is a **downstream classification** in `config/capability-roads.json`,
+applied by the instruments:
+
+> a ROAD is shared surface **trapped inside a building** — the building still *contains* the file, and that containment
+> is the recorded debt, with an exit condition naming the extraction that removes the declaration.
+
+That is closer to section 19's own words (*"shared concerns currently trapped inside buildings"*), and it is what makes
+the arithmetic honest: a road stays **physically** inside its building, so the building's own imports of it remain
+internal. The first implementation did not do that and **inflated the total from 801 to 828** — every internal import
+of the two roads became a phantom cross-capability edge. With the rule in place the total is **unchanged at 801**,
+`files_owned` is unchanged at 598, and the moved edges are published as `edges_to_roads`.
+
+### The two-part test, and the finding that matters
+
+| half | rule |
+| --- | --- |
+| **necessary** | the file is a **LEAF** — imported across a boundary by ≥2 capabilities and importing **no** other capability |
+| **sufficient** | the file carries **no policy of its own** — types, enumerations, tables and mechanical primitives are roads; **a function that decides an outcome is not** |
+
+**Leafness is necessary and NOT sufficient**, and that is the finding, not a caveat. Two of the strongest candidates
+pass the leaf test and are **refused**:
+
+- `src/shared/execution.ts` — a leaf imported by four capabilities — exports `reviewResponse` and
+  `defaultReviewPolicy`, which *decide* `PASS`/`RETRY`/`HUMAN_REQUIRED`/`FAILED`. That is a policy.
+- `src/shared/permission.ts` — a leaf imported by `providers` and `tenx` — exports `manifestAllows`,
+  `manifestNarrow` and `desktopMutationGate`, which is `security`'s decision procedure.
+
+Both are recorded as **measured refutations**, and the validator refuses a refutation for a file that is not a leaf
+with at least two consumers — a refutation record is only worth anything if it records something. Their repair is the
+`CC-029` provider-closure shape: the *types* are a contract, the *decision* belongs to the owner, and the two have to
+be split.
+
+### What was declared
+
+| road | owner | consumers | kernel edges | why it is policy-free |
+| --- | --- | --- | --- | --- |
+| `electron/commander/durable-json.ts` | `tenx` | 17 | 4 | `writeJson`/`readJson`/`validId` over `node:fs`/`node:path`/`node:crypto`; invariant: a durable JSON file is never observed half written |
+| `src/shared/input-object.ts` | `tasks` | 9 | 3 | enumerations, interfaces and one deterministic extension table; its own header says *"Pure contract — no fs/network here"* |
+
+### Before / after
+
+```text
+kernel -> feature file edges   73 -> 66
+kernel -> feature pairs        25 -> 24
+mutual capability pairs        38 -> 34
+edges to roads                 -- -> 64   (published, not deleted)
+edges LEAVING roads            -- ->  0   (must be 0; a road with an out-edge is not a road)
+total cross-capability edges  801 -> 801  (unchanged -- the invariant that makes the fall trustworthy)
+files owned                   598 -> 598  (unchanged)
+```
+
+The four mutual pairs dissolved because in four cases a capability's **only** dependency on another was the shared
+file primitive: the two were never in a cycle of implementation. Both instruments report 34, so they still agree.
+
+### The counter-pressure against `CC-030`'s failure mode
+
+`CC-030` refuted labelling `electron/commander/**` a road because the *directory* reaches kernels. This stage
+classifies two **individual files**, and gives the machine three refusals that a relabelling cannot survive:
+
+1. a road that imports any capability fails (`CC-030` as an executable rule);
+2. a road owned by a **kernel** fails — it is already foundation, so declaring it a road would move nothing;
+3. the ratchet **floors** `road_files` and `edges_to_roads`, and fails if **any** edge leaves a road — so a
+   declaration cannot be withdrawn to push its edges back into a building's column, and the moved edges cannot
+   silently vanish.
+
+### Still open
+
+53 leafless shared candidates remain measured and undeclared (section 4), each needing its five proofs; the two
+declared roads still need their **extraction** out of `electron/commander/**` and `src/shared/`, which is what their
+exit conditions name; and the 39 non-leaf edges of section 4 are extraction work that no declaration can address.
+`config/capability-roads.json` is the class; `scripts/capability-roads-validator.cjs` is the gate.
