@@ -105,13 +105,15 @@
       "id": "15.8",
       "claim": "shared roads are explicitly classified",
       "requiredStrength": "MACHINE CHECK / explicit road classification",
-      "strength": "NOT_GUARDED",
-      "guards": [],
-      "wiredBy": [],
+      "strength": "EVIDENCE_REQUIRED",
+      "guards": ["scripts/capability-roads-validator.cjs"],
+      "wiredBy": ["tests/unit/city/capability-roads-validator.test.ts"],
       "measuredFrom": null,
       "target": null,
-      "why_not_enforced": "the ownership map has ONE named non-capability class -- composition_root -- and that is an explicit classification, but no ROAD class exists, and the one road candidate, electron/commander/**, is identified only in prose. Re-attributing it was measured and REFUTED (ledger CC-030): it has 132 incoming and 122 outgoing edges, so a road label would HIDE its edges rather than classify them.",
-      "gap": "stage P2-E has not been started; the extraction needs its five named proofs"
+      "evidenceRequirement": "every shared sink DECLARED a road must carry five substantive proofs -- why it is shared infrastructure, why it is not business capability, which consumers use it, what invariant it owns, and the exit condition that removes the declaration -- and every candidate that PASSES the leaf test and is still refused must be recorded as a measured refutation with its reason, so the next reader does not re-propose it",
+      "decisionRecords": ["config/capability-roads.json", "docs/city/PHASE2_P2E_ROAD_CANDIDATES.md"],
+      "why_not_enforced": "The machine check is real: a declaration that imports any capability fails (ledger CC-030), and so does one owned by a kernel or by no capability, one with fewer than two consumers, one whose declared owner disagrees with the ownership map, one that is also a composition-root file, one missing any of the five proofs, and a refutation for a file that was never a candidate. What cannot be automated is whether a given leaf carries a POLICY of its own -- that is the difference between shared surface and a hand reaching into a building, it is the half that refused src/shared/execution.ts and src/shared/permission.ts, and it is recorded as evidence rather than dressed up as a test. The classification is also not complete: 53 measured leaf candidates remain undeclared.",
+      "note": "P2-E was NOT_GUARDED here until stage CC-038 built the class and made two declarations with two measured refutations. The row moved because a mechanism and a machine check now exist, not because the target was reached: 'road ownership is explicit' holds for what is declared and the candidate backlog is published, but 53 candidates are still only measured."
     },
     {
       "id": "15.9",

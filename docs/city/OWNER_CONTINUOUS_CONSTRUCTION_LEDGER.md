@@ -3499,3 +3499,71 @@ research_value              (1) A necessary condition is not a sufficient condit
                             the repair is to iterate the UNION and to treat a key the checker cannot compute as a
                             failure rather than as an omission.
 ```
+
+## CC-039 — CORRECTION to CC-038: the enforcement matrix said P2-E had not been started, in a row the machine checks
+
+```text
+ENTRY_ID                    CC-039
+timestamp_utc               2026-09-25T06:41:14Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             Correction on a branch. No protected-path write, no epoch ceremony.
+corrects                    CC-038, and the 15.8 row of config/principle-enforcement.json that CC-033 created
+main_before                 ca0ec04870830fc0e344a03aeb205a4ade1ba78c  (five checks green, epoch 34, PR #71)
+branch                      docs/cc039-road-class-in-matrix
+PR                          the PR that carries this entry
+what_went_stale             The moment CC-038 merged, the enforcement matrix contained a false statement. The 15.8
+                            row read NOT_GUARDED with the gap "stage P2-E has not been started; the extraction needs
+                            its five named proofs" -- and P2-E had just started, built the road class, declared two
+                            roads, and recorded two measured refutations. The row's own note in the document said
+                            the same thing in a different sentence.
+why_the_checker_did_not_catch_it
+                            This is the interesting part. scripts/principle-enforcement-validator.cjs checks the
+                            strength, the guards, their read-only status, their exit codes, whether a test reaches
+                            them, the resolved measurements, the evidence requirements and the decision records. It
+                            does NOT and cannot check whether a GAP SENTENCE is still true: "P2-E has not been
+                            started" describes the state of the programme, not a property of the tree. So the
+                            programme had a machine-checked artifact carrying an unchecked claim in its prose, and
+                            the claim was the encouraging kind -- it understated progress, which is the failure
+                            mode that gets noticed last.
+the_correction              The row moves from NOT_GUARDED to EVIDENCE_REQUIRED. That is deliberately NOT
+                            MACHINE_ENFORCED, and the reasons are the substance of CC-038: the machine check is
+                            real (a declaration that imports any capability fails, and so does one owned by a
+                            kernel or by no capability, one with fewer than two consumers, one whose declared
+                            owner disagrees with the ownership map, one missing any of the five proofs, and a
+                            refutation for a file that was never a candidate), but the DECIDING half -- does this
+                            leaf carry a policy of its own -- is a judgement, and it is the half that refused
+                            src/shared/execution.ts and src/shared/permission.ts after both PASSED the leaf
+                            test. Section 23's target for 15.8 is "MACHINE CHECK / explicit road classification",
+                            which is what now exists; the judgement is recorded as evidence rather than dressed
+                            up as a test, and the row states out loud that 53 measured leaf candidates remain
+                            undeclared.
+the_distribution_now        MACHINE_ENFORCED 3 (15.5, 15.6, 15.9), MACHINE_RATCHET 2 (15.1, 15.7),
+                            EVIDENCE_REQUIRED 3 (15.2, 15.3, 15.8), NOT_GUARDED 1 (15.4, the replacement
+                            lifecycle of stage P2-G). The test that pins the distribution and the sentence in the
+                            document that names the unguarded rows were both updated in the same commit, so the
+                            next staleness of this kind fails a case rather than being found by a reader.
+an_R1_observation           The FULL local unit tier failed once, 1 test of 3661, in tests/unit/runtime-
+                            intelligence/ with an EEXIST mkdir race visible in stderr; the directory passed in
+                            isolation and a re-run of the IDENTICAL commit was green. That is R1 by the two
+                            conditions CC-036 wrote down, and it is recorded here rather than waved away: the
+                            seventh occurrence counted there was a CI flake, this is the eighth, and the rate is
+                            tracked because a rising rate is itself a finding.
+measurement                 node scripts/principle-enforcement-validator.cjs -> VERDICT=HONEST,
+                              MACHINE_ENFORCED=3 MACHINE_RATCHET=2 EVIDENCE_REQUIRED=3 NOT_GUARDED=1
+                            node scripts/principle-enforcement-validator.cjs --check -> exit 0
+                            npx vitest run tests/unit/city/principle-enforcement-validator.test.ts -> 23 passed
+                            catalogue: 298 suites, 55 obligations, 27 of 27 capabilities covered
+closure_status              CLOSED. The row now describes the tree and the programme as they are, and the
+                            distribution is pinned by a case.
+research_value              (1) A machine-checked artifact protects exactly the fields the machine checks, and
+                            its PROSE is as unguarded as any other prose -- so a stage that changes the state of
+                            the programme can falsify a checked artifact without failing its checker, and the
+                            only defence is that the same commit must update the row, the sentence and the case
+                            that pins the distribution. (2) The staleness was in the UNDERSTATING direction,
+                            which is the direction nobody escalates; a matrix that only ever flatters itself
+                            gets audited, and one that quietly understates itself gets believed. (3) Moving a
+                            row UP should be as hard as moving one down: 15.8 could have been promoted to
+                            MACHINE_ENFORCED on the strength of a validator that exits 0, and the reason it was
+                            not is that the validator's approval is not the same claim as the principle's
+                            satisfaction.
+```
