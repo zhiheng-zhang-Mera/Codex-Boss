@@ -228,6 +228,21 @@ the 154 count             30% of it is the two attribution errors above. It is a
                                                        122 outgoing edges, 39 onto three kernels -- so it would
                                                        hide those edges rather than repair them. The MIGRATION to
                                                        0 cycles is still open.
+§18  P2-D private-state measurement + validator  DONE  — `node scripts/phase2-private-state.cjs`: FIVE
+                                                       cross-domain private-state accesses over THREE pairs, ALL
+                                                       into one namespace (`tasks`, owned by persistence,
+                                                       resolved by hard-coded path from host-status, runtime and
+                                                       tenx). host-status reaching the task ledger is the
+                                                       workbook's OWN historical example, so the instrument finds
+                                                       the defect it was written for. A CONFIRMED ceiling and a
+                                                       TOTAL one -- so an access cannot hide by being
+                                                       unclassifiable -- over declared-namespace and scanned-file
+                                                       floors. Ledger CC-031.
+                                                       NOT CLAIMED there: read-versus-write, which the source
+                                                       does not carry; the declared single-owner property is
+                                                       machine-enforced instead.
+                                                       The MIGRATION to 0 accesses is still open, and it is a
+                                                       STRUCTURAL change, so it costs the ceremony in section 8.
 CC-017/CC-019  the soak sample floor: a MACHINE-THROUGHPUT assertion, and `slopePerMinute` returns a placeholder 0
                below three samples. The honest trend is now null and the gate fails closed (epoch 32), so an
                under-sampled run FAILS with a readable reason. The remaining work is to choose between a longer

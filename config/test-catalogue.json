@@ -570,6 +570,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/phase2-private-state.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the cross-domain private-state validator measures a PATH into another capability durable state rather than a mere name, and its cases pin the three rules that had to be corrected before it was right: a declared namespace matched as a quoted string is NOT an access -- a SKIP set, a fleet-aggregate field and a component id were all false positives -- so the rule is a path join whose LAST segment is a declared namespace; a path join is not always durable state, so a join carrying a durable-root marker is CONFIRMED while a session own artifacts subdirectory and a fault-lab sandbox directory stay in a SEPARATE unclassified tier with a recorded reason each, because counting them would make the number depend on how many directories happen to share a namespace name; and the durable-root marker list was too narrow, because host-status reaches the task ledger through a local name bound to the durable root, so the workbook own historical example classified as unclassified until the ROOT indirection was resolved -- the same one-level indirection as the namespace constant; on the real tree it finds FIVE confirmed accesses over THREE pairs, all into one namespace, including the historical example, and every confirmed access is asserted to cross a real declared ownership boundary; the ratchet refuses a rise in accesses, pairs, the TOTAL join count and the unclassified tier, refuses a fall in the declared-namespace and scanned-file floors, fails closed when a value cannot be compared, and reports a fall as the improvement to record; the TOTAL ceiling exists so an access cannot hide by being unclassifiable; and the artifact records its model, command, reason, zero target and an explicit NOT CLAIMED note that read-versus-write is not statically decidable, machine-enforcing the declared single-owner property instead",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/provider-closure.test.ts",
       "tier": "unit",
       "covers": [
