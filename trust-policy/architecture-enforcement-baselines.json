@@ -52,6 +52,28 @@
         "retired_edges": 0,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 3,
+      "baseline_hash": "7aa3e17a9538cdac5df1b4d173f98d92142883c418a9a0c296df828a0b890269",
+      "parent_baseline_hash": "98d648dcc2f1a02774156c9f91d8f8e5e6b19c9ea8a78a627120a563888a0925",
+      "source_commit": "314992ae70b33b1a1a2bc59a193723c7171401a9",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the P2-B inversion repair by the executor holding that lease. Recorded in ledger CC-046. Baseline version 2 remains ACCEPTED and is the parent; retiring it is a separate act and is NOT performed here.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-046; electron/bootstrap/providers.ts; tests/unit/bootstrap-providers.test.ts",
+      "accepted_at": "2026-09-25T11:38:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "one edge retired: providers -> tenx, the type-only import of RuntimeRegistry in electron/bootstrap/providers.ts. It was the ONLY edge in that direction and, with its reverse (tenx -> providers, 27 edges), it formed the mutual pair providers <-> tenx. The kernel now declares the minimal RuntimeRegistrar shape it needs and the implementation satisfies it structurally, so the dependency direction is inverted rather than the import hidden.",
+        "new_legitimate_relation": "none: the change removes one edge and adds none.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline, which is why it was regenerated as retired debt rather than as an addition."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ]
     }
   ]
 }

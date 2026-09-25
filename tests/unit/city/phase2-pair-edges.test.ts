@@ -48,9 +48,9 @@ describe("P2-E the pair inspector decomposes the inventory without disagreeing w
     // Every distinct pair endpoint in the graph the ratchets enforce. The count rose from 193 to 206 when the road
     // class was declared, because `<road>` is an endpoint of its own: a consumer that reached `tenx` directly AND
     // through a shared primitive now has two pairs rather than one.
-    expect(verification.pairsCompared).toBe(204);
+    expect(verification.pairsCompared).toBe(203);
     expect(verification.edgesCompared).toBe(result.edges.length);
-    expect(verification.edgesCompared).toBe(801);
+    expect(verification.edgesCompared).toBe(800);
   });
 
   it("cross-checks the UNION of both key sets, so a total it does not compute cannot be silently unchecked", () => {
@@ -136,11 +136,11 @@ describe("P2-E the closure and candidate readings the decisions rest on", () => 
     const result = inspector.scan();
     const text = inspector.renderKernelToFeature(result);
     expect(text).toContain(`${result.totals.kernelToFeatureFileEdges} edge(s) over ${result.totals.kernelToFeaturePairs} pair(s)`);
-    // 62 after two batches of road declarations moved 11 edges out of this column, and 73 before them. The column
+    // 61 after two road batches and one inverted dependency removed edges from this column, and 73 before them. The column
     // falls while the TOTAL stays at 801, which is the invariant that makes the fall trustworthy.
-    expect(result.totals.kernelToFeatureFileEdges).toBe(62);
-    expect(result.totals.kernelToFeaturePairs).toBe(23);
-    expect(result.totals.totalCrossCapabilityFileEdges).toBe(801);
+    expect(result.totals.kernelToFeatureFileEdges).toBe(61);
+    expect(result.totals.kernelToFeaturePairs).toBe(22);
+    expect(result.totals.totalCrossCapabilityFileEdges).toBe(800);
   });
 
   it("re-attributes road targets without deleting an edge, and never makes a building a consumer of its own road", () => {

@@ -109,19 +109,18 @@ function authorizationSeries(baseline: Json): Json {
   // a second version was genuinely accepted, and it was the fixture that was wrong rather than the runner.
   const version = Number(baseline.baseline_version ?? 1);
   const parent = (baseline.parent_baseline_hash as string | null) ?? null;
-  const accepted: Json[] = [];
-  if (version > 1 && parent !== null) {
-    accepted.push({
-      baseline_version: 1,
-      parent_baseline_hash: null,
-      baseline_hash: parent,
-      source_commit: FIXTURE_SOURCE_COMMIT,
-      authorization_reference: "phase1b shadow fixture: the bootstrap entry the version under test descends from",
-      evidence_reference: "tests/unit/city/architecture-hosted-shadow.test.ts",
-      accepted_at: "2026-09-23T00:00:00Z",
-      status: "ACCEPTED",
-    });
-  }
+  // CARRY EVERY VERSION BELOW THE ONE UNDER TEST, read from the COMMITTED series rather than synthesised.
+  //
+  // This helper used to emit exactly two entries: version 1 whose hash WAS the parent, and the version under test.
+  // That is a contiguous chain while the accepted version is 2, and it becomes a GAP the moment a third is accepted
+  // -- v1 -> v3 fails `validateSeries`, so the case reported NOT_AUTHORISED and stopped measuring the
+  // self-consistency check it exists for (ledger CC-046, when baseline version 3 was accepted). Reading the lower
+  // versions from the committed series keeps the fixture correct for any future acceptance instead of needing the
+  // same repair again.
+  const committed = JSON.parse(fs.readFileSync(path.join(PROJECT, "trust-policy", "architecture-enforcement-baselines.json"), "utf8")) as { accepted: Json[] };
+  const accepted: Json[] = committed.accepted
+    .filter((entry) => Number(entry.baseline_version) < version)
+    .map((entry) => ({ ...entry }));
   accepted.push({
     baseline_version: version,
     parent_baseline_hash: parent,
