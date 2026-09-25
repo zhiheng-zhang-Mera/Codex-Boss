@@ -4908,3 +4908,71 @@ research_value              (1) A debt register that enumerates SYMPTOMS goes st
                             is why the expensive ceremony that CC-054 assumed was necessary turned out to cost
                             one command.
 ```
+
+## CC-057 — A cycle count measures the host's speed, and the id was cited before it existed
+
+```text
+ENTRY_ID                    CC-057
+timestamp_utc               2026-09-26T03:26:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 88b69329c9e7b25f1368b1f7845531ef71563eda  (five checks green, epoch 37, PR #88)
+branch                      docs/city-cc-057
+PR                          the PR that carries this entry
+what_this_entry_records     The repair merged as PR #89 (commit 711840e, main 5c2aa0c0): the SIXTH instance of
+                            the load-sensitive family, and the third inside one file.
+                              tests/unit/platform/platform-soak.test.ts
+                                "exercises every stage the book names, without intervention"
+                                AssertionError: expected 3 to be greater than 5
+                            PR #89's commit message and body both cite "Ledger CC-057". That entry did not exist
+                            when they merged -- the repair was dispatched before the record was written. This
+                            entry closes that gap, and the gap is itself the first finding below.
+the_defect                  `expect(result.totals.cycles).toBeGreaterThan(5)` inside a FIXED wall-clock run.
+                            A cycle is a unit of work whose count depends on how fast the host is, so the
+                            assertion demanded host speed and called it stage coverage. A loaded runner
+                            completed three cycles and the case went red while the platform was healthy.
+the_repair                  The case is named for which STAGES ran, and the assertions that prove that are
+                            untouched: stateWrites > 1000, eventsAppended > 1000, eventsReplayed > 0,
+                            knowledgeAssessed > 0, gcPlanned > 0, restarts > 0, degradedProviders > 0,
+                            recoveredProviders > 0. Those cannot pass vacuously. The cycle count is now
+                            REPORTED (NOT_MEASURED cycle-count when below six) with a floor of > 0 retained,
+                            because a soak that never cycled exercised nothing at all. The proxy was removed;
+                            the evidence was not.
+verification_run_this_round npx vitest run tests/unit/platform/platform-soak.test.ts -t "exercises every stage"
+                              -> 1 passed / 6 skipped, 15.1s
+                            npx tsc --noEmit -p tsconfig.tests.json -> 0
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 37 MATCHES
+                            PR #89: five required contexts pass on BOTH runs; unit green on both, so the repair
+                            neither broke the gate nor let the family fire
+                            merge SHA 5c2aa0c0: quality, unit, acceptance, package, architecture all
+                              completed/success, verified from the API rather than from the PR page
+process_finding             An id written into a commit message is a CLAIM, and the ledger is the record. Citing
+                            CC-057 in the change that implements it reads as normal practice and is exactly
+                            backwards: the id becomes true only when the entry is appended, and a reader who
+                            follows the citation between the merge and the append finds nothing. From here the
+                            order is entry-then-citation, or the citation says plainly that the entry follows.
+why_city_debt_005_stays_open
+                            Six instances of one condition are now recorded and five are repaired (CC-054,
+                            CC-055, CC-056 twice, CC-057 at the sixth; the fifth -- the acceptance-side
+                            threshold -- was CC-055). The seventh cannot be ruled out by repair: the register
+                            states the enumeration is ILLUSTRATIVE and the condition is the debt, so closing it
+                            requires a SWEEP of the whole soak and lifecycle families against that condition,
+                            or the quarantine in exit condition (b). One instance is deliberately untouched:
+                            tests/unit/root-trust-authority-lockdown.test.ts, a 120s timeout under load, which
+                            exit condition (a) does not reach because it is a duration rather than a threshold.
+rollback                    Revert this commit. Documentation only; the repair it records is already on main.
+temporary_debt_created      no.
+closure_status              CLOSED. The citation and the record now agree, and the sixth instance is documented
+                            with the same evidence standard as the first.
+research_value              (1) Fixing the same condition six times is evidence about the CONDITION, not six
+                            pieces of evidence: each instance was found by CI going red, which means the family
+                            is being discovered rather than swept, and discovery has no termination argument.
+                            That is why the register's positive statement, not its list, is the debt. (2) A
+                            proxy assertion is recognisable by asking what it would take to satisfy it on a
+                            slower machine: if the answer is "a faster machine", it measures the host. The
+                            cycle count failed that question while sitting directly above eight assertions that
+                            pass it. (3) The ordering defect here -- citing an id before writing it -- is the
+                            same shape as the artifact-states-the-why class this register already names: a
+                            document asserting something the machine cannot yet resolve.
+```
