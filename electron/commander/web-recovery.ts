@@ -1,4 +1,4 @@
-import type { ProviderRun, Provider } from "../../src/shared/contracts";
+import type { ProviderRun, Provider } from "../../src/shared/provider-contracts";
 import type { StateStore } from "../store";
 import type { ProviderViews } from "../provider-views";
 import type { ProviderAutomation } from "../provider-automation";

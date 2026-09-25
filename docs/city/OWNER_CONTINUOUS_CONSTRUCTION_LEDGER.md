@@ -2031,3 +2031,249 @@ research_value              The interesting part is not the number but where the
                             regression gate green is to measure less, and a gate that only counts the thing it
                             is trying to reduce cannot tell progress from disappearance.
 ```
+
+---
+
+## CC-027 — P2-A step ③a: the provider contract closure, and a declared bridge that kept the epoch surface still
+
+```text
+ENTRY_ID                    CC-027
+timestamp_utc               2026-09-25T01:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction. One NEW shared module, 30 importers re-pointed, the ownership map
+                            moved with them. No protected-path write, no ruleset change, NO EPOCH CEREMONY --
+                            which is the point of the bridge recorded below.
+main_before                 e91f13e6fc6f1e1c9e1e5f252dd181ab64a993ad  (five checks green)
+branch                      feat/p2a-provider-closure
+PR                          the PR that carries this entry
+problem                     `providers -> status` was the second-largest kernel -> feature pair at 13 edges, and
+                            TEN of them had one cause: files owned by the `providers` KERNEL imported PROVIDER
+                            TYPES from `src/shared/contracts.ts`, owned by the `status` FEATURE. A kernel reaching
+                            into a feature for the description of its own subject is an inversion in the
+                            measurement and an untruth in the map.
+classification              R2 (real City defect, understood repair). Section 15 of the workbook names this
+                            exact shape: a bundle containing independent purposes must be split.
+normal_path                 Measure the blast radius, move the MINIMUM STABLE SEMANTIC CLOSURE, re-point every
+                            importer, move the ownership map in the same commit, re-measure, lower the ratchet.
+why_normal_path_was_not_used  Not applicable -- used in full.
+action_taken                Created src/shared/provider-contracts.ts (owned by `providers`) holding the whole
+                            provider closure, and re-pointed the 30 importers that route a moved symbol through
+                            the old module. Added the new module to the providers table of
+                            scripts/extend-capability-modules.cjs and regenerated the map. Lowered
+                            config/p2b-kernel-feature-ratchet.json from 82 to 73 in the same commit, which is
+                            the workflow that ratchet was built for (its `decide()` reports a fall as an
+                            improvement naming the artifact to edit).
+files_or_rules_changed      src/shared/provider-contracts.ts                       (NEW, 12 exported types)
+                            src/shared/contracts.ts                                (12 declarations removed;
+                                                                                    one import + one bridge)
+                            electron/**  (21 files), src/** (8 files), tests/unit/** (2 files)   re-pointed
+                            config/capability-modules.json                         (regenerated; 271 paths)
+                            config/p2b-kernel-feature-ratchet.json                  (82 -> 73)
+                            config/test-catalogue.json                             (291 -> 292 suites)
+                            scripts/extend-capability-modules.cjs                   (one owned path)
+                            scripts/generate-test-catalogue.cjs                     (curated entry)
+                            tests/unit/city/provider-closure.test.ts                (NEW, 9 cases)
+                            docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md                (NEW: the bridge record)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md       (this entry)
+```
+
+```text
+THE MEASUREMENT THE STEP EXISTS TO PRODUCE   (node scripts/phase2-edge-inventory.cjs, same model both sides)
+                                  BEFORE      AFTER
+  owned files                      597         598      (+1: the new module is OWNED, not unowned)
+  composition-root out-edges        95          97      (main.ts and preload.ts import two modules now)
+  cross-capability file edges     797 / 192   801 / 193
+  kernel -> feature                82 / 25     73 / 25   <- the repair: -9
+  mutual capability pairs           38          38      <- UNCHANGED, and checked as already-mutual FIRST
+  providers -> status               13           3
+
+  The largest surviving inversion is now `persistence -> tenx` (11), which is ONE DIRECTORY,
+  electron/commander/** -- a road whose file migration belongs to P2-E.
+```
+
+```text
+WHY THE MUTUAL-PAIR COUNT WAS MEASURED BEFORE THE MOVE, NOT AFTER
+  `provider-contracts.ts` imports only ./execution and NOT ./contracts. That is the property that keeps the two
+  shared modules acyclic. Had it needed a back-edge, the inventory would have reported a NEW
+  `providers <-> status` mutual pair and the P2-C half of the ratchet would have failed -- so the pair was
+  measured FIRST and found already mutual (`forward 13, backward 1`), meaning the count could only stay or rise.
+  It stayed at 38. A case in tests/unit/city/provider-closure.test.ts now fails if the back-edge is ever added.
+```
+
+```text
+BRIDGE P2A-BRIDGE-01 -- declared, with its exit
+  PROBLEM IT SOLVES  five `tests/acceptance/**` suites import `ProviderId` from ./contracts. That glob is ROOT
+                     TRUST SURFACE, so editing those five files moves the epoch aggregate and would cost a full
+                     epoch ceremony for a ONE-SYMBOL import path.
+  FORM               exactly one symbol: `export type { ProviderId } from "./provider-contracts";`
+  SCOPE              every OTHER importer moved in this commit. One symbol wide ON PURPOSE, so the bridge cannot
+                     quietly become the place the closure still lives.
+  EXIT_CONDITION     delete the re-export and change those five imports, in the same commit, in a change that is
+                     ALREADY moving the Root Trust Surface for another reason.
+  DEADLINE/PHASE     before the Phase 2 seal.
+  TESTS              tests/unit/city/provider-closure.test.ts asserts the bridge is one statement wide with
+                     ProviderId alone, that the moved symbols are no longer DECLARED in contracts.ts, that the
+                     new module does not import it, and that the set of remaining importers is EXACTLY the five
+                     bridged suites -- so a new straggler and a silently retired bridge both fail.
+  RECORD             docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md carries all eight required fields. The workbook
+                     allows a temporary bridge only when it declares its own exit; a bridge without one is not
+                     allowed.
+```
+
+```text
+THE ROOT TRUST SURFACE DID NOT MOVE, AND THAT WAS VERIFIED RATHER THAN ASSUMED
+  node scripts/acceptance-evolution-bless.cjs --check
+    aggregate 47859b5f21ca2d394be5c70914c26520b74ade5d8313121eb03dfa12b73f8b9c   UNCHANGED
+    epoch 33 (boss-root-trust-33) MATCHES the live surface
+  `git status` contains no file under tests/acceptance/, trust-policy/, .github/workflows/ or scripts/architecture*.
+  So no L3 bypass and no epoch ceremony were required: main stays green on this PR's own checks.
+```
+
+```text
+FALSIFICATION, AND A TEST THAT FAILED TO FAIL
+  Two mutations were applied and BOTH are now caught:
+    widening the bridge to two symbols   -> "the bridge widened; a bridge that can grow is how a split reverts:
+                                             expected [ 'Provider', 'ProviderId' ] to deeply equal [ 'ProviderId' ]"
+    reverting one importer               -> "these files still route a moved type through the old module"
+  THE SECOND MUTATION WAS NOT CAUGHT BY THE FIRST VERSION OF THE TEST, and that is the finding. The helper
+  suffix-matched the raw specifier against `shared/contracts`, so it saw `"../shared/contracts"` from outside
+  src/shared but MISSED `"./contracts"` from inside it -- which is exactly where the stragglers live. The helper
+  now RESOLVES the specifier against the importing file. Found by falsifying rather than by reading, and the
+  same shape as CC-019: a check that only ever passes has not been shown to check anything.
+```
+
+```text
+known_risk                  Six concerns remain in contracts.ts (task / council / claim-evidence / conversation /
+                            remote / app-snapshot). They are NOT repaired by this entry, and each needs its own
+                            closure decision and its own measured blast radius.
+                            `ProviderId` is an identifier type used well beyond `providers`; it moved with the
+                            closure because the closure keys on it. If a later increment finds it genuinely
+                            cross-cutting, it belongs in a shared contract module of its own -- a decision with
+                            its own evidence, not an assumption.
+                            The bridge is a deliberate, bounded anachronism with a stated exit; it becomes debt
+                            only if the Phase 2 seal is reached with it still present.
+rollback                    git revert of the merge commit. The map is regenerated by
+                            scripts/extend-capability-modules.cjs, so reverting the generator restores the old
+                            attribution on the next run.
+temporary_debt_created      no (the bridge is a declared, tested, deadline-bearing bridge, not debt)
+debt_id                     none
+exit_condition              `providers` no longer imports its own contract types through a `status`-owned module:
+                            measured as `providers -> status` 13 -> 3 and kernel -> feature 82 -> 73, with the
+                            ratchet lowered in the same commit.
+closure_status              CLOSED for the provider closure. OPEN for the remaining six concerns, and for the
+                            bridge's exit.
+research_value              Two things. (1) The cheapest way to make an attribution measurement look better is
+                            to move ONE big shared file under the class that owns most of its importers; the
+                            expensive-but-true way is to split it by purpose so each importer points at the
+                            module that describes ITS subject. The difference shows up as `providers -> status`
+                            falling 13 -> 3 rather than 13 -> 0, because the three that remain are real. (2) A
+                            regression test written to catch leftover importers can pass while missing every
+                            one of them, because the path a file in the same directory uses is not the path a
+                            file outside it uses. Resolution beats pattern-matching on specifiers, and only
+                            mutation showed the difference.
+```
+
+---
+
+## CC-027 — P2-A step ③a PREPARED AND VERIFIED: the provider closure, and the Owner-authorised gate that must be moved before it can land
+
+```text
+ENTRY_ID                    CC-027
+timestamp_utc               2026-09-25T02:30Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on an UNMERGED branch. NOT merged, NO PR opened. The remaining act
+                            is an Owner-authorised trust ceremony and is deliberately NOT attempted here.
+main_before                 e91f13e6fc6f1e1c9e1e5f252dd181ab64a993ad  (five checks green)
+main_after                 e91f13e6fc6f1e1c9e1e5f252dd181ab64a993ad  (UNCHANGED: nothing from this round landed)
+branch                      feat/p2a-provider-closure  (local; carries the work)
+PR                          none. Opening one would put a RED `architecture` check in front of the Owner before
+                            the ceremony that has to precede it.
+problem                     `providers -> status` was the second-largest kernel -> feature pair at 13 edges and
+                            TEN had one cause: files owned by the `providers` KERNEL imported PROVIDER TYPES from
+                            src/shared/contracts.ts, owned by the `status` FEATURE.
+classification              R2 (real defect, understood repair) for the attribution; R0/none for the red the
+                            repair produces, which is the enforcement gate working exactly as designed.
+```
+
+```text
+WHAT WAS BUILT, AND THE EFFECT MEASURED UNDER THE OWNERSHIP MAP
+  src/shared/provider-contracts.ts          NEW, owned by `providers`, holding the whole provider closure
+                                            (ProviderId, RunTransport, ApiProtocol, AdapterOutcome,
+                                            ProviderRunPhase, ProviderAccountMode, Provider, ProviderRun,
+                                            ProviderAccountState, ApiProviderSetting, UpdateApiSettingInput,
+                                            CustomProviderInput)
+  30 importers re-pointed                  21 under electron/, 8 under src/, 2 under tests/
+  providers.yaml                           the module DECLARED in `modules` AND published on `surface`
+  config/capability-modules.json           regenerated; the new module is owned
+  config/p2b-kernel-feature-ratchet.json   lowered 82 -> 73 in the same commit
+
+                                        BEFORE      AFTER
+  kernel -> feature                      82 / 25     73 / 25
+  providers -> status                    13           3
+  mutual capability pairs                38           38      (checked as already-mutual BEFORE the move)
+  owned files                           597          598
+  tsc --noEmit -p tsconfig{,.electron,.tests}.json   all three CLEAN
+  capability-closure-validator          VERDICT=PASS; unowned 0
+  architecture.cjs ratchet              pass: true   (its `feature-imports-undeclared-surface` rule is why the
+                                                      module had to be published on `surface`)
+```
+
+```text
+THE GATE THAT BLOCKS THE LANDING, MEASURED RATHER THAN GUESSED
+  `node scripts/architecture-enforcement.cjs --mode shadow` reports 29 VIOLATIONS, and they are the whole
+  blocker:
+
+    NEW_EDGE_UNDECLARED_ENDPOINT        25   new edges onto the new module whose SOURCE file is not declared in
+                                             ANY manifest, so the source owner is UNDECLARED. No declaration can
+                                             fix these: the sources are 25 files no manifest lists.
+    NEW_UNDECLARED_CROSS_CAPABILITY_EDGE  4   dispatch / host-status / settings / task-creation import the
+                                             provider contract without declaring a `requires:` on `providers`.
+
+  AND A HYPOTHESIS WAS FALSIFIED ON THE WAY. The first run reported 32 `UNRESOLVED_SOURCE_TARGET_MISSING`
+  instead, because THE SENSOR SCANS TRACKED FILES and the new module was untracked. That was checked by
+  `git add` and re-running: the unresolved class vanished and the two real classes appeared. A refactor measured
+  before `git add` is measured against a tree the sensor cannot see, and its "failure" is an artefact.
+```
+
+```text
+WHY THIS ROUND STOPPED HERE, AND WHY THAT IS NOT A MEASUREMENT-ONLY ROUND
+  Landing the change requires an Owner act that moves THREE Root Trust Surface files, in this order:
+
+    1  config/capabilities/{dispatch,host-status,settings,task-creation}.yaml   declare the dependency on
+       `providers`. This clears the 4 cross-capability violations AND RAISES the legacy ratchet's
+       dependencyEdgeCount 3 -> 7, so it cannot be done without step 2.
+    2  config/architecture-baseline.json                      the legacy ratchet's recorded metrics (Surface)
+    3  trust-policy/architecture-enforcement-baselines.json   the (version, parent, hash) TRIPLE must be added
+       BEFORE regenerating, or the engine returns BASELINE_SERIES_UNAUTHORISED in BOTH modes
+    4  config/architecture-enforcement-baseline.json          regenerated (Surface); this grandfathers the 25
+    5  epoch 34 through the protected finalization workflow, because 2, 3 and 4 are all on the surface
+
+  Three surface files, a series entry and a ceremony is a full Owner act, and performing it at the tail of a long
+  round -- with the ceremony's own dispatch, approval and promotion PR still ahead -- is exactly the rushed
+  governance act the ledger has had to correct twice (INC-2026-09-24-01 and -02). The work is preserved, every
+  gate is measured, and the remaining steps are enumerated above rather than discovered.
+```
+
+```text
+known_risk                  The branch is NOT merged, so this entry records work that main does not have. If the
+                            branch is lost the measurement survives here but the code does not.
+                            The 25 undeclared-endpoint edges are NOT repaired by this change; they are
+                            GRANDFATHERED by regenerating the baseline, which is bookkeeping rather than a
+                            repair -- and section 15's real answer to them is step 4, expanding each manifest's
+                            `modules` to its capability's surface, which is a separate and much larger step.
+rollback                    `git checkout main` and delete the branch; main was never touched.
+temporary_debt_created      no
+exit_condition              the provider closure lands with all five checks green, which requires the ceremony
+                            above. Until then the attribution measurement stays at 82.
+closure_status              PREPARED AND VERIFIED, NOT LANDED.
+research_value              Two findings worth more than the refactor. (1) In this repository the enforcement
+                            gate does not merely check a change: it sets the PRICE of a structural one, and the
+                            price is an Owner-authorised baseline update. That is a deliberate design -- it is
+                            what "no new architecture debt without an Owner act" means operationally -- but it
+                            was not visible until a refactor was attempted, and it means the P2 migration's
+                            steps are gated on a ceremony each, not only on code. (2) An architecture sensor that
+                            reads TRACKED files will report a structurally correct refactor as 32 unresolved
+                            targets when measured before `git add`, and the two states are indistinguishable
+                            from the exit code alone (both non-zero, both POLICY_VIOLATION). Committing before
+                            measuring is part of the measurement procedure, not a formality.
+```

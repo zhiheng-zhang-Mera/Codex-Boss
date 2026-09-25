@@ -5,7 +5,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { isRunMode } from "../src/shared/owner-result";
 import { isVerificationContract } from "../src/shared/result-validator";
 import { isConversationPolicy } from "../src/shared/conversation-policy";
-import type { AdapterOutcome, ApiProviderSetting, AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RunTransport, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
+import type { AdapterOutcome, ApiProviderSetting, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RunTransport } from "../src/shared/provider-contracts";
 import { validateInputObjectRef, uniqueInputObjectRefs, type InputObject, type InputObjectRef } from "../src/shared/input-object";
 import { HistoryRepository, safeSegment } from "./history-repository";
 

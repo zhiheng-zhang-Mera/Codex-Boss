@@ -1,4 +1,5 @@
-import type { BossTask, FinalResponse, ProviderRun } from "./contracts";
+import type { BossTask, FinalResponse } from "./contracts";
+import type { ProviderRun } from "./provider-contracts";
 type UserTaskState = "RUNNING" | "WAITING_FOR_AI" | "REVIEWING" | "CONTINUING" | "WAITING_FOR_USER" | "RECOVERING" | "DEGRADED" | "FAILED" | "COMPLETED";
 export function taskPresentation(task: BossTask, runs: ProviderRun[], final?: FinalResponse): { state: UserTaskState; label: string } {
   if (task.status === "cancelled") return { state: "FAILED", label: "已取消" };

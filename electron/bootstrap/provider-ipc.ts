@@ -1,6 +1,6 @@
 import { normalizeCustomProviderInput } from "../../src/shared/provider-policy";
 import type { BootModule, IpcRegistrar } from "./boot-module";
-import type { CustomProviderInput, ProviderId } from "../../src/shared/contracts";
+import type { CustomProviderInput, ProviderId } from "../../src/shared/provider-contracts";
 
 /**
  * Custom-provider and provider-pane IPC (convergence book, Phase F/G).

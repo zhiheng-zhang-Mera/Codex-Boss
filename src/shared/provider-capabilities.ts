@@ -7,7 +7,7 @@
  * override registry may extend them at runtime (electron/adapters).
  */
 
-import type { ProviderId } from "./contracts";
+import type { ProviderId } from "./provider-contracts";
 import type { InputObjectKind } from "./input-object";
 
 export interface ProviderCapabilities {

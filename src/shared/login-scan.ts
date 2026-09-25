@@ -8,7 +8,7 @@
  * auto-solved, never hidden.
  */
 
-import type { ProviderAccountMode } from "./contracts";
+import type { ProviderAccountMode } from "./provider-contracts";
 import type { SessionLifecycle } from "./session-lifecycle";
 
 type LoginScanStatus = "READY" | "GUEST_READY" | "LOGIN_REQUIRED" | "REAUTH_REQUIRED" | "CHECKING" | "FAILED" | "UNKNOWN";

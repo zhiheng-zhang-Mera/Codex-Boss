@@ -29,7 +29,7 @@ import { WorkbookRegistry } from "../../electron/ingestion/workbook-registry";
 import { StateStore } from "../../electron/store";
 import { currentArtifactIds, currentFinalResponse, isAnalysisOnlyCompletion } from "../../src/shared/final-response";
 import type { InputObjectRef } from "../../src/shared/input-object";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "wb-batch4-"));
 let counter = 0;

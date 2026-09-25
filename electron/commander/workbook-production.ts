@@ -27,13 +27,8 @@ import type { InputObjectRef } from "../../src/shared/input-object";
 import { logicalKeyFor } from "../../src/shared/workbook";
 import { availableWorkspace } from "../workspace/task-workspace";
 import fs from "node:fs";
-import type {
-  AppMode,
-  FinalizationPolicy,
-  ProviderId,
-  RunTransport,
-  TaskMode
-} from "../../src/shared/contracts";
+import type { AppMode, FinalizationPolicy, TaskMode } from "../../src/shared/contracts";
+import type { ProviderId, RunTransport } from "../../src/shared/provider-contracts";
 import type { ReviewPolicy } from "../../src/shared/execution";
 import type { ConversationPolicy } from "../../src/shared/conversation-policy";
 import type { RunMode } from "../../src/shared/owner-result";

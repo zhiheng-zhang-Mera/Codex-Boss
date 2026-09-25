@@ -6,7 +6,7 @@ import { createProvidersModule, type ProviderPoolViews, type ProvidersCrypto } f
 import { createPersistenceModule } from "../../electron/bootstrap/persistence";
 import { RuntimeRegistry } from "../../electron/commander/runtime-registry";
 import { MAX_ACTIVE_PROVIDERS } from "../../src/shared/provider-policy";
-import type { Provider } from "../../src/shared/contracts";
+import type { Provider } from "../../src/shared/provider-contracts";
 import type { WorkspaceViewState } from "../../src/shared/workspace-layout";
 
 /**

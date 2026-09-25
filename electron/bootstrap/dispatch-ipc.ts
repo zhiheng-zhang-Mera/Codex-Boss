@@ -8,7 +8,8 @@ import { decideEscalation, detectCapabilityNeeds, type ModeTransition } from "..
 import { effectiveRunMode, runTaskKindFor, workEscalationVerdict } from "../../src/shared/owner-result";
 import type { MainCommander } from "../commander/main-commander";
 import type { DecisionLedgerStore } from "../commander/decision-ledger-store";
-import type { CreateTaskInput, ProviderId } from "../../src/shared/contracts";
+import type { CreateTaskInput } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 import type { InputObjectKind, InputObjectRef } from "../../src/shared/input-object";
 
 /**

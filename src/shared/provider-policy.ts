@@ -1,4 +1,4 @@
-import type { CustomProviderInput, ProviderId } from "./contracts";
+import type { CustomProviderInput, ProviderId } from "./provider-contracts";
 
 export const MAX_ACTIVE_PROVIDERS = 5;
 export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["chatgpt"];

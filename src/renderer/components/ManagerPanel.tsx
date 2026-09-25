@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import type { AppSnapshot, ApiProtocol, ProviderId, RemoteChannel, WorkspaceViewStatus } from "../../shared/contracts";
+import type { AppSnapshot, RemoteChannel, WorkspaceViewStatus } from "../../shared/contracts";
+import type { ApiProtocol, ProviderId } from "../../shared/provider-contracts";
 import { MAX_ACTIVE_PROVIDERS } from "../../shared/provider-policy";
 
 type Section = "providers" | "api" | "runtime";

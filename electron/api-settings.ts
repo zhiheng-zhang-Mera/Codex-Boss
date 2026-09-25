@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ApiProtocol, ApiProviderSetting, ProviderId, UpdateApiSettingInput } from "../src/shared/contracts";
+import type { ApiProtocol, ApiProviderSetting, ProviderId, UpdateApiSettingInput } from "../src/shared/provider-contracts";
 import { PROVIDER_MODEL_DEFAULTS } from "../src/shared/provider-models";
 
 type StoredApiSetting = Omit<ApiProviderSetting, "hasApiKey"> & { encryptedApiKey?: string };

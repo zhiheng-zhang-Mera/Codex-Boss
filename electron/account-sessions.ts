@@ -1,5 +1,5 @@
 import type { WebContentsView } from "electron";
-import type { Provider, ProviderAccountMode, ProviderId } from "../src/shared/contracts";
+import type { Provider, ProviderAccountMode, ProviderId } from "../src/shared/provider-contracts";
 import { StateStore } from "./store";
 import { adapterFor } from "./adapters/registry";
 import { probeScript, type PageProbe } from "./adapters/page-scripts";

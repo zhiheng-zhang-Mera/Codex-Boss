@@ -1,4 +1,4 @@
-import type { ProviderId } from "../src/shared/contracts";
+import type { ProviderId } from "../src/shared/provider-contracts";
 import type { ProviderUsage } from "./runtimes/runtime";
 import { ApiSettingsStore } from "./api-settings";
 

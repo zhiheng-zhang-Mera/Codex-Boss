@@ -14,9 +14,20 @@ modules:
   - electron/bootstrap/provider-ipc.ts
   - electron/bootstrap/provider-pool.ts
   - electron/bootstrap/providers.ts
+  # The provider contract closure, extracted from src/shared/contracts.ts (see
+  # docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md). It is declared because the enforcement engine DERIVES ownership
+  # from THIS field: while it was unlisted, every edge onto the new module had an undeclared endpoint and the
+  # engine refused the whole change with 31 NEW_EDGE_UNDECLARED_ENDPOINT violations. Declaring it is the repair
+  # the gate asked for, and it is also what the workbook means by "module ownership differs from real tree".
+  - src/shared/provider-contracts.ts
 bootModules:
   - electron/bootstrap/provider-ipc.ts
   - electron/bootstrap/provider-pool.ts
   - electron/bootstrap/providers.ts
-surface: []
+surface:
+  # The provider contract is the part of this capability that OTHER capabilities are meant to import: it is the
+  # shape of a provider, not its implementation. Declared here because the legacy ratchet refuses
+  # `feature-imports-undeclared-surface`, and it was right to: without this the four feature boot modules that
+  # legitimately name a provider type were importing something `providers` had not published.
+  - src/shared/provider-contracts.ts
 permissions: []

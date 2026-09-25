@@ -1,6 +1,7 @@
 import { BrowserWindow, WebContentsView, screen } from "electron";
 import type { DownloadItem, Event as ElectronEvent, Session } from "electron";
-import type { Provider, ProviderId, ViewBounds } from "../src/shared/contracts";
+import type { ViewBounds } from "../src/shared/contracts";
+import type { Provider, ProviderId } from "../src/shared/provider-contracts";
 import { AccountSessionManager } from "./account-sessions";
 import { profileFor, zoomForPaneWidth, type ProviderDisplayProfile } from "../src/shared/provider-view-profile";
 import { layoutProviderPanes, type WorkspaceViewState } from "../src/shared/workspace-layout";
