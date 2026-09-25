@@ -3185,3 +3185,69 @@ research_value              (1) A growth ban needs a STARTING point, and the sta
                             ratchet, and the difference is not bookkeeping: a rolling ceiling pays you for a
                             temporary improvement, which section 24 names as unacceptable.
 ```
+
+## CC-036 — The seventh same-commit CI flake, and the two conditions that keep "it's a flake" from becoming an excuse
+
+```text
+ENTRY_ID                    CC-036
+timestamp_utc               2026-09-25T04:39:45Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             Documentation. No protected-path write, no epoch ceremony, no configuration change.
+records                     PR #68 (P2-H, CC-035), which merged clean WITH NO BYPASS and is unaffected in
+                            substance by the incident below.
+problem                     On PR #68 the required check `acceptance` reported FAIL on one workflow run and
+                            PASS on another run of the SAME commit, two minutes apart, and then PASSED again
+                            when the failed job was re-run on the identical commit. This is the SEVENTH
+                            occurrence of that class in this programme. Six were already enumerated in the S2
+                            exit audit (three inside its window, three outside); this is the seventh. Each
+                            occurrence had been handled ad hoc inside the ledger entry for the round it
+                            interrupted, so nothing recorded the PATTERN, its rate, or the conditions under
+                            which a red may legitimately be dismissed -- which is the state in which a real
+                            intermittent defect would be retired as noise.
+the_facts                   commit 65cf88bc629986617b8d539214d0028f81a3fd22 for all three observations.
+                            Run 36093439852 (event push) acceptance FAILED in 3m21s:
+                              [desktop-smoke] FAIL the restarted app serves the theme panel from the real UI
+                              -- expected true, observed false
+                              [desktop-smoke] totals: PASS 62 FAIL 27 NOT_RUN 26
+                            Run 36093456263 (event pull_request) acceptance PASSED in 6m50s.
+                            Run 36093439852 re-run of the failed job, same commit, acceptance PASSED 6m50s.
+                            The failing run aborted early -- 3m21s against 6m50s twice over -- which is why
+                            26 cases are NOT_RUN rather than failing.
+                            The pull request was BLOCKED while the failed job was pending and CLEAN after the
+                            re-run; the merge was performed on the CLEAN state with no bypass.
+classification              R1 (load-sensitive, disproved on the same tree by re-run), on TWO conditions,
+                            both of which hold: (1) a second run of the SAME commit succeeded, twice over;
+                            (2) a mechanism-level account exists for why the change cannot affect that
+                            suite -- it adds a config record read only by its own new validator, a script, a
+                            document and a test, touches no file under electron/ or src/, and the failing
+                            assertion is about the theme panel served by the real Electron application
+                            after a restart.
+the_rule                    A red may be recorded as a flake ONLY when both conditions hold. Condition 1
+                            alone is insufficient, because a real intermittent defect also passes on the
+                            second attempt; the difference between a flake and an intermittent defect is
+                            whether a MECHANISM can be named. Where no mechanism can be named the failure
+                            stays unexplained and blocks rather than being retired as noise.
+the_rate_is_tracked         Seven occurrences are now recorded. A RISING RATE IS ITSELF A FINDING: it would
+                            mean the hosted runner or the suite is degrading, which is a defect in the
+                            merge gate even though no single run is evidence against any single commit.
+what_is_NOT_claimed         No root cause is claimed for the host's timing behaviour. Nothing here asserts
+                            that `acceptance:desktop-workbook` is unreliable in general -- 62 of its cases
+                            passed in the failing run and it passed twice on the same commit. And no re-run
+                            here was used to obtain a green on a tree that had CHANGED: every re-run in this
+                            record is on an identical commit, because a re-run after a change is a fix,
+                            not a flake.
+artifact                    docs/city/incidents/2026-09-25-same-commit-ci-flake.md (INC-2026-09-25-01)
+temporary_debt_created      no
+closure_status              CLOSED as a record. OPEN as a condition: the underlying host timing behaviour is
+                            unexplained, and this entry deliberately does not claim otherwise.
+research_value              (1) An unexplained intermittent failure in a required check is a silent tax on
+                            every future round, because each executor re-derives the classification from
+                            scratch and the cheapest way to resolve the ambiguity is to assume the flake --
+                            so the discipline has to be written down as CONDITIONS, not as a feeling about
+                            which jobs are flaky. (2) The condition that does the real work is the
+                            mechanism: "it went green on re-run" is equally consistent with a flake and
+                            with an intermittent defect, and only a named mechanism separates them. (3) A
+                            flake rate is a measurement, not an excuse: tracking the count is what makes a
+                            degradation of the merge gate visible, and a policy that only ever says
+                            "probably load" would hide exactly that.
+```
