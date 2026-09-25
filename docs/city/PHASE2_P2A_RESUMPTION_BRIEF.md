@@ -258,9 +258,22 @@ A SECOND, SMALLER TRAP
   POLICY_VIOLATION verdict, different meaning. Commit (or at least `git add`) before measuring, or the
   measurement describes a tree the sensor cannot see.
 
-WHERE THE PREPARED WORK IS
-  branch   feat/p2a-provider-closure  (pushed; NOT merged, no PR)
-  entries  ledger CC-027 and docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md, both ON THAT BRANCH
-  next     perform steps 1-5 above, then land the branch. The measured effect is already recorded, so the
-           ceremony is the only remaining work.
+THE STEPS ABOVE WERE PERFORMED — THIS SECTION IS A CONSTRAINT, NOT A PENDING TASK
+  Step ③a landed through exactly the sequence described: the module was declared in `providers.yaml`
+  (`modules` AND `surface`), the enforcement baseline version 2 was accepted with its series entry added FIRST,
+  and epoch 34 was carried through the protected finalization workflow. Measured on main afterwards: kernel ->
+  feature 73, `providers -> status` 3, closure PASS, legacy ratchet pass, enforcement PASS with 0 violations
+  and 0 engine errors, epoch 34 MATCHES. Records: ledger CC-027 (measurement), CC-028 (acceptance), CC-029
+  (landing + ceremony).
+
+  KEEP THIS SECTION FOR THE NEXT STRUCTURAL STEP. It is not a report of an obstacle that was overcome once; it
+  is the price list. Section 15 item 4 (expand each manifest's `modules` to its real surface) is the next
+  structural change and will cost the same ceremony, so budget for it rather than discovering it.
+
+  ONE PIECE OF DEBT WAS CREATED BY THE CEREMONY AND IS OPEN (CC-029): the protected finalization workflow
+  interpolates the three Owner inputs into a DOUBLE-QUOTED PowerShell command line, so a justification
+  containing a dollar-brace expression is a ParserError and the run fails closed -- which is what happened to
+  the first dispatch of this ceremony. The repair is to pass those inputs through ENVIRONMENT VARIABLES and
+  assert the recorded value equals the input byte-for-byte. It needs its own epoch because
+  `.github/workflows/trust-epoch-finalization.yml` is Root Trust Surface.
 ```
