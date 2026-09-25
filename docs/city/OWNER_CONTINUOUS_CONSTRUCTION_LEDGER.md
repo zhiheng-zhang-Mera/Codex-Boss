@@ -4848,3 +4848,63 @@ research_value              (1) The cost of a governance ceremony was ASSUMED an
                             produced the refused verdict, so the case can be seen deciding rather than
                             passing, and a green run alone would not have shown that.
 ```
+
+## CC-056 — The debt register was stale, and stating the family positively is what fixed it
+
+```text
+ENTRY_ID                    CC-056
+timestamp_utc               2026-09-26T01:14:52Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root
+                            Trust Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 1e73beb54adf128894c0ea979cc8ac25c92e9522  (five checks green, epoch 37, PR #87)
+branch                      docs/city-occurrence-ten
+PR                          the PR that carries this entry
+what_was_wrong              CC-055 repaired the acceptance-side signature and CC-056's own commit repaired two
+                            more, but the artifacts section 31 actually READS were left describing the previous
+                            generation of the family. CITY-RENOVATION_DEBT-REGISTER.md still said "Three runs of
+                            the SAME commit produced three different failures in two different steps" and named
+                            three tests, and the incident record stopped at section 7. A reader planning the
+                            debt review from the register would have measured the wrong family: four of five
+                            observed instances were already repaired, and TWO of the files involved had never
+                            been named in either artifact. A ledger entry is not a substitute for the record the
+                            next reader consults, and CC-055 had said so about the register.
+the_repairs_recorded        register: DEBT-005 gains occurrence_ten (the three-failures-across-two-runs
+                            evidence, including that a PARALLEL run of the same commit was 5/5 green, which is
+                            what makes this a family condition rather than a change), repairs_so_far naming
+                            CC-054/CC-055/CC-056 and the file each repaired, and an outstanding_instance naming
+                            the one instance that remains. status becomes
+                            "OPEN (narrowed: the four soak-style instances are repaired; one duration-budget
+                            instance remains, named above)".
+                            incident: section 8 records occurrence ten with both run logs, the re-run, and why
+                            the re-run was NOT treated as a fix.
+what_was_learned            The register's reason field was written per-ASSERTION ("each failing assertion has a
+                            threshold a loaded runner can miss") and that framing is what let it go stale: an
+                            assertion-level list cannot notice that the family has grown a member in a file it
+                            never named. Restating the condition POSITIVELY -- an environmental budget or a
+                            host-supplied sample count read as a correctness verdict, inside tests that each say
+                            in their own words that the quantity is not a property of the platform -- is what
+                            made all five instances recognisable as one thing, and is why three of them could be
+                            repaired without an epoch ceremony: none of them needed a new mechanism, only the
+                            existing one applied to a line that had not been read.
+verification_run_this_round node scripts/acceptance-evolution-bless.cjs --check -> epoch 37 MATCHES (docs/city
+                            is not surface; the assertion is run rather than assumed)
+                            git diff --numstat -> both files appended/edited, no deletions of prior text
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no.
+closure_status              CLOSED for this entry. The register and the incident record now describe the
+                            family as it is: five instances across four files, four repaired, one open and
+                            named. CITY-DEBT-005 remains OPEN, and now with a status line that says exactly
+                            how far it is from closed and which decision would close it.
+research_value              (1) A debt register that enumerates SYMPTOMS goes stale the moment the family finds
+                            a new host: this one listed three tests and within one round there were five
+                            instances across four files, two never named. Stating the condition positively is
+                            not stylistic -- it is what makes the record survive the next occurrence. (2) The
+                            evidence that classified this as a family condition was not the failure itself but
+                            a PARALLEL run of the identical commit that was green: the same comparison
+                            occurrence nine lacked, and the reason "re-run until green" could be refused
+                            explicitly rather than by nerve. (3) Three of the four repairs needed no new
+                            mechanism at all -- only the existing one applied to a line nobody had read, which
+                            is why the expensive ceremony that CC-054 assumed was necessary turned out to cost
+                            one command.
+```
