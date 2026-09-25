@@ -4512,3 +4512,62 @@ research_value              A checklist item that fails without naming its membe
                             files applies to the evidence block, and it is the kind of gap that only shows up when
                             an item first goes red -- which is why it was found here, one round after E2 moved.
 ```
+
+## CC-052 — The seal's verification path runs, and G3 was reading the ruleset from the wrong place
+
+```text
+ENTRY_ID                    CC-052
+timestamp_utc               2026-09-25T16:56:43Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are a script and a test, and acceptance-evolution-bless --check reports epoch 36
+                            still MATCHES.
+main_before                 39190405e5c605d8688ad508d0cc05c1fc3b042b  (five checks green, epoch 36, PR #83)
+branch                      feat/acceptance-g3-reads-the-rule
+PR                          the PR that carries this entry
+what_was_run_first          The final-acceptance suite had never been run with its HOSTED flags, so three items of
+                            section 33's Final-main block had only ever been reported UNVERIFIED. Running it against
+                            the live API on main:
+                              node scripts/city-final-acceptance.cjs --hosted --main-sha=3919040...
+                            resolved F1, F2, F4, F5 and F6 to PASS and G2 to PASS -- the two hosted checks are all
+                            five green on that SHA, the epoch MATCHES it, the tree is clean, and `architecture` IS a
+                            required context. The blocking count fell from 16 to 12, and the remaining UNVERIFIED
+                            items are exactly the two no tree can decide (E1 completeness of the ledger, E4 that
+                            nothing was erased), which is the design working rather than a gap.
+and_that_run_found_a_FALSE_ALARM
+                            G3 reported OPEN with "strict_required_status_checks_policy is undefined" -- on a ruleset
+                            whose strict policy is TRUE. The reader looked at `rulesetDetail.parameters`, and a
+                            ruleset HAS no top-level parameters: each RULE carries its own, so the flag and the
+                            context list both live on the `required_status_checks` rule. Verified against the live
+                            object: rule types are deletion, non_fast_forward, creation, required_status_checks,
+                            pull_request; the rule's parameters carry strict_required_status_checks_policy true and
+                            the five contexts quality, unit, acceptance, package and architecture.
+why_that_matters_more_than_a_count
+                            It is the same failure mode as the G6 bug fixed two rounds earlier, and the one a
+                            checklist must avoid most: A FALSE ALARM TEACHES A READER TO IGNORE THE LIST. A suite
+                            that cries wolf about the ruleset while the ruleset is correct trains its reader to
+                            skim the governance block, which is where the real findings will appear.
+the_repair                  The parse is extracted as a pure function `rulesetFacts(rulesetDetail)` returning the
+                            contexts, the strict flag and the rule types, and G2/G3 both read it. The point of
+                            extracting it is that a LIVE-ONLY read cannot be pinned by a test: the case now feeds the
+                            REAL shape -- no top-level parameters, the flag on the rule -- and asserts both
+                            directions, including that the shape which caused the alarm yields `undefined`.
+measurement                 node scripts/city-final-acceptance.cjs --hosted --main-sha=3919040... -> G2 PASS, G3 PASS
+                            npx vitest run tests/unit/city/city-final-acceptance.test.ts -> 10 passed
+                            npx vitest run tests/unit/comment-citation.test.ts -> 4 passed
+                            npx tsc --noEmit -p tsconfig.tests.json -> 0
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+rollback                    Restore the previous G2/G3 readers and remove the case.
+temporary_debt_created      no.
+closure_status              CLOSED. The seal's hosted verification path is exercised, the false alarm is gone, and
+                            the parse is pinned by a fixture of the real API shape.
+research_value              (1) An unexercised code path in an acceptance suite is an untested claim: three Final-main
+                            items had only ever been reported UNVERIFIED, and the first hosted run found a defect in
+                            a NEIGHBOURING item on the same call. (2) A verifier that reads an external system must
+                            be built from an OBSERVED response, not from the shape the API documentation suggests --
+                            and its parse must be a pure function so the observed shape can be pinned in a test,
+                            because a live-only read cannot be. (3) Both defects found in this checklist so far
+                            (G6, G3) were false alarms rather than missed findings, which is worth recording: the
+                            likely failure of a governance checklist is not that it misses a problem but that it
+                            invents one.
+```

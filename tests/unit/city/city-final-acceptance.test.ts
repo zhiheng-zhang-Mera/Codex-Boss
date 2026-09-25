@@ -26,6 +26,7 @@ const PROJECT = process.cwd();
 const acceptance = require(path.join(PROJECT, "scripts", "city-final-acceptance.cjs")) as {
   checklist: (root?: string, options?: Record<string, unknown>) => Item[];
   decideSeal: (items: Item[], options?: { attest?: boolean; recordExists?: boolean }) => Decision;
+  rulesetFacts: (rulesetDetail: unknown) => { contexts: string[]; strict: boolean | undefined; ruleTypes: string[] };
   summarise: (items: Item[]) => { counts: Record<string, number> };
   render: (report: unknown) => string;
   SECTION_ORDER: string[];
@@ -102,6 +103,31 @@ describe("§30 the acceptance suite enumerates §33 completely, and says what it
     // it stays true when the debt closes and bites again if a new one opens without being named.
     const e2 = item(items, "E2");
     if (e2.status === acceptance.STATUSES.OPEN) expect(e2.evidence, "E2 is OPEN without naming the open debt").toMatch(/CITY-DEBT-\d+/);
+  });
+
+  it("reads the strict policy and the contexts from WHERE the live API puts them", () => {
+    // The real shape, taken from `gh api repos/{owner}/{repo}/rulesets/<id>`: a ruleset has NO top-level `parameters`
+    // -- each RULE carries its own, so the strict flag and the context list are both on `required_status_checks`.
+    const live = {
+      name: "Main-Protection",
+      rules: [
+        { type: "deletion" },
+        { type: "non_fast_forward" },
+        { type: "creation" },
+        { type: "required_status_checks", parameters: { strict_required_status_checks_policy: true, do_not_enforce_on_create: true, required_status_checks: [{ context: "quality" }, { context: "unit" }, { context: "acceptance" }, { context: "package" }, { context: "architecture" }] } },
+        { type: "pull_request" },
+      ],
+    };
+    const facts = acceptance.rulesetFacts(live);
+    expect(facts.strict).toBe(true);
+    expect(facts.contexts).toEqual(["quality", "unit", "acceptance", "package", "architecture"]);
+    expect(facts.contexts).toContain("architecture");
+    // And the shape that produced the false alarm: the flag at the TOP level is NOT where it lives, so a reader that
+    // looks there gets undefined and reports an OPEN on a ruleset whose strict policy is true. That is what G3 said
+    // until ledger CC-052, and it is the failure a checklist must avoid most -- a false alarm teaches a reader to
+    // ignore the list.
+    expect(acceptance.rulesetFacts({ parameters: { strict_required_status_checks_policy: true } }).strict).toBeUndefined();
+    expect(acceptance.rulesetFacts(undefined).contexts).toEqual([]);
   });
 
   it("finds each REQUIRED artifact missing in a root that does not have it", () => {
