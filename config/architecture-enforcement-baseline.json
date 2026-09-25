@@ -1,16 +1,16 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 1,
-  "parent_baseline_hash": null,
-  "source_commit": "8684953e067315cb94732a21ac31d54210d1cc89",
+  "baseline_version": 2,
+  "parent_baseline_hash": "b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e",
+  "source_commit": "be7b5c48d33e780223236d9c7bcde50db93a5808",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "Phase 1A initial grandfathered-debt baseline: every relation the qualified sensor measured at the promoted Phase 0 state is debt that existed before enforcement.",
+  "reason": "P2-A increment 2 step 3a: the provider contract closure moved out of src/shared/contracts.ts into src/shared/provider-contracts.ts, owned by providers. Re-pointing 30 importers replaced 30 edges onto the status-owned bundle with 30 edges onto a providers-owned module, so the grandfathering identities change even though no capability gained a dependency: kernel -> feature under the ownership map falls 82 -> 73. Four edges onto the new module come from feature boot modules whose capability has not declared a providers requirement; they are GRANDFATHERED here, not declared, because whether dispatch/host-status/settings/task-creation genuinely depend on the providers capability at runtime is a per-pair decision for P2-A step 4 and a false declaration would be worse than an honest grandfather.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
     "implementation_path": "scripts/architecture-observatory.cjs",
     "implementation_sha256": "c6e879761c90a948ba158ee88c7788107445a26d6985a860702836c5a6ff687f",
-    "scan_set_hash": "4d4891939ba441324ef640f841934731659912c9c65e89015010338e3b88d087",
+    "scan_set_hash": "562a0f0b129112fdc092da74994cbab00398b3dbdf8cff73014dbafb6cebe409",
     "semantic": {
       "scan": {
         "roots": [
@@ -18,16 +18,16 @@
           "src"
         ],
         "source": "git ls-files",
-        "tracked_source_files": 612
+        "tracked_source_files": 613
       },
       "ownership": {
         "manifests": 27,
-        "declared_modules": 25,
-        "declared_owned_files": 25,
+        "declared_modules": 26,
+        "declared_owned_files": 26,
         "undeclared_files": 587,
         "conflicts": []
       },
-      "edges": 1671,
+      "edges": 1688,
       "unresolved": 1
     }
   },
@@ -37,13 +37,13 @@
       "src"
     ],
     "source": "git ls-files",
-    "tracked_source_files": 612,
-    "scan_set_hash": "4d4891939ba441324ef640f841934731659912c9c65e89015010338e3b88d087"
+    "tracked_source_files": 613,
+    "scan_set_hash": "562a0f0b129112fdc092da74994cbab00398b3dbdf8cff73014dbafb6cebe409"
   },
   "ownership": {
     "manifests": 27,
-    "declared_modules": 25,
-    "declared_owned_files": 25,
+    "declared_modules": 26,
+    "declared_owned_files": 26,
     "undeclared_files": 587,
     "conflicts": []
   },
@@ -536,6 +536,7 @@
     "src/shared/promotion-checks.ts": "UNDECLARED",
     "src/shared/prompt-layout.ts": "UNDECLARED",
     "src/shared/provider-capabilities.ts": "UNDECLARED",
+    "src/shared/provider-contracts.ts": "providers",
     "src/shared/provider-intelligence.ts": "UNDECLARED",
     "src/shared/provider-models.ts": "UNDECLARED",
     "src/shared/provider-outcome.ts": "UNDECLARED",
@@ -680,7 +681,7 @@
     ],
     [
       "electron/account-sessions.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/account-sessions.ts",
@@ -692,11 +693,11 @@
     ],
     [
       "electron/adapters/registry.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/api-settings.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/api-settings.ts",
@@ -815,6 +816,10 @@
       "src/shared/owner-result.ts"
     ],
     [
+      "electron/bootstrap/dispatch-ipc.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
       "electron/bootstrap/engineering-surface-ipc.ts",
       "electron/bootstrap/boot-module.ts"
     ],
@@ -840,15 +845,15 @@
     ],
     [
       "electron/bootstrap/host-status-ipc.ts",
-      "src/shared/contracts.ts"
-    ],
-    [
-      "electron/bootstrap/host-status-ipc.ts",
       "src/shared/login-scan.ts"
     ],
     [
       "electron/bootstrap/host-status-ipc.ts",
       "src/shared/network-policy.ts"
+    ],
+    [
+      "electron/bootstrap/host-status-ipc.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/bootstrap/host-status-ipc.ts",
@@ -992,7 +997,7 @@
     ],
     [
       "electron/bootstrap/provider-ipc.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/bootstrap/provider-ipc.ts",
@@ -1040,7 +1045,7 @@
     ],
     [
       "electron/bootstrap/providers.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/bootstrap/providers.ts",
@@ -1155,6 +1160,10 @@
       "src/shared/contracts.ts"
     ],
     [
+      "electron/bootstrap/settings-ipc.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
       "electron/bootstrap/state-core.ts",
       "electron/bootstrap/boot-module.ts"
     ],
@@ -1221,6 +1230,10 @@
     [
       "electron/bootstrap/task-creation-ipc.ts",
       "src/shared/contracts.ts"
+    ],
+    [
+      "electron/bootstrap/task-creation-ipc.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/bootstrap/task-creation-ipc.ts",
@@ -1668,6 +1681,10 @@
     ],
     [
       "electron/commander/main-commander.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "electron/commander/main-commander.ts",
       "src/shared/result-validator.ts"
     ],
     [
@@ -1928,7 +1945,7 @@
     ],
     [
       "electron/commander/web-recovery.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/commander/workbook-dispatch.ts",
@@ -2041,6 +2058,10 @@
     [
       "electron/commander/workbook-production.ts",
       "src/shared/owner-result.ts"
+    ],
+    [
+      "electron/commander/workbook-production.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/commander/workbook-production.ts",
@@ -2967,6 +2988,10 @@
       "src/shared/contracts.ts"
     ],
     [
+      "electron/evidence-engine.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
       "electron/experience/experience-recorder.ts",
       "electron/commander/event-bus.ts"
     ],
@@ -3396,15 +3421,15 @@
     ],
     [
       "electron/input/attachment-router.ts",
-      "src/shared/contracts.ts"
-    ],
-    [
-      "electron/input/attachment-router.ts",
       "src/shared/input-object.ts"
     ],
     [
       "electron/input/attachment-router.ts",
       "src/shared/provider-capabilities.ts"
+    ],
+    [
+      "electron/input/attachment-router.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/input/attachment-store.ts",
@@ -3448,11 +3473,11 @@
     ],
     [
       "electron/input/provider-capability-registry.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-capabilities.ts"
     ],
     [
       "electron/input/provider-capability-registry.ts",
-      "src/shared/provider-capabilities.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/knowledge/knowledge-base.ts",
@@ -4132,6 +4157,10 @@
     ],
     [
       "electron/main.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "electron/main.ts",
       "src/shared/provider-policy.ts"
     ],
     [
@@ -4280,6 +4309,10 @@
     ],
     [
       "electron/preload.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "electron/preload.ts",
       "src/shared/research-protocol.ts"
     ],
     [
@@ -4368,7 +4401,7 @@
     ],
     [
       "electron/provider-api.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/provider-automation.ts",
@@ -4424,7 +4457,7 @@
     ],
     [
       "electron/provider-automation.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/provider-automation.ts",
@@ -4437,6 +4470,10 @@
     [
       "electron/provider-views.ts",
       "src/shared/contracts.ts"
+    ],
+    [
+      "electron/provider-views.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/provider-views.ts",
@@ -5804,6 +5841,10 @@
     ],
     [
       "electron/store.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "electron/store.ts",
       "src/shared/result-validator.ts"
     ],
     [
@@ -5833,6 +5874,10 @@
     [
       "electron/tasks/task-inputs.ts",
       "src/shared/input-object.ts"
+    ],
+    [
+      "electron/tasks/task-inputs.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "electron/telemetry/telemetry-recorder.ts",
@@ -6176,6 +6221,10 @@
     ],
     [
       "src/renderer/components/ManagerPanel.tsx",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "src/renderer/components/ManagerPanel.tsx",
       "src/shared/provider-policy.ts"
     ],
     [
@@ -6289,6 +6338,10 @@
     [
       "src/renderer/main.tsx",
       "src/shared/project-tree.ts"
+    ],
+    [
+      "src/renderer/main.tsx",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "src/renderer/main.tsx",
@@ -6504,6 +6557,10 @@
     ],
     [
       "src/shared/contracts.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "src/shared/contracts.ts",
       "src/shared/provider-intelligence.ts"
     ],
     [
@@ -6553,6 +6610,10 @@
     [
       "src/shared/council-engine.ts",
       "src/shared/contracts.ts"
+    ],
+    [
+      "src/shared/council-engine.ts",
+      "src/shared/provider-contracts.ts"
     ],
     [
       "src/shared/desktop-black-box-contract.ts",
@@ -6672,7 +6733,7 @@
     ],
     [
       "src/shared/login-scan.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "src/shared/login-scan.ts",
@@ -6712,11 +6773,15 @@
     ],
     [
       "src/shared/provider-capabilities.ts",
-      "src/shared/contracts.ts"
+      "src/shared/input-object.ts"
     ],
     [
       "src/shared/provider-capabilities.ts",
-      "src/shared/input-object.ts"
+      "src/shared/provider-contracts.ts"
+    ],
+    [
+      "src/shared/provider-contracts.ts",
+      "src/shared/execution.ts"
     ],
     [
       "src/shared/provider-intelligence.ts",
@@ -6732,7 +6797,7 @@
     ],
     [
       "src/shared/provider-policy.ts",
-      "src/shared/contracts.ts"
+      "src/shared/provider-contracts.ts"
     ],
     [
       "src/shared/provider-profile.ts",
@@ -7195,6 +7260,10 @@
       "src/shared/contracts.ts"
     ],
     [
+      "src/shared/task-presentation.ts",
+      "src/shared/provider-contracts.ts"
+    ],
+    [
       "src/shared/task-timeline.ts",
       "src/shared/contracts.ts"
     ],
@@ -7347,7 +7416,64 @@
       "src/shared/workspace-path.ts"
     ]
   ],
-  "retired_edges": [],
+  "retired_edges": [
+    [
+      "electron/account-sessions.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/adapters/registry.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/api-settings.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/bootstrap/host-status-ipc.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/bootstrap/provider-ipc.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/bootstrap/providers.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/commander/web-recovery.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/input/attachment-router.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/input/provider-capability-registry.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/provider-api.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "electron/provider-automation.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "src/shared/login-scan.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "src/shared/provider-capabilities.ts",
+      "src/shared/contracts.ts"
+    ],
+    [
+      "src/shared/provider-policy.ts",
+      "src/shared/contracts.ts"
+    ]
+  ],
   "unresolved": [
     {
       "from": "src/renderer/main.tsx",
@@ -7371,11 +7497,11 @@
   ],
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
-    "tracked_source_files": 612,
-    "declared_owned_files": 25,
+    "tracked_source_files": 613,
+    "declared_owned_files": 26,
     "undeclared_files": 587,
-    "internal_edges": 1671,
+    "internal_edges": 1688,
     "unresolved_references": 1
   },
-  "baseline_hash": "b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e"
+  "baseline_hash": "98d648dcc2f1a02774156c9f91d8f8e5e6b19c9ea8a78a627120a563888a0925"
 }

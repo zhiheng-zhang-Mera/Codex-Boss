@@ -75,7 +75,16 @@ describe("P2-A increment 2 — the cross-capability edge inventory", () => {
     expect(edges.totalCrossCapabilityFileEdges, "no cross-capability edge was found at all, which would mean the scanner is broken").toBeGreaterThan(100);
     expect(edges.distinctCapabilityPairs).toBeGreaterThan(50);
     // Essentially nothing is declared: this is why the ratchet reads 3 edges while the tree has hundreds.
-    expect(edges.fullyDeclaredCrossCapabilityEdges, "an edge was found with both endpoints declared, which contradicts the manifests' 25 declared paths").toBe(0);
+    //
+    // This read `.toBe(0)`, with the message "an edge was found with both endpoints declared, which contradicts
+    // the manifests' 25 declared paths". The contradiction it named was REAL, and declaring the provider contract
+    // in `providers.yaml` resolved it rather than hiding it: 26 paths are declared now, so an edge with both
+    // endpoints declared can exist and four of them do (the feature boot modules that name a provider type). The
+    // property that must still hold -- and that P2-A step 4 must not quietly break -- is that declarations cover a
+    // SMALL part of the graph. When they cover most of it this measurement has stopped being the work list, so the
+    // class is bounded as a fraction of the whole rather than pinned to a literal that every declaration would
+    // invalidate.
+    expect(edges.fullyDeclaredCrossCapabilityEdges, "declared edges now dominate the graph, so this measurement is no longer the undeclared work list").toBeLessThan(edges.totalCrossCapabilityFileEdges / 10);
     expect(edges.realPairsUndeclared, "the pairs are now declared -- P2-A has landed").toBeGreaterThan(100);
     expect(inventory.report.declaredRequirementPairs.length, "no requirement is declared at all, so the manifests are empty").toBeGreaterThan(0);
   });

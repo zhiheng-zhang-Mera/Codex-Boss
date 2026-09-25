@@ -13,7 +13,8 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { migrateBrowserProfile, migrateLegacyPersistentData, runtimeRoots } from "./runtime-paths";
-import type { AppSnapshot, CreateConversationInput, CreateTaskInput, CustomProviderInput, Provider, ProviderId, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, CreateConversationInput, CreateTaskInput, ViewBounds } from "../src/shared/contracts";
+import type { CustomProviderInput, Provider, ProviderId } from "../src/shared/provider-contracts";
 import type { RuntimeAvailability } from "./runtimes/runtime";
 import { DEFAULT_PROVIDER_IDS, MAX_ACTIVE_PROVIDERS, normalizeCustomProviderInput } from "../src/shared/provider-policy";
 import { buildPeerReviewPrompts, buildSynthesisPrompts, extractCouncilFindings } from "../src/shared/council-engine";
@@ -1034,7 +1035,7 @@ if (ownsInstance) app.whenReady().then(() => {
   bootModules.push(createHostStatusIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
     host: {
-      accounts: () => store.snapshot().accounts.map((account) => ({ providerId: account.providerId, mode: account.mode as import("../src/shared/contracts").ProviderAccountMode | undefined })),
+      accounts: () => store.snapshot().accounts.map((account) => ({ providerId: account.providerId, mode: account.mode as import("../src/shared/provider-contracts").ProviderAccountMode | undefined })),
       sessionLifecycles: () => sessionLifecycleLedger?.list() ?? [],
       nodeRegistry: () => nodeRegistry,
       githubMachine: () => githubMachine,

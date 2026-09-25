@@ -5,7 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 import {
   baselineProfileFor,
   mergeCapabilityProfiles,

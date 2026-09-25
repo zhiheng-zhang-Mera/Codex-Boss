@@ -1,7 +1,7 @@
 import { continuationFor } from "./commander/continuation-router";
 import type { RuntimeRequest, RuntimeResult } from "./runtimes/runtime";
 import { SemanticRuntime } from "./computer/semantic-runtime";
-import type { Provider, ProviderId, ProviderRun } from "../src/shared/contracts";
+import type { Provider, ProviderId, ProviderRun } from "../src/shared/provider-contracts";
 import { adapterFor } from "./adapters/registry";
 import { prepareScript, probeScript, sendScript, uploadFilesScript, verifyPromptScript, verifyUploadScript, type PageProbe } from "./adapters/page-scripts";
 import type { AttachmentStore } from "./input/attachment-store";

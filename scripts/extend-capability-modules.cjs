@@ -34,6 +34,9 @@ const EXTRA = {
     "electron/input/provider-capability-registry.ts",
     "electron/input/github-resolver.ts",
     "src/shared/provider-capabilities.ts",
+    // The provider contract closure, extracted from src/shared/contracts.ts so that the provider types are owned
+    // by the capability they describe rather than by `status`. See docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md.
+    "src/shared/provider-contracts.ts",
     "src/shared/provider-intelligence.ts",
     "src/shared/provider-outcome.ts",
     "src/shared/provider-policy.ts",

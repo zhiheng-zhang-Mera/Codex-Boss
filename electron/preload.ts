@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSnapshot, BossBridge, CreateConversationInput, CreateTaskInput, CustomProviderInput, ProviderId, TaskStatus, UpdateApiSettingInput, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
+import type { AppSnapshot, BossBridge, CreateConversationInput, CreateTaskInput, TaskStatus, UpdateRemoteChannelInput, ViewBounds } from "../src/shared/contracts";
+import type { CustomProviderInput, ProviderId, UpdateApiSettingInput } from "../src/shared/provider-contracts";
 
 const bridge: BossBridge = {
   snapshot: () => ipcRenderer.invoke("boss:snapshot"),

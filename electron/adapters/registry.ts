@@ -1,4 +1,4 @@
-import type { Provider, ProviderId } from "../../src/shared/contracts";
+import type { Provider, ProviderId } from "../../src/shared/provider-contracts";
 
 export interface AdapterDefinition {
   providerId: ProviderId;

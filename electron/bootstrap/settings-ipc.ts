@@ -1,6 +1,7 @@
 import type { BootModule, IpcRegistrar } from "./boot-module";
 import { requireProvider } from "./shared/require-provider";
-import type { RoleRouteView, UpdateApiSettingInput, UpdateRemoteChannelInput } from "../../src/shared/contracts";
+import type { RoleRouteView, UpdateRemoteChannelInput } from "../../src/shared/contracts";
+import type { UpdateApiSettingInput } from "../../src/shared/provider-contracts";
 
 /**
  * Settings and pane-control IPC (convergence book, Phase F/G).

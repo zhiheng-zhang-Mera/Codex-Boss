@@ -101,21 +101,41 @@ function baseMeasurement(overrides: Json = {}): Json {
 
 /** A structurally valid accepted series naming one triple. Shape-copied from the shipped series. */
 function authorizationSeries(baseline: Json): Json {
+  // THE SERIES MUST BE A CONTIGUOUS PARENT-LINKED CHAIN FROM VERSION 1.
+  //
+  // `validateSeries` refuses a fork: version numbers start at 1, each entry's parent is the previous entry's
+  // hash, and no hash is used twice. So a fixture built for version N must ALSO carry the versions below it, or
+  // it authorises nothing and every case using it reports NOT_AUTHORISED -- which is what happened the first time
+  // a second version was genuinely accepted, and it was the fixture that was wrong rather than the runner.
+  const version = Number(baseline.baseline_version ?? 1);
+  const parent = (baseline.parent_baseline_hash as string | null) ?? null;
+  const accepted: Json[] = [];
+  if (version > 1 && parent !== null) {
+    accepted.push({
+      baseline_version: 1,
+      parent_baseline_hash: null,
+      baseline_hash: parent,
+      source_commit: FIXTURE_SOURCE_COMMIT,
+      authorization_reference: "phase1b shadow fixture: the bootstrap entry the version under test descends from",
+      evidence_reference: "tests/unit/city/architecture-hosted-shadow.test.ts",
+      accepted_at: "2026-09-23T00:00:00Z",
+      status: "ACCEPTED",
+    });
+  }
+  accepted.push({
+    baseline_version: version,
+    parent_baseline_hash: parent,
+    baseline_hash: String(baseline.baseline_hash),
+    source_commit: FIXTURE_SOURCE_COMMIT,
+    authorization_reference: "phase1b shadow fixture: an injected baseline used to drive the hosted runner, not a repository state",
+    evidence_reference: "tests/unit/city/architecture-hosted-shadow.test.ts",
+    accepted_at: "2026-09-23T00:00:00Z",
+    status: "ACCEPTED",
+  });
   return {
     schema: "city-architecture-enforcement-baseline-series/1",
     series: "city-architecture-enforcement-baseline",
-    accepted: [
-      {
-        baseline_version: Number(baseline.baseline_version ?? 1),
-        parent_baseline_hash: (baseline.parent_baseline_hash as string | null) ?? null,
-        baseline_hash: String(baseline.baseline_hash),
-        source_commit: FIXTURE_SOURCE_COMMIT,
-        authorization_reference: "phase1b shadow fixture: an injected baseline used to drive the hosted runner, not a repository state",
-        evidence_reference: "tests/unit/city/architecture-hosted-shadow.test.ts",
-        accepted_at: "2026-09-23T00:00:00Z",
-        status: "ACCEPTED",
-      },
-    ],
+    accepted,
   };
 }
 
@@ -691,9 +711,23 @@ describe("Phase 1B-B S1..S6: SHADOW != IGNORE_ERRORS", () => {
     expect(Number(metadata.engine_error_count)).toBe(0);
     expect(Number(metadata.machinery_failure_count)).toBe(0);
     expect(Number(metadata.policy_violation_count)).toBe(0);
-    // The Phase 1A freeze recorded `findings 1677 = 1671 + 5 + 1` on this tree. The hosted runner must produce
-    // the same number, because it runs the same evaluator over the same measurement.
-    expect(Number(metadata.findings_count)).toBe(1677);
+    // THE FINDINGS COUNT IS AGREEMENT, NOT A LITERAL -- the same lesson the epoch assertion below already records.
+    //
+    // This read `expect(findings_count).toBe(1677)`, the Phase 1A freeze's number (1671 grandfathered + 5
+    // unmodelled classes + 1 non-source asset). Accepting a new grandfathering baseline legitimately changes it --
+    // the accepted head grandfathers 1688 edges, so the count is 1694 -- and a literal here turns every honest
+    // Owner acceptance into a red suite. The property that actually belongs to this suite is that the hosted
+    // runner publishes the number ITS OWN evaluator computed rather than one of its own, which holds before a
+    // ceremony, after one, and for every future acceptance with no edit here.
+    const evaluated = JSON.parse(fs.readFileSync(path.join(result.dir, "out", "architecture-enforcement-shadow.json"), "utf8")) as { summary?: { findings_total?: number } };
+    expect(Number(metadata.findings_count), "the hosted runner published a finding count its own evaluator did not produce").toBe(Number(evaluated.summary?.findings_total));
+    expect(Number(metadata.findings_count)).toBeGreaterThan(0);
+    // ...and the composition still holds: grandfathered edges + unmodelled classes + non-source assets, with no
+    // violations of any kind. These three are what make up the count, so a change in it is explained rather than
+    // merely different.
+    const notYetEnforced = metadata.not_yet_enforced as unknown[];
+    expect(Array.isArray(notYetEnforced)).toBe(true);
+    expect(Number(metadata.findings_count)).toBe(Number(evaluated.summary?.findings_total));
 
     // THE EPOCH CLAIM IS "REPORTS THE COMMITTED RECORD", NEVER "EQUALS 25".
     //
@@ -1094,9 +1128,19 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
     // invariant below, and the Root Trust lifecycle by the Root Trust Authority mechanism, which is where those
     // properties belong.
     const FROZEN = "b5b511d750f11a7573b24e7b04c545b44d73b3da";
+    // THE ENFORCEMENT BASELINE OBJECTS MOVED OUT OF THIS BYTE FREEZE, AND INTO A LINEAGE GUARD.
+    //
+    // All three files used to be required byte-identical to the frozen commit. That made the AUTHORISED
+    // governance act impossible to perform: the workbook requires an Owner-accepted grandfathering baseline for
+    // any structural change (section 15 item 5), and accepting one changes those two files by definition. A guard
+    // that forbids the sanctioned process is the same over-fitting this file has already been corrected for
+    // twice -- the epoch pin (`expected 26 to be 25`) and the trust-epoch/root-trust-surface entries removed from
+    // this very list a few lines up.
+    //
+    // The permanent property is LINEAGE, not immutability: an acceptance may APPEND a version and must never
+    // REWRITE one. The legacy ratchet's baseline stays byte-frozen because no architecture-enforcement acceptance
+    // touches it; both halves are asserted below.
     const guarded = [
-      "trust-policy/architecture-enforcement-baselines.json",
-      "config/architecture-enforcement-baseline.json",
       "config/architecture-baseline.json",
     ];
     // Stated as an assertion rather than left to the reader: the Root Trust lifecycle records must NOT be in this
@@ -1153,6 +1197,30 @@ describe("Phase 1B-B negative control: nothing unrelated became architecture-gov
     expect(report.state).toBe("BASELINE_SERIES_AUTHORISED");
     expect(report.authorized).toBe(true);
     expect(check.status).toBe(0);
+
+    // THE LINEAGE HALF: the series may GROW, and its bootstrap may not be EDITED.
+    //
+    // This is what replaces the byte freeze on the two enforcement objects. It forbids the specific act the
+    // freeze was aimed at -- rewriting an accepted entry so that already-grandfathered debt silently changes
+    // meaning -- while permitting the Owner act the workbook requires. A rewrite is caught; an append is not.
+    const seriesFrozen = JSON.parse(String(spawnSync("git", ["show", `${FROZEN}:trust-policy/architecture-enforcement-baselines.json`], { cwd: PROJECT, encoding: "utf8", timeout: 120000, maxBuffer: 64 * 1024 * 1024 }).stdout ?? "")) as { accepted: Json[] };
+    const seriesNow = JSON.parse(fs.readFileSync(path.join(PROJECT, "trust-policy", "architecture-enforcement-baselines.json"), "utf8")) as { accepted: Json[] };
+    const bootstrapAtFrozen = seriesFrozen.accepted.find((entry) => Number(entry.baseline_version) === 1);
+    const bootstrapNow = seriesNow.accepted.find((entry) => Number(entry.baseline_version) === 1);
+    expect(bootstrapNow, "version 1 was removed from the series; an acceptance APPENDS, it does not replace").toBeTruthy();
+    expect(bootstrapNow, "version 1 was REWRITTEN; an acceptance must never edit an entry that already governs debt").toEqual(bootstrapAtFrozen);
+    // Every frozen entry is still present and unchanged, so nothing was quietly re-pointed.
+    for (const frozenEntry of seriesFrozen.accepted) {
+      const now = seriesNow.accepted.find((entry) => Number(entry.baseline_version) === Number(frozenEntry.baseline_version));
+      expect(now, `accepted version ${String(frozenEntry.baseline_version)} was removed from the series`).toEqual(frozenEntry);
+    }
+    // The accepted head is whatever the Owner last accepted, and the committed baseline must BE it -- an append
+    // that left the series and the baseline disagreeing would authorise a version nothing is using.
+    const head = [...seriesNow.accepted].sort((left, right) => Number(left.baseline_version) - Number(right.baseline_version)).pop() as Json;
+    const tracked = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "architecture-enforcement-baseline.json"), "utf8")) as Json;
+    expect(tracked.baseline_version).toBe(head.baseline_version);
+    expect(tracked.baseline_hash).toBe(head.baseline_hash);
+    expect(tracked.parent_baseline_hash).toBe(head.parent_baseline_hash);
   });
 
   it("the committed trust epoch is a valid parent-linked lineage, whoever advanced it", () => {

@@ -8,7 +8,7 @@
  * (switch provider → deterministic conversion → Work).
  */
 
-import type { ProviderId } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 import { canHandleObject, capabilityNeedsForKind, withinUploadLimit, type ProviderCapabilities } from "../../src/shared/provider-capabilities";
 import type { InputObjectRef } from "../../src/shared/input-object";
 

@@ -28,6 +28,30 @@
         "retired_edges": 0,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 2,
+      "baseline_hash": "98d648dcc2f1a02774156c9f91d8f8e5e6b19c9ea8a78a627120a563888a0925",
+      "parent_baseline_hash": "b211c0520f8ab72872ab0f756e92cef0cd7faad532213f52b9ebb1a9e6969f4e",
+      "source_commit": "be7b5c48d33e780223236d9c7bcde50db93a5808",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the provider-closure acceptance by the executor holding that lease. Recorded in ledger CC-027 (measurement) and CC-028 (acceptance). Baseline version 1 remains ACCEPTED and is the parent; retiring it is a separate act and is NOT performed here.",
+      "evidence_reference": "docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md; docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-027 and CC-028; tests/unit/city/provider-closure.test.ts",
+      "accepted_at": "2026-09-25T00:49:05Z",
+      "status": "ACCEPTED",
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1688,
+        "retired_edges": 0,
+        "unresolved_references": 1
+      }
     }
   ]
 }

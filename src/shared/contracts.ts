@@ -2,31 +2,39 @@ import type { ExecutionPhase, ReviewPolicy, ReviewResult, WorkerResponse } from 
 import type { InputObjectRef } from "./input-object";
 import type { InteractionMode, ModeTransition } from "./capability-needs";
 import type { WorkAgentCount, WorkRole } from "./work-mode";
-export type ProviderId = string;
+import type {
+  ApiProviderSetting,
+  CustomProviderInput,
+  Provider,
+  ProviderAccountState,
+  ProviderId,
+  ProviderRun,
+  RunTransport,
+  UpdateApiSettingInput
+} from "./provider-contracts";
+
+/**
+ * BRIDGE P2A-BRIDGE-01 — `ProviderId` is re-exported from here for the five `tests/acceptance/**` suites that
+ * import it from `./contracts`, so that the provider closure could move WITHOUT the Root Trust Surface moving.
+ *
+ * `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` permits a temporary bridge only when it declares its own
+ * exit; this one does, in `docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md`. Deliberately ONE symbol wide: every other
+ * importer of the moved types was re-pointed in the same commit, so the bridge cannot quietly become the place
+ * the whole closure still lives. Deleting it is the last act of the migration, and it is deferred only because
+ * `tests/acceptance/**` is Root Trust Surface and changing it for this reason alone would cost an epoch ceremony.
+ */
+export type { ProviderId } from "./provider-contracts";
+
 export type TaskStatus = "queued" | "running" | "waiting" | "paused" | "cancelled" | "completed" | "failed";
 export type TaskMode = "direct" | "council";
 export type AppMode = "chat" | "work";
-export type RunTransport = "web" | "api";
-export type ApiProtocol = "openai-compatible" | "anthropic" | "gemini";
-export type AdapterOutcome = "SUCCESS" | "RETRYABLE_FAILURE" | "AUTH_REQUIRED" | "RATE_LIMITED" | "PAGE_CHANGED" | "FORMAT_INVALID" | "USER_ACTION_REQUIRED" | "UNSUPPORTED";
-export type ProviderRunPhase = "queued" | "opening" | "prepared" | "sending" | "waiting" | "completed" | "failed" | "blocked";
 export type CouncilStage = "proposals" | "peer_review" | "synthesis" | "rehydration" | "completed" | "blocked";
 export type ClaimStatus = "UNVERIFIED" | "REFERENCED_NOT_VERIFIED" | "DISPUTED" | "INSUFFICIENT";
 export type EvidenceDecision = "HOLD_FOR_REVIEW" | "READY_FOR_USER_REVIEW" | "PASS";
-export type ProviderAccountMode = "UNKNOWN" | "GUEST_READY" | "AUTH_REQUIRED" | "READY";
 export type DispatchCheckpointStatus = "PREPARING" | "COLLECTING" | "COMMITTED" | "ROLLED_BACK";
 export type RemoteChannel = "wechat" | "qq";
 export type RemoteChannelStatus = "disabled" | "waiting" | "ready" | "error";
 export type RemoteCommandStatus = "pending" | "loaded" | "dismissed";
-
-export interface Provider {
-  id: ProviderId;
-  name: string;
-  url: string;
-  accent: string;
-  windowOpen: boolean;
-  isCustom: boolean;
-}
 
 export interface BossTask {
   parentTaskId?: string;
@@ -94,27 +102,6 @@ export interface BossTask {
   mode: TaskMode;
   appMode: AppMode;
   transportByProvider: Record<ProviderId, RunTransport>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ProviderRun {
-  response?: WorkerResponse;
-  review?: ReviewResult;
-  attempts?: number;
-  responseBaseline?: string;
-  sessionUrl?: string;
-  id: string;
-  taskId: string;
-  providerId: ProviderId;
-  transport: RunTransport;
-  round: number;
-  phase: ProviderRunPhase;
-  outcome: AdapterOutcome | null;
-  message: string;
-  inputPrompt: string;
-  adapterVersion: string;
-  artifactId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -223,15 +210,6 @@ export interface RuntimeStatusView {
 
 export interface RoleRouteView { role: "planner" | "researcher" | "reviewer" | "synthesizer" | "coder" | "validator" | "critic"; runtimeIds: string[]; fallback: boolean; }
 
-export interface ProviderAccountState {
-  providerId: ProviderId;
-  partition: string;
-  mode: ProviderAccountMode;
-  persistent: true;
-  message: string;
-  updatedAt: string;
-}
-
 export interface DispatchCheckpoint {
   id: string;
   taskId: string;
@@ -243,18 +221,6 @@ export interface DispatchCheckpoint {
   requiresReconciliation: boolean;
   message: string;
   createdAt: string;
-  updatedAt: string;
-}
-
-export interface ApiProviderSetting {
-  providerId: ProviderId;
-  enabled: boolean;
-  protocol: ApiProtocol;
-  baseUrl: string;
-  model: string;
-  hasApiKey: boolean;
-  /** Last 4 chars of the stored key for masked display (sk-••••42A9). Never the full key. */
-  keyTail?: string;
   updatedAt: string;
 }
 
@@ -302,16 +268,6 @@ export interface BossConversation {
   inputObjects?: InputObjectRef[];
   /** Archived conversations are hidden from the default list but never deleted. */
   archived?: boolean;
-}
-
-export interface UpdateApiSettingInput {
-  providerId: ProviderId;
-  enabled: boolean;
-  protocol: ApiProtocol;
-  baseUrl: string;
-  model: string;
-  apiKey?: string;
-  clearApiKey?: boolean;
 }
 
 export interface AuditEvent {
@@ -395,11 +351,6 @@ export interface CreateTaskInput {
 export interface CreateConversationInput {
   folderId: string;
   title: string;
-}
-
-export interface CustomProviderInput {
-  name: string;
-  url: string;
 }
 
 export interface ViewBounds {

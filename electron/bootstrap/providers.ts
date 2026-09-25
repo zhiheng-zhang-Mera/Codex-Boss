@@ -5,7 +5,7 @@ import type { RuntimeRegistry } from "../commander/runtime-registry";
 import { ProviderApiClient } from "../provider-api";
 import { ApiRuntime } from "../runtimes/native-api-runtime";
 import { createGitHubMachineRuntime } from "../github/github-machine-runtime";
-import type { Provider, ProviderId } from "../../src/shared/contracts";
+import type { Provider, ProviderId } from "../../src/shared/provider-contracts";
 import type { WorkspaceViewState } from "../../src/shared/workspace-layout";
 
 /**

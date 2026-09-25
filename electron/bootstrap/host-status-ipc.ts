@@ -2,7 +2,7 @@ import type { BootModule, IpcRegistrar } from "./boot-module";
 import { loginScan } from "../../src/shared/login-scan";
 import { probeNetwork } from "../../src/shared/network-policy";
 import { inspectDevice } from "../node/node-inspector";
-import type { ProviderAccountMode } from "../../src/shared/contracts";
+import type { ProviderAccountMode } from "../../src/shared/provider-contracts";
 import type { SessionLifecycle } from "../../src/shared/session-lifecycle";
 
 /**

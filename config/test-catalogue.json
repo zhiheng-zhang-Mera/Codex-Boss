@@ -392,7 +392,6 @@
       "covers": [
         "persistence",
         "providers",
-        "status",
         "tenx",
         "workspace"
       ]
@@ -568,6 +567,15 @@
         "runtime"
       ],
       "obligation": "the cross-capability edge inventory agrees with the repository's own edge definition (a real import resolves through it, a bare package specifier stays unresolved rather than becoming an internal edge, and the ownership map's directory-prefix rule is mirrored so the work list and the selector cannot disagree), measures the real tree rather than a subset (hundreds of owned files, 27 capabilities, the declared-path deficit, hundreds of cross-capability edges over dozens of pairs, zero edges with both endpoints declared), names both classes the programme must drive to zero (kernel -> feature edges and mutual capability pairs, neither zero yet, every kernel -> feature pair starting with a kernel capability), and pins the state of the historical inversion electron/bootstrap/persistence.ts -> electron/runtime-intelligence/live-capture that the workbook forbids assuming away, so the case asserting it is still live is the case a repair must change deliberately rather than the number drifting silently; it also keeps the mutual-pair list a work list rather than a verdict by distinguishing a strongly asymmetric pair, which is usually a missing contract, from a genuine two-way cycle",
+      "alwaysRun": true
+    },
+    {
+      "file": "tests/unit/city/provider-closure.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "the provider contract closure owns its own types and no importer was left behind: the new module exports every moved symbol, contracts.ts no longer DECLARES any of them, and the new module deliberately does NOT import contracts.ts because a back-edge would make the two shared modules mutually dependent and raise the providers/status mutual pair the P2-C ratchet guards; the specifier is RESOLVED against the importing file rather than suffix-matched, because a file inside src/shared writes ./contracts and a suffix test on the raw specifier silently misses every straggler in the same directory as the module -- the first version of this helper did exactly that, and a deliberately reverted import was NOT caught until the resolution was added; no electron/ or src/ file still routes a moved type through the old module, and the ONLY remaining importers are exactly the five bridged Root Trust suites, asserted as an exact set so that a new straggler and a silently retired bridge both fail; the bridge is a single re-export statement exactly one symbol wide with ProviderId alone, its id appears in the source where the constraint applies, and it is declared in a tracked document carrying BRIDGE_ID, OWNER, REASON, SOURCE, TARGET, EXIT_CONDITION, DEADLINE/PHASE and TESTS, with a stated exit rather than an implied one and a TESTS field naming a file that exists",
       "alwaysRun": true
     },
     {
@@ -2231,8 +2239,8 @@
       "tier": "unit",
       "covers": [
         "persistence",
+        "providers",
         "research",
-        "status",
         "tasks",
         "tenx"
       ]

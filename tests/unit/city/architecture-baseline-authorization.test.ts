@@ -34,7 +34,12 @@ const series = require_("../../../scripts/architecture-baseline-series.cjs") as 
   authorizeTriple: (value: unknown, triple: Record<string, unknown>) => { authorized: boolean; entry: Record<string, unknown> | null; problems: Array<{ code: string }> };
   verifyGoverningBaseline: (options?: Record<string, unknown>) => { ok: boolean; code: string | null; problems: Array<{ code: string; detail: string | null }>; triple: Record<string, unknown> | null };
   diffBaselines: (parent: unknown, candidate: unknown) => Record<string, string[][] & string[]>;
+  /** The accepted head, and its ordered predecessors. Used so a case asserts AGREEMENT rather than a literal. */
+  acceptedEntries: (value: unknown) => Array<Record<string, unknown>>;
+  headEntry: (value: unknown) => Record<string, unknown> | null;
 };
+
+const SERIES_FILE = path.join(process.cwd(), "trust-policy", "architecture-enforcement-baselines.json");
 
 const ENGINE = "scripts/architecture-enforcement.cjs";
 const GENERATOR = "scripts/architecture-enforcement-baseline.cjs";
@@ -240,7 +245,13 @@ describe("phase 1b-a: the shipped CLI enforces the same rules", () => {
     expect(summary.artifact_integrity).toBe(true);
     expect(summary.candidate_tree_matches_frozen).toBe(true);
     expect(summary.series_authorized).toBe(true);
-    expect(String(summary.authorization_reference ?? "")).toContain("PR #12");
+    // The reference is checked for AGREEMENT with the accepted head rather than against version 1's literal text.
+    // Pinning the literal made this case fail the moment an Owner accepted a second baseline -- a legitimate
+    // governance act, not a regression -- while agreement is the property that must hold for every acceptance.
+    const head = series.headEntry(JSON.parse(fs.readFileSync(SERIES_FILE, "utf8"))) as { authorization_reference?: string } | null;
+    expect(head, "the series names no accepted head").not.toBeNull();
+    expect(String(summary.authorization_reference ?? "")).toBe(String(head?.authorization_reference ?? ""));
+    expect(String(summary.authorization_reference ?? "").length, "the head carries no substantive authorisation reference").toBeGreaterThan(20);
   });
 
   it("the series CLI reports the accepted head", () => {
@@ -248,7 +259,8 @@ describe("phase 1b-a: the shipped CLI enforces the same rules", () => {
     expect(result.status, String(result.stderr ?? "")).toBe(0);
     const payload = parseStdout(result);
     expect(payload.authorized).toBe(true);
-    expect((payload.triple as { baseline_version: number }).baseline_version).toBe(1);
+    const head = series.headEntry(JSON.parse(fs.readFileSync(SERIES_FILE, "utf8"))) as { baseline_version: number } | null;
+    expect((payload.triple as { baseline_version: number }).baseline_version).toBe(head?.baseline_version);
   });
 
   it("an unauthorized injected baseline is refused in BOTH modes, with its own code", () => {
@@ -305,15 +317,29 @@ describe("phase 1b-a: the shipped CLI enforces the same rules", () => {
   });
 });
 
-describe("phase 1b-a: the tracked baseline was not modified by this suite", () => {
-  it("is byte-identical to the hash the series authorizes for version 1", () => {
+describe("phase 1b-a: the tracked baseline IS the accepted head, and its lineage is intact", () => {
+  it("matches the triple the series authorizes for the head, whose parent is a real earlier acceptance", () => {
     const content = fs.readFileSync(TRACKED_BASELINE, "utf8");
     const parsed = JSON.parse(content) as { baseline_version: number; baseline_hash: string; parent_baseline_hash: string | null };
     const governing = series.verifyGoverningBaseline();
     expect(governing.ok).toBe(true);
-    expect(parsed.baseline_version).toBe(1);
-    expect(parsed.parent_baseline_hash).toBeNull();
-    expect(governing.triple).toEqual({ baseline_version: parsed.baseline_version, parent_baseline_hash: null, baseline_hash: parsed.baseline_hash });
+    // The property is AGREEMENT WITH THE HEAD plus LINEAGE, not "version 1". An acceptance is a legitimate Owner
+    // act that ADDS a version; a case that pinned version 1 would have failed on the first honest acceptance,
+    // which is how a guard turns into a reason not to accept anything.
+    const seriesJson = JSON.parse(fs.readFileSync(SERIES_FILE, "utf8"));
+    const entries = series.acceptedEntries(seriesJson);
+    const head = series.headEntry(seriesJson) as { baseline_version: number; baseline_hash: string; parent_baseline_hash: string | null } | null;
+    expect(head, "the series names no accepted head").not.toBeNull();
+    expect(parsed.baseline_version).toBe(head?.baseline_version);
+    expect(parsed.baseline_hash).toBe(head?.baseline_hash);
+    expect(parsed.parent_baseline_hash).toBe(head?.parent_baseline_hash);
+    expect(governing.triple).toEqual({ baseline_version: parsed.baseline_version, parent_baseline_hash: parsed.parent_baseline_hash, baseline_hash: parsed.baseline_hash });
+    // Lineage: the head is not an orphan, and the bootstrap it descends from is still named. An acceptance that
+    // ERASED its parent would be the laundering act this series exists to make impossible.
+    if (parsed.parent_baseline_hash !== null) {
+      expect(entries.some((entry) => entry.baseline_hash === parsed.parent_baseline_hash), "the head's parent is not an accepted entry").toBe(true);
+    }
+    expect(entries.some((entry) => entry.baseline_version === 1), "version 1 was removed from the series rather than superseded").toBe(true);
     // And the content hash really is the recorded one, so nothing above silently re-wrote it.
     expect(crypto.createHash("sha256").update(content, "utf8").digest("hex")).not.toBe("");
   });

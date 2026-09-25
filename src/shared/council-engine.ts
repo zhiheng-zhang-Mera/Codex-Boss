@@ -1,4 +1,5 @@
-import type { CouncilFinding, ProviderId, RawArtifact } from "./contracts";
+import type { CouncilFinding, RawArtifact } from "./contracts";
+import type { ProviderId } from "./provider-contracts";
 
 interface CouncilAnalysis {
   conflicts: CouncilFinding[];

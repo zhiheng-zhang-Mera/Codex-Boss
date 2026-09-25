@@ -2,14 +2,14 @@
   "$comment": "P2-B/P2-C regression ratchet, recorded from a measurement and never hand-tuned. `kernel_to_feature_file_edges` is the number workbook section 16 must drive to ZERO ('foundation -> building implementation edges = 0'); until it is zero this artifact is the floor that stops it silently growing back. Lowering a value here is the whole point of the migration and is done in the same commit that lowers it; raising one requires a recorded reason, because the alternative reading of a rise is a new inversion.",
   "schema": "city-p2b-kernel-feature-ratchet/1",
   "ownership_model": "config/capability-modules.json -- the OWNERSHIP MAP, not the manifests",
-  "measured_at": "2026-09-25T00:05Z",
+  "measured_at": "2026-09-25T01:10Z",
   "measured_by": "node scripts/phase2-edge-inventory.cjs --json",
-  "why_the_model_is_named": "The manifests declare 25 module paths and therefore see 3 capability edges; the ownership map owns 597 files and sees 797 cross-capability file edges. Every number below is meaningless without saying which model produced it, and the legacy `architecture:ratchet` -- which reads the manifests -- cannot see any of these edges at all. That is why this ratchet exists beside it rather than inside it.",
+  "why_the_model_is_named": "The manifests declare 25 module paths and therefore see 3 capability edges; the ownership map owns 596 files (plus 2 composition-root files) and sees 801 cross-capability file edges. Every number below is meaningless without saying which model produced it, and the legacy `architecture:ratchet` -- which reads the manifests -- cannot see any of these edges at all. That is why this ratchet exists beside it rather than inside it.",
   "recorded": {
-    "kernel_to_feature_file_edges": 82,
+    "kernel_to_feature_file_edges": 73,
     "kernel_to_feature_pairs": 25,
     "mutual_capability_pairs": 38,
-    "files_owned": 597,
+    "files_owned": 598,
     "capabilities_with_kinds": 27,
     "composition_root_files": 2
   },
@@ -18,7 +18,7 @@
     "mutual_capability_pairs": 0
   },
   "measured_kernels": ["persistence", "providers", "runtime", "state-core"],
-  "reason": "Recorded after the composition root was re-attributed to the platform (ledger CC-023), which took the kernel -> feature count from 154 edges over 43 pairs to 82 over 25 and the mutual-pair count from 53 to 38, with the owned-file count UNCHANGED at 597 and the total cross-capability edge count UP from 794 to 797 -- the edges were re-attributed, not deleted. The two largest surviving pairs are the next two named misattributions: `providers -> status` (13) is one file, src/shared/contracts.ts, attributed to `status` although 48 importers use it for at least seven independent purposes; and `persistence -> tenx` (11) is one directory, electron/commander/**, attributed to `tenx` although its contents are a task ledger, a budget manager, a context manager and a recovery scheduler.",
+  "reason": "Lowered from 82 to 73 by the provider closure extraction (see docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md): the provider types moved out of src/shared/contracts.ts -- owned by `status` -- into src/shared/provider-contracts.ts, owned by `providers`, and the 30 importers were re-pointed. `providers -> status` fell from 13 edges to 3, and the mutual-pair count was checked BEFORE the move because the two shared modules could have formed a cycle and raised it; it was already a mutual pair, so it stayed at 38. `files_owned` rose from 597 to 598 because the new module is owned rather than unowned. The largest surviving inversion is now `persistence -> tenx` (11), which is one directory, electron/commander/**, attributed to `tenx` although its contents are a task ledger, a budget manager, a context manager and a recovery scheduler.",
   "anti_gaming": {
     "files_owned_is_a_floor": "A drop in edges that comes from a drop in SCANNED FILES is not progress. `files_owned` is asserted to stay at or above its recorded value, so a file cannot be removed from the scanner -- or handed to the composition-root class to make it invisible -- to make the migration look finished.",
     "capabilities_with_kinds_is_pinned": "`kernel` is read from the manifests' `kind` field, so a kernel that lost its kind would silently stop being counted. The kind count is pinned so that cannot happen quietly.",

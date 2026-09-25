@@ -1,5 +1,6 @@
 import { hydrateWorkBookAttachmentPaths } from "../commander/workbook-dispatch";
-import type { CreateTaskInput, ProviderId } from "../../src/shared/contracts";
+import type { CreateTaskInput } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 import type { InputObjectRef } from "../../src/shared/input-object";
 
 /**

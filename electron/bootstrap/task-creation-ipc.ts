@@ -4,7 +4,8 @@ import { taskTransports, titleForTask, workbookAttachments, type InputRefSources
 import { assertPrimaryInput } from "../commander/workbook-dispatch";
 import { MAX_ACTIVE_PROVIDERS } from "../../src/shared/provider-policy";
 import type { MainCommander } from "../commander/main-commander";
-import type { CreateTaskInput, ProviderId } from "../../src/shared/contracts";
+import type { CreateTaskInput } from "../../src/shared/contracts";
+import type { ProviderId } from "../../src/shared/provider-contracts";
 
 /**
  * Creating a task.

@@ -133,6 +133,7 @@
       "src/shared/network-policy.ts",
       "src/shared/perception.ts",
       "src/shared/provider-capabilities.ts",
+      "src/shared/provider-contracts.ts",
       "src/shared/provider-intelligence.ts",
       "src/shared/provider-outcome.ts",
       "src/shared/provider-policy.ts",

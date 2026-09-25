@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { BossTask, ClaimRecord, CouncilSession, DisputeRecord, EvidenceBundle, ProviderId, RawArtifact } from "../src/shared/contracts";
+import type { BossTask, ClaimRecord, CouncilSession, DisputeRecord, EvidenceBundle, RawArtifact } from "../src/shared/contracts";
+import type { ProviderId } from "../src/shared/provider-contracts";
 
 type StructuredClaim = { text?: unknown; evidenceLabels?: unknown };
 
