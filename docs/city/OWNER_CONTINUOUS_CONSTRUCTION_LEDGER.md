@@ -1901,3 +1901,133 @@ research_value              The enforcement finding set was IDENTICAL across eig
                             window counted by run CONCLUSION would have reported 27 where the gate's own
                             evidence supports 36 -- the population you count is part of the claim.
 ```
+
+---
+
+## CC-026 — §16's machine check: a regression floor over the REAL graph, and the judgement kept out of the instrument
+
+```text
+ENTRY_ID                    CC-026
+timestamp_utc               2026-09-25T00:20Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, no ruleset change, no epoch
+                            ceremony, nothing dispatched.
+main_before                 964d7b5ee5c2f38ccff555327334c34a2c7e1090  (five checks green)
+branch                      feat/p2b-kernel-feature-ratchet
+PR                          the PR that carries this entry
+problem                     Workbook section 16 requires, alongside the repair, that a machine check exist "so
+                            this cannot silently regress". Measured: there was none. `scripts/architecture.cjs
+                            ratchet` reads the MANIFESTS, which declare 25 module paths, so it sees 3
+                            capability edges and reports `pass: true` while 82 kernel -> feature edges exist in
+                            the real graph. The legacy ratchet is not wrong -- it is measuring a different tree
+                            -- but nothing measured the tree section 16 is about, so any progress P2-B makes
+                            could be undone by a later commit with every gate still green.
+classification              R2 (real City defect with an understood repair) for the MISSING CHECK. The 82
+                            edges themselves are a work list, not a defect count: two of the three largest
+                            pairs are named attribution errors already recorded in
+                            docs/city/PHASE2_P2A_REATTRIBUTION_ANALYSIS.md.
+normal_path                 Build the measurement's floor as a committed artifact, keep the judgement in its
+                            own program, pin both directions with tests, falsify the pins.
+why_normal_path_was_not_used  Not applicable -- used in full.
+action_taken                Added config/p2b-kernel-feature-ratchet.json (the recorded floor plus its model,
+                            command, reason and zero targets) and scripts/p2b-kernel-feature-ratchet.cjs (the
+                            judge, read-only). Pinned by tests/unit/city/p2b-kernel-feature-ratchet.test.ts
+                            (20 cases) with every floor exercised by a constructed report that violates exactly
+                            it.
+files_or_rules_changed      config/p2b-kernel-feature-ratchet.json                    (new)
+                            scripts/p2b-kernel-feature-ratchet.cjs                     (new, read-only judge)
+                            tests/unit/city/p2b-kernel-feature-ratchet.test.ts         (new, 20 cases)
+                            scripts/generate-test-catalogue.cjs                        (curated entry)
+                            config/test-catalogue.json                                 (290 -> 291 suites)
+                            docs/city/PHASE2_ARCHITECTURE_MIGRATION_SPEC.md            (item 7 recorded; items
+                                                                                        1-6 status refreshed)
+                            docs/city/PHASE2_P2A_RESUMPTION_BRIEF.md                   (section 7 was stale: it
+                                                                                        still said sections 10 and
+                                                                                        11 were NOT STARTED)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md          (this entry)
+```
+
+```text
+WHAT IS RECORDED, AND UNDER WHICH MODEL
+  ownership model   config/capability-modules.json -- the OWNERSHIP MAP, not the manifests
+  measured by       node scripts/phase2-edge-inventory.cjs --json
+
+  kernel -> feature file edges   82      over 25 pairs        TARGET 0   (workbook section 16)
+  mutual capability pairs        38                           TARGET 0   (workbook section 17)
+  owned files                   597      A FLOOR, not a ceiling
+  capabilities with a kind       27      A FLOOR: `kernel` comes from the manifests' kind field
+  composition-root files          2      A FLOOR
+  measured kernels               persistence, providers, runtime, state-core
+
+  The two largest surviving pairs are the next two named misattributions, and the artifact says so:
+    providers -> status   13   ONE FILE, src/shared/contracts.ts, attributed to `status` although 48 importers
+                               use it for at least seven independent purposes  (P2-A increment 2 step 3)
+    persistence -> tenx   11   ONE DIRECTORY, electron/commander/**, attributed to `tenx` although it is a task
+                               ledger, a budget manager, a context manager and a recovery scheduler -- a ROAD,
+                               whose file migration belongs to P2-E
+```
+
+```text
+THE ANTI-GAMING FLOORS, WHICH ARE THE POINT
+  Workbook section 17: "Do not reduce the numbers by hiding files from the scanner." A ratchet on the edge
+  count alone is trivially satisfiable that way, so three FLOORS are asserted beside the two CEILINGS:
+    fewer owned files                -> a file removed from the map, or absorbed by another class to hide its
+                                        edges, is not progress
+    a kernel that lost its kind      -> `kernel` is read from the manifests, so a kernel whose kind changed
+                                        would silently stop being counted while still being a kernel
+    the composition root hidden      -> removing it from the map instead of re-attributing it would delete
+                                        about 95 outgoing edges from the measurement
+  and the composition-root id is refused outright if it ever appears as the SOURCE of a kernel -> feature pair,
+  which is exactly the shape the misattribution in CC-023 had.
+```
+
+```text
+THE JUDGE IS NOT THE INSTRUMENT
+  scripts/phase2-edge-inventory.cjs states its own boundary: "It does not decide whether an edge is a defect
+  ... this program stops at the measurement so the classification cannot be smuggled into the instrument."
+  A threshold inside it would break that contract, so the ratchet is a separate program and a test case FAILS
+  if the inventory ever grows a verdict, a threshold or a reference to the ratchet artifact. The same case
+  fails if the ratchet itself gains a write, so neither program can change what it measures.
+```
+
+```text
+FALSIFICATION, NOT MERELY OBSERVATION (CC-019's lesson)
+  Every recorded value and every floor was violated by a constructed report and the ratchet re-run. Three
+  mutations of the ratchet itself were then applied and all five protected cases failed as intended:
+    disabling the FLOOR violation     -> "fewer scanned files passed the ratchet", "a kernel that lost its kind
+                                          passed the ratchet", "the composition root hidden passed the ratchet"
+    disabling the not-comparable guard -> "an unreadable measurement passed the ratchet"
+    disabling the composition-root test -> "the composition root being counted as a kernel" passed
+  The floor cases are the ones that matter: without them the ratchet would have ratified exactly the manoeuvre
+  section 17 forbids.
+```
+
+```text
+known_risk                  A ratchet is a floor, not a repair: the number is still 82 and the migration to 0
+                            is untouched. The floor is deliberately at the measured value, so it cannot be
+                            read as an acceptance of 82 -- the artifact's `target` block records 0 for both
+                            counts, and the case that reports an improvement fails the build if the recorded
+                            ceiling is left describing a tree that no longer exists (the `--check` discipline
+                            this repository already uses for generated artifacts).
+                            A future LEGITIMATE kernel -> feature edge would fail the ratchet. That is intended:
+                            section 16 defines the target as zero kernel -> feature edges, so there is no
+                            legitimate form of one to admit, and a rise requires a recorded reason.
+rollback                    Delete the two new files and the two test-suite references; nothing else reads
+                            them. No baseline, epoch, ruleset or enforcement artifact was touched.
+temporary_debt_created      no
+debt_id                     none. The 82 edges are a WORK LIST whose next three items are already named.
+exit_condition              Workbook section 16's "Add a machine check so this cannot silently regress" is
+                            satisfied by a committed floor over the real graph, with both directions pinned and
+                            falsified.
+closure_status              CLOSED for the machine check. OPEN for the migration (82 -> 0), which belongs to
+                            P2-B and depends on P2-A increment 2 steps 3 and 4.
+research_value              The interesting part is not the number but where the judgement was put. The
+                            instrument had already, in writing, refused to judge -- and the check section 16
+                            asks for is a judgement. Putting it inside the instrument would have been the
+                            smaller diff and would have quietly repealed the instrument's own stated boundary,
+                            which is the same defect class the paper ledger records three times over: an
+                            artifact whose declared subject and actual object diverge. Second: three of the
+                            five guards are FLOORS rather than ceilings, because the cheapest way to make a
+                            regression gate green is to measure less, and a gate that only counts the thing it
+                            is trying to reduce cannot tell progress from disappearance.
+```

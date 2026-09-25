@@ -315,6 +315,15 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
   5  regenerate the enforcement baseline and obtain the Owner-authorised series entry (see below -- this is
      an Owner act and it moves the Root Trust Surface)
   6  run the validator as a CI step of the `quality` job (today it is enforced through its test)
+  7  (LANDED, increment 2) the P2-B/P2-C regression floor over the REAL graph, which the legacy ratchet cannot
+     see because it reads the manifests: `node scripts/p2b-kernel-feature-ratchet.cjs`, against
+     `config/p2b-kernel-feature-ratchet.json`. It records 82 kernel -> feature file edges over 25 pairs and 38
+     mutual pairs, measured under the OWNERSHIP MAP, and refuses a rise -- including a fall achieved by
+     scanning fewer files, by a kernel losing its kind, or by hiding the composition root, which is what
+     workbook section 17 means by "do not reduce the numbers by hiding files from the scanner". The JUDGE is
+     deliberately a separate program from the INSTRUMENT: the inventory's own header refuses to decide whether
+     an edge is a defect, so the threshold lives beside it and not inside it. Ledger CC-026.
+     STILL OPEN: the migration itself. The target recorded in the artifact is 0 for both counts.
 ```
 
 **The measured disagreement, unchanged by increment 1:**
