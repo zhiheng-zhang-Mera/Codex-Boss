@@ -85,6 +85,22 @@ function runExit(rel, root = ROOT, cache = new Map(), args = []) {
   return run.status;
 }
 
+/**
+ * What a ruleset says about required status checks, read from WHERE IT ACTUALLY LIVES.
+ *
+ * A ruleset has no top-level `parameters`: each RULE carries its own, so the strict flag and the context list are both
+ * on the `required_status_checks` rule. The first version of G3 read `rulesetDetail.parameters.strict_...`, got
+ * `undefined` and reported a FALSE ALARM on a ruleset whose strict policy is in fact true -- the same failure mode as
+ * the G6 bug, and the one a checklist must avoid most, because a false alarm teaches a reader to ignore the list. The
+ * parse is a pure function so a fixture can pin the real shape, which is what a live-only read cannot do.
+ */
+function rulesetFacts(rulesetDetail) {
+  const rules = Array.isArray(rulesetDetail?.rules) ? rulesetDetail.rules : [];
+  const requiredStatusChecks = rules.find((rule) => rule?.type === "required_status_checks");
+  const contexts = rules.flatMap((rule) => rule?.parameters?.required_status_checks ?? []).map((check) => check?.context).filter((context) => typeof context === "string");
+  return { contexts, strict: requiredStatusChecks?.parameters?.strict_required_status_checks_policy ?? undefined, ruleTypes: rules.map((rule) => rule?.type) };
+}
+
 function gh(args) {
   const run = spawnSync("gh", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024, timeout: 120000 });
   if (run.status !== 0) return null;
@@ -118,7 +134,7 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
   const ruleset = hosted ? gh(["api", "repos/{owner}/{repo}/rulesets"]) : null;
   const mainRuleset = Array.isArray(ruleset) ? ruleset.find((entry) => entry?.name === "Main-Protection") ?? ruleset[0] : null;
   const rulesetDetail = mainRuleset && typeof mainRuleset.id === "number" ? gh(["api", `repos/{owner}/{repo}/rulesets/${mainRuleset.id}`]) : null;
-  const contexts = rulesetDetail?.rules?.flatMap((rule) => rule?.parameters?.required_status_checks ?? []).map((check) => check?.context) ?? [];
+  const { contexts, strict } = rulesetFacts(rulesetDetail);
   add("GOVERNANCE", "G2", "architecture is a required status check",
     hosted
       ? (contexts.includes("architecture") ? verdict(PASS, `the live ruleset requires ${contexts.length} contexts including "architecture"`) : verdict(OPEN, `the live ruleset requires ${JSON.stringify(contexts)}, which does not include "architecture"`))
@@ -126,7 +142,7 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
 
   add("GOVERNANCE", "G3", "strict required checks remain active",
     hosted
-      ? (rulesetDetail?.parameters?.strict_required_status_checks_policy === true ? verdict(PASS, "strict_required_status_checks_policy is true") : verdict(OPEN, `strict_required_status_checks_policy is ${JSON.stringify(rulesetDetail?.parameters?.strict_required_status_checks_policy)}`))
+      ? (strict === true ? verdict(PASS, `the live required_status_checks rule reports strict_required_status_checks_policy ${JSON.stringify(strict)}`) : verdict(OPEN, `the live required_status_checks rule reports strict_required_status_checks_policy ${JSON.stringify(strict)}`))
       : verdict(UNVERIFIED, "the live ruleset is not readable from the tree; run with --hosted"));
 
   const negativeControl = exists("docs/city/S2_HOSTED_NEGATIVE_CONTROL_RECORD.md", root) && exists("tests/unit/city/architecture-hosted-shadow.test.ts", root);
@@ -382,4 +398,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, checklist, render, summarise, decideSeal, gh, FINAL_RECORD, FINAL_STATUS, SECTION_ORDER, STATUSES: { PASS, OPEN, UNVERIFIED } };
+module.exports = { main, checklist, render, summarise, decideSeal, rulesetFacts, gh, FINAL_RECORD, FINAL_STATUS, SECTION_ORDER, STATUSES: { PASS, OPEN, UNVERIFIED } };
