@@ -2388,3 +2388,130 @@ research_value              The gate sequence worked exactly as designed and in 
                             exist. An acceptance whose textual justification is load-bearing is a stronger
                             governance artifact than one where the reason is a comment.
 ```
+
+---
+
+## CC-029 — The provider closure LANDED, and epoch 34 clears the stale anchor: the ceremony, and one failed dispatch
+
+```text
+ENTRY_ID                    CC-029
+timestamp_utc               2026-09-25T01:45Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             OWNER ACT. The delegated construction lease (workbook section 0; ledger CC-001) was
+                            exercised twice: to merge a change whose head cannot be green under the documented
+                            L3 bypass, and to authorise the epoch-34 finalization through the protected
+                            environment.
+main_before                 bb9de6610adb8ca56e03c24357c72a0ef6cffcdc  (five checks green)
+main_after                 a390bf3c1cb26e562263a2ac88b69e3490156faa  (five checks green; epoch 34 MATCHES)
+PRs                         #61 (the closure + the acceptance; merged under the L3 bypass)
+                            #62 (the epoch record; merged normally, five checks green)
+workflow_run_ids            epoch: 36081117801 (SUCCESS) ; the same ceremony's first dispatch 36080909852
+                            (FAILED CLOSED at Stage A -- recorded below, not hidden)
+trust_epoch                 33 -> 34 ; aggregate 47859b5f... -> 3012954f... ; epoch_hash b19228be...
+```
+
+```text
+WHAT LANDED
+  src/shared/provider-contracts.ts   NEW, owned by `providers`, holding the whole provider closure
+  30 importers re-pointed            the moved types now come from the module that describes them
+  providers.yaml                     the module DECLARED in `modules` AND published on `surface`
+  ownership map                      regenerated; the new module is owned, not unowned
+  enforcement baseline               version 2 ACCEPTED (CC-028); series entry parent-linked to version 1
+  P2-B ratchet                       floor lowered 82 -> 73 in the same branch
+
+  MEASURED ON MAIN AFTER THE MERGE
+    kernel -> feature                73 / 25 pairs      (was 82 / 25)
+    providers -> status               3                 (was 13)
+    mutual capability pairs          38                 (unchanged; checked as already-mutual BEFORE the move)
+    owned files                     598
+    capability-closure-validator     VERDICT=PASS
+    architecture.cjs ratchet         pass: true
+    architecture:enforce             verdict PASS, violations 0, engine_errors 0, exit 0
+    generate-test-catalogue --check  current, 292 suites
+    acceptance-evolution-bless       epoch 34 (boss-root-trust-34) MATCHES the live surface
+```
+
+```text
+THE L3 BYPASS, AND WHY IT WAS THE DOCUMENTED PATH RATHER THAN A SHORTCUT
+  PR #61 moved three Root Trust Surface facts (the series, the enforcement baseline, and -- through them -- the
+  aggregate), so its head could not be green: `unit` fails on TRUST_EPOCH_ROOT_SURFACE_MISMATCH until a ceremony
+  runs, and the ceremony must come after the merge because it certifies what the merge produced. The bypass
+  fields were written into the PR body BEFORE the red existed, and the expected red was then VERIFIED:
+
+    run 36080403854 on head 864216d: quality success, architecture success, unit FAILURE, acceptance/package
+    skipped -- and the unit job failed on EXACTLY ONE case, whose code is TRUST_EPOCH_ROOT_SURFACE_MISMATCH,
+    with nothing else failing.
+
+  THAT VERIFICATION IS THE POINT. The FIRST push of the same PR failed 7 FURTHER cases, and none of them was
+  bypass material: every one pinned a PRE-ACCEPTANCE FACT rather than a property. They were FIXED, not
+  bypassed -- the authorisation reference is now checked for agreement with the accepted head instead of
+  version 1's literal "PR #12"; the series CLI is checked against the head's version; the grandfathering
+  BYTE FREEZE became a LINEAGE guard; S6's findings count asserts agreement with the evaluator's own summary
+  instead of the Phase 1A literal 1677; and the shadow fixture series now carries its parent, because
+  validateSeries REFUSES A FORK and a lone version-2 entry authorises nothing.
+  Local full unit tier after those fixes: 1 failed / 3529 passed, the one failure being the epoch anchor.
+```
+
+```text
+THE FINDING: a protected workflow interpolates Owner inputs into a PowerShell command line
+  THE FIRST DISPATCH OF THIS CEREMONY FAILED. Run 36080909852, on the same SHA, was refused at Stage A with
+    ParserError at the generated script's line 2, before any measurement. Cause: the risk text I supplied
+    contained a literal dollar-brace expression, and `.github/workflows/trust-epoch-finalization.yml` pastes
+    the three Owner inputs into a DOUBLE-QUOTED PowerShell command:
+
+      node scripts/trust-migration-proposal.cjs ... --reason "${{ inputs.reason }}" --risk "..." --rollback "..."
+
+  CLASSIFICATION  R0 / fail-closed. Nothing was written; the run stopped before Stage B. Re-dispatched with a
+                  value that omits the metacharacter, and it succeeded.
+  WHOSE FAULT     mine: the input, not the repository. But the mechanism is worth recording, because it is a
+                  gap between two stated properties -- the helper's contract is that these values are recorded
+                  VERBATIM, and a verbatim value placed inside a double-quoted shell string is not verbatim,
+                  it is CODE. A quote character in an Owner justification would close the string rather than
+                  being recorded; the job runs in the Owner environment and only the Owner can supply the
+                  input, so this is not a privilege boundary, but it IS a correctness gap, and the failure mode
+                  (a ceremony that cannot be performed with a legitimate justification) is real.
+  NOT FIXED HERE  fixing it changes `.github/workflows/trust-epoch-finalization.yml`, which is Root Trust
+                  Surface, and this epoch certifies the surface as it stands: fixing the workflow in the same
+                  act would have made the epoch stale on arrival and required a second ceremony. Filed as debt
+                  with the named repair: pass the three inputs through ENVIRONMENT VARIABLES rather than
+                  interpolating them into the command line, and assert in the workflow that the recorded value
+                  equals the input byte-for-byte.
+  GUARD ADDED     the dispatch driver refuses before dispatching if any of the three values contains a dollar,
+                  backtick, double quote, brace or newline -- the check that would have caught this first time.
+```
+
+```text
+known_risk                  `trust-policy/architecture-enforcement-baselines.json` now carries TWO ACCEPTED
+                            entries. That is the designed parent-linked lineage (version 1 is the bootstrap and
+                            the parent) and the lineage guard asserts it, but a reader who assumed the series is
+                            a single-version pointer would be wrong; the file's own $comment says a baseline
+                            governs only when its triple appears with status ACCEPTED, which remains true.
+                            The 25 undeclared-endpoint edges the acceptance grandfathers are INVISIBLE to
+                            prospective enforcement now, not correct: section 15 item 4 (expand each manifest's
+                            `modules` to its real surface) is still the real repair, and the P2-B ratchet is
+                            what keeps the grandfathering from reading as progress.
+                            The epoch-input interpolation gap above is open debt until the workflow is fixed in
+                            a later ceremony.
+rollback                    Revert PR #62 to restore the epoch-33 anchor (and its red); revert PR #61 to restore
+                            the pre-closure baselines. Both are ordinary merges with recorded parents.
+temporary_debt_created      YES, one: the epoch-input interpolation gap, with its repair named and its guard
+                            already added to the dispatch driver.
+debt_id                     recorded here rather than in CITY-DEBT because the repair is a workflow change
+                            requiring its own ceremony; it becomes CITY-DEBT if a later increment declines it.
+exit_condition              epoch 34 MATCHES the live surface on main, the closure validator passes, the P2-B
+                            ratchet holds at 73, and the enforcement engine reports PASS with zero violations and
+                            zero engine errors -- all measured above on main a390bf3.
+closure_status              CLOSED for P2-A step 3a and for the epoch-34 ceremony. OPEN: step 4 (the manifests'
+                            surface), the remaining six concerns in src/shared/contracts.ts, and the
+                            interpolation debt.
+research_value              Two findings. (1) A gate that prices a structural change as an Owner act is not an
+                            obstacle to be worked around: the enforcement engine REFUSED a correct refactor with
+                            29 violations, and the refusal was right -- the correct completion was to declare the
+                            new module in the manifest and then accept a baseline, which is what produced 73
+                            instead of a laundered number. (2) A guard that pins a FACT rather than a PROPERTY
+                            fails on the first legitimate change to that fact: seven cases here did exactly
+                            that, and the fix in each case was to assert the relationship (agreement with the
+                            accepted head, lineage intact, the evaluator's own count). That is the same lesson
+                            this repository has now recorded four times -- epoch 25, the trust lifecycle
+                            records, the findings literal, and now the baseline freeze.
+```
