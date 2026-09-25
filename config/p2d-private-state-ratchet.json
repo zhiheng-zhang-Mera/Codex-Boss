@@ -10,7 +10,8 @@
     "namespace_joins_into_anothers_state": 10,
     "unclassified_namespace_joins": 5,
     "declared_namespaces": 32,
-    "scanned_source_files": 612
+    "scanned_source_files": 612,
+    "uncontrolled_multi_writer_durable_stores": 1
   },
   "target": {
     "cross_domain_state_accesses": 0,

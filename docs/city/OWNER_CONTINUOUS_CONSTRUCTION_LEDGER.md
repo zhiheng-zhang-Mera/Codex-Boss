@@ -4334,3 +4334,66 @@ research_value              (1) A decision instrument has to be checked against 
                             much as the defect: recording that the graph and the landed decisions were unaffected is
                             what stops the next reader re-deriving the migration from scratch out of caution.
 ```
+
+## CC-049 — §18's second half was a target nothing asserted, and §30's durable-writer validator now exists
+
+```text
+ENTRY_ID                    CC-049
+timestamp_utc               2026-09-25T13:58:59Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are a script, a config record and a test, and acceptance-evolution-bless --check
+                            reports epoch 36 still MATCHES.
+main_before                 4c4309782a07d2f2eb838d24b00a5a55968f055d  (five checks green, epoch 36, PR #80)
+branch                      feat/durable-writer-validator
+PR                          the PR that carries this entry
+problem                     docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 30 names a
+                            "durable-writer validator" as a distinct artifact from the private-state-access
+                            validator, and section 33's S6 reads "uncontrolled multi-writer durable stores = 0".
+                            config/p2d-private-state-ratchet.json has carried the TARGET
+                            `uncontrolled_multi_writer_durable_stores: 0` since it was written -- and NOTHING
+                            ASSERTED IT. The count was printed in the report and carried in the decision's
+                            `measured` block, and no rule compared it with anything, so a namespace acquiring a
+                            second non-owner writer would have been DISPLAYED AND PASSED. The recorded block did
+                            not even have a key for it, which is the mechanical proof that no rule read it.
+why_this_is_the_same_defect_as_CC_041
+                            CC-041 found an artifact the workbook names and nobody had written (the bridge expiry
+                            validator). This is that class one level in: an artifact that EXISTS, reports the
+                            quantity, and declares the target -- while asserting nothing. A target nothing
+                            asserts is a target in name only, and it is worse than a missing artifact because
+                            the report LOOKS like the property is covered.
+the_repair                  A `risen` ceiling on `report.multiWriterCandidates.length`, recorded at its currently
+                            accepted value of 1, so a rise fails and a fall is reported as the improvement to
+                            record -- exactly the discipline the other five ceilings and floors in this validator
+                            already follow. Section 18's target stays 0 and the recorded value says what the
+                            tree currently carries, which is the ratchet's whole convention.
+A_PARTIAL_MEASUREMENT_MUST_FAIL_CLOSED
+                            The first version read `report.multiWriterCandidates.length` directly, and the
+                            validator's own case that drives it with an EMPTY report then failed: a partial
+                            measurement threw instead of producing the "not comparable" problem the module's
+                            contract requires. It now passes `undefined` when the list is absent, so the rule
+                            fails closed like every other one, and the existing case that asserts a partial
+                            report yields several "not comparable" problems covers it.
+measurement                 node scripts/phase2-private-state.cjs -> VERDICT=HOLDS; the rule now reads
+                              "uncontrolled multi-writer durable stores" against the recorded 1
+                            npx vitest run tests/unit/city/phase2-private-state.test.ts -> 23 passed, including
+                              a new refusal case: a second multi-writer store ROSE to 2
+                            npx vitest run tests/unit/city/ -> 25 files, 453 tests, all passed
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+what_S6_still_says          S6 stays OPEN, and now it stays open for the RIGHT reason: the measurement is 1 store
+                            (`tasks`, touched by host-status, runtime and tenx) and it is asserted rather than
+                            merely printed. Closing it needs the same owner-API repair S5 needs -- one root cause,
+                            two items -- which is a src change and therefore an epoch.
+rollback                    Remove the `risen` rule, the recorded key and the refusal case; nothing else reads
+                            them.
+temporary_debt_created      no.
+closure_status              CLOSED for the validator rule and the artifact section 30 names. OPEN for the store
+                            itself, which is now ratcheted rather than invisible.
+research_value              (1) The most dangerous gap is not a missing artifact but an artifact that REPORTS a
+                            quantity and asserts nothing about it, because a reader sees the number and assumes a
+                            rule is reading it -- and the mechanical tell is a target with no corresponding key in
+                            the recorded block. (2) A rule added to a fail-closed validator must itself fail
+                            closed, and the module's own partial-measurement case is what caught the first
+                            version; a rule that throws on an absent field removes the fail-closed property for
+                            every rule that runs after it.
+```

@@ -149,7 +149,7 @@ describe("P2-D validator — the real tree", () => {
     }
   });
 
-  it("its two ceilings and two floors hold on the committed tree", () => {
+  it("its THREE ceilings and two floors hold on the committed tree", () => {
     const decision = validator.decide(report, validator.readRatchet());
     expect(decision.problems, decision.problems.join("; ")).toEqual([]);
     expect(decision.ok).toBe(true);
@@ -161,8 +161,8 @@ describe("P2-D validator — the ratchet refuses both directions", () => {
   const baseline = {
     ownershipModel: "config/capability-modules.json -- the OWNERSHIP MAP, not the manifests",
     measuredAt: "2026-09-25T03:20Z",
-    recorded: { cross_domain_state_accesses: 5, cross_domain_state_pairs: 3, namespace_joins_into_anothers_state: 10, unclassified_namespace_joins: 5, declared_namespaces: 32, scanned_source_files: 612 },
-    target: { cross_domain_state_accesses: 0 },
+    recorded: { cross_domain_state_accesses: 5, cross_domain_state_pairs: 3, namespace_joins_into_anothers_state: 10, unclassified_namespace_joins: 5, declared_namespaces: 32, scanned_source_files: 612, uncontrolled_multi_writer_durable_stores: 1 },
+    target: { cross_domain_state_accesses: 0, uncontrolled_multi_writer_durable_stores: 0 },
   };
   const shaped = (overrides: Record<string, number> = {}): unknown => ({
     confirmedAccesses: overrides.confirmedAccesses ?? 5,
@@ -170,6 +170,12 @@ describe("P2-D validator — the ratchet refuses both directions", () => {
     candidates: overrides.candidates ?? 5,
     declaredNamespaces: overrides.declaredNamespaces ?? 32,
     scannedSourceFiles: overrides.scannedSourceFiles ?? 612,
+    // §18's second half is measured by COUNT here, so a fixture can drive it without listing namespaces.
+    multiWriterCandidates: Array.from({ length: overrides.multiWriterCandidates ?? 0 }, (_, index) => ({
+      namespace: `namespace-${index}`,
+      declaredOwner: "persistence",
+      accessedBy: ["one", "two"],
+    })),
   });
 
   const refusals: Array<[string, unknown, RegExp]> = [
@@ -177,6 +183,9 @@ describe("P2-D validator — the ratchet refuses both directions", () => {
     ["a new (namespace, capability) pair", shaped({ confirmedPairs: 4 }), /cross-domain private-state pairs ROSE to 4/],
     ["a namespace dropped from the manifests", shaped({ declaredNamespaces: 31 }), /declared durable namespaces FELL to 31/],
     ["fewer files scanned", shaped({ scannedSourceFiles: 611 }), /scanned source files FELL to 611/],
+    // §18's SECOND HALF. The target block declared `uncontrolled_multi_writer_durable_stores: 0` and NOTHING ASSERTED
+    // IT until ledger CC-049: a namespace acquiring a second non-owner writer was printed and passed.
+    ["a second uncontrolled multi-writer store", shaped({ multiWriterCandidates: 2 }), /uncontrolled multi-writer durable stores ROSE to 2/],
   ];
   for (const [name, constructed, expected] of refusals) {
     it(`refuses ${name}`, () => {
