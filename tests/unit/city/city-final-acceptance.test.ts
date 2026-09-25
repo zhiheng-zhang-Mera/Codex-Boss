@@ -97,6 +97,11 @@ describe("§30 the acceptance suite enumerates §33 completely, and says what it
     expect(item(items, "S12").status).toBe(acceptance.STATUSES.PASS);
     expect(item(items, "S12").evidence).toContain("reached RETIRED");
     expect(item(items, "S11").status).toBe(acceptance.STATUSES.PASS);
+    // And an OPEN item must NAME ITS MEMBER, not merely count them: E2 reported "1 debt entr(ies) are still OPEN"
+    // until ledger CC-051, which says there is a problem and nothing about which one. Written as an implication, so
+    // it stays true when the debt closes and bites again if a new one opens without being named.
+    const e2 = item(items, "E2");
+    if (e2.status === acceptance.STATUSES.OPEN) expect(e2.evidence, "E2 is OPEN without naming the open debt").toMatch(/CITY-DEBT-\d+/);
   });
 
   it("finds each REQUIRED artifact missing in a root that does not have it", () => {
