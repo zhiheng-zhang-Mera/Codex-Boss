@@ -86,3 +86,76 @@ even though no single run is evidence against any single commit.
   `docs/city/S2_EXIT_CERTIFICATION.md` for the six earlier ones.
 - If an eighth occurs, the first question is whether the rate is rising; the second is whether any occurrence has
   a mechanism, which would reclassify that occurrence from R1 to a real defect.
+
+## 7. Occurrence nine (2026-09-25, PR #81): three attempts on one commit, and the family is the SOAK suites
+
+The class recurred, and it recurred in a shape the first eight did not: the commit did **not** go green on the first
+re-run, and the three runs failed in **different tests in different steps**.
+
+```text
+commit   b839337952fef7736da2b8919f697e8861f297c2  (identical for all three observations)
+
+attempt 1  the MERGE run itself
+           step test:postbuild
+             tests/acceptance/platform-soak-report.test.ts
+               "reaches the allowance verdict through the production decision, whichever way this host measured"
+               AssertionError: expected 2 to be greater than 3
+             tests/unit/root-trust-authority-lockdown.test.ts
+               "holds no public real-host dispatch surface, and uploads no corpus"
+               Error: Test timed out in 120000ms
+           acceptance and package SKIPPED because unit failed
+
+attempt 2  a re-run of the failed jobs on the SAME commit
+           step test:slow
+             tests/unit/platform/platform-soak.test.ts
+               "never deletes protected data, and never loses committed work across a restart"
+               AssertionError: expected 0 to be greater than 0
+           a DIFFERENT test, in a DIFFERENT step
+
+attempt 3  a second re-run of the failed jobs on the SAME commit
+           unit, acceptance and package all SUCCESS
+```
+
+### What is the same as the first eight, and what is not
+
+**The same:** the mechanism account holds. The change that merged (ledger `CC-049`) touched
+`scripts/phase2-private-state.cjs`, one config record, one test file and the ledger. None of the three failing tests
+reads any of them; they are soak and lifecycle suites that measure behaviour under load. The pull-request run on the
+same content was 5/5 green.
+
+**Not the same, and this is the finding:** the failures were **not reproduced** by the re-run — they were
+**replaced**. Three different assertions failed across two different steps. A run-level flake and a **family-level**
+condition look identical from one failure and completely different from three, and only the third attempt made the
+distinction visible.
+
+### The rule, sharpened
+
+The standing rule (`CC-036`) is that a red may be recorded as a flake only when **both** a same-commit green exists
+**and** a mechanism can be named. That rule held here, but only after the third attempt — and it would have permitted
+dismissal after attempt two, where the evidence was already *"a different test failed"*, which is strictly stronger
+than *"the same test failed again"*. So the rule gains a clause:
+
+> When a re-run of the same commit fails in a **different test** than the run before it, the condition is not a
+> run-level flake to be retried until green. It is a **family-level** condition, and the family must be named in the
+> record before the red is dismissed — because retrying until green is indistinguishable from not investigating.
+
+Here the family is the **soak suites**: `platform-soak`, `platform-soak-report` and the Root Trust lockdown suite
+that timed out. Two of the three measure lifecycle behaviour over time under load; the third spawns work and waits
+for it. Each has a threshold that a loaded runner can miss, and the assertion messages say so (`expected 2 to be
+greater than 3`, `expected 0 to be greater than 0`, `Test timed out in 120000ms`).
+
+### What is NOT claimed
+
+- No root cause is claimed for the runner's load or timing.
+- This record does not assert that the soak suites are unreliable in general: they pass on most runs, including the
+  pull-request run on this very commit.
+- The green was obtained by **retrying an identical commit**, which is the definition of this class and not a repair.
+  It is recorded as a green whose reliability is lower than a first-attempt green.
+
+### Recorded debt
+
+**The soak family's thresholds are not load-robust, and the merge gate reports the runner's load as the tree's
+health.** Proposed exit condition: either each soak assertion states the load it requires and fails as
+`NOT_MEASURED` rather than as a wrong value when the host cannot supply it, or the family is explicitly quarantined to
+a lane whose result is recorded as evidence rather than as a required check. Debt id `CITY-DEBT-005`, recorded in
+`docs/city/CITY_RENOVATION_DEBT_REGISTER.md`, `CC-050`.

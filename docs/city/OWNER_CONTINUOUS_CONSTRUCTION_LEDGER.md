@@ -4397,3 +4397,75 @@ research_value              (1) The most dangerous gap is not a missing artifact
                             version; a rule that throws on an absent field removes the fail-closed property for
                             every rule that runs after it.
 ```
+
+## CC-050 — The merge gate reported the runner's load as the tree's health: occurrence nine, and three attempts on one commit
+
+```text
+ENTRY_ID                    CC-050
+timestamp_utc               2026-09-25T15:11:32Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, no epoch ceremony: the changed
+                            files are two documents and the ledger.
+main_before                 b839337952fef7736da2b8919f697e8861f297c2  (five checks green, epoch 36, PR #81)
+branch                      docs/cc050-flake-occurrence-nine
+PR                          the PR that carries this entry
+problem                     PR #81's merge commit went RED on `unit` and did NOT clear on the first re-run. That is
+                            the ninth occurrence of the same-commit flake class and the eighth inside CI (the S2
+                            audit enumerated six, CC-036 recorded the seventh, CC-039's eighth was a LOCAL run), and
+                            it is the first where the commit did not go green on the FIRST re-run.
+the_three_attempts          commit b839337952fef7736da2b8919f697e8861f297c2, identical for all three:
+                              attempt 1 (the merge run)  test:postbuild
+                                tests/acceptance/platform-soak-report.test.ts  expected 2 to be greater than 3
+                                tests/unit/root-trust-authority-lockdown.test.ts  Test timed out in 120000ms
+                                acceptance and package SKIPPED because unit failed
+                              attempt 2 (re-run of the failed jobs)  test:slow
+                                tests/unit/platform/platform-soak.test.ts  expected 0 to be greater than 0
+                                a DIFFERENT test, in a DIFFERENT step
+                              attempt 3 (second re-run)  unit, acceptance and package all SUCCESS
+what_is_the_same            The mechanism account holds. The merged change (CC-049) touched
+                            scripts/phase2-private-state.cjs, one config record, one test file and the ledger;
+                            none of the three failing tests reads any of them, and the pull-request run on the
+                            same content was 5/5 green. No bypass was used and no red was merged on.
+what_is_NOT_the_same        The failures were not REPRODUCED by the re-run -- they were REPLACED. Three different
+                            assertions across two different steps. A run-level flake and a FAMILY-level condition
+                            look identical from one failure and completely different from three, and only the
+                            third attempt made that visible.
+THE_RULE_SHARPENED          CC-036's rule is that a red may be recorded as a flake only when BOTH a same-commit
+                            green exists AND a mechanism can be named. It held here, but only at the third
+                            attempt, and it would have permitted dismissal at the second -- where the evidence was
+                            already "a different test failed", which is strictly STRONGER than "the same test
+                            failed again". So the rule gains a clause: when a re-run of the same commit fails in a
+                            DIFFERENT test than the run before it, the condition is not a run-level flake to be
+                            retried until green; it is a FAMILY-level condition, and the family must be named in
+                            the record before the red is dismissed -- because retrying until green is
+                            indistinguishable from not investigating.
+the_family                  The SOAK suites: platform-soak, platform-soak-report, and the Root Trust lockdown
+                            suite that timed out. Two measure lifecycle behaviour over time under load; the third
+                            spawns work and waits for it. Each has a threshold a loaded runner can miss, and the
+                            assertion messages say so.
+the_debt                    CITY-DEBT-005 is OPEN in docs/city/CITY_RENOVATION_DEBT_REGISTER.md, with its exit
+                            condition stated: either each soak assertion reports NOT_MEASURED rather than a wrong
+                            value when the host cannot supply the load it needs, or the family is explicitly
+                            quarantined to a lane recorded as evidence rather than as a required check. Until one
+                            of those is done, the register is no longer at zero OPEN, and the final-acceptance
+                            suite's E2 says so.
+measurement                 the required checks on b8393379 after the third attempt: acceptance, architecture,
+                              package, quality and unit ALL SUCCESS
+                            node scripts/city-final-acceptance.cjs -> E2 is now OPEN, truthfully: there is one live
+                              debt, and the register's summary counts OPEN 1 / CLOSED 4
+                            docs/city/incidents/2026-09-25-same-commit-ci-flake.md section 7 carries the full
+                              record, with the run ids and the three attempts
+temporary_debt_created      CITY-DEBT-005, deliberately, rather than a note in a report: the flakiness is live debt
+                            with an exit condition, and the acceptance suite now reports it as such.
+closure_status              CLOSED as a RECORD. OPEN as a CONDITION: the soak family is still load-sensitive, the
+                            exit condition is stated, and CITY-DEBT-005 stays open until it is met.
+research_value              (1) A family-level flake and a run-level flake are indistinguishable from ONE failure,
+                            and the difference appears only when the SECOND failure is a DIFFERENT test -- so the
+                            rule has to be written in terms of that observation, not in terms of how many retries
+                            were needed. (2) A red that clears on the third identical attempt is a merge gate
+                            reporting the runner's load as the tree's health, and the honest response is a debt
+                            with an exit condition rather than a footnote; making E2 go red is the report telling
+                            the truth. (3) The distinction that kept this from being a cover-up is the one worth
+                            keeping: the merge happened on a GREEN check and never on a red one, and the record
+                            says out loud that the green is weaker than a first-attempt green.
+```
