@@ -260,17 +260,54 @@ closure_evidence     - the fixture now injects the executor as the process the h
 
 ---
 
-## Register summary
+## CITY-DEBT-005 — The soak suites fail non-deterministically under hosted load, so the merge gate reports the runner's load as the tree's health
+
+```text
+CITY-DEBT-005
+introduced_at        2026-09-25 (observed on PR #81, commit b839337952fef7736da2b8919f697e8861f297c2)
+introduced_by        Not introduced by a change: the soak suites and their thresholds predate this work. What is
+                     new is the OBSERVATION that they are the family that fails, and that one occurrence needed
+                     three attempts on an identical commit before it cleared.
+reason               Three runs of the SAME commit produced three different failures in two different steps:
+                       attempt 1 (merge)  test:postbuild
+                         tests/acceptance/platform-soak-report.test.ts  expected 2 to be greater than 3
+                         tests/unit/root-trust-authority-lockdown.test.ts  Test timed out in 120000ms
+                       attempt 2 (re-run) test:slow
+                         tests/unit/platform/platform-soak.test.ts  expected 0 to be greater than 0
+                       attempt 3 (re-run) unit, acceptance and package all SUCCESS
+                     Each failing assertion has a threshold a loaded runner can miss, and the soak-report case
+                     says so in its own name: "whichever way this host measured".
+affected_surface     The `unit` required check, and through it the merge gate: acceptance and package are SKIPPED
+                     while unit is red, so one soak threshold decides whether two other checks run at all.
+not_a_security_event No protected run, no environment approval, no epoch movement and no bypass are involved. The
+                     failed runs are preserved in Actions history and recorded in
+                     docs/city/incidents/2026-09-25-same-commit-ci-flake.md section 7.
+why_construction_continued
+                     The commit was never merged on a red check: the merge happened when the required checks
+                     reported success, and the green was obtained by re-running the identical commit rather than
+                     by changing it. The debt is that this green is less reliable than a first-attempt green, and
+                     that "retry until green" is indistinguishable from "do not investigate".
+exit_condition       Either (a) each soak assertion states the load it requires and reports NOT_MEASURED rather
+                     than a wrong value when the host cannot supply it -- so a loaded runner produces an absence of
+                     evidence instead of false evidence -- or (b) the family is explicitly quarantined to a lane
+                     whose result is recorded as evidence rather than as a required check. Until one of those is
+                     done, CITY-DEBT-005 is live.
+status               OPEN
+```
+
+---
+
 
 ```text
 CITY-DEBT-001  dispatch helper can dispatch without --confirm                  CLOSED
 CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    CLOSED
 CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      CLOSED
 CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CLOSED
+CITY-DEBT-005  the soak suites fail non-deterministically under hosted load    OPEN
 ```
 
 ```text
-OPEN               0
+OPEN               1   (CITY-DEBT-005)
 CONTAINED          0
 CLOSED             4   (CITY-DEBT-001, -002, -003, -004)
 ACCEPTED_PERMANENT 0
