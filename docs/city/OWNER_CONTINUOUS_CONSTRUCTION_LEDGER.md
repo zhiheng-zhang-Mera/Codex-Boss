@@ -2277,3 +2277,114 @@ research_value              Two findings worth more than the refactor. (1) In th
                             from the exit code alone (both non-zero, both POLICY_VIOLATION). Committing before
                             measuring is part of the measurement procedure, not a formality.
 ```
+
+---
+
+## CC-028 — P2-A step ③a ACCEPTED: the enforcement baseline is version 2, under the delegated Owner lease
+
+```text
+ENTRY_ID                    CC-028
+timestamp_utc               2026-09-25T01:05Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             OWNER ACT. The delegated construction lease (workbook section 0; ledger CC-001) is
+                            exercised here to write trust-policy/**, which is Root Trust Surface. Two surface
+                            files move and nothing else changes.
+main_before                 bb9de6610adb8ca56e03c24357c72a0ef6cffcdc  (five checks green)
+branch                      feat/p2a-provider-closure   (be7b5c4 measurement + 5f20f75 acceptance)
+PR                          the PR that carries this entry
+problem                     CC-027 built and measured the provider closure (kernel -> feature 82 -> 73) and was
+                            blocked by 29 enforcement violations that no manifest declaration could clear: 25
+                            NEW_EDGE_UNDECLARED_ENDPOINT whose SOURCE files no manifest lists. Section 15's
+                            answer is the Owner-authorised baseline acceptance, which CC-027 enumerated and
+                            deliberately did not perform at the tail of that round.
+classification              R0 for the red this produces (EPOCH-33-IS-STALE, the documented pre-ceremony state);
+                            the acceptance itself is ordinary prospective-enforcement bookkeeping.
+normal_path                 Add the (version, parent, hash) triple to the authorised series FIRST, then --accept;
+                            verify BOTH halves of --check; then the epoch ceremony.
+why_normal_path_was_not_used  Not applicable -- used in full, in that order.
+```
+
+```text
+WHAT MOVED
+  trust-policy/architecture-enforcement-baselines.json   a version-2 entry, status ACCEPTED,
+                                                         parent b211c052 (version 1, which STAYS ACCEPTED --
+                                                         retiring it is a separate act and was not performed)
+  config/architecture-enforcement-baseline.json          regenerated to version 2, hash 98d648dc
+
+  ORDER WAS THE POINT. The triple was added to the series BEFORE --accept ran, so --accept wrote the tracked
+  baseline only because an ACCEPTED entry already named it. Version 1 was neither widened nor removed, so the
+  previous governing baseline remains the PARENT rather than being erased -- the laundering act that this series
+  exists to make impossible.
+```
+
+```text
+VERIFIED AFTER THE WRITE, NOT ASSUMED
+  architecture-baseline-series --check            authorized: true; problems []
+  architecture-enforcement-baseline --check       artifact_integrity true; candidate_tree_matches_frozen true;
+                                                  identical true; authorization_problems []; baseline_version 2
+  architecture-enforcement --mode shadow          verdict PASS; violations 0; engine_errors 0; exit 0
+  architecture-enforcement --mode enforce         verdict PASS; violations 0; engine_errors 0; exit 0
+  architecture-findings-parity shadow-enforce     parity true; HASHES_EQUAL true;
+                                                  4ac1eea27a79468aaab68744a7b220409b5b231fa44bfb483bf3441afa54928e
+  architecture.cjs ratchet                        pass: true
+  capability-closure-validator                    VERDICT=PASS
+  generate-test-catalogue --check                 current; 292 suites
+```
+
+```text
+WHAT IS GRANDFATHERED, AND WHAT IS NOT
+  GRANDFATHERED   30 edges onto the providers-owned module, replacing 30 onto the status-owned bundle. The four
+                  edges from feature boot modules (dispatch, host-status, settings, task-creation) are
+                  grandfathered rather than DECLARED: whether those four genuinely depend on the `providers`
+                  capability at runtime is a per-pair decision for P2-A step 4, and a false declaration is worse
+                  than an honest grandfather. This is recorded in the baseline's own `reason`.
+  NOT GRANDFATHERED   the attribution measurement itself. kernel -> feature is 73 under the ownership map and the
+                  ratchet floor was lowered to 73 in the same branch, so this acceptance records progress
+                  rather than absorbing debt.
+  STILL OPEN        section 15 item 4 (expand each manifest's `modules` to its real surface) is the real answer
+                  to the 25 undeclared-endpoint sources. A baseline acceptance makes them INVISIBLE to
+                  prospective enforcement, not correct, and the ratchet is what keeps that from reading as done.
+```
+
+```text
+EXPECTED RED (workbook section 26 -- recorded BEFORE it existed)
+  The Root Trust Surface has moved while epoch 33 still certifies the old aggregate:
+    47859b5f21ca2d394be5c70914c26520b74ade5d8313121eb03dfa12b73f8b9c   (epoch 33)
+ -> 3012954f733b0de82be6cdc38b1fe0636bfc01f87b064de9ec225adf8ae20a67   (live)
+  So `unit` fails on TRUST_EPOCH_ROOT_SURFACE_MISMATCH, which is the EPOCH-33-IS-STALE class: expected,
+  documented, and cleared by the epoch ceremony rather than by a code change. The `architecture` job is green,
+  because its own baseline checks, shadow, enforce and parity all pass above.
+
+  BYPASS fields, per the workbook: BYPASS_USED yes (L3, Owner bypass actor on Main-Protection);
+  BLOCKING_CHECKS unit; EXPECTED_RED unit only; UNEXPECTED_RED none expected;
+  WHY_MERGE_IS_SAFE the architecture job is green and the ONLY failing property is the epoch anchor, which the
+  ceremony immediately following this merge re-establishes;
+  DEBT_CREATED none; FOLLOWUP epoch 34.
+```
+
+```text
+known_risk                  Between this merge and the epoch ceremony, MAIN CARRIES A STALE EPOCH ANCHOR. That
+                            is the same state as the epoch-28 red recorded in CC-004, and it is why the ceremony
+                            follows immediately rather than being deferred. If the session stops here, main is
+                            red on `unit` and the next executor must run the ceremony before anything else --
+                            which is recorded in this entry and in CC-027.
+                            Baseline version 1 stays ACCEPTED, so two versions are authorised at once. That is
+                            deliberate (it is the parent-linked lineage the series is designed as), but it means
+                            the series is not a single-version pointer and a reader must not assume otherwise.
+rollback                    Revert the acceptance commit and the `unit` red returns to green with epoch 33. The
+                            branch's earlier commit is the measurement; nothing on main depends on it.
+temporary_debt_created      no
+debt_id                     none
+exit_condition              `architecture:enforce:baseline --check` reports artifact_integrity AND
+                            candidate_tree_matches_frozen AND no authorization problems at baseline_version 2,
+                            with shadow and enforce both PASS and parity true -- all measured above.
+closure_status              ACCEPTED. The epoch-34 ceremony remains, and section 15 step 4 remains open.
+research_value              The gate sequence worked exactly as designed and in the designed order: the
+                            measurement produced a candidate that GOVERNED NOTHING, the series entry was written
+                            first, and --accept then refused nothing because the triple already existed. The
+                            interesting detail is that `--accept` demands its reason AGAIN -- and the reason is
+                            part of the hashed content, so a different string would have produced a different
+                            baseline_hash and the authorised triple would have named a baseline that does not
+                            exist. An acceptance whose textual justification is load-bearing is a stronger
+                            governance artifact than one where the reason is a comment.
+```

@@ -1,8 +1,12 @@
 # PHASE 2 — P2-A INCREMENT 2, STEP ③a: THE PROVIDER CONTRACT CLOSURE
 
-**Status.** LANDED. The provider types moved out of `src/shared/contracts.ts` into
-`src/shared/provider-contracts.ts`, 30 importers were re-pointed, and the ownership map moved in the same
-commit. Measured effect: **kernel → feature 82 → 73 edges**, and `providers -> status` **13 → 3**.
+**Status.** ACCEPTED, awaiting the epoch. The provider types moved out of `src/shared/contracts.ts` into
+`src/shared/provider-contracts.ts`, 30 importers were re-pointed, the ownership map and `providers.yaml` moved in
+the same commit, and the Owner-authorised enforcement baseline that grandfathers the re-attribution is accepted
+(baseline version 2; ledger CC-028). Measured effect: **kernel → feature 82 → 73 edges**, and
+`providers -> status` **13 → 3**. The remaining act is the **epoch-34 ceremony**, because this change moves three
+Root Trust Surface facts — the accepted series and the two baselines — and epoch 33 therefore no longer anchors
+the live surface. That mismatch is the one expected red on this branch and is the documented pre-ceremony state.
 
 **Why this is a closure and not a file.** `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` says a bundle
 containing independent purposes must be split, and that the unit of migration is the **minimum stable semantic
