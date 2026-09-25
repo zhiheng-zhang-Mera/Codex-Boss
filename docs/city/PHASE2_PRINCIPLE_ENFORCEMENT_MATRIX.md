@@ -1,0 +1,107 @@
+# Phase 2 — Principle Enforcement Matrix
+
+**Workbook authority:** `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md`, section 23 (*principle enforcement
+matrix*), stage **P2-I**.
+**Machine-checked by:** `scripts/principle-enforcement-validator.cjs`.
+**Matrix data:** `config/principle-enforcement.json`.
+**Verified by:** `tests/unit/city/principle-enforcement-validator.test.ts`.
+
+## 1. What this matrix is
+
+Section 23 asks that each of the nine architecture principles (`15.1`–`15.9`) be recorded under one of an explicit
+set of strengths, and it closes with an instruction that governs the whole exercise: **do not fake semantic
+certainty.**
+
+A matrix written as prose can fake it trivially, and the specific forgery it invites is *promotion* — writing
+`MACHINE ENFORCED` beside a principle whose only guard is a **regression ratchet**, so that *"the count cannot
+silently grow back"* is recorded as *"the count is zero"*. Those are different claims, and the tree can tell them
+apart. So the matrix is data, and this document is generated from it by the validator that checks it.
+
+## 2. The four strengths
+
+| strength | means |
+| --- | --- |
+| `MACHINE_ENFORCED` | a guard fails on **any** violation; the resolved measurement is at or below a target of `0` |
+| `MACHINE_RATCHET` | a guard refuses a **regression**, but the principle's target is not met and the row says so |
+| `EVIDENCE_REQUIRED` | the principle cannot be automated without dressing a judgement as a test, so the machine enforces that the **evidence exists** and a structured decision record names the judgement |
+| `NOT_GUARDED` | nothing checks this, and the row names the **stage that owns the gap** |
+
+## 3. The matrix
+
+<!-- BEGIN GENERATED MATRIX -->
+| principle | claim | section 23 requires | measured strength | guard | measured | target |
+| --- | --- | --- | --- | --- | --- | --- |
+| 15.1 | foundation must not depend on building | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs` | 73 | 0 |
+| 15.2 | size is not itself a defect signal | MACHINE SEMANTICS PINNED | EVIDENCE_REQUIRED | -- | see decision record | -- |
+| 15.3 | minimum stable closure is the unit of migration | MACHINE CHECKED where decidable + explicit review record | EVIDENCE_REQUIRED | `scripts/capability-closure-validator.cjs` | see decision record | -- |
+| 15.4 | capability replacement lifecycle exists and carries one real proof | MACHINE-STATEFUL + real proof | NOT_GUARDED | -- | -- | -- |
+| 15.5 | least-sufficient repair: no PROHIBITED ADDED lateral load | MACHINE CHECK on prohibited added lateral load | MACHINE_ENFORCED | `scripts/p2b-kernel-feature-ratchet.cjs` | 0 (added) | 0 |
+| 15.6 | every plot has exactly one valid flatness state | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/city-flatness-validator.cjs` | 0 | 0 |
+| 15.7 | no cycles, no uncontrolled lateral bearing, no cross-domain private state access | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs`, `scripts/phase2-private-state.cjs` | mutual capability pairs: 38; largest strongly connected component: 20; cross-domain private-state accesses: 5 | 0; 0; 0 |
+| 15.8 | shared roads are explicitly classified | MACHINE CHECK / explicit road classification | NOT_GUARDED | -- | -- | -- |
+| 15.9 | Core growth ban | MACHINE ENFORCED | NOT_GUARDED | -- | -- | -- |
+<!-- END GENERATED MATRIX -->
+
+## 4. What the validator refuses to let the matrix do
+
+Every rule below is a refusal, and each one was falsified before it was trusted: the test suite builds a matrix
+that breaks the rule and asserts the validator rejects it.
+
+1. **Omission** — a principle `15.1`–`15.9` with no row, or an invented principle, fails.
+2. **Silent shortfall** — a row whose strength falls short of what section 23 asks must carry `why_not_enforced`.
+   Recorded gaps are the point; hidden ones are the failure.
+3. **Phantom guards** — a cited guard file that does not exist fails.
+4. **Mutating guards** — a cited guard whose source writes to the tree fails. A check that edits what it inspects
+   is not a check.
+5. **Failing guards** — a row may not cite a guard that currently exits non-zero.
+6. **Unreached guards** — every cited guard must be reached by a cited test, so *enforced* means *runs in a
+   required tier*, not *exists somewhere*.
+7. **Typed-in measurements** — the measured value is **not in the matrix at all**. It is resolved from the guard's
+   own live `--json` output for the key the row names. A number that cannot be typed cannot drift away from the
+   instrument that produced it.
+8. **Promotion** — `MACHINE_ENFORCED` requires the resolved measurement to be at or below a target of `0`. A row
+   reporting `73` cannot say `MACHINE_ENFORCED`.
+9. **Stale ratchets** — `MACHINE_RATCHET` requires the resolved measurement to be **above** its target. If a
+   migration ever drives a count to zero, the validator fails until the row is promoted. Progress cannot be
+   recorded as a floor.
+10. **Empty evidence** — `EVIDENCE_REQUIRED` requires a substantive `evidenceRequirement` and decision records that
+    exist on disk.
+11. **Anonymous gaps** — `NOT_GUARDED` requires naming the stage that owns the gap.
+
+## 5. How to read the current state
+
+The honest reading, as measured:
+
+- **2 enforced** — `15.5` (no *added* lateral load) and `15.6` (exactly one valid flatness state per plot).
+- **2 ratchets** — `15.1` (foundation→building edges, 73 against a target of 0) and `15.7` (38 mutual pairs, a
+  largest component of 20 of 28 capabilities, and 5 cross-domain private-state accesses).
+- **2 evidence-required** — `15.2` and `15.3`, the two principles about the *reasoning* behind a migration: no rule
+  here keys a threshold on a file count, and whether a given bundle of files is one purpose or seven is a design
+  judgement. The machine can only require that the judgement was written down and point at where.
+- **3 unguarded** — `15.4` (replacement lifecycle, P2-G), `15.8` (road classification, P2-E), `15.9` (Core growth
+  ban, P2-H).
+
+`15.5` and `15.1` are the pair worth reading together. Section 23 asks `15.5` for a check on **added** lateral load
+and `15.1` for the absolute. The ratchet supplies exactly the former — a rise in kernel→feature edges, in
+kernel→feature pairs or in mutual capability pairs fails — while the absolute count of 73 remains `15.1`'s open
+problem. Recording both as `MACHINE ENFORCED` would have been the easy and wrong move.
+
+`15.6` is enforced as a **state machine**: exactly one state per plot from the five, the per-state obligations, and
+a refusal to record `FLAT` on a plot that a measured defect implicates. That the seal is not ready is a different
+fact — `config/city-flatness.json` records 22 plots still mid-migration, and the seal gate reports it.
+
+## 6. Consequences for the remaining work
+
+The three `NOT_GUARDED` rows are not an oversight; they are the same three stages the workbook has not yet started,
+and they are the ones that need a **mechanism** before they can need a check:
+
+| principle | needs | stage |
+| --- | --- | --- |
+| `15.4` | replacement governance with machine state and one real proof | P2-G |
+| `15.8` | an explicit road classification that does not hide edges | P2-E |
+| `15.9` | a stable Core classification and a budget over it | P2-H |
+
+`15.8` carries a measured refutation worth keeping in view: `electron/commander/**` was the road candidate, and
+re-attributing it was **measured and refused** (ledger `CC-030`) — 132 incoming and 122 outgoing edges across 24
+owners and 13 capabilities, 39 of them onto three kernels. A road label would have *hidden* those edges rather than
+classified them, so the correct treatment is extraction, not relabelling.
