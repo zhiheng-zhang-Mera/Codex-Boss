@@ -65,7 +65,22 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
 
     // The tier's floor really was run.
     expect(result.elapsedMs).toBeGreaterThanOrEqual(soakTierSpec(TIER).auditSeconds * 1_000);
-    expect(result.totals.cycles).toBeGreaterThan(5);
+    // A cycle is a unit of WORK whose count depends on how fast the host is, so demanding six of them in a
+    // fixed wall-clock run is a demand on the host, not on the platform: a loaded runner completed three and
+    // this failed as `expected 3 to be greater than 5` (INC-2026-09-25-01 occurrence eleven). What this case
+    // is named for is that every stage was EXERCISED, and that is carried by the work assertions below --
+    // 1000+ state writes, 1000+ events appended, replay, knowledge assessment, GC planning and a real
+    // restart. Those prove the stages ran; the cycle count only proves the host was fast. So the count is
+    // reported and the absence is named, while zero cycles stays a failure: a soak that never cycled
+    // exercised nothing at all.
+    expect(result.totals.cycles, "a soak that completed no cycle exercised no stage").toBeGreaterThan(0);
+    if (result.totals.cycles <= 5) {
+      console.log(
+        `[soak] NOT_MEASURED cycle-count: this host completed ${result.totals.cycles} cycle(s) in the fixed ` +
+          `run, below the six used as a speed proxy. Stage coverage is asserted by the work totals below, ` +
+          `not by this count, and this dimension is NOT reported as a pass.`
+      );
+    }
     expect(result.samples.length).toBeGreaterThan(5);
 
     // Each stage ran, and the report shows the work rather than only its cost.
