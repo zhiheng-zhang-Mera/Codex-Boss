@@ -4273,3 +4273,64 @@ research_value              (1) Recording debt WITH an exit condition is what ma
                             is a pattern worth naming in the artifacts themselves, so the fourth occurrence is
                             recognised rather than diagnosed.
 ```
+
+## CC-048 — The decision instrument pointed at the wrong line, and the invariant that now stops it
+
+```text
+ENTRY_ID                    CC-048
+timestamp_utc               2026-09-25T13:15:21Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the changed
+                            files are a script and a test, and acceptance-evolution-bless --check reports epoch 36
+                            still MATCHES.
+main_before                 a6549478df7cf6dc2e12e4c3643a34882752c37c  (five checks green, epoch 36, PR #79)
+branch                      feat/pair-inspector-line-invariant
+PR                          the PR that carries this entry
+problem                     scripts/phase2-pair-edges.cjs exists to answer "which line imports this", because the
+                            structural migration is decided pair by pair and edge by edge. Its line numbers were
+                            WRONG in two ways, and both produced the same unusable answer: a line that does not
+                            contain the import. A reviewer following the report lands on a DIFFERENT import and
+                            concludes the tool is right about the file and wrong about the line -- the kind of wrong
+                            answer nobody checks by hand.
+defect_one                  The import pattern begins `(?:^|\n)`, so a statement matched through the newline
+                            alternative has a match index pointing AT that newline, one line above the statement.
+                            Every such edge was reported one line too high: `persistence -> attachments` claimed
+                            electron/bootstrap/persistence.ts:11 for an import that is on line 12.
+defect_two                  A MULTI-LINE import -- `import type {` ... `} from "./x";` -- puts the specifier on its
+                            LAST line while the match starts on the first, so twenty of 800 edges pointed at a blank
+                            line in the middle of the statement.
+the_repair                  `lineAt` skips a leading newline, and the offset recorded is taken from the SPECIFIER
+                            inside the match rather than from the start of the statement. Both are needed: fixing
+                            either alone still leaves the report pointing at the wrong line for the other shape.
+the_invariant               The case asserts, for EVERY one of the 800 edges, that the line it reports CONTAINS the
+                            specifier it reports -- and pins both shapes by name, so a future change to the pattern
+                            cannot silently reintroduce either. That is the right form for this defect: not a check on
+                            a sample, and not a note in a comment, but the property the tool exists to serve.
+what_this_did_NOT_affect    The GRAPH was never wrong: `--verify` agreed with the inventory before and after, on
+                            every total and all 203 pair counts, so no count in any ledger entry or ratchet changed.
+                            Nor was any landed decision based on a wrong line: every structural edit this programme
+                            has made was located by grepping for the import itself -- including the bridge
+                            retirement and the providers -> tenx inversion -- so the defect cost report quality
+                            rather than correctness. Recorded because the next reader deserves to know which of
+                            the two it was, and because "the numbers were right" is not the same claim as "the
+                            tool was right".
+measurement                 the invariant over every edge: 800 checked, 0 lines that do not contain their specifier
+                              (20 failed before the second fix, and every edge that came through the newline
+                              alternative failed the first)
+                            node scripts/phase2-pair-edges.cjs --verify -> VERDICT=AGREES, 800 edges / 203 pairs
+                            npx vitest run tests/unit/city/ -> 25 files, 452 tests, all passed
+                            node scripts/acceptance-evolution-bless.cjs --check -> epoch 36 MATCHES
+rollback                    Restore the previous `lineAt` and the statement-start offset, and remove the case;
+                            nothing else reads either.
+temporary_debt_created      no.
+closure_status              CLOSED. Every edge reports a line that carries its import, and the property is
+                            asserted rather than described.
+research_value              (1) A decision instrument has to be checked against the DECISION it supports, not against
+                            its own summary: this tool agreed with the inventory on every count and still pointed at
+                            the wrong line, because the counts and the locations are different claims. (2) Two
+                            independent offset defects produced one symptom, and fixing either alone still left the
+                            symptom -- which is why the repair was driven by an invariant over ALL edges rather than
+                            by investigating the first reported mismatch. (3) The honest scope of a defect matters as
+                            much as the defect: recording that the graph and the landed decisions were unaffected is
+                            what stops the next reader re-deriving the migration from scratch out of caution.
+```

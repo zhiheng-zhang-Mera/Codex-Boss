@@ -66,10 +66,21 @@ function walk(dir, out = []) {
   return out;
 }
 
-/** Line number of a byte offset, so the report points at a place a reviewer can open. */
+/**
+ * Line number of a byte offset, so the report points at a place a reviewer can open.
+ *
+ * THE MATCH MAY START ON THE PRECEDING NEWLINE. The import pattern begins `(?:^|\n)`, so a statement found through the
+ * newline alternative has a match index that points AT that newline -- one line above the statement. Counting from
+ * there reported every such edge one line too high: `persistence -> attachments` claimed
+ * `electron/bootstrap/persistence.ts:11` for an import that is on line 12, and a reviewer following the report lands
+ * on a DIFFERENT import and concludes the tool is right about the file and wrong about the line. The offset is skipped
+ * here, and a case now asserts for EVERY edge that the line it reports contains the specifier it reports.
+ */
 function lineAt(text, index) {
+  let start = index;
+  if (text[start] === "\n") start += 1;
   let line = 1;
-  for (let i = 0; i < index && i < text.length; i += 1) if (text[i] === "\n") line += 1;
+  for (let i = 0; i < start && i < text.length; i += 1) if (text[i] === "\n") line += 1;
   return line;
 }
 
@@ -128,7 +139,13 @@ function scan() {
       const specifier = match[1] ?? match[2] ?? match[3] ?? match[4];
       if (!specifier) continue;
       if (seen.has(specifier)) continue;
-      seen.set(specifier, lineAt(text, match.index ?? 0));
+      // THE LINE OF THE SPECIFIER, not of the statement. Two offsets had to be handled before that was true: the
+      // pattern's `(?:^|\n)` prefix means a match can START on the preceding newline (fixed in `lineAt`), and a
+      // MULTI-LINE import puts the specifier on its LAST line while the match starts on the first. Twenty of 800 edges
+      // pointed at a blank line between `import {` and `} from "./x"` until the offset was taken from the specifier
+      // itself, and a case now asserts the invariant for every edge.
+      const offset = (match.index ?? 0) + (match[0] ?? "").lastIndexOf(specifier);
+      seen.set(specifier, lineAt(text, offset));
     }
     for (const [specifier, line] of seen) {
       const target = resolveSpecifier(specifier, file);
