@@ -200,6 +200,12 @@ const report = {
     edgesToCompositionRoot: edgesToCompositionRoot.length,
   },
   topPairs: pairList.slice(0, 60),
+  // The FULL pair list, because `topPairs` is truncated to 60 for the human summary and `--json` is documented
+  // as "the full inventory". A consumer that needs the whole capability graph -- the cycle/SCC validator does --
+  // would otherwise silently receive 60 of 193 and compute SCCs on a graph with two thirds of its edges missing,
+  // which reports FEWER cycles than exist. Counts only: the samples stay in `topPairs`, where they are for a
+  // reader rather than for a computation.
+  allPairs: pairList.map(({ pair, count }) => ({ pair, count })),
   kernelToFeaturePairs: [...kfPairs.entries()].sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0])).map(([pair, count]) => ({ pair, count })),
   mutualPairs: mutual,
   declaredRequirementPairs: [...declaredPairs].sort(),

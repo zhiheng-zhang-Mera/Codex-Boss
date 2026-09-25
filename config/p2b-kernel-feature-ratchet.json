@@ -11,17 +11,26 @@
     "mutual_capability_pairs": 38,
     "files_owned": 598,
     "capabilities_with_kinds": 27,
-    "composition_root_files": 2
+    "composition_root_files": 2,
+    "largest_scc_size": 20,
+    "non_trivial_scc_count": 1,
+    "scc_count": 9,
+    "capability_nodes": 28,
+    "capability_edges": 193
   },
   "target": {
     "kernel_to_feature_file_edges": 0,
-    "mutual_capability_pairs": 0
+    "mutual_capability_pairs": 0,
+    "largest_scc_size": 0
   },
   "measured_kernels": ["persistence", "providers", "runtime", "state-core"],
+  "measured_cycles_by": "node scripts/phase2-cycles.cjs (read by this ratchet, not recomputed here)",
   "reason": "Lowered from 82 to 73 by the provider closure extraction (see docs/city/PHASE2_P2A_PROVIDER_CLOSURE.md): the provider types moved out of src/shared/contracts.ts -- owned by `status` -- into src/shared/provider-contracts.ts, owned by `providers`, and the 30 importers were re-pointed. `providers -> status` fell from 13 edges to 3, and the mutual-pair count was checked BEFORE the move because the two shared modules could have formed a cycle and raised it; it was already a mutual pair, so it stayed at 38. `files_owned` rose from 597 to 598 because the new module is owned rather than unowned. The largest surviving inversion is now `persistence -> tenx` (11), which is one directory, electron/commander/**, attributed to `tenx` although its contents are a task ledger, a budget manager, a context manager and a recovery scheduler.",
   "anti_gaming": {
     "files_owned_is_a_floor": "A drop in edges that comes from a drop in SCANNED FILES is not progress. `files_owned` is asserted to stay at or above its recorded value, so a file cannot be removed from the scanner -- or handed to the composition-root class to make it invisible -- to make the migration look finished.",
     "capabilities_with_kinds_is_pinned": "`kernel` is read from the manifests' `kind` field, so a kernel that lost its kind would silently stop being counted. The kind count is pinned so that cannot happen quietly.",
-    "the_composition_root_must_stay_visible": "The composition root is present and its edges are counted separately. If it were removed from the map instead of re-attributed, `files_owned` would fall; if it were re-attributed back to `runtime`, `kernel_to_feature_file_edges` would jump by about 72."
+    "the_composition_root_must_stay_visible": "The composition root is present and its edges are counted separately. If it were removed from the map instead of re-attributed, `files_owned` would fall; if it were re-attributed back to `runtime`, `kernel_to_feature_file_edges` would jump by about 72.",
+    "the_cycle_graph_has_floors": "`largest_scc_size` is a CEILING -- section 17's target is 0 and a large component does not split from pairwise repairs -- but the GRAPH it is computed over has FLOORS (`capability_nodes`, `capability_edges`). Shrinking the largest component by losing an edge from the measurement is the same fraud as shrinking the inversion count by scanning fewer files, and it would be invisible from the component size alone.",
+    "the_two_cycle_count_is_measured_twice": "`mutual_capability_pairs` is asserted from BOTH the inventory's pair rollup and the cycle instrument's own edge list. If the two instruments ever disagree, both problems fire: a number nobody can reproduce is worse than a number that is wrong."
   }
 }

@@ -324,6 +324,23 @@ NOT YET LANDED (increments 2+), and deliberately not claimed
      deliberately a separate program from the INSTRUMENT: the inventory's own header refuses to decide whether
      an edge is a defect, so the threshold lives beside it and not inside it. Ledger CC-026.
      STILL OPEN: the migration itself. The target recorded in the artifact is 0 for both counts.
+  8  (LANDED, increment 2) the cycle/SCC measurement and its floor, which item 7 did NOT provide: item 7 counts
+     mutual PAIRS, and the SCC decomposition says whether the graph is a KNOT. `node scripts/phase2-cycles.cjs`
+     reports 28 capability nodes, 193 directed edges, 9 SCCs of which ONE holds 20 of 28 capabilities, with
+     conversation / dispatch / host-status / remote / settings / state-core / task-creation and the composition
+     root already outside it. Against history (43 pairs, one SCC of 25 of 27) the knot has shrunk, and the reason
+     it matters is that PAIRWISE REPAIRS DO NOT SPLIT A LARGE COMPONENT: it dissolves only when every internal
+     mutual dependency does, so P2-C is one connected problem with 20 members rather than 38 small ones. The
+     numbers are ratcheted by the SAME judge as item 7 -- one judge, one artifact -- with `capability_nodes` and
+     `capability_edges` as FLOORS so the component cannot be shrunk by losing an edge from the graph, and with
+     `scc_count` deliberately NOT a ceiling because splitting raises it. The inventory's `--json` gained
+     `allPairs` in the same commit: it had been publishing 60 of 193 pairs, and an SCC computed on that reports
+     fewer cycles than exist. Ledger CC-030.
+     ALSO RECORDED THERE: a REFUTED shortcut. Re-attributing `electron/commander/**` to a road class looked like
+     a free 18-edge win by the composition root's precedent, and it was measured instead of taken --
+     commander has 132 incoming edges and 122 outgoing across 13 capabilities, 39 of them onto three kernels, so
+     re-labelling it would move those edges out of the measurement without repairing anything.
+     STILL OPEN: P2-C's migration (cycles to 0).
 ```
 
 **The measured disagreement, unchanged by increment 1:**

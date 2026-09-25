@@ -2515,3 +2515,153 @@ research_value              Two findings. (1) A gate that prices a structural ch
                             this repository has now recorded four times -- epoch 25, the trust lifecycle
                             records, the findings literal, and now the baseline freeze.
 ```
+
+---
+
+## CC-030 — P2-C measured: the graph is ONE knot of 20 of 28, and a plausible shortcut for the largest inversion was refuted before it was taken
+
+```text
+ENTRY_ID                    CC-030
+timestamp_utc               2026-09-25T02:40Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. No protected-path write, NO EPOCH CEREMONY: the new
+                            programs live under scripts/ and tests/, which the enforcement sensor does not scan
+                            (its scan roots are electron and src), so no edge and no baseline moved.
+main_before                 c3ae9062b7176198829fa08a4b866cc1a9347142  (five checks green, epoch 34)
+branch                      feat/p2c-cycle-scc-validator
+PR                          the PR that carries this entry
+problem                     Section 17 says "Freshly compute capability-level SCCs and cycles" and the final
+                            acceptance suite (section 30) names a "cycle/SCC validator". Neither existed. The
+                            only cycle number the programme had was the mutual-pair count -- 38 -- which says how
+                            many PAIRS are mutually dependent and says nothing about whether the graph is a knot.
+classification              R2 (missing required validator), and a REFUTED hypothesis recorded below.
+normal_path                 Build the measurement as an instrument, keep the judgement in the existing P2-B/P2-C
+                            judge, pin both directions by test, falsify the pins.
+why_normal_path_was_not_used  Not applicable -- used in full.
+files_or_rules_changed      scripts/phase2-cycles.cjs                          (NEW instrument, read-only)
+                            scripts/phase2-edge-inventory.cjs                   (report gains the FULL pair list)
+                            scripts/p2b-kernel-feature-ratchet.cjs              (judges the SCC numbers too)
+                            config/p2b-kernel-feature-ratchet.json              (records the SCC floors/ceilings)
+                            tests/unit/city/p2b-kernel-feature-ratchet.test.ts  (20 -> 38 cases)
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md   (this entry)
+```
+
+```text
+THE MEASUREMENT (node scripts/phase2-cycles.cjs, under the OWNERSHIP MAP)
+  capability graph      28 nodes (27 capabilities + the composition root), 193 directed edges
+  SCCs                   9, of which 1 has more than one member and 8 are trivial
+  LARGEST SCC            20 of 28 capabilities      <- the knot
+  the 8 trivial ones     the composition root, conversation, dispatch, host-status, remote, settings,
+                         state-core, task-creation
+  mutual pairs           38    (the same number the inventory reports, computed from the SCC's own edge list)
+  self-loops             0
+
+  HISTORY FOR COMPARISON, quoted with its source and NOT treated as truth: section 17 records "43
+  capability-level 2-cycles, 1 SCC containing 25 of 27 capabilities". So the knot has come from 25 of 27 to
+  20 of 28, and the mutual pairs from 43 to 38 -- both moved by the composition-root re-attribution (CC-023).
+
+WHY THE SCC SIZE IS THE DECISION-RELEVANT NUMBER
+  Pairwise repairs do not split a large component: it dissolves only when EVERY internal mutual dependency does.
+  If the 38 mutual pairs sat in many small components the programme would be a list of pair repairs; with one
+  component holding 20 of 28 it is one connected problem with 20 members. That is a planning fact, and it is
+  the reason the pair count alone was not enough.
+```
+
+```text
+A SHORTCUT REFUTED BY MEASUREMENT, BEFORE IT WAS TAKEN
+  THE HYPOTHESIS. `electron/commander/**` (39 files, owned by `tenx`) is the source of the largest surviving
+  inversions -- `persistence -> tenx` 11 and `runtime -> tenx` 7 -- and the re-attribution analysis calls it
+  "shared task-execution infrastructure (a ROAD, not a building)". The composition-root step (CC-023) removed 72
+  kernel -> feature edges by giving a mis-attributed file its own owner class, so the same move looked available
+  here: give commander a road class and the count falls by up to 18 for free.
+
+  MEASURED. It is not available, and the numbers say why:
+    commander OUTGOING to non-commander files   122 edges across 13 capabilities
+      -> providers(kernel) 27, tasks 26, engineering 21, status 12, persistence(kernel) 10, workspace 8,
+         research 5, tenx 4, knowledge 3, runtime(kernel) 2, theme 2, security 1, automation 1
+    commander INCOMING from non-commander files 132 edges from 24 owners
+    internal commander -> commander              64
+
+  A road that 24 owners depend on is normal. A road that itself depends on 13 capabilities -- 39 of those edges
+  onto three KERNELS -- is not: re-labelling it would move 83 road -> feature edges and 39 road -> kernel edges
+  out of the measurement without repairing anything, which is precisely what section 17 forbids: "Do not reduce
+  the numbers by hiding files from the scanner."
+
+  WHAT THE COMPOSITION-ROOT PRECEDENT ACTUALLY REQUIRED. main.ts was re-attributable because it had ZERO
+  incoming edges and its outgoing edges were class-1 wiring, so the measured edge TOTAL went UP (794 -> 797)
+  while the kernel -> feature count fell -- nothing was hidden. Commander fails both halves of that test: it has
+  132 incoming edges and it depends on buildings in both directions. Its correct treatment is section 17's
+  EXTRACTION (invert the dependencies, or move the shared abstractions to a road), which is real work and is why
+  the re-attribution analysis deferred the FILE migration to P2-E.
+  The refutation is recorded because the shortcut was plausible, cheap, ceremony-free, and would have looked like
+  a 18-edge win.
+```
+
+```text
+THE JUDGE GREW RATHER THAN MULTIPLYING
+  The SCC numbers are ratcheted by the EXISTING P2-B/P2-C judge (`scripts/p2b-kernel-feature-ratchet.cjs`), whose
+  artifact already recorded `mutual_capability_pairs` and whose header already said "P2-B/P2-C". ONE judge and
+  one artifact, not two of each.
+  CEILINGS   largest_scc_size 20, non_trivial_scc_count 1, mutual_capability_pairs 38
+  FLOORS     capability_nodes 28, capability_edges 193  <- the ANTI-GAMING property for this half: shrinking the
+             largest component by losing an edge from the graph is the same fraud as shrinking the inversion
+             count by scanning fewer files, and it would be invisible from the component size alone
+  NOT A CEILING  scc_count. Splitting one component RAISES the count while lowering the largest size, so a rise
+             there is progress; a test asserts a split is not reported as a regression, and that the falling
+             largest size IS reported as the improvement to record.
+  MEASURED TWICE  `mutual_capability_pairs` is now asserted from BOTH the inventory's pair rollup and the cycle
+             instrument's own edge list, so two instruments that disagree both fail rather than one being trusted.
+  FAIL CLOSED  if the artifact records an SCC floor and no cycle report is supplied, that is a PROBLEM, not a
+             skip: "I could not check it" must not read as "it holds".
+
+THE INVENTORY'S `--json` WAS NOT THE FULL INVENTORY
+  `topPairs` is truncated to 60 for the human summary, and there are 193 pairs, so a consumer of `--json` received
+  under a third of the capability graph. Computing SCCs on that would have reported FEWER cycles than exist --
+  silently, and in the direction that flatters the programme. The report now also carries `allPairs` (counts
+  only), and the cycle instrument reads that.
+```
+
+```text
+FALSIFICATION, AND TWO WEAK TESTS THE MUTATIONS EXPOSED
+  MUTATION 1  the non-trivial-SCC ceiling disabled
+              -> "a new non-trivial component passed the ratchet"
+  MUTATION 2  the SCC algorithm's LOW-LINK PROPAGATION disabled
+              -> caught three ways: the real-tree case failed ("non-trivial SCCs ROSE to 2 ... largest SCC 16
+                 instead of 20"), the CLI exited 1, and the THIRD-CYCLE case returned [['b','c'],['a']] instead of
+                 [['a','b','c']].
+  THE FIRST VERSION OF THE SYNTHETIC CASES COULD NOT DETECT MUTATION 2. A DAG, a 2-cycle and two disjoint
+  2-cycles all still compute correctly without low-link propagation, because in a 2-cycle each member sees the
+  other directly. The cases that discriminate the algorithm's core step are a THREE-cycle and a cycle with a
+  TAIL, and both were added only after the mutation showed their absence. A pure-function test suite that passes
+  is not evidence that it exercises the algorithm; this is the third time in this programme that falsification
+  found a check that was watching the wrong thing.
+```
+
+```text
+known_risk                  The SCC is computed under the OWNERSHIP MAP, whose numbers are still a model under
+                            repair; the manif ESTS-only legacy ratchet cannot see any of it. Every number here is
+                            quoted with its model for that reason.
+                            `largest_scc_size` 20 is a CEILING at the measured value: it records the current knot
+                            rather than accepting it, and the artifact's target says 0.
+                            The 8 trivial components are NOT claimed to be healthy -- "not in a cycle" is not the
+                            same as "well designed", and section 17's other target (uncontrolled lateral bearing
+                            dependencies) is unmeasured.
+rollback                    Delete the two new programs and the artifact's SCC block; the judge skips the SCC
+                            checks when the artifact does not record them, which is exactly how the 20 original
+                            cases keep passing.
+temporary_debt_created      no
+exit_condition              `node scripts/phase2-cycles.cjs` reports the SCC decomposition, the judge ratchets it
+                            with the anti-gaming floors, and a split is measurably progress.
+closure_status              CLOSED for the P2-C measurement and validator. OPEN for P2-C's migration (cycles to 0)
+                            and for P2-B's (inversions to 0).
+research_value              Three things, and the middle one is the point. (1) The pair count and the SCC size are
+                            different facts: 38 mutual pairs in one component of 20 is a single connected problem,
+                            not 38 small ones, and only the decomposition shows that. (2) A refuted hypothesis is a
+                            result: the commander shortcut was cheap, ceremony-free, plausible and wrong, and it
+                            was refuted by measuring the direction of its edges rather than by reasoning about its
+                            name -- the same test that made the composition-root re-attribution honest (a rising
+                            edge TOTAL with a falling inversion count) is the test commander fails. (3) A
+                            regression test can pass without exercising the code it names: three of the four
+                            synthetic SCC cases were insensitive to the algorithm's central step until a mutation
+                            said so.
+```

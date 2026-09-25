@@ -62,7 +62,7 @@ function readRatchet(root = ROOT) {
  * Pure and exported so the test can exercise BOTH directions on constructed reports -- a ratchet that is only
  * ever observed passing has not been shown to ratchet anything.
  */
-function decide(report, ratchet) {
+function decide(report, ratchet, cycles) {
   const problems = [];
   const improvements = [];
   const recorded = ratchet.recorded ?? {};
@@ -95,6 +95,31 @@ function decide(report, ratchet) {
   floor("capabilities with a kind", measured.capabilitiesWithKinds, recorded.capabilities_with_kinds, "`kernel` is read from the manifests' kind field, so a kernel that lost its kind would stop being counted while still being a kernel");
   floor("composition-root files", measured.compositionRootFiles, recorded.composition_root_files, "the composition root must stay visible; removing it from the map instead of re-attributing it would make its ~95 outgoing edges disappear");
 
+  // ---- P2-C: the SCC decomposition, the decision-relevant half of the cycle section in
+  // docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md (section 17) ------------------------------------
+  //
+  // A 2-cycle count says how many PAIRS are mutually dependent. The SCC size says whether the graph is a KNOT:
+  // pairwise repairs do not split a large component, because it only dissolves when every internal mutual
+  // dependency does. So the recorded floor is `largest_scc_size` -- a CEILING that must fall -- and the graph
+  // itself gets FLOORS, because shrinking the component by losing edges or nodes from the measurement would be
+  // the same fraud as shrinking the inversion count by scanning fewer files.
+  if (typeof recorded.largest_scc_size === "number") {
+    if (cycles === undefined || cycles === null) {
+      problems.push(`largest SCC size: the recorded floor names it (${recorded.largest_scc_size}) but no cycle measurement was supplied, so the property cannot be checked; run scripts/phase2-cycles.cjs and pass its report`);
+    } else {
+      risen("largest SCC size", cycles.largestSccSize, recorded.largest_scc_size, "section 17's target is 0; a LARGER component means the knot grew even if the pair count fell, and pairwise repairs do not split a large component");
+      risen("non-trivial SCCs", cycles.nonTrivialSccCount, recorded.non_trivial_scc_count, "a new multi-member component is a new knot, not a new cycle");
+      risen("mutual capability pairs (cycles)", cycles.twoCyclePairCount, recorded.mutual_capability_pairs, "the same number as above, measured from the SCC's own edge list rather than from the inventory's pair rollup; if the two disagree the instruments disagree and neither should be trusted");
+      floor("capability nodes", cycles.capabilityNodes, recorded.capability_nodes, "the SCC is computed over this node set; losing a node makes the component smaller without the architecture changing");
+      floor("capability edges", cycles.capabilityEdges, recorded.capability_edges, "fewer edges in the graph means fewer cycles found, which is how a knot could be reported as dissolved without being touched");
+      if (typeof recorded.scc_count === "number") {
+        // NOT a ceiling: splitting one component RAISES the count while lowering the largest size, so a rise here
+        // is progress. Recorded for the reader, asserted only to be present.
+        if (typeof cycles.sccCount !== "number") problems.push("SCC count: the cycle measurement carries no SCC count");
+      }
+    }
+  }
+
   // The composition root is NOT a kernel: the whole point of its own class (ledger CC-023).
   for (const entry of report?.kernelToFeaturePairs ?? []) {
     if (String(entry.pair).startsWith("<composition-root>")) {
@@ -117,6 +142,11 @@ function decide(report, ratchet) {
       filesOwned: measured.filesOwned ?? null,
       capabilitiesWithKinds: measured.capabilitiesWithKinds ?? null,
       compositionRootFiles: measured.compositionRootFiles ?? null,
+      largestSccSize: cycles?.largestSccSize ?? null,
+      nonTrivialSccCount: cycles?.nonTrivialSccCount ?? null,
+      sccCount: cycles?.sccCount ?? null,
+      capabilityNodes: cycles?.capabilityNodes ?? null,
+      capabilityEdges: cycles?.capabilityEdges ?? null,
     },
   };
 }
@@ -127,6 +157,9 @@ function render(decision) {
   lines.push(`[p2b] recorded ${decision.recordedAt ?? "(no date)"}; targets ${JSON.stringify(decision.target)}`);
   lines.push(`[p2b] measured kernel -> feature file edges ${decision.measured.kernelToFeatureFileEdges} over ${decision.measured.kernelToFeaturePairs} pairs; mutual pairs ${decision.measured.mutualCapabilityPairs}`);
   lines.push(`[p2b] measured owned files ${decision.measured.filesOwned}; capabilities with a kind ${decision.measured.capabilitiesWithKinds}; composition-root files ${decision.measured.compositionRootFiles}`);
+  if (decision.measured.largestSccSize !== null) {
+    lines.push(`[p2b] measured capability graph ${decision.measured.capabilityNodes} node(s) / ${decision.measured.capabilityEdges} edge(s); SCCs ${decision.measured.sccCount} (${decision.measured.nonTrivialSccCount} non-trivial); LARGEST SCC ${decision.measured.largestSccSize}`);
+  }
   for (const line of decision.improvements) lines.push(`[p2b] IMPROVED ${line}`);
   if (decision.ok) {
     lines.push("[p2b] VERDICT=HOLDS (no recorded value was exceeded and nothing was hidden to achieve it)");
@@ -139,7 +172,10 @@ function render(decision) {
 
 function main(argv) {
   const report = require(path.join(ROOT, "scripts", "phase2-edge-inventory.cjs")).report;
-  const decision = decide(report, readRatchet());
+  // The cycle measurement is a SEPARATE instrument (scripts/phase2-cycles.cjs); the judge reads both rather than
+  // computing the SCCs itself, so the numbers it ratchets are the ones the instrument publishes.
+  const cycles = require(path.join(ROOT, "scripts", "phase2-cycles.cjs")).report;
+  const decision = decide(report, readRatchet(), cycles);
   if (argv.includes("--json")) process.stdout.write(`${JSON.stringify(decision, null, 2)}\n`);
   else process.stdout.write(`${render(decision)}\n`);
   return decision.ok ? 0 : 1;
