@@ -5214,3 +5214,86 @@ research_value              (1) A NEGATIVE result about the programme's own prem
                             improved while p2d regressed, and only running BOTH told the truth. A migration
                             verified against one instrument would have called this a success.
 ```
+
+## CC-061 — The +1 access is real, and the reason reframes the repair
+
+```text
+ENTRY_ID                    CC-061
+timestamp_utc               2026-09-26T09:33:20Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 46b10de10391d3837655e6dbad65b8a34c23142f  (five checks green, epoch 37, PR #94)
+branch                      docs/city-cc-061
+PR                          the PR that carries this entry
+what_was_asked              CC-060 left one question open before any further construction-move repair could be
+                            costed: is the +1 cross-domain private-state access REAL debt, or an attribution
+                            artifact of the composition root becoming a new accessor where persistence was the
+                            old one? It was decided by running the p2d instrument on the abandoned branch
+                            (feat/persistence-wiring @ 287765e) and reading the per-access detail rather than the
+                            count.
+the_answer_is_REAL          The instrument names the access it added, and it is exactly the construction that
+                            moved:
+                              [p2d] CONFIRMED cross-domain private-state accesses: 6 over 4 (namespace, capability) pair(s)
+                              [p2d]   tasks (owner persistence) <- host-status  electron/host/host-observer-collector.ts:256
+                              [p2d]   attachments (owner persistence) <- <composition-root>  electron/main.ts:637
+                              [p2d]   tasks (owner persistence) <- runtime  electron/platform/coordination-recorder.ts:159
+                              [p2d]   tasks (owner persistence) <- tenx  electron/runtime-intelligence/live-capture.ts:519
+                              [p2d]   tasks (owner persistence) <- tenx  electron/runtime-intelligence/replay-corpus-io.ts:111
+                              [p2d]   tasks (owner persistence) <- tenx  electron/runtime-intelligence/replay-corpus-io.ts:411
+                            The line is main.ts:637, the new `new AttachmentStore(path.join(dataRoot, ".boss",
+                            "attachments"))`. Nothing else moved, and no pre-existing access disappeared to offset
+                            it -- so the count rose by one because one appeared.
+why_it_is_real_and_not_an_artifact
+                            The sensor's own definition is the answer: "a path.join whose last segment is a declared
+                            durable namespace and which carries a durable-root marker, reached from a file owned by
+                            a DIFFERENT capability". The namespace `attachments` is declared with OWNER
+                            persistence. The store CLASS lives in the `input` capability, but the NAMESPACE it
+                            writes belongs to persistence. So while persistence constructed the store, the access
+                            was INTRA-DOMAIN and correctly invisible. The moment the composition root constructs
+                            it, the same reach becomes cross-domain. Nothing was hidden and nothing was
+                            mis-attributed: the access only became visible because its accessor stopped being the
+                            owner.
+the_actual_defect_this_exposes
+                            The mismatch is upstream of the construction: a durable namespace is declared OWNED by
+                            one capability while its store is IMPLEMENTED in another. That mismatch is invisible
+                            while the owner happens to be the constructor, and it is exactly what the move
+                            disturbed. This also explains the asymmetry between the two stores in the same change:
+                            `session-lifecycle` produced NO new access because it is not among the 32 declared
+                            durable namespaces, so the sensor never had an owner to compare against. The
+                            `attachments` pair failed and the `session-lifecycle` pair did not, and neither result
+                            was about the construction at all -- both were about whether a namespace owner existed.
+the_corrected_repair_shape  A construction-move repair cannot work for this pair. What would work is to make
+                            the CONSTRUCTOR the namespace's OWNER, in two steps that must be taken together:
+                              (1) declare the `attachments` durable namespace owned by the capability that
+                                  implements its store (`input`), aligning ownership with implementation; and
+                              (2) construct the store from THAT capability's own boot path, so no other capability
+                                  reaches it.
+                            Taken alone, step (1) makes MAIN worse: persistence constructing a namespace it no
+                            longer owns becomes a cross-domain access, which is one more than the branch had. That
+                            is why the two steps are one act, and why the naive reading of this repair ("move the
+                            wiring to the composition root") could never have worked however carefully it was
+                            executed.
+what_this_does_not_claim   It does not prove that every construction-carrying pair is unreachable. It proves
+                            that for a namespace whose declared owner is not its implementing capability, moving
+                            construction CONVERTS an inversion edge into a private-state access -- the same
+                            lateral move CC-060 declined, now with a named mechanism. Any future candidate must
+                            first ask who owns the NAMESPACE, not who owns the file that builds the store.
+state                       Branch feat/persistence-wiring @ 287765e remains preserved locally and on the remote
+                            as the measurement artefact. Main is untouched; the working tree was returned to main
+                            before this entry was written.
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no.
+closure_status              CLOSED. The open question CC-060 left is answered with a named access, a named line and
+                            a mechanism, and the repair family is re-scoped by namespace ownership rather than by
+                            edge count.
+research_value              (1) A count that rises is not evidence of fraud and not evidence of an artifact: the
+                            per-access detail decided it in one command, and the answer was neither of the two
+                            hypotheses -- it was that the OLD access was invisible, not that the new one was
+                            spurious. (2) Two stores moved in one change produced opposite sensor results, and the
+                            reason was neither store's code: it was whether a durable namespace owner existed.
+                            A reader comparing only the two code sites would have concluded the sensor was
+                            inconsistent. (3) The ranking error in CC-053 has a precise cause now -- it ranked
+                            pairs by EDGE cost, and the true price of a pair is set by NAMESPACE ownership, a
+                            fact that appears in none of the edge instruments.
+```
