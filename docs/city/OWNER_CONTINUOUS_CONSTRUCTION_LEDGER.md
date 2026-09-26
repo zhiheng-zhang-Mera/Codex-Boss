@@ -6951,3 +6951,147 @@ research_value              (1) A detector that REFUSES to guess found two defec
 ```
 
 ---
+
+## CC-073 — S6 continuation: the reader/writer model and the boundary it exposed
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. Why this entry exists.** The Zero-Touch workbook forbids stopping for a spent execution context without first
+fixing the successor's facts into the repository (section 23 clause 6). This is that record. It changes no code, no
+baseline, no ratchet and no trust surface: it is a classification and a priced next step, written while the
+information was in hand rather than after it was lost.
+
+**2. S6's real model after CC-072, stated as evidence rather than as a number.**
+
+```text
+authoritative writer for `tasks`   persistence  (bootstrap/persistence.ts composes boss("tasks"))
+uncontrolled foreign writers       0 found      (the only writer was runLiveCaptureSmoke, now structurally
+                                                  barred from naming the production namespace)
+remaining cross-domain accesses     3, all into `tasks`, all READS in the source:
+                                      host-status  host-observer-collector.ts:256  ledger.list() for queue depth
+                                      tenx         replay-corpus-io.ts:111          fs.existsSync(.boss/tasks)
+                                      tenx         replay-corpus-io.ts:411          counts checkpoint files
+p2d candidate count                 1  -- UNCHANGED, because the instrument still lists every capability that
+                                      TOUCHES the namespace and cannot compute direction
+```
+
+So the model's first two clauses are now supported by evidence and the third is not machine-enforced. That is the
+whole of the remaining S6 gap, and it is a **detector capability gap, not a code defect**: no further foreign
+writer was found to remove.
+
+**3. The boundary this exposed, which is worth recording because it bounds the work.** Section 18 of the city
+specification forbids "cross-domain private-state access". The instrument hunts `path.join` sites, i.e. direct
+resolution into another capability's **namespace**. But a capability can reach another capability's durable state
+without ever naming the namespace, through the owning capability's API:
+
+```text
+observable surface available to the detector:   path.join(...) sites                      <- what it scans
+NOT visible:                                    StateStore / TaskLedger reads and writes   <- the real exposure
+```
+
+Concretely: `tasks` is not only a directory, it is the `TaskLedger` that `persistence` exposes and that other
+modules call. A foreign caller of `taskLedger.create(...)` performs a cross-domain write to durable state while
+contributing **zero** `path.join` sites, so it is invisible to the current instrument. That means the honest
+status of S6 is **"no uncontrolled foreign writer found along the observable surface"**, not "S6 = 0", and the
+difference is a property of what the instrument can see rather than of the code.
+
+This is recorded as a **boundary**, not as a defect in the instrument and not as a reason to widen it casually:
+the workbook's section 5 permits extending a detector only in a way that ADDS information and stays at least as
+sensitive on every existing case. The bounded first increment toward a reader/writer model is therefore:
+
+```text
+1  extend the model with a DECLARED-reader list keyed by (namespace, capability, site, reason), committed as
+   data beside the existing p2d ratchet, so a reader's legitimacy is a recorded claim rather than a silence;
+2  require that every confirmed cross-domain access is either declared as a reader or reported as an
+   UNDECLARED access -- an undeclared one stays a violation, so the check can still fail;
+3  keep the existing confirmed-access ceiling as a FLOOR-shaped guard: the count may fall, never rise, so the
+   extension cannot be used to launder a new access;
+4  state plainly in the entry that implements it that the envelope question (capability-API writes that never
+   name a namespace) is NOT yet covered, and register it rather than implying coverage.
+```
+
+Step 3 is the part that matters most: without it, adding a declaration mechanism would be exactly the whitelist
+the workbook forbids. With it, declaring a reader changes what is *explained*, never what is *counted*.
+
+**4. What is NOT done.** S2 55, S3 31, S4 largest SCC 18/29, S5 3 accesses / 2 pairs, S6 1 candidate,
+S10 22/27, S14 2. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched, the Owner lease
+is in force, city acceptance NOT_READY.
+
+**5. The next three constructions, in the order the workbook's section 13 selects them.**
+
+```text
+1  S6 reader/writer model            the four-step increment above. Highest value because it is the only
+                                     remaining S6 item AND it strengthens an instrument instead of moving code.
+2  S4 interior edges                 the 18-node knot needs an edge INSIDE it removed. Harder than the
+                                     membership changes CC-067/CC-069 achieved; classify the interior edges
+                                     (essential / mis-owned / reverse dependency / composition-root candidate /
+                                     dead / duplicate / compatibility debt / lifecycle debt / kernel-internal)
+                                     and prefer one repair that improves S2 + S3 + S4 together. Record a null
+                                     result honestly when SCC size does not move.
+3  S10 the 22 MIGRATION_IN_PROGRESS  find each plot's POSITIVE closure condition; batch rows that share one
+                                     closure pattern rather than one PR per row. A restart/resume proof is
+                                     sufficient where the requirement is continuity, and elapsed wall-clock time
+                                     is NOT evidence unless the requirement itself depends on duration.
+```
+
+**6. Continuation constraints a successor must not rediscover.**
+
+```text
+- config/architecture-baseline.json is BYTE-FROZEN by a guard: bootModuleCount = 25 and no new boot module may
+  be added. Use the composition root, existing interfaces, simplification or dead-code removal.
+- the accepted-baseline ceremony is a FIXED POINT: `--accept` derives its candidate as
+  tracked.baseline_version + 1 with parent = tracked.baseline_hash, while the series must ALREADY name that
+  triple. Insert ONE placeholder entry per step, learn the real hash from the refusal, write it back in place,
+  establish the epoch LAST. artifacts/cc070-baseline-complete.cjs is the working driver.
+- every series entry's `source_commit` must be a full 40-hex SHA or the series refuses it as
+  BASELINE_SERIES_MALFORMED. Fix provenance; never bypass the guard.
+- a measurement with TWO independent readbacks must move BOTH when one moves: the p2d ratchet and
+  tests/unit/city/principle-enforcement-validator.test.ts row 15.7 both read p2d:confirmedAccesses, and the
+  committed matrix document pins the generated table. CC-072's first CI run was red for exactly this and it is
+  recorded rather than rerun away.
+- docs/city/** is outside the Root Trust Surface: a ledger-only or docs-only change needs NO epoch ceremony,
+  and saying so explicitly is required because such a change has been mistaken for a surface change before.
+```
+
+```text
+ENTRY_ID                    CC-073
+timestamp_utc               2026-09-26T19:33:39Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root
+                            Trust Surface, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 bb163f6  (CC-072 merged; five checks green on its head, epoch 57)
+branch                      docs/city-cc-073-s6-continuation
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: `node scripts/phase2-private-state.cjs`, `node scripts/phase2-pair-edges.cjs`,
+                            targeted reads of the three remaining access sites, and the CC-071/CC-072 entries
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The reader/writer model is PROPOSED, not implemented, so the S6 candidate remains 1.
+                            Deliberate: implementing it needs the declared-reader config, a validator change and
+                            the floor guard from point 3 together, and landing only part of that would be worse
+                            than landing none.
+evidence_preserved          the model in point 2, the observable-surface boundary in point 3, the four-step
+                            increment with its anti-whitelist guard, and the continuation constraints in point 6
+rollback                    Revert this commit. Documentation only; no behaviour, baseline or ratchet changes.
+temporary_debt_created      no.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a CONTINUATION RECORD. The objective is NOT complete and this entry does
+                            not claim it is.
+research_value              (1) S6's remaining gap is a DETECTOR capability gap rather than a code defect: no
+                            further foreign writer exists to remove along the observed surface, so the honest
+                            statement is "no uncontrolled foreign writer found", not "zero". (2) The instrument's
+                            blind spot is now named with a concrete example: a capability that calls another
+                            capability's exposed ledger performs a cross-domain durable write while
+                            contributing no `path.join` site, so a path-shaped detector cannot see it. Naming a
+                            detector's boundary is the same act as naming a migration family's price: it is
+                            what stops a later round from mistaking coverage for correctness. (3) The
+                            anti-whitelist guard is stated as part of the proposal rather than added after the
+                            fact, because a declaration mechanism without a floor is precisely the laundering
+                            act the workbook forbids, and it would have been easy to introduce by accident.
+```
+
+---
