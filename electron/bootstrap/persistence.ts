@@ -16,7 +16,6 @@ import { WorkspaceRegistry } from "../workspace/workspace-registry";
 import { WorkspaceSelectionStore } from "../workspace/workspace-selection";
 import { durableFileFor } from "../workspace/durable-roots";
 import { PermissionManifestStore } from "../security/permission-manifest";
-import { ProjectStateStore } from "../project/project-state";
 import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
@@ -91,7 +90,6 @@ interface PersistenceService {
   workspaceSelection: WorkspaceSelectionStore;
   /** Workspace-scoped stores, rooted at the active workspace. */
   permissionManifests: PermissionManifestStore;
-  projectStates: ProjectStateStore;
   /** Runtime admission: what may run right now, and against which resources. */
   resources: ResourceController;
   contexts: ContextManager;
@@ -146,7 +144,10 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   const workspaceRoot = workspaces.activeWorkspaceId();
   const atDefaultWorkspace = workspaceRoot === DEFAULT_WORKSPACE_ID;
   const permissionManifests = open("permission-manifest", () => new PermissionManifestStore(durableFileFor(dataRoot, workspaceRoot, path.join(".boss", "permission-manifest.json"))));
-  const projectStates = open("project-state", () => new ProjectStateStore(durableFileFor(dataRoot, workspaceRoot, path.join(".boss", "project-state.json"))));
+  // `project-state` is NOT opened here (ledger CC-069). It is the only store in this module whose
+  // construction had NO consumer: `main.ts` already builds a `ProjectStateStore` per workspace through
+  // `openProjectState(workspaceId)`, and nothing ever read the boot-time instance. The namespace is now
+  // claimed by the `project` capability that implements it, and the store is built where it is used.
   const resources = open("runtime-resources", () => new ResourceController(boss("runtime-resources.json")));
   const contexts = open("task-contexts", () => new ContextManager(path.join(dataRoot, "task-contexts.json")));
   // Contexts are retained, never created here: a task that no longer exists must
@@ -158,7 +159,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
       externalSessions, budget, guidance, decisions,
-      workspaces, workspaceSelection, permissionManifests, projectStates,
+      workspaces, workspaceSelection, permissionManifests,
       resources, contexts,
       opened
     },

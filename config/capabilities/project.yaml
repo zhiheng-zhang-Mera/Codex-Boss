@@ -5,7 +5,9 @@ provides:
   - project.state@1
 requires: []
 optional: []
-state: []
+state:
+  - namespace: project-state
+    owner: project
 health:
   critical: false
 modules: []

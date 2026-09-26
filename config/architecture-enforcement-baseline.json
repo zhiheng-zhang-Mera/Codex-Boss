@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 7,
-  "parent_baseline_hash": "3f070694311d9cfb19b99605a2a033efb920a07dff79978dfa538b2b1574947c",
-  "source_commit": "d16b88be2cd5201be7bd952dbe963f9e176c07e4",
+  "baseline_version": 10,
+  "parent_baseline_hash": "228b07259d3f68dc0dde43dde390bc71b4c996791a0d6a399e9bf2abb585114c",
+  "source_commit": "3638ee091ae6917fc5c165c6ee920e39e80b1d21",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-068: the `experience` namespace moved to the `experience` capability that implements it, and `electron/bootstrap/persistence.ts` no longer constructs or forwards the store. ONE edge is retired -- `persistence -> experience` -- with no reverse edge. The store is workspace-scoped, so the composition root resolves the active workspace root and constructs it: the raw total is unchanged at 796 while kernel -> feature falls by one and edgesFromCompositionRoot rises by one.",
+  "reason": "CC-069: the `project-state` durable store was REMOVED from `bootstrap/persistence.ts`. It had no consumer: `electron/main.ts` already builds a ProjectStateStore per workspace through openProjectState(workspaceId), and the boot-time instance was never read. The `project-state` namespace is now claimed by the `project` capability that implements it. ONE edge is retired, raw total 796 -> 795, capability edges 199 -> 198, and the largest SCC falls 19 -> 18 because `project` leaves the component.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -27,7 +27,7 @@
         "undeclared_files": 587,
         "conflicts": []
       },
-      "edges": 1684,
+      "edges": 1683,
       "unresolved": 1
     }
   },
@@ -942,10 +942,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/input/provider-capability-registry.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/project/project-state.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -7434,6 +7430,10 @@
       "electron/node/node-capability-registry.ts"
     ],
     [
+      "electron/bootstrap/persistence.ts",
+      "electron/project/project-state.ts"
+    ],
+    [
       "electron/bootstrap/provider-ipc.ts",
       "src/shared/contracts.ts"
     ],
@@ -7508,8 +7508,8 @@
     "tracked_source_files": 613,
     "declared_owned_files": 26,
     "undeclared_files": 587,
-    "internal_edges": 1684,
+    "internal_edges": 1683,
     "unresolved_references": 1
   },
-  "baseline_hash": "cbee7367116455aaad6546c99e4b92e191e1a4e2aaee629ee2bba26a909775d8"
+  "baseline_hash": "a4a0642f8e0411dc2f76efcf330c4f8ad6b4296f848547d41e24f9aef1dfa07e"
 }

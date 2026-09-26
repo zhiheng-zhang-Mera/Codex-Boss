@@ -35,8 +35,6 @@ state:
     owner: persistence
   - namespace: permission-manifest
     owner: persistence
-  - namespace: project-state
-    owner: persistence
   - namespace: runtime-resources
     owner: persistence
   - namespace: task-contexts

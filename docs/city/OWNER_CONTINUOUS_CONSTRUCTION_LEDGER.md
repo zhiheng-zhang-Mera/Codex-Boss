@@ -6357,3 +6357,151 @@ research_value              (1) The four-instance price sequence is the programm
 ```
 
 ---
+
+## CC-069 — A dead store: `project-state` removed rather than relocated
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What the previous round priced, and what the check found.** CC-068 ended by naming `project-state` as a
+candidate and by requiring one check BEFORE it was costed: `main.ts` already has `openProjectState(workspaceId)`,
+so the boot-time instance `persistence` opens may be dead. The check confirmed it. `persistence.service.projectStates`
+was constructed at boot and **never read anywhere in `electron/` or `src/`** -- the only reference outside the
+module is the persistence suite's own projection of the service. Production builds the store per workspace, on
+demand, where it is used.
+
+**2. So this is a removal, not a migration.**
+
+```text
+1  config/capabilities/persistence.yaml   the `project-state` claim is REMOVED
+2  config/capabilities/project.yaml       the claim is ADDED by the capability that implements it
+3  electron/bootstrap/persistence.ts      the import, the service field and the boot-time construction are
+                                          DELETED (15 durable stores, down from 16)
+4  nothing added to electron/main.ts      there was nothing to move: the consumer already built its own
+```
+
+**3. The measurement, and the signature that inverts CC-068.**
+
+```text
+p2b kernel -> feature file edges     57 -> 56        (target 0)
+p2b kernel -> feature pairs          18 -> 17
+p2b mutual capability pairs          31 -> 31
+p2b total cross-capability edges    796 -> 795       FELL -- nothing replaced it
+p2b capability graph edges          199 -> 198
+p2b edges FROM composition root      98 -> 98        UNCHANGED -- nothing was relocated
+p2b largest SCC                      19 -> 18        FELL AGAIN
+p2b files owned                     598 -> 598
+p2d confirmed private-state access     5 -> 5;  pairs 3 -> 3;  multi-writer 1 -> 1;  namespaces 32
+architecture enforcement violations     0 -> 0; closure validator PASS; architecture ratchet 0 violations
+```
+
+The five migrations now have five distinct signatures, and the two most recent are mirror images:
+
+```text
+CC-068 experience   1 deleted, 1 added   raw UNCHANGED, kernel -> feature fell, root edges ROSE
+CC-069 project-state 1 deleted, 0 added  raw FELL,      kernel -> feature fell, root edges UNCHANGED
+```
+
+That pair is the diagnostic. **If the raw total does not move, the construction was relocated. If it falls by
+exactly what `kernel -> feature` fell by, the store was dead.** A programme that watched only one column could
+not tell a relocation from a removal, and the difference matters: a relocation is a structural repair, a removal
+is a structural repair plus a simplification.
+
+`largest_scc_size` fell 19 -> 18 for the second time, and the same qualification as CC-067 applies and is
+repeated in the ratchet reason: `project` was in the knot and the deleted edge was the only one reaching it from
+`persistence`, so this is a **membership change, not a loosening** of the remaining 18 nodes.
+
+**4. Root Trust: accepted baseline version 10, and a provenance defect caught and corrected in the ceremony.**
+The removed prospective edge changes the accepted identity, so the chain advanced to version 10 and the epoch was
+established last. `--check` reports `artifact_integrity` / `series_authorized` / `candidate_tree_matches_frozen` /
+`identical` all true and `bless --check` MATCHES.
+
+```text
+the_defect_in_the_ceremony   The first attempt wrote a short SHA (7 characters) into a series entry's
+                            `source_commit`, and the series REFUSED it as BASELINE_SERIES_MALFORMED -- correctly,
+                            because that field is a provenance claim. It was corrected to the full 40-hex main SHA
+                            and the chain re-converged, and the correction is recorded here rather than hidden.
+                            The intermediate versions created by the retries (8 and 9) are legitimate links in an
+                            append-only chain; version 10 is the accepted head. A reader comparing version count
+                            with migration count should read the lineage, not count acceptances.
+```
+
+**5. What is NOT done.** S2 56 (target 0), S3 31 mutual pairs (target 0), S4 largest SCC 18 of 29 (target <= 1),
+S5 5 confirmed accesses over 3 pairs (target 0), S6 1 multi-writer candidate (`tasks`, target 0), S10 22 of 27
+plots MIGRATION_IN_PROGRESS, S14 2 MACHINE_RATCHET rows. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31
+and 32 are untouched, and the Owner lease remains in force.
+
+**6. The next action and its price.** `permission-manifest` is the last single-direction candidate and should be
+checked for the same defect THIS round checked for `project-state`, before it is costed:
+
+```text
+permission-manifest  implemented by `security` (electron/security/permission-manifest.ts)
+                     declared by `persistence`, and `main.ts` DOES read it from the service
+                     (`permissionForWorkspace: () => permissionManifests.load(...)`), so it is a real
+                     relocation at CC-068's price, not a removal.
+```
+
+After it, the remaining `persistence` declarations are either correct (`history`, `tasks`, `workspaces`) or
+kernel-to-kernel pairs that this metric does not count. The larger work is then the ordered remainder: the
+soak and lifecycle debt families against their positive closure condition, then the rest of S4/S6/S10/S14, then
+section 31, section 32, E5 and the seal.
+
+```text
+ENTRY_ID                    CC-069
+timestamp_utc               2026-09-26T10:22:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, then L5 for the Root Trust Surface files: the accepted
+                            enforcement baseline, its accepted series and the trust epoch, established in the
+                            same commit as the surface change. No red check was bypassed and no gate relaxed.
+main_before                 3638ee091ae6917fc5c165c6ee920e39e80b1d21  (five checks green, epoch 54, PR #104)
+branch                      fix/cc069-remove-dead-project-state
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b ratchet HOLDS, p2d HOLDS, cycles largest SCC 18, architecture ratchet 0
+                            violations, enforcement baseline --check identical (v10), closure validator PASS,
+                            bless --check MATCHES, ledger provenance HOLDS, tsc on electron AND tests projects
+                            clean, the four affected suites green (43 tests)
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/project.yaml;
+                            config/architecture-enforcement-baseline.json;
+                            config/p2b-kernel-feature-ratchet.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            electron/bootstrap/persistence.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts
+known_risk                  (1) Removing a store is only safe because it was provably unread; that proof is a
+                            tree-wide search, and a future store removed on the same reasoning must repeat it.
+                            (2) `tests/unit/durable-state-ownership.test.ts` documents that
+                            `.boss/project-state.json` has TWO constructions; that narrative is now one
+                            construction, and the test's own assertion (that the class is stateless, so two
+                            instances are not two owners) still holds and still passes -- it guards the property
+                            that made the boot-time instance redundant. (3) The series now carries intermediate
+                            accepted versions from the corrected ceremony; they are legitimate links, and the
+                            head is v10.
+evidence_preserved          the five-migration signature table in point 3; the malformed-provenance defect in
+                            point 4; every measurement reproducible with `node scripts/phase2-pair-edges.cjs
+                            --json`, `node scripts/phase2-cycles.cjs` and `node scripts/phase2-private-state.cjs
+                            --json`
+rollback                    Revert this commit. One atomic act: the manifest claims, the persistence module
+                            edit, the ratchet record, the accepted baseline version 10, its series entries and
+                            the epoch.
+temporary_debt_created      no. One dead store removed; no gate deferred.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured structural step. The OBJECTIVE is NOT complete.
+research_value              (1) A store with NO consumer is a fifth price, and the cheapest: the same repair
+                            costs two edge operations when there is something to trade, one when there is not,
+                            one when the construction relocates -- and ZERO moves when the construction was
+                            never needed. The diagnostic is the raw-total/kernel-to-feature pair: equal falls
+                            mean removal, unequal means relocation. (2) The dead store was found by the check
+                            the PREVIOUS round required before costing the work, which is the second time a
+                            pre-priced check changed what was done rather than merely confirming it. (3) A guard
+                            refusing a provenance field is a feature: the series rejected a 7-character SHA as
+                            BASELINE_SERIES_MALFORMED, which is exactly the class of silent wrong-provenance
+                            the ledger's own timestamp control exists for -- two independent mechanisms now
+                            refuse to let a provenance field hold a value that cannot be true.
+```
+
+---
