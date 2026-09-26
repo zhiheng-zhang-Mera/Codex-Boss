@@ -163,6 +163,36 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 7,
+      "baseline_hash": "cbee7367116455aaad6546c99e4b92e191e1a4e2aaee629ee2bba26a909775d8",
+      "parent_baseline_hash": "3f070694311d9cfb19b99605a2a033efb920a07dff79978dfa538b2b1574947c",
+      "source_commit": "d16b88be2cd5201be7bd952dbe963f9e176c07e4",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the atomic experience namespace-ownership migration by the executor holding that lease. Recorded in ledger CC-068.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-068; config/capabilities/experience.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-26T09:50:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE edge retired with no reverse edge to trade against: electron/bootstrap/persistence.ts imported ExperienceStore from electron/experience/experience-store.ts only to construct it and hand it back through its service object. The `experience` namespace is now claimed by the capability that implements it, so that construction leaves the persistence module. The store is WORKSPACE-SCOPED, so the composition root resolves the active workspace root and constructs it; the raw cross-capability total is therefore UNCHANGED at 796 while kernel -> feature falls by one and edgesFromCompositionRoot rises by one. Both figures are recorded because either alone would misreport the change.",
+        "new_legitimate_relation": "one composition-root -> experience edge, which is the wiring for a store the root now builds. The kernel -> feature edge it replaces is deleted.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline.",
+        "largest_scc_effect": "NONE: the largest SCC is unchanged at 19. `experience` was not in the knot, so this migration reduces the inversion count without touching the component -- stated so it is not conflated with CC-067, where a member did leave."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1683,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

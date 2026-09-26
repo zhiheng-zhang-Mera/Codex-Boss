@@ -5,7 +5,20 @@ provides:
   - experience.record@1
 requires: []
 optional: []
-state: []
+# The namespace this capability IMPLEMENTS is the namespace it OWNS (ledger CC-068).
+#
+# `experience` was declared by `persistence`, which constructed `ExperienceStore` inside
+# `bootstrap/persistence.ts` and imported it from this capability -- the same misalignment repaired
+# for `attachments` (CC-065), `identity` (CC-066) and `node` (CC-067). The single edge had NO reverse
+# direction, so the kernel -> feature edge is deleted outright rather than traded or inverted.
+#
+# The path is WORKSPACE-SCOPED (`durableFileFor(dataRoot, activeWorkspaceId, ...)`), so the
+# composition root holds the resolved workspace root and passes it in; that is the interface decision
+# CC-067 priced before this round started. No boot module was added, for the reason CC-066 recorded:
+# a new one raises `bootModuleCount` in the byte-frozen `config/architecture-baseline.json`.
+state:
+  - namespace: experience
+    owner: experience
 health:
   critical: false
 modules: []

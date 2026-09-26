@@ -69,6 +69,7 @@ import { engineeringSessionId } from "./engineering/engineering-session";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { ProjectStateStore } from "./project/project-state";
+import { ExperienceStore } from "./experience/experience-store";
 import {
   reconcileWorkbookLinks,
   resumeWorkBookTask,
@@ -766,7 +767,13 @@ if (ownsInstance) app.whenReady().then(() => {
 
   // Workspace-rooted and resource state, handed on to the services below exactly
   // as the inline versions were.
-  const { workspaces, permissionManifests, experiences, resources: resourceController, contexts: contextManager } = persistence.service;
+  const { workspaces, permissionManifests, resources: resourceController, contexts: contextManager } = persistence.service;
+  // The `experience` capability's durable store is built HERE rather than handed back by `persistence`
+  // (ledger CC-068). The namespace moved to the capability that implements it, so the kernel module
+  // that used to construct it only to forward it no longer mentions it at all. Its path is
+  // WORKSPACE-SCOPED, so the composition root resolves the active workspace root once (the same value
+  // `persistence` used to derive) and passes it in -- the interface decision CC-067 priced.
+  const experiences = new ExperienceStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "experience.json")));
   // Phase F: the provider-side integration is its own boot module — the API client
   // every API runtime dispatches through, the GitHub machine identity with its
   // degrade-only-GitHub fallback, and the registration of one API runtime per

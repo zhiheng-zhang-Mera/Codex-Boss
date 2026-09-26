@@ -4,6 +4,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAutomationModule } from "../../electron/bootstrap/automation";
 import { createPersistenceModule } from "../../electron/bootstrap/persistence";
+import { ExperienceStore } from "../../electron/experience/experience-store";
+import { durableFileFor } from "../../electron/workspace/durable-roots";
+import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
 /**
  * Phase F — the event bus, its recorders and the runtime-resilience services are
@@ -39,7 +42,10 @@ function build(dataRoot: string) {
   const module = createAutomationModule({
     dataRoot,
     store: persistence.service.store,
-    experiences: persistence.service.experiences,
+    // The `experience` store is built by the composition root now, not handed back by `persistence`
+    // (ledger CC-068): this test builds it the way main.ts does, against the same workspace-scoped path,
+    // so it exercises the real store rather than a stub.
+    experiences: new ExperienceStore(durableFileFor(dataRoot, DEFAULT_WORKSPACE_ID, path.join(".boss", "experience.json"))),
     publish: () => { published.push(Date.now()); }
   });
   return { module, published };

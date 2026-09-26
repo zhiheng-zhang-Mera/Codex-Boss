@@ -52,7 +52,7 @@ const DECLARED = [
   "history", "tasks", "state", "provider-capabilities", "github-cache",
   "api-settings", "external-sessions",
   "runtime-budget", "interventions", "decision-ledger", "workspaces",
-  "workspace-selection", "permission-manifest", "project-state", "experience",
+  "workspace-selection", "permission-manifest", "project-state",
   "runtime-resources", "task-contexts"
 ];
 
@@ -87,7 +87,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "workspace-selection": service.workspaceSelection,
     "permission-manifest": service.permissionManifests,
     "project-state": service.projectStates,
-    experience: service.experiences,
     "runtime-resources": service.resources,
     "task-contexts": service.contexts
   };
@@ -126,7 +125,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("17 durable store(s)");
+    expect(fresh.health().detail).toContain("16 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {

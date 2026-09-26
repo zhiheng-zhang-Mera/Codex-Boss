@@ -6216,3 +6216,144 @@ research_value              (1) The repair's cost is now a MEASURED sequence rat
 ```
 
 ---
+
+## CC-068 — `experience`: the same repair where the price is visible in a different column
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. Why this one, and what was known before starting.** CC-067 priced `project-state` and
+`permission-manifest` and named the reason they are dearer than `node`: their paths are workspace-scoped, so
+the composition root must hold the resolved workspace root. `experience` has the same shape and the same price,
+and it is a single edge with no reverse direction. So the interface decision CC-067 identified was taken first,
+deliberately, on the cheapest store that needs it rather than on the dearest.
+
+**2. The migration.**
+
+```text
+1  config/capabilities/persistence.yaml   the `experience` namespace claim is REMOVED
+2  config/capabilities/experience.yaml    the claim is ADDED by the capability that implements it
+3  electron/bootstrap/persistence.ts       no longer imports ExperienceStore and no longer forwards it
+                                           (17 durable stores -> 16)
+4  electron/main.ts                        resolves the ACTIVE workspace root once and constructs the store
+                                           with `durableFileFor(dataRoot, activeWorkspaceId, .boss/experience.json)`
+```
+
+The path is byte-identical to what `persistence` composed, so no stored data moves.
+
+**3. The measurement, and the number that did not move.**
+
+```text
+p2b kernel -> feature file edges     58 -> 57        (target 0)
+p2b kernel -> feature pairs          19 -> 18
+p2b mutual capability pairs          31 -> 31
+p2b total cross-capability edges    796 -> 796       UNCHANGED -- and this is the honest reading
+p2b edges FROM composition root      97 -> 98        ROSE, because the root now builds this store
+p2b largest SCC                      19 -> 19        unchanged: `experience` was not in the knot
+p2b files owned                     598 -> 598
+p2d confirmed private-state access     5 -> 5        no regression
+p2d confirmed pairs                    3 -> 3;  multi-writer 1 -> 1;  declared namespaces 32
+architecture enforcement violations     0 -> 0; closure validator PASS; architecture ratchet 0 violations
+```
+
+**The raw total did not fall, and that is the interesting part.** Because the store is workspace-scoped, the
+composition root must resolve the active workspace root and construct it — so one `persistence -> experience`
+edge is DELETED and one `<composition-root> -> experience` edge is ADDED. A programme reporting only the raw
+total would see no change at all; a programme reporting only kernel -> feature would see a win and miss that the
+construction moved to the root. Both numbers are recorded here, and the ratchet config now carries
+`edges_from_composition_root` as a recorded value for exactly this reason.
+
+This is the **fourth distinct price of the same repair**, which is now a measured sequence rather than an
+estimate:
+
+```text
+CC-065 attachments  2 deleted, 0 added   raw 798 -> 796   (both directions of a mutual pair)
+CC-066 identity     2 deleted, 1 added   raw 797 -> 796   (one direction; the root must name the class)
+CC-067 node         1 deleted, 0 added   raw 796 -> 796 -> 796 after re-measure; SCC 20 -> 19
+CC-068 experience   1 deleted, 1 added   raw 796 -> 796   (workspace-scoped: the root resolves the root)
+```
+
+The invariant across all four is that the DELETION always appears in `kernel_to_feature_file_edges`, and the raw
+total tells you what the construction did instead. That column now reads **61 -> 57** across four migrations.
+
+**4. Root Trust: accepted baseline version 7.** The moved edge changes the prospective identity, so the
+baseline was regenerated as accepted version 7 with ONE retired edge, no new grandfathered debt, and the
+"raw total unchanged" reading recorded in its classification. The epoch was established last. `--check` reports
+`artifact_integrity` / `series_authorized` / `candidate_tree_matches_frozen` / `identical` all true and
+`bless --check` MATCHES. The ceremony converged in two passes again — the second consecutive round in which the
+fixed-point property recorded in CC-066 was applied rather than rediscovered.
+
+**5. What is NOT done.** S2 57 (target 0), S3 31 mutual pairs (target 0), S4 largest SCC 19 of 29 (target <= 1),
+S5 5 confirmed accesses over 3 pairs (target 0), S6 1 multi-writer candidate (`tasks`, target 0), S10 22 of 27
+plots MIGRATION_IN_PROGRESS, S14 2 MACHINE_RATCHET rows. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections
+31 and 32 are untouched, and the Owner lease remains in force.
+
+**6. The next action and its price.** The workspace-root interface is now proven, so the two stores CC-067
+priced are unblocked at the same price as this one:
+
+```text
+project-state        implemented by `project`  (electron/project/project-state.ts) -- single direction
+permission-manifest  implemented by `security` (electron/security/permission-manifest.ts) -- single direction
+```
+
+One caveat that must be checked BEFORE either is attempted rather than during it: `main.ts` already has an
+`openProjectState(workspaceId)` helper that constructs a `ProjectStateStore` per workspace on demand, so the
+boot-time instance `persistence` opens may be redundant in production and is used only by the persistence
+suite. If that is confirmed, `project-state` is not a relocation at all — it is a removal, and it should be
+priced as one, because deleting a store that nothing reads is a smaller act than moving one that something
+does. `tests/unit/durable-state-ownership.test.ts` documents the two constructions and is the test that decides
+it.
+
+```text
+ENTRY_ID                    CC-068
+timestamp_utc               2026-09-26T09:47:30Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, then L5 for the Root Trust Surface files: the accepted
+                            enforcement baseline, its accepted series and the trust epoch, established in the
+                            same commit as the surface change. No red check was bypassed and no gate relaxed.
+main_before                 d16b88be2cd5201be7bd952dbe963f9e176c07e4  (five checks green, epoch 53, PR #103)
+branch                      fix/cc068-experience-namespace-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b ratchet HOLDS, p2d HOLDS, cycles largest SCC 19, architecture ratchet 0
+                            violations, enforcement baseline --check identical (v7), closure validator PASS,
+                            bless --check MATCHES, ledger provenance HOLDS, secret scan PASS
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/experience.yaml;
+                            config/architecture-enforcement-baseline.json;
+                            config/p2b-kernel-feature-ratchet.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts
+known_risk                  (1) The composition root now resolves the active workspace root for this store, so
+                            it captures the same boot-time value `persistence` used to derive; a workspace
+                            switch after boot behaves exactly as before, because the value was already fixed
+                            at boot in both versions. (2) The `experience` capability has no boot module and
+                            therefore no health line -- the recorded consequence of the frozen
+                            `architecture-baseline.json`. (3) `edges_from_composition_root` is now a recorded
+                            ratchet value; a future migration that moves construction into the root will move
+                            it, and the recorded value makes that visible rather than silent.
+evidence_preserved          the four-migration price sequence in point 3; every measurement reproducible with
+                            `node scripts/phase2-pair-edges.cjs --json` and `node scripts/phase2-cycles.cjs`
+rollback                    Revert this commit. One atomic act: the manifest claims, the two code files, the
+                            ratchet record, the accepted baseline version 7, its series entry and the epoch.
+temporary_debt_created      no. One edge was deleted, one composition-root edge added deliberately and recorded.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured structural step. The OBJECTIVE is NOT complete.
+research_value              (1) The four-instance price sequence is the programme's first genuinely repeatable
+                            structural result: the same repair costs 2, 3, 2 and 2 edge-operations depending on
+                            how many other capabilities reach the same state and whether the path is
+                            workspace-scoped, while the DELETION always lands in the kernel -> feature column.
+                            (2) A metric that does not move can still be evidence: the raw total is unchanged
+                            at 796 here, and recording WHY (one deleted, one added) is what makes the
+                            unchanged number informative instead of suspicious. (3) Pricing an action before
+                            taking it paid off twice: CC-067 named the workspace-root interface decision, and
+                            this round took it on the cheapest store that needed it, which is why the
+                            ceremony converged in two passes and no design had to be withdrawn.
+```
+
+---
