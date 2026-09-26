@@ -5121,3 +5121,96 @@ research_value              (1) An estimate of WIDTH is the part of a plan that 
                             cost centre, and it is found by searching the tree for the artifact's own words
                             ("durable store(s)") rather than by reasoning about the change.
 ```
+
+## CC-060 — The "cheap pair" is not cheap: the repair moved the debt into a second currency
+
+```text
+ENTRY_ID                    CC-060
+timestamp_utc               2026-09-26T08:52:37Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 66924d683892fc67096aa7ca6cade48fad626955  (five checks green, epoch 37, PR #92)
+main_after                  d41c26470c70d5f844898f610f0bb57ebb7acf02  (UNCHANGED: this entry is the only change)
+branch                      docs/city-cc-060
+PR                          the PR that carries this entry
+what_was_attempted          The structural step CC-053 specified, CC-058 measured and CC-059 costed: build the
+                            attachment store and the session-lifecycle ledger in electron/main.ts (the composition
+                            root) instead of inside electron/bootstrap/persistence.ts. Executed in full on branch
+                            feat/persistence-wiring, commit 287765e, preserved on the remote.
+the_gains_were_REAL         Every predicted number came in exactly as CC-058 said, and the section-24 ceremony was
+                            performed end to end for the first time:
+                              kernel -> feature file edges   61 -> 59      (predicted 59)
+                              kernel -> feature pairs        22 -> 20
+                              mutual capability pairs        33 -> 31      (predicted 31)
+                              total cross-capability edges  800 -> 798
+                              capability graph edges        203 -> 201
+                              architecture enforcement      violations 0, engine_errors 0
+                              p2b ratchet                   VERDICT=HOLDS after re-deriving the capability-edge
+                                                            FLOOR to the measured 201 rather than relaxing it
+                              section-24 ceremony           candidate v4 cbb8f31e..., parent v3 7aa3e17a...,
+                                                            series entry naming the triple, --accept ->
+                                                            BASELINE_ACCEPTED, candidate_tree_matches_frozen true
+                            Records inspection confirmed the premise first: electron/main.ts is `composition_root`
+                            in the ownership map and `UNDECLARED` in the enforcement baseline, so the two edges
+                            were DELETED and not moved. Nothing about the mechanism was wrong.
+and_then_the_city_tier_named_the_price
+                            tests/unit/city/phase2-private-state.test.ts, on the same tree:
+                              cross-domain private-state accesses ROSE to 6, above the recorded 5 (section 18's
+                                target is 0)
+                              cross-domain private-state pairs ROSE to 4, above the recorded 3 (a new
+                                (namespace, accessing capability) pair is a new consumer reaching past the owner)
+why_that_is_decisive_and_not_just_a_number_to_raise
+                            Three reasons, and each alone would be enough.
+                            (1) The targets are the SAME: section 33 asks for S2 = 0, S3 = 0 and S5 = 0. Falling two
+                            edges toward one zero while rising one access toward another is not progress toward
+                            the acceptance condition; it is a lateral move between two debts with the same goal.
+                            (2) The p2d ratchet's own words make it a REGRESSION rather than a re-attribution:
+                            "a new (namespace, accessing capability) pair is a new consumer reaching past the
+                            owner". Raising that ceiling is not a measurement correction -- it is authorising new
+                            debt.
+                            (3) The baseline series entry this same change required asserts
+                            "new_grandfathered_debt: none". Raising the p2d ceiling in the same commit would have
+                            made that claim FALSE, and the entry would then have been the artifact-states-a-
+                            number-the-machine-does-not-resolve defect this register already names three times.
+the_decision                ABANDONED, and deliberately not because it failed to work. It worked exactly as
+                            designed and the design's price was measured for the first time. Branch
+                            feat/persistence-wiring @ 287765e is preserved locally AND on the remote; main is
+                            untouched at d41c2647, tree clean, five checks green, epoch 37 anchored. The baseline
+                            v4 candidate was never left governing anything: the tracked baseline and the series
+                            were restored, so no orphaned acceptance exists.
+the_corrected_cost_model    CC-053 called these "the genuinely cheap pairs" because they cost two EDGES each.
+                            That was the wrong currency. The price of a construction-carrying pair is not paid
+                            in edges: it is paid in PRIVATE-STATE ACCESS, and the two are ratcheted separately
+                            with the same target of zero. An edge produced by USE can be inverted (that is what
+                            CC-046 did to providers -> tenx, and it cost nothing else). An edge produced by
+                            CONSTRUCTION can only be RELOCATED unless ownership moves with the construction,
+                            because the composition root that builds a store and the module that forwards it
+                            both reach into the same private state. The cheapest-looking pairs in this tree were
+                            exactly the construction-carrying ones, which is why they looked cheap.
+open_question_for_the_next_round
+                            Is the +1 access REAL debt or an attribution artifact of the composition root becoming
+                            a NEW accessor where persistence was the old one? The count rose rather than staying
+                            level, which suggests an access appeared and none was cancelled -- but if the old
+                            persistence access was never counted (because attachment-store was classified inside
+                            persistence's own domain) then the change only made a pre-existing reach visible
+                            under a different name. That is decidable from the p2d instrument's per-access
+                            detail, and it must be decided BEFORE any further construction-move repair is costed,
+                            because the answer decides whether this whole family of repairs is available at all.
+rollback                    Nothing to roll back: main never carried the change. The branch is preserved as
+                            evidence and can be deleted only by a later recorded act.
+temporary_debt_created      no -- and that is the point. The debt that would have been created is the p2d
+                            ceiling rise that was declined.
+closure_status              CLOSED. A predicted cheap repair was executed, measured, found to trade one debt for
+                            another, and abandoned with its evidence intact and its cost model corrected.
+research_value              (1) A NEGATIVE result about the programme's own premise is worth more than a landing:
+                            "dissolve the mutual pairs to reach zero" is not universally available, because
+                            construction-carrying edges relocate rather than disappear. CC-053 ranked pairs by
+                            edge cost and therefore ranked the impossible ones first. (2) Running the section-24
+                            ceremony end to end the first time produced a template that is now known to work
+                            (candidate -> named triple -> --accept -> candidate_tree_matches_frozen true), which
+                            is reusable knowledge independent of this abandonment. (3) A second ratchet exists
+                            precisely to catch what the first one cannot see, and it caught this: the p2b metric
+                            improved while p2d regressed, and only running BOTH told the truth. A migration
+                            verified against one instrument would have called this a success.
+```
