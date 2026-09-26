@@ -6666,3 +6666,134 @@ research_value              (1) The relocation signature is now PREDICTIVE rathe
 ```
 
 ---
+
+## CC-071 — Lane B: the S6 `tasks` multi-writer candidate classified, and one of its five accesses is a WRITE
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. Why this entry exists and why it changes nothing.** The successor workbook's section 6 requires CI to run
+asynchronously and section 7 requires another lane to advance while a PR waits. This is Lane B's output from
+CC-070's CI window: a read-only classification of the S6 binding target, recorded so the construction that
+follows does not have to rediscover it. **No file outside this ledger entry changed**, because the workbook also
+forbids two constructions from landing commits that touch the same Root Trust file set at the same time.
+
+**2. What the instrument says, and what it cannot say.** `scripts/phase2-private-state.cjs` reports five
+confirmed cross-domain accesses into the `tasks` namespace and one multi-writer candidate, and it is explicit
+that the candidate is NOT a measurement:
+
+```text
+[p2d] multi-writer candidates: 1 -- the open mode is not in the source, so this lists namespaces touched by
+      more than one non-owner capability and does not decide read from write
+[p2d]   tasks (owner persistence) touched by host-status, runtime, tenx
+```
+
+So the binding target S6 (`uncontrolled multi-writer durable stores = 0`) cannot be closed by any argument about
+the count. It can only be closed by reading each access and deciding its direction. That is what this entry does.
+
+**3. The classification, access by access.**
+
+```text
+#  site                                          direction   evidence
+1  electron/host/host-observer-collector.ts:256   READ        `const ledger = sources.ledger ?? new TaskLedger(ledgerRoot)`
+                                                              then `ledger.list()` / snapshot rows for queue depth
+2  electron/platform/coordination-recorder.ts:159  NONE        `ledgerRootUnder()` is DEFINED AND NEVER CALLED
+3  electron/runtime-intelligence/live-capture.ts:519  WRITE    `runLiveCaptureSmoke` builds a real ledger at
+                                                              `<dataRoot>/.boss/tasks` and calls `ledger.create(...)`
+4  electron/runtime-intelligence/replay-corpus-io.ts:111  READ  `fs.existsSync(path.join(candidate.path, ".boss", "tasks"))`
+5  electron/runtime-intelligence/replay-corpus-io.ts:411  READ  reads `task.id/checkpoints` to count files
+```
+
+**Exactly one of the five is a WRITE, and it is not in production.** `runLiveCaptureSmoke` is exported from
+`electron/runtime-intelligence/live-capture.ts` and has exactly one caller in the whole repository:
+`tests/unit/runtime-intelligence/live-capture.test.ts`. It joins its `dataRoot` with `.boss/tasks` — the same
+string the real ledger uses (`persistence.ts` composes `boss("tasks")` where `boss = <dataRoot>/.boss/…`) — so a
+caller that passes the production data root writes into the authoritative task-ledger namespace from outside the
+`persistence` capability. Its own doc comment says it writes only `DEVELOPMENT_SMOKE` records "so nothing it
+writes can enter a headline", which is a **provenance** guarantee about the records, not an **isolation**
+guarantee about the store: the records are excluded from metrics, but the write still lands in the namespace.
+
+**4. Two findings worth more than the count.**
+
+```text
+FINDING 1  a dead function is being counted as a cross-domain access.
+           electron/platform/coordination-recorder.ts`ledgerRootUnder()` has no caller. It is a path helper
+           left behind, and because the p2d instrument detects `path.join` sites rather than live ones, it
+           contributes an access that cannot become one. Deleting it is a pure simplification: no
+           relocation, no ownership change, and the access count falls by one.
+
+FINDING 2  an exported smoke helper writes into a production namespace.
+           `runLiveCaptureSmoke` is the only cross-domain WRITER found, and it is test-only. The repair is
+           to give the helper an isolated root (or to have its single caller pass one), which reduces real
+           cross-domain writes without touching ownership, the p2b metric, or any Root Trust surface.
+```
+
+Both findings are the CC-069 kind — a thing that should not exist rather than a thing in the wrong place — and
+that is why neither needs a namespace-ownership migration. The workbook's section 13 says exactly this for S6:
+"dead writer 能删就不为形式 relocation" (if a dead writer can be deleted, do not perform a formal relocation).
+
+**5. What is NOT established, and must not be claimed.** Nothing here proves S6 reaches zero. The instrument
+cannot decide read from write, so after the two repairs above it will still report a candidate unless the
+remaining cross-domain **reads** stop being counted — and they should not stop being counted by weakening the
+detector. The honest statement of S6's positive exit condition is therefore **not** "the candidate count is 0"
+but:
+
+```text
+S6 EXIT CONDITION (proposed, to be decided in the construction that implements it)
+  every cross-domain access into a durable namespace is either (a) removed, or (b) shown to be a READ and
+  registered as a legitimate reader with its reason and its capability, so that "multi-writer candidate"
+  becomes "declared readers + exactly one writer".
+  The detector must NOT be relaxed to reach it: the workbook forbids achieving S5/S6 by widening the
+  instrument, and a whitelist would be the same act with a friendlier name.
+```
+
+That condition is deliberately stated as a PROPOSAL and not as a completed decision, because choosing between
+"remove all foreign reads" and "declare foreign readers explicitly" is a real design decision with different
+consequences for the acceptance suite, and it should be made in the entry that implements it.
+
+**6. What is NOT done.** S2 55, S3 31, S4 18/29, S5 5/3, S6 1, S10 22/27, S14 2. `FINAL_ACCEPTANCE_RECORD.md`
+does not exist, sections 31 and 32 are untouched, the Owner lease is in force.
+
+```text
+ENTRY_ID                    CC-071
+timestamp_utc               2026-09-26T14:38:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root
+                            Trust Surface, so NO EPOCH CEREMONY is due and none was performed. Recorded in
+                            this entry rather than assumed, because a ledger-only change has been mistaken
+                            for a surface change before.
+main_before                 a54b196  (CC-070's branch head; the CC-070 merge is the next main)
+branch                      docs/city-cc-071-lane-b-classification
+PR                          the PR that carries this entry
+workflow_run_ids            n/a -- documentation only, but the PR still runs the full required check set
+checks_observed             read-only investigation: `node scripts/phase2-private-state.cjs`,
+                            `node scripts/phase2-pair-edges.cjs`, targeted `Select-String` reads of the five
+                            call sites, and a repository-wide search for the smoke helper's callers
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The two repairs identified here are NOT performed in this entry, so the S6
+                            candidate remains 1. This is deliberate: it keeps the investigation's evidence
+                            separate from the construction that acts on it, and it avoids two constructions
+                            landing commits in the same Root Trust window.
+evidence_preserved          the five-access direction table in point 3; the dead-function finding and the
+                            smoke-writer finding in point 4; the proposed exit condition in point 5
+rollback                    Revert this commit. Documentation only; it changes no behaviour and no baseline.
+temporary_debt_created      no.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as an INVESTIGATION. The objective is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) An instrument that reports "N candidates and it cannot decide read from write"
+                            forces the human act of reading each site, and that act found two defects the
+                            count could never express: a DEAD path helper counted as an access, and a
+                            test-only helper that WRITES into a production namespace. A programme that had
+                            treated the candidate count as the target would have chased the number and never
+                            read the code. (2) The distinction between a provenance guarantee ("these records
+                            are excluded from metrics") and an isolation guarantee ("this write cannot land
+                            in the authoritative store") is exactly the difference between CC-069's dead
+                            store and this live one, and it is a distinction worth having a name for:
+                            record-level provenance does not imply store-level isolation.
+```
+
+---
