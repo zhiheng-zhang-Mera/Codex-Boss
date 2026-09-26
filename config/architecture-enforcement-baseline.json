@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 6,
-  "parent_baseline_hash": "2b0738bf88857370f4a19f092c053cc9b72e5d2acb53ed6357e328114e645e29",
-  "source_commit": "ff8dceecea2f97655d95861bb54ee7a286685cfd",
+  "baseline_version": 7,
+  "parent_baseline_hash": "3f070694311d9cfb19b99605a2a033efb920a07dff79978dfa538b2b1574947c",
+  "source_commit": "d16b88be2cd5201be7bd952dbe963f9e176c07e4",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-067 (shipped design): the `node-registry` namespace moved to the `node` capability that implements it, and `electron/bootstrap/persistence.ts` no longer constructs or forwards the registry. ONE edge is retired -- `persistence -> node` -- and this pair has NO REVERSE EDGE, so nothing else moves.",
+  "reason": "CC-068: the `experience` namespace moved to the `experience` capability that implements it, and `electron/bootstrap/persistence.ts` no longer constructs or forwards the store. ONE edge is retired -- `persistence -> experience` -- with no reverse edge. The store is workspace-scoped, so the composition root resolves the active workspace root and constructs it: the raw total is unchanged at 796 while kernel -> feature falls by one and edgesFromCompositionRoot rises by one.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -930,10 +930,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/commander/task-ledger.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/experience/experience-store.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -3978,6 +3974,10 @@
     [
       "electron/main.ts",
       "electron/evidence-engine.ts"
+    ],
+    [
+      "electron/main.ts",
+      "electron/experience/experience-store.ts"
     ],
     [
       "electron/main.ts",
@@ -7419,6 +7419,10 @@
     ],
     [
       "electron/bootstrap/persistence.ts",
+      "electron/experience/experience-store.ts"
+    ],
+    [
+      "electron/bootstrap/persistence.ts",
       "electron/identity/session-lifecycle-ledger.ts"
     ],
     [
@@ -7507,5 +7511,5 @@
     "internal_edges": 1684,
     "unresolved_references": 1
   },
-  "baseline_hash": "3f070694311d9cfb19b99605a2a033efb920a07dff79978dfa538b2b1574947c"
+  "baseline_hash": "cbee7367116455aaad6546c99e4b92e191e1a4e2aaee629ee2bba26a909775d8"
 }

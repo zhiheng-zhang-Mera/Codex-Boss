@@ -17,7 +17,6 @@ import { WorkspaceSelectionStore } from "../workspace/workspace-selection";
 import { durableFileFor } from "../workspace/durable-roots";
 import { PermissionManifestStore } from "../security/permission-manifest";
 import { ProjectStateStore } from "../project/project-state";
-import { ExperienceStore } from "../experience/experience-store";
 import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
@@ -93,7 +92,6 @@ interface PersistenceService {
   /** Workspace-scoped stores, rooted at the active workspace. */
   permissionManifests: PermissionManifestStore;
   projectStates: ProjectStateStore;
-  experiences: ExperienceStore;
   /** Runtime admission: what may run right now, and against which resources. */
   resources: ResourceController;
   contexts: ContextManager;
@@ -149,7 +147,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   const atDefaultWorkspace = workspaceRoot === DEFAULT_WORKSPACE_ID;
   const permissionManifests = open("permission-manifest", () => new PermissionManifestStore(durableFileFor(dataRoot, workspaceRoot, path.join(".boss", "permission-manifest.json"))));
   const projectStates = open("project-state", () => new ProjectStateStore(durableFileFor(dataRoot, workspaceRoot, path.join(".boss", "project-state.json"))));
-  const experiences = open("experience", () => new ExperienceStore(durableFileFor(dataRoot, workspaceRoot, path.join(".boss", "experience.json"))));
   const resources = open("runtime-resources", () => new ResourceController(boss("runtime-resources.json")));
   const contexts = open("task-contexts", () => new ContextManager(path.join(dataRoot, "task-contexts.json")));
   // Contexts are retained, never created here: a task that no longer exists must
@@ -161,7 +158,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
       externalSessions, budget, guidance, decisions,
-      workspaces, workspaceSelection, permissionManifests, projectStates, experiences,
+      workspaces, workspaceSelection, permissionManifests, projectStates,
       resources, contexts,
       opened
     },

@@ -37,8 +37,6 @@ state:
     owner: persistence
   - namespace: project-state
     owner: persistence
-  - namespace: experience
-    owner: persistence
   - namespace: runtime-resources
     owner: persistence
   - namespace: task-contexts
