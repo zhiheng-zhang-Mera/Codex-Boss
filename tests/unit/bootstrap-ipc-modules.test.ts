@@ -125,9 +125,9 @@ describe("Phase F/G — workspace IPC module", () => {
 });
 
 describe("Phase G — attachment IPC module", () => {
-  function build(overrides: Partial<AttachmentService> = {}, dialog: { canceled: boolean; filePaths: string[] } = { canceled: true, filePaths: [] }) {
-    const calls: string[] = [];
-    const service: AttachmentService = {
+  /** The channel-level double, shared with the case that only needs a service to inject. */
+  function attachmentService(overrides: Partial<AttachmentService> = {}, calls: string[] = []): AttachmentService {
+    return {
       conversationExists: () => true,
       importFromPath: (input) => { calls.push(`path:${input.originalName}`); return { id: "obj-1" } as never; },
       importFromBytes: (input) => { calls.push(`bytes:${input.originalName}`); return { id: "obj-2" } as never; },
@@ -137,6 +137,11 @@ describe("Phase G — attachment IPC module", () => {
       localPathFor: () => "/tmp/attachment.bin",
       ...overrides
     };
+  }
+
+  function build(overrides: Partial<AttachmentService> = {}, dialog: { canceled: boolean; filePaths: string[] } = { canceled: true, filePaths: [] }) {
+    const calls: string[] = [];
+    const service = attachmentService(overrides, calls);
     const ipc = registrar();
     const publish = vi.fn(() => "snapshot");
     const module = createAttachmentIpcModule({ handle: ipc.handle.bind(ipc), attachments: service, publish, showOpenDialog: async () => dialog });
@@ -178,6 +183,38 @@ describe("Phase G — attachment IPC module", () => {
     await ipc.invoke("boss:remove-attachment", "conv-1", "obj-1");
     expect(calls).toEqual(["bytes:note.txt", "register:1", "removeAttachment", "removeInputObject"]);
     expect(await ipc.invoke("boss:attachment-path", "conv-1", "obj-1")).toBe("/tmp/attachment.bin");
+  });
+
+  it("builds its OWN durable store when given a data root, and holds none when it is not", () => {
+    // The `attachments` namespace belongs to this capability, so this module — its boot path — is
+    // where the store is constructed (ledger CC-065). The composition root passes the data root IN;
+    // this module never resolves it and never reads the environment.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "boss-attachments-"));
+    try {
+      const ipc = registrar();
+      const module = createAttachmentIpcModule({
+        handle: ipc.handle.bind(ipc),
+        dataRoot: root,
+        attachments: {} as never,
+        publish: () => "snapshot",
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] })
+      });
+      const store = module.service.store;
+      expect(store).toBeDefined();
+      // The path is the one the persistence module used to compose, and a real import lands there:
+      // asserting the layout is what makes this a check on the store rather than on a non-null value.
+      const imported = store!.importAttachment({ conversationId: "conv-1", originalName: "note.txt", bytes: new Uint8Array([1, 2, 3]) });
+      expect(store!.localPathFor("conv-1", imported.id)).toContain(path.join(".boss", "attachments"));
+      expect(module.health().detail).toContain(path.join(".boss", "attachments"));
+
+      // The injected service form (every other case in this file) builds no store, and says so.
+      const injected = registrar();
+      const withoutRoot = createAttachmentIpcModule({ handle: injected.handle.bind(injected), attachments: attachmentService(), publish: () => "snapshot", showOpenDialog: async () => ({ canceled: true, filePaths: [] }) });
+      expect(withoutRoot.service.store).toBeUndefined();
+      expect(withoutRoot.health().detail).not.toContain("store rooted at");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

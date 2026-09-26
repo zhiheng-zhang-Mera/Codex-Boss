@@ -9,7 +9,6 @@ import { ContextManager } from "../commander/context-manager";
 import { ResourceController } from "../commander/resource-controller";
 import { DecisionLedgerStore } from "../commander/decision-ledger-store";
 import { HumanGuidanceGate } from "../commander/human-guidance-gate";
-import { AttachmentStore } from "../input/attachment-store";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
 import { GithubResolver } from "../input/github-resolver";
 import { SessionLifecycleLedger } from "../identity/session-lifecycle-ledger";
@@ -84,7 +83,6 @@ interface PersistenceService {
   capture: RuntimeIntelligenceCapture;
   /** The application state document. */
   store: StateStore;
-  attachments: AttachmentStore;
   capabilities: ProviderCapabilityRegistry;
   github: GithubResolver;
   apiSettings: ApiSettingsStore;
@@ -130,7 +128,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   });
   const tasks = open("tasks", () => createCaptureObservingLedger({ root: boss("tasks"), capture }));
   const store = open("state", () => new StateStore(path.join(dataRoot, "state.json"), history, tasks));
-  const attachments = open("attachments", () => new AttachmentStore(boss("attachments")));
   const capabilities = open("provider-capabilities", () => new ProviderCapabilityRegistry(boss("provider-capabilities.json")));
   // The repository cache is a cache, not durable state, so it sits under the cache
   // root rather than under the data root.
@@ -168,7 +165,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   let disposed = false;
   return {
     service: {
-      history, tasks, store, capture, attachments, capabilities, github, apiSettings,
+      history, tasks, store, capture, capabilities, github, apiSettings,
       sessionLifecycle, nodeRegistry, externalSessions, budget, guidance, decisions,
       workspaces, workspaceSelection, permissionManifests, projectStates, experiences,
       resources, contexts,

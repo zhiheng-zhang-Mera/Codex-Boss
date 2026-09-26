@@ -246,10 +246,26 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
       : verdict(OPEN, `the enforcement matrix still reports ${matrixCounts.NOT_GUARDED ?? "?"} unguarded and ${matrixCounts.MACHINE_RATCHET ?? "?"} ratcheted principle(s): ${(principles.json?.rows ?? []).filter((row) => row.strength === "NOT_GUARDED" || row.strength === "MACHINE_RATCHET").map((row) => row.id).join(", ")}`));
 
   // ---- EVIDENCE / DEBT -------------------------------------------------------------------------------
-  const entryIds = (ledger.match(/ENTRY_ID {20}CC-\d+/g) ?? []).length;
+  // E1 reads the ledger through its PROVENANCE CONTROL rather than through a regex over prose, so the count,
+  // the verdict and the explanation come from ONE reading of one file (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 5, and the
+  // defect ledger CC-063 pinned when two readings of one register certified the opposite of what they printed).
+  //
+  // What the control adds: cloud verification found a ledger entry claiming a `timestamp_utc` hours AFTER the
+  // commit that already contains it (CC-063 was recorded at 04:11:35Z and claims 11:38:04Z; CC-064 at
+  // 04:51:42Z and claims 12:26:41Z), and measured across the file 25 of 63 entries did. The control checks the
+  // article shape, the machine-read field's format, and -- the part that needs git -- that the recorded instant
+  // is not later than the committer instant of the commit that first carried the entry. Disclosed history is
+  // enumerated by id; an id that is not on that list is checked.
+  const provenance = runJson("scripts/city-ledger-provenance.cjs", root, cache);
+  const provenanceReport = provenance.json ?? {};
   const reviewAnchors = (ledger.match(/CC-\d+/g) ?? []).length;
+  const entryIds = provenanceReport.entries ?? 0;
   add("EVIDENCE", "E1", "all compromises are in the cloud ledger",
-    entryIds > 0 ? verdict(UNVERIFIED, `the ledger carries ${entryIds} entry id(s) and ${reviewAnchors} ledger reference(s); COMPLETENESS cannot be proven from the tree, so it is attested in ${FINAL_RECORD}`) : verdict(OPEN, "the construction ledger has no entries"));
+    provenance.exitCode !== 0
+      ? verdict(OPEN, `city-ledger-provenance.cjs reports ${(provenanceReport.problems ?? []).length} violation(s) in the ledger itself: ${(provenanceReport.problems ?? []).slice(0, 3).map((problem) => `${problem.rule} ${problem.id}`).join("; ")}`)
+      : (entryIds > 0
+        ? verdict(UNVERIFIED, `the ledger carries ${entryIds} entr(ies) and ${reviewAnchors} ledger reference(s), parsed by city-ledger-provenance.cjs: ${provenanceReport.anchored ?? 0} anchored to the commit that first carried them, ${(provenanceReport.inheritedHygiene ?? []).length} disclosed historical prose value(s) and ${(provenanceReport.grandfathered ?? []).length} disclosed out-of-tolerance entr(ies); COMPLETENESS cannot be proven from the tree, so it is attested in ${FINAL_RECORD}`)
+        : verdict(OPEN, "the construction ledger has no entries")));
 
   const debtText = exists(DEBT_REGISTER, root) ? readText(DEBT_REGISTER, root) : "";
   const debtIds = [...new Set((debtText.match(/CITY-DEBT-\d+/g) ?? []))];

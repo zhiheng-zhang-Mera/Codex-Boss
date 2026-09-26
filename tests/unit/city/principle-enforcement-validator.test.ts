@@ -350,11 +350,17 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     expect(report.ok).toBe(true);
 
     const measured = (id: string) => report.rows.find((entry) => entry.id === id)!.measured.map((item) => [item.key, item.value]);
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 61]]);
+    // These literals are the INDEPENDENT readback of the live instruments: the same numbers are recorded in
+    // config/p2b-kernel-feature-ratchet.json and config/p2d-private-state-ratchet.json, and this case fails if
+    // the validator resolves something other than what those instruments publish. They move only when an
+    // instrument's measurement moves -- 61/22/33 became 60/21/32 in the atomic attachments migration
+    // (ledger CC-065) while the largest SCC, the confirmed private-state accesses and the flatness problems
+    // were all unchanged by it.
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 60]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
-      ["p2b:mutualCapabilityPairs", 33],
+      ["p2b:mutualCapabilityPairs", 32],
       ["p2b:largestSccSize", 20],
       ["p2d:confirmedAccesses", 5],
     ]);

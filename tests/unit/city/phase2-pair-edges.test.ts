@@ -48,10 +48,13 @@ describe("P2-E the pair inspector decomposes the inventory without disagreeing w
     expect(verification.ok).toBe(true);
     // Every distinct pair endpoint in the graph the ratchets enforce. The count rose from 193 to 206 when the road
     // class was declared, because `<road>` is an endpoint of its own: a consumer that reached `tenx` directly AND
-    // through a shared primitive now has two pairs rather than one.
-    expect(verification.pairsCompared).toBe(203);
+    // through a shared primitive now has two pairs rather than one. It FELL 203 -> 201 in the atomic attachments
+    // migration (ledger CC-065), where the `persistence <-> attachments` pair was deleted in both directions; both
+    // numbers are read from the ratchet file that recorded the measurement rather than typed here twice.
+    const ratchet = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "p2b-kernel-feature-ratchet.json"), "utf8")) as { recorded: Record<string, number> };
+    expect(verification.pairsCompared).toBe(ratchet.recorded.capability_edges);
     expect(verification.edgesCompared).toBe(result.edges.length);
-    expect(verification.edgesCompared).toBe(800);
+    expect(verification.edgesCompared).toBe(ratchet.recorded.total_cross_capability_file_edges);
   });
 
   it("cross-checks the UNION of both key sets, so a total it does not compute cannot be silently unchecked", () => {
@@ -113,8 +116,13 @@ describe("P2-E the pair inspector decomposes the inventory without disagreeing w
     expect(mismatches.slice(0, 5)).toEqual([]);
     expect(mismatches.length).toBe(0);
     // And the two shapes are pinned by name, so a future change to the pattern cannot silently reintroduce either.
-    // A statement found through the preceding newline: the import is on line 12, not 11.
-    expect(inspector.renderPair(result, "persistence -> attachments")).toMatch(/persistence\.ts:12\s+imports "\.\.\/input\/attachment-store"/);
+    // A statement found through the preceding newline: the import is on the line that carries it, not the one above.
+    // The pair used to be `persistence -> attachments`, which the atomic ownership migration DELETED (ledger
+    // CC-065); `persistence -> tasks` is the largest surviving kernel -> feature pair and exercises the same shape.
+    const anchorPair = result.edges.find((edge) => edge.pair === "persistence -> tasks" && edge.line > 1)!;
+    expect(anchorPair, "no multi-edge kernel -> feature pair to anchor the line-number check to").toBeDefined();
+    const anchorLine = fs.readFileSync(path.join(PROJECT, anchorPair.fromFile), "utf8").split("\n")[anchorPair.line - 1];
+    expect(anchorLine, `${anchorPair.fromFile}:${anchorPair.line}`).toContain(anchorPair.specifier);
     // A multi-line import: the specifier is reported on the line that carries it.
     const multiLine = result.edges.find((edge) => edge.fromFile === "src/shared/autonomous-evolution-trust.ts" && edge.specifier === "./acceptance-contracts");
     expect(multiLine, "the multi-line import this case exists for is gone; pick another").toBeDefined();
@@ -162,11 +170,15 @@ describe("P2-E the closure and candidate readings the decisions rest on", () => 
     const result = inspector.scan();
     const text = inspector.renderKernelToFeature(result);
     expect(text).toContain(`${result.totals.kernelToFeatureFileEdges} edge(s) over ${result.totals.kernelToFeaturePairs} pair(s)`);
-    // 61 after two road batches and one inverted dependency removed edges from this column, and 73 before them. The column
-    // falls while the TOTAL stays at 801, which is the invariant that makes the fall trustworthy.
-    expect(result.totals.kernelToFeatureFileEdges).toBe(61);
-    expect(result.totals.kernelToFeaturePairs).toBe(22);
-    expect(result.totals.totalCrossCapabilityFileEdges).toBe(800);
+    // The literals are read from the SAME artifact the ratchet enforces, rather than typed here. That is not a
+    // weakening: the property this case exists for is that the inspector's decomposition agrees with the number
+    // the ratchet ratchets, and typing a second copy of the number only made every honest migration edit this
+    // file. 61/22/33/800 became 60/21/32/798 in the atomic attachments migration (ledger CC-065), where two edges
+    // were deleted rather than relocated; the ratchet file carries that measurement and its reason.
+    const ratchet = JSON.parse(fs.readFileSync(path.join(PROJECT, "config", "p2b-kernel-feature-ratchet.json"), "utf8")) as { recorded: Record<string, number> };
+    expect(result.totals.kernelToFeatureFileEdges).toBe(ratchet.recorded.kernel_to_feature_file_edges);
+    expect(result.totals.kernelToFeaturePairs).toBe(ratchet.recorded.kernel_to_feature_pairs);
+    expect(result.totals.totalCrossCapabilityFileEdges).toBe(ratchet.recorded.total_cross_capability_file_edges);
   });
 
   it("re-attributes road targets without deleting an edge, and never makes a building a consumer of its own road", () => {

@@ -629,7 +629,31 @@ if (ownsInstance) app.whenReady().then(() => {
     const recovery = reconcileWorkbookLinks(store, workbookRegistry());
     if (recovery.recovered > 0) console.info(`Recovered ${recovery.recovered} WorkBook revision→task link(s) at startup`);
   } catch (error) { console.error("WorkBook revision recovery failed", error); }
-  attachmentStore = persistence.service.attachments;
+  // The `attachments` capability builds its OWN durable store (ledger CC-065). This
+  // used to be `persistence.service.attachments`: the persistence capability declared
+  // the namespace in its manifest and constructed the store, which made a kernel own
+  // state it does not implement and closed the `persistence <-> attachments` mutual
+  // pair. The composition root passes the data root in and holds the result; it does
+  // not build the store, and it does not decide where it lives.
+  const attachments = createAttachmentIpcModule({
+    handle: (channel, listener) => ipcMain.handle(channel, listener),
+    dataRoot: app.getPath("userData"),
+    attachments: {
+      conversationExists: (conversationId) => store.snapshot().conversations.some((item) => item.id === conversationId),
+      importFromPath: (input) => attachmentStore!.importAttachment(input),
+      importFromBytes: (input) => attachmentStore!.importAttachment(input),
+      registerInputObjects: (conversationId, objects) => store.registerInputObjects(conversationId, objects),
+      removeAttachment: (conversationId, inputObjectId) => attachmentStore?.removeAttachment(conversationId, inputObjectId),
+      removeInputObject: (conversationId, inputObjectId) => store.removeInputObject(conversationId, inputObjectId),
+      localPathFor: (conversationId, inputObjectId) => attachmentStore?.localPathFor(conversationId, inputObjectId)
+    },
+    publish,
+    showOpenDialog: (options) => (mainWindow && !mainWindow.isDestroyed()
+      ? dialog.showOpenDialog(mainWindow, options as Electron.OpenDialogOptions)
+      : dialog.showOpenDialog(options as Electron.OpenDialogOptions))
+  });
+  bootModules.push(attachments);
+  attachmentStore = attachments.service.store;
   capabilityRegistry = persistence.service.capabilities;
   githubResolver = persistence.service.github;
   apiSettings = persistence.service.apiSettings;
@@ -1236,22 +1260,6 @@ if (ownsInstance) app.whenReady().then(() => {
       ? dialog.showOpenDialog(mainWindow, options as Electron.OpenDialogOptions)
       : dialog.showOpenDialog(options as Electron.OpenDialogOptions)),
     selection: workspaceSelection
-  }));
-  bootModules.push(createAttachmentIpcModule({
-    handle: (channel, listener) => ipcMain.handle(channel, listener),
-    attachments: {
-      conversationExists: (conversationId) => store.snapshot().conversations.some((item) => item.id === conversationId),
-      importFromPath: (input) => attachmentStore!.importAttachment(input),
-      importFromBytes: (input) => attachmentStore!.importAttachment(input),
-      registerInputObjects: (conversationId, objects) => store.registerInputObjects(conversationId, objects),
-      removeAttachment: (conversationId, inputObjectId) => attachmentStore?.removeAttachment(conversationId, inputObjectId),
-      removeInputObject: (conversationId, inputObjectId) => store.removeInputObject(conversationId, inputObjectId),
-      localPathFor: (conversationId, inputObjectId) => attachmentStore?.localPathFor(conversationId, inputObjectId)
-    },
-    publish,
-    showOpenDialog: (options) => (mainWindow && !mainWindow.isDestroyed()
-      ? dialog.showOpenDialog(mainWindow, options as Electron.OpenDialogOptions)
-      : dialog.showOpenDialog(options as Electron.OpenDialogOptions))
   }));
   bootModules.push(createProviderIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),

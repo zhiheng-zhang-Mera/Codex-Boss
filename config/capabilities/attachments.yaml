@@ -5,7 +5,17 @@ provides:
   - attachment.store@1
 requires: []
 optional: []
-state: []
+# The namespace this capability IMPLEMENTS is the namespace it OWNS.
+#
+# It used to be declared by `persistence`, which built `AttachmentStore` inside
+# `bootstrap/persistence.ts` and imported it from this capability -- so the durable
+# state and the module that owns its bytes belonged to different capabilities, and
+# the two closed a mutual pair. Ownership follows implementation (ledger CC-065);
+# the store is now constructed on this capability's own boot path
+# (`electron/bootstrap/attachment-ipc.ts`).
+state:
+  - namespace: attachments
+    owner: attachments
 health:
   critical: false
 modules:

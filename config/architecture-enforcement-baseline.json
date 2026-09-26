@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 3,
-  "parent_baseline_hash": "98d648dcc2f1a02774156c9f91d8f8e5e6b19c9ea8a78a627120a563888a0925",
-  "source_commit": "314992ae70b33b1a1a2bc59a193723c7171401a9",
+  "baseline_version": 4,
+  "parent_baseline_hash": "7aa3e17a9538cdac5df1b4d173f98d92142883c418a9a0c296df828a0b890269",
+  "source_commit": "1bea133b8b1700c28ac53d688e23c4eb0ba0ac4c",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "invert the providers -> tenx dependency: electron/bootstrap/providers.ts imported the RuntimeRegistry type from electron/commander/runtime-registry.ts only to declare a parameter it receives, so the kernel now declares the minimal RuntimeRegistrar shape it needs and the implementation satisfies it structurally; one edge retired, no new relation, no new grandfathered debt",
+  "reason": "CC-065 atomic attachments namespace-ownership migration: the attachments durable namespace moved from the persistence manifest to the attachments capability that implements its store, bootstrap/persistence.ts no longer imports AttachmentStore, and electron/input/attachment-upload.ts declares the two-list snapshot shape it reads instead of importing the kernel's StateStore type. The pair persistence <-> attachments was one edge each way; both are DELETED (per-edge diff of the two trees: 2 removed, 0 added), so the accepted prospective edge set shrinks by two and this baseline retires them rather than grandfathering anything.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -27,7 +27,7 @@
         "undeclared_files": 587,
         "conflicts": []
       },
-      "edges": 1687,
+      "edges": 1686,
       "unresolved": 1
     }
   },
@@ -709,6 +709,10 @@
     ],
     [
       "electron/bootstrap/attachment-ipc.ts",
+      "electron/input/attachment-store.ts"
+    ],
+    [
+      "electron/bootstrap/attachment-ipc.ts",
       "src/shared/input-object.ts"
     ],
     [
@@ -938,10 +942,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/identity/session-lifecycle-ledger.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/input/attachment-store.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -3442,10 +3442,6 @@
     [
       "electron/input/attachment-upload.ts",
       "electron/input/attachment-store.ts"
-    ],
-    [
-      "electron/input/attachment-upload.ts",
-      "electron/store.ts"
     ],
     [
       "electron/input/attachment-upload.ts",
@@ -7430,6 +7426,10 @@
       "src/shared/contracts.ts"
     ],
     [
+      "electron/bootstrap/persistence.ts",
+      "electron/input/attachment-store.ts"
+    ],
+    [
       "electron/bootstrap/provider-ipc.ts",
       "src/shared/contracts.ts"
     ],
@@ -7448,6 +7448,10 @@
     [
       "electron/input/attachment-router.ts",
       "src/shared/contracts.ts"
+    ],
+    [
+      "electron/input/attachment-upload.ts",
+      "electron/store.ts"
     ],
     [
       "electron/input/provider-capability-registry.ts",
@@ -7500,8 +7504,8 @@
     "tracked_source_files": 613,
     "declared_owned_files": 26,
     "undeclared_files": 587,
-    "internal_edges": 1687,
+    "internal_edges": 1686,
     "unresolved_references": 1
   },
-  "baseline_hash": "7aa3e17a9538cdac5df1b4d173f98d92142883c418a9a0c296df828a0b890269"
+  "baseline_hash": "c211273967c44692c0c36c763ce54762aa393871cffb6ba866b1b825fdb1cf8a"
 }
