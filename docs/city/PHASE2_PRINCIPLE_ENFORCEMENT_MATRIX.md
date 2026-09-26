@@ -37,7 +37,7 @@ apart. So the matrix is data, and this document is generated from it by the vali
 | 15.4 | capability replacement lifecycle exists and carries one real proof | MACHINE-STATEFUL + real proof | EVIDENCE_REQUIRED | `scripts/replacement-lifecycle-validator.cjs` | see decision record | -- |
 | 15.5 | least-sufficient repair: no PROHIBITED ADDED lateral load | MACHINE CHECK on prohibited added lateral load | MACHINE_ENFORCED | `scripts/p2b-kernel-feature-ratchet.cjs` | 0 (added) | 0 |
 | 15.6 | every plot has exactly one valid flatness state | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/city-flatness-validator.cjs` | 0 | 0 |
-| 15.7 | no cycles, no uncontrolled lateral bearing, no cross-domain private state access | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs`, `scripts/phase2-private-state.cjs` | mutual capability pairs: 31; largest strongly connected component: 18; cross-domain private-state accesses: 5 | 0; 0; 0 |
+| 15.7 | no cycles, no uncontrolled lateral bearing, no cross-domain private state access | MACHINE ENFORCED | MACHINE_RATCHET | `scripts/p2b-kernel-feature-ratchet.cjs`, `scripts/phase2-private-state.cjs` | mutual capability pairs: 31; largest strongly connected component: 18; cross-domain private-state accesses: 3 | 0; 0; 0 |
 | 15.8 | shared roads are explicitly classified | MACHINE CHECK / explicit road classification | EVIDENCE_REQUIRED | `scripts/capability-roads-validator.cjs` | see decision record | -- |
 | 15.9 | Core growth ban | MACHINE ENFORCED | MACHINE_ENFORCED | `scripts/core-budget-validator.cjs` | 0 | 0 |
 <!-- END GENERATED MATRIX -->

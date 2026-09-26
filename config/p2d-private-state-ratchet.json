@@ -5,9 +5,9 @@
   "measured_at": "2026-09-25T03:20Z",
   "measured_by": "node scripts/phase2-private-state.cjs",
   "recorded": {
-    "cross_domain_state_accesses": 5,
-    "cross_domain_state_pairs": 3,
-    "namespace_joins_into_anothers_state": 10,
+    "cross_domain_state_accesses": 3,
+    "cross_domain_state_pairs": 2,
+    "namespace_joins_into_anothers_state": 8,
     "unclassified_namespace_joins": 5,
     "declared_namespaces": 32,
     "scanned_source_files": 612,
@@ -22,7 +22,7 @@
     "machine_enforced_instead": "exactly one declared owner per namespace, and no code path resolving into a namespace owned by someone else",
     "current_candidates": 1
   },
-  "reason": "First measurement of section 18's property. FIVE confirmed accesses over THREE (namespace, capability) pairs, ALL of them into ONE namespace: `tasks`, declared by `persistence`, resolved by hard-coded path from `host-status`, `runtime` and `tenx`. `host-status` reaching the task ledger through `path.join(boss, \"tasks\")` is the workbook's OWN historical example ('host-status parsing persistence state.json'), so the instrument finds the defect it was written to find. The five are: host-status electron/host/host-observer-collector.ts:256; runtime electron/platform/coordination-recorder.ts:159; tenx electron/runtime-intelligence/live-capture.ts:519 and replay-corpus-io.ts:111 and :411.",
+  "reason": "First measurement of section 18's property. FIVE confirmed accesses over THREE (namespace, capability) pairs, ALL of them into ONE namespace: `tasks`, declared by `persistence`, resolved by hard-coded path from `host-status`, `runtime` and `tenx`. `host-status` reaching the task ledger through `path.join(boss, \"tasks\")` is the workbook's OWN historical example ('host-status parsing persistence state.json'), so the instrument finds the defect it was written to find. The five are: host-status electron/host/host-observer-collector.ts:256; runtime electron/platform/coordination-recorder.ts:159; tenx electron/runtime-intelligence/live-capture.ts:519 and replay-corpus-io.ts:111 and :411. LOWERED BY CC-072 (5 accesses / 3 pairs -> 3 accesses / 2 pairs; the namespace-join ceiling 10 -> 8): two SIMPLIFICATIONS, neither a relocation and neither an ownership change. (1) electron/platform/coordination-recorder.ts `ledgerRootUnder()` was DEFINED AND NEVER CALLED. The p2d instrument detects path.join SITES rather than live ones, so a dead helper was being counted as a cross-domain access. Deleting it removes an access that could never become one. (2) electron/runtime-intelligence/live-capture.ts `runLiveCaptureSmoke` composed `<dataRoot>/.boss/tasks` ITSELF -- the same namespace the authoritative task ledger uses -- while its doc comment claimed a temporary root, so a caller passing a real data root performed a genuine cross-domain WRITE into persistence-owned durable state. Its only repository caller is a unit test. The ledger root is now a REQUIRED PARAMETER, so the helper cannot name the production namespace at all, which makes the isolation structural rather than a convention a future caller must remember. THE `runtime` CAPABILITY HAS LEFT THE `tasks` ACCESS SET ENTIRELY. The three remaining accesses are all into `tasks`, from host-status (1) and tenx (2), and all three are READS in the source. THE MULTI-WRITER CANDIDATE COUNT IS UNCHANGED AT 1, and that is the honest reading rather than an oversight: the instrument cannot decide read from write, so it still lists host-status, runtime and tenx as TOUCHING the namespace, and the writer-versus-reader question is settled only by reading the code. S6 IS NOT CLAIMED CLOSED by this entry, and the detector was NOT relaxed to make it look closed.",
   "the_five_unclassified": {
     "$comment": "Reported, not counted as accesses. Each is a namespace join WITHOUT a durable-root marker, and each has a reason it is not durable state access. The TOTAL (10) is also a ceiling, so an access cannot hide by being unclassifiable.",
     "history <- engineering electron/engineering/acceptance-session.ts:240": "path.join(artifacts, HISTORY_DIRECTORY) -- the acceptance session's OWN quarantine subdirectory, which happens to share the namespace's name",
