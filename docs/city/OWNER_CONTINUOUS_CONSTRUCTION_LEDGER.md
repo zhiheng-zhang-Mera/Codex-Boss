@@ -5443,3 +5443,119 @@ research_value              (1) A gate item that computes its verdict from one r
                             which is evidence that this class needs a check in the commit path, not another
                             paragraph -- and the register already has a name for that failure mode.
 ```
+
+## CC-064 — Handover: what is done, what is not, and the exact next actions
+
+```text
+ENTRY_ID                    CC-064
+timestamp_utc               2026-09-26T12:26:41Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 7de98ac6e1f721f1d5872b35b38f68c7b9ec47ec  (five checks green, epoch 37, PR #98)
+main_at_handover            a1efd009891b03792e2a8481950735e6a28e518b  (PR #99; five checks green, epoch 37)
+branch                      docs/city-cc-064
+PR                          the PR that carries this entry
+why_this_entry_exists       The goal round budget ends here and the objective is NOT complete. This entry is the
+                            resumption point: a successor should be able to start from it without re-reading 5000
+                            lines of ledger or re-deriving measurements that cost this span several rounds.
+state_verified_at_handover  working tree clean; main == origin/main == a1efd009...
+                            epoch 37 (boss-root-trust-37) MATCHES a 74-file Root Trust Surface
+                            five required checks green on the merge SHA, read from the API rather than the PR page
+                            city acceptance, HOSTED: 23 PASS, 9 OPEN, 2 UNVERIFIED -- VERDICT=NOT_READY (11 blocking)
+                            p2b: kernel->feature file edges 61 over 22 pairs; mutual pairs 33; owned files 598;
+                                 roads 6 carrying 75 edges, 0 leaving a road; graph 29 nodes / 203 edges;
+                                 10 SCCs, largest 20
+                            p2d: 5 confirmed cross-domain private-state accesses over 3 pairs; 1 multi-writer
+                                 candidate
+                            debt register: 6 entries, 2 OPEN (CITY-DEBT-005, CITY-DEBT-006)
+WHAT_IS_DONE                - The binding acceptance condition holds and was re-verified on EVERY merge of this
+                              span from the API, not from the PR page. One red (d38eb00b) was repaired at its
+                              CAUSE rather than re-run away.
+                            - Trust epoch lineage intact: 36 -> 37 advanced in the same commit as the surface change
+                              that required it (CC-055); the section-24 baseline ceremony was run end to end for
+                              the first time (candidate v4 -> named triple -> --accept -> BASELINE_ACCEPTED,
+                              candidate_tree_matches_frozen true) and is now a known-good template.
+                            - Instrument hardening, all merged and verified:
+                                CC-054/055/056/057/063  the load-sensitive family: host-supplied counts and
+                                                        environmental budgets replaced by unconditional safety
+                                                        assertions or explicit NOT_MEASURED absences
+                                CC-063                  E2 gated the seal on an anchored status regex while
+                                                        printing from a tolerant one, so an honest CC-056 edit
+                                                        HID an open debt from the verdict and E2 passed
+                                CC-062                  the lockdown group parsed every workflow twice; now once
+                            - The debt register now enumerates BOTH flake families with mechanisms, affected
+                              checks and exit conditions, and no longer overstates its own closure.
+WHAT_IS_NOT_DONE            Every structural item, unchanged by this span:
+                              S2  foundation -> building edges = 0          61
+                              S3  capability dependency cycles = 0          33 mutual pairs
+                              S4  lateral bearing dependencies = 0          largest SCC 20 of 29 nodes
+                              S5  cross-domain private-state access = 0     5 accesses over 3 pairs
+                              S6  uncontrolled multi-writer stores = 0      1 (namespace `tasks`)
+                              S10 no migration-in-progress remains          22 of 27 plots still MIGRATION_IN_PROGRESS
+                              S14 principles 15.1-15.9 enforceable          2 rows still MACHINE_RATCHET (15.1, 15.7)
+                              E5  final acceptance record                   docs/city/FINAL_ACCEPTANCE_RECORD.md does not exist
+                              E1/E4 are UNVERIFIED by design (ledger completeness and non-erasure cannot be
+                              decided from a working tree).
+                            Section 31 (no OPEN debt at the final state), section 32 (end the temporary Owner
+                            lease, verify the credential is absent from repo, runtime-data and Actions secrets,
+                            CODEOWNERS active, environment protected, ruleset active, architecture required) and
+                            the final seal are all FINAL-STATE acts and were deliberately NOT performed: doing
+                            them now would produce final-state artifacts for a non-final state.
+THE_NEXT_ACTION_AND_ITS_PRICE
+                            Namespace ownership, not edge count, sets the price of a structural repair. The
+                            cheapest-looking pairs in CC-053's ranking were the CONSTRUCTION-CARRYING ones, and
+                            they are the impossible ones:
+                              * An edge produced by USE can be INVERTED and costs nothing else (CC-046 did this
+                                to providers -> tenx and the pair dissolved for free).
+                              * An edge produced by CONSTRUCTION can only be RELOCATED. Both the composition
+                                root and the forwarding module reach the same private state, so moving the
+                                construction converts an S2/S3 edge into an S5 access: measured at CC-060 as
+                                5 -> 6 accesses and 3 -> 4 pairs, with the accessor named at main.ts:637
+                                (CC-061).
+                            The repair that WOULD work for `attachments` is two steps taken as ONE act:
+                              (1) declare the `attachments` durable namespace owned by the capability that
+                                  implements its store (`input`), aligning ownership with implementation; and
+                              (2) construct that store from `input`'s own boot path, so no other capability
+                                  reaches it.
+                            Step (1) ALONE makes main worse -- persistence constructing a namespace it no longer
+                            owns becomes a cross-domain access, one more than the abandoned branch had -- which
+                            is why the two are one act. The abandoned, fully working version of the naive
+                            attempt is preserved as branch feat/persistence-wiring @ 287765e (it achieves
+                            S2 61 -> 59 and S3 33 -> 31 and was declined only for the p2d regression).
+                            MANDATORY BEFORE ANY SUCH EDIT: run scripts/phase2-private-state.cjs on the
+                            PROPOSED state first. It names the accessor and the namespace; the p2b edge
+                            instrument cannot see this at all, and a change verified against p2b alone would
+                            have been called a success at CC-060.
+                            Then, in order: sweep the soak and lifecycle families against the positive
+                            condition (register, occurrence_ten) or take the section-18 quarantine decision
+                            (exit (b)) -- two families and 8+ observed instances are now the evidence for that
+                            decision; then S4/S6/S10/S14; then section 31, section 32, E5 and the seal.
+THREE_RULES_A_SUCCESSOR_SHOULD_INHERIT
+                            (1) A MACHINE-READ FIELD MUST NOT CARRY PROSE. CC-056 appended an honest
+                            explanation to a `status` value and hid a debt from a seal gate three rounds later
+                            (CC-063). Put the explanation on a continuation line.
+                            (2) AN ID IN A COMMIT MESSAGE IS A CLAIM. This happened TWICE (CC-057, then CC-063
+                            cited by PR #98 before it existed). The rule lives in the ledger and therefore did
+                            not act at the moment of committing: write the entry first, or say plainly that it
+                            follows.
+                            (3) VERIFY WITH BOTH INSTRUMENTS. p2b improved while p2d regressed in the same
+                            commit; only running both told the truth.
+                            And a fourth, from the whole span: 8+ CI-red instances across two families were
+                            found by RUNNING, never by reading. The register's enumeration is illustrative and
+                            the condition is the debt.
+rollback                    Revert this commit. Documentation only; it changes no behaviour, no baseline and no
+                            epoch.
+temporary_debt_created      no.
+closure_status              CLOSED as a HANDOVER. The objective is NOT complete and this entry does not claim
+                            it is: the binding CI condition holds, the structural work does not.
+research_value              (1) The most expensive lesson of this span cost four rounds to learn and can now be
+                            stated in one line: for construction-carrying dependencies the migration's unit of
+                            progress is NAMESPACE OWNERSHIP, and every edge-shaped instrument is blind to it.
+                            (2) Progress and instrument breakage can come from the SAME act -- an honest edit
+                            made a seal gate falsely pass -- so a change to a machine-read field must be
+                            followed by RUNNING the instrument, never by reasoning about it. (3) A rule recorded
+                            only in the ledger is not a control: the same executor broke the citation rule in
+                            the next round that cited an id, twice, which is evidence that this class needs a
+                            check in the commit path rather than another paragraph.
+```
