@@ -5049,3 +5049,75 @@ research_value              (1) "Move the wiring out of the capability" is a pla
                             CC-054 found the epoch assumption too pessimistic, and this entry finds it absent
                             entirely -- only the baseline moves.
 ```
+
+## CC-059 — CC-058's estimate was two files; the measured edit list is four
+
+```text
+ENTRY_ID                    CC-059
+timestamp_utc               2026-09-26T06:41:03Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 66924d683892fc67096aa7ca6cade48fad626955  (five checks green, epoch 37, PR #92)
+branch                      docs/city-cc-059
+PR                          the PR that carries this entry
+what_was_checked_first      CC-058 predicted the next structural repair removes two kernel->feature edges and adds
+                            none, on the premise that electron/main.ts is the composition root. That premise was
+                            CHECKED rather than assumed, because if main.ts were itself a kernel the two edges
+                            would only MOVE and the ceremony would buy nothing:
+                              config/capability-modules.json   "electron/main.ts" is declared under
+                                                               "composition_root", described as "a file the platform
+                                                               owns, not a file nobody owns"
+                              architecture-enforcement-baseline.json:272
+                                                               "electron/main.ts": "UNDECLARED"
+                            UNDECLARED is not a capability, so main.ts contributes no kernel->feature edge. The
+                            premise holds and CC-058's predicted deltas stand: S2 61 -> 59, S3 33 -> 31.
+the_estimate_was_wrong      CC-058 said "the repair therefore touches TWO files". The measured edit list is FOUR:
+                              1. electron/bootstrap/persistence.ts
+                                   - drop both value imports (AttachmentStore line 12, SessionLifecycleLedger 15)
+                                   - drop both fields from PersistenceService (attachments 87, sessionLifecycle 91)
+                                   - drop both open(...) calls (133, 142)
+                                   - drop both names from the returned service object (171-172)
+                              2. electron/main.ts -- construct both, which is possible because dataRoot is already
+                                 in scope at line 168; the two assignment sites (632, 703) keep their shape
+                              3. tests/.../bootstrap-persistence.test.ts
+                                   - lines 70 and 74 read service.attachments and service.sessionLifecycle and
+                                     must stop doing so
+                                   - line 123 asserts health().detail CONTAINS "20 durable store(s)"; the
+                                     composition root now opens two of them, so persistence opens 18 and that
+                                     literal must become 18
+                              4. tests/.../bootstrap-provider-pool.test.ts line 43 hands
+                                 persistence.service.sessionLifecycle to AccountSessionManager and must construct
+                                 the ledger itself
+why_the_fourth_file_matters
+                            The literal "20 durable store(s)" is the interesting one. It is a HEALTH-LINE
+                            assertion, and moving a store out of the persistence module genuinely reduces the
+                            number that module opens -- so the test is not wrong, it is measuring something that
+                            legitimately changed. Discovering it BEFORE the edit is the difference between a
+                            mechanical change and a red CI whose cause is a string a reader has to hunt. It is
+                            also the second time in this programme that a number in an artifact had to be
+                            re-derived rather than copied.
+what_is_verified            main.ts is composition_root / UNDECLARED -> no compensating edge.
+                            dataRoot is in scope in main.ts at line 168 -> no new plumbing.
+                            Both assignment sites keep their shape -> main.ts's structure does not change.
+                            Four files, five deletions in the module, one literal, two test call sites.
+why_this_entry_stops_here   The remaining work is mechanical but it is twelve operations across four files plus the
+                            section-24 baseline ceremony, and this round's budget went to CHECKING THE PREMISE --
+                            which was worth it twice: the premise held, and the file count did not. A wrong file
+                            count discovered after the edit costs a red CI cycle; discovered before it costs one
+                            search command.
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no.
+closure_status              CLOSED. The next structural repair has a verified premise, a verified delta, and a
+                            complete edit list with the one non-obvious step (a health-line literal) called out
+                            in advance.
+research_value              (1) An estimate of WIDTH is the part of a plan that measurement can falsify cheapest,
+                            and CC-058's was wrong by a factor of two -- not in the source, which it got right,
+                            but in the tests, which it did not look at. A plan that names only the production
+                            files has not counted its cost. (2) Checking a premise that would invalidate the whole
+                            change is worth a round: if main.ts had been a kernel, the same edits would have
+                            produced a zero delta and the ceremony would have certified no progress at all.
+                            (3) A test asserting a LITERAL that counts something the change alters is a silent
+                            cost centre, and it is found by searching the tree for the artifact's own words
+                            ("durable store(s)") rather than by reasoning about the change.
+```
