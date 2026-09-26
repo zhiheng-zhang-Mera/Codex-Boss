@@ -5,7 +5,25 @@ provides:
   - node.capability@1
 requires: []
 optional: []
-state: []
+# The namespace this capability IMPLEMENTS is the namespace it OWNS.
+#
+# `node-registry` was declared by `persistence`, which constructed `NodeCapabilityRegistry` inside
+# `bootstrap/persistence.ts` and imported it from this capability -- the same misalignment repaired
+# for `attachments` (CC-065) and `identity` (CC-066). The durable per-node capability records and the
+# class that reads and writes them both live in this capability, so ownership follows implementation.
+#
+# THIS PAIR HAS NO REVERSE EDGE, which makes it the cleanest instance of the repair so far: the
+# `persistence <-> node` mutual pair does not exist, so there is nothing to trade and nothing to
+# verify-and-leave-alone. Removing the kernel -> feature edge simply reduces the inversion count.
+#
+# WHERE THE CONSTRUCTION WENT, AND WHY NOT TO A BOOT MODULE. As with `identity`, the composition root
+# constructs this store rather than the capability gaining a boot module: a new boot module raises
+# `bootModuleCount` in `config/architecture-baseline.json`, which `tests/unit/city/architecture-hosted-shadow.test.ts`
+# requires to stay byte-identical to the Phase 1B-A freeze commit. The construction is relocated with
+# one fewer site instead of gaining a module (ledger CC-067).
+state:
+  - namespace: node-registry
+    owner: node
 health:
   critical: false
 modules: []

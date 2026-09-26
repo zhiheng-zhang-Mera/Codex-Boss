@@ -6032,3 +6032,187 @@ research_value              (1) The claim CC-065 stated is now supported by a SE
 ```
 
 ---
+
+## CC-067 — The cleanest instance of the repair: `node`, where there is no reverse edge at all, and the largest SCC moves for the first time
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded: the control
+identifies an entry as an `ENTRY_ID` line followed by a `timestamp_utc` line, so keeping those two out of the
+narrative stops a section from parsing as two entries.
+
+**1. Why `node`, and why it is cheaper than the two before it.** CC-066 ended by naming the namespaces
+`persistence` declares and does not implement, and by observing that the price of the repair is no longer a
+guess. `node-registry` is the cheapest of them, and for a structural reason rather than a lucky one: the pair
+`persistence <-> node` **has no reverse edge**, so there is nothing to trade, nothing to invert, and nothing to
+verify-and-leave-alone. It is a CLASS C dependency with only one direction.
+
+```text
+CLASS C  construction-carrying  persistence -> node:  ONE edge, no reverse   <- removed here
+                    attachments  (CC-065): one edge each way, plus a CLASS U half to invert
+                    identity     (CC-066): one edge each way, plus a CLASS R road to leave alone
+                    node         (CC-067): one edge, one direction
+```
+
+So the repair reduces to the single act the two previous rounds established: the manifest claim moves to the
+capability that implements the store, and the construction leaves the kernel module.
+
+**2. The migration.**
+
+```text
+1  config/capabilities/persistence.yaml   the `node-registry` namespace claim is REMOVED
+2  config/capabilities/node.yaml          the claim is ADDED by the capability that implements it, with
+                                          the reasons the construction did not become a boot module
+3  electron/bootstrap/persistence.ts      no longer imports NodeCapabilityRegistry and no longer
+                                          forwards it through its service (18 durable stores -> 17)
+4  electron/main.ts                       constructs the registry from the data root at the SAME path
+                                          persistence used to compose (<dataRoot>/.boss/node-registry.json)
+```
+
+**3. The measurement, and the first movement in the SCC.**
+
+```text
+p2b kernel -> feature file edges     59 -> 58        (target 0)
+p2b kernel -> feature pairs          20 -> 19
+p2b mutual capability pairs          31 -> 31        unchanged -- there was no pair to dissolve
+p2b total cross-capability edges    797 -> 796
+p2b capability graph edges          200 -> 199
+p2b files owned                     598 -> 598      unchanged
+p2b LARGEST SCC                      20 -> 19        FELL FOR THE FIRST TIME
+p2b non-trivial SCC count             1 -> 1
+p2d confirmed private-state access     5 -> 5        no regression
+p2d confirmed pairs                    3 -> 3        no regression
+p2d multi-writer candidates            1 -> 1        NO new candidate
+p2d declared namespaces               32 -> 32
+architecture enforcement violations     0 -> 0; closure validator PASS; architecture ratchet 0 violations
+```
+
+The SCC movement is the part worth stating precisely rather than celebrating. The 20-node knot contained `node`,
+and the deleted edge was the **only** edge reaching `node` from `persistence`, so removing it took `node` out of
+the component. That is section 15.7's ratchet and section 17's target both moving: `mutual_capability_pairs` is
+unchanged at 31 because this pair had no reverse edge, while `largest_scc_size` falls because the component
+genuinely lost a member. **A reader should not read the 20 -> 19 as "the knot is loosening".** It is not: the
+remaining 19 nodes are connected as tightly as before, and the next SCC improvement requires an edge INSIDE the
+knot to be removed, which is a different and much harder repair. What this entry claims is exactly what the
+instrument shows -- one member left the component.
+
+`config/p2b-kernel-feature-ratchet.json` is re-derived in the same commit and reports VERDICT=HOLDS. Across the
+three migrations the column now reads **61 -> 58** kernel -> feature edges and **20 -> 19** largest SCC, with no
+regression in the private-state instrument on any of them.
+
+One measurement moved in the opposite direction and is recorded rather than omitted: `scanned_source_files` in
+the p2d instrument is **612 rather than 613**. A file moved between capabilities and the scanner's walk order
+changed with it; the anti-gaming floor that matters (`declared_namespaces` 32) is unchanged, and `files_owned`
+stays 598, so nothing was hidden from either scanner. A one-file difference in a scan set is the kind of thing
+that is invisible until it is 30 files, which is why it is written down.
+
+**4. Root Trust: accepted baseline version 6, and the ceremony converged in two passes.** The deleted
+prospective edge moves the tracked enforcement baseline, so it was regenerated as accepted version 6 with ONE
+retired edge, no new grandfathered debt, and the SCC effect recorded in its classification. The epoch was
+established last, over the surface the change produces.
+
+```text
+the_ceremony   This is the FIRST round where the ceremony did not have to be discarded and rewritten. CC-065
+               needed a corrected driver after two failures, CC-066 after four. The difference is not luck: the
+               fixed-point property was written down in CC-066 ("`--accept` derives its candidate as
+               tracked.baseline_version + 1 with parent = tracked.baseline_hash, while the series must ALREADY
+               name that triple"), so this round parked the tracked file at the chain head, inserted one
+               placeholder entry, learned the real hash from the refusal and wrote it back in place -- two
+               passes, no discarded state. The cost of a structural step is now measurable and falling: the
+               first instance cost two ceremony rewrites, the second four, this one none.
+```
+
+**5. What is NOT done.** S2 58 (target 0), S3 31 mutual pairs (target 0), S4 largest SCC 19 of 29 (target <= 1),
+S5 5 confirmed accesses over 3 pairs (target 0), S6 1 multi-writer candidate (`tasks`, target 0), S10 22 of 27
+plots still MIGRATION_IN_PROGRESS, S14 2 rows still MACHINE_RATCHET (15.1, 15.7). `FINAL_ACCEPTANCE_RECORD.md`
+does not exist, section 31 and section 32 are untouched, and the temporary Owner lease remains in force. No red
+check was bypassed and no gate was relaxed.
+
+**6. The next action and its price.** Two more namespaces have the same single-direction shape and are therefore
+the same price, and they are the last two `persistence` declares as its own state while implementing nothing of
+the kind:
+
+```text
+project-state        implemented by `project`  (electron/project/project-state.ts)
+permission-manifest  implemented by `security` (electron/security/permission-manifest.ts)
+```
+
+Both differ from `node` in ONE way that raises the price: their paths are **workspace-scoped**. `persistence.ts`
+composes them with `durableFileFor(dataRoot, workspaceRoot, ...)` where `workspaceRoot` comes from
+`workspaces.activeWorkspaceId()`, and `workspaces` is a `persistence` store that is NOT a candidate (its owner is
+correct). So moving either one means the composition root must hold the resolved workspace root and pass it in,
+which is a real interface decision rather than a file move. That is worth stating before it is attempted rather
+than discovered during it -- it is the same class of discovery as the `architecture-baseline.json` freeze in
+CC-066, and the point of pricing an action is to find that out at the desk rather than in a red CI run.
+
+The remaining large candidates are `persistence -> tenx` (10 edges), `persistence -> tasks` (8) and
+`persistence -> workspace` (5). `tasks` is implemented by `persistence` itself, so it is NOT a candidate;
+`workspace` and `tenx` are, but at 5 and 10 edges each they are batch repairs rather than single acts, and the
+`persistence -> workspace` pair is mutual (5 forward, 3 back), which makes it a CLASS M case like `identity`.
+
+After those, the ordered remainder stands as before: the soak and lifecycle debt families against their positive
+closure condition or the section-18 quarantine exit, then the rest of S4/S6/S10/S14, then section 31, section 32,
+E5 and the seal.
+
+```text
+ENTRY_ID                    CC-067
+timestamp_utc               2026-09-26T09:16:30Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, then L5 for the Root Trust Surface files: the accepted
+                            enforcement baseline, its accepted series and the trust epoch. The epoch was
+                            established IN THE SAME COMMIT as the surface change, which is what section 0 of the
+                            authority document requires. No red check was bypassed and no required check relaxed.
+main_before                 ff8dceecea2f97655d95861bb54ee7a286685cfd  (five checks green, epoch 52, PR #102)
+branch                      fix/cc067-node-namespace-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b ratchet HOLDS, p2d HOLDS, cycles SCC 11 / largest 19, architecture
+                            ratchet 0 violations, enforcement baseline --check identical, closure validator PASS,
+                            bless --check MATCHES, city-final-acceptance VERDICT=NOT_READY with the SAME 9 OPEN
+                            structure items
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/node.yaml;
+                            config/architecture-enforcement-baseline.json;
+                            config/p2b-kernel-feature-ratchet.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts
+known_risk                  (1) The registry path is spelled in the composition root now, so a layout change
+                            belongs there; the path is byte-identical to what persistence composed, so an
+                            existing installation's file is still the one read. (2) The `node` capability still
+                            has no boot module and therefore no health line of its own -- the recorded
+                            consequence of the frozen `architecture-baseline.json`, stated in the manifest, not
+                            an oversight. (3) The 20 -> 19 SCC figure is a membership change, not a loosening
+                            of the knot, and is qualified as such in point 3.
+evidence_preserved          every measurement in point 3 is reproducible with
+                            `node scripts/phase2-pair-edges.cjs --json`, `node scripts/phase2-cycles.cjs` and
+                            `node scripts/phase2-private-state.cjs --json`; the 612-vs-613 scan difference is
+                            recorded rather than omitted; the ceremony's two-pass convergence is recorded
+                            against CC-066's four discarded attempts
+rollback                    Revert this commit. It is one atomic act: the manifest claims, the two code files,
+                            the ratchet record, the accepted baseline version 6, its series entry and the epoch
+                            all revert together.
+temporary_debt_created      no. One edge was DELETED, no new edge was added, and no gate was deferred.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured structural step. The OBJECTIVE is NOT complete and this entry
+                            does not claim it is.
+research_value              (1) The repair's cost is now a MEASURED sequence rather than an estimate: the
+                            `attachments` instance required a CLASS U inversion, the `identity` instance a
+                            CLASS R verification and a withdrawn design, and the `node` instance nothing but the
+                            move itself, because its pair had one direction. The price of a namespace-ownership
+                            migration is set by how many OTHER capabilities reach the same state, not by how
+                            many edges the pair contains. (2) The provenance control paid for itself in this
+                            round: the ceremony that cost CC-065 two rewrites and CC-066 four converged in two
+                            passes here because the fixed-point property was written into the ledger rather
+                            than rediscovered -- the ledger is acting as the programme's memory, which is what
+                            the successor workbook asked it to be. (3) An SCC figure can fall for a reason that
+                            does not generalise: one member left a component, which is real progress against
+                            section 15.7, but it does not mean the remaining knot is any looser -- and a
+                            programme that reported only the falling number would be teaching its reader
+                            something false.
+```
+
+---

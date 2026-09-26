@@ -42,16 +42,15 @@ const testCrypto: PersistenceCrypto = {
 /**
  * The store names the module declares, in the order it opens them.
  *
- * `attachments` is deliberately NOT here (ledger CC-065) and `session-lifecycle` is not
- * either (ledger CC-066): both namespaces are declared by the capability that IMPLEMENTS the
- * store, and both stores are built on that capability's own boot path, so this module owns
- * neither. Their tests live beside the modules that do. This list is a projection of the real
- * service -- a store that moved back in here would still be visible below, it would just be
- * counted twice.
+ * `attachments` is deliberately NOT here (ledger CC-065), nor `session-lifecycle` (CC-066) nor
+ * `node-registry` (CC-067): each namespace is declared by the capability that IMPLEMENTS the store,
+ * and each store is built outside this module, so it owns none of them. Their tests live beside the
+ * modules that do. This list is a projection of the real service -- a store that moved back in here
+ * would still be visible below, it would just be counted twice.
  */
 const DECLARED = [
   "history", "tasks", "state", "provider-capabilities", "github-cache",
-  "api-settings", "node-registry", "external-sessions",
+  "api-settings", "external-sessions",
   "runtime-budget", "interventions", "decision-ledger", "workspaces",
   "workspace-selection", "permission-manifest", "project-state", "experience",
   "runtime-resources", "task-contexts"
@@ -80,7 +79,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "provider-capabilities": service.capabilities,
     "github-cache": service.github,
     "api-settings": service.apiSettings,
-    "node-registry": service.nodeRegistry,
     "external-sessions": service.externalSessions,
     "runtime-budget": service.budget,
     interventions: service.guidance,
@@ -128,7 +126,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("18 durable store(s)");
+    expect(fresh.health().detail).toContain("17 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {
