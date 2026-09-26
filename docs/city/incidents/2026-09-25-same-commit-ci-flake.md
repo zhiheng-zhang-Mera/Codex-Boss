@@ -225,3 +225,41 @@ the surface moved and epoch 37 was advanced in the same commit. `CC-054` and `CC
 `durable-event-correctness.test.ts`. Outstanding: `tests/unit/root-trust-authority-lockdown.test.ts`, a 120s
 timeout under load, which exit condition (a) does not reach as written because it is a duration rather than a
 soak threshold. `CITY-DEBT-005` stays OPEN and narrowed. Ledger `CC-056`.
+
+## 9. A SECOND family (2026-09-26, PR #96): the required check that fails after a restart
+
+Sections 1-8 are one family: load-sensitive assertions in the soak and lifecycle suites. This section records a
+different one, because the class ("a required check goes red for a reason other than the property it tests") is
+the same while the mechanism is not, and a reader who found only the earlier sections would conclude the class is
+one suite wide.
+
+```text
+commit   d3c05c8 (PR #96) -- two runs of the identical commit
+         the change under test modified ONE file, tests/unit/root-trust-authority-lockdown.test.ts,
+         which the desktop suite does not load
+
+run A  acceptance SUCCESS
+run B  acceptance FAIL, in pnpm run acceptance:desktop-workbook
+         [desktop-smoke] FAIL the restarted app serves the theme panel from the real UI
+                         -- expected true, observed false
+         [desktop-smoke] totals: PASS 62 ...
+         (the remainder of the totals line wrapped in the captured log; it is NOT reproduced here
+          rather than guessed at, and the register records the same limit)
+re-run of run B's failed job  acceptance SUCCESS
+```
+
+**What is the same:** a required check failed while the property it tests was fine, the parallel run was green,
+and a re-run cleared it without any change to the commit.
+
+**What is different, and why it is recorded separately:** the failing suite LAUNCHES THE REAL ELECTRON
+APPLICATION and the failing case runs after a RESTART. The mechanism is therefore readiness-after-restart, not
+host load: no assertion threshold was involved, and the fix is not the `NOT_MEASURED` treatment the other family
+uses. It also takes down `acceptance` DIRECTLY rather than through `unit`, so nothing is skipped behind it --
+which makes it, per incident, a worse failure than the soak family even though it has appeared once.
+
+**The rule this sharpens:** the class is "a required check that reports a verdict it cannot support", and the
+class does not have a fixed membership. Two independent families now exist, in two different checks, discovered
+by two different runs going red. That is the argument, made twice by measurement rather than by argument, for
+treating required-check flakiness as a governance problem with a recorded disposition rather than as a queue of
+defects to repair one at a time. Debt id `CITY-DEBT-006`, recorded in
+`docs/city/CITY_RENOVATION_DEBT_REGISTER.md`, ledger `CC-062`.

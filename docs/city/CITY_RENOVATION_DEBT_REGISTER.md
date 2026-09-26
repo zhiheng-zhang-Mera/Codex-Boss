@@ -347,21 +347,57 @@ enumeration_is_illustrative
 
 
 ```text
+CITY-DEBT-006
+introduced_at        2026-09-26 (observed on PR #96, commit d3c05c8, job 108317260596)
+introduced_by        Not introduced by a change: the desktop smoke suite and its readiness waits predate this
+                     work, and the PR under test modified one test file in tests/unit that the desktop suite does
+                     not load. What is new is the OBSERVATION that a SECOND, unrelated family can take a required
+                     check down, and that its failure mode is a restarted application rather than a loaded runner.
+reason               The `acceptance` job runs `acceptance:desktop-workbook`, which launches the real Electron
+                     application. One run of the commit failed:
+                       [desktop-smoke] FAIL the restarted app serves the theme panel from the real UI
+                                       -- expected true, observed false
+                       [desktop-smoke] totals: PASS 62 ...
+                     (the rest of the totals line wrapped in the captured log and is deliberately not
+                     reproduced rather than guessed at)
+                     A PARALLEL run of the identical commit passed the same suite, and a re-run of the failed job
+                     passed, so the mechanism is readiness after a RESTART rather than a defect in the panel.
+affected_surface     The `acceptance` required check DIRECTLY -- not through `unit` as CITY-DEBT-005 is -- so a
+                     red here blocks the merge gate without skipping any other check.
+relationship_to_005  Same CLASS (a required check failing for a reason other than the property it tests) but NOT
+                     the same family: different suite, different mechanism (application restart readiness rather
+                     than host load), different failure text. Recorded separately because section 31 enumerates
+                     every CITY-DEBT-* and a merged entry would hide WHICH suite is failing.
+not_a_security_event No protected run, no environment approval, no epoch movement and no bypass are involved. Both
+                     the failing run and the green parallel run are preserved in Actions history.
+exit_condition       Either (a) the desktop smoke suite states what it must observe after a restart and reports
+                     NOT_MEASURED rather than failing when the application has not yet served the panel -- so a
+                     slow restart produces an absence of evidence instead of false evidence -- or (b) the suite is
+                     quarantined to an evidence lane whose result is recorded as evidence rather than required.
+status               OPEN
+```
+
+---
+
+```text
 CITY-DEBT-001  dispatch helper can dispatch without --confirm                  CLOSED
 CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    CLOSED
 CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      CLOSED
 CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CLOSED
 CITY-DEBT-005  the soak suites fail non-deterministically under hosted load    OPEN
+CITY-DEBT-006  the desktop smoke suite fails after an application restart      OPEN
 ```
 
 ```text
-OPEN               1   (CITY-DEBT-005)
+OPEN               2   (CITY-DEBT-005, CITY-DEBT-006)
 CONTAINED          0
 CLOSED             4   (CITY-DEBT-001, -002, -003, -004)
 ACCEPTED_PERMANENT 0
 ```
 
-**Status of this register:** no OPEN and no CONTAINED entry. This is **not** the final debt review: Phase 2
+**Status of this register:** TWO OPEN entries, one CONTAINED none. This is **not** the final debt review: Phase 2
 (workbook §15–§23) has not started, and it is expected to create new `CITY-DEBT-*` entries for every temporary
-bridge and every baseline change it needs. Final seal requires the register to close at zero OPEN and zero
-CONTAINED **at that time** (workbook §31).
+bridge and every baseline change it needs. The earlier text here claimed "no OPEN and no CONTAINED entry", which
+was true when written and was left stale by two later additions -- corrected rather than deleted, because a
+register that overstates its own closure is the one artifact a final review cannot afford to trust. Final seal
+requires the register to close at zero OPEN and zero CONTAINED **at that time** (workbook §31).

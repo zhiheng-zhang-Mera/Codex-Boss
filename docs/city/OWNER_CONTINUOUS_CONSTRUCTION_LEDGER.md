@@ -5297,3 +5297,69 @@ research_value              (1) A count that rises is not evidence of fraud and 
                             pairs by EDGE cost, and the true price of a pair is set by NAMESPACE ownership, a
                             fact that appears in none of the edge instruments.
 ```
+
+## CC-062 — A second flake family, and a register that overstated its own closure
+
+```text
+ENTRY_ID                    CC-062
+timestamp_utc               2026-09-26T10:41:55Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root Trust
+                            Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 6ae9725613b0913f497d289b9b752405b51a7646  (five checks green, epoch 37, PR #96)
+branch                      docs/city-cc-062
+PR                          the PR that carries this entry
+what_was_wrong_in_the_record
+                            Two things, both found by reading the register rather than by running anything.
+                            (1) A SECOND flake family had appeared and was recorded NOWHERE. PR #96's acceptance
+                            check failed in the desktop smoke suite -- "the restarted app serves the theme panel
+                            from the real UI -- expected true, observed false" -- on a commit whose only change
+                            was one file the desktop suite does not load, while a PARALLEL run of the same commit
+                            passed that suite. That is a different mechanism from CITY-DEBT-005 (readiness after
+                            an application restart, not host load), in a different required check, and it was
+                            mentioned only in a round report.
+                            (2) The register's closing paragraph still asserted "no OPEN and no CONTAINED entry"
+                            while its own summary one screen above listed OPEN 1. The sentence had been true when
+                            written and was left stale by two later additions. A register that OVERSTATES ITS OWN
+                            CLOSURE is the single artifact a final review cannot afford to trust, and it is the
+                            third instance of this programme's recurring defect: prose carrying a claim the
+                            instrument beside it does not resolve.
+what_changed                CITY-DEBT-006 added, with the observation, the mechanism, the distinction from
+                            CITY-DEBT-005, the affected check (acceptance DIRECTLY, so nothing is skipped behind
+                            it), and its own exit condition in the same two-option form.
+                            The summary block now reads OPEN 2 (CITY-DEBT-005, CITY-DEBT-006) and the closing
+                            paragraph states two OPEN entries, corrected rather than deleted, with the reason.
+                            The incident record gains section 9, because sections 1-8 are one family and a reader
+                            who found only those would conclude the class is one suite wide.
+why_a_separate_debt_id_and_not_a_line_in_005
+                            Section 31 enumerates every CITY-DEBT-*, and the two entries fail in DIFFERENT
+                            REQUIRED CHECKS. Folding the desktop failure into CITY-DEBT-005 would have hidden
+                            WHICH check is failing, which is the first thing a reader of a flake entry needs.
+                            The relationship is recorded explicitly in both directions instead: same class,
+                            different family.
+what_is_deliberately_NOT_claimed
+                            The totals line of the desktop failure wrapped in the captured log ("PASS 62 FAIL 2 /
+                            7 NOT_RUN 26" cannot be parsed into a single unambiguous reading from what was
+                            captured). The register and the incident both quote only the unambiguous parts and
+                            SAY that the remainder is not reproduced rather than guessing at it -- the register's
+                            own lesson about numbers nobody can resolve.
+                            No repair is attempted here. Neither exit condition is implemented; both are now
+                            recorded, which is what an enumeration is for.
+verification_run_this_round node scripts/acceptance-evolution-bless.cjs --check -> epoch 37 MATCHES
+                            git diff --numstat -> register edited in place (a new entry plus a corrected
+                            paragraph), incident and ledger appended
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. The entry records debt that already existed and was unrecorded.
+closure_status              CLOSED. The register now enumerates both families with mechanisms and exit
+                            conditions, and no longer overstates its closure.
+research_value              (1) The class "a required check reports a verdict it cannot support" now has TWO
+                            independently discovered families in two different checks, which is the strongest
+                            available evidence that it is a governance problem rather than a defect queue --
+                            and the argument was made by measurement twice, not asserted once. (2) An entry that
+                            enumerates examples will always be incomplete, but a register that OVERSTATES ITS
+                            OWN CLOSURE is actively dangerous, and the two failures are different in kind: the
+                            first is a limitation, the second is a false statement about the artifact a reviewer
+                            trusts most. (3) Deleting the stale sentence would have destroyed the evidence that
+                            it was once true; correcting it in place with the reason keeps both the record and
+                            the lesson.
+```
