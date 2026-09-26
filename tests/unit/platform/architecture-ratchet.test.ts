@@ -241,8 +241,14 @@ describe("Phase 01 Task D — the real repository satisfies every ratchet", () =
   it("registers every wired boot module in exactly one manifest", () => {
     // 24 at Phase 01. Phase 02 added `electron/bootstrap/state-core.ts`, the durable state
     // and event substrate, and recorded the increase through the explicit baseline command
-    // rather than relaxing the ratchet. The number is asserted so a boot module cannot be
-    // wired without a manifest naming it.
+    // rather than relaxing the ratchet. The number STAYS 25 through ledger CC-066: the
+    // `identity` capability now owns the `session-lifecycle` namespace it implements, and the
+    // obvious repair -- giving it a boot module, as CC-065 did for `attachments` -- is FORBIDDEN
+    // because a new boot module raises `bootModuleCount` in `config/architecture-baseline.json`,
+    // which this suite requires to stay byte-identical to the Phase 1B-A freeze commit. The
+    // composition root constructs the ledger instead, so the count is unchanged and the ratchet
+    // still sees a module wired without a manifest naming it. The number is asserted so a boot
+    // module cannot be wired without a manifest naming it.
     expect(evidence.wiredBootFactories.length).toBe(25);
     expect(evidence.wiredBootFactories).toEqual(evidence.registeredBootFactories);
     expect(evidence.moduleOwnershipConflicts).toEqual([]);
