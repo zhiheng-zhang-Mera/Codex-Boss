@@ -374,6 +374,7 @@
       "file": "tests/unit/bootstrap-persistence.test.ts",
       "tier": "unit",
       "covers": [
+        "identity",
         "persistence",
         "workspace"
       ]
@@ -382,6 +383,7 @@
       "file": "tests/unit/bootstrap-provider-pool.test.ts",
       "tier": "unit",
       "covers": [
+        "identity",
         "persistence",
         "providers"
       ]

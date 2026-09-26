@@ -21,8 +21,6 @@ state:
     owner: persistence
   - namespace: api-settings
     owner: persistence
-  - namespace: node-registry
-    owner: persistence
   - namespace: external-sessions
     owner: persistence
   - namespace: runtime-budget

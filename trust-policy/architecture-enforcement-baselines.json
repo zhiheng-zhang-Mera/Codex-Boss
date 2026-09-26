@@ -133,6 +133,36 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 6,
+      "baseline_hash": "3f070694311d9cfb19b99605a2a033efb920a07dff79978dfa538b2b1574947c",
+      "parent_baseline_hash": "2b0738bf88857370f4a19f092c053cc9b72e5d2acb53ed6357e328114e645e29",
+      "source_commit": "ff8dceecea2f97655d95861bb54ee7a286685cfd",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the atomic `node` namespace-ownership migration by the executor holding that lease. Recorded in ledger CC-067. The previous accepted version remains ACCEPTED and is the parent; retiring it is a separate act and is NOT performed here.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-067; config/capabilities/node.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-26T09:10:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE edge retired, and this pair had no reverse edge to trade against: electron/bootstrap/persistence.ts imported NodeCapabilityRegistry from electron/node/node-capability-registry.ts only to construct it and hand it back through its service object. With the `node-registry` namespace claimed by the capability that implements it, that construction leaves the persistence module entirely, so the kernel -> feature edge is deleted outright rather than inverted or relocated.",
+        "new_legitimate_relation": "none: the change removes one edge and adds none.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline.",
+        "largest_scc_effect": "The largest strongly connected component fell 20 -> 19 nodes. The 20-node knot contained `node`, and the deleted edge was the only one reaching it from `persistence`, so removing it took `node` out of the component. This is the first movement in that metric, and it is recorded here because it is a claim about section 17/15.7 progress rather than about the edge count."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1684,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

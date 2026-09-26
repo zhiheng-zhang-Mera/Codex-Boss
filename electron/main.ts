@@ -736,7 +736,14 @@ if (ownsInstance) app.whenReady().then(() => {
   // relocated with one fewer site instead of gaining a module. The path is the one the persistence
   // module used to compose, so no stored data moves.
   sessionLifecycleLedger = new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json"));
-  nodeRegistry = persistence.service.nodeRegistry;
+  // The `node` capability's durable registry is built HERE rather than handed back by `persistence`
+  // (ledger CC-067). Same repair as the attachment store and the session-lifecycle ledger: the
+  // namespace moved to the capability that implements it, and the kernel module that used to
+  // construct it only to forward it through its service object no longer mentions it at all. This
+  // pair has no reverse edge, so the kernel -> feature edge is simply DELETED. As with `identity`,
+  // no boot module was added because a new one would raise `bootModuleCount` in the frozen
+  // `config/architecture-baseline.json`. The path is the one persistence used to compose.
+  nodeRegistry = new NodeCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "node-registry.json"));
   externalSessions = persistence.service.externalSessions;
   budgetManager = persistence.service.budget;
   humanGuidance = persistence.service.guidance;
