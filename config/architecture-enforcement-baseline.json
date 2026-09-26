@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 10,
-  "parent_baseline_hash": "228b07259d3f68dc0dde43dde390bc71b4c996791a0d6a399e9bf2abb585114c",
-  "source_commit": "3638ee091ae6917fc5c165c6ee920e39e80b1d21",
+  "baseline_version": 11,
+  "parent_baseline_hash": "a4a0642f8e0411dc2f76efcf330c4f8ad6b4296f848547d41e24f9aef1dfa07e",
+  "source_commit": "ba9636babd9e60c16c4188b6a7b4a0268d4db8bf",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-069: the `project-state` durable store was REMOVED from `bootstrap/persistence.ts`. It had no consumer: `electron/main.ts` already builds a ProjectStateStore per workspace through openProjectState(workspaceId), and the boot-time instance was never read. The `project-state` namespace is now claimed by the `project` capability that implements it. ONE edge is retired, raw total 796 -> 795, capability edges 199 -> 198, and the largest SCC falls 19 -> 18 because `project` leaves the component.",
+  "reason": "CC-070: the `permission-manifest` namespace moved from the `persistence` manifest to the `security` capability that implements it, and `bootstrap/persistence.ts` no longer constructs or forwards the store. It has a REAL consumer (main.ts reads it through permissionForWorkspace), so this is a RELOCATION: kernel -> feature edges 56 -> 55, raw total 796 -> 795, and edgesFromCompositionRoot 98 -> 99 because the composition root resolves the workspace root and builds the store itself.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -946,10 +946,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/runtime-intelligence/live-capture.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/security/permission-manifest.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -4066,6 +4062,10 @@
     [
       "electron/main.ts",
       "electron/runtimes/web/provider-runtime-adapter.ts"
+    ],
+    [
+      "electron/main.ts",
+      "electron/security/permission-manifest.ts"
     ],
     [
       "electron/main.ts",
@@ -7434,6 +7434,10 @@
       "electron/project/project-state.ts"
     ],
     [
+      "electron/bootstrap/persistence.ts",
+      "electron/security/permission-manifest.ts"
+    ],
+    [
       "electron/bootstrap/provider-ipc.ts",
       "src/shared/contracts.ts"
     ],
@@ -7511,5 +7515,5 @@
     "internal_edges": 1683,
     "unresolved_references": 1
   },
-  "baseline_hash": "a4a0642f8e0411dc2f76efcf330c4f8ad6b4296f848547d41e24f9aef1dfa07e"
+  "baseline_hash": "4b4a1fc903254d328e950b22941ab43ce6dd6ac37a6ac0d8af78fc9f5bf667da"
 }

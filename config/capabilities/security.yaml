@@ -5,7 +5,22 @@ provides:
   - security.permission@1
 requires: []
 optional: []
-state: []
+# The namespace this capability IMPLEMENTS is the namespace it OWNS (ledger CC-070).
+#
+# `permission-manifest` was declared by `persistence`, which constructed `PermissionManifestStore`
+# inside `bootstrap/persistence.ts` and imported it from this capability -- the same misalignment
+# repaired for `attachments` (CC-065), `identity` (CC-066), `node` (CC-067) and `experience`
+# (CC-068). Unlike `project-state` (CC-069), which had NO consumer and was simply deleted, this one
+# has a REAL consumer: `main.ts` reads it through `permissionForWorkspace`, so this is a relocation
+# at CC-068's price and not a removal.
+#
+# The path is WORKSPACE-SCOPED (`durableFileFor(dataRoot, activeWorkspaceId, ...)`), so the
+# composition root resolves the active workspace root and passes it in. No boot module was added,
+# for the reason CC-066 recorded: a new one raises `bootModuleCount` in the byte-frozen
+# `config/architecture-baseline.json`.
+state:
+  - namespace: permission-manifest
+    owner: security
 health:
   critical: false
 modules: []

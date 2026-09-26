@@ -6505,3 +6505,164 @@ research_value              (1) A store with NO consumer is a fifth price, and t
 ```
 
 ---
+
+## CC-070 — `permission-manifest`: the second relocation, and the signature classifier gets its second instance
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. The pre-priced fact, re-confirmed at the live anchor.** The workbook fixed `main` at
+`ba9636babd9e60c16c4188b6a7b4a0268d4db8bf` (CC-069's merge). Verified before construction, and every fact held:
+`permission-manifest` was declared by `persistence`; `electron/security/permission-manifest.ts` implements it;
+the edge is `persistence -> security`, 1, no reverse; and the consumer is REAL — `main.ts` reads it through
+`permissionForWorkspace: () => permissionManifests.load(workspaces.activeWorkspaceId())`. So this is a
+**relocation**, not the dead-store removal CC-069 performed.
+
+**2. The migration.**
+
+```text
+1  config/capabilities/persistence.yaml   the `permission-manifest` claim is REMOVED
+2  config/capabilities/security.yaml      the claim is ADDED by the capability that implements it
+3  electron/bootstrap/persistence.ts      the import, the service field and the boot construction are DELETED
+                                          (14 durable stores, down from 15)
+4  electron/main.ts                        resolves the ACTIVE workspace root once and constructs
+                                          PermissionManifestStore at the same workspace-scoped path that
+                                          `persistence` composed, so no stored data moves
+```
+
+**3. The measurement, and the classifier's second instance.**
+
+```text
+                                    BEFORE   AFTER
+p2b kernel -> feature file edges      56   ->  55      target 0
+p2b kernel -> feature pairs           17   ->  16
+p2b mutual capability pairs           31   ->  31
+p2b total cross-capability edges     796   ->  795     fell by one
+p2b capability graph edges           198   ->  197
+p2b edges FROM composition root       98   ->  99      ROSE by one
+p2b largest SCC                       18   ->  18      unchanged
+p2b files owned                      598   ->  598
+p2d confirmed private-state access      5   ->   5;  pairs 3 -> 3;  multi-writer 1 -> 1;  namespaces 32
+architecture enforcement violations      0   ->   0;  closure validator PASS; architecture ratchet 0 violations
+```
+
+The six migrations now have three shapes, each with two instances:
+
+```text
+                              raw-total delta   root-edge delta
+CC-065 attachments                  -2               0        mutual pair, both directions deleted
+CC-066 identity                     -1              +1        relocation, root names the class
+CC-067 node                         -1               0        clean single direction, SCC -1
+CC-068 experience                   +0              +1        RELOCATION (workspace-scoped)
+CC-069 project-state                -1               0        REMOVAL (dead store), SCC -1
+CC-070 permission-manifest          -1              +1        RELOCATION (workspace-scoped)
+```
+
+That is the classifier stated as data rather than as a rule of thumb: **a relocation with a workspace-scoped
+path costs the raw total exactly one and moves one edge into the composition root; a removal costs the raw total
+one and moves nothing.** The `permission-manifest` result matches the `experience` prediction exactly, which is
+the first time a predicted signature was confirmed by a later migration rather than observed after the fact.
+
+`largest_scc_size` is unchanged at 18 and that is recorded as a null result, not omitted: `security` was not in
+the knot, so this reduces the inversion count without moving component membership — unlike CC-067 and CC-069,
+where members left. `config/p2b-kernel-feature-ratchet.json` is re-derived in the same commit and reports
+VERDICT=HOLDS.
+
+**4. Root Trust: accepted baseline version 11, epoch established.** The moved edge changes the accepted identity,
+so the chain advanced and the epoch was established last, in the same commit as the surface change. `--check`
+reports `artifact_integrity` / `series_authorized` / `candidate_tree_matches_frozen` / `identical` all true and
+`bless --check` MATCHES. The ceremony converged in **two passes**, the third consecutive round in which the
+fixed-point property recorded in CC-066 was applied rather than rediscovered — and the first in which the
+40-hex `source_commit` requirement from CC-069 did not have to be discovered again either.
+
+**5. What is NOT done.** S2 55 (target 0), S3 31 mutual pairs (target 0), S4 largest SCC 18 of 29 (target <= 1),
+S5 5 confirmed accesses over 3 pairs (target 0), S6 1 multi-writer candidate (`tasks`, target 0), S10 22 of 27
+plots MIGRATION_IN_PROGRESS, S14 2 MACHINE_RATCHET rows. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections
+31 and 32 are untouched, and the Owner lease remains in force.
+
+**6. The next action, and the change of battlefield.** The `persistence` declarations that remain are `history`,
+`tasks`, `workspaces` (which `persistence` implements itself, so their ownership is CORRECT) and two
+kernel-to-kernel relations that the p2b metric does not count at all (`persistence -> providers` 4 edges,
+`providers -> persistence` 5 edges). **Mechanically continuing to move `persistence` would now be optimising a
+metric that is no longer the constraint.**
+
+The binding targets in order of what the work actually needs are therefore:
+
+```text
+S6  `tasks` multi-writer 1 -> 0    identify the authoritative owner, then convert the other writers to
+                                   messages/commands or delete a dead one; do NOT whitelist the behaviour
+S4  largest SCC 18 -> <= 1         the remaining knot needs an edge INSIDE it removed; that is a different
+                                   and harder repair than the membership changes CC-067/CC-069 achieved
+S10 22/27 MIGRATION_IN_PROGRESS    find each plot's POSITIVE closure condition; a restart/resume proof is
+                                   sufficient where the requirement is continuity, and elapsed wall-clock time
+                                   is not evidence unless the requirement depends on it
+S14 2 MACHINE_RATCHET rows         confirm each row's remaining dependency and promote only when the
+                                   mechanism exists, never by promoting a prose promise
+S5  5 accesses / 3 pairs           classify each as legitimate interface, leak, duplicate authority,
+                                   compatibility shim, or stale read/writer -- and do not relax the detector
+```
+
+**7. A note on how this round was run, because it is part of the evidence.** The previous session ended with the
+goal marked blocked on executor context exhaustion after three consecutive rounds produced no construction. This
+round opened by reading the two facts it needed (the edge and its consumer), then performed the migration, the
+measurement, the ratchet record, the ceremony and this entry inside one budget, because the work was scoped to a
+single atomic construction and the ceremony's shape was reused rather than re-derived. That is the difference
+the successor workbook's section 16 asks for: hand-off discipline and reuse of proven ceremony shapes, not more
+effort.
+
+```text
+ENTRY_ID                    CC-070
+timestamp_utc               2026-09-26T14:16:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, then L5 for the Root Trust Surface files: the accepted
+                            enforcement baseline, its accepted series and the trust epoch, established in the
+                            same commit as the surface change. No red check was bypassed and no gate relaxed.
+main_before                 ba9636babd9e60c16c4188b6a7b4a0268d4db8bf  (five checks green, epoch 56, PR #105)
+branch                      fix/cc070-permission-manifest-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b ratchet HOLDS, p2d HOLDS, cycles largest SCC 18, architecture ratchet 0
+                            violations, enforcement baseline --check identical (v11), closure validator PASS,
+                            bless --check MATCHES, ledger provenance HOLDS, tsc on electron AND tests projects
+                            clean, the four affected suites green (67 tests)
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/security.yaml;
+                            config/architecture-enforcement-baseline.json;
+                            config/p2b-kernel-feature-ratchet.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts
+known_risk                  (1) The composition root now captures the active workspace root for this store at
+                            boot, which is exactly what `persistence` used to do, so a workspace switch after
+                            boot behaves as before. (2) The `security` capability has no boot module and
+                            therefore no health line -- the recorded consequence of the frozen
+                            `architecture-baseline.json`, stated in the manifest. (3) `edges_from_composition_root`
+                            is a recorded ratchet value and has now risen twice; a future migration that pushes
+                            construction into the root will move it, and the recorded value makes that visible.
+evidence_preserved          the six-migration signature table in point 3; the predicted-vs-observed match for
+                            the workspace-scoped relocation shape; every measurement reproducible with
+                            `node scripts/phase2-pair-edges.cjs --json`, `node scripts/phase2-cycles.cjs` and
+                            `node scripts/phase2-private-state.cjs --json`
+rollback                    Revert this commit. One atomic act: the manifest claims, the persistence module
+                            edit, the composition-root construction, the ratchet record, the accepted baseline
+                            version 11, its series entry and the epoch.
+temporary_debt_created      no. One edge relocated; no gate deferred.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured structural step. The OBJECTIVE is NOT complete and this entry
+                            does not claim it is: the city still reports NOT_READY on nine structure items.
+research_value              (1) The relocation signature is now PREDICTIVE rather than descriptive: the
+                            workspace-scoped relocation was predicted to cost raw -1 / root +1 before the
+                            migration ran, and it did -- which is what turns a repeated observation into a
+                            classifier. (2) A null result recorded honestly is part of the result: the largest
+                            SCC did not move here, and saying so is what keeps CC-067's and CC-069's falls
+                            meaningful. (3) The namespace-ownership family is now exhausted of cheap instances,
+                            which is itself a finding: the next binding debt is S6 (`tasks`), then S4's interior
+                            edges, then the lifecycle/soak families -- a different kind of work from the same
+                            ownership act performed six times.
+```
+
+---

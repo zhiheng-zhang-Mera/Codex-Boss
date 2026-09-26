@@ -356,9 +356,10 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     // instrument's measurement moves -- 61/22/33 became 60/21/32 in the atomic attachments migration
     // (ledger CC-065), then 59/20/31 in the atomic identity migration (CC-066), then 58/19/31 in the
     // atomic node migration (CC-067), then 57/18/31 in the atomic experience migration (CC-068), then
-    // 56/17/31 when the dead `project-state` store was removed (CC-069), while the confirmed
-    // private-state accesses and the flatness problems were unchanged by all five.
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 56]]);
+    // 56/17/31 when the dead `project-state` store was removed (CC-069), then 55/16/31 in the
+    // permission-manifest relocation (CC-070), while the confirmed private-state accesses and the
+    // flatness problems were unchanged by all six.
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 55]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
