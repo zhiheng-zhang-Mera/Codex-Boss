@@ -435,9 +435,23 @@ describe("Root Trust Authority Lockdown — the qualification lane cannot be rea
     // the runner is registered to the private control plane, and a lane left behind would not fail — it would
     // wait, which is worse. The check is structural (`runs-on`), because labels also appear legitimately in
     // the documentation that points at the control plane.
+    // Read and parsed ONCE for the whole case. This case used to do it TWICE -- once for the `runs-on` loop
+    // below and again for the corpus-upload loop further down -- and the group's cost is a property of the
+    // workflow set, so the duplication scaled with every workflow added. That is why the group budget had to
+    // be raised from 60s to 120s and then STILL timed out at 120s under load (INC-2026-09-25-01, occurrence
+    // nine). The fix for a cost that grows with the repository is to do the work once, not to buy more time
+    // for doing it twice; raising the budget a second time would have repeated the family's own mistake.
+    const workflowText = new Map<string, string>();
+    const workflowDocument = new Map<string, unknown>();
     for (const name of workflows) {
       const text = fs.readFileSync(path.join(WORKFLOW_DIR, name), "utf8");
-      const document = parseYaml(text) as { jobs?: Record<string, Record<string, unknown>>; on?: Record<string, unknown> } | null;
+      workflowText.set(name, text);
+      workflowDocument.set(name, parseYaml(text));
+    }
+
+    for (const name of workflows) {
+      const text = workflowText.get(name) ?? "";
+      const document = workflowDocument.get(name) as { jobs?: Record<string, Record<string, unknown>>; on?: Record<string, unknown> } | null;
       for (const [jobId, job] of Object.entries(document?.jobs ?? {})) {
         const runsOn = job["runs-on"];
         const labels = Array.isArray(runsOn) ? runsOn.map(String) : [String(runsOn)];
@@ -474,7 +488,7 @@ describe("Root Trust Authority Lockdown — the qualification lane cannot be rea
     // a corpus root is not, because that is the Owner's real host state.
     const CORPUS_ROOTS = ["artifacts", "runtime-data", "history", ".codex-boss"];
     for (const name of workflows) {
-      const document = parseYaml(fs.readFileSync(path.join(WORKFLOW_DIR, name), "utf8")) as { jobs?: Record<string, { steps?: Array<{ with?: Record<string, unknown> }> }> } | null;
+      const document = workflowDocument.get(name) as { jobs?: Record<string, { steps?: Array<{ with?: Record<string, unknown> }> }> } | null;
       for (const [jobId, job] of Object.entries(document?.jobs ?? {})) {
         for (const step of job.steps ?? []) {
           const pathValue = step.with?.path;
