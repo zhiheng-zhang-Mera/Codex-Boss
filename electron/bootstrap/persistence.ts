@@ -11,7 +11,6 @@ import { DecisionLedgerStore } from "../commander/decision-ledger-store";
 import { HumanGuidanceGate } from "../commander/human-guidance-gate";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
 import { GithubResolver } from "../input/github-resolver";
-import { SessionLifecycleLedger } from "../identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "../node/node-capability-registry";
 import { ExternalSessionLedger } from "../workspace/external-session-ledger";
 import { WorkspaceRegistry } from "../workspace/workspace-registry";
@@ -86,7 +85,6 @@ interface PersistenceService {
   capabilities: ProviderCapabilityRegistry;
   github: GithubResolver;
   apiSettings: ApiSettingsStore;
-  sessionLifecycle: SessionLifecycleLedger;
   nodeRegistry: NodeCapabilityRegistry;
   externalSessions: ExternalSessionLedger;
   budget: BudgetManager;
@@ -136,7 +134,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // `publish()` re-derives this on every snapshot; deriving it once here as well
   // means the very first read already carries the settings the store holds.
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
-  const sessionLifecycle = open("session-lifecycle", () => new SessionLifecycleLedger(boss("session-lifecycle.json")));
   const nodeRegistry = open("node-registry", () => new NodeCapabilityRegistry(boss("node-registry.json")));
   const externalSessions = open("external-sessions", () => new ExternalSessionLedger(boss("external-sessions.json")));
   const budget = open("runtime-budget", () => new BudgetManager(boss("runtime-budget.json")));
@@ -166,7 +163,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   return {
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
-      sessionLifecycle, nodeRegistry, externalSessions, budget, guidance, decisions,
+      nodeRegistry, externalSessions, budget, guidance, decisions,
       workspaces, workspaceSelection, permissionManifests, projectStates, experiences,
       resources, contexts,
       opened

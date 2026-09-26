@@ -454,7 +454,8 @@ why_normal_path_was_not_used
                             The red is stated in the PR body BEFORE it is observed, with BYPASS_USED,
                             BYPASS_LEVEL, BLOCKING_CHECKS, EXPECTED_RED, UNEXPECTED_RED and FOLLOWUP filled in
                             (workbook §26).
-action_taken                - workflow: `ref: ${{ github.sha }}` + fetch-depth 0, and a fail-closed assertion step
+action_taken                - workflow: `ref:
+{{ github.sha }}` + fetch-depth 0, and a fail-closed assertion step
                               as the first step after the checkout
                               (TRUST_EPOCH_FINALIZATION_SHA_MISMATCH), publishing both SHAs;
                             - handoff: `provenance.dispatch_sha` / `provenance.checked_out_sha`, refusal of a
@@ -2484,7 +2485,8 @@ THE FINDING: a protected workflow interpolates Owner inputs into a PowerShell co
 known_risk                  `trust-policy/architecture-enforcement-baselines.json` now carries TWO ACCEPTED
                             entries. That is the designed parent-linked lineage (version 1 is the bootstrap and
                             the parent) and the lineage guard asserts it, but a reader who assumed the series is
-                            a single-version pointer would be wrong; the file's own $comment says a baseline
+                            a single-version pointer would be wrong; the file's own
+comment says a baseline
                             governs only when its triple appears with status ACCEPTED, which remains true.
                             The 25 undeclared-endpoint edges the acceptance grandfathers are INVISIBLE to
                             prospective enforcement now, not correct: section 15 item 4 (expand each manifest's
@@ -5814,6 +5816,219 @@ workflow_run_ids            recorded by the PR's own run when it reports
 checks_observed             local: p2b ratchet HOLDS, p2d HOLDS, cycles unchanged SCC, architecture ratchet 0
                             violations, enforcement baseline --check identical, bless --check MATCHES,
                             city-final-acceptance VERDICT=NOT_READY with the SAME 9 OPEN structure items
+```
+
+---
+
+
+## CC-066 — The same repair applied to `identity`, including the case where the second half is a ROAD and the case where a frozen guard forbids the obvious design
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded: the control
+identifies an entry as an `ENTRY_ID` line followed by a `timestamp_utc` line, so keeping those two out of the
+narrative is what stops a section from parsing as two entries.
+
+**1. Why `identity` and not something else.** The successor workbook's section 3 requires candidates to be chosen
+by ownership semantics rather than edge-count rank, and CC-065 ended by naming `identity` as the next candidate
+with its price already measured. The measurement reproduces exactly: `config/capabilities/persistence.yaml`
+declared `namespace: session-lifecycle / owner: persistence`, while the capability that IMPLEMENTS the store is
+`identity` (`electron/identity/session-lifecycle-ledger.ts`), and `bootstrap/persistence.ts` imported that class
+only to construct it and hand it back through its service object. The pair `persistence <-> identity` was one
+edge each way.
+
+**2. The classification is CLASS M, and the second half is CLASS R.** The workbook's classes are not decorative
+here, and this is the first place where the distinction changes what is done:
+
+```text
+CLASS C  construction-carrying  -- persistence -> identity: the kernel BUILT the ledger and forwarded it
+CLASS U  use-only               -- <composition-root> -> identity: main.ts imported the implemented class
+                                   to construct it for the root, which owns no durable state of its own
+CLASS R  declared road         -- identity -> <road>: electron/identity/session-lifecycle-ledger.ts imports
+                                   electron/commander/durable-json for ATOMIC WRITES
+```
+
+CLASS C is removed. CLASS R is **verified and left alone**: `durable-json.ts` is a declared road in
+`config/capability-roads.json`, it is a genuine runtime use of a shared primitive rather than a
+construction-carrying dependency, and the workbook's rule for a road is to check its allowed direction rather
+than optimise it as an ordinary building edge. `road_files` (6) and `edges_to_roads` (75) are unchanged, which is
+the property that shows nothing was moved INTO the road class to make a number fall -- the CC-030 refutation
+applied in the affirmative direction. CLASS U is **retained rather than removed**, and the reason is a frozen
+guard rather than a preference, recorded in point 5.
+
+**3. The migration, as one act.**
+
+```text
+1  config/capabilities/persistence.yaml   the `session-lifecycle` namespace claim is REMOVED
+2  config/capabilities/identity.yaml      the claim is ADDED by the capability that implements the store,
+                                          with the reason the construction did not become a boot module
+3  electron/bootstrap/persistence.ts      no longer imports SessionLifecycleLedger and no longer forwards it
+                                          through its service (19 durable stores -> 18)
+4  electron/main.ts                       constructs the ledger from the data root and holds it, at the SAME
+                                          path the persistence module used to compose
+                                          (<dataRoot>/.boss/session-lifecycle.json), so no stored data moves
+```
+
+**4. The measurement.** With both instruments on the proposed tree, and the tree before it:
+
+```text
+p2b kernel -> feature file edges     60 -> 59        (target 0)
+p2b kernel -> feature pairs          21 -> 20
+p2b mutual capability pairs          32 -> 31        (target 0)
+p2b total cross-capability edges    798 -> 797       e.g. the construction-carrying edge is gone
+p2b capability graph edges          201 -> 200
+p2b files owned                     598 -> 598       unchanged: no file added, none hidden
+p2b largest SCC                      20 -> 20        unchanged
+p2d confirmed private-state access     5 -> 5        no regression
+p2d confirmed pairs                    3 -> 3        no regression
+p2d multi-writer candidates            1 -> 1        NO new candidate
+p2d declared namespaces               32 -> 32
+p2d candidate (unclassified) joins     5 -> 5
+architecture enforcement violations     0 -> 0; closure validator PASS; architecture ratchet 0 violations
+```
+
+`config/p2b-kernel-feature-ratchet.json` is re-derived in the same commit and reports VERDICT=HOLDS. Combined
+with CC-065 the two migrations have taken kernel -> feature edges **61 -> 59** and mutual capability pairs
+**33 -> 31**, with no regression in the private-state instrument on either.
+
+**5. The design that was WITHDRAWN, and why that is recorded rather than hidden.** The first version of this
+migration gave the `identity` capability a boot module of its own (`electron/bootstrap/identity.ts`), exactly as
+CC-065 did for `attachments`. That design was **reverted before the commit** because a frozen guard forbids it:
+
+```text
+tests/unit/city/architecture-hosted-shadow.test.ts
+  -> config/architecture-baseline.json must stay BYTE-IDENTICAL to the Phase 1B-A freeze commit b5b511d7...
+  -> a new boot module raises `bootModuleCount` in that file
+  -> so adding one fails a guard whose purpose is to stop baseline laundering
+```
+
+The constraint was honoured rather than worked around, and the repair was kept with one fewer construction site:
+the composition root builds the ledger and holds it. The CI run that surfaced this is the reason the design
+changed at all, and the measurements in point 4 are from the SHIPPED tree, not the withdrawn one -- the
+withdrawn design measured the same kernel -> feature numbers and additionally added two edges (`identity ->
+runtime` for the `BootModule` contract and the composition root's wiring), which is why the shipped numbers are
+strictly better. This is recorded because a reader comparing this entry with CC-065 will see that the
+`attachments` repair produced a boot module and this one did not, and the difference is a governance constraint
+rather than an oversight.
+
+**6. The ceremony, and how many attempts it took.** Deleting a real prospective edge moves the tracked
+enforcement baseline, so it was regenerated as accepted version 5 with ONE RETIRED EDGE
+(`persistence -> identity`), no new grandfathered debt, and the road decision above. The epoch was then
+established for the surface this change actually produces.
+
+```text
+the_defect_in_the_ceremony   FOUR attempts were discarded before this one, and the cause of three of them is
+                            one off-by-one that is worth writing down because the machinery is a fixed point:
+                            `--accept` derives its candidate as `tracked.baseline_version + 1` with
+                            `parent = tracked.baseline_hash`, while the series must ALREADY name the exact
+                            triple before acceptance is allowed. So the tracked file has to be parked at the
+                            LAST ACCEPTED version of the chain (v4) for the step to produce v5; parking it at v5
+                            while the chain ended at v4 produced a v6 whose parent was a hash the chain never
+                            accepted, and the series refused it as BASELINE_FORK / VERSION_NOT_SEQUENTIAL every
+                            time. The other failures: (a) a series entry appended PER RETRY instead of
+                            replaced in place, producing versions 1,2,5,5,5,5,5; (b) a new boot module's two
+                            extra edges regenerated into the baseline before the design was withdrawn, so the
+                            reverted tree looked like REINTRODUCED_DEBT and RETIRED_EDGE_FORGOTTEN; (c) the
+                            first version-5 series entry was written by COPYING CC-065's classification,
+                            which overwrote version 4's own text -- also corrected, because a wrong
+                            classification in an accepted-baseline series reads as laundering whether or not
+                            it is. The chain is continuous (1..5) and every gate is re-read: --check reports
+                            artifact_integrity / series_authorized / candidate_tree_matches_frozen /
+                            identical all true, and bless --check reports the committed epoch MATCHES.
+```
+
+**7. What is NOT done.** Every structural item is unchanged in kind: S2 59 (target 0), S3 31 mutual pairs
+(target 0), S4 largest SCC 20 of 29 (target <= 1), S5 5 confirmed accesses over 3 pairs (target 0), S6 1
+multi-writer candidate (`tasks`, target 0), S10 22 of 27 plots still MIGRATION_IN_PROGRESS, S14 2 rows still
+MACHINE_RATCHET (15.1, 15.7). `docs/city/FINAL_ACCEPTANCE_RECORD.md` does not exist, section 31 and section 32
+are untouched, and the temporary Owner lease remains in force. No red check was bypassed and no gate was relaxed;
+the one red CI run in this round was root-caused and the DESIGN changed in response to it.
+
+**8. The next action and its price.** The same repair now applies to the namespaces `persistence` declares and
+does not implement, and after two instances the price is measured rather than estimated:
+
+```text
+provider-capabilities   implemented by `providers` (electron/input/provider-capability-registry.ts),
+                        and `providers` ALREADY HAS a boot path (electron/bootstrap/providers.ts)
+node-registry           implemented by `node`      (electron/node/node-capability-registry.ts)
+external-sessions       implemented by `workspace` (electron/workspace/external-session-ledger.ts)
+api-settings            implemented by `providers` (electron/api-settings.ts)
+history, tasks          implemented by `persistence` ITSELF -- NOT candidates; their owner is correct
+```
+
+`provider-capabilities` is the cheapest next candidate and the reason is now concrete: `providers` already has a
+boot module, so the cost that this round paid -- deciding where the construction goes, and the guard that limits
+what it may become -- is already paid. Its shape is the same CLASS C edge (`bootstrap/persistence.ts` imports
+`ProviderCapabilityRegistry` from `electron/input/`).
+
+After those, the ordered remainder stands as CC-065 left it: the soak and lifecycle debt families against their
+positive closure condition or the section-18 quarantine exit, then S4/S6/S10/S14, then section 31, section 32, E5
+and the seal.
+
+```text
+ENTRY_ID                    CC-066
+timestamp_utc               2026-09-26T08:32:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run. The previous round recorded CC-065 at 07:25:00Z against a
+                            committer instant of 07:25:40Z, so this entry was written with the same discipline.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, then L5 for the Root Trust Surface files: the accepted
+                            enforcement baseline, its accepted series and the trust epoch. The epoch was
+                            established IN THE SAME COMMIT as the surface change, which is what section 0 of the
+                            authority document requires. No red check was bypassed and no required check relaxed.
+main_before                 ff7a48cc274f1c744bf4d9d37ca95fb4d5be7428  (five checks green, epoch 38, PR #101)
+branch                      fix/cc066-identity-namespace-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b ratchet HOLDS, p2d HOLDS, cycles SCC 10 / largest 20, architecture
+                            ratchet 0 violations, enforcement baseline --check identical, closure validator PASS,
+                            bless --check MATCHES, city-final-acceptance VERDICT=NOT_READY with the SAME 9 OPEN
+                            structure items
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/identity.yaml;
+                            config/architecture-enforcement-baseline.json;
+                            config/p2b-kernel-feature-ratchet.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            tests/unit/bootstrap-persistence.test.ts; tests/unit/bootstrap-provider-pool.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts
+known_risk                  (1) The ledger path is spelled in the composition root now, so a layout change
+                            belongs there; a test asserts the file lands at
+                            `<dataRoot>/.boss/session-lifecycle.json`, which is where an existing
+                            installation's file already is, so no user data moves. (2) The `identity` capability
+                            still has no boot module, so it has no health line of its own; that is a recorded
+                            consequence of the frozen `architecture-baseline.json`, not an oversight, and the
+                            manifest states it. (3) The committed epoch is a single monotone step from the last
+                            committed one; the intermediate epochs created and discarded during the ceremony
+                            above were never committed and are not claimed as history.
+evidence_preserved          every measurement in point 4 is reproducible with `node scripts/phase2-pair-edges.cjs
+                            --json` and `node scripts/phase2-private-state.cjs --json`; the withdrawn boot-module
+                            design and the four discarded ceremony attempts are recorded in point 5 and point 6
+                            rather than erased; version 4's own classification was restored from CC-065's
+                            narrative after a copy overwrote it
+rollback                    Revert this commit. It is one atomic act: the manifest claims, the two code files,
+                            the ratchet record, the accepted baseline version 5, its series entry and the epoch
+                            all revert together. Reverting only part leaves the enforcement baseline
+                            unreproducible, which `--check` refuses.
+temporary_debt_created      no. One edge was DELETED, no new edge was added, and no gate was deferred.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured structural step. The OBJECTIVE is NOT complete and this entry
+                            does not claim it is.
+research_value              (1) The claim CC-065 stated is now supported by a SECOND independent migration:
+                            for a construction-carrying dependency the unit of migration is NAMESPACE OWNERSHIP,
+                            and what makes the repair repeatable is that the manifest claim, not the import in
+                            the code, is what has to move. (2) The refinement is the three-way split -- one half
+                            that can be removed (CLASS C), one half that must be VERIFIED and left alone
+                            because it is a declared ROAD (CLASS R), and one half that a FROZEN GOVERNANCE
+                            GUARD may forbid removing at all (the composition root's construction). The third
+                            case is new: a structural repair can be correct and still be illegal under a guard
+                            that exists for a different reason, and the right response is to keep the repair
+                            and record the constraint rather than to weaken the guard. (3) The accepted-baseline
+                            ceremony is a FIXED POINT -- candidate version and parent both derive from the
+                            tracked file, which acceptance rewrites -- and four independent attempts failed on
+                            that single property. That is evidence that the ceremony, not the migration, is the
+                            expensive part of a structural step, which is worth knowing before costing the
+                            remaining namespaces.
 ```
 
 ---

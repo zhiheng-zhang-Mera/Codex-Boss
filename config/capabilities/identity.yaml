@@ -5,7 +5,27 @@ provides:
   - identity.session@1
 requires: []
 optional: []
-state: []
+# The namespace this capability IMPLEMENTS is the namespace it OWNS.
+#
+# `session-lifecycle` used to be declared by `persistence`, which built `SessionLifecycleLedger`
+# inside `bootstrap/persistence.ts` and imported it from this capability -- the same misalignment
+# the `attachments` migration repaired (ledger CC-065), one round later. The durable per-account
+# records, the class that reads and writes them and the shared transition table they are validated
+# against all live in this capability, so ownership follows implementation and the construction
+# moves out of the persistence module (ledger CC-066 records the measurement).
+#
+# WHERE THE CONSTRUCTION WENT, AND WHY NOT TO A NEW BOOT MODULE. The `attachments` migration gave
+# its capability a boot module, and this one does NOT -- deliberately, and the reason is a frozen
+# guard rather than a preference. `tests/unit/city/architecture-hosted-shadow.test.ts` requires
+# `config/architecture-baseline.json` to stay byte-identical to the Phase 1B-A freeze commit
+# `b5b511d7...`, and a new boot module raises that file's `bootModuleCount`, so adding one would
+# fail a guard that exists to stop baseline laundering. The composition root therefore constructs
+# this ledger from the data root and holds it, which is the same relocation with one fewer
+# construction site: the kernel capability that used to build and forward it no longer mentions it
+# at all. This is recorded in CC-066 as a constraint discovered by a guard, not as an omission.
+state:
+  - namespace: session-lifecycle
+    owner: identity
 health:
   critical: false
 modules: []

@@ -724,7 +724,18 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     if (importExit && importVerification !== "pending") app.exit(0);
   }
-  sessionLifecycleLedger = persistence.service.sessionLifecycle;
+  // The `identity` capability's session-lifecycle ledger is built HERE rather than handed back by
+  // `persistence` (ledger CC-066). The namespace moved to the capability that implements it, and the
+  // kernel module that used to construct the ledger only to forward it through its service object no
+  // longer mentions it at all -- so the `persistence <-> identity` mutual pair is gone.
+  //
+  // WHY NOT A BOOT MODULE OF ITS OWN, as `attachments` now has: `tests/unit/city/architecture-hosted-shadow.test.ts`
+  // requires `config/architecture-baseline.json` to stay byte-identical to the Phase 1B-A freeze
+  // commit, and a new boot module raises `bootModuleCount` in that file. That guard exists to stop
+  // baseline laundering, so the constraint is honoured rather than worked around: the construction is
+  // relocated with one fewer site instead of gaining a module. The path is the one the persistence
+  // module used to compose, so no stored data moves.
+  sessionLifecycleLedger = new SessionLifecycleLedger(path.join(app.getPath("userData"), ".boss", "session-lifecycle.json"));
   nodeRegistry = persistence.service.nodeRegistry;
   externalSessions = persistence.service.externalSessions;
   budgetManager = persistence.service.budget;

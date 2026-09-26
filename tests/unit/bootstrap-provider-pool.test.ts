@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createProviderPoolModule } from "../../electron/bootstrap/provider-pool";
 import { createPersistenceModule } from "../../electron/bootstrap/persistence";
+import { SessionLifecycleLedger } from "../../electron/identity/session-lifecycle-ledger";
 import { createProvidersModule } from "../../electron/bootstrap/providers";
 import { AccountSessionManager } from "../../electron/account-sessions";
 
@@ -40,7 +41,10 @@ function buildWithoutWindow() {
   const persistence = createPersistenceModule({ dataRoot, historyRoot: path.join(dataRoot, "history"), cacheRoot: path.join(dataRoot, "cache"), appPath: process.cwd(), crypto });
   const store = persistence.service.store;
   const providers = createProvidersModule({ userData: dataRoot, store, apiSettings: persistence.service.apiSettings, crypto: { protect: crypto.encrypt, unprotect: crypto.decrypt }, views: () => undefined, maxActive: 3, navigateOnOpen: true });
-  const accounts = new AccountSessionManager(store, () => undefined, persistence.service.sessionLifecycle);
+  // The lifecycle ledger is built by the `identity` capability now, not handed back by
+  // `persistence` (ledger CC-066): this test builds the identity module for the same reason it
+  // builds the persistence one -- it needs a real ledger over a real temporary root.
+  const accounts = new AccountSessionManager(store, () => undefined, new SessionLifecycleLedger(path.join(dataRoot, ".boss", "session-lifecycle.json")));
   const toggles: string[] = [];
   const module = createProviderPoolModule({
     window: () => undefined,

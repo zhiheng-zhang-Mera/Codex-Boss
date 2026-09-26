@@ -354,13 +354,13 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     // config/p2b-kernel-feature-ratchet.json and config/p2d-private-state-ratchet.json, and this case fails if
     // the validator resolves something other than what those instruments publish. They move only when an
     // instrument's measurement moves -- 61/22/33 became 60/21/32 in the atomic attachments migration
-    // (ledger CC-065) while the largest SCC, the confirmed private-state accesses and the flatness problems
-    // were all unchanged by it.
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 60]]);
+    // (ledger CC-065) and then 59/20/31 in the atomic identity migration (ledger CC-066), while the largest
+    // SCC, the confirmed private-state accesses and the flatness problems were unchanged by both.
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 59]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
-      ["p2b:mutualCapabilityPairs", 32],
+      ["p2b:mutualCapabilityPairs", 31],
       ["p2b:largestSccSize", 20],
       ["p2d:confirmedAccesses", 5],
     ]);
