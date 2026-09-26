@@ -5363,3 +5363,83 @@ research_value              (1) The class "a required check reports a verdict it
                             it was once true; correcting it in place with the reason keeps both the record and
                             the lesson.
 ```
+
+## CC-063 — One detector decides E2, and the citation-before-record defect happened again
+
+```text
+ENTRY_ID                    CC-063
+timestamp_utc               2026-09-26T11:38:04Z
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, then this entry. Documentation only: docs/city/** is
+                            outside the Root Trust Surface, NO EPOCH CEREMONY. epoch 37 still MATCHES.
+main_before                 cf98c506a6cbfcb583275ee552986f60818db48d  (five checks green, epoch 37, PR #97)
+main_after                  7de98ac6e1f721f1d5872b35b38f68c7b9ec47ec  (PR #98, five checks green, epoch 37)
+branch                      docs/city-cc-063
+PR                          the PR that carries this entry
+what_this_entry_records     The E2 instrument repair merged as PR #98 (commit c426ab6). E2 -- "all live
+                            renovation debt is CLOSED or ACCEPTED_PERMANENT" -- gated the seal on ONE reading of
+                            the debt register and printed its explanation from ANOTHER:
+                              const perEntry  = debtText.match(/^status\s+(OPEN|...)\s*$/gm);   // anchored
+                              const unsettled = perEntry.filter((line) => /OPEN|CONTAINED/.test(line));
+                              const debtReady = debtIds.length > 0 && unsettled.length === 0;  // verdict
+                              add(..., verdict(OPEN, `${unsettledIds...}`));                    // message
+                            Ledger CC-056 had honestly widened CITY-DEBT-005 to
+                            "status               OPEN (narrowed: ...)", which the anchored pattern cannot match.
+                            So unsettled was empty, debtReady was TRUE, and E2 reported PASS WHILE A DEBT WAS OPEN.
+                            It began reporting OPEN only once a second, plainly-written entry existed -- which is
+                            exactly what round 253 observed when the suite moved 24 PASS / 8 OPEN to
+                            23 PASS / 9 OPEN on a documentation change.
+the_fix                     Not a better regex: a SINGLE READING. openDebtIds (which tolerates an appended
+                            explanation) now decides the verdict, the count and the message, and the settled list
+                            in the PASS branch is derived from it too. The strict perEntry/unsettled pair is gone,
+                            so there is no second reading left to disagree with the first.
+falsified_both_directions   Against the REAL register rather than a fixture, because the defect lived in the
+                            interaction between a real status line and the parser:
+                              every OPEN status suffixed (the state that read PASS before)  -> E2 OPEN, naming
+                                                                                               the entries
+                              restored                                                      -> E2 OPEN, unchanged
+                            The pre-fix false pass is already in the record: round 253's 24 PASS / 8 OPEN while
+                            CITY-DEBT-005 was open and suffixed.
+the_recurrence              THIS ENTRY EXISTS BECAUSE ITS OWN CITATION PRECEDED IT. PR #98's commit message and
+                            body both cite "ledger CC-063" and the entry did not exist until this commit. That is
+                            the identical defect CC-057 recorded two rounds earlier, committed again by the same
+                            executor -- so the finding is not "an id was cited early" but "THE RULE DID NOT
+                            WORK". CC-057's stated mitigation was to write the entry first or to say plainly that
+                            it follows; neither was done, because the rule lived only in a ledger entry and
+                            nothing in the workflow asked for it at the moment of committing. The concrete
+                            consequence is mild here (a citation broken for one round) but it is the same shape as
+                            every other defect in this register: a claim in an artifact that the artifact's own
+                            mechanism does not enforce.
+why_the_gap_was_not_hidden  The gap was disclosed in the round report the moment it was noticed, and this
+                            entry records the disclosure rather than quietly satisfying the citation. An
+                            executor who appends the missing entry and says only "now it resolves" has destroyed
+                            the evidence that the rule failed.
+no_regression_test          Named rather than glossed: the script exposes no pure parser for the debt reading,
+                            so pinning this in tests/unit/city/city-final-acceptance.test.ts would require an
+                            export refactor. The change is verified by the two-directional probe above, not by a
+                            unit test, and that limitation is recorded here so a later reader does not assume
+                            coverage that does not exist.
+verification_run_this_round node scripts/acceptance-evolution-bless.cjs --check -> epoch 37 MATCHES
+                            npx vitest run tests/unit/city/city-final-acceptance.test.ts -> 10 passed
+                            node scripts/city-final-acceptance.cjs --hosted --main-sha=7de98ac6... ->
+                              23 PASS, 9 OPEN, 2 UNVERIFIED (11 blocking), the honest baseline
+                            merge SHA 7de98ac6: quality, unit, acceptance, package, architecture all success
+rollback                    Revert this commit. Documentation only; the instrument repair it records is already
+                            on main. The pre-fix parser was itself strictly worse (it could hide an open debt),
+                            so a revert of the CODE would reintroduce a false pass in a seal gate.
+temporary_debt_created      no.
+closure_status              CLOSED. The citation resolves, the instrument has one reading, and the recurrence of
+                            the ordering defect is recorded as a rule failure rather than as an oversight.
+research_value              (1) A gate item that computes its verdict from one reading and its explanation from
+                            another is worse than a wrong item: it is RIGHT in the message and WRONG in the
+                            verdict, so a reader who checks the text sees the debt and a reader who checks the
+                            status sees PASS. Both readings were present in the same function, three lines apart.
+                            (2) An honest edit caused it -- CC-056 appended an explanation to a machine-read
+                            field to be MORE truthful, and the stricter of two parsers could not see it. Progress
+                            and instrument breakage can come from the same act, which is why a change to a
+                            machine-read field should be followed by running the instrument rather than by
+                            reasoning about it. (3) A rule recorded only in a ledger entry is not a control: the
+                            same executor broke CC-057's ordering rule in the very next round that cited an id,
+                            which is evidence that this class needs a check in the commit path, not another
+                            paragraph -- and the register already has a name for that failure mode.
+```
