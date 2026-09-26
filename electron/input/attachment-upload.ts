@@ -7,9 +7,26 @@
 import fs from "node:fs";
 import type { AttachmentStore } from "./attachment-store";
 import type { AdapterDefinition } from "../adapters/registry";
-import type { StateStore } from "../store";
-import type { InputObjectKind } from "../../src/shared/input-object";
+import type { InputObjectKind, InputObjectRef } from "../../src/shared/input-object";
 import type { UploadFilePayload } from "../adapters/page-scripts";
+
+/**
+ * The part of the application state document this planner reads.
+ *
+ * Declared HERE, structurally, rather than imported from `electron/store.ts`. The
+ * planner needs two lists out of a snapshot and nothing else, so naming the kernel's
+ * concrete `StateStore` was a dependency the capability did not use: it made
+ * `attachments` import `persistence` for a type it never calls a method of, and that
+ * one import closed the `attachments <-> persistence` mutual pair. A structural
+ * parameter states the real requirement, keeps the callers that pass a real
+ * `StateStore` compiling unchanged, and lets the type be tested without a store.
+ */
+export interface TaskInputSnapshotSource {
+  snapshot(): {
+    tasks: ReadonlyArray<{ id: string; conversationId: string; inputObjectIds?: readonly string[] }>;
+    conversations: ReadonlyArray<{ id: string; inputObjects?: ReadonlyArray<InputObjectRef> }>;
+  };
+}
 
 /** Per-file budget for page-side injection (base64 lives in the executed script). */
 const MAX_PAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -23,7 +40,7 @@ interface ResolvedUpload {
 }
 
 /** The input objects a task consumed that still exist on disk. */
-export function resolveUploadsForTask(store: StateStore, attachmentStore: AttachmentStore, taskId: string): ResolvedUpload[] {
+export function resolveUploadsForTask(store: TaskInputSnapshotSource, attachmentStore: AttachmentStore, taskId: string): ResolvedUpload[] {
   const task = store.snapshot().tasks.find((item) => item.id === taskId);
   if (!task?.inputObjectIds?.length) return [];
   const conversation = store.snapshot().conversations.find((item) => item.id === task.conversationId);

@@ -38,9 +38,17 @@ const testCrypto: PersistenceCrypto = {
   decrypt: (cipherText) => Buffer.from(cipherText.replace(/^enc:/, ""), "base64").toString("utf8")
 };
 
-/** The store names the module declares, in the order it opens them. */
+/**
+ * The store names the module declares, in the order it opens them.
+ *
+ * `attachments` is deliberately NOT here (ledger CC-065): the namespace is declared by
+ * the `attachments` capability and its store is built on that capability's own boot
+ * path, so this module no longer owns it. Its own test lives beside the module that
+ * does, and this list is a projection of the real service -- a store that moved back
+ * in here would still be visible below, it would just be counted twice.
+ */
 const DECLARED = [
-  "history", "tasks", "state", "attachments", "provider-capabilities", "github-cache",
+  "history", "tasks", "state", "provider-capabilities", "github-cache",
   "api-settings", "session-lifecycle", "node-registry", "external-sessions",
   "runtime-budget", "interventions", "decision-ledger", "workspaces",
   "workspace-selection", "permission-manifest", "project-state", "experience",
@@ -67,7 +75,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     history: service.history,
     tasks: service.tasks,
     state: service.store,
-    attachments: service.attachments,
     "provider-capabilities": service.capabilities,
     "github-cache": service.github,
     "api-settings": service.apiSettings,
@@ -120,7 +127,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("20 durable store(s)");
+    expect(fresh.health().detail).toContain("19 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {

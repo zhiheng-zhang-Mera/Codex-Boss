@@ -17,8 +17,6 @@ state:
     owner: persistence
   - namespace: app-state
     owner: persistence
-  - namespace: attachments
-    owner: persistence
   - namespace: provider-capabilities
     owner: persistence
   - namespace: api-settings
