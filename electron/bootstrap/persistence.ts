@@ -9,10 +9,8 @@ import { ContextManager } from "../commander/context-manager";
 import { ResourceController } from "../commander/resource-controller";
 import { DecisionLedgerStore } from "../commander/decision-ledger-store";
 import { HumanGuidanceGate } from "../commander/human-guidance-gate";
-import { AttachmentStore } from "../input/attachment-store";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
 import { GithubResolver } from "../input/github-resolver";
-import { SessionLifecycleLedger } from "../identity/session-lifecycle-ledger";
 import { NodeCapabilityRegistry } from "../node/node-capability-registry";
 import { ExternalSessionLedger } from "../workspace/external-session-ledger";
 import { WorkspaceRegistry } from "../workspace/workspace-registry";
@@ -84,11 +82,9 @@ interface PersistenceService {
   capture: RuntimeIntelligenceCapture;
   /** The application state document. */
   store: StateStore;
-  attachments: AttachmentStore;
   capabilities: ProviderCapabilityRegistry;
   github: GithubResolver;
   apiSettings: ApiSettingsStore;
-  sessionLifecycle: SessionLifecycleLedger;
   nodeRegistry: NodeCapabilityRegistry;
   externalSessions: ExternalSessionLedger;
   budget: BudgetManager;
@@ -130,7 +126,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   });
   const tasks = open("tasks", () => createCaptureObservingLedger({ root: boss("tasks"), capture }));
   const store = open("state", () => new StateStore(path.join(dataRoot, "state.json"), history, tasks));
-  const attachments = open("attachments", () => new AttachmentStore(boss("attachments")));
   const capabilities = open("provider-capabilities", () => new ProviderCapabilityRegistry(boss("provider-capabilities.json")));
   // The repository cache is a cache, not durable state, so it sits under the cache
   // root rather than under the data root.
@@ -139,7 +134,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // `publish()` re-derives this on every snapshot; deriving it once here as well
   // means the very first read already carries the settings the store holds.
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
-  const sessionLifecycle = open("session-lifecycle", () => new SessionLifecycleLedger(boss("session-lifecycle.json")));
   const nodeRegistry = open("node-registry", () => new NodeCapabilityRegistry(boss("node-registry.json")));
   const externalSessions = open("external-sessions", () => new ExternalSessionLedger(boss("external-sessions.json")));
   const budget = open("runtime-budget", () => new BudgetManager(boss("runtime-budget.json")));
@@ -168,8 +162,8 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   let disposed = false;
   return {
     service: {
-      history, tasks, store, capture, attachments, capabilities, github, apiSettings,
-      sessionLifecycle, nodeRegistry, externalSessions, budget, guidance, decisions,
+      history, tasks, store, capture, capabilities, github, apiSettings,
+      nodeRegistry, externalSessions, budget, guidance, decisions,
       workspaces, workspaceSelection, permissionManifests, projectStates, experiences,
       resources, contexts,
       opened

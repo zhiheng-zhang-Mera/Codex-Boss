@@ -6,6 +6,7 @@ import { createProviderPoolModule } from "../../electron/bootstrap/provider-pool
 import { createPersistenceModule } from "../../electron/bootstrap/persistence";
 import { createProvidersModule } from "../../electron/bootstrap/providers";
 import { AccountSessionManager } from "../../electron/account-sessions";
+import { SessionLifecycleLedger } from "../../electron/identity/session-lifecycle-ledger";
 
 /**
  * Phase F — the provider pool's objects.
@@ -40,7 +41,9 @@ function buildWithoutWindow() {
   const persistence = createPersistenceModule({ dataRoot, historyRoot: path.join(dataRoot, "history"), cacheRoot: path.join(dataRoot, "cache"), appPath: process.cwd(), crypto });
   const store = persistence.service.store;
   const providers = createProvidersModule({ userData: dataRoot, store, apiSettings: persistence.service.apiSettings, crypto: { protect: crypto.encrypt, unprotect: crypto.decrypt }, views: () => undefined, maxActive: 3, navigateOnOpen: true });
-  const accounts = new AccountSessionManager(store, () => undefined, persistence.service.sessionLifecycle);
+  // The ledger is constructed here rather than read from the persistence service: the composition root
+  // owns that wiring now, so this test supplies the same instance the root would (ledger CC-059).
+  const accounts = new AccountSessionManager(store, () => undefined, new SessionLifecycleLedger(path.join(dataRoot, ".boss", "session-lifecycle.json")));
   const toggles: string[] = [];
   const module = createProviderPoolModule({
     window: () => undefined,

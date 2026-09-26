@@ -2,24 +2,24 @@
   "$comment": "P2-B/P2-C regression ratchet, recorded from a measurement and never hand-tuned. `kernel_to_feature_file_edges` is the number workbook section 16 must drive to ZERO ('foundation -> building implementation edges = 0'); until it is zero this artifact is the floor that stops it silently growing back. Lowering a value here is the whole point of the migration and is done in the same commit that lowers it; raising one requires a recorded reason, because the alternative reading of a rise is a new inversion.",
   "schema": "city-p2b-kernel-feature-ratchet/1",
   "ownership_model": "config/capability-modules.json -- the OWNERSHIP MAP, not the manifests",
-  "measured_at": "2026-09-25T01:10Z",
+  "measured_at": "2026-09-26T07:55Z",
   "measured_by": "node scripts/phase2-edge-inventory.cjs --json",
   "why_the_model_is_named": "The manifests declare 25 module paths and therefore see 3 capability edges; the ownership map owns 596 files (plus 2 composition-root files) and sees 801 cross-capability file edges. Every number below is meaningless without saying which model produced it, and the legacy `architecture:ratchet` -- which reads the manifests -- cannot see any of these edges at all. That is why this ratchet exists beside it rather than inside it.",
   "recorded": {
-    "kernel_to_feature_file_edges": 61,
-    "kernel_to_feature_pairs": 22,
-    "mutual_capability_pairs": 33,
+    "kernel_to_feature_file_edges": 59,
+    "kernel_to_feature_pairs": 20,
+    "mutual_capability_pairs": 31,
     "files_owned": 598,
     "capabilities_with_kinds": 27,
     "composition_root_files": 2,
-    "total_cross_capability_file_edges": 800,
+    "total_cross_capability_file_edges": 798,
     "road_files": 6,
     "edges_to_roads": 75,
     "largest_scc_size": 20,
     "non_trivial_scc_count": 1,
     "scc_count": 10,
     "capability_nodes": 29,
-    "capability_edges": 203
+    "capability_edges": 201
   },
   "target": {
     "kernel_to_feature_file_edges": 0,
@@ -33,7 +33,7 @@
     "state-core"
   ],
   "measured_cycles_by": "node scripts/phase2-cycles.cjs (read by this ratchet, not recomputed here)",
-  "reason": "Lowered four times. From 82 to 73 by the provider closure extraction (CC-029), from 73 to 66 by the first ROAD declarations (CC-038) and from 66 to 62 by the second (CC-040). From 62 to 61 by INVERTING the last kernel -> building edge that held a mutual pair: electron/bootstrap/providers.ts imported the RuntimeRegistry TYPE from electron/commander/runtime-registry.ts purely to declare a parameter it receives, so the consumer now declares the minimal shape it needs (RuntimeRegistrar) and the implementation satisfies it structurally. That single type import was the whole of providers -> tenx, and with its reverse (tenx -> providers, 27 edges) it formed the mutual pair providers <-> tenx; the pair count falls 34 -> 33, the pair list 23 -> 22, and the RAW edge total 801 -> 800 because a repair DELETES an edge rather than moving it. The largest SCC stays at 20: the knot is held by other edges, and this entry claims only what it repaired. The total is now recorded as a CEILING rather than a floor (CC-046) for exactly that reason.",
+  "reason": "Lowered four times. From 82 to 73 by the provider closure extraction (CC-029), from 73 to 66 by the first ROAD declarations (CC-038) and from 66 to 62 by the second (CC-040). From 62 to 61 by INVERTING the last kernel -> building edge that held a mutual pair: electron/bootstrap/providers.ts imported the RuntimeRegistry TYPE from electron/commander/runtime-registry.ts purely to declare a parameter it receives, so the consumer now declares the minimal shape it needs (RuntimeRegistrar) and the implementation satisfies it structurally. That single type import was the whole of providers -> tenx, and with its reverse (tenx -> providers, 27 edges) it formed the mutual pair providers <-> tenx; the pair count falls 34 -> 33, the pair list 23 -> 22, and the RAW edge total 801 -> 800 because a repair DELETES an edge rather than moving it. The largest SCC stays at 20: the knot is held by other edges, and this entry claims only what it repaired. The total is now recorded as a CEILING rather than a floor (CC-046) for exactly that reason. From 61 to 59 by MOVING CONSTRUCTION, not by re-attribution: the attachment store and the session-lifecycle ledger were built inside electron/bootstrap/persistence.ts only to be handed back through its service object, so the persistence capability appeared to depend on the `input` and `identity` capabilities it was merely forwarding. Both are now built by electron/main.ts, which is the composition root (declared `composition_root` in the ownership map and `UNDECLARED` in the enforcement baseline), so the two file edges are REMOVED and no compensating edge is added -- checked before the edit rather than after, because a composition root that happened to be a kernel would have made the whole change a no-op. A capability-to-capability dependency disappeared with them, so `capability_edges` FALLS 203 -> 201 and the raw total FALLS 800 -> 798. That is a deletion and not a move, which is the distinction this file cares about: the raw total stays a CEILING (CC-046), and the `capability_edges` FLOOR is RE-DERIVED to the measured 201 rather than relaxed -- the guard exists so a shrinking cycle graph cannot be how a knot disappears, and pinning the new value preserves exactly that, because any further loss still fails. Measured 2026-09-26 by scripts/phase2-*; ledger CC-060.",
   "anti_gaming": {
     "files_owned_is_a_floor": "A drop in edges that comes from a drop in SCANNED FILES is not progress. `files_owned` is asserted to stay at or above its recorded value, so a file cannot be removed from the scanner -- or handed to the composition-root class to make it invisible -- to make the migration look finished.",
     "capabilities_with_kinds_is_pinned": "`kernel` is read from the manifests' `kind` field, so a kernel that lost its kind would silently stop being counted. The kind count is pinned so that cannot happen quietly.",

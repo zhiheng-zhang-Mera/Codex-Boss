@@ -629,7 +629,12 @@ if (ownsInstance) app.whenReady().then(() => {
     const recovery = reconcileWorkbookLinks(store, workbookRegistry());
     if (recovery.recovered > 0) console.info(`Recovered ${recovery.recovered} WorkBook revision→task link(s) at startup`);
   } catch (error) { console.error("WorkBook revision recovery failed", error); }
-  attachmentStore = persistence.service.attachments;
+  // The attachment store and the session-lifecycle ledger are built HERE rather than inside
+  // `bootstrap/persistence.ts`, because this is the composition root: the persistence module used to
+  // construct both only to hand them back through its service object, which made the persistence
+  // capability appear to depend on the `input` and `identity` capabilities it was merely forwarding.
+  // The paths are the ones that module derived from the same data root (`<dataRoot>/.boss/...`).
+  attachmentStore = new AttachmentStore(path.join(dataRoot, ".boss", "attachments"));
   capabilityRegistry = persistence.service.capabilities;
   githubResolver = persistence.service.github;
   apiSettings = persistence.service.apiSettings;
@@ -700,7 +705,10 @@ if (ownsInstance) app.whenReady().then(() => {
     }
     if (importExit && importVerification !== "pending") app.exit(0);
   }
-  sessionLifecycleLedger = persistence.service.sessionLifecycle;
+  // Built here for the same reason as the attachment store above: it is wiring, and wiring belongs to
+  // the composition root. `account-sessions.ts` receives the constructed ledger, so the `identity`
+  // capability still owns the ledger's behaviour; only its construction moved.
+  sessionLifecycleLedger = new SessionLifecycleLedger(path.join(dataRoot, ".boss", "session-lifecycle.json"));
   nodeRegistry = persistence.service.nodeRegistry;
   externalSessions = persistence.service.externalSessions;
   budgetManager = persistence.service.budget;

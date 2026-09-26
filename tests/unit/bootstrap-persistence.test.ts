@@ -40,8 +40,8 @@ const testCrypto: PersistenceCrypto = {
 
 /** The store names the module declares, in the order it opens them. */
 const DECLARED = [
-  "history", "tasks", "state", "attachments", "provider-capabilities", "github-cache",
-  "api-settings", "session-lifecycle", "node-registry", "external-sessions",
+  "history", "tasks", "state", "provider-capabilities", "github-cache",
+  "api-settings", "node-registry", "external-sessions",
   "runtime-budget", "interventions", "decision-ledger", "workspaces",
   "workspace-selection", "permission-manifest", "project-state", "experience",
   "runtime-resources", "task-contexts"
@@ -67,11 +67,9 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     history: service.history,
     tasks: service.tasks,
     state: service.store,
-    attachments: service.attachments,
     "provider-capabilities": service.capabilities,
     "github-cache": service.github,
     "api-settings": service.apiSettings,
-    "session-lifecycle": service.sessionLifecycle,
     "node-registry": service.nodeRegistry,
     "external-sessions": service.externalSessions,
     "runtime-budget": service.budget,
@@ -120,7 +118,10 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("20 durable store(s)");
+    // 18, not 20: the attachment store and the session-lifecycle ledger are built by the composition
+    // root now, so the persistence module opens two fewer. The count is the thing this line measures,
+    // and it legitimately changed (ledger CC-059 predicted exactly this literal).
+    expect(fresh.health().detail).toContain("18 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {
