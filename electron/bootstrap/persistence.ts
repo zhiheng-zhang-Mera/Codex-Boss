@@ -15,7 +15,6 @@ import { ExternalSessionLedger } from "../workspace/external-session-ledger";
 import { WorkspaceRegistry } from "../workspace/workspace-registry";
 import { WorkspaceSelectionStore } from "../workspace/workspace-selection";
 import { durableFileFor } from "../workspace/durable-roots";
-import { PermissionManifestStore } from "../security/permission-manifest";
 import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 
@@ -88,8 +87,6 @@ interface PersistenceService {
   decisions: DecisionLedgerStore;
   workspaces: WorkspaceRegistry;
   workspaceSelection: WorkspaceSelectionStore;
-  /** Workspace-scoped stores, rooted at the active workspace. */
-  permissionManifests: PermissionManifestStore;
   /** Runtime admission: what may run right now, and against which resources. */
   resources: ResourceController;
   contexts: ContextManager;
@@ -143,7 +140,10 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // shim), so this value — not a later `setActive` — is what they are rooted at.
   const workspaceRoot = workspaces.activeWorkspaceId();
   const atDefaultWorkspace = workspaceRoot === DEFAULT_WORKSPACE_ID;
-  const permissionManifests = open("permission-manifest", () => new PermissionManifestStore(durableFileFor(dataRoot, workspaceRoot, path.join(".boss", "permission-manifest.json"))));
+  // `permission-manifest` is NOT opened here (ledger CC-070). It is owned by the `security`
+  // capability that implements it and is constructed by the composition root, which is the only
+  // place that resolves the active workspace root for it -- the same workspace-scoped interface
+  // CC-068 used for `experience`.
   // `project-state` is NOT opened here (ledger CC-069). It is the only store in this module whose
   // construction had NO consumer: `main.ts` already builds a `ProjectStateStore` per workspace through
   // `openProjectState(workspaceId)`, and nothing ever read the boot-time instance. The namespace is now
@@ -159,7 +159,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
       externalSessions, budget, guidance, decisions,
-      workspaces, workspaceSelection, permissionManifests,
+      workspaces, workspaceSelection,
       resources, contexts,
       opened
     },

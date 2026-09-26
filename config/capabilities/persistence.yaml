@@ -33,8 +33,6 @@ state:
     owner: persistence
   - namespace: workspace-selection
     owner: persistence
-  - namespace: permission-manifest
-    owner: persistence
   - namespace: runtime-resources
     owner: persistence
   - namespace: task-contexts

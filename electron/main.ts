@@ -70,6 +70,7 @@ import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
 import { ProjectStateStore } from "./project/project-state";
 import { ExperienceStore } from "./experience/experience-store";
+import { PermissionManifestStore } from "./security/permission-manifest";
 import {
   reconcileWorkbookLinks,
   resumeWorkBookTask,
@@ -767,7 +768,12 @@ if (ownsInstance) app.whenReady().then(() => {
 
   // Workspace-rooted and resource state, handed on to the services below exactly
   // as the inline versions were.
-  const { workspaces, permissionManifests, resources: resourceController, contexts: contextManager } = persistence.service;
+  const { workspaces, resources: resourceController, contexts: contextManager } = persistence.service;
+  // The `security` capability's permission-manifest store is built HERE rather than handed back by
+  // `persistence` (ledger CC-070). It has a REAL consumer -- `permissionForWorkspace` below -- so this
+  // is a relocation, not the dead-store removal CC-069 performed. Its path is WORKSPACE-SCOPED, so the
+  // composition root resolves the active workspace root once, as `persistence` used to.
+  const permissionManifests = new PermissionManifestStore(durableFileFor(app.getPath("userData"), workspaces.activeWorkspaceId(), path.join(".boss", "permission-manifest.json")));
   // The `experience` capability's durable store is built HERE rather than handed back by `persistence`
   // (ledger CC-068). The namespace moved to the capability that implements it, so the kernel module
   // that used to construct it only to forward it no longer mentions it at all. Its path is

@@ -283,6 +283,36 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 11,
+      "baseline_hash": "4b4a1fc903254d328e950b22941ab43ce6dd6ac37a6ac0d8af78fc9f5bf667da",
+      "parent_baseline_hash": "a4a0642f8e0411dc2f76efcf330c4f8ad6b4296f848547d41e24f9aef1dfa07e",
+      "source_commit": "ba9636babd9e60c16c4188b6a7b4a0268d4db8bf",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the atomic permission-manifest namespace-ownership migration by the executor holding that lease. Recorded in ledger CC-070.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-070; config/capabilities/security.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-26T11:20:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE edge retired: electron/bootstrap/persistence.ts imported PermissionManifestStore from electron/security/permission-manifest.ts only to construct it and hand it back through its service object. The namespace is now claimed by the capability that implements it, and the store is constructed by the composition root, which resolves the active workspace root. This is a RELOCATION, not a removal: the store has a real consumer, so one kernel -> feature edge is deleted and one composition-root -> security edge is added -- the raw total falls by one and edgesFromCompositionRoot rises by one.",
+        "new_legitimate_relation": "one composition-root -> security edge, which is the wiring for a store the root now builds. The kernel -> feature edge it replaces is deleted.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline.",
+        "largest_scc_effect": "NONE: the largest SCC is unchanged at 18. `security` was not in the knot, so this migration reduces the inversion count without moving the component's membership -- stated so it is not conflated with CC-067/CC-069, where members did leave."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1681,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
