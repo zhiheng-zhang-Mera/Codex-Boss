@@ -253,13 +253,16 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
 
   const debtText = exists(DEBT_REGISTER, root) ? readText(DEBT_REGISTER, root) : "";
   const debtIds = [...new Set((debtText.match(/CITY-DEBT-\d+/g) ?? []))];
-  const perEntry = (debtText.match(/^status\s+(OPEN|CONTAINED|CLOSED|ACCEPTED_PERMANENT)\s*$/gm) ?? []);
-  const unsettled = perEntry.filter((line) => /OPEN|CONTAINED/.test(line));
-  // WHICH debt is open, not merely HOW MANY. Every other OPEN item in this checklist names its member -- the road
-  // items name files, the matrix item names principle ids -- because an item a reader cannot act on is a red without
-  // a next step. This one reported "1 debt entr(ies) are still OPEN" until ledger CC-051, which says there is a
-  // problem and nothing about which. The pairing is id-first-then-status, and the first occurrence of an id is its
-  // entry block rather than the summary table at the foot of the register.
+  // ONE detector decides BOTH the verdict and the message.
+  //
+  // These used to be two readings of the same file. `unsettled` matched a status line ONLY when it was exactly
+  // `status <WORD>` to end-of-line, while `openDebtIds` below tolerates an appended explanation. Ledger CC-056
+  // had honestly widened CITY-DEBT-005 to `status               OPEN (narrowed: ...)`, which the strict reading
+  // does not match -- so `unsettled` was empty, `debtReady` was true, and E2 reported PASS while a debt was
+  // OPEN. The message beside it used the tolerant detector, so the item printed "2 debt entries are still OPEN"
+  // only AFTER a second, plainly-written entry existed. An instrument whose verdict and whose explanation come
+  // from different readings of the same file can certify the opposite of what it prints; ledger CC-063 pins
+  // both directions of this, and the fix is not a better regex but a single reading.
   const openDebtIds = [];
   for (const match of debtText.matchAll(/CITY-DEBT-(\d+)[\s\S]*?status\s+(OPEN|CONTAINED|CLOSED|ACCEPTED_PERMANENT)/g)) {
     const id = `CITY-DEBT-${match[1]}`;
@@ -267,9 +270,12 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
     openDebtIds.push({ id, status: match[2] });
   }
   const unsettledIds = openDebtIds.filter((entry) => entry.status === "OPEN" || entry.status === "CONTAINED");
-  const debtReady = debtIds.length > 0 && unsettled.length === 0;
+  const settledIds = openDebtIds.filter((entry) => entry.status !== "OPEN" && entry.status !== "CONTAINED");
+  const debtReady = debtIds.length > 0 && unsettledIds.length === 0;
   add("EVIDENCE", "E2", "all live renovation debt is CLOSED or ACCEPTED_PERMANENT",
-    debtReady ? verdict(PASS, `${debtIds.length} debt id(s), all settled: ${perEntry.map((line) => line.split(/\s+/)[1]).join(", ")}`) : verdict(OPEN, unsettledIds.length > 0 ? `${unsettledIds.length} debt entr(ies) are still ${unsettledIds.map((entry) => `${entry.status}`).join(", ")}: ${unsettledIds.map((entry) => entry.id).join(", ")}` : `${unsettled.length} debt entr(ies) are still ${unsettled.map((line) => line.split(/\s+/)[1]).join(", ")}`));
+    debtReady
+      ? verdict(PASS, `${debtIds.length} debt id(s), all settled: ${settledIds.map((entry) => `${entry.id} ${entry.status}`).join(", ")}`)
+      : verdict(OPEN, `${unsettledIds.length} debt entr(ies) are still ${unsettledIds.map((entry) => entry.status).join(", ")}: ${unsettledIds.map((entry) => entry.id).join(", ")}`));
 
   add("EVIDENCE", "E3", "paper-useful findings are in PAPER_EVIDENCE_LEDGER",
     exists("docs/research/PAPER_EVIDENCE_LEDGER.md", root) ? verdict(PASS, "docs/research/PAPER_EVIDENCE_LEDGER.md exists") : verdict(OPEN, "the paper evidence ledger is missing"));
