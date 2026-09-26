@@ -355,14 +355,15 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     // the validator resolves something other than what those instruments publish. They move only when an
     // instrument's measurement moves -- 61/22/33 became 60/21/32 in the atomic attachments migration
     // (ledger CC-065), then 59/20/31 in the atomic identity migration (CC-066), then 58/19/31 in the
-    // atomic node migration (CC-067), then 57/18/31 in the atomic experience migration (CC-068), while
-    // the confirmed private-state accesses and the flatness problems were unchanged by all four.
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 57]]);
+    // atomic node migration (CC-067), then 57/18/31 in the atomic experience migration (CC-068), then
+    // 56/17/31 when the dead `project-state` store was removed (CC-069), while the confirmed
+    // private-state accesses and the flatness problems were unchanged by all five.
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 56]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
       ["p2b:mutualCapabilityPairs", 31],
-      ["p2b:largestSccSize", 19],
+      ["p2b:largestSccSize", 18],
       ["p2d:confirmedAccesses", 5],
     ]);
     expect(measured("15.9")).toEqual([["core:growth", 0]]);

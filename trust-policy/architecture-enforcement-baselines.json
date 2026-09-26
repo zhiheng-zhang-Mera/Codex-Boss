@@ -193,6 +193,96 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 8,
+      "baseline_hash": "b6677dedb3ca0d3cd104b610a54295949632312ec783247edd9eb47c29a0b184",
+      "parent_baseline_hash": "cbee7367116455aaad6546c99e4b92e191e1a4e2aaee629ee2bba26a909775d8",
+      "source_commit": "3638ee091ae6917fc5c165c6ee920e39e80b1d21",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the removal of the dead project-state store by the executor holding that lease. Recorded in ledger CC-069.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-069; config/capabilities/project.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-26T10:30:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE edge retired by DELETION rather than relocation: electron/bootstrap/persistence.ts imported ProjectStateStore from electron/project/project-state.ts and constructed it at boot for the active workspace, but NOTHING read that instance -- electron/main.ts already builds a ProjectStateStore per workspace through openProjectState(workspaceId). The store is gone from the persistence module entirely and the namespace is claimed by the capability that implements it. This is the first migration in the series that is a pure removal: the raw total falls by exactly one and edgesFromCompositionRoot does NOT move, because there was nothing to relocate.",
+        "new_legitimate_relation": "none: the change removes one edge and adds none.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline.",
+        "largest_scc_effect": "The largest strongly connected component fell 19 -> 18. `project` was in the knot and the removed edge was the only one reaching it from `persistence`, exactly how `node` left the component in CC-067. This is a MEMBERSHIP change, not a loosening of the remaining 18 nodes."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1682,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
+    },
+    {
+      "baseline_version": 9,
+      "baseline_hash": "228b07259d3f68dc0dde43dde390bc71b4c996791a0d6a399e9bf2abb585114c",
+      "parent_baseline_hash": "b6677dedb3ca0d3cd104b610a54295949632312ec783247edd9eb47c29a0b184",
+      "source_commit": "3638ee091ae6917fc5c165c6ee920e39e80b1d21",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the removal of the dead project-state store by the executor holding that lease. Recorded in ledger CC-069.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-069; config/capabilities/project.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-26T10:30:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE edge retired by DELETION rather than relocation: electron/bootstrap/persistence.ts imported ProjectStateStore from electron/project/project-state.ts and constructed it at boot for the active workspace, but NOTHING read that instance -- electron/main.ts already builds a ProjectStateStore per workspace through openProjectState(workspaceId). The store is gone from the persistence module entirely and the namespace is claimed by the capability that implements it. This is the first migration in the series that is a pure removal: the raw total falls by exactly one and edgesFromCompositionRoot does NOT move, because there was nothing to relocate.",
+        "new_legitimate_relation": "none: the change removes one edge and adds none.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline.",
+        "largest_scc_effect": "The largest strongly connected component fell 19 -> 18. `project` was in the knot and the removed edge was the only one reaching it from `persistence`, exactly how `node` left the component in CC-067. This is a MEMBERSHIP change, not a loosening of the remaining 18 nodes."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1682,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
+    },
+    {
+      "baseline_version": 10,
+      "baseline_hash": "a4a0642f8e0411dc2f76efcf330c4f8ad6b4296f848547d41e24f9aef1dfa07e",
+      "parent_baseline_hash": "228b07259d3f68dc0dde43dde390bc71b4c996791a0d6a399e9bf2abb585114c",
+      "source_commit": "3638ee091ae6917fc5c165c6ee920e39e80b1d21",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the removal of the dead project-state store by the executor holding that lease. Recorded in ledger CC-069.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-069; config/capabilities/project.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-26T10:30:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE edge retired by DELETION rather than relocation: electron/bootstrap/persistence.ts imported ProjectStateStore from electron/project/project-state.ts and constructed it at boot for the active workspace, but NOTHING read that instance -- electron/main.ts already builds a ProjectStateStore per workspace through openProjectState(workspaceId). The store is gone from the persistence module entirely and the namespace is claimed by the capability that implements it. This is the first migration in the series that is a pure removal: the raw total falls by exactly one and edgesFromCompositionRoot does NOT move, because there was nothing to relocate.",
+        "new_legitimate_relation": "none: the change removes one edge and adds none.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered by this baseline.",
+        "largest_scc_effect": "The largest strongly connected component fell 19 -> 18. `project` was in the knot and the removed edge was the only one reaching it from `persistence`, exactly how `node` left the component in CC-067. This is a MEMBERSHIP change, not a loosening of the remaining 18 nodes."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1682,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
