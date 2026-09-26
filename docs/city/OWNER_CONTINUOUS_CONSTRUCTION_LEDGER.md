@@ -6797,3 +6797,157 @@ research_value              (1) An instrument that reports "N candidates and it 
 ```
 
 ---
+
+## CC-072 — S6 opening: a dead helper deleted, and a smoke writer structurally barred from the production namespace
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What CC-071 priced, and what was implemented.** CC-071 classified the five `tasks` accesses and named two
+repairs. Both are implemented here, as one atomic construction, and both are **simplifications** — no ownership
+migration, no detector change, no Root Trust change:
+
+```text
+A  electron/platform/coordination-recorder.ts     `ledgerRootUnder()` DELETED. It was defined and never
+                                                  called; the p2d instrument detects `path.join` SITES
+                                                  rather than live ones, so a dead helper was being counted
+                                                  as a cross-domain access.
+
+B  electron/runtime-intelligence/live-capture.ts  `runLiveCaptureSmoke` now takes `ledgerRoot` as a REQUIRED
+                                                  parameter instead of composing `<dataRoot>/.boss/tasks`
+                                                  itself. The helper can no longer name the production
+                                                  namespace at all.
+```
+
+**2. Why B is a real defect and not a style preference.** The helper's own doc comment claimed "a temporary
+root" while the code hardcoded `<dataRoot>/.boss/tasks` — the same namespace the authoritative task ledger uses
+(`bootstrap/persistence.ts` composes `boss("tasks")` where `boss` is `<dataRoot>/.boss`). A caller passing a real
+data root therefore performed a genuine cross-domain **WRITE** into durable state owned by the `persistence`
+capability. The `DEVELOPMENT_SMOKE` source class guarantees the **records** are excluded from metrics; that is a
+provenance guarantee about records, not an isolation guarantee about the store. Making the root a required
+parameter moves the decision to the caller and makes the isolation **structural** rather than a convention a
+future caller has to remember.
+
+**3. The measurement.**
+
+```text
+                                                     BEFORE   AFTER
+p2d confirmed cross-domain private-state accesses        5   ->   3
+p2d (namespace, capability) pairs                       3   ->   2
+p2d namespace-join ceiling                             10   ->   8
+p2d uncontrolled multi-writer candidates                1   ->   1     UNCHANGED -- see point 4
+p2d declared namespaces / scanned files              32/612 unchanged
+p2b kernel -> feature edges / pairs / mutual / SCC   55/16/31/18  ALL UNCHANGED (expected: no ownership moved)
+architecture enforcement violations                     0 -> 0;  closure validator PASS
+```
+
+The remaining three accesses are all into `tasks`, from `host-status` (1) and `tenx` (2), and **all three are
+reads** in the source:
+
+```text
+host-status  host-observer-collector.ts:256   `const ledger = sources.ledger ?? new TaskLedger(ledgerRoot)`
+                                              then `ledger.list()` for queue depth
+tenx         replay-corpus-io.ts:111          `fs.existsSync(path.join(candidate.path, ".boss", "tasks"))`
+tenx         replay-corpus-io.ts:411          reads `task.id/checkpoints` to count files
+```
+
+**4. The multi-writer candidate count is UNCHANGED at 1, and that is the honest reading.** The instrument cannot
+decide read from write, so it still lists `host-status`, `runtime` and `tenx` as *touching* the namespace even
+though `runtime`'s only access is gone — the candidate list is derived from the namespace being touched at all,
+not from a direction it cannot compute. **S6 is therefore NOT closed by this entry**, and the detector was NOT
+relaxed to make it look closed. The workbook's section 14 requires the real model:
+
+```text
+exactly one authoritative writer
+zero uncontrolled foreign writers
+all remaining cross-domain reads explicitly classified
+```
+
+The first two are now supported by evidence (the only writer found was the smoke helper, now structurally barred;
+the authoritative writer is `persistence`). The third requires a machine-verifiable classification, which this
+entry does NOT claim to have produced — the classification in point 3 is a **read of the source**, recorded as
+evidence, not a machine-enforced model. That gap is the next S6 step and is named rather than glossed: either
+declare these readers explicitly with reasons, or upgrade the instrument to be direction-aware **in a way that
+adds information and stays at least as sensitive on every existing case** (workbook section 5). Both options are
+open, and the choice is deliberately deferred to the entry that implements it.
+
+**5. A note on the instrument's own finding.** Both repairs came from CC-071's classification, which was forced
+because the instrument *says* it cannot decide read from write. That refusal is the reason a dead helper and a
+test-only writer into production state were found at all: a detector that had guessed a direction would have
+reported a number and left both defects in the tree.
+
+**6. What is NOT done.** S2 55, S3 31, S4 largest SCC 18/29, S5 3 accesses / 2 pairs (improved, still not 0),
+S6 1 candidate, S10 22/27, S14 2. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched,
+the Owner lease is in force, city acceptance NOT_READY.
+
+**7. The first CI run of this construction was RED, and the cause belongs in the record.** Two
+`principle-enforcement-validator` cases failed. The matrix row 15.7 declares its measurement from the LIVE p2d
+instrument (`p2d:confirmedAccesses`), so lowering the p2d ratchet ceiling from 5 to 3 changed what that row
+resolves, while the test still asserted 5 and the committed matrix document still printed 5. The failure was a
+genuine untested consequence of the ratchet change — not a flake and not a stale gate — and it reproduced
+locally in one run (`npx vitest run tests/unit/city/principle-enforcement-validator.test.ts`). Repaired by
+updating the literal to 3 AND regenerating the committed table with `--write`, because that document pins the
+table the validator generates. The lesson is the CC-065 lesson in a different form: **a measurement with two
+independent readbacks must move BOTH when one moves**, and the failing test is the mechanism that makes that
+true rather than a nuisance. A programme that had rerun until green would have shipped a matrix that disagreed
+with its own instrument.
+
+```text
+ENTRY_ID                    CC-072
+timestamp_utc               2026-09-26T17:32:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY:
+                            the accepted enforcement baseline, its series and the trust epoch were all
+                            re-checked and all still MATCH. Recorded explicitly because a ledger-only plus
+                            ratchet-only change has been mistaken for a surface change before.
+main_before                 ce85928233275930e469fab7862098106cbdefc9  (five checks green, epoch 57, PR #107)
+branch                      fix/cc072-s6-dead-helper-and-smoke-isolation
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b ratchet HOLDS, p2d HOLDS (ceilings lowered 5->3, 3->2, 10->8),
+                            cycles largest SCC 18, closure validator PASS, architecture ratchet 0 violations,
+                            enforcement baseline --check identical + tree-matching (v11), bless --check MATCHES,
+                            ledger provenance HOLDS, test catalogue current, tsc on electron AND tests projects
+                            clean, focused suites green (live-capture 40 tests; all of tests/unit/platform)
+files_or_rules_changed      electron/platform/coordination-recorder.ts; electron/runtime-intelligence/live-capture.ts;
+                            config/p2d-private-state-ratchet.json;
+                            tests/unit/runtime-intelligence/live-capture.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) `runLiveCaptureSmoke` is an exported API and its signature changed from
+                            `dataRoot` to `ledgerRoot`; the only caller in the repository is the unit test,
+                            which was updated, and a future caller is now forced to supply an isolated root
+                            rather than able to default into production state. (2) The capture's own
+                            `dataRoot` is the isolated ledger root too, so its prospective-window state lands
+                            beside the ledger it observes; provenance is unaffected (records still say
+                            DEVELOPMENT_SMOKE) and nothing reaches authoritative durable state.
+evidence_preserved          the five-access direction table from CC-071, the before/after p2d numbers in point 3,
+                            and the explicit statement in point 4 that the candidate count did NOT move and S6
+                            is not closed. Reproducible with `node scripts/phase2-private-state.cjs --json`
+                            and `node scripts/phase2-pair-edges.cjs --json`.
+rollback                    Revert this commit. It is a pure simplification plus a lower ratchet ceiling: no
+                            baseline, no epoch, no ownership, no composition root.
+temporary_debt_created      no. The ratchet ceiling was LOWERED, not raised, and no gate was deferred.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred. The S6 remainder is named in point 4 with its two
+                            possible implementations, and is not registered as debt because it is a design
+                            choice with a defined next step rather than a compromise.
+closure_status              CLOSED as a measured simplification pair. The OBJECTIVE is NOT complete and this
+                            entry does not claim it is.
+research_value              (1) A detector that REFUSES to guess found two defects a guessing detector would
+                            have hidden behind a number -- a dead path helper counted as an access, and a
+                            test-only helper writing into production durable state. The refusal is the
+                            feature. (2) The distinction between a RECORD-level provenance guarantee
+                            (DEVELOPMENT_SMOKE is excluded from metrics) and a STORE-level isolation
+                            guarantee (this write cannot reach the authoritative namespace) is now named,
+                            and this is the second time in the span that an unstated distinction hid a real
+                            defect -- CC-069's dead store was the first in a different form. (3) Making the
+                            root a required parameter rather than defaulting it is the smallest change that
+                            makes the property structural: the helper CANNOT name the production namespace,
+                            so no future caller can reach it by omission.
+```
+
+---

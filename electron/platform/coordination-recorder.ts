@@ -154,7 +154,3 @@ export function createCoordinationRecorder(options: CoordinationRecorderOptions)
   };
 }
 
-/** Where the production ledger lives, relative to a data root. */
-function ledgerRootUnder(dataRoot: string): string {
-  return path.join(dataRoot, "tasks");
-}

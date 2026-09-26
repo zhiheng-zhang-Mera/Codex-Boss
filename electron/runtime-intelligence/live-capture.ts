@@ -499,12 +499,26 @@ export function attachRuntimeIntelligenceCapture(events: DomainEventBus, input: 
 }
 
 /**
- * Runs the smoke walk a first attachment needs: a real ledger, the real bus, a temporary root.
+ * Runs the smoke walk a first attachment needs: a real ledger, the real bus, an ISOLATED ledger root.
  *
  * It is here rather than in a script so the report and the test drive the same code, and it says
  * `DEVELOPMENT_SMOKE` on every record it produces, so nothing it writes can enter a headline.
+ *
+ * THE LEDGER ROOT IS AN INPUT, NOT DERIVED FROM THE DATA ROOT (ledger CC-072). This helper used to
+ * compose `<dataRoot>/.boss/tasks` itself -- the SAME namespace the authoritative task ledger uses
+ * (`bootstrap/persistence.ts` composes `boss("tasks")` where `boss` is `<dataRoot>/.boss`) -- while its
+ * doc comment claimed a "temporary root". A caller passing a real data root therefore performed a
+ * genuine cross-domain WRITE into durable state owned by the `persistence` capability. The
+ * `DEVELOPMENT_SMOKE` source class guarantees the RECORDS are excluded from metrics; that is a
+ * provenance guarantee about records, not an isolation guarantee about the store, and they are
+ * different properties.
+ *
+ * Making the root a REQUIRED parameter is the fix because it moves the decision to the caller: this
+ * helper can no longer name the production namespace at all, so the isolation is structural rather
+ * than a convention a future caller has to remember. The only caller in the repository is a unit test,
+ * which passes a temporary directory.
  */
-export function runLiveCaptureSmoke(input: { dataRoot: string; now?: () => string }): {
+export function runLiveCaptureSmoke(input: { ledgerRoot: string; now?: () => string }): {
   status: LiveCaptureStatus;
   window?: ProspectiveWindowRecord;
   headlineTasks: number;
@@ -513,10 +527,13 @@ export function runLiveCaptureSmoke(input: { dataRoot: string; now?: () => strin
 } {
   const now = input.now ?? (() => new Date().toISOString());
   let taskStatus: string | undefined = "running";
-  const capture = new RuntimeIntelligenceCapture({ dataRoot: input.dataRoot, now, openedAt: () => now(), taskStatus: () => taskStatus, sourceClass: "DEVELOPMENT_SMOKE" });
+  // `dataRoot` is given the isolated root as well: the capture's own state must live beside the ledger
+  // it observes, never under the production data root. Provenance is unaffected -- the records still
+  // say DEVELOPMENT_SMOKE -- but nothing this helper does can reach authoritative durable state.
+  const capture = new RuntimeIntelligenceCapture({ dataRoot: input.ledgerRoot, now, openedAt: () => now(), taskStatus: () => taskStatus, sourceClass: "DEVELOPMENT_SMOKE" });
   const events = new DomainEventBus();
   const attachment = attachRuntimeIntelligenceCapture(events, { capture });
-  const ledgerRoot = path.join(input.dataRoot, ".boss", "tasks");
+  const ledgerRoot = input.ledgerRoot;
   const ledger = createCaptureObservingLedger({ root: ledgerRoot, capture, now });
   const problems: string[] = [];
   try {

@@ -365,7 +365,10 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     expect(measured("15.7")).toEqual([
       ["p2b:mutualCapabilityPairs", 31],
       ["p2b:largestSccSize", 18],
-      ["p2d:confirmedAccesses", 5],
+      // 5 -> 3 in CC-072: the dead `ledgerRootUnder()` helper and the test-only smoke writer were both
+      // removed, so the p2d instrument now finds 3 accesses over 2 pairs. This literal is an INDEPENDENT
+      // readback of the live p2d instrument, which is why it has to move when the ratchet does.
+      ["p2d:confirmedAccesses", 3],
     ]);
     expect(measured("15.9")).toEqual([["core:growth", 0]]);
     // The distribution section 23's targets produce today: three enforced, two ratchets, three requiring only that

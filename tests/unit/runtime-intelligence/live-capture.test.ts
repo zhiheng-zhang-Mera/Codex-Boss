@@ -700,10 +700,19 @@ describe("the attachment is in the composition root, and stays there", () => {
   });
 
   it("drives the whole path in the smoke walk, and keeps the smoke out of the headline", () => {
+    // The ledger root is SUPPLIED and isolated (ledger CC-072). This test used to pass `dataRoot` to a
+    // helper that composed `<dataRoot>/.boss/tasks` itself -- the authoritative task-ledger namespace --
+    // so it exercised the smoke walk by writing into production-shaped durable state. It now passes a
+    // temporary root, and the helper cannot name the production namespace at all.
     const dataRoot = makeRoot();
-    const smoke = runLiveCaptureSmoke({ dataRoot, now: () => AFTER_FREEZE });
+    const ledgerRoot = path.join(makeRoot(), ".boss", "tasks");
+    const smoke = runLiveCaptureSmoke({ ledgerRoot, now: () => AFTER_FREEZE });
     expect(smoke.problems).toEqual([]);
     expect(smoke.checkpointFiles).toBe(3);
+    // The isolation is asserted, not assumed: the smoke wrote under its own root and nothing appeared
+    // under the data root it is no longer given.
+    expect(fs.existsSync(path.join(ledgerRoot, "smoke-task"))).toBe(true);
+    expect(fs.existsSync(path.join(dataRoot, ".boss", "tasks"))).toBe(false);
     expect(smoke.status.captureAttached).toBe(true);
     expect(smoke.status.captureHealthy).toBe(true);
     expect(smoke.status.tasksObserved).toBe(1);
