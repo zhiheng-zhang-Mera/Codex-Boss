@@ -8320,3 +8320,115 @@ research_value              (1) A debt register that defines its own debt as a C
                             test is that BOTH the seventh instance and occurrence eleven were observed on
                             documentation-and-config branches that no soak file reads.
 ```
+
+## CC-081 — CITY-DEBT-006's exit condition (a) is FORECLOSED by the black-box contract, and the tree refused the repair that would have implemented it
+
+This round attempted the repair CITY-DEBT-006's exit condition names, and the repository's own contract refused it.
+The attempt was reverted in full, nothing tracked changed except this entry and the debt record, and the result is
+recorded because **"we decided (a) is impossible" is only trustworthy if it is visible that (a) was tried**.
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What was attempted, and why it looked right.** CITY-DEBT-006 says the desktop smoke suite reports a restarted
+application's readiness as a failure, and names two exits: (a) report `NOT_MEASURED` when the app has not yet served
+the panel, or (b) quarantine the suite to an evidence lane. Exit (a) is the one CC-080 had just used successfully for
+CITY-DEBT-005, so the same shape was implemented here:
+
+```text
+scripts/acceptance-desktop-workbook.cjs   (ATTEMPTED, then REVERTED)
+  Claims.notMeasured(claim, reason)       a fourth, non-blocking entry kind
+  phase two                                track whether the restarted app REACHED a ready renderer
+                                           `waitForTarget` / `waitForRendererBoot` are READINESS waits, so their
+                                           deadline exhaustion means the panel's behaviour was never observed
+  gate                                     an unobserved requirement no longer sets the exit code, and the totals
+                                           print NOT_MEASURED rather than silently dropping it
+```
+
+The discrimination was clean rather than heuristic: `served` is set only after `waitForRendererBoot` resolves, so a
+failure AFTER the renderer is ready keeps its `FAIL` and only a readiness exhaustion becomes an absence. The change
+was syntactically valid and passed `node --check`.
+
+**2. Why it was withdrawn: the contract admits three verdicts, and a required id must PASS.** The suite is not scored
+by itself. `scripts/generate-desktop-contract.cjs` derives `DESKTOP_BLACK_BOX_REQUIREMENTS` from its report, and
+`validateDesktopBlackBoxReport` in `src/shared/acceptance-evidence.ts` is the hostile-accepted gate over it:
+
+```text
+line 175   if (record.verdict !== "PASS" && record.verdict !== "FAIL" && record.verdict !== "NOT_RUN")
+             -> RESULT_VERDICT_INVALID, and the entire report is refused
+line 204   for every required id: if (verdict !== "PASS") -> REQUIRED_ID_NOT_PASS
+line 237   if (pass + fail + notRun !== results) -> TOTALS_SUM_MISMATCH
+```
+
+So a fourth verdict is not merely uncounted, it is **invalid**; and even a verdict the schema tolerated could not be
+used, because the requirement it belongs to is REQUIRED and must read `PASS`, and because the three totals must sum
+to the result count so an excluded requirement cannot be kept out of the arithmetic either. **Exit condition (a) is
+incompatible with the contract this suite is scored by**, and the contract is hostile-accepted deliberately: it is
+what makes the strongest evidence in the repository unfakeable. CC-080's `NOT_MEASURED` mechanism was available only
+because `platform-soak` is a Vitest suite scored by its own runner; this suite is scored by a trust gate that accepts
+nothing short of a full pass.
+
+**3. What that leaves, stated as a decision rather than a repair.** Exit condition (b) -- the quarantine -- is the
+only remaining path, and it is a larger act than this round's: the desktop smoke suite IS the evidence the black-box
+contract attests, so moving it to a lane whose result is "recorded as evidence rather than as required" changes what
+the required `acceptance` check proves. The debt entry already says that exactly this must be DECIDED rather than
+assumed. That decision changes the meaning of a required check and therefore belongs with the Owner or with a round
+that can carry a trust change -- not with a repair round that would be quietly shrinking what the check can catch.
+
+**4. What was NOT done, and the shape of the remaining work.** No file was changed except the debt record and this
+entry; the register's counts are untouched and CITY-DEBT-006 remains the single OPEN debt. The reverted attempt is
+recorded in the register under `attempt_record` so the foreclosure is auditable. **S2 55 kernel -> feature edges,
+S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows** are all unchanged, and
+`FINAL_ACCEPTANCE_RECORD.md` still does not exist.
+
+```text
+ENTRY_ID                    CC-081
+timestamp_utc               2026-09-27T07:12:21Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY, and the one attempted code change was
+                            REVERTED: the only tracked difference from main is this entry and the debt record, so
+                            NO EPOCH CEREMONY is due and none was performed.
+main_before                 84d5841  (CC-080 merged as PR #117; accepted baseline v14, epoch 60)
+branch                      docs/city-cc-081-debt-006-foreclosure
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: `node --check` on the modified harness (valid), then the shared validator
+                            src/shared/acceptance-evidence.ts read in full for its verdict vocabulary, its
+                            required-id rule and its totals-sum rule; the generator that derives the contract from
+                            the report (scripts/generate-desktop-contract.cjs) checked for consumers of a new
+                            verdict and found to read only id and title; the desktop black-box contract suite
+                            (tests/acceptance/desktop-black-box-contract.test.ts) read for what it would refuse
+files_or_rules_changed      docs/city/CITY_RENOVATION_DEBT_REGISTER.md (CITY-DEBT-006 gains four fields --
+                            exit_condition_a_is_foreclosed, what_that_leaves, attempt_record, and this entry's
+                            ledger reference); docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) Exit condition (b) is now the only path, and taking it would REDUCE what the
+                            required `acceptance` check proves -- so a later round must not take it as a
+                            convenience. (2) The desktop smoke suite still fails intermittently under a slow
+                            restart; this entry removes no flakiness, it records why the flakiness cannot be
+                            closed by reporting an absence. (3) The attempt is recorded from the executor's own
+                            working tree rather than from a preserved diff, because the change was reverted
+                            before it was committed.
+evidence_preserved          the exact validator rules and line numbers that foreclose (a); the three-part test
+                            (three-verdict vocabulary, required-id PASS, totals sum) that any future attempt must
+                            satisfy; the description of the reverted attempt in point 1
+rollback                    Revert this commit. Documentation only; nothing else changed, and the reverted attempt
+                            is already absent from the tree.
+temporary_debt_created      no. CITY-DEBT-006 stays OPEN rather than being re-labelled, and no gate or threshold
+                            was touched.
+debt_id                     CITY-DEBT-006 (still OPEN, with exit (a) now recorded as foreclosed)
+exit_condition              (a) FORECLOSED by the contract; (b) remains, and requires a decision that changes what
+                            the `acceptance` check proves.
+closure_status              CLOSED as a NEGATIVE-RESULT round with a corrected debt record. The OBJECTIVE is NOT
+                            complete and this entry does not claim it is.
+research_value              (1) CC-080's `NOT_MEASURED` shape does NOT generalise: it worked because that suite is
+                            scored by its own runner, and it cannot work for a suite scored by the hostile-accepted
+                            black-box contract, which admits exactly three verdicts and requires every required id
+                            to PASS. (2) The cheapest way to make a required check stop failing is to widen its
+                            verdict vocabulary or move it to a lane -- and the FIRST of those turns out to be
+                            impossible here, which is evidence that the contract is doing its job. (3) A debt whose
+                            exit condition is foreclosed by the tree is a DIFFERENT object from a debt that has not
+                            been worked on, and recording which one it is prevents a later round from spending
+                            itself re-discovering the same refusal.
+```
