@@ -391,7 +391,10 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     // 56/17/31 when the dead `project-state` store was removed (CC-069), then 55/16/31 in the
     // permission-manifest relocation (CC-070), while the confirmed private-state accesses and the
     // flatness problems were unchanged by all six.
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 55]]);
+    // 55 -> 54 in CC-084: the `runtime-budget` namespace moved from `persistence` to `tenx`, deleting the
+    // `persistence -> tenx` edge the boot module held when it constructed a store it did not implement. This
+    // literal is the INDEPENDENT readback of the live p2b instrument, which is why it moves when the ratchet does.
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 54]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
