@@ -592,6 +592,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 21,
+      "baseline_hash": "e45af1f2c27751bcd452a424edb46f6b5b0c7e1f8b5798d7934ed87b784ea1e1",
+      "parent_baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6",
+      "source_commit": "928e66d6fbb6519f8437beba3fc348fed7e8217b",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the fourteenth and final namespace-ownership migration. Recorded in ledger CC-095.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-095; config/capabilities/workspace.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T13:20:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `persistence -> workspace` falls 3 -> 2.",
+        "new_legitimate_relation": "The composition root now reaches electron/workspace/workspace-registry.ts directly (import plus construction), where the boot module used to. These are platform edges and are classified as such.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "Moving only the DECLARATION while leaving the construction in the boot module was declined: the module both builds the registry and derives health from it, so a declaration change alone would be bookkeeping that contradicts the code. Injecting the registry keeps the declaration and the code in agreement, at the cost of six test fixtures.",
+        "why_the_baseline_moves": "Tracked source changed: the boot module lost a construction and main.ts gained one, PersistenceOptions gained a required field, and six test fixtures pass it. The structural ratchets were re-measured: kernel -> feature 49 -> 48, raw unchanged at 774, root edges 99 -> 102, pairs 16, mutual pairs 31, largest SCC 18 all unchanged."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1662,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

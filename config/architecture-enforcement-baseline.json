@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 20,
-  "parent_baseline_hash": "3f906892d68f4deb848223f165d223847a6677a25c49a6fdf07a1067e468aa7c",
-  "source_commit": "e5516f1d8f43a135c215b9d92bfbfd3639aef4bf",
+  "baseline_version": 21,
+  "parent_baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6",
+  "source_commit": "928e66d6fbb6519f8437beba3fc348fed7e8217b",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-093: the `workspace-selection` namespace claim moves from `persistence` to `workspace`, which implements the store in electron/workspace/workspace-selection.ts. The boot module loses a store (8 durable stores, down from 9) and main.ts builds WorkspaceSelectionStore at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 50 -> 49 and the raw cross-capability total 775 -> 774; no capability relation is added.",
+  "reason": "CC-095: the `workspaces` namespace claim moves from `persistence` to `workspace`, which implements the store in electron/workspace/workspace-registry.ts. Because the boot module DERIVES its health report from the registry, the registry is INJECTED via a new PersistenceOptions field rather than removed: main.ts builds it at the identical path and calls ensureShims, so no stored data moves. kernel -> feature edges fall 49 -> 48; the raw cross-capability total is unchanged because the composition root gains edges to the registry, and edgesFromCompositionRoot rises 99 -> 102.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -22,9 +22,9 @@
       },
       "ownership": {
         "manifests": 27,
-        "declared_modules": 31,
-        "declared_owned_files": 33,
-        "undeclared_files": 576,
+        "declared_modules": 32,
+        "declared_owned_files": 34,
+        "undeclared_files": 575,
         "conflicts": []
       },
       "edges": 1656,
@@ -42,9 +42,9 @@
   },
   "ownership": {
     "manifests": 27,
-    "declared_modules": 31,
-    "declared_owned_files": 33,
-    "undeclared_files": 576,
+    "declared_modules": 32,
+    "declared_owned_files": 34,
+    "undeclared_files": 575,
     "conflicts": []
   },
   "files": {
@@ -424,7 +424,7 @@
     "electron/workspace/path-utils.ts": "UNDECLARED",
     "electron/workspace/task-workspace.ts": "UNDECLARED",
     "electron/workspace/workspace-picker.ts": "UNDECLARED",
-    "electron/workspace/workspace-registry.ts": "UNDECLARED",
+    "electron/workspace/workspace-registry.ts": "workspace",
     "electron/workspace/workspace-selection.ts": "workspace",
     "src/renderer/components/AttachmentTray.tsx": "UNDECLARED",
     "src/renderer/components/ConversationContextMenu.tsx": "UNDECLARED",
@@ -938,10 +938,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/workspace/durable-roots.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/workspace/workspace-registry.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -4026,6 +4022,10 @@
     [
       "electron/main.ts",
       "electron/workspace/workspace-picker.ts"
+    ],
+    [
+      "electron/main.ts",
+      "electron/workspace/workspace-registry.ts"
     ],
     [
       "electron/main.ts",
@@ -7347,6 +7347,10 @@
     ],
     [
       "electron/bootstrap/persistence.ts",
+      "electron/workspace/workspace-registry.ts"
+    ],
+    [
+      "electron/bootstrap/persistence.ts",
       "electron/workspace/workspace-selection.ts"
     ],
     [
@@ -7518,10 +7522,10 @@
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
     "tracked_source_files": 609,
-    "declared_owned_files": 33,
-    "undeclared_files": 576,
+    "declared_owned_files": 34,
+    "undeclared_files": 575,
     "internal_edges": 1656,
     "unresolved_references": 1
   },
-  "baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6"
+  "baseline_hash": "e45af1f2c27751bcd452a424edb46f6b5b0c7e1f8b5798d7934ed87b784ea1e1"
 }
