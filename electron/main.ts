@@ -748,7 +748,12 @@ if (ownsInstance) app.whenReady().then(() => {
   // `config/architecture-baseline.json`. The path is the one persistence used to compose.
   nodeRegistry = new NodeCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "node-registry.json"));
   externalSessions = persistence.service.externalSessions;
-  humanGuidance = persistence.service.guidance;
+  // The `tenx` capability's interventions store is built HERE rather than handed back by `persistence`
+  // (ledger CC-090). `interventions` was declared by `persistence` until this change even though
+  // electron/commander/human-guidance-gate.ts implements it. CC-075 gave the namespace a live READ side on
+  // the status module; the reader is not the store, so ownership follows the writer. The path is IDENTICAL to
+  // the one `persistence` composed, so no stored data moves, and this file already imported the class.
+  humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
   decisionLedger = persistence.service.decisions;
   workspaceSelection = persistence.service.workspaceSelection;
   // Platform foundation Phase 02: the durable state core, and with it the decision-ledger
