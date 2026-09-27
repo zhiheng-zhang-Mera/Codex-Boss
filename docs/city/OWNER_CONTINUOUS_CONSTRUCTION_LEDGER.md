@@ -9925,3 +9925,139 @@ research_value              (1) "Same capability, same target" is not enough to 
                             the migration adds an import the composition root did not already have, and this round
                             confirms that condition by restoring the pattern.
 ```
+
+## CC-094 鈥?`workspaces` is priced, not attempted: it is the last namespace migration and it needs a constructor change across seven call sites
+
+A short entry that prices the final namespace-ownership migration so the next round starts from a plan rather than a
+survey. **No tracked file changed except this entry.** The tree is byte-identical to `fff304b`, `--mode enforce` PASS
+with 0 violations, and p2b HOLDS at 49.
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. Six migrations have been landed; one is left, and it is different in kind.** CC-089 through CC-093 took
+`kernel -> feature` from 54 to 49 with the same recipe. What remains of the `persistence` fan-out is:
+
+```text
+persistence -> workspace (3)
+  electron/bootstrap/persistence.ts -> electron/workspace/workspace-registry.ts     <-- the `workspaces` namespace
+  electron/bootstrap/persistence.ts -> electron/workspace/durable-roots.ts
+  electron/store.ts                 -> electron/workspace/path-utils.ts
+persistence -> runtime (2)
+  electron/bootstrap/persistence.ts -> electron/bootstrap/boot-module.ts
+  electron/store.ts                 -> src/shared/capability-needs.ts
+```
+
+`workspaces` is the last NAMESPACE claim persistence still holds that another capability implements, and the store
+that implements it is `WorkspaceRegistry`. Every previous migration could move a store with a pure construction edit
+because the store was self-contained; this one cannot.
+
+**2. Why it is not the same recipe, established by reading the module rather than guessing.** The boot module does not
+merely construct the registry 鈥?it derives two values from it and reports them through `health()`:
+
+```text
+const workspaces = open("workspaces", () => new WorkspaceRegistry(boss("workspaces.json")));
+workspaces.ensureShims(appPath);
+const workspaceRoot = workspaces.activeWorkspaceId();
+const atDefaultWorkspace = workspaceRoot === DEFAULT_WORKSPACE_ID;
+
+health: () => ({
+  status: atDefaultWorkspace ? "DEGRADED" : "READY",
+  detail: `${opened.length} durable store(s) under ${dataRoot}; workspace-scoped state rooted at
+           ${atDefaultWorkspace ? "the default shim (no workspace selected at boot)" : workspaceRoot}`
+})
+```
+
+So removing the construction removes the only source of `workspaceRoot` and `atDefaultWorkspace`, which the health
+report needs. There are exactly two ways to keep it working, and both are larger than a construction edit:
+
+```text
+(a) INJECT the registry: add a `workspaces: WorkspaceRegistry` option to PersistenceOptions and have main.ts build it
+    before calling createPersistenceModule. That is 7 call sites -- electron/main.ts plus SIX test files
+    (bootstrap-automation, bootstrap-knowledge, bootstrap-persistence, bootstrap-provider-pool, bootstrap-providers,
+    bootstrap-research), each of which currently builds the module with dataRoot/historyRoot/cacheRoot/appPath/crypto.
+(b) LEAVE the registry where it is and move only the DECLARATION. That is the move CC-089's own reasoning forbids:
+    a namespace must be declared by the capability that implements the store, and the module both constructs it and
+    derives health from it, so a declaration change alone would be bookkeeping that contradicts the code.
+```
+
+**3. Why this round did not do (a).** Six of the seven call sites are tests, and five of those six do not use
+`service.workspaces` at all -- only `bootstrap-persistence.test.ts` does. That means the change is mechanically
+possible but its cost is concentrated in test fixtures rather than in production code, and the honest risk is
+miscounting: an injection change that misses one fixture fails as a type error in a file unrelated to the migration,
+which is the kind of half-finished state this programme refuses. The round's remaining budget did not cover a
+seven-file change plus its ceremony, so the plan is recorded instead of started.
+
+**4. What the next round should do, in order.** Injection (option (a)), because it is the only one that keeps the
+declaration and the code in agreement:
+
+```text
+1. config/capabilities/persistence.yaml   drop the `workspaces` claim
+2. config/capabilities/workspace.yaml     add it, AND declare electron/workspace/workspace-registry.ts in `modules:`
+                                          (required since CC-089, or the enforcement model cannot resolve the owner)
+3. electron/bootstrap/persistence.ts      PersistenceOptions gains `workspaces: WorkspaceRegistry`; the module drops
+                                          the import, the `workspaces` service field, the construction, the
+                                          `ensureShims` call and the service-object entry -- but KEEPS deriving
+                                          workspaceRoot/atDefaultWorkspace FROM the injected registry, so health() is
+                                          unchanged in what it reports
+4. electron/main.ts                       construct WorkspaceRegistry at the identical path persistence composed
+                                          (boss("workspaces.json")), call ensureShims(realpathSync(app.getAppPath())),
+                                          and pass it into createPersistenceModule
+5. the SIX test fixtures                  pass a registry built at their own root; only bootstrap-persistence.test.ts
+                                          already reaches one
+6. readbacks + ceremony                   pinned matrix literal and config/p2b-kernel-feature-ratchet.json move
+                                          together; the raw total is expected to be FLAT rather than -1, because the
+                                          composition root would gain a WorkspaceRegistry import it does not have
+                                          (the CC-092 condition, now understood)
+```
+
+**Expected measurement:** `kernel -> feature` **49 -> 48**; raw cross-capability total **unchanged**; `edges from
+composition root` **+1**; pairs 16, mutual 31, largest SCC 18, files_owned 594 unchanged. The prediction is recorded
+so the next round can check the classifier rather than just report whatever the instrument says.
+
+**5. What is NOT done.** S2 49 (unchanged this round), S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27,
+S14 2 MACHINE_RATCHET rows. CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does
+not exist, sections 31 and 32 are untouched, city acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-094
+timestamp_utc               2026-09-27T12:49:59Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY: no tracked file outside this entry changed,
+                            so NO EPOCH CEREMONY is due and none was performed.
+main_before                 fff304b  (CC-093 merged as PR #130; accepted baseline v20, epoch 66)
+branch                      docs/city-cc-094-workspaces-is-priced
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: the boot module's workspaces block read in full; the PersistenceOptions
+                            interface and createPersistenceModule read; every createPersistenceModule call site
+                            enumerated (1 production + 6 tests); the test that actually uses service.workspaces
+                            identified by grep; the remaining persistence fan-out grouped by capability pair from the
+                            pair instrument. After the round: tree clean at fff304b, enforce PASS 0, p2b HOLDS 49.
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The expected measurement is a PREDICTION from the classifier, not a result; if the
+                            next round's instrument disagrees, the classifier is what is wrong and the CC-092
+                            condition is not yet fully understood. (2) Option (b) -- moving the declaration without
+                            the construction -- is recorded as forbidden, so a later round must not take it as a
+                            cheaper route to the same number.
+evidence_preserved          the remaining fan-out grouped by pair in point 1; the health() dependency and the two
+                            options in point 2; the six-fixture cost in point 3; the ordered six-step plan and the
+                            predicted measurement in point 4
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was deferred as a compromise; the migration is unpriced-in-time, not
+                            compromised, and the tree is untouched rather than half-migrated.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a PRICING entry. The OBJECTIVE is NOT complete and this entry does not claim
+                            it is.
+research_value              (1) The seven migrations looked uniform from the edge instruments and are not: this one
+                            fails the recipe because the module DERIVES health state from the store it constructs, so
+                            the construction cannot simply move -- reading the module, not the edge list, is what
+                            showed that. (2) A change whose cost is concentrated in TEST FIXTURES is more dangerous
+                            than one concentrated in production code, because a missed fixture fails in a file
+                            unrelated to the work; that is a reason to price it, not to skip it. (3) Recording a
+                            PREDICTED measurement alongside the plan turns the next round into a check of the
+                            classifier rather than a report of whatever the instrument happens to say.
+```
