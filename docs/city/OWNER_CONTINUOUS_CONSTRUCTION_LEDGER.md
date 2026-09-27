@@ -7715,3 +7715,129 @@ research_value              (1) A test that reads the HOST environment can pass 
                             named and priced with its edge counts rather than described, which is what
                             makes the next round start from a measurement instead of a survey.
 ```
+
+## CC-077 — The cycle work is priced: S3 and S4 need the SAME intervention, and 77% of the graph lands on 114 shared files
+
+Documentation and planning round. **No source file changed, no tool changed, and no instrument number moved.** Its
+purpose is that the two remaining structural targets stop being described and start being priced, because the last
+three rounds each ended by naming "break the cycles" without a number attached to it.
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. The measurement that reframes the work.** `scripts/phase2-pair-edges.cjs` reports 778 cross-capability edges
+across 254 distinct target files. Grouping those edges by target and counting how many DISTINCT foreign capabilities
+reach each one:
+
+```text
+cross-capability edges                                          778
+distinct target files                                           254
+targets reached by MORE THAN ONE foreign capability             114
+edges landing on those 114 shared targets                       599   (77% of the graph)
+```
+
+The seven largest shared surfaces, by how many capabilities reach them:
+
+```text
+18 caps, 25 edges  electron/bootstrap/boot-module.ts        [owner runtime]      the boot-module interface
+17 caps, 51 edges  electron/commander/durable-json.ts       [owner <road>]       ALREADY a declared road
+13 caps, 27 edges  src/shared/contracts.ts                  [owner status]
+12 caps, 16 edges  src/shared/provider-contracts.ts         [owner providers]
+ 9 caps, 25 edges  electron/workspace/path-utils.ts         [owner workspace]
+ 9 caps, 13 edges  src/shared/input-object.ts               [owner <road>]       ALREADY a declared road
+ 7 caps, 21 edges  src/shared/workbook.ts                   [owner tasks]
+```
+
+This is the finding that matters: **the 18-member SCC is not held together by its 31 mutual pairs.** It is held
+together by a handful of files that nearly every capability imports, and each of those files is currently attributed
+to ONE capability, which turns every importer into a cross-capability edge. `durable-json.ts` and `input-object.ts`
+already sit in the `<road>` class, where the same imports are NOT counted against a capability — so the tree already
+contains the mechanism, applied to two of the hubs and not to the other five.
+
+**2. S3 and S4 are the same work, and S4 does not move until it is finished.** Two planners were written (throwaway,
+in `artifacts/`, like every other price in this ledger) and they agree on a fact that changes how the work must be
+sequenced:
+
+```text
+single-edge break of ANY mutual pair   -> largest SCC stays 18    (verified for all 11 one-edge candidates)
+all 31 mutual pairs at >=1 edge each   -> S3 = 0, S4 UNCHANGED
+every cycle broken                     -> S4 = 0
+```
+
+Removing one edge of a 2-cycle removes the 2-cycle but leaves every member mutually reachable through other paths,
+so **S4 is a cliff rather than a slope**: it reads 18 until the last cycle is gone and then reads 0. A programme
+that reported SCC progress per round would report nothing for a long time and then everything at once, which is
+exactly why this entry records the shape rather than a series of zeroes.
+
+**3. The cut, as an upper bound.** An Eades-Lin-Smyth ordering gives a minimum-feedback-arc-set **upper bound** of
+**138 edges over 32 capability pairs** for an acyclic capability graph. It is explicitly an upper bound from a
+heuristic, not a minimum, and it is recorded as such. The pairs carrying the most cuts:
+
+```text
+ 21  engineering <-> tenx         8  persistence <-> tasks      4  providers <-> tasks
+ 11  knowledge <-> learning       7  runtime <-> tenx           4  knowledge <-> tenx
+ 10  persistence <-> tenx         6  status <-> tasks           3  tasks <-> theme
+  9  engineering <-> promotion    6  promotion <-> security     3  persistence <-> workspace
+```
+
+The cheapest five pairs need ONE edge each and are the natural first increment: `automation <-> providers`,
+`automation <-> tenx`, `knowledge <-> theme`, `tenx <-> theme`, `research <-> status`, plus `tasks <-> workspace`.
+Breaking all six removes six mutual pairs (S3 31 -> 25) and moves S4 by zero, which is stated here so that a later
+round cannot mistake that progress for structural movement.
+
+**4. Why this round did not execute the cut, stated rather than implied.** The intervention that actually reduces
+S4 is re-homing the shared hubs so their importers stop counting as cross-capability edges, and each such move is a
+governance act: the file changes class in the ownership map, the composition-root or road totals move, the accepted
+baseline identity moves and the epoch must be re-established. The two hubs already in the road class show the
+mechanism works, and the other five are the obvious next five moves — but each one is a separate atomic change with
+its own ceremony and CI cycle, and pretending otherwise would be the half-migrated tree every guard in this
+repository exists to prevent. This is workbook section 30 applied to itself: **do not start what cannot be closed in
+the budget available**, and say so.
+
+**5. What is NOT done.** S2 55 kernel -> feature edges. S3 31 mutual pairs. S4 largest SCC 18. S5 PASS (closed by
+CC-076 on the direct-path measurement; S6's owner-API envelope remains open under CC-073). S10 22/27. S14 2
+MACHINE_RATCHET rows (15.1 and the cycle parts of 15.7). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31
+and 32 are untouched, the Owner lease is in force, city acceptance NOT_READY at 14 blocking items.
+
+```text
+ENTRY_ID                    CC-077
+timestamp_utc               2026-09-27T04:46:36Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY: docs/city/** is outside the Root Trust
+                            Surface and no tracked artifact outside this entry changed, so NO EPOCH CEREMONY is
+                            due and none was performed.
+main_before                 bcd1eda  (CC-076 merged as PR #112; accepted baseline v14, epoch 60)
+branch                      docs/city-cc-077-cycle-cut-plan
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: scripts/phase2-pair-edges.cjs --json grouped by target file and by source
+                            file; scripts/phase2-cycles.cjs; four throwaway planners in artifacts/ (single-edge SCC
+                            impact, Eades-Lin-Smyth MFAS upper bound, shared-surface ranking, reachability audit)
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The 138-edge figure is a HEURISTIC UPPER BOUND and a later round must not quote it as
+                            a minimum; the real minimum is unknown and may be lower. The six cheapest pairs move S3
+                            but NOT S4, and a round that breaks them must not report structural progress. No
+                            instrument number was re-recorded, so none can drift from this entry.
+evidence_preserved          the 778/254/114/599 grouping; the seven largest shared surfaces with their owning
+                            capability and importer count; the 11 single-edge candidates with their SCC result; the
+                            32-pair cut table
+rollback                    Revert this commit. Documentation only; no behaviour, baseline, ratchet or code
+                            changed.
+temporary_debt_created      no. Nothing was deferred and no gate was touched.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred. The cut is a priced next construction, not a
+                            registered compromise, and its blocking question (which shared hub moves first) has a
+                            defined owner: the next round.
+closure_status              CLOSED as a PRICING round. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) Three previous rounds wrote "break the cycles" without a number; the number is
+                            138 edges over 32 capability pairs, and having it converts a direction into a plan.
+                            (2) The SCC turned out NOT to be held by the 2-cycles at all but by seven shared
+                            files, and two of those seven are already in a class where the same imports are not
+                            counted -- so the mechanism the tree needs is already in the tree, which is a much
+                            cheaper starting point than a rewrite. (3) S4 is a CLIFF, not a slope: it will read 18
+                            until the last cycle is cut, so any round that reports SCC progress per round is
+                            reporting something the metric cannot produce.
+```
