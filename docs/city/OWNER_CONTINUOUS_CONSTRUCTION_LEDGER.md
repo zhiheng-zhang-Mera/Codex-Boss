@@ -8785,3 +8785,141 @@ research_value              The timestamp rule is enforced against the COMMIT, s
                             control worked: it caught a wrong instant in the entry that was correcting the
                             ownership registry, and it caught it on the required check rather than in review.
 ```
+
+## CC-085 — The second migration WORKS but its new root edge is refused as an undeclared endpoint, and the fix belongs to the baseline's file-granularity model
+
+The ninth namespace-ownership migration was implemented, measured, and then **reverted**: it performed exactly as
+predicted (`kernel -> feature` 54 -> 53) and the enforcer refused it for a reason that is about the ACCEPTED
+BASELINE's grain rather than about the migration. **No tracked file changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. What was attempted.** `runtime-resources` — declared by `persistence`, implemented by
+`electron/commander/resource-controller.ts` (inside the `electron/commander` directory pattern owned by `tenx`),
+consumed for real by `main.ts` (`MainCommander` and `RoleRouter`). The CC-084 recipe was applied unchanged:
+
+```text
+config/capabilities/persistence.yaml      loses the `runtime-resources` claim
+config/capabilities/tenx.yaml             gains it (second namespace tenx owns)
+electron/bootstrap/persistence.ts         loses the import, the doc comment, the service type field,
+                                          the boot construction and the service object field
+                                          (12 durable stores, down from 13)
+electron/main.ts                          constructs ResourceController at the IDENTICAL path persistence
+                                          composed, path.join(app.getPath("userData"), ".boss",
+                                          "runtime-resources.json"), so NO STORED DATA MOVES
+```
+
+It typechecked clean and the instrument moved as predicted:
+
+```text
+p2b kernel -> feature file edges   54 -> 53        IMPROVED
+p2b all other metrics              unchanged (pairs 16, mutual 31, SCC 18, files_owned 594)
+tsc                                clean
+```
+
+**2. Why it was refused, and the refusal is precise.** `architecture-enforcement.cjs --mode enforce` returned
+`verdict: POLICY_VIOLATION` with `new_edge_undeclared_endpoint: 1` and every other counter at zero:
+
+```text
+new_undeclared_source                     0
+new_undeclared_cross_capability_edge      0
+new_declared_source                       0
+new_edge_undeclared_endpoint              1     <-- the refusal
+new_declared_edges                        0
+violations                                1
+```
+
+The new edge is `electron/main.ts -> electron/commander/resource-controller.ts`. It is not a new SOURCE and not a new
+CROSS-CAPABILITY edge; it is a new **edge pair whose endpoint is not declared**, which is the same code class that
+CC-075 hit when a new reader file produced a new endpoint. CC-075's resolution was to put the logic in an ALREADY
+DECLARED file so no new endpoint appeared — and that resolution is **not available here**, because the store's home is
+`resource-controller.ts` and there is no already-declared file to move it into without changing which module
+implements the store.
+
+**3. The trap this exposes, which is worth more than the migration.** The natural next question was "then declare
+`resource-controller.ts`", and reading the baseline showed that question is malformed:
+
+```text
+config/architecture-enforcement-baseline.json  files map
+  electron/commander/resource-controller.ts   "UNDECLARED"
+  electron/commander/task-ledger.ts           "UNDECLARED"   <-- already consumed by persistence today
+  ... 583 entries in total carry the value "UNDECLARED"
+```
+
+`UNDECLARED` is the value for **583 of the baseline's files**, including files that already participate in accepted
+edges. So the map's string is not a per-file declaration switch, and "the endpoint is undeclared" must be decided from
+something finer-grained — most plausibly the accepted EDGE SET keyed by file pair, which is a structure this entry did
+not have the budget to establish. **The correct repair therefore lives in the baseline's file-granularity model, not
+in the ownership registry**, and a round that tries to fix it by editing a file entry will be editing the wrong
+thing.
+
+**4. Why reverting was the right call rather than pushing through.** Landing it would have required either (a) a
+baseline change whose grain I had not established, or (b) restructuring the store so `main.ts` reaches it through a
+file that already has an accepted pair — which is the CC-075 inline trick and is unavailable when the store IS the
+module. Option (a) is not guesswork to be attempted in the same round that discovers it, because the baseline is the
+Root Trust artifact and a wrong edit there is the failure the whole prospective enforcer exists to prevent. The
+attempt was reverted in full, `--mode enforce` returns `PASS` with `violations: 0`, and the tree is byte-identical to
+`5e032c9`.
+
+**5. The consequence for the migration lane, stated plainly.** CC-084 succeeded because `main.ts` ALREADY imported
+`BudgetManager`, so the relocation added no new endpoint pair. The migration lane therefore divides cleanly in two:
+
+```text
+ALREADY-IMPORTED stores    the class can move with no baseline question at all. CC-084 is the only instance
+                           found so far, and the reason it was available is that main.ts held the store in a
+                           module-level binding while ALSO importing the class.
+STORES THE ROOT DOES NOT    these add a new endpoint pair and are refused until the baseline's grain is
+ALREADY IMPORT            understood. `runtime-resources` is the first of them.
+```
+
+That is a much narrower lane than the previous entry implied, and it is now measured rather than assumed.
+
+**6. What is NOT done.** S2 54 (one better than before CC-084, because the reverted attempt is not landed).
+S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows. CITY-DEBT-006 OPEN with exit
+(a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched, city
+acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-085
+timestamp_utc               2026-09-27T09:21:26Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY, and the attempted migration was REVERTED:
+                            the only tracked difference from main is this entry, so NO EPOCH CEREMONY is due and
+                            none was performed.
+main_before                 5e032c9  (CC-084 merged as PR #121; accepted baseline v15, epoch 61)
+branch                      docs/city-cc-085-root-endpoint-refusal
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: tsc clean under the attempt; p2b measured 53 under the attempt; then
+                            architecture-enforcement.cjs --mode enforce showed new_edge_undeclared_endpoint 1 and
+                            verdict POLICY_VIOLATION; after the revert, --mode enforce returns PASS with
+                            violations 0 and the tree is identical to 5e032c9
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The nature of `new_edge_undeclared_endpoint` is INFERRED here from the baseline's
+                            shape, not established from the enforcer's source; the entry says so rather than
+                            presenting the inference as fact. (2) The exact set of stores the composition root
+                            already imports was not enumerated, so the "already-imported" class may be larger than
+                            the one instance CC-084 found.
+evidence_preserved          the four-file recipe and its measured effect (54 -> 53) in point 1; the full counter
+                            set for the refusal in point 2; the 583-entry `UNDECLARED` observation that shows the
+                            baseline's grain is not per-file in point 3; the two-class division in point 5
+rollback                    Revert this commit. Documentation only; the reverted migration is already absent.
+temporary_debt_created      no. The migration was WITHDRAWN rather than landed with a baseline edit that was not
+                            understood, and no threshold or gate was touched.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASUREMENT plus a reverted attempt. The OBJECTIVE is NOT complete and this
+                            entry does not claim it is.
+research_value              (1) A migration can be FUNCTIONALLY correct, typecheck clean, and move the target
+                            metric, and still be refused by the trust machinery for a reason that is about the
+                            accepted baseline's granularity -- so "the instrument improved" is not sufficient
+                            evidence that a change is landable. (2) The baseline's `files` map is not a per-file
+                            declaration switch: 583 entries read `UNDECLARED` while participating in accepted
+                            edges, which is why "just declare the file" is the wrong repair. (3) The lane's real
+                            shape is now known: a store can move freely only if the composition root ALREADY
+                            imports its class, because that is what keeps the endpoint pair inside the accepted
+                            set -- which is exactly why CC-084 worked and this one did not.
+```
