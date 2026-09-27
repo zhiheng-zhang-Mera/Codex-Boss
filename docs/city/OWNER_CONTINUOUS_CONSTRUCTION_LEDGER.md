@@ -8182,3 +8182,141 @@ carry_forward               If the same job fails again on a round that does not
                             defect in a test's host-speed proxy, with its own incident id, and it is outside the
                             scope freeze's repair list only because it is not yet blocking the mission.
 ```
+
+## CC-080 — CITY-DEBT-005 is closed by SWEEPING the family, not by fixing a list, and the sweep found exactly one remaining site
+
+**CITY-DEBT-005 goes from OPEN to CLOSED**, and E2's blocking set goes from two debts to one. The repair itself is
+small; what matters is that it was found by doing the thing the register demanded rather than by declaring the debt
+closed because every instance anyone had written down was fixed.
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. The debt's own definition refused the easy answer, and that refusal is what this round honoured.** CC-050 opened
+CITY-DEBT-005 and CC-057 narrowed it, and the register closed with a field that made the obvious move illegal:
+
+```text
+enumeration_is_illustrative
+    The five instances above and this sixth are examples, not the debt. The debt is the condition stated in
+    occurrence_ten: an environmental budget or a host-supplied count read as a correctness verdict. Closing it
+    requires either every such assertion in the soak and lifecycle families to be re-read against that condition
+    -- which is a sweep of the family, not a list of fixes -- or the quarantine in exit condition (b).
+```
+
+So "the four named instances are repaired, therefore close it" was available and was exactly what the entry forbids.
+The debt is a CONDITION that the named instances merely illustrate, and the last round produced a seventh instance of
+it in a case that had already been repaired once -- which is itself the proof that a list is the wrong instrument.
+
+**2. The seventh instance, and why it was still there.** Last round's CI ran `platform-soak.test.ts` and failed with
+`expected 3 to be greater than 5`. The register already recorded that exact signature as occurrence eleven, and the
+repair it described had been applied to the assertion ABOVE it (`cycles > 5` became a NOT_MEASURED report) while the
+one BELOW it was left alone:
+
+```text
+tests/unit/platform/platform-soak.test.ts, "exercises every stage the book names, without intervention"
+  line 76   cycles > 0, with the `<= 5` case reported NOT_MEASURED      REPAIRED EARLIER
+  line 84   expect(result.samples.length).toBeGreaterThan(5)            STILL A HARD VERDICT  <-- occurrence twelve
+```
+
+That is a site the enumeration missed, and it is the same quantity the OTHER tiers had already stopped demanding:
+`tests/acceptance/platform-soak-report.test.ts` explains at length why `report.samples > 3` is no longer asserted and
+replaced it with `> 1` plus a NOT_MEASURED report.
+
+**3. The repair, and the number it uses rather than invents.** `samples.length > 5` became a `> 1` floor plus a
+NOT_MEASURED report. `> 1` is not a threshold chosen here: it is the floor that file already settled on for this
+exact quantity, with the message "a report carrying N sample(s) is not a soak run". The two tiers now agree instead of
+each inventing a number, which is the same reasoning CC-056 used when it made the repair for `steady.length > 2`.
+
+The measured context for why the count is a host measurement rather than a platform property is worth recording: this
+case asks the soak for a **25 ms sample interval over a 5 s run**, which is roughly **200 samples** if the sampler
+were time-driven. A loaded runner produced **THREE**. The sampler advances between cycles and a cycle is the costly
+unit, so the interval bounds the count only when the host is fast. Nothing that is a property of the platform moved:
+no allowance, bound, ceiling or target changed, and the resource-trend case below still refuses to compute a slope
+from fewer than three steady points.
+
+**4. The sweep, and what it found.** Every expectation reading a host-supplied quantity was re-read across the soak
+and lifecycle families: `platform-soak.test.ts`, `platform-soak-report.test.ts`, `soak.test.ts`,
+`host-soak-harness.test.ts`, `data-lifecycle-report.test.ts`, `session-lifecycle.test.ts`,
+`knowledge-lifecycle.test.ts`, `context-lifecycle.test.ts` and `replacement-lifecycle.test.ts`. Four findings:
+
+```text
+(1) ONE live site: platform-soak.test.ts:84, repaired above. It is the only assertion in the families that read a
+    host-supplied count as a verdict without a NOT_MEASURED path.
+(2) The other host-quantity assertions in platform-soak.test.ts assert a property of the RUN rather than of the
+    host. `elapsedMs >= auditSeconds * 1000` is a property of the SOAK CONTRACT -- the runner is asked for a
+    duration and must serve it -- and `recoveredTransactions === cycles` is an identity between two measured
+    totals, not a threshold against the host.
+(3) tests/unit/host-soak-harness.test.ts asserts against SYNTHETIC sample arrays constructed inside each case, so
+    it is deterministic by construction and cannot be host-sensitive. Its `samples.length >= 2` and
+    `heartbeat.samples > 0` are about fixtures the case builds itself.
+(4) tests/acceptance/platform-soak-report.test.ts still contains one `expect(report.samples).toBeGreaterThan(3)`,
+    and it is deliberately LEFT: that case runs a fixed `--minutes 0.25 --interval 250`, which is fifteen seconds
+    at four samples per second, so its ~60 samples come from the interval and not from the host. The sibling case
+    that DID fail on a loaded runner already carries both the weaker floor and the NOT_MEASURED report.
+```
+
+**The quarantine in exit condition (b) was NOT taken**, and that is a deliberate choice worth stating: quarantining
+the family to an evidence lane would have removed a real guarantee from the required check to close a bookkeeping
+debt, when the sweep produced an actual repair for the only site that needed one.
+
+**5. What closing this means for the mission.** `city-final-acceptance.cjs` now reports E2 as
+"1 debt entr(ies) are still OPEN: CITY-DEBT-006" rather than naming two. The register's summary moves from
+`OPEN 2 / CLOSED 4` to `OPEN 1 / CLOSED 5`. This is the first acceptance item closed outside the S-series, and it was
+reachable because a debt is a bounded, named obligation with its own exit condition -- unlike S2/S3/S4, which wait on
+the architectural endgame.
+
+**6. What is NOT done.** S2 55 kernel -> feature edges, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27,
+S14 2 MACHINE_RATCHET rows. CITY-DEBT-006 remains OPEN: the desktop smoke suite's readiness-after-restart condition
+is a SEPARATE debt with a separate family, and this entry does not touch it. `FINAL_ACCEPTANCE_RECORD.md` does not
+exist, sections 31 and 32 are untouched, the Owner lease is in force, city acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-080
+timestamp_utc               2026-09-27T06:45:42Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY:
+                            neither the test file nor the debt register is inside the Root Trust Surface, so the
+                            accepted baseline and the epoch were both re-checked and still MATCH.
+main_before                 058cc8d  (CC-079 and its correction merged; accepted baseline v14, epoch 60)
+branch                      fix/cc080-close-city-debt-005
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: the soak suites pass (unit platform-soak 7/7, acceptance platform-soak-report
+                            6/6), tsc clean, city-final-acceptance E2 now names ONE open debt, and the debt
+                            register's summary counts were updated to match its own table
+files_or_rules_changed      tests/unit/platform/platform-soak.test.ts (the sample-count assertion and its
+                            NOT_MEASURED report); docs/city/CITY_RENOVATION_DEBT_REGISTER.md (CITY-DEBT-005
+                            status, the two new fields, the sweep evidence, and the summary counts);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The floor `> 1` is weaker than `> 5`, so a genuinely broken sampler that produces
+                            two samples would now REPORT rather than fail. That is the same trade the three
+                            sibling sites already made and it is what exit condition (a) asks for, but it is a
+                            real reduction in what that one assertion can catch, and the per-sample assertions
+                            plus the trend guard are what carry the dimension now. (2) The sweep is confined to
+                            the soak and lifecycle families the register names; a host-sensitive assertion
+                            elsewhere in the tree is out of scope for this debt and would need its own entry.
+evidence_preserved          the positive condition the register states, quoted in point 1; the line-76-repaired /
+                            line-84-not asymmetry in point 2; the 25 ms / ~200 expected / 3 observed measurement
+                            in point 3; the four sweep findings in point 4
+rollback                    Revert this commit. One atomic act: the assertion returns to `> 5`, the register
+                            returns CITY-DEBT-005 to OPEN with `OPEN 2 / CLOSED 4`, and this entry is withdrawn.
+                            No baseline, epoch, ratchet or source file moves.
+temporary_debt_created      no. The one place where the change reduces what an assertion catches is named in
+                            known_risk rather than hidden, and no threshold, allowance or ceiling was altered.
+debt_id                     CITY-DEBT-005 (CLOSED by this entry)
+exit_condition              MET under exit condition (a): the last host-supplied count read as a verdict is now an
+                            explicit NOT_MEASURED absence, and the sweep is the evidence that it was the last.
+closure_status              CLOSED as a debt closure plus a family sweep. The OBJECTIVE is NOT complete and this
+                            entry does not claim it is.
+research_value              (1) A debt register that defines its own debt as a CONDITION and its instances as
+                            EXAMPLES cannot be closed by fixing the examples, and the last round proved why: a
+                            seventh instance appeared in a case that had already been repaired once, one line
+                            below the repair. (2) The repair was already written down in a sibling tier and the
+                            register had recorded it as the remedy -- so the work was to find every site and
+                            apply the decision that had already been made, not to invent a new one. (3) The
+                            strongest evidence that this family's failures were never about the change under
+                            test is that BOTH the seventh instance and occurrence eleven were observed on
+                            documentation-and-config branches that no soak file reads.
+```
