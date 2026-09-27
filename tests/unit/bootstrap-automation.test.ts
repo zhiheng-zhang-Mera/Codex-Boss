@@ -7,6 +7,7 @@ import { createPersistenceModule } from "../../electron/bootstrap/persistence";
 import { ExperienceStore } from "../../electron/experience/experience-store";
 import { durableFileFor } from "../../electron/workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
+import { WorkspaceRegistry } from "../../electron/workspace/workspace-registry";
 
 /**
  * Phase F — the event bus, its recorders and the runtime-resilience services are
@@ -36,7 +37,8 @@ function build(dataRoot: string) {
     historyRoot: path.join(dataRoot, "history"),
     cacheRoot: path.join(dataRoot, "cache"),
     appPath: process.cwd(),
-    crypto: { encrypt: (value) => `enc:${value}`, decrypt: (value) => value.replace(/^enc:/, "") }
+    crypto: { encrypt: (value) => `enc:${value}`, decrypt: (value) => value.replace(/^enc:/, "") },
+    workspaces: new WorkspaceRegistry(path.join(dataRoot, ".boss", "workspaces.json"))
   });
   const published: number[] = [];
   const module = createAutomationModule({

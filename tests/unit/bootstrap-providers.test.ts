@@ -8,6 +8,7 @@ import { RuntimeRegistry } from "../../electron/commander/runtime-registry";
 import { MAX_ACTIVE_PROVIDERS } from "../../src/shared/provider-policy";
 import type { Provider } from "../../src/shared/provider-contracts";
 import type { WorkspaceViewState } from "../../src/shared/workspace-layout";
+import { WorkspaceRegistry } from "../../electron/workspace/workspace-registry";
 
 /**
  * Phase F — the provider-side integration is a boot module.
@@ -60,7 +61,8 @@ function build(options: { crypto?: ProvidersCrypto; views?: ProviderPoolViews; m
     historyRoot: path.join(dataRoot, "history"),
     cacheRoot: path.join(dataRoot, "cache"),
     appPath: process.cwd(),
-    crypto: persistenceCrypto
+    crypto: persistenceCrypto,
+    workspaces: new WorkspaceRegistry(path.join(dataRoot, ".boss", "workspaces.json"))
   });
   const module = createProvidersModule({
     userData: dataRoot,

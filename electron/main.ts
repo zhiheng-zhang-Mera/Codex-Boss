@@ -66,6 +66,7 @@ import { workbookAttachments, type InputRefSources } from "./tasks/task-inputs";
 import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
+import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
 import { engineeringSessionId } from "./engineering/engineering-session";
 import { durableFileFor } from "./workspace/durable-roots";
@@ -606,11 +607,20 @@ if (ownsInstance) app.whenReady().then(() => {
   // "what does Boss keep, and where" has one answer that can be built and
   // inspected without booting Electron. The Electron-only piece it needs — the
   // platform secure storage — is injected rather than imported.
+  // The `workspace` capability's registry is built HERE and INJECTED into the persistence module (ledger
+  // CC-095). `workspaces` was declared by `persistence` until this change even though
+  // electron/workspace/workspace-registry.ts implements it. The path and the `ensureShims` call are identical to
+  // the ones the boot module used, so no stored data moves and the shims still point at this install. The
+  // persistence module still READS the registry -- it derives its own health report from `activeWorkspaceId()` --
+  // which is why this is an injection rather than a removal.
+  const workspaces = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
+  workspaces.ensureShims(fs.realpathSync(app.getAppPath()));
   const persistence = createPersistenceModule({
     dataRoot: app.getPath("userData"),
     historyRoot: roots.history,
     cacheRoot: roots.cache,
     appPath: fs.realpathSync(app.getAppPath()),
+    workspaces,
     crypto: {
       encrypt: (plainText) => {
         if (!safeStorage.isEncryptionAvailable()) throw new Error("当前系统安全存储不可用，无法保存 API Key");

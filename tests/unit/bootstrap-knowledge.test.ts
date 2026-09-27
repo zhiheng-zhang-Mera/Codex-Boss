@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createKnowledgeModule } from "../../electron/bootstrap/knowledge";
 import { createPersistenceModule } from "../../electron/bootstrap/persistence";
 import { defaultSurfaceContracts } from "../../src/shared/ui-surface";
+import { WorkspaceRegistry } from "../../electron/workspace/workspace-registry";
 
 /**
  * Phase F — knowledge, self-model and theme are one boot module.
@@ -46,7 +47,8 @@ function build(dataRoot: string, appPath: string) {
     historyRoot: path.join(dataRoot, "history"),
     cacheRoot: path.join(dataRoot, "cache"),
     appPath: process.cwd(),
-    crypto: { encrypt: (value) => `enc:${value}`, decrypt: (value) => value.replace(/^enc:/, "") }
+    crypto: { encrypt: (value) => `enc:${value}`, decrypt: (value) => value.replace(/^enc:/, "") },
+    workspaces: new WorkspaceRegistry(path.join(dataRoot, ".boss", "workspaces.json"))
   });
   return createKnowledgeModule({
     dataRoot,

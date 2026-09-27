@@ -6,6 +6,12 @@ provides:
 requires: []
 optional: []
 state:
+  # The registry of workspaces. Declared by `persistence` until ledger CC-095, which moved the claim to
+  # the capability that IMPLEMENTS the store (electron/workspace/workspace-registry.ts). The registry is
+  # now CONSTRUCTED by the composition root and INJECTED into the persistence module, which still derives
+  # its own health report from it -- so the module reads the store without building it.
+  - namespace: workspaces
+    owner: workspace
   # Which workspace the user last selected. Declared by `persistence` until ledger CC-093, which moved
   # the claim to the capability that IMPLEMENTS the store
   # (electron/workspace/workspace-selection.ts). The path is unchanged, so no stored data moves.
@@ -20,6 +26,7 @@ state:
 health:
   critical: false
 modules:
+  - electron/workspace/workspace-registry.ts
   - electron/workspace/workspace-selection.ts
   - electron/workspace/external-session-ledger.ts
   - electron/bootstrap/workspace-ipc.ts

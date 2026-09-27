@@ -7,7 +7,6 @@ import { TaskLedger } from "../commander/task-ledger";
 import { DecisionLedgerStore } from "../commander/decision-ledger-store";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
 import { GithubResolver } from "../input/github-resolver";
-import { WorkspaceRegistry } from "../workspace/workspace-registry";
 import { durableFileFor } from "../workspace/durable-roots";
 import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
@@ -60,6 +59,12 @@ interface PersistenceOptions {
   cacheRoot: string;
   /** The canonical application path, used to keep the workspace shims pointing at this install. */
   appPath: string;
+  /**
+   * The workspace registry, INJECTED (ledger CC-095). `workspaces` is declared by the `workspace` capability,
+   * which implements the store, so this module no longer constructs it -- but it still DERIVES its health
+   * report from it (`activeWorkspaceId()`), which is why the value is passed in rather than removed.
+   */
+  workspaces: WorkspaceRegistry;
   crypto: PersistenceCrypto;
 }
 
@@ -81,8 +86,7 @@ interface PersistenceService {
   opened: readonly string[];
 }
 
-export function createPersistenceModule(options: PersistenceOptions): BootModule<PersistenceService> {
-  const { dataRoot, historyRoot, cacheRoot, appPath, crypto } = options;
+export function createPersistenceModule(options: PersistenceOptions): BootModule<PersistenceService> {  const { dataRoot, historyRoot, cacheRoot, crypto, workspaces } = options;
   const boss = (...parts: string[]) => path.join(dataRoot, ".boss", ...parts);
   const opened: string[] = [];
   const open = <T>(name: string, build: () => T): T => {
@@ -113,11 +117,9 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // means the very first read already carries the settings the store holds.
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   const decisions = open("decision-ledger", () => new DecisionLedgerStore(boss("decision-ledger.json")));
-  const workspaces = open("workspaces", () => new WorkspaceRegistry(boss("workspaces.json")));
   // The shims live in the workspace, not in the data root: they are generated
   // entry points that point back at THIS install, so a moved install must
   // regenerate them.
-  workspaces.ensureShims(appPath);
   // Read once, at boot: the workspace-scoped stores below are rooted here, and the
   // registry always answers with SOMETHING (a missing file reads as the default
   // shim), so this value — not a later `setActive` — is what they are rooted at.
