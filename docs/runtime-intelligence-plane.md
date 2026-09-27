@@ -92,16 +92,25 @@ The two tables above are the round-1 module map and are not a complete list: rou
 `live-capture.ts` and their host counterparts (`replay-corpus-io.ts`, `replay-cases.ts`,
 `prospective-store.ts`). See §25–§28 for what each of those owns.
 
-### Runnable report — `scripts/runtime-intelligence-report.cjs`
+Two names in that list are **RETIRED** as of ledger CC-076 and are kept here only because the paragraph is a
+historical module map: `replay-corpus-io.ts` (retired with the report below — it read this host's real data
+root and had no production caller) and the corpus helpers `ReplayCorpusTaskView` / `groupCorpusByTask` inside
+`src/shared/runtime-intelligence/replay-corpus.ts` (the per-task projection the retired report printed; the
+two adapters in `replay-cases.ts` read the flat record sequence directly).
 
-`package.json` is a Root surface (CODEOWNERS owns it), so adding a `pnpm` script for this
-CLI is an Owner decision. Run it directly instead:
+### Runnable report — `scripts/runtime-intelligence-report.cjs` (RETIRED, ledger CC-076)
 
-```bash
-pnpm run build:electron
-node scripts/runtime-intelligence-report.cjs --advise
-node scripts/runtime-intelligence-report.cjs --task <taskId> --out artifacts/runtime-intelligence/report.json
-```
+This CLI has been **retired**. It was never wired into `package.json` or any CI workflow — as the
+paragraph below used to say, running it was a manual act. More decisively, its `--real-data` and
+`--prospective` modes loaded `dist-electron/electron/runtime-intelligence/replay-corpus-io.js` through a
+`load()` helper that hard-fails when the artifact is absent, and that module was itself
+production-dead (`VERDICT: PRODUCTION_DEAD`: no importer under `electron/` or `src/`, unreachable from
+`main.ts`/`preload.ts`). The module and this CLI were removed together as one atomic retirement, so the
+script is not left loading a module that no longer exists.
+
+The earlier form of this section is preserved in git history, which is where a reader should go for
+what the modes did. If the report is wanted again, it should be rebuilt against the **live**
+runtime-intelligence surfaces rather than restored from history.
 
 ---
 

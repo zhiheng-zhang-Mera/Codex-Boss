@@ -305,7 +305,7 @@ function validateMatrix(matrix, root = ROOT, options = {}) {
     }
 
     const keys = [];
-    if (typeof entry.measuredFrom === "string") keys.push({ part: null, key: entry.measuredFrom, target: entry.target });
+    if (typeof entry.measuredFrom === "string") keys.push({ part: null, key: entry.measuredFrom, target: entry.target, strength: entry.strength, declared: false });
     if (Array.isArray(entry.composite)) {
       if (entry.composite.length === 0) problems.push(`${id}: composite is empty`);
       for (const part of entry.composite) {
@@ -313,7 +313,18 @@ function validateMatrix(matrix, root = ROOT, options = {}) {
           problems.push(`${id}: a composite part is missing measuredFrom or target`);
           continue;
         }
-        keys.push({ part: part.part ?? null, key: part.measuredFrom, target: part.target });
+        // A composite row bundles claims that can reach their targets at DIFFERENT times. The row therefore grades
+        // each part: a part may state its own strength, and when it does not it inherits the row's. Without this a
+        // row whose parts disagree has only two options -- claim the row is enforced while some part is not, which
+        // is the promotion the honesty rule above refuses, or stay red forever after one part legitimately reaches
+        // zero. A part may not claim a strength weaker than the row's, and the row's recorded strength may not be
+        // stronger than its weakest part, so grading parts can never make the row look stronger than it is.
+        const declared = typeof part.strength === "string" ? part.strength : null;
+        if (declared !== null && !STRENGTHS.includes(declared)) {
+          problems.push(`${id}: composite part "${part.part ?? part.measuredFrom}" declares unknown strength ${declared}`);
+          continue;
+        }
+        keys.push({ part: part.part ?? null, key: part.measuredFrom, target: part.target, strength: declared ?? entry.strength, declared: declared !== null });
       }
     }
     if (MACHINE_STRENGTHS.includes(entry.strength) && keys.length === 0) {
@@ -322,8 +333,18 @@ function validateMatrix(matrix, root = ROOT, options = {}) {
     if (entry.strength === "MACHINE_ENFORCED" && typeof entry.target === "number" && entry.target !== 0) {
       problems.push(`${id}: claims MACHINE_ENFORCED with target ${entry.target}; enforcement means the target is 0`);
     }
+    // The row's own strength is a claim about EVERY part, so it may not be stronger than the weakest part. The
+    // order of STRENGTHS is strongest first, so a SMALLER index is a STRONGER claim.
+    for (const { part, strength } of keys) {
+      if (STRENGTHS.indexOf(entry.strength) < STRENGTHS.indexOf(strength)) {
+        problems.push(
+          `${id}: the row is recorded as ${entry.strength} but its part "${part ?? "measurement"}" is recorded as ${strength}, ` +
+            `which is weaker; a row may not claim more than its weakest part`,
+        );
+      }
+    }
 
-    for (const { part, key, target } of keys) {
+    for (const { part, key, target, strength } of keys) {
       const registered = KEY_GUARD[key];
       if (registered && !guards.includes(registered)) {
         problems.push(`${id}: resolves ${key} from ${registered}, which the row does not name as a guard`);
@@ -334,11 +355,15 @@ function validateMatrix(matrix, root = ROOT, options = {}) {
         continue;
       }
       row.measured.push({ part, key, value: resolved.value, target, detail: resolved.detail ?? null });
-      if (entry.strength === "MACHINE_ENFORCED" && resolved.value > target) {
-        problems.push(`${id}: claims MACHINE_ENFORCED but ${key} measures ${resolved.value} against target ${target}`);
+      const where = part === null ? "" : ` (part "${part}")`;
+      if (strength === "MACHINE_ENFORCED" && typeof target === "number" && target !== 0) {
+        problems.push(`${id}${where}: claims MACHINE_ENFORCED with target ${target}; enforcement means the target is 0`);
       }
-      if (entry.strength === "MACHINE_RATCHET" && typeof target === "number" && resolved.value <= target) {
-        problems.push(`${id}: is recorded as MACHINE_RATCHET but ${key} measures ${resolved.value} at target ${target}; promote the row to MACHINE_ENFORCED`);
+      if (strength === "MACHINE_ENFORCED" && resolved.value > target) {
+        problems.push(`${id}${where}: claims MACHINE_ENFORCED but ${key} measures ${resolved.value} against target ${target}`);
+      }
+      if (strength === "MACHINE_RATCHET" && typeof target === "number" && resolved.value <= target) {
+        problems.push(`${id}${where}: is recorded as MACHINE_RATCHET but ${key} measures ${resolved.value} at target ${target}; promote the part to MACHINE_ENFORCED`);
       }
     }
 

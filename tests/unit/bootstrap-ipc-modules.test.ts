@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceIpcModule, WORKSPACE_IPC_CHANNELS } from "../../electron/bootstrap/workspace-ipc";
 import { createAttachmentIpcModule, ATTACHMENT_IPC_CHANNELS, type AttachmentService } from "../../electron/bootstrap/attachment-ipc";
@@ -525,7 +526,7 @@ describe("Phase G — research run-control module", () => {
 });
 
 describe("Phase G — host status and learning module", () => {
-  function build(overrides: Partial<HostStatusService> = {}) {
+  function build(overrides: Partial<HostStatusService> = {}, dataRoot?: string) {
     const ipc = registrar();
     const host: HostStatusService = {
       accounts: () => [{ providerId: "qwen", mode: "READY" }, { providerId: "codex", mode: "AUTH_REQUIRED" }],
@@ -545,8 +546,9 @@ describe("Phase G — host status and learning module", () => {
       ...overrides
     };
     // A throwaway root: the intervention read model is the only dependency that touches disk, and a
-    // missing store is the honest "no pauses" state, so the channel-level cases need no fixture.
-    const module = createHostStatusIpcModule({ handle: ipc.handle.bind(ipc), host, dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "boss-host-status-")) });
+    // missing store is the honest "no pauses" state, so the channel-level cases need no fixture. A
+    // caller may supply its own root when it needs to inspect the filesystem around an invocation.
+    const module = createHostStatusIpcModule({ handle: ipc.handle.bind(ipc), host, dataRoot: dataRoot ?? fs.mkdtempSync(path.join(os.tmpdir(), "boss-host-status-")) });
     return { ipc, module };
   }
 
@@ -555,6 +557,61 @@ describe("Phase G — host status and learning module", () => {
     expect(ipc.channels.sort()).toEqual([...HOST_STATUS_IPC_CHANNELS].sort());
     expect(module.health()).toMatchObject({ module: "host-status-ipc", status: "READY" });
     expect(module.health().detail).toContain("7/7");
+  });
+
+  /**
+   * THE RE-HOMED `host:observability` GUARANTEE (ledger CC-076).
+   *
+   * Host-M P4's requirement was "observer may observe; observer must not become controller". Its
+   * "aggregates every declared domain" half belongs to a programme whose artefacts were deleted at
+   * 9cb988e and is no longer provable -- three of the eight declared domains have no live read -- so
+   * it is retired as vacuous. The no-mutation half is still true and was, until this case, proven
+   * ONLY against production-dead code (`tests/unit/host-observability.test.ts`, now deleted).
+   *
+   * This proves it against the LIVE surface instead: every file under a real data root is hashed
+   * before and after the declared read-only channel is invoked, and the store must be absent when the
+   * store was absent. `boss:node-status` is DELIBERATELY EXCLUDED and named in the assertion, because
+   * it calls `registry.refresh(...)` and therefore writes -- the collector's own docblock recorded
+   * that this live handler "does not refresh the node registry while reading it" was FALSE, and a check
+   * that quietly included it would be asserting a property the code does not have.
+   */
+  it("proves the declared read-only status surface never writes, and names the one known writer", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "boss-host-status-ro-"));
+    try {
+      // A REAL pre-existing file, so the byte-comparison below has something to compare. Without a
+      // fixture the walk finds nothing and the assertion is vacuous -- which is exactly how the first
+      // version of this case passed while referencing an unimported `crypto`.
+      fs.mkdirSync(path.join(root, ".boss"), { recursive: true });
+      fs.writeFileSync(path.join(root, ".boss", "state.json"), JSON.stringify({ schemaVersion: 1, tasks: [] }), "utf8");
+      const { ipc } = build({}, root);
+      const snapshot = (): string[] => {
+        const out: string[] = [];
+        const walk = (dir: string): void => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(full);
+            else out.push(`${full}:${crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex")}`);
+          }
+        };
+        if (fs.existsSync(root)) walk(root);
+        return out;
+      };
+
+      const before = snapshot();
+      // The fixture proves the walk works: a hash must exist for the file just written.
+      expect(before.length).toBeGreaterThan(0);
+      // `boss:interventions` is the only declared channel that touches the data root at all.
+      const model = await ipc.invoke("boss:interventions");
+      expect(model).toMatchObject({ unresolved: [], unreadable: false });
+      expect(snapshot()).toEqual(before);
+      // The read model must NOT create the store it reads: absence stays absence.
+      expect(fs.existsSync(path.join(root, ".boss", "interventions.json"))).toBe(false);
+
+      // And the one declared writer is declared, not hidden: its channel exists and is excluded here.
+      expect([...HOST_STATUS_IPC_CHANNELS]).toContain("boss:node-status");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("reports an uninitialised device rather than throwing when no registry is attached", async () => {

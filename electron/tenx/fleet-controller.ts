@@ -34,7 +34,11 @@ import {
  * Forward development: does not modify the R43 FederationCoordinator.
  */
 
-export interface TenxFleetFile {
+/**
+ * The on-disk controller file shape. MODULE-PRIVATE: the export surface gate found it reachable from nothing --
+ * both uses are inside this file, in load() and persist().
+ */
+interface TenxFleetFile {
   schemaVersion: 1;
   members: FleetMemberRecord[];
   leases: TaskLeaseState[];

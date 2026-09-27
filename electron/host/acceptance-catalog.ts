@@ -340,12 +340,20 @@ export function acceptanceCatalog(): AcceptanceCheck[] {
     },
     {
       id: "host:observability",
-      label: "unified observer snapshot (read-only aggregate)",
+      label: "declared read-only status channels never write to the data root",
       device: "command",
-      argv: ["node", "scripts/host-observe.cjs", "--json"],
-      entryPoint: "scripts/host-observe.cjs",
+      // RE-HOMED (ledger CC-076). This row used to point at `scripts/host-observe.cjs`, which loaded
+      // `electron/host/host-observer-collector.ts` -- production-dead code. The originating requirement
+      // was Host-M P4 "observer may observe; observer must not become controller", whose artefacts were
+      // deleted at 9cb988e, and its "aggregates every declared domain" half is no longer provable: three
+      // of the eight declared domains have no live read at all. The half that IS still true and was
+      // still UNPROVEN is the no-mutation half, so the check now proves that against the live surface.
+      // It points at an EXISTING declared suite rather than a new file, because adding a file is a
+      // governance event (ledger CC-075).
+      argv: ["npx", "vitest", "run", "tests/unit/bootstrap-ipc-modules.test.ts"],
+      entryPoint: "tests/unit/bootstrap-ipc-modules.test.ts",
       requires: "offline",
-      expectation: "The observer aggregates every declared domain and never mutates what it reads.",
+      expectation: "Every declared read-only status channel answers without modifying any file under the data root, and `boss:node-status` is declared as the one known writer rather than silently excluded.",
       timeoutMs: 10 * MIN,
       program: "host",
       enabledByDefault: false,

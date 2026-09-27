@@ -19,12 +19,17 @@ import { TenxKnowledgeSync } from "./knowledge-sync";
  * this snapshot can never affect background tasks (pure read path).
  */
 
-export interface TenxObservabilityFile {
+/**
+ * The on-disk snapshot file shape and the source set the collector is constructed from. Both are MODULE-PRIVATE:
+ * the export surface gate found them reachable from nothing -- every use is inside this file, and the constructor
+ * below is the only place the source set is named.
+ */
+interface TenxObservabilityFile {
   schemaVersion: 1;
   snapshots: FleetAggregate[];
 }
 
-export interface TenxObservabilitySources {
+interface TenxObservabilitySources {
   nodes?: TenxNodeRegistry;
   fleet?: TenxFleetController;
   providers?: TenxProviderMatrixStore;

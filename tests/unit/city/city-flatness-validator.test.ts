@@ -102,20 +102,41 @@ describe("P2-F — the committed registry passes, and the SEAL correctly does no
     expect(nonFlat, "a plot implicated by a measured defect is recorded FLAT").toBeGreaterThanOrEqual(implicated.size);
   });
 
-  it("implicates the plots the instruments ACTUALLY name, not merely whatever the registry expects", () => {
+  it("implicates the plots the instruments ACTUALLY name, and still notices when the private-state half under-reports", () => {
     // WHY THIS CASE EXISTS, and what it is for. The cross-check above is necessarily CIRCULAR in one direction:
     // the registry was authored from these instruments, so an instrument that UNDER-REPORTS shrinks both sides
     // together and the check still passes. A deliberate mutation that dropped one side of every private-state
-    // access was caught by only one case -- this gap. Naming the expected members closes it: the implicated set
-    // must contain the plot the workbook's own historical example is about, and the three capabilities the
-    // private-state measurement names.
-    const implicated = validator.implicatedPlots(PROJECT);
-    for (const capability of ["host-status", "persistence", "runtime", "tenx"]) {
-      expect([...implicated.keys()], `the implicated set lost ${capability}`).toContain(capability);
+    // access was caught by only one case -- this gap. Naming the expected members closes it.
+    //
+    // CC-076 MOVED WHERE THE NAMES COME FROM, and the move is the point. This case used to assert that the LIVE
+    // tree implicates `host-status` through a cross-domain private-state access. That is no longer true and must
+    // not be: retiring the dead host-observer cluster is what took the confirmed count to zero, so `host-status`
+    // is now implicated by NOTHING -- verified below rather than assumed, because "the plot got quieter" and "the
+    // instrument went blind" look identical from the outside. Asserting the old membership would have pinned the
+    // defect in place; deleting the case would have removed the only guard against the instrument under-reporting
+    // now that no live access exercises this channel. So the guard is kept and DRIVEN: the same real inventory and
+    // cycle reports go in, and one synthetic confirmed access proves the private-state half still implicates the
+    // declaring owner and the accessing capability.
+    const inventory = require("../../../scripts/phase2-edge-inventory.cjs").report;
+    const cycles = require("../../../scripts/phase2-cycles.cjs").report;
+    const privateState = require("../../../scripts/phase2-private-state.cjs").measure();
+
+    const live = validator.implicatedPlots(PROJECT);
+    for (const capability of ["persistence", "runtime", "tenx"]) {
+      expect([...live.keys()], `the implicated set lost ${capability}`).toContain(capability);
     }
-    // `host-status` is implicated ONLY by the private-state instrument, so it is the member that disappears
-    // first if that half of the cross-check is weakened.
-    expect([...implicated.get("host-status") ?? []]).toContain("cross-domain private-state access");
+    // The live tree must NOT implicate host-status through private state any more, and it must not be implicated
+    // by anything else either -- that is the measured result CC-076 claims, stated where the plot registry lives.
+    expect(privateState.confirmed, "a live private-state access came back; the CC-076 retirement is undone").toEqual([]);
+    expect([...live.get("host-status") ?? []], "host-status is implicated again, so something new reaches it").toEqual([]);
+
+    const withOneAccess = validator.implicatedPlots(PROJECT, {
+      inventory,
+      cycles,
+      privateState: { ...privateState, confirmed: [{ namespace: "tasks", declaredOwner: "persistence", accessedBy: "host-status", file: "synthetic", line: 1 }] },
+    });
+    expect([...withOneAccess.get("persistence") ?? []]).toContain("cross-domain private-state access");
+    expect([...withOneAccess.get("host-status") ?? []]).toContain("cross-domain private-state access");
   });
 
   it("SEAL MODE fails, because section 20 permits only FLAT at the seal", () => {

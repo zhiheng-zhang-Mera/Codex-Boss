@@ -1,4 +1,3 @@
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   continuationStepsFromCorpus,
@@ -8,7 +7,6 @@ import {
 } from "../../../electron/runtime-intelligence/replay-cases";
 import { benchmarkContinuation } from "../../../src/shared/runtime-intelligence/continuation-benchmark";
 import { benchmarkScheduler } from "../../../src/shared/runtime-intelligence/scheduler-benchmark";
-import { exportReplayCorpus, locateRealDataRoots } from "../../../electron/runtime-intelligence/replay-corpus-io";
 import { createReplayCorpus, type ReplayCorpus, type ReplayCorpusRecord } from "../../../src/shared/runtime-intelligence/replay-corpus";
 import { measured, notMeasured, unknown, type Measurement } from "../../../src/shared/runtime-intelligence/measurement";
 import type { FailureDomain, TaskKind } from "../../../src/shared/runtime-intelligence/contracts";
@@ -80,6 +78,19 @@ function record(overrides: {
 function corpusOf(records: ReplayCorpusRecord[]): ReplayCorpus {
   const provenance = { kind: "CONTROL_FIXTURE" as const, sourceHost: "test", sourceRoot: "/test", exportedAt: AT, exporter: "test/1", sanitized: true, redactedFields: [] };
   return { ...createReplayCorpus({ corpusId: "c1", createdAt: AT, provenance }), records };
+}
+
+/**
+ * A three-step task that finishes, in the shape a real exported corpus has: every step carries both work
+ * counts, so the adapters have something to judge and nothing has to be invented. This replaces reading the
+ * host's own data root, which is what the retired `replay-corpus-io` module did.
+ */
+function pipelineCorpus(): ReplayCorpus {
+  return corpusOf([
+    record({ recordId: "cc076-pipeline:a:1", taskId: "task-pipeline", step: 1, at: "2026-01-01T00:00:01.000Z", pending: 2, completed: 0, continued: true, taskComplete: false }),
+    record({ recordId: "cc076-pipeline:a:2", taskId: "task-pipeline", step: 2, at: "2026-01-01T00:00:02.000Z", pending: 1, completed: 1, continued: true, taskComplete: false }),
+    record({ recordId: "cc076-pipeline:a:3", taskId: "task-pipeline", step: 3, at: "2026-01-01T00:00:03.000Z", pending: 0, completed: 2, continued: false, taskComplete: true }),
+  ]);
 }
 
 /** Two tasks, the second later, so ordering and the walk are both exercised. */
@@ -218,24 +229,24 @@ describe("the scheduler replay walks forward and derives one identity", () => {
   });
 });
 
-describe("the real corpus produces real replay cases", () => {
-  const survey = locateRealDataRoots({ repositoryRoot: path.resolve(__dirname, "..", "..", "..") });
-
-  it("replays this host's real corpus when one exists", () => {
-    if (survey.recommended === undefined) {
-      expect(survey.explanation).toContain("no root holds");
-      return;
-    }
-    const exported = exportReplayCorpus({ dataRoot: survey.recommended.path, exportedAt: AT });
-    const continuation = continuationStepsFromCorpus(exported.corpus);
-    const scheduler = schedulerCasesFromCorpus(exported.corpus);
+describe("the whole corpus PIPELINE produces judged replay cases, from a corpus rather than from this host", () => {
+  // This block used to read THIS HOST's real data root through `electron/runtime-intelligence/replay-corpus-io`.
+  // Ledger CC-076 retired that module: `locateRealDataRoots` and `exportReplayCorpus` had no production caller
+  // (the only consumer of either was this case), and the host-reading half is exactly the shape that made the
+  // dead host-observer cluster reach into another capability's durable state. Rather than delete the guarantee,
+  // the pipeline property it asserted is kept and driven by a corpus this case builds, so it runs identically on
+  // a CI host that holds no corpus at all -- which is where the previous version silently took its early return.
+  it("walks corpus records through both adapters into judged, valid cases", () => {
+    const corpus = pipelineCorpus();
+    const continuation = continuationStepsFromCorpus(corpus);
+    const scheduler = schedulerCasesFromCorpus(corpus);
     expect(continuation.steps.length).toBeGreaterThan(0);
     expect(scheduler.cases.length).toBeGreaterThan(0);
 
     const continuationMetrics = benchmarkContinuation(continuation.steps);
     const schedulerMetrics = benchmarkScheduler(scheduler.cases);
-    // Whatever the numbers are, the pipeline must produce judged cases with nothing invalid and
-    // nothing leaked — that is the property this test exists for.
+    // Whatever the numbers are, the pipeline must produce judged cases with nothing invalid and nothing
+    // leaked -- that is the property this test exists for.
     expect(continuationMetrics.invalidCases).toBe(0);
     expect(schedulerMetrics.invalidCases).toBe(0);
     expect(continuationMetrics.judgedSteps).toBe(continuation.steps.length);

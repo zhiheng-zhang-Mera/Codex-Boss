@@ -16,7 +16,12 @@ import { heartbeat, rederiveState, refreshAdvertisement, type NodeCapabilityAdve
  * node-capability-registry or any other closure file.
  */
 
-export interface TenxNodeRegistryFile {
+/**
+ * The on-disk registry file shape and the in-memory record shape. Both are MODULE-PRIVATE: the export surface
+ * gate (tests/unit/export-surface.test.ts) found them reachable from nothing, because every use of either is
+ * inside this file. Dropping the keyword is what the gate asks for -- there is no consumer to publish to.
+ */
+interface TenxNodeRegistryFile {
   schemaVersion: 1;
   records: Array<{
     nodeId: string;
@@ -26,7 +31,7 @@ export interface TenxNodeRegistryFile {
   }>;
 }
 
-export interface RegisteredNode {
+interface RegisteredNode {
   nodeId: string;
   identity: NodeIdentity;
   advertisement: NodeCapabilityAdvertisement;
