@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 16,
-  "parent_baseline_hash": "22ee3648ac0e55277a068a8c5d2b1fd801e22f607007b29049e2e397220ea0ec",
-  "source_commit": "b5f089323ced847b6b6f0c2a90b7cf59f1dec23f",
+  "baseline_version": 17,
+  "parent_baseline_hash": "cc335992026e0a98a9b5e5eabc35c5bc2392bef08e2e164c61ea48e50049ca42",
+  "source_commit": "156ac5fd543add5b0ab56f6bf8d53caa6a507a6f",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-089: the enforcement model now attributes the composition root, and the `runtime-resources` namespace claim moves from `persistence` to `tenx`. The boot module loses a store (12 durable stores, down from 13) and main.ts builds ResourceController at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 54 -> 53 and the raw cross-capability total 778 -> 777; no capability relation is added.",
+  "reason": "CC-090: the `interventions` namespace claim moves from `persistence` to `tenx`, which implements the store in electron/commander/human-guidance-gate.ts. The boot module loses a store (11 durable stores, down from 12) and main.ts builds HumanGuidanceGate at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 53 -> 52 and the raw cross-capability total 777 -> 776; no capability relation is added.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -22,12 +22,12 @@
       },
       "ownership": {
         "manifests": 27,
-        "declared_modules": 27,
-        "declared_owned_files": 29,
-        "undeclared_files": 580,
+        "declared_modules": 28,
+        "declared_owned_files": 30,
+        "undeclared_files": 579,
         "conflicts": []
       },
-      "edges": 1659,
+      "edges": 1658,
       "unresolved": 1
     }
   },
@@ -42,9 +42,9 @@
   },
   "ownership": {
     "manifests": 27,
-    "declared_modules": 27,
-    "declared_owned_files": 29,
-    "undeclared_files": 580,
+    "declared_modules": 28,
+    "declared_owned_files": 30,
+    "undeclared_files": 579,
     "conflicts": []
   },
   "files": {
@@ -103,7 +103,7 @@
     "electron/commander/execution-error.ts": "UNDECLARED",
     "electron/commander/execution-gate.ts": "UNDECLARED",
     "electron/commander/execution-supervisor.ts": "UNDECLARED",
-    "electron/commander/human-guidance-gate.ts": "UNDECLARED",
+    "electron/commander/human-guidance-gate.ts": "tenx",
     "electron/commander/interruption.ts": "UNDECLARED",
     "electron/commander/main-commander.ts": "UNDECLARED",
     "electron/commander/plan-compiler.ts": "UNDECLARED",
@@ -914,10 +914,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/commander/decision-ledger-store.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/commander/human-guidance-gate.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -7319,6 +7315,10 @@
     ],
     [
       "electron/bootstrap/persistence.ts",
+      "electron/commander/human-guidance-gate.ts"
+    ],
+    [
+      "electron/bootstrap/persistence.ts",
       "electron/commander/resource-controller.ts"
     ],
     [
@@ -7514,10 +7514,10 @@
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
     "tracked_source_files": 609,
-    "declared_owned_files": 29,
-    "undeclared_files": 580,
-    "internal_edges": 1659,
+    "declared_owned_files": 30,
+    "undeclared_files": 579,
+    "internal_edges": 1658,
     "unresolved_references": 1
   },
-  "baseline_hash": "cc335992026e0a98a9b5e5eabc35c5bc2392bef08e2e164c61ea48e50049ca42"
+  "baseline_hash": "0a09fec9ec668bf11ce8425c20709ccb6ad0ae2167ff8333a6a50f1aa7baab56"
 }
