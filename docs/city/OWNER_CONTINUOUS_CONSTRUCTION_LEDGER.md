@@ -7095,3 +7095,160 @@ research_value              (1) S6's remaining gap is a DETECTOR capability gap 
 ```
 
 ---
+
+## CC-074 — S6 progress: the three `tasks` accesses live in dead code, and PF-DEBT-005's reader has no production caller
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What this round set out to do.** The One-Shot workbook's Priority 1 is S6 closure through a *truthful*
+read/write model — not a whitelist. Before choosing between its Route A (eliminate the reads) and Route B
+(declared read model), the reading that the workbook requires was performed on the three remaining accesses that
+CC-071 and CC-072 left. It produced a finding that changes which route is correct.
+
+**2. The finding, stated as evidence.**
+
+```text
+electron/host/host-observer-collector.ts   `collectHostSnapshot` is EXPORTED and has ZERO production callers.
+                                           Its only references outside itself are:
+                                             tests/unit/host-observability.test.ts        (14 hits, 7 calls)
+                                             tests/unit/intervention-store-contract.test.ts (3 hits, 2 calls)
+                                             src/shared/intervention-file.ts:8             a COMMENT naming it
+                                           A tree-wide scan of electron/ and src/ for `host-observer-collector`
+                                           returns exactly one line, and it is that comment.
+
+src/shared/host-observer.ts                HAS NO IMPORTS ANYWHERE. Its exported surface
+                                           (`summarizeHostSnapshot`, `projectHostObserver`, `mostRecent`,
+                                           `HOST_OBSERVER_DIMENSIONS`, `dimensionReport`, and its ten
+                                           interfaces) is consumed ONLY by the dead collector and by itself.
+                                           It is reachable from no production entry.
+
+the live host-status surface               `electron/bootstrap/host-status-ipc.ts` contains NO intervention
+                                           reader at all: its only match for intervention/failure/unresolved is
+                                           a comment about a read-only projection.
+```
+
+**3. Why that matters for S6.** All three of the p2d "confirmed cross-domain accesses" are inside that dead file,
+on the fallback paths the tests actually exercise:
+
+```text
+host-status  host-observer-collector.ts:256  `const ledger = sources.ledger ?? new TaskLedger(ledgerRoot)`
+                                             the TEST passes only `dataRoot`, so the FALLBACK runs, so the
+                                             access the instrument counts is the fallback construction
+tenx         replay-corpus-io.ts:111         `fs.existsSync(path.join(candidate.path, ".boss", "tasks"))`
+tenx         replay-corpus-io.ts:411         reads `task.id/checkpoints` to count files
+```
+
+So the honest classification of S6's remainder is **not** "three legitimate reads that must be declared". It is:
+**the only direct-path accesses into `tasks` from other capabilities live in code that production never runs.**
+That is the One-Shot workbook's priority order exactly — `dead removal > simplification > ...` — and it means
+Route A is available and cheap, while Route B would be *declaring readers for dead code*, which is the whitelist
+the workbook forbids in substance even if it satisfies the letter.
+
+**4. The complication that stopped this round from shipping the deletion, recorded rather than skipped.**
+Deleting the dead cluster also deletes a guarantee that a maintainer deliberately put there:
+
+```text
+PF-DEBT-005  "Unresolved human interventions are silently never collected"   severity HIGH   status FIXED
+  the writer wrote `{ interventions: [...] }` and the reader parsed `{ items: [...] }` inside a try/catch that
+  reported every problem as "absent", so the observation surface reported ZERO unresolved interventions
+  ALWAYS -- a defect disguised as good news.
+  Its closure requires a TWO-WAY test proving an unresolved intervention IS collected and a resolved one IS
+  NOT, and that unreadable is distinguished from absent.
+  docs/platform-foundation-known-issues.md records the closure as: "parseInterventionFile() is what the
+  observation surface reads" -- and names the affected capability for the read side as `status`.
+```
+
+`tests/unit/intervention-store-contract.test.ts` is that guarantee, and it obtains its read side by calling the
+dead collector. Deleting the collector therefore fails the workbook's own prohibition — *"NO deleting failing
+tests without replacing their guarantee"* — unless the test's read side is first re-pointed at the surface that
+actually exists. And here is the second half of the finding: **on the live surface, that reader does not exist.**
+`host-status-ipc.ts` reads no interventions, so PF-DEBT-005's closure narrative names a reader whose only
+implementation has no production caller. The debt's *status* is FIXED and the contract module it introduced
+(`src/shared/intervention-file.ts`) IS live — `human-guidance-gate.ts` and `assertion-shape.ts` both import it —
+but the **read side is not wired into the product**.
+
+**5. The decision this forces, priced, for the next construction.**
+
+```text
+OPTION 1  delete the dead cluster and re-point the PF-DEBT-005 test at the live surface.
+          Requires the live surface to HAVE a read side, which it does not: so this option is really
+          "wire the intervention reader into host-status, then delete the dead cluster". That is a
+          MINIMAL internal read surface of the kind the workbook's scope-freeze clause 6 permits
+          ("an existing requirement's minimum missing contract"), because PF-DEBT-005 already requires it
+          and names `status` as the capability.
+          Cost: one new binding into host-status-ipc + re-pointing two tests + deleting two dead modules.
+          Effect: p2d confirmed accesses 3 -> 0, S5 pairs 2 -> 0, dead code removed, AND PF-DEBT-005's
+          guarantee becomes a test of something production actually runs.
+
+OPTION 2  delete the dead cluster, delete its tests, and record PF-DEBT-005's read side as unwired debt.
+          Cheaper, but it removes a HIGH-severity defect's only regression guard. REJECTED as a default:
+          the workbook forbids deleting a guarantee without replacing it.
+
+OPTION 3  keep the dead code and declare its three readers.
+          REJECTED: it is a whitelist of dead code, and it would make a dead access look like a design.
+```
+
+Option 1 is chosen. It is recorded here as the priced next construction rather than executed in this round
+because it spans a new production binding, a test re-point and two deletions, and the round's remaining budget
+was not enough to land that atomically — which is the workbook's section 30 rule (do not start what cannot be
+closed; do not leave a half-migrated tree). Nothing was deleted, so no guarantee is currently missing.
+
+**6. What is NOT done.** S2 55, S3 31, S4 largest SCC 18/29, S5 3 accesses / 2 pairs, S6 1 candidate,
+S10 22/27, S14 2. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched, the Owner lease
+is in force, city acceptance NOT_READY. No file outside this entry changed.
+
+**7. The durable writer envelope, still open and now better bounded.** CC-073 named the blind spot (a foreign
+capability calling the owner's exposed ledger writes durable state while contributing no `path.join` site).
+This round adds a second, more actionable bound: the *direct-path* side of that envelope is **empty in live
+code**, because the only direct-path accesses are dead. So the envelope work in the workbook's section 17 should
+start from the owner-API side and it should not be expected to find any live direct-path writer to remove.
+
+```text
+ENTRY_ID                    CC-074
+timestamp_utc               2026-09-27T01:09:26Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. Documentation only: docs/city/** is outside the Root
+                            Trust Surface, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 88d3b0debe527644f3af78ad68a48cfd238594ff  (CC-073 merged; epoch 57)
+branch                      docs/city-cc-074-s6-dead-cluster-and-pf-debt-005
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: tree-wide scans for `host-observer-collector` and `shared/host-observer`,
+                            reads of the three access sites, `node scripts/phase2-private-state.cjs`,
+                            `docs/platform-foundation-known-issues.md` PF-DEBT-005, and reads of both test files
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The dead cluster is left in place, so the p2d count remains 3 and S5/S6 are
+                            unchanged. Deliberate: deleting it now would either remove a HIGH-severity
+                            defect's only regression guard or leave a half-finished wiring. Also recorded is
+                            the uncomfortable fact that PF-DEBT-005 is marked FIXED while its read side has no
+                            production caller; that is a finding about the debt record, not a claim that the
+                            contract module is wrong -- `src/shared/intervention-file.ts` IS live and IS what
+                            `human-guidance-gate.ts` writes.
+evidence_preserved          the reachability proof in point 2, the three-site table in point 3, the PF-DEBT-005
+                            requirement and closure text quoted in point 4, and the three priced options with
+                            the rejection reasons in point 5
+rollback                    Revert this commit. Documentation only; no behaviour, baseline, ratchet or code
+                            changed.
+temporary_debt_created      no. Nothing was deferred and no gate was touched.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as an INVESTIGATION with a priced next construction. The objective is NOT
+                            complete and this entry does not claim it is.
+research_value              (1) A detector that refuses to guess found, for the second time in this programme,
+                            that the thing it counted was not what the count implied: CC-071/CC-072 found a
+                            dead helper and a test-only writer; this round finds that the REMAINING three
+                            accesses are all in dead code, so S6's true remainder is a dead-code removal plus a
+                            MISSING production reader rather than three reads to declare. (2) A debt record can
+                            be marked FIXED while its read side is unwired, and the way that surfaced was a
+                            reachability scan, not a reading of the debt table -- which is why "closed" in a
+                            register is a claim to re-verify against the tree rather than a fact to inherit.
+                            (3) The scope-freeze clause that permits building "the minimum missing
+                            contract an existing requirement needs" is what makes the chosen Option 1 legal
+                            work rather than a new feature: PF-DEBT-005 already requires the reader and already
+                            names the capability that should host it.
+```
+
+---
