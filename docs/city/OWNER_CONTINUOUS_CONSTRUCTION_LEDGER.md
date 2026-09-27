@@ -8532,3 +8532,90 @@ research_value              (1) A candidate can pass every MECHANICAL gate a val
                             count-ordered search for roads is biased toward the worst candidates; the ordering
                             should be by contract-only-ness, which the edge set cannot express at all.
 ```
+
+## CC-083 — S2 is NOT a type-import artifact: 16 of the 55 edges are type-only and 39 are real runtime coupling
+
+A measurement that closes the last apparent shortcut on S2, so no later round spends itself on it. **No tracked file
+changed except this entry.** The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The question, and why it was worth asking.** The workbook's section 16 target is worded "foundation -> building
+IMPLEMENTATION edges = 0". A `import type` is erased by the compiler, so a kernel that imports only a TYPE from a
+feature carries no implementation dependency at runtime. If most of the 55 edges were type-only, the metric would be
+substantially an artifact of type placement, and relocating declarations would be a legitimate repair rather than the
+metric game CC-082 refused. So the share was measured rather than assumed:
+
+```text
+kernel -> feature edges                     55
+  TYPE-ONLY  (erased at runtime)            16
+  VALUE      (real runtime dependency)      39
+  UNKNOWN                                    0
+```
+
+Method: read the importing file's own source and classify the statement that produced each edge -- `import type`, or
+an import whose EVERY named binding carries the `type` modifier, counts as type-only; anything else is value.
+
+**2. The answer closes the avenue.** **39 of 55 are real runtime coupling**, so S2 is measuring what the workbook says
+it is measuring. Two consequences, both of which save future rounds:
+
+```text
+(a) Relocating type declarations cannot move S2 materially. Even if every type-only edge were eliminated, the
+    metric floors at 39 edges over a large share of the 16 pairs, and the work to get there would be exactly the
+    relabelling CC-082 refused.
+(b) Excluding type-only edges from the instrument would drop the count 55 -> 39, i.e. by 29%. That is a THRESHOLD
+    CHANGE dressed as a definitional correction, and this programme refuses it for the same reason it refused every
+    other one. The measurement is recorded so that nobody later mistakes the remaining 39 for a counting artifact.
+```
+
+**3. What the 39 mean.** They are a kernel genuinely importing a feature's runtime surface: predicate functions
+(`isRunMode`, `isVerificationContract`, `isConversationPolicy`), factories (`defaultReviewPolicy`,
+`currentFinalResponse`), and classes (`TaskLedger`, `HistoryRepository`, `StateStore` consumers). The
+namespace-ownership migrations that took the metric from 61 to 55 removed seven of exactly this kind by moving a
+STORE to the capability that implements it. That technique does not reach these: `electron/store.ts` is the
+persistence kernel and every other capability's state is persisted through it, so its fan-out to `tasks` and `status`
+is the kernel's function rather than a misplaced declaration. Removing those edges means either moving the validation
+helpers out of the persistence layer or having persistence store opaque payloads -- both are real architectural work
+with real behavioural risk, and neither is a declaration move.
+
+**4. What is NOT done.** S2 55, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 non-enforced machine
+rows (15.1 and the cycle parts of 15.7, both waiting on the same zeros). CITY-DEBT-006 OPEN with exit (a) foreclosed
+(CC-081) and exit (b) needing an Owner-level decision. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, the Owner lease is in force, city acceptance NOT_READY at 14 blocking items. Tree at `21c2f78`, clean.
+
+```text
+ENTRY_ID                    CC-083
+timestamp_utc               2026-09-27T08:05:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT ONLY: no configuration, source or test file
+                            differs from main, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 21c2f78  (CC-082 merged as PR #119; accepted baseline v14, epoch 60)
+branch                      docs/city-cc-083-s2-is-not-type-artifact
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: scripts/phase2-pair-edges.cjs --json for the 55 kernel -> feature edges with
+                            their fromFile/specifier/line; each importing file's own import statement read and
+                            classified as type-only or value; scripts/principle-enforcement-validator.cjs read for
+                            why rows 15.1 and 15.7 cannot be promoted before their targets are met
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The classifier is textual: a statement mixing `type` and value bindings is counted as
+                            VALUE, so 16 is a LOWER bound on type-only edges and 39 an upper bound on real
+                            coupling. The conclusion does not depend on the exact split -- even the most generous
+                            reading leaves the large majority as runtime coupling.
+evidence_preserved          the 55/16/39/0 split and the classification method; the consequence table in point 2;
+                            the description of what the 39 are and why the namespace technique does not reach them
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. The instrument was NOT changed to exclude type-only edges, which is the whole point.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASUREMENT that forecloses an avenue. The OBJECTIVE is NOT complete and
+                            this entry does not claim it is.
+research_value              (1) The most attractive remaining shortcut on S2 was "these are just type imports" and
+                            it is measurably false: 71% of the edges are runtime coupling. (2) The measurement
+                            also pre-empts the opposite error -- a future round could have "corrected" the
+                            instrument to drop 29% of the count and called it a definitional fix; the number is
+                            now on record so that change would be visible as a threshold change. (3) It explains
+                            why the namespace-ownership technique that produced seven wins stopped working: it
+                            removes misplaced STORES, and what remains is the persistence kernel's own fan-out.
+```
