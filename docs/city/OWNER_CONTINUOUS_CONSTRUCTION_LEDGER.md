@@ -7841,3 +7841,126 @@ research_value              (1) Three previous rounds wrote "break the cycles" w
                             until the last cycle is cut, so any round that reports SCC progress per round is
                             reporting something the metric cannot produce.
 ```
+
+## CC-078 — The two obvious next moves are both closed off, and the reason is structural: a road must be owned by a FEATURE
+
+Documentation round recording two NEGATIVE results that were each measured rather than argued. **No tracked file
+changed; nothing was deleted, declared or re-attributed, and no instrument number moved.** The value of this entry is
+that it removes two plausible plans from the next round's search space and says why, so the round after this one does
+not spend itself rediscovering them.
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. Plan A — move the pure hash out of the fingerprint contract. REJECTED, and the rejection is priced.** CC-077
+named `workspace <-> tasks` (1 edge each way) as the cheapest mutual pair and proposed supplying `structuralHashOf`
+through a neutral surface rather than through the fingerprint contract. That was implemented and measured, and it is
+NOT a net gain:
+
+```text
+                                             BEFORE                 AFTER
+workspace -> tasks edges                        1                     0      (the mutual pair is broken)
+workspace -> persistence edges                  3                     4      (+1)
+tasks -> persistence edges                      1                     2      (+1)
+knowledge -> persistence edges                  5                     6      (+1, from the shared `knowledge-object`)
+raw cross-capability total                    778                   780      ROSE BY TWO
+mutual capability pairs                        31                    30      (S3 improves)
+largest SCC                                    18                    18      (S4 unmoved)
+```
+
+The cycle does break, and the raw total rises by two. **That trade is worse than it looks**, because two of the three
+added edges are the SAME file being re-pointed: `repo-world-model.ts` stops importing `task-fingerprint.ts` and starts
+importing `hash.ts`, and `task-fingerprint.ts` in turn starts importing `hash.ts` to keep the hash it used to define.
+Removing the re-export (so the nine test files import the hash from `./hash` directly) removed the phantom duplicate
+and still left the total one edge higher, because the hash now has to be reached from `task-fingerprint.ts` as well.
+The change was reverted. **The general lesson is the one this programme keeps re-learning: a repair that moves a
+utility out of a capability contract does not necessarily DELETE an edge — it re-points one and can ADD another, and
+the raw total is the instrument that catches the difference.** A 2-cycle is not worth a raw rise of two when S4 does
+not move at all.
+
+**2. Plan B — declare the shared hubs as roads. BLOCKED, categorically, by the road rules.** CC-077's central finding
+was that 599 of 778 cross-capability edges (77%) land on 114 files reached by more than one foreign capability, and
+that `durable-json.ts` and `input-object.ts` already sit in the `<road>` class where those same imports are not
+counted against a capability. The obvious plan was to re-home the other large hubs the same way. It was TRIED and the
+road validator refused it, for a reason that is a design decision rather than a bug:
+
+```text
+road electron/bootstrap/boot-module.ts is owned by runtime, whose manifest kind is "kernel" rather than a feature:
+it is not trapped inside a building
+```
+
+The roadmap's definition is that a road is a shared concern **trapped inside a BUILDING**. A file owned by a KERNEL is
+already foundation-level, so re-attributing it would not be declaring a road -- it would be relabelling the
+foundation, which is the move the road class exists to refuse. Checking the ownership of the seven biggest hubs:
+
+```text
+electron/bootstrap/boot-module.ts        18 caps,  25 edges   owner runtime    kind=KERNEL    INELIGIBLE
+src/shared/contracts.ts                  13 caps,  27 edges   owner status     kind=feature   candidate
+src/shared/provider-contracts.ts         12 caps,  16 edges   owner providers  kind=KERNEL    INELIGIBLE
+electron/workspace/path-utils.ts          9 caps,  25 edges   owner workspace  kind=feature   REFUTED (imports)
+src/shared/workbook.ts                    7 caps,  21 edges   owner tasks      kind=feature   imports
+src/shared/task-fingerprint.ts            4 caps,   8 edges   owner tasks      kind=feature   leafless, candidate
+```
+
+**The two largest hubs in the repository are owned by kernels and can never be declared roads.** For the record, the
+trial declaration WAS effective before it was refused -- with `boot-module.ts` declared, roads went 6 -> 7 files and
+75 -> 100 edges, and the raw cross-capability total fell 778 -> 753, a 25-edge reduction -- and it was still reverted,
+because a validator refusal is not an obstacle to route around. The declaration was withdrawn and the config restored
+byte-for-byte; `capability-roads-validator` reads `VERDICT=HOLDS` again with its original six declarations.
+
+**3. What this leaves, stated as the shape of the remaining work rather than as a plan.** S4 cannot be moved by
+re-labeling, because the files holding the 18-member SCC together are either kernel-owned (ineligible) or import
+other modules (refuted). It can only be moved by EXTRACTING those shared surfaces into a foundation location that no
+capability owns, which is real code movement with a real governance act per file -- and the two kernel-owned hubs
+alone account for 53 of the 197 capability edges. That is the priced endgame for S2/S3/S4, and it is larger than any
+round so far. The remaining feature-owned, leafless candidates (`contracts.ts`, `task-fingerprint.ts`) are genuine
+but small next steps, and they move the raw total without moving S3 or S4.
+
+**4. What is NOT done.** S2 55 kernel -> feature edges. S3 31 mutual pairs. S4 largest SCC 18 of 29. S5 PASS (CC-076,
+direct-path measurement; S6's owner-API envelope open under CC-073). S10 22/27. S14 2 MACHINE_RATCHET rows.
+`FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched, the Owner lease is in force, city
+acceptance NOT_READY at 14 blocking items. The tree is at `92aaa2c` with a clean working copy and every gate green.
+
+```text
+ENTRY_ID                    CC-078
+timestamp_utc               2026-09-27T05:16:11Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY, and both attempts were REVERTED: no tracked
+                            file outside this entry differs from main, so NO EPOCH CEREMONY is due and none was
+                            performed.
+main_before                 92aaa2c  (CC-077 merged as PR #113; accepted baseline v14, epoch 60)
+branch                      docs/city-cc-078-rejected-plans
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: both experiments were measured with scripts/phase2-pair-edges.cjs,
+                            scripts/phase2-cycles.cjs, scripts/p2b-kernel-feature-ratchet.cjs and
+                            scripts/capability-roads-validator.cjs; the per-edge diff was taken with a throwaway
+                            script that stashes, re-measures and restores, so the before/after sets are read from
+                            the instrument rather than reasoned about; tsc clean under the hash experiment;
+                            capability-roads-validator VERDICT=HOLDS after the revert
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The measured numbers in point 1 describe a REVERTED experiment, and a later round must
+                            not read them as the current tree. The 25-edge figure in point 2 was measured with a
+                            trial declaration that was then withdrawn, so it is evidence about the road mechanism
+                            rather than a property of main.
+evidence_preserved          the before/after edge diff for the hash re-point; the four capability-roads-validator
+                            refusals for the road declaration, three of them about the declaration's own missing
+                            fields and one about the kernel-owned hub; the hub table with each owner's manifest kind
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Both attempts were withdrawn rather than landed half-done, and no gate was relaxed
+                            to let either through.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred. The endgame in point 3 is a priced next construction, not
+                            a registered compromise.
+closure_status              CLOSED as a NEGATIVE-RESULT round. The OBJECTIVE is NOT complete and this entry does
+                            not claim it is.
+research_value              (1) The cheapest-looking repair in the whole cycle plan was measured and refused: a
+                            moved utility re-points edges rather than deleting them, and it ADDED two. (2) The
+                            mechanism that looked like the general solution -- re-home the hubs as roads -- is
+                            categorically unavailable for the two biggest hubs because they are kernel-owned, and
+                            that was discovered by a validator refusal rather than by reading the rule. (3) A
+                            declaration that measured well was still withdrawn because the validator refused it,
+                            which is the one behaviour that separates this programme's numbers from its claims.
+```
