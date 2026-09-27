@@ -10419,3 +10419,119 @@ research_value              (1) A sweep can be honestly performed and still be i
                             behavioural gate is the cheapest possible detector of a pre-existing test defect, and
                             the previous three occurrences in this entry were all found the same way.
 ```
+
+## CC-101 鈥?S2's remaining 49 edges are measured: 42 are IMPORT-POSITION couplings and 7 are runtime, and the architecture ratchet treats both alike
+
+After the namespace-ownership lane closed (CC-099) this round measured what is left of S2, so the next round does not
+have to guess whether a mechanical route remains. **No tracked file changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The classification.** Each of the 49 `kernel -> feature` edges was classified by reading the importing file's own
+import statement and body:
+
+```text
+kernel -> feature edges                                       49
+  RUNTIME couplings (new X / typeof X / bare import)            7
+  IMPORT-POSITION couplings (the symbol is used only as a type) 42
+  UNCLASSIFIED                                                  0
+```
+
+"Import-position" means the named binding appears **only** in type positions in the importing file 鈥?the file never
+constructs it and never derives from it with `typeof`. Those are the edges a consumer could, in principle, discharge by
+declaring the shape it needs instead of importing the owner's declaration.
+
+**2. The seven RUNTIME couplings, which are genuinely architectural.**
+
+```text
+persistence -> tenx        persistence.ts  constructs stores and reads them for its health report
+persistence -> workspace   persistence.ts  (the same; this is the CC-099 exception)
+providers   -> automation  provider-pool.ts CONSTRUCTS ProviderAutomation and derives eight
+                           ConstructorParameters types from it
+state-core  -> tenx        state-core.ts  constructs the decision-ledger store
+runtime -> tenx            several: constructs or type-derives commander classes
+state-core  -> knowledge   platform-soak.ts drives retention and staleness
+state-core  -> status      platform-soak.ts drives the soak harness
+```
+
+`provider-pool.ts` is the instructive one: it is the bootstrap that **builds** `ProviderAutomation`, and it derives
+eight of its own option types from that constructor. That is a kernel bootstrapping a feature, which is what a
+composition root does 鈥?inverting it would move the construction, not tidy a declaration.
+
+**3. Why the 42 are NOT a mechanical route, which is the finding that matters.** They look like the easiest possible
+work: replace an `import type` with a local declaration and the edge disappears. The obstacle is
+`scripts/architecture.cjs`:
+
+```text
+if (scan.kinds[edge.fromCapability] === "kernel" && scan.kinds[edge.toCapability] === "feature") {
+  violations.push({ ratchet: "kernel-imports-feature", ... });
+```
+
+**This ratchet does not distinguish an import that is a type from one that is a value** 鈥?established in CC-099, where
+a type-only import produced exactly this violation and the label `kernel-imports-feature` names it for what it is. So
+the sequence for any of the 42 is: remove the import, declare the shape locally, satisfy every consumer that reads the
+type back out of a service or a public field, and only THEN does the edge disappear. That is what CC-095 and CC-098
+attempted for **one** edge and both reverted, and CC-098's attempt was complete and type-clean before the ratchet
+refused it.
+
+**4. What this means for S2, stated plainly.** **There is no mechanical lane left.** Every remaining edge is one of:
+
+```text
+(a) a runtime coupling that is the kernel's FUNCTION (a store it persists, a feature it bootstraps) -- removing it
+    means changing what the kernel does, not how its imports are arranged; or
+(b) an import-position coupling blocked by a ratchet that cannot tell a type from a value, and dischargeable only by
+    the per-edge structural-type surgery that has already failed twice.
+```
+
+The namespace-ownership family removed fifteen such edges (55 -> 49) because those were **misplaced STORES**: a kernel
+was constructing something another capability owned, and moving the construction deleted the edge. **That class is
+now exhausted.** What remains is the kernel's own fan-out, which S2 as currently worded counts.
+
+**5. What is NOT done.** S2 49, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. Tree at `a76f2ee`, clean, `--mode enforce` PASS 0, p2b HOLDS at 49.
+
+```text
+ENTRY_ID                    CC-101
+timestamp_utc               2026-09-27T15:16:46Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT ONLY: no tracked file differs from main, so NO
+                            EPOCH CEREMONY is due and none was performed.
+main_before                 a76f2ee  (CC-100 merged as PR #136; accepted baseline v20, epoch 66)
+branch                      docs/city-cc-101-s2-remaining-classified
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: scripts/phase2-pair-edges.cjs --json filtered to fromKind=kernel and
+                            toKind=feature (49 edges), then each importing file read and its bindings classified by
+                            whether the file constructs or type-derives them; scripts/architecture.cjs read at the
+                            kernel-imports-feature rule; the seven runtime couplings inspected individually, with
+                            electron/bootstrap/provider-pool.ts read in full for the ProviderAutomation case
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The classifier is TEXTUAL: a file that uses a binding only inside a type alias or a
+                            generic argument is counted as import-position even if a human would call the resulting
+                            coupling semantic. 42 is therefore an UPPER bound on dischargeable edges and 7 a LOWER
+                            bound on real runtime ones. (2) The claim "no mechanical lane remains" is scoped to the
+                            namespace-ownership technique and the ratchet as they exist TODAY; a decision to let
+                            kernels name feature TYPES (as opposed to values) would reopen all 42 at once, and that
+                            is a policy question for the Owner, not a repair.
+evidence_preserved          the 49/7/42 classification; the seven runtime couplings with their files; the ratchet
+                            excerpt and why it treats a type import as a value edge; the (a)/(b) statement in
+                            point 4
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASUREMENT that closes a lane. The OBJECTIVE is NOT complete and this entry
+                            does not claim it is.
+research_value              (1) A metric can be dominated by a class the instruments cannot distinguish: 42 of 49
+                            remaining S2 edges are import-position couplings, and both the edge instrument and the
+                            ratchet treat them exactly like a runtime dependency. (2) The namespace-ownership
+                            technique worked because it removed MISPLACED STORES; knowing that it is now exhausted
+                            is worth more than another attempt, because it stops a fourth round being spent on a
+                            closed lane. (3) The two ways forward are both decisions rather than repairs: let
+                            kernels name feature TYPES, or accept that a kernel's own fan-out is not what section
+                            16's target is about.
+```
