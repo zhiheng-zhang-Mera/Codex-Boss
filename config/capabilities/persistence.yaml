@@ -23,8 +23,6 @@ state:
     owner: persistence
   - namespace: external-sessions
     owner: persistence
-  - namespace: runtime-budget
-    owner: persistence
   - namespace: interventions
     owner: persistence
   - namespace: decision-ledger

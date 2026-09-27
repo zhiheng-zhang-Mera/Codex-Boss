@@ -43,15 +43,15 @@ const testCrypto: PersistenceCrypto = {
  * The store names the module declares, in the order it opens them.
  *
  * `attachments` is deliberately NOT here (ledger CC-065), nor `session-lifecycle` (CC-066) nor
- * `node-registry` (CC-067): each namespace is declared by the capability that IMPLEMENTS the store,
- * and each store is built outside this module, so it owns none of them. Their tests live beside the
- * modules that do. This list is a projection of the real service -- a store that moved back in here
+ * `node-registry` (CC-067) nor `runtime-budget` (CC-084): each namespace is declared by the capability that
+ * IMPLEMENTS the store, and each store is built outside this module, so it owns none of them. Their tests live
+ * beside the modules that do. This list is a projection of the real service -- a store that moved back in here
  * would still be visible below, it would just be counted twice.
  */
 const DECLARED = [
   "history", "tasks", "state", "provider-capabilities", "github-cache",
   "api-settings", "external-sessions",
-  "runtime-budget", "interventions", "decision-ledger", "workspaces",
+  "interventions", "decision-ledger", "workspaces",
   "workspace-selection",
   "runtime-resources", "task-contexts"
 ];
@@ -80,7 +80,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "github-cache": service.github,
     "api-settings": service.apiSettings,
     "external-sessions": service.externalSessions,
-    "runtime-budget": service.budget,
     interventions: service.guidance,
     "decision-ledger": service.decisions,
     workspaces: service.workspaces,
@@ -123,7 +122,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("14 durable store(s)");
+    expect(fresh.health().detail).toContain("13 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {

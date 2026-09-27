@@ -6,7 +6,13 @@ provides:
   - tenx.network@1
 requires: []
 optional: []
-state: []
+state:
+  # The runtime budget ledger. Declared by `persistence` until ledger CC-084, which moved the
+  # claim to the capability that IMPLEMENTS the store (electron/commander/budget-manager.ts),
+  # the eighth instance of the namespace-ownership family and the same relocation CC-070
+  # performed for `permission-manifest`. The file path does not change, so no stored data moves.
+  - namespace: runtime-budget
+    owner: tenx
 health:
   critical: false
 modules: []

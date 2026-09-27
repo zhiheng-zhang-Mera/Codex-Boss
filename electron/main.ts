@@ -747,7 +747,6 @@ if (ownsInstance) app.whenReady().then(() => {
   // `config/architecture-baseline.json`. The path is the one persistence used to compose.
   nodeRegistry = new NodeCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "node-registry.json"));
   externalSessions = persistence.service.externalSessions;
-  budgetManager = persistence.service.budget;
   humanGuidance = persistence.service.guidance;
   decisionLedger = persistence.service.decisions;
   workspaceSelection = persistence.service.workspaceSelection;
@@ -768,6 +767,14 @@ if (ownsInstance) app.whenReady().then(() => {
 
   // Workspace-rooted and resource state, handed on to the services below exactly
   // as the inline versions were.
+  // The `tenx` capability's runtime-budget store is built HERE rather than handed back by `persistence`
+  // (ledger CC-084). `runtime-budget` was declared by `persistence` until this change even though
+  // `electron/commander/budget-manager.ts` implements it, which is the eighth instance of the namespace
+  // ownership family and the same relocation CC-070 performed for `permission-manifest`. The path is
+  // IDENTICAL to the one `persistence` composed (`path.join(dataRoot, ".boss", "runtime-budget.json")`),
+  // so no stored data moves; and as with CC-070 this is a RELOCATION rather than a dead-store removal,
+  // because the store has real consumers (`budgetManager` below).
+  budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
   const { workspaces, resources: resourceController, contexts: contextManager } = persistence.service;
   // The `security` capability's permission-manifest store is built HERE rather than handed back by
   // `persistence` (ledger CC-070). It has a REAL consumer -- `permissionForWorkspace` below -- so this

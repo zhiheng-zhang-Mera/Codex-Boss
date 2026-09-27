@@ -4,7 +4,6 @@ import { HistoryRepository } from "../history-repository";
 import { StateStore } from "../store";
 import { ApiSettingsStore } from "../api-settings";
 import { TaskLedger } from "../commander/task-ledger";
-import { BudgetManager } from "../commander/budget-manager";
 import { ContextManager } from "../commander/context-manager";
 import { ResourceController } from "../commander/resource-controller";
 import { DecisionLedgerStore } from "../commander/decision-ledger-store";
@@ -82,7 +81,6 @@ interface PersistenceService {
   github: GithubResolver;
   apiSettings: ApiSettingsStore;
   externalSessions: ExternalSessionLedger;
-  budget: BudgetManager;
   guidance: HumanGuidanceGate;
   decisions: DecisionLedgerStore;
   workspaces: WorkspaceRegistry;
@@ -126,7 +124,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // means the very first read already carries the settings the store holds.
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   const externalSessions = open("external-sessions", () => new ExternalSessionLedger(boss("external-sessions.json")));
-  const budget = open("runtime-budget", () => new BudgetManager(boss("runtime-budget.json")));
   const guidance = open("interventions", () => new HumanGuidanceGate(boss("interventions.json")));
   const decisions = open("decision-ledger", () => new DecisionLedgerStore(boss("decision-ledger.json")));
   const workspaces = open("workspaces", () => new WorkspaceRegistry(boss("workspaces.json")));
@@ -158,7 +155,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   return {
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
-      externalSessions, budget, guidance, decisions,
+      externalSessions, guidance, decisions,
       workspaces, workspaceSelection,
       resources, contexts,
       opened
