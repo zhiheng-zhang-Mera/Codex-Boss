@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 17,
-  "parent_baseline_hash": "cc335992026e0a98a9b5e5eabc35c5bc2392bef08e2e164c61ea48e50049ca42",
-  "source_commit": "156ac5fd543add5b0ab56f6bf8d53caa6a507a6f",
+  "baseline_version": 18,
+  "parent_baseline_hash": "0a09fec9ec668bf11ce8425c20709ccb6ad0ae2167ff8333a6a50f1aa7baab56",
+  "source_commit": "c197d36d3c64de7a0bb8e725627c91ec1839a25c",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-090: the `interventions` namespace claim moves from `persistence` to `tenx`, which implements the store in electron/commander/human-guidance-gate.ts. The boot module loses a store (11 durable stores, down from 12) and main.ts builds HumanGuidanceGate at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 53 -> 52 and the raw cross-capability total 777 -> 776; no capability relation is added.",
+  "reason": "CC-091: the `external-sessions` namespace claim moves from `persistence` to `workspace`, which implements the store in electron/workspace/external-session-ledger.ts. The boot module loses a store (10 durable stores, down from 11) and main.ts builds ExternalSessionLedger at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 52 -> 51 and the raw cross-capability total 776 -> 775; no capability relation is added.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -22,12 +22,12 @@
       },
       "ownership": {
         "manifests": 27,
-        "declared_modules": 28,
-        "declared_owned_files": 30,
-        "undeclared_files": 579,
+        "declared_modules": 29,
+        "declared_owned_files": 31,
+        "undeclared_files": 578,
         "conflicts": []
       },
-      "edges": 1658,
+      "edges": 1657,
       "unresolved": 1
     }
   },
@@ -42,9 +42,9 @@
   },
   "ownership": {
     "manifests": 27,
-    "declared_modules": 28,
-    "declared_owned_files": 30,
-    "undeclared_files": 579,
+    "declared_modules": 29,
+    "declared_owned_files": 31,
+    "undeclared_files": 578,
     "conflicts": []
   },
   "files": {
@@ -419,7 +419,7 @@
     "electron/workspace/artifact-backbone.ts": "UNDECLARED",
     "electron/workspace/durable-roots.ts": "UNDECLARED",
     "electron/workspace/external-archive-automation.ts": "UNDECLARED",
-    "electron/workspace/external-session-ledger.ts": "UNDECLARED",
+    "electron/workspace/external-session-ledger.ts": "workspace",
     "electron/workspace/live-external-archive.ts": "UNDECLARED",
     "electron/workspace/path-utils.ts": "UNDECLARED",
     "electron/workspace/task-workspace.ts": "UNDECLARED",
@@ -942,10 +942,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/workspace/durable-roots.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/workspace/external-session-ledger.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -7346,6 +7342,10 @@
       "electron/security/permission-manifest.ts"
     ],
     [
+      "electron/bootstrap/persistence.ts",
+      "electron/workspace/external-session-ledger.ts"
+    ],
+    [
       "electron/bootstrap/provider-ipc.ts",
       "src/shared/contracts.ts"
     ],
@@ -7514,10 +7514,10 @@
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
     "tracked_source_files": 609,
-    "declared_owned_files": 30,
-    "undeclared_files": 579,
-    "internal_edges": 1658,
+    "declared_owned_files": 31,
+    "undeclared_files": 578,
+    "internal_edges": 1657,
     "unresolved_references": 1
   },
-  "baseline_hash": "0a09fec9ec668bf11ce8425c20709ccb6ad0ae2167ff8333a6a50f1aa7baab56"
+  "baseline_hash": "01c75eb3a5f5a1df3cac56f2376a9080a665ae0c925d6cbb78ae15e3a7b12d64"
 }
