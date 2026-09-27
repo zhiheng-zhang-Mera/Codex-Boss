@@ -9154,3 +9154,130 @@ research_value              (1) Two plausible diagnoses in a row were wrong, and
                             being another repair proposal and becomes a precise statement of what is not yet
                             understood plus the single question that would resolve it.
 ```
+
+## CC-088 鈥?ROOT CAUSE: the composition root has NO OWNER in the enforcement model, so every NEW edge from `main.ts` is refused
+
+Three rounds have failed to land the `runtime-resources` migration. This round establishes why, and the answer is a
+defect in the trust model rather than in any migration. **No tracked file changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The measurement that settles it.** The enforcer was asked directly what owner it computes for each endpoint of
+the refused edge:
+
+```text
+enf.measureTree(root).files['electron/main.ts']                            -> UNDECLARED
+enf.measureTree(root).files['electron/commander/resource-controller.ts']   -> tenx
+enf.measureTree(root).edges contains ['electron/main.ts', 'electron/commander/resource-controller.ts']  -> true
+```
+
+The unresolved endpoint is **`electron/main.ts`** 鈥?the COMPOSITION ROOT, the one file every new capability is wired
+through. CC-085, CC-086 and CC-087 each assumed the blocker was on the target side, and each was wrong about which
+endpoint it was.
+
+**2. Why it has no owner, traced to the line.** The enforcement model is built in two independent halves, and the
+composition root is in neither:
+
+```text
+observatory.ownershipFromManifests(manifests)          -> moduleOwner, keyed by each manifest's `modules` entries
+  reads: config/capabilities/<id>.yaml  modules:
+  moduleOwner.size = 26                                -> exactly the manifest-declared FILE count
+  does NOT read: config/capability-modules.json  composition_root
+  does NOT read: DIRECTORY patterns
+
+architecture-enforcement-baseline.cjs loadOwnership()  -> ownership: observatory.ownershipFromManifests(manifests)
+architecture-enforcement.cjs      line 140            -> const { ownership } = baselineModule.loadOwnership(root)
+                                  line ~155           -> files[file] = ownership.moduleOwner.get(file) ?? UNDECLARED
+```
+
+`config/capability-modules.json` DOES declare the composition root (`composition_root` lists `electron/main.ts` and
+`electron/preload.ts`, each with a reason), and the edge instruments read that file 鈥?which is why `p2b` reports
+`edgesFromCompositionRoot: 99` and attributes them correctly. **The enforcement model never reads it**, so
+`moduleOwner.has('electron/main.ts')` is `false` and the file resolves to `UNDECLARED`.
+
+**3. The consequence, and why it is a defect rather than a policy.** The accepted baseline carries **95 grandfathered
+edges FROM `electron/main.ts`**:
+
+```text
+accepted baseline edges whose source is electron/main.ts: 95
+baseline files['electron/main.ts']:                        UNDECLARED
+```
+
+So the composition root is simultaneously the most-connected file in the accepted graph AND an unowned file. Existing
+edges are exempt because the new-edge decision is only reached for edges NOT in the accepted set. **Any NEW edge
+originating at the composition root is therefore refused as `NEW_EDGE_UNDECLARED_ENDPOINT`** 鈥?which is the exact
+shape of every namespace-ownership migration, because each one moves a store's construction INTO `main.ts`. The gate
+that is supposed to make architecture changes auditable instead forbids the whole family of changes that this
+programme has been executing, and CC-084 only slipped through because it reused an import `main.ts` already had, so
+no new endpoint PAIR appeared.
+
+**4. Why the previous three rounds were each wrong, in one line apiece.** CC-085 inferred the baseline's edge-set
+grain. CC-086 inferred the manifest's module declarations, and tested a prefix rule that could not reach a map with
+no directory in it. CC-087 applied CC-086's corrected proposal and got a negative result 鈥?but that negative result
+was produced by the executor's OWN guard bug, because the guard matched the explanatory comment rather than the
+`modules:` line; re-testing it correctly this round showed the declaration DOES work
+(`moduleOwner.size 26 -> 27`, resolving to `tenx`). The lesson is recorded rather than smoothed over: **three
+successive diagnoses of one blocker were all wrong, and two of them were wrong about which endpoint was unresolved.**
+
+**5. The repair, and why it is not made here.** The fix is to give the composition root an owner in the enforcement
+model 鈥?the smallest version being to have `loadOwnership` attribute the files listed in
+`config/capability-modules.json`'s `composition_root` to a composition-root owner instead of leaving them undeclared.
+That is one function, but it changes **what the trust machinery can see for the most-connected file in the
+repository**, which means it can turn currently-impossible edges into allowed ones across the tree. Verifying that
+needs the full cycle (all 27 manifests, the accepted edge set, the enforcement suite, the tier, a ceremony), and this
+round's budget reached the diagnosis and not the change. Making it half-verified would be the worst outcome
+available, so it is left for a round that can carry it.
+
+**6. What is NOT done.** S2 54, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY at 14 blocking items. Tree at `1049610`, clean, `--mode enforce` PASS with 0
+violations.
+
+```text
+ENTRY_ID                    CC-088
+timestamp_utc               2026-09-27T10:16:21Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY; the attempted migration was REVERTED and no
+                            machinery was changed, so the only tracked difference from main is this entry and NO
+                            EPOCH CEREMONY is due.
+main_before                 1049610  (CC-087 merged as PR #124; accepted baseline v15, epoch 61)
+branch                      docs/city-cc-088-composition-root-has-no-owner
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: enf.measureTree() called directly to read files[] for both endpoints of the
+                            refused edge; observatory.ownershipFromManifests and
+                            architecture-enforcement-baseline.cjs loadOwnership read for what they do and do not
+                            consume; moduleOwner.size measured at 26 and the composition_root keys confirmed present
+                            in capability-modules.json; the accepted baseline counted for main.ts edges (95) and for
+                            its files[] value (UNDECLARED); the manifest declaration re-tested correctly and measured
+                            to work (26 -> 27); after the revert, --mode enforce PASS 0 violations
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The proposed repair is DELIBERATELY unmeasured; the entry must not be read as
+                            evidence that attributing the composition root is safe, only that it is the identified
+                            fix. (2) The composition root has 95 accepted edges, so a change to its ownership could
+                            reclassify a large number of findings, in either direction, and that has not been
+                            characterised. (3) `preload.ts` is the other declared composition-root file and was not
+                            measured separately, though the same loader omits it.
+evidence_preserved          the three-line measureTree reading in point 1; the loader trace and the 26-entry map in
+                            point 2; the 95-edges-versus-UNDECLARED pair in point 3; the per-round error summary and
+                            the executor's own guard bug in point 4
+rollback                    Revert this commit. Documentation only; the attempted migration is already absent.
+temporary_debt_created      no. Nothing was landed, whitelisted or weakened; the migration was withdrawn a fourth
+                            time rather than forced.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a ROOT-CAUSE DIAGNOSIS. The migration is verified and still cannot land; the
+                            reason is now established and the repair is identified but unmeasured.
+research_value              (1) Three diagnoses of one blocker were wrong, and the third failed for a reason in the
+                            executor's own tooling -- so a negative result must be re-checked for a bug in the
+                            check before it is written up as a property of the system. (2) The two halves of the
+                            enforcement model read different config files, so a class declared in one
+                            (composition_root in capability-modules.json) is invisible to the other, and the class
+                            that is invisible is the one every new edge passes through. (3) The failure mode is
+                            structural rather than incidental: a gate that refuses new edges from the composition
+                            root forbids precisely the migrations this programme exists to perform, while
+                            grandfathering the 95 edges already there.
+```
