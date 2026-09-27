@@ -433,6 +433,33 @@ exit_condition       Either (a) the desktop smoke suite states what it must obse
                      NOT_MEASURED rather than failing when the application has not yet served the panel -- so a
                      slow restart produces an absence of evidence instead of false evidence -- or (b) the suite is
                      quarantined to an evidence lane whose result is recorded as evidence rather than required.
+exit_condition_a_is_foreclosed
+                     A DECISION was attempted and the tree itself refused it (CC-081). Exit condition (a) CANNOT be
+                     implemented on this suite while the desktop black-box contract stands, and the reason is a
+                     property of the contract rather than of this debt: `validateDesktopBlackBoxReport` in
+                     src/shared/acceptance-evidence.ts accepts only three verdicts --
+                       if (record.verdict !== "PASS" && record.verdict !== "FAIL" && record.verdict !== "NOT_RUN")
+                     -- so a fourth verdict "NOT_MEASURED" is recorded as RESULT_VERDICT_INVALID and the whole
+                     report is refused. Even if the verdict passed that check, two further rules in the same
+                     function reject the absence: every REQUIRED id must have verdict PASS
+                     (REQUIRED_ID_NOT_PASS), and the totals must satisfy pass + fail + notRun === results
+                     (TOTALS_SUM_MISMATCH), so an unmeasured requirement can be neither non-PASS nor excluded
+                     from the sum. The exit condition's own phrasing -- "a slow restart produces an absence of
+                     evidence instead of false evidence" -- is therefore INCOMPATIBLE with the contract this
+                     suite is scored by, and the contract is hostile-accepted on purpose: it is the mechanism
+                     that makes the strongest evidence in the repository unfakeable.
+what_that_leaves     Exit condition (b), the quarantine, is the ONLY remaining path, and it is a larger decision
+                     than a repair: the desktop smoke suite IS the evidence the black-box contract attests, so a
+                     lane that records its result "as evidence rather than as required" changes what the required
+                     `acceptance` check proves -- which is exactly what this entry says must be DECIDED rather
+                     than assumed. That decision belongs with the Owner or with a round that can carry a trust
+                     change, not with a repair round.
+attempt_record       The attempted implementation was REVERTED in full and no tracked file changed: the harness was
+                     to record a readiness exhaustion as an explicit absence, with a fourth verdict, a
+                     `notMeasured` count and a non-blocking gate path. It was withdrawn the moment the shared
+                     validator showed that the absence it produces is precisely what the contract refuses. The
+                     attempt is recorded because "we decided (a) is impossible" is only trustworthy if it is
+                     visible that (a) was tried.
 status               OPEN
 ```
 
