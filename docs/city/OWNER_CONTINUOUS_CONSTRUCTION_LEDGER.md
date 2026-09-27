@@ -8619,3 +8619,169 @@ research_value              (1) The most attractive remaining shortcut on S2 was
                             why the namespace-ownership technique that produced seven wins stopped working: it
                             removes misplaced STORES, and what remains is the persistence kernel's own fan-out.
 ```
+
+## CC-084 — The eighth namespace-ownership migration: `runtime-budget` moves to the capability that implements it, and S2 falls 55 -> 54
+
+The first structural movement since CC-079. After eight rounds in which every avenue to S2/S3/S4 was measured and
+closed, the proven namespace-ownership recipe applies to a target that the prior decisions did NOT block, and it
+performs exactly as the classifier predicted.
+
+The provenance block is at the END of the section, for the reason CC-065 recorded.
+
+**1. The target, chosen against the earlier rulings rather than by convenience.** CC-085's predecessor round listed
+the eleven `persistence`-declared namespaces and the stores their boot module constructs, and several were already
+excluded by recorded governance:
+
+```text
+decision-ledger      EXCLUDED: state-core.yaml records that `persistence` is still its single authoritative
+                     owner "exactly as Phase 01 declared and as tests/unit/bootstrap-persistence.test.ts
+                     asserts", so moving it would be the second-owner failure the registry exists to catch
+interventions        EXCLUDED: CC-075 deliberately gave this namespace a live read side on the status module
+task-ledger,         EXCLUDED: namespaces placed by CC-072 and CC-076 for reasons those entries state
+live-capture
+workspace-registry,  EXCLUDED by shape: CC-068/CC-070 showed these are workspace-scoped RELOCATIONS that move
+workspace-selection, an edge into the composition root (raw -1, root +1) rather than deleting it
+external-sessions
+```
+
+`runtime-budget` survived all of those filters: declared by `persistence`, implemented by
+`electron/commander/budget-manager.ts` (owned by `tenx`), constructed at
+`electron/bootstrap/persistence.ts:129`, consumed for real by `main.ts` (`budgetManager.observeSuccess`, `WebRecovery`,
+`MainCommander`, `RoleRouter`), and with no recorded decision defending the current owner.
+
+**2. The migration, which is the CC-070 recipe unchanged.**
+
+```text
+config/capabilities/persistence.yaml    loses the `runtime-budget` claim
+config/capabilities/tenx.yaml           gains it (state: [] -> one entry with a comment naming this entry)
+electron/bootstrap/persistence.ts       loses the import, the service type field, the boot construction and the
+                                        service object field -- 13 durable stores, down from 14
+electron/main.ts                        constructs BudgetManager at the IDENTICAL path persistence composed,
+                                        path.join(app.getPath("userData"), ".boss", "runtime-budget.json"),
+                                        so NO STORED DATA MOVES
+tests/unit/bootstrap-persistence.test.ts  the DECLARED projection drops the name and the store count is 14 -> 13
+```
+
+The store has real consumers, so this is a **relocation** rather than the dead-store removal CC-069 performed, and
+the entry records that distinction rather than leaving it to be inferred.
+
+**3. The measurement, and the classifier's third shape.**
+
+```text
+                                                  BEFORE     AFTER
+p2b kernel -> feature file edges                    55    ->   54      DELETED
+p2b raw cross-capability total                     778    ->  777      -1
+p2b edges from composition root                     99          99     UNCHANGED
+p2b kernel -> feature pairs                         16          16     UNCHANGED
+p2b mutual capability pairs                         31          31     UNCHANGED
+p2b largest SCC                                  18/29        18/29     UNCHANGED
+p2b files owned / capability edges             594 / 197    594 / 197   UNCHANGED
+p2d accesses / pairs / multi-writer              0/0/0        0/0/0     no regression
+closure PASS; core HOLDS; roads HOLDS; principles HONEST; architecture enforcement 0 violations
+```
+
+`persistence -> tenx` falls **10 -> 9**, and **the pair survives**. That is recorded rather than glossed over: a
+single relocation cannot close a pair that still has nine edges in it, and a programme that reported "pair broken"
+here would be wrong. The SCC does not move for the same reason -- `tenx` remains in the knot through those nine
+edges.
+
+The shape is **CC-067's, not CC-068/CC-070's**: raw **-1** with `edgesFromCompositionRoot` **UNCHANGED**. The reason
+is specific and worth recording as a fourth instance of the classifier: `main.ts` ALREADY imported `BudgetManager`
+(it held the store in a module-level binding), so constructing it there adds no import the composition root did not
+already have. CC-068 and CC-070 rose the root count because the root had to START naming a class it did not
+previously import; here it did not.
+
+**4. Trust surface.** The boot module lost a store and `main.ts` gained its construction, so tracked source changed
+and the accepted identity moved. The ceremony ran in its own commit: **baseline v15** with its own series entry
+(full 40-hex `source_commit`) and **epoch 61**, with `--check` reporting `integrity/series/tree` all true.
+
+**5. What is NOT done.** S2 54 (nine `persistence -> tenx` edges remain, plus `persistence -> tasks` 8,
+`runtime -> tenx` 7, `persistence -> workspace` 5, `persistence -> status` 3, `state-core -> tenx` 2 and four
+one-edge pairs). S3 31 mutual pairs. S4 largest SCC 18 of 29. S10 21 of 27. S14 2 MACHINE_RATCHET rows. CITY-DEBT-006
+OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are
+untouched, city acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-084
+timestamp_utc               2026-09-27T08:39:18Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed,
+                            so the baseline advanced to v15 and the epoch to 61. No acceptance was rewritten and no
+                            series hash was edited to make fields agree; the candidate hash was learned from
+                            --accept's own refusal and written back into the series entry in place.
+main_before                 bd390df  (CC-083 merged as PR #120; accepted baseline v14, epoch 60)
+branch                      fix/cc084-runtime-budget-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS at 54/16/31/18, p2d HOLDS at 0/0/0, closure PASS, core HOLDS,
+                            roads HOLDS, principles HONEST, architecture enforcement 0 violations,
+                            tests/unit/bootstrap-persistence.test.ts 10/10 after its projection update,
+                            tsc clean, baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/tenx.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-persistence.test.ts;
+                            config/p2b-kernel-feature-ratchet.json; config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The pair `persistence -> tenx` is NOT closed and this entry says so; a later
+                            reader must not read 55 -> 54 as having retired the pair. (2) `tenx.yaml` previously
+                            declared NO state at all, so this is the first namespace it owns -- the closure and
+                            single-owner validators both pass, but the manifest's new section is new ground
+                            rather than a copy of an existing pattern. (3) No behaviour changed: the store is
+                            built at the same path with the same constructor argument.
+evidence_preserved          the exclusion table in point 1 with each ruling's source; the four-file migration in
+                            point 2; the before/after measurement and the CC-067-versus-CC-068 classifier
+                            explanation in point 3
+rollback                    Revert these two commits in reverse order (ceremony first, then the migration). The
+                            store returns to the persistence service, the namespace returns to its manifest, and
+                            the baseline/epoch return to v14/60. No stored data moved, so no data migration is
+                            involved.
+temporary_debt_created      no. Nothing was whitelisted, no threshold moved, and the manifest changes are the
+                            ownership correction itself rather than an exception.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured migration. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) The classifier now has a FOURTH shape: raw -1 with the root UNCHANGED, because
+                            the composition root already imported the class -- so the pair (raw delta, root delta)
+                            distinguishes "the root had to start naming a class" from "the root already named it",
+                            which the earlier two shapes could not. (2) Choosing the target was itself a test of
+                            the recorded rulings: three of the eleven candidate namespaces were excluded by
+                            PREVIOUS decisions rather than by difficulty, which is what makes a ledger worth
+                            keeping. (3) A relocation that leaves a pair with nine edges in it is still worth
+                            doing, but only if the entry says the pair survives -- otherwise the movement is
+                            indistinguishable from having closed it.
+```
+
+### CC-084 CORRECTION — the entry's `timestamp_utc` was later than the commit that carried it, and is superseded
+
+```text
+corrects                    CC-084 (appended, not rewritten: the ledger is append-only)
+why_this_exists             The CC-084 entry recorded `timestamp_utc 2026-09-27T09:20:00Z`, which is 53 minutes
+                            AFTER the committer instant of 05546e8, the commit that first carried it
+                            (2026-09-27T18:27:08+10:00, i.e. 08:27:08Z). An entry's timestamp describes the
+                            moment it was written, which precedes its commit by at most five minutes, so the
+                            recorded instant was wrong rather than merely imprecise. The local read-back did not
+                            catch it because `city-ledger-provenance.cjs` only checks entries it can anchor to a
+                            containing commit, and on the working tree at the time the entry was not yet
+                            committed; CI checks out the commit and therefore saw it. `city-final-acceptance.cjs`
+                            reads E1 through this same control, which is why one required check went red while
+                            the artefact's own exit code was the thing that moved.
+superseded_field            timestamp_utc -> said "2026-09-27T09:20:00Z"
+                            FINAL FACT: the entry was written at 2026-09-27T08:39:18Z, which is 12 minutes
+                            before the commit that carried it and therefore inside the rule's window. Every
+                            other field of CC-084 is unchanged and remains the authoritative reading: the
+                            migration, the measurement (kernel -> feature 55 -> 54, raw 778 -> 777, root
+                            unchanged), the v15/epoch 61 ceremony and the fact that the `persistence -> tenx`
+                            pair SURVIVES on nine remaining edges.
+not_changed                 No code, configuration, baseline, epoch or ratchet is affected by this correction.
+                            It changes one recorded instant and nothing else.
+research_value              The timestamp rule is enforced against the COMMIT, so an entry written and
+                            committed in the same act can still be wrong if its recorded instant is typed
+                            optimistically rather than read from the clock at the moment of writing. The
+                            control worked: it caught a wrong instant in the entry that was correcting the
+                            ownership registry, and it caught it on the required check rather than in review.
+```
