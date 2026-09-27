@@ -530,6 +530,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 19,
+      "baseline_hash": "3f906892d68f4deb848223f165d223847a6677a25c49a6fdf07a1067e468aa7c",
+      "parent_baseline_hash": "01c75eb3a5f5a1df3cac56f2376a9080a665ae0c925d6cbb78ae15e3a7b12d64",
+      "source_commit": "ebb49904aab3a0e301be8931889ed7382d52aa23",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the twelfth namespace-ownership migration. Recorded in ledger CC-092.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-092; config/capabilities/tenx.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T12:00:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `persistence -> tenx` falls 7 -> 6.",
+        "new_legitimate_relation": "ONE new composition-root edge: main.ts now imports ContextManager, which it did not before. It is a platform edge from the composition root, so it is classified as such rather than as a capability dependency.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "The alternative was to leave `task-contexts` with `persistence`, which is what CC-091 did for one round because the boot construction is followed by `contexts.retainTaskIds(store.snapshot().tasks.map((task) => task.id))` and that needs the state store. It was declined this round because the retention call can move WITH the store -- main.ts already holds `store` -- so nothing about ownership or ordering has to change.",
+        "why_the_baseline_moves": "Tracked source changed: the boot module lost a construction and main.ts gained one plus an import. The structural ratchets were re-measured: kernel -> feature 51 -> 50, raw unchanged at 775, pairs 16, mutual pairs 31, largest SCC 18 all unchanged."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1664,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

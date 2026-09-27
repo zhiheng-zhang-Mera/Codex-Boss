@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 18,
-  "parent_baseline_hash": "0a09fec9ec668bf11ce8425c20709ccb6ad0ae2167ff8333a6a50f1aa7baab56",
-  "source_commit": "c197d36d3c64de7a0bb8e725627c91ec1839a25c",
+  "baseline_version": 19,
+  "parent_baseline_hash": "01c75eb3a5f5a1df3cac56f2376a9080a665ae0c925d6cbb78ae15e3a7b12d64",
+  "source_commit": "ebb49904aab3a0e301be8931889ed7382d52aa23",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-091: the `external-sessions` namespace claim moves from `persistence` to `workspace`, which implements the store in electron/workspace/external-session-ledger.ts. The boot module loses a store (10 durable stores, down from 11) and main.ts builds ExternalSessionLedger at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 52 -> 51 and the raw cross-capability total 776 -> 775; no capability relation is added.",
+  "reason": "CC-092: the `task-contexts` namespace claim moves from `persistence` to `tenx`, which implements the store in electron/commander/context-manager.ts. The boot module loses a store (9 durable stores, down from 10) -- and the `retainTaskIds` retention call moves WITH it, because main.ts already holds the state store it needs. main.ts builds ContextManager at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 51 -> 50; the raw cross-capability total is unchanged at 775 because this migration adds an import the composition root did not previously have.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -22,9 +22,9 @@
       },
       "ownership": {
         "manifests": 27,
-        "declared_modules": 29,
-        "declared_owned_files": 31,
-        "undeclared_files": 578,
+        "declared_modules": 30,
+        "declared_owned_files": 32,
+        "undeclared_files": 577,
         "conflicts": []
       },
       "edges": 1657,
@@ -42,9 +42,9 @@
   },
   "ownership": {
     "manifests": 27,
-    "declared_modules": 29,
-    "declared_owned_files": 31,
-    "undeclared_files": 578,
+    "declared_modules": 30,
+    "declared_owned_files": 32,
+    "undeclared_files": 577,
     "conflicts": []
   },
   "files": {
@@ -93,7 +93,7 @@
     "electron/capability/theme-capability.ts": "UNDECLARED",
     "electron/commander/budget-manager.ts": "UNDECLARED",
     "electron/commander/circuit-breaker.ts": "UNDECLARED",
-    "electron/commander/context-manager.ts": "UNDECLARED",
+    "electron/commander/context-manager.ts": "tenx",
     "electron/commander/continuation-router.ts": "UNDECLARED",
     "electron/commander/continuation-waker.ts": "UNDECLARED",
     "electron/commander/decision-ledger-store.ts": "UNDECLARED",
@@ -906,10 +906,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/bootstrap/boot-module.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/commander/context-manager.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -3810,6 +3806,10 @@
     [
       "electron/main.ts",
       "electron/commander/circuit-breaker.ts"
+    ],
+    [
+      "electron/main.ts",
+      "electron/commander/context-manager.ts"
     ],
     [
       "electron/main.ts",
@@ -7311,6 +7311,10 @@
     ],
     [
       "electron/bootstrap/persistence.ts",
+      "electron/commander/context-manager.ts"
+    ],
+    [
+      "electron/bootstrap/persistence.ts",
       "electron/commander/human-guidance-gate.ts"
     ],
     [
@@ -7514,10 +7518,10 @@
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
     "tracked_source_files": 609,
-    "declared_owned_files": 31,
-    "undeclared_files": 578,
+    "declared_owned_files": 32,
+    "undeclared_files": 577,
     "internal_edges": 1657,
     "unresolved_references": 1
   },
-  "baseline_hash": "01c75eb3a5f5a1df3cac56f2376a9080a665ae0c925d6cbb78ae15e3a7b12d64"
+  "baseline_hash": "3f906892d68f4deb848223f165d223847a6677a25c49a6fdf07a1067e468aa7c"
 }
