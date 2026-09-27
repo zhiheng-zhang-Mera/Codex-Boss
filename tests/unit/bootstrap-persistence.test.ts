@@ -43,7 +43,7 @@ const testCrypto: PersistenceCrypto = {
  * The store names the module declares, in the order it opens them.
  *
  * `attachments` is deliberately NOT here (ledger CC-065), nor `session-lifecycle` (CC-066) nor
- * `node-registry` (CC-067) nor `runtime-budget` (CC-084): each namespace is declared by the capability that
+ * `node-registry` (CC-067) nor `runtime-budget` (CC-084) nor `runtime-resources` (CC-089): each namespace is declared by the capability that
  * IMPLEMENTS the store, and each store is built outside this module, so it owns none of them. Their tests live
  * beside the modules that do. This list is a projection of the real service -- a store that moved back in here
  * would still be visible below, it would just be counted twice.
@@ -53,7 +53,7 @@ const DECLARED = [
   "api-settings", "external-sessions",
   "interventions", "decision-ledger", "workspaces",
   "workspace-selection",
-  "runtime-resources", "task-contexts"
+  "task-contexts"
 ];
 
 function build(root: string) {
@@ -84,7 +84,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "decision-ledger": service.decisions,
     workspaces: service.workspaces,
     "workspace-selection": service.workspaceSelection,
-    "runtime-resources": service.resources,
     "task-contexts": service.contexts
   };
 }
@@ -122,7 +121,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("13 durable store(s)");
+    expect(fresh.health().detail).toContain("12 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {

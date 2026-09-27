@@ -7,6 +7,13 @@ provides:
 requires: []
 optional: []
 state:
+  # Runtime admission: what may run right now, and against which resources. Declared by
+  # `persistence` until ledger CC-085, which moved the claim to the capability that IMPLEMENTS the
+  # store (electron/commander/resource-controller.ts). The ninth instance of the namespace-ownership
+  # family and the same relocation CC-084 performed for `runtime-budget`; the path is unchanged, so no
+  # stored data moves.
+  - namespace: runtime-resources
+    owner: tenx
   # The runtime budget ledger. Declared by `persistence` until ledger CC-084, which moved the
   # claim to the capability that IMPLEMENTS the store (electron/commander/budget-manager.ts),
   # the eighth instance of the namespace-ownership family and the same relocation CC-070
@@ -15,7 +22,8 @@ state:
     owner: tenx
 health:
   critical: false
-modules: []
+modules:
+  - electron/commander/resource-controller.ts
 bootModules: []
 surface: []
 permissions: []

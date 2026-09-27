@@ -437,6 +437,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 16,
+      "baseline_hash": "cc335992026e0a98a9b5e5eabc35c5bc2392bef08e2e164c61ea48e50049ca42",
+      "parent_baseline_hash": "22ee3648ac0e55277a068a8c5d2b1fd801e22f607007b29049e2e397220ea0ec",
+      "source_commit": "b5f089323ced847b6b6f0c2a90b7cf59f1dec23f",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the composition-root attribution correction plus the ninth namespace-ownership migration. Recorded in ledger CC-089.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-089; scripts/architecture-enforcement-baseline.cjs; scripts/architecture-enforcement.cjs; config/capabilities/tenx.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T10:45:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `persistence -> tenx` falls 9 -> 8, because the boot module no longer constructs a store the `tenx` capability implements. The composition root's attribution changed too, but that is a correction of what the model could SEE rather than a new relation: the platform-to-capability edges were always there and are now labelled as platform edges.",
+        "new_legitimate_relation": "NONE added. The store is constructed by the composition root, which already held it as a service field, so the file pair main.ts -> resource-controller.ts is new while the capability relation is not.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "The alternative was to leave the composition root unresolved and keep the migration blocked. It was declined because the omission made the enforcer refuse EVERY new edge out of the one file all new wiring passes through -- a gate forbidding the class of change the gate exists to audit -- and because `config/capability-modules.json` already declares the class, so the correction is to read what is declared rather than to invent a rule.",
+        "why_the_baseline_moves": "Tracked source changed twice: the boot module lost a construction and main.ts gained one, and the ownership model now resolves two previously-undeclared files. The structural ratchets were re-measured: kernel -> feature 54 -> 53, raw 778 -> 777, pairs 16, mutual pairs 31, largest SCC 18 all unchanged."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1666,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

@@ -52,6 +52,21 @@ const SCHEMA = "city-phase1a-architecture-enforcement/1";
 
 const OWNER_UNDECLARED = observatory.OWNER_UNDECLARED; // UNDECLARED
 
+/**
+ * The composition root is the PLATFORM, not a capability: it exists to wire capabilities to each other, and it is
+ * recorded as such in `config/capability-modules.json` under `composition_root` with a reason per file. Its owner
+ * name is the sentinel the edge instruments already publish, and `architecture-enforcement-baseline.cjs` attributes
+ * those files to it (ledger CC-089).
+ *
+ * An edge FROM this owner is authored BY THE PLATFORM, so it is not one capability depending on another and there
+ * is nothing for `isAuthorized` to check -- a platform class declares no `requires`, and demanding one would be
+ * asking the platform to declare a dependency on the very capabilities it exists to wire together. This does NOT
+ * hide anything: an edge from the platform to a capability is still counted and still visible, which is exactly how
+ * `p2b` reports `edgesFromCompositionRoot`. What it stops is the enforcer refusing every new edge out of the one
+ * file all new wiring passes through.
+ */
+const OWNER_COMPOSITION_ROOT = "<composition-root>";
+
 // Machine codes. Policy codes are the mission's; the rest are engine-level.
 const CODE = {
   PASS_AS_GRANDFATHERED: "PASS_AS_GRANDFATHERED",
@@ -267,6 +282,13 @@ function evaluatePolicy({ baseline, measurement, declarations }) {
     }
     if (fromOwner === toOwner) {
       add(CODE.NEW_EDGE_DECLARED_ENDPOINT, SEVERITY.INFO, `${from} -> ${to}`, `new within-capability edge for ${fromOwner}`);
+      continue;
+    }
+    // An edge authored by the PLATFORM is recorded as what it is. `isAuthorized` is deliberately not consulted: the
+    // composition root declares no `requires`, and requiring it to would make the platform name a dependency on the
+    // capabilities it wires. Ledger CC-089 -- see the constant's comment for why this is not a weakening.
+    if (fromOwner === OWNER_COMPOSITION_ROOT) {
+      add(CODE.NEW_EDGE_DECLARED_ENDPOINT, SEVERITY.INFO, `${from} -> ${to}`, `new platform edge from the composition root to ${toOwner}; the composition root is the platform, not a capability`);
       continue;
     }
     if (isAuthorized(fromOwner, toOwner, declarations)) {
