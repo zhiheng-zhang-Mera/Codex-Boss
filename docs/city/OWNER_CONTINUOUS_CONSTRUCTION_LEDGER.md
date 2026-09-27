@@ -9413,3 +9413,128 @@ research_value              (1) The blocker was not in the migration at all: it 
                             to re-run a negative result through a DIFFERENT path before writing it down as a
                             property of the system.
 ```
+
+## CC-090 鈥?The tenth namespace-ownership migration: `interventions` moves to `tenx`, and S2 falls 53 -> 52
+
+The first migration to run on the lane CC-089 unblocked, and it demonstrates that the composition-root repair
+generalises rather than being a one-off. **S2 moves for the third time this session.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The target, and the one argument that had to be answered.** `interventions` was declared by `persistence` while
+`electron/commander/human-guidance-gate.ts` (owned by `tenx`) implements the store. The complication is CC-075: that
+ledger entry gave this namespace a **live read side**, a read-only `boss:interventions` channel on the status module,
+and a reader is exactly the kind of thing that makes an ownership claim look settled. The argument for keeping the
+claim was therefore real and is recorded rather than ignored:
+
+```text
+reader  electron/bootstrap/host-status-ipc.ts   read-only channel, DELIVERED by CC-075
+writer  electron/commander/human-guidance-gate.ts   the store itself, owned by tenx
+```
+
+**Ownership follows the WRITER.** The reader is not the store, it reads the same file through the same shared
+contract (`src/shared/intervention-file.ts`), and leaving the claim with `persistence` would keep a kernel importing a
+store it does not implement. CC-075 made this namespace observable; it did not make it persistence's.
+
+**2. The migration, four parts, the recipe unchanged.**
+
+```text
+config/capabilities/persistence.yaml      loses the `interventions` claim
+config/capabilities/tenx.yaml             gains it, AND declares electron/commander/human-guidance-gate.ts in
+                                          `modules:` so the enforcement model can resolve the store's owner
+                                          (the CC-089 requirement)
+electron/bootstrap/persistence.ts         loses the import, the service type field, the boot construction and the
+                                          service object field -- 11 durable stores, down from 12
+electron/main.ts                          constructs HumanGuidanceGate at the IDENTICAL path persistence composed,
+                                          path.join(app.getPath("userData"), ".boss", "interventions.json"), so no
+                                          stored data moves. The file ALREADY imported the class for its own
+                                          binding, so no new endpoint pair appears.
+tests/unit/bootstrap-persistence.test.ts  projection loses the name and store; count 12 -> 11
+```
+
+**3. Measured.**
+
+```text
+                                                  BEFORE      AFTER
+p2b kernel -> feature file edges                    53    ->   52      DELETED
+p2b raw cross-capability total                     777    ->  776      -1
+p2b edges from composition root                     99          99      UNCHANGED
+p2b pairs / mutual pairs / largest SCC          16/31/18     16/31/18    UNCHANGED
+p2b files owned / capability edges             594 / 197    594 / 197    UNCHANGED
+p2d accesses / pairs / multi-writer              0/0/0        0/0/0      no regression
+closure PASS; core HOLDS; roads HOLDS; principles HONEST
+architecture enforcement: PASS, 0 violations
+```
+
+`persistence -> tenx` falls **8 -> 7** and the pair survives. The CC-084/CC-089 shape again: raw **-1** with
+`edgesFromCompositionRoot` **unchanged**, because `main.ts` already imported the class. The CC-089 repair worked
+exactly as intended 鈥?the store moved into the composition root and the new edge was classified, not refused.
+
+**4. Why this entry matters more than one edge.** CC-089 removed a structural obstacle; this round shows the obstacle
+is gone. `interventions` is the case that most looked like it should stay, because a previous ledger entry had
+touched the same namespace, and it still migrated cleanly with no undeclared-endpoint refusal and no violation. The
+lane's cost is now the ordinary cost of a migration 鈥?a manifest claim, a boot-module edit, a composition-root
+construction, two ratchet readbacks and a ceremony 鈥?rather than a fight with the gate.
+
+**5. Trust surface.** Baseline **v17** with its own series entry (full 40-hex `source_commit`) and **epoch 63**,
+`--check` reporting `integrity/series/tree` all true.
+
+**6. What is NOT done.** S2 52, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-090
+timestamp_utc               2026-09-27T11:08:49Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed,
+                            so the baseline advanced to v17 and the epoch to 63. Every series entry carries a full
+                            40-hex source_commit and no acceptance was rewritten.
+main_before                 676b7c1  (CC-089 merged as PR #126; accepted baseline v16, epoch 62)
+branch                      fix/cc090-interventions-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS at 52/776/16/31/18, p2d HOLDS 0/0/0, closure PASS, core HOLDS,
+                            roads HOLDS, principles HONEST, architecture enforcement PASS with 0 violations,
+                            the pinned matrix table regenerated and its independent readback literal moved
+                            53 -> 52 together, bootstrap-persistence updated for 12 -> 11 stores and passing
+                            10/10, tsc clean, baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/tenx.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md;
+                            config/p2b-kernel-feature-ratchet.json; config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            trust-policy/root-trust-surface.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The `interventions` file is ALSO read by the live `boss:interventions` channel
+                            CC-075 added, so a reader and a writer now belong to the same capability by
+                            declaration while the reader lives in `host-status`'s boot module. That is correct --
+                            the reader goes through the shared contract rather than the path -- but it is the
+                            configuration most likely to be misread later, so it is stated.
+                            (2) The tally-ratchet record's `total_cross_capability_file_edges` was repaired by hand
+                            this round because the recording script read the wrong JSON key and wrote
+                            `undefined`; the value is 776 and the p2b verdict is HOLDS.
+evidence_preserved          the reader-versus-writer table in point 1; the four-part migration in point 2; the
+                            measured table in point 3; the lane-cost statement in point 4
+rollback                    Revert these commits in reverse order (ceremony first, then the migration). The
+                            namespace returns to `persistence`, the store returns to its service, and the
+                            baseline/epoch return to v16/62. No stored data moved.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured migration. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) "A previous ledger entry touched this namespace" is not an ownership argument:
+                            CC-075 gave `interventions` a READER, and the claim belongs to the WRITER, so the
+                            case that looked most settled was still a genuine inversion. (2) The CC-089 repair
+                            generalised on its first real use, which is what separates a fix from a one-off --
+                            the same migration shape that was refused four times now costs an ordinary round.
+                            (3) A recording script that reads the wrong JSON key writes `undefined` silently;
+                            the ratchet's own verdict is what caught it, which is why the instruments are run
+                            after every hand edit rather than assumed.
+```

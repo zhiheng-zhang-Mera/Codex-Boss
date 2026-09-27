@@ -6,7 +6,6 @@ import { ApiSettingsStore } from "../api-settings";
 import { TaskLedger } from "../commander/task-ledger";
 import { ContextManager } from "../commander/context-manager";
 import { DecisionLedgerStore } from "../commander/decision-ledger-store";
-import { HumanGuidanceGate } from "../commander/human-guidance-gate";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
 import { GithubResolver } from "../input/github-resolver";
 import { ExternalSessionLedger } from "../workspace/external-session-ledger";
@@ -80,7 +79,6 @@ interface PersistenceService {
   github: GithubResolver;
   apiSettings: ApiSettingsStore;
   externalSessions: ExternalSessionLedger;
-  guidance: HumanGuidanceGate;
   decisions: DecisionLedgerStore;
   workspaces: WorkspaceRegistry;
   workspaceSelection: WorkspaceSelectionStore;
@@ -121,7 +119,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // means the very first read already carries the settings the store holds.
   store.setApiSettings(apiSettings.snapshot(store.snapshot().providers.map((item) => item.id)));
   const externalSessions = open("external-sessions", () => new ExternalSessionLedger(boss("external-sessions.json")));
-  const guidance = open("interventions", () => new HumanGuidanceGate(boss("interventions.json")));
   const decisions = open("decision-ledger", () => new DecisionLedgerStore(boss("decision-ledger.json")));
   const workspaces = open("workspaces", () => new WorkspaceRegistry(boss("workspaces.json")));
   // The shims live in the workspace, not in the data root: they are generated
@@ -151,7 +148,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   return {
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
-      externalSessions, guidance, decisions,
+      externalSessions, decisions,
       workspaces, workspaceSelection,
       contexts,
       opened
