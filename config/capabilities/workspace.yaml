@@ -6,6 +6,11 @@ provides:
 requires: []
 optional: []
 state:
+  # Which workspace the user last selected. Declared by `persistence` until ledger CC-093, which moved
+  # the claim to the capability that IMPLEMENTS the store
+  # (electron/workspace/workspace-selection.ts). The path is unchanged, so no stored data moves.
+  - namespace: workspace-selection
+    owner: workspace
   # The ledger of provider conversations that outlive a task. Declared by `persistence` until ledger
   # CC-091, which moved the claim to the capability that IMPLEMENTS the store
   # (electron/workspace/external-session-ledger.ts). The path is unchanged, so no stored data moves.
@@ -15,6 +20,7 @@ state:
 health:
   critical: false
 modules:
+  - electron/workspace/workspace-selection.ts
   - electron/workspace/external-session-ledger.ts
   - electron/bootstrap/workspace-ipc.ts
 bootModules:
