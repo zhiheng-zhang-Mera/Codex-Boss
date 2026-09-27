@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createPersistenceModule, type PersistenceCrypto } from "../../electron/bootstrap/persistence";
 import { SessionLifecycleLedger } from "../../electron/identity/session-lifecycle-ledger";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
+// Ledger CC-093: the selection store left this module, so the case that proves it remembers a workspace across a
+// rebuild constructs it directly rather than through the boot module's service.
+import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
 
 /**
  * Phase F — the durable stores are one boot module.
@@ -52,7 +55,6 @@ const DECLARED = [
   "history", "tasks", "state", "provider-capabilities", "github-cache",
   "api-settings",
   "decision-ledger", "workspaces",
-  "workspace-selection",
 ];
 
 function build(root: string) {
@@ -80,7 +82,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "api-settings": service.apiSettings,
     "decision-ledger": service.decisions,
     workspaces: service.workspaces,
-    "workspace-selection": service.workspaceSelection,
   };
 }
 
@@ -117,7 +118,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("9 durable store(s)");
+    expect(fresh.health().detail).toContain("8 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {
@@ -135,13 +136,18 @@ describe("Phase F — the persistence boot module", () => {
   });
 
   it("remembers a workspace across a rebuild, so the paths are the durable ones", async () => {
+    // `workspace-selection` left this boot module in ledger CC-093: the namespace moved to the `workspace`
+    // capability that implements the store, and the composition root builds it. The GUARANTEE is unchanged -- two
+    // instances over one data root must agree -- so this case builds the store at the identical path the boot
+    // module used to compose, rather than dropping the assertion with the store.
     const root = makeRoot();
     const workspace = makeRoot();
-    const first = build(root);
-    const remembered = await first.service.workspaceSelection.remember(workspace);
+    const storeFile = path.join(root, "workspace-selection.json");
+    const first = new WorkspaceSelectionStore(storeFile);
+    const remembered = await first.remember(workspace);
     expect(remembered.status).toBe("AVAILABLE");
-    const second = build(root);
-    const current = await second.service.workspaceSelection.current();
+    const second = new WorkspaceSelectionStore(storeFile);
+    const current = await second.current();
     expect(current.status).toBe("AVAILABLE");
     expect(current.path?.toLowerCase()).toBe(remembered.path?.toLowerCase());
   });

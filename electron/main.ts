@@ -760,7 +760,11 @@ if (ownsInstance) app.whenReady().then(() => {
   // the one `persistence` composed, so no stored data moves, and this file already imported the class.
   humanGuidance = new HumanGuidanceGate(path.join(app.getPath("userData"), ".boss", "interventions.json"));
   decisionLedger = persistence.service.decisions;
-  workspaceSelection = persistence.service.workspaceSelection;
+  // The `workspace` capability's selection store is built HERE rather than handed back by `persistence`
+  // (ledger CC-093). `workspace-selection` was declared by `persistence` until this change even though
+  // electron/workspace/workspace-selection.ts implements it. The path is IDENTICAL to the one `persistence`
+  // composed, so no stored data moves, and this file already imported the class.
+  workspaceSelection = new WorkspaceSelectionStore(path.join(app.getPath("userData"), ".boss", "workspace-selection.json"));
   // Platform foundation Phase 02: the durable state core, and with it the decision-ledger
   // migration. Built here because it needs the ledger the persistence module just made:
   // the state database mirrors that ledger, so it cannot exist before it.

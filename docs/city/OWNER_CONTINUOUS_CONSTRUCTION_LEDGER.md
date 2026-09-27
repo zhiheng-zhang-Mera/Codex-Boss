@@ -9787,3 +9787,141 @@ research_value              (1) A candidate declined as "non-mechanical" in one 
                             an import can hold it flat while still deleting a kernel -> feature edge; reading only
                             the raw column would have hidden this round's progress.
 ```
+
+## CC-093 鈥?The thirteenth migration: `workspace-selection` moves to `workspace`, and a behavioural test is ADAPTED rather than dropped. S2 50 -> 49
+
+**S2 moves for the sixth time this session**, and this round is also the first where a migration touched a
+behavioural test rather than only structural ones.
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The target was chosen over its sibling, for an ordering reason.** Two candidates sat in the same capability:
+
+```text
+workspaces            persistence -> workspace, electron/workspace/workspace-registry.ts
+                        main.ts reads it to ROOT the workspace-scoped stores built just after it:
+                          permissionManifests = new PermissionManifestStore(durableFileFor(..., workspaces.activeWorkspaceId(), ...));
+                          experiences        = new ExperienceStore(durableFileFor(..., workspaces.activeWorkspaceId(), ...));
+                        moving THAT construction would have had to preserve the ordering relative to those two.
+
+workspace-selection   persistence -> workspace, electron/workspace/workspace-selection.ts
+                        exactly ONE use: `selection: workspaceSelection`
+                        no ordering constraint, no cross-store dependency
+```
+
+`workspace-selection` was chosen and `workspaces` deferred, with the reason recorded rather than left implicit.
+`workspaces` is not harder in principle 鈥?it is harder *in ordering*, and that is the difference the previous rounds
+have shown matters.
+
+**2. The migration, four parts, the recipe unchanged.**
+
+```text
+config/capabilities/persistence.yaml     loses the `workspace-selection` claim
+config/capabilities/workspace.yaml       gains it, AND declares electron/workspace/workspace-selection.ts in
+                                         `modules:` so the enforcement model can resolve the store's owner
+electron/bootstrap/persistence.ts        loses the import, the service type field, the boot construction and the
+                                         service object field -- 8 durable stores, down from 9
+electron/main.ts                         constructs WorkspaceSelectionStore at the IDENTICAL path persistence
+                                         composed, path.join(app.getPath("userData"), ".boss",
+                                         "workspace-selection.json"), so no stored data moves
+```
+
+**3. A behavioural test, ADAPTED rather than dropped.** `tests/unit/bootstrap-persistence.test.ts` carries a case that
+is not about the boot module's shape but about the STORE's behaviour:
+
+```text
+"remembers a workspace across a rebuild, so the paths are the durable ones"
+   first  = build(root);  remembered = await first.service.workspaceSelection.remember(workspace);
+   second = build(root);  current    = await second.service.workspaceSelection.current();
+   expect(current.path).toBe(remembered.path)
+```
+
+It reached the store *through the boot module's service*, so moving the store broke it. The guarantee is unchanged and
+still asserted 鈥?two instances over one data root must agree 鈥?so the case now constructs the store directly at the
+identical path the boot module used to compose, and the file imports `WorkspaceSelectionStore` with a comment naming
+this ledger entry. **Deleting the case would have removed a real durability guarantee to satisfy a structural change**,
+which is precisely the trade this programme refuses; the previous migrations only ever touched PROJECTION arrays, so
+this is the first time the distinction had to be made explicitly.
+
+**4. Measured.**
+
+```text
+                                            BEFORE      AFTER
+p2b kernel -> feature file edges              50    ->   49      DELETED
+p2b raw cross-capability total               775    ->  774      -1
+p2b edges from composition root               100         100     UNCHANGED
+p2b pairs / mutual pairs / largest SCC    16/31/18   16/31/18     UNCHANGED
+p2b files owned / capability edges       594 / 197  594 / 197     UNCHANGED
+p2d accesses / pairs / multi-writer        0/0/0      0/0/0       no regression
+closure PASS; core HOLDS; roads HOLDS; principles HONEST
+architecture enforcement: PASS, 0 violations
+```
+
+`persistence -> workspace` falls **4 -> 3**. The CC-084/089/090/091 shape restored: raw **-1** with the root
+unchanged, because `main.ts` already imported the class. CC-092's exception was caused by an import the root did not
+have, and this round confirms that is the condition that breaks the pattern rather than a general drift.
+
+**5. Trust surface.** Baseline **v20** with its own series entry (full 40-hex `source_commit`) and **epoch 66**,
+`--check` reporting `integrity/series/tree` all true.
+
+**6. What is NOT done.** S2 49, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. `workspaces` remains the next candidate and needs its ordering handled.
+
+```text
+ENTRY_ID                    CC-093
+timestamp_utc               2026-09-27T12:26:32Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed,
+                            so the baseline advanced to v20 and the epoch to 66. Every series entry carries a full
+                            40-hex source_commit and no acceptance was rewritten.
+main_before                 56ce4df  (CC-092 merged as PR #129; accepted baseline v19, epoch 65)
+branch                      fix/cc093-workspace-selection-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS at 49/774/16/31/18, p2d HOLDS 0/0/0, closure PASS, core HOLDS,
+                            roads HOLDS, principles HONEST, architecture enforcement PASS 0 violations, the
+                            pinned matrix table regenerated and its readback literal moved 50 -> 49 together,
+                            bootstrap-persistence updated for 9 -> 8 stores AND its behavioural case adapted,
+                            passing 10/10, tsc clean, baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/workspace.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md;
+                            config/p2b-kernel-feature-ratchet.json; config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            trust-policy/root-trust-surface.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The adapted behavioural case no longer proves that the BOOT MODULE wires the
+                            selection store, only that the store is durable. That wiring is now the composition
+                            root's, and no case asserts it directly -- a reader should not mistake the existing
+                            case for coverage of the wiring.
+                            (2) `workspaces` is the sibling left behind and it is HARDER, not merely next: main.ts
+                            roots two other stores off `workspaces.activeWorkspaceId()` immediately after
+                            constructing it.
+evidence_preserved          the sibling comparison with the ordering reason in point 1; the four-part migration in
+                            point 2; the behavioural case and why it was adapted in point 3; the measured table
+                            and the restored pattern in point 4
+rollback                    Revert these commits in reverse order (ceremony first, then the migration). The
+                            namespace returns to `persistence`, the store returns to its service, the case returns
+                            to reaching it through the boot module, and the baseline/epoch return to v19/65. No
+                            stored data moved.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured migration. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) "Same capability, same target" is not enough to rank two migration candidates: the
+                            one that looks identical in the edge instruments was chosen because the other one's
+                            construction is ORDERING-significant, and only reading the callers showed that.
+                            (2) A structural migration can break a BEHAVIOURAL test, and the right response is to
+                            preserve the behaviour by reaching the store directly rather than delete the case -- the
+                            guarantee outlives the module that happened to expose it. (3) CC-092's exception to the
+                            raw-total pattern is now explained rather than merely noted: the pattern holds unless
+                            the migration adds an import the composition root did not already have, and this round
+                            confirms that condition by restoring the pattern.
+```

@@ -8,7 +8,6 @@ import { DecisionLedgerStore } from "../commander/decision-ledger-store";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
 import { GithubResolver } from "../input/github-resolver";
 import { WorkspaceRegistry } from "../workspace/workspace-registry";
-import { WorkspaceSelectionStore } from "../workspace/workspace-selection";
 import { durableFileFor } from "../workspace/durable-roots";
 import { RuntimeIntelligenceCapture, createCaptureObservingLedger } from "../runtime-intelligence/live-capture";
 import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
@@ -78,7 +77,6 @@ interface PersistenceService {
   apiSettings: ApiSettingsStore;
   decisions: DecisionLedgerStore;
   workspaces: WorkspaceRegistry;
-  workspaceSelection: WorkspaceSelectionStore;
   /** The counter names this module opened, for the boot health line. */
   opened: readonly string[];
 }
@@ -120,7 +118,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // entry points that point back at THIS install, so a moved install must
   // regenerate them.
   workspaces.ensureShims(appPath);
-  const workspaceSelection = open("workspace-selection", () => new WorkspaceSelectionStore(boss("workspace-selection.json")));
   // Read once, at boot: the workspace-scoped stores below are rooted here, and the
   // registry always answers with SOMETHING (a missing file reads as the default
   // shim), so this value — not a later `setActive` — is what they are rooted at.
@@ -140,7 +137,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
     service: {
       history, tasks, store, capture, capabilities, github, apiSettings,
       decisions,
-      workspaces, workspaceSelection,
+      workspaces,
       opened
     },
     health: () => ({
