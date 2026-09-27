@@ -48,8 +48,8 @@
       "src/shared/experience.ts"
     ],
     "host-status": [
-      "electron/host",
-      "electron/bootstrap/host-status-ipc.ts"
+      "electron/bootstrap/host-status-ipc.ts",
+      "electron/host"
     ],
     "identity": [
       "electron/identity"

@@ -313,6 +313,68 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 12,
+      "baseline_hash": "9bc89c352a78ce5ea200bfc4ddcddc0b1c01f4b5b031961083380884331927ad",
+      "parent_baseline_hash": "4b4a1fc903254d328e950b22941ab43ce6dd6ac37a6ac0d8af78fc9f5bf667da",
+      "source_commit": "62f0b61a013aaac6ff3bd750df5430fc4475ca61",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the PF-DEBT-005 production read-side repair by the executor holding that lease. Recorded in ledger CC-075.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-075; electron/bootstrap/host-status-ipc.ts; electron/main.ts; tests/unit/intervention-store-contract.test.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T02:30:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "NONE retired. This acceptance does not remove a prospective edge; it ADDS one whose capability relation already existed in dead code.",
+        "new_legitimate_relation": "ONE legitimate new live edge: `host-status -> tasks`, electron/bootstrap/host-status-ipc.ts importing src/shared/intervention-file.ts. It is a USE of another capability's declared contract rather than a kernel -> feature inversion, which is why kernel_to_feature_file_edges is unchanged at 55.",
+        "new_grandfathered_debt": "none: nothing is grandfathered that was not already a declared relation. The edge's endpoints are declared (tasks owns the shared contract), and the importing file is declared.",
+        "alternative_declined": "Reading the pause store directly from the status module would have avoided this baseline movement entirely, at the cost of a cross-domain PRIVATE-STATE access -- i.e. it would have traded an S2/S3-neutral edge for a genuine S5 regression. That trade was refused: S5's target is zero and the ledger records the choice.",
+        "why_the_baseline_moves": "The prospective enforcer compares the tree against the accepted identity, so making a dormant relation live changes the accepted identity legitimately. The ratchet's raw cross-capability total rises 795 -> 796 and is recorded in config/p2b-kernel-feature-ratchet.json with the same explanation."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1686,
+        "retired_edges": 0,
+        "unresolved_references": 1
+      }
+    },
+    {
+      "baseline_version": 13,
+      "baseline_hash": "c06179d6e3c103761484e93cc20e7618bdcb3683695cae4f72d650d138a22832",
+      "parent_baseline_hash": "9bc89c352a78ce5ea200bfc4ddcddc0b1c01f4b5b031961083380884331927ad",
+      "source_commit": "62f0b61a013aaac6ff3bd750df5430fc4475ca61",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the PF-DEBT-005 production read-side repair by the executor holding that lease. Recorded in ledger CC-075.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-075; electron/bootstrap/host-status-ipc.ts; electron/main.ts; tests/unit/intervention-store-contract.test.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T02:30:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "NONE retired. This acceptance does not remove a prospective edge; it ADDS one whose capability relation already existed in dead code.",
+        "new_legitimate_relation": "ONE legitimate new live edge: `host-status -> tasks`, electron/bootstrap/host-status-ipc.ts importing src/shared/intervention-file.ts. It is a USE of another capability's declared contract rather than a kernel -> feature inversion, which is why kernel_to_feature_file_edges is unchanged at 55.",
+        "new_grandfathered_debt": "none: nothing is grandfathered that was not already a declared relation. The edge's endpoints are declared (tasks owns the shared contract), and the importing file is declared.",
+        "alternative_declined": "Reading the pause store directly from the status module would have avoided this baseline movement entirely, at the cost of a cross-domain PRIVATE-STATE access -- i.e. it would have traded an S2/S3-neutral edge for a genuine S5 regression. That trade was refused: S5's target is zero and the ledger records the choice.",
+        "why_the_baseline_moves": "The prospective enforcer compares the tree against the accepted identity, so making a dormant relation live changes the accepted identity legitimately. The ratchet's raw cross-capability total rises 795 -> 796 and is recorded in config/p2b-kernel-feature-ratchet.json with the same explanation."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 613,
+        "internal_edges": 1686,
+        "retired_edges": 0,
+        "unresolved_references": 1
+      }
     }
   ]
 }
