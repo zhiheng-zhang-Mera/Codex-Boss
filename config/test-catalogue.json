@@ -1122,15 +1122,6 @@
       ]
     },
     {
-      "file": "tests/unit/host-observability.test.ts",
-      "tier": "unit",
-      "covers": [
-        "host-status",
-        "status",
-        "tasks"
-      ]
-    },
-    {
       "file": "tests/unit/host-regression-sentinel.test.ts",
       "tier": "unit",
       "covers": [
@@ -1752,14 +1743,6 @@
       "file": "tests/unit/runtime-intelligence/replay-cases.test.ts",
       "tier": "unit",
       "covers": [
-        "tenx"
-      ]
-    },
-    {
-      "file": "tests/unit/runtime-intelligence/replay-corpus-io.test.ts",
-      "tier": "unit",
-      "covers": [
-        "security",
         "tenx"
       ]
     },

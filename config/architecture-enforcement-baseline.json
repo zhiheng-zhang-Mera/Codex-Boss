@@ -1,16 +1,16 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 13,
-  "parent_baseline_hash": "9bc89c352a78ce5ea200bfc4ddcddc0b1c01f4b5b031961083380884331927ad",
-  "source_commit": "613e0497de3d324cec1dd89c413f3096077d6b47",
+  "baseline_version": 14,
+  "parent_baseline_hash": "c06179d6e3c103761484e93cc20e7618bdcb3683695cae4f72d650d138a22832",
+  "source_commit": "164497cd758934960dcbf4d5976d4b919778ad5e",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-075: PF-DEBT-005's missing production read side is supplied in the LIVE status module (electron/bootstrap/host-status-ipc.ts), which adds one legitimate prospective edge -- `host-status -> tasks` for src/shared/intervention-file.ts, the ONE shared contract for the pause store that the guidance gate already writes through. The same relation existed before this change through electron/host/host-observer-collector.ts, which no production code calls, so this is a DORMANT dependency becoming LIVE rather than a new capability relation. Reading the store directly was declined because it would have been a private-state access and worsened S5 to keep a number flat.",
+  "reason": "CC-076: the production-dead host-observer cluster and the runtime-intelligence replay IO are retired from the tree, together with the two CLI scripts and three tests that existed only to run them, and one Host-M flag registry no module imported. Every one of the eight files had zero importers under electron/ or src/ and was unreachable from main.ts/preload.ts. The single undeclared source (`electron/runtime-intelligence/replay-cases.ts` was undeclared; `src/shared/host-maturity-flags.ts` was UNDECLARED in the prospective identity) and the grandfathered edge entries that pointed at these files are gone with them, which is why the accepted identity moves. No capability relation was ADDED: the removed modules contributed 18 outgoing cross-capability edges and zero incoming ones, and none of S2, S3 or S4 moved.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
     "implementation_path": "scripts/architecture-observatory.cjs",
     "implementation_sha256": "c6e879761c90a948ba158ee88c7788107445a26d6985a860702836c5a6ff687f",
-    "scan_set_hash": "562a0f0b129112fdc092da74994cbab00398b3dbdf8cff73014dbafb6cebe409",
+    "scan_set_hash": "6027ac910499f0615a28e72ae6562b7621f55520ef352cd073bb888171a05261",
     "semantic": {
       "scan": {
         "roots": [
@@ -18,16 +18,16 @@
           "src"
         ],
         "source": "git ls-files",
-        "tracked_source_files": 613
+        "tracked_source_files": 609
       },
       "ownership": {
         "manifests": 27,
         "declared_modules": 26,
         "declared_owned_files": 26,
-        "undeclared_files": 587,
+        "undeclared_files": 583,
         "conflicts": []
       },
-      "edges": 1684,
+      "edges": 1660,
       "unresolved": 1
     }
   },
@@ -37,14 +37,14 @@
       "src"
     ],
     "source": "git ls-files",
-    "tracked_source_files": 613,
-    "scan_set_hash": "562a0f0b129112fdc092da74994cbab00398b3dbdf8cff73014dbafb6cebe409"
+    "tracked_source_files": 609,
+    "scan_set_hash": "6027ac910499f0615a28e72ae6562b7621f55520ef352cd073bb888171a05261"
   },
   "ownership": {
     "manifests": 27,
     "declared_modules": 26,
     "declared_owned_files": 26,
-    "undeclared_files": 587,
+    "undeclared_files": 583,
     "conflicts": []
   },
   "files": {
@@ -221,7 +221,6 @@
     "electron/host/doctor.ts": "UNDECLARED",
     "electron/host/evidence-inspector.ts": "UNDECLARED",
     "electron/host/fault-lab.ts": "UNDECLARED",
-    "electron/host/host-observer-collector.ts": "UNDECLARED",
     "electron/host/host-probes.ts": "UNDECLARED",
     "electron/host/process-runner.ts": "UNDECLARED",
     "electron/host/sentinel-capture.ts": "UNDECLARED",
@@ -343,7 +342,6 @@
     "electron/runtime-intelligence/outcome-source.ts": "UNDECLARED",
     "electron/runtime-intelligence/prospective-store.ts": "UNDECLARED",
     "electron/runtime-intelligence/replay-cases.ts": "UNDECLARED",
-    "electron/runtime-intelligence/replay-corpus-io.ts": "UNDECLARED",
     "electron/runtime-intelligence/runtime-intelligence-service.ts": "UNDECLARED",
     "electron/runtime-paths.ts": "UNDECLARED",
     "electron/runtimes/codex/codex-cli-runtime.ts": "UNDECLARED",
@@ -503,8 +501,6 @@
     "src/shared/guardian.ts": "UNDECLARED",
     "src/shared/hardening-matrix.ts": "UNDECLARED",
     "src/shared/hash.ts": "UNDECLARED",
-    "src/shared/host-maturity-flags.ts": "UNDECLARED",
-    "src/shared/host-observer.ts": "UNDECLARED",
     "src/shared/input-object.ts": "UNDECLARED",
     "src/shared/intervention-file.ts": "UNDECLARED",
     "src/shared/intervention.ts": "UNDECLARED",
@@ -3220,74 +3216,6 @@
       "src/shared/task-fingerprint.ts"
     ],
     [
-      "electron/host/host-observer-collector.ts",
-      "electron/commander/budget-manager.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/commander/circuit-breaker.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/commander/interruption.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/commander/recovery-scheduler.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/commander/task-ledger.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/fleet/federation-coordinator.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/identity/session-lifecycle-ledger.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/learning/learning-service.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/node/node-capability-registry.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/node/node-inspector.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/telemetry/telemetry-store.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/tenx/fleet-controller.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/tenx/node-identity-registry.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "electron/tenx/observability.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "src/shared/fleet.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "src/shared/host-observer.ts"
-    ],
-    [
-      "electron/host/host-observer-collector.ts",
-      "src/shared/intervention-file.ts"
-    ],
-    [
       "electron/host/host-probes.ts",
       "electron/git/git-gateway.ts"
     ],
@@ -5074,34 +5002,6 @@
     [
       "electron/runtime-intelligence/replay-cases.ts",
       "src/shared/runtime-intelligence/temporal-guard.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "electron/runtime-paths.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "src/shared/runtime-intelligence/contracts.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "src/shared/runtime-intelligence/measurement.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "src/shared/runtime-intelligence/replay-corpus.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "src/shared/runtime-intelligence/step-completion.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "src/shared/runtime-intelligence/temporal-guard.ts"
-    ],
-    [
-      "electron/runtime-intelligence/replay-corpus-io.ts",
-      "src/shared/secret-scan.ts"
     ],
     [
       "electron/runtime-intelligence/runtime-intelligence-service.ts",
@@ -7458,6 +7358,74 @@
       "src/shared/contracts.ts"
     ],
     [
+      "electron/host/host-observer-collector.ts",
+      "electron/commander/budget-manager.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/commander/circuit-breaker.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/commander/interruption.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/commander/recovery-scheduler.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/commander/task-ledger.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/fleet/federation-coordinator.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/identity/session-lifecycle-ledger.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/learning/learning-service.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/node/node-capability-registry.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/node/node-inspector.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/telemetry/telemetry-store.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/tenx/fleet-controller.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/tenx/node-identity-registry.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "electron/tenx/observability.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "src/shared/fleet.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "src/shared/host-observer.ts"
+    ],
+    [
+      "electron/host/host-observer-collector.ts",
+      "src/shared/intervention-file.ts"
+    ],
+    [
       "electron/input/attachment-router.ts",
       "src/shared/contracts.ts"
     ],
@@ -7476,6 +7444,34 @@
     [
       "electron/provider-automation.ts",
       "src/shared/contracts.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "electron/runtime-paths.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "src/shared/runtime-intelligence/contracts.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "src/shared/runtime-intelligence/measurement.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "src/shared/runtime-intelligence/replay-corpus.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "src/shared/runtime-intelligence/step-completion.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "src/shared/runtime-intelligence/temporal-guard.ts"
+    ],
+    [
+      "electron/runtime-intelligence/replay-corpus-io.ts",
+      "src/shared/secret-scan.ts"
     ],
     [
       "src/shared/login-scan.ts",
@@ -7513,11 +7509,11 @@
   ],
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
-    "tracked_source_files": 613,
+    "tracked_source_files": 609,
     "declared_owned_files": 26,
-    "undeclared_files": 587,
-    "internal_edges": 1684,
+    "undeclared_files": 583,
+    "internal_edges": 1660,
     "unresolved_references": 1
   },
-  "baseline_hash": "c06179d6e3c103761484e93cc20e7618bdcb3683695cae4f72d650d138a22832"
+  "baseline_hash": "efe005e9a750d7d2bf78980233334d933df44b7ad36f4d7b14955ff265e0d0b3"
 }

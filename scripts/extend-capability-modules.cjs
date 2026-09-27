@@ -196,15 +196,13 @@ const EXTRA = {
     "src/shared/model-policy.ts",
     "src/shared/model-identity.ts",
     "src/shared/prompt-layout.ts",
-    "src/shared/adaptive-flags.ts",
-    "src/shared/host-maturity-flags.ts"
+    "src/shared/adaptive-flags.ts"
   ],
   status: [
     "src/shared/owner-dashboard.ts",
     "src/shared/owner-result.ts",
     "src/shared/owner-intervention.ts",
     "src/shared/doctor.ts",
-    "src/shared/host-observer.ts",
     "src/shared/evidence-inspector.ts",
     "src/shared/evidence-ledger.ts",
     "src/shared/soak.ts",

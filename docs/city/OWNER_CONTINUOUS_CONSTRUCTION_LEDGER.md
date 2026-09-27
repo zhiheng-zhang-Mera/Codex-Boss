@@ -1,4 +1,4 @@
-# OWNER CONTINUOUS CONSTRUCTION LEDGER
+﻿# OWNER CONTINUOUS CONSTRUCTION LEDGER
 
 **Repository:** `zhiheng-zhang-Mera/Codex-Boss`
 **Authority document:** `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` (issued 2026-09-24, Australia/Melbourne)
@@ -7495,3 +7495,223 @@ research_value              (1) A ledger entry can be TRUE about an intermediate
 
 
 ---
+
+## CC-076 — The dead cluster is retired, S5 is measured at zero, and the matrix learns to grade a row one part at a time
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What shipped: the deletion CC-074 priced and CC-075 deferred.** CC-075 listed the exact consumers that
+made the cluster a five-consumer change rather than a file deletion. Every one of them is decided here, in one
+atomic change, so the tree is never left half-migrated:
+
+```text
+DELETED  electron/host/host-observer-collector.ts        no importer under electron/ or src/
+DELETED  src/shared/host-observer.ts                     the collector's snapshot contract; imported only by it
+DELETED  scripts/host-observe.cjs                        a CLI that existed only to run the collector; absent
+                                                         from package.json and from every CI workflow
+DELETED  tests/unit/host-observability.test.ts           the collector's own test
+DELETED  electron/runtime-intelligence/replay-corpus-io.ts   read THIS HOST's real data root; no production caller
+DELETED  scripts/runtime-intelligence-report.cjs         the CLI that loaded the module above; never wired in
+DELETED  tests/unit/runtime-intelligence/replay-corpus-io.test.ts   that module's own test
+DELETED  src/shared/host-maturity-flags.ts               a Host-M flag registry no module imported; its only
+                                                         reader was the deleted observability test
+RE-HOMED electron/host/acceptance-catalog.ts             `host:observability` now runs
+                                                         tests/unit/bootstrap-ipc-modules.test.ts (the LIVE status
+                                                         module's own read-only proof) instead of the dead CLI
+KEPT     src/shared/intervention-file.ts                 still the ONE parser for the pause store, used by the
+                                                         live writer AND the live reader
+```
+
+The `host:observability` decision is `OUTCOME_A_REHOME`, and its reasoning is worth one line because the row was
+the only reason the dead CLI was still load-bearing: the row originated in Host-M P4, whose artifacts were
+already deleted at commit `9cb988e`, so the row had been ORPHANED rather than satisfied -- it was not in CI and
+carried `enabledByDefault: false`. Half of what it claimed ("aggregates every declared domain") was already
+vacuous: three of the eight domains had no live read at all. The other half ("never mutates what it reads") is
+provable on the live status module and was previously UNPROVEN, because the proof pointed at code nothing ran.
+
+**2. The measurement, and the two numbers that moved.** Everything below was produced by the instruments on this
+tree, after the deletions:
+
+```text
+                                                     BEFORE       AFTER
+p2b kernel -> feature / pairs / mutual / SCC      55/16/31/18   UNCHANGED
+p2b raw cross-capability total                       796    ->    778      MINUS 18
+p2b owned files                                      595    ->    594      floor revised, one file left
+p2b capability graph edges                           197          197
+p2d confirmed accesses / pairs                      3 / 2   ->   0 / 0     TARGET REACHED
+p2d unclassified joins / total ceiling              5 / 5        5 / 5     nothing moved between the tiers
+core budget floors                                596/614  -> 592/610
+acceptance S5                                       OPEN    ->   PASS
+test catalogue                                   299 suites -> 300 suites
+```
+
+The 18 removed edges were all OUTGOING from the dead modules, with zero incoming: `host-status` ->
+node/tenx/identity/status/learning/tasks, and `tenx` -> security/runtime. That is why the raw total fell by 18
+while S2, S3 and S4 did not move at all -- `host-status` was a singleton in the component graph and the removed
+`tenx` edges did not detach `tenx` from the knot. **Retiring dead code shrank the graph by 18 edges and improved
+the raw total by 2.3% while moving none of the three structural metrics**, so this is recorded as a cleanup and
+NOT as structural progress. A programme that equated edge reduction with progress would have called it a triumph.
+
+**3. Two guarantees were REPLACED, not dropped with their data — and one reading had quietly gone vacuous.**
+Both replaced cases are ones whose data ceased to exist, which is exactly when a test is most likely to be
+deleted or, worse, left asserting something that can no longer be observed:
+
+```text
+tests/unit/runtime-intelligence/replay-cases.test.ts
+    WAS  read THIS HOST's real data root through the retired replay-corpus-io and, if the
+         host held no corpus, took an EARLY RETURN that asserted nothing. On CI it therefore
+         proved nothing at all, and this was true on main before CC-076.
+    NOW  driven by a corpus the test builds, so it exercises both adapters and both benchmarks
+         identically everywhere, and it can no longer pass by finding no data.
+
+tests/unit/city/phase2-private-state.test.ts
+    WAS  asserted confirmedAccesses > 0 and that the workbook's historical example appeared in
+         the LIVE pair list.
+    NOW  asserts the count is 0 and that a confirmed access would be a REGRESSION, and proves
+         the workbook's own historical example at the CLASSIFIER level, where the text shape
+         still exists. The instrument's ability to see it is unchanged and is still pinned
+         against the exact source text that used to be in the tree.
+```
+
+The second replacement is the more instructive one. The old case's own error message said "if that is a real
+repair, change this case deliberately", and this is that deliberate change: dropping the case would have
+removed the only proof that the classifier handles the `boss` -> `tasks` indirection, at precisely the moment no
+live access exercises it. The live-tree half of the private-state suite therefore names the capability, the
+declared namespaces and the unclassified tier, and the historical example moved to where it is still decidable.
+In the same spirit, `tests/unit/city/city-flatness-validator.test.ts` used to assert that the live tree implicates
+`host-status` through a private-state access -- true only while the defect existed. It now asserts that the live
+tree does NOT implicate it, and separately proves the private-state half of the plot registry still implicates
+the declaring owner and the accessing capability by injecting one synthetic access. **The guard against the
+instrument under-reporting is kept and driven, so "the plot got quieter" cannot be confused with "the instrument
+went blind".**
+
+**4. The enforcement matrix could not honestly express the result, so it was repaired rather than bent.** Row
+15.7 bundles THREE claims -- mutual capability pairs, largest SCC, and cross-domain private-state accesses --
+and they no longer have the same strength: the private-state part now measures AT its target while the two cycle
+parts do not. The validator's promotion rule fired and demanded the whole row be promoted to
+`MACHINE_ENFORCED`, which would have claimed the capability cycles are gone when they are not; suppressing the
+rule or deleting the row would have been the same lie with more steps. So the matrix now grades a composite row
+PART BY PART, and the row may not claim a strength its weakest part does not support:
+
+```text
+15.7  mutual capability pairs                  MACHINE_RATCHET    31 against target 0
+15.7  largest strongly connected component     MACHINE_RATCHET    18 against target 0
+15.7  cross-domain private-state accesses      MACHINE_ENFORCED    0 against target 0
+      the row itself                           MACHINE_RATCHET    (its weakest part)
+```
+
+This is a validation-machinery repair, not a threshold change: every ceiling is where it was, a part that
+reaches its target must now be promoted (this is what forced the change), a part claiming enforcement while
+measuring above zero is refused, and a row claiming more than its weakest part is refused. Three new cases in
+`tests/unit/city/principle-enforcement-validator.test.ts` pin all three directions. `VERDICT=HONEST`, with the
+distribution unchanged at MACHINE_ENFORCED 3 / MACHINE_RATCHET 2 / EVIDENCE_REQUIRED 4 / NOT_GUARDED 0.
+
+**5. Two floor revisions, each moving by exactly what left the tree.** `files_owned` 595 -> 594 (p2b) and the
+Core budget's 596/614 -> 592/610. The p2b floor is an anti-gaming floor, so the revision is justified rather
+than merely recorded: this change deleted exactly ONE file the ownership map attributes to a capability
+(`src/shared/host-maturity-flags.ts`), and the map entry for the file that left the tree was removed with it.
+The Core budget counts move by FOUR rather than by eight because four of the eight deleted files are tests and
+scripts that neither count includes. Every ceiling, target and exception in both artifacts is untouched, and no
+file was re-attributed to another class to make a number fall.
+
+**6. What is NOT done, stated so it is not mistaken for progress.** S2 55, S3 31, S4 largest SCC 18/29 -- the
+three structural targets are untouched by this change. S5 is closed on the DIRECT-PATH measurement only. S6's
+owner-API envelope remains OPEN (CC-073): zero confirmed accesses is zero accesses this instrument can see, and
+it detects `path.join` sites, so a foreign capability calling another capability's exposed store API writes
+durable state while contributing no join site and stays invisible. S10 22/27, S14 2 rows. Section 23's row 15.1
+is still `MACHINE_RATCHET` at 55 kernel -> feature edges and row 15.7 is still short of `MACHINE ENFORCED`
+because section 17's acceptance target is `capability dependency cycles = 0`. `FINAL_ACCEPTANCE_RECORD.md` does
+not exist, sections 31 and 32 are untouched, the Owner lease is in force, city acceptance NOT_READY. No product
+capability was added and no new file was created.
+
+**7. The next construction, from the cycle data this round re-measured.** The cheapest mutual pairs are now
+known by edge count: `workspace <-> tasks` 1/1, `knowledge <-> theme` 2/1, `tenx <-> theme` 2/1,
+`research <-> status` 3/1, `status <-> promotion` 3/1, `theme <-> tasks` 3/1. The `workspace <-> tasks` pair is
+one edge each way -- `src/shared/repo-world-model.ts` (workspace) imports `structuralHashOf` from
+`src/shared/task-fingerprint.ts` (tasks), and `src/shared/workbook-dispatch.ts` (tasks) imports
+`src/shared/repo-world-model.ts`. Breaking it means supplying that pure hash through a neutral shared surface
+rather than through the fingerprint contract, which is exactly the "extract road/interface" tactic section 17
+prefers. It is NOT done here, and the reason is recorded rather than implied: it creates a file, and this
+programme's own CC-075 lesson is that adding a file is a governance event with a baseline ceremony attached,
+so it is priced as the next round rather than smuggled into a deletion round.
+
+```text
+ENTRY_ID                    CC-076
+timestamp_utc               2026-09-27T04:19:40Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: the tree identity
+                            changed (eight files deleted, one undeclared and several grandfathered entries
+                            gone), so the accepted baseline advanced with its own series entry and the trust
+                            epoch advanced with it. No acceptance was rewritten, no series hash was edited to
+                            make fields agree, and every series entry carries a full 40-hex source_commit.
+main_before                 5b7ae31df17fdfeb7623508707bfe799c112a057  (CC-075 merged; epoch 59)
+branch                      fix/cc076-retire-dead-observer-cluster
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS (778 raw, floor revised), p2d HOLDS (0/0), closure PASS,
+                            architecture ratchet 0 violations, architecture enforcement 0 violations,
+                            bless MATCHES, ledger provenance HOLDS, tracked-secret scan PASS,
+                            principle-enforcement VERDICT=HONEST, test catalogue 300 suites current,
+                            tsc clean, and the full unit suite at 3884 passed / 5 failed where 3 failures
+                            are the pre-ceremony baseline-identity cases this entry's ceremony fixes and 2
+                            are a sandbox pair that passes in isolation and fails only under the full-suite
+                            parallel run (recorded, not retried).
+files_or_rules_changed      eight files deleted (listed in point 1); electron/host/acceptance-catalog.ts;
+                            config/capability-modules.json; config/core-budget.json;
+                            config/p2b-kernel-feature-ratchet.json; config/p2d-private-state-ratchet.json;
+                            config/principle-enforcement.json; config/test-catalogue.json;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (regenerated);
+                            docs/runtime-intelligence-plane.md; electron/tenx/fleet-controller.ts;
+                            electron/tenx/node-identity-registry.ts; electron/tenx/observability.ts;
+                            scripts/extend-capability-modules.cjs; scripts/principle-enforcement-validator.cjs;
+                            src/shared/runtime-intelligence/replay-corpus.ts;
+                            tests/unit/bootstrap-ipc-modules.test.ts;
+                            tests/unit/city/city-final-acceptance.test.ts;
+                            tests/unit/city/city-flatness-validator.test.ts;
+                            tests/unit/city/phase2-private-state.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            tests/unit/runtime-intelligence/replay-cases.test.ts;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) Three `tenx` store-file interfaces became module-private rather than being
+                            deleted, because each is genuinely used inside its own file; if a future consumer
+                            needs one, the export is one keyword away and the export-surface gate will say so.
+                            (2) `groupCorpusByTask` and `ReplayCorpusTaskView` are deleted from
+                            `replay-corpus.ts`; their only caller was the retired report, so a future report
+                            must derive the per-task view again rather than restore it. (3) The p2b raw total
+                            is now 778 and the reason text says the fall came from dead code with no S2/S3/S4
+                            movement, so a later reader cannot mistake it for a migration result.
+                            (4) `host:observability` now points at a test file rather than a script; if that
+                            test is ever renamed the acceptance row breaks loudly rather than silently.
+evidence_preserved          the instrument readings in point 2; the guarantee-replacement table in point 3;
+                            the part-by-part matrix row in point 4; the floor justifications in point 5;
+                            the two-method reachability audit CC-074 recorded and CC-075 re-verified
+rollback                    Revert this commit. One atomic act: eight deletions, the acceptance re-home, the
+                            two ratchet records, the two floor revisions, the matrix part-grading change and
+                            its three new cases, the four replaced test cases, and the baseline/epoch
+                            ceremony. The ceremony is its own commit on this branch, so reverting in reverse
+                            order leaves no epoch pointing at a missing baseline.
+temporary_debt_created      no. Nothing was whitelisted, no threshold was weakened, no detector was narrowed,
+                            and no test was deleted without a replacement that covers more than it did.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred. PF-DEBT-005 is closed on both sides: the live reader
+                            CC-075 supplied, and the dead reader this entry removed.
+closure_status              CLOSED as a measured deletion. The OBJECTIVE is NOT complete and this entry does
+                            not claim it is: S2, S3, S4, S10 and S14 are all where they were.
+research_value              (1) A test that reads the HOST environment can pass while proving nothing: the
+                            replay pipeline case took an early return on CI and asserted it had found no
+                            corpus. It had been green on main for that reason, and the deletion is what
+                            exposed it -- so replacing a test's DATA SOURCE is a chance to notice that the
+                            test never asserted anything. (2) An enforcement matrix that bundles several
+                            claims in one row cannot report them honestly once they diverge, and the
+                            validator's own promotion rule is what forced the row to either lie or be
+                            repaired: the fix was to grade parts, not to relax the rule. (3) A floor that
+                            refuses to fall is one of the few controls in this programme that cannot be
+                            satisfied by writing prose -- it had to be revised twice, each time by exactly
+                            the files that left the tree, and the second revision is only defensible because
+                            the first was. (4) The cheapest structural repair in the cycle data is now
+                            named and priced with its edge counts rather than described, which is what
+                            makes the next round start from a measurement instead of a survey.
+```

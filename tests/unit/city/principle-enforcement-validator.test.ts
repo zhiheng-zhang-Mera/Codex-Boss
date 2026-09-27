@@ -145,9 +145,9 @@ function baseRow(id: string): Row {
         measuredFrom: null,
         target: 0,
         composite: [
-          { part: "mutual capability pairs", measuredFrom: "p2b:mutualCapabilityPairs", target: 0 },
-          { part: "largest strongly connected component", measuredFrom: "p2b:largestSccSize", target: 0 },
-          { part: "cross-domain private-state accesses", measuredFrom: "p2d:confirmedAccesses", target: 0 },
+          { part: "mutual capability pairs", measuredFrom: "p2b:mutualCapabilityPairs", target: 0, strength: "MACHINE_RATCHET" },
+          { part: "largest strongly connected component", measuredFrom: "p2b:largestSccSize", target: 0, strength: "MACHINE_RATCHET" },
+          { part: "cross-domain private-state accesses", measuredFrom: "p2d:confirmedAccesses", target: 0, strength: "MACHINE_RATCHET" },
         ],
         why_not_enforced: "all guards refuse a regression and every part is still above zero",
         gap: "stages P2-C and P2-D",
@@ -298,7 +298,39 @@ describe("P2-I the principle enforcement matrix is checked against the tree, not
   it("rejects a ratchet whose measurement reached the target, because the row must then be promoted", () => {
     const matrix = baseMatrix();
     const report = validateFixture(matrix, { measured: { "p2b:kernelToFeatureFileEdges": 0 } });
-    expect(report.problems.join("\n")).toContain("promote the row to MACHINE_ENFORCED");
+    expect(report.problems.join("\n")).toContain("promote the part to MACHINE_ENFORCED");
+  });
+
+  it("grades a composite row part by part, so one part reaching its target neither forces a row-wide promotion nor hides above it", () => {
+    // 15.7 bundles three claims that reach zero at different times. The part that HAS reached 0 is recorded as
+    // enforced and is silent; the parts still above 0 stay ratchets; and the row's own strength may not be
+    // stronger than the weakest part. This is the shape that made the honest recording possible in CC-076.
+    const split = baseMatrix();
+    row(split, "15.7").composite = [
+      { part: "mutual capability pairs", measuredFrom: "p2b:mutualCapabilityPairs", target: 0, strength: "MACHINE_RATCHET" },
+      { part: "largest strongly connected component", measuredFrom: "p2b:largestSccSize", target: 0, strength: "MACHINE_RATCHET" },
+      { part: "cross-domain private-state accesses", measuredFrom: "p2d:confirmedAccesses", target: 0, strength: "MACHINE_ENFORCED" },
+    ];
+    const report = validateFixture(split, { measured: { "p2d:confirmedAccesses": 0 } });
+    expect(report.problems).toEqual([]);
+    expect(report.rows.find((entry) => entry.id === "15.7")!.strength).toBe("MACHINE_RATCHET");
+
+    // The same split with the part still above its target: the enforced claim is now a lie and must be refused.
+    const stillAbove = baseMatrix();
+    row(stillAbove, "15.7").composite = [
+      { part: "cross-domain private-state accesses", measuredFrom: "p2d:confirmedAccesses", target: 0, strength: "MACHINE_ENFORCED" },
+    ];
+    expect(validateFixture(stillAbove, { measured: { "p2d:confirmedAccesses": 2 } }).problems.join("\n")).toContain(
+      `claims MACHINE_ENFORCED but p2d:confirmedAccesses measures 2 against target 0`,
+    );
+
+    // And a row may not claim a strength its weakest part does not support.
+    const overclaimed = baseMatrix();
+    row(overclaimed, "15.7").strength = "MACHINE_ENFORCED";
+    row(overclaimed, "15.7").composite = [
+      { part: "mutual capability pairs", measuredFrom: "p2b:mutualCapabilityPairs", target: 0, strength: "MACHINE_RATCHET" },
+    ];
+    expect(validateFixture(overclaimed).problems.join("\n")).toContain("a row may not claim more than its weakest part");
   });
 
   it("rejects a measurement key that no instrument publishes, and a key read from a guard the row did not name", () => {
@@ -366,9 +398,12 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
       ["p2b:mutualCapabilityPairs", 31],
       ["p2b:largestSccSize", 18],
       // 5 -> 3 in CC-072: the dead `ledgerRootUnder()` helper and the test-only smoke writer were both
-      // removed, so the p2d instrument now finds 3 accesses over 2 pairs. This literal is an INDEPENDENT
-      // readback of the live p2d instrument, which is why it has to move when the ratchet does.
-      ["p2d:confirmedAccesses", 3],
+      // removed, so the p2d instrument found 3 accesses over 2 pairs. 3 -> 0 in CC-076: the two surviving
+      // cross-domain accesses lived in the dead host-observer cluster, which was retired from the tree, so
+      // the instrument now finds none and this part of row 15.7 is graded MACHINE_ENFORCED rather than as a
+      // ratchet. The other two parts of that row are unchanged by CC-076 and stay ratchets. This literal is an
+      // INDEPENDENT readback of the live p2d instrument, which is why it has to move when the ratchet does.
+      ["p2d:confirmedAccesses", 0],
     ]);
     expect(measured("15.9")).toEqual([["core:growth", 0]]);
     // The distribution section 23's targets produce today: three enforced, two ratchets, three requiring only that

@@ -96,11 +96,11 @@
       "measuredFrom": null,
       "target": 0,
       "composite": [
-        { "part": "mutual capability pairs", "measuredFrom": "p2b:mutualCapabilityPairs", "target": 0 },
-        { "part": "largest strongly connected component", "measuredFrom": "p2b:largestSccSize", "target": 0 },
-        { "part": "cross-domain private-state accesses", "measuredFrom": "p2d:confirmedAccesses", "target": 0 }
+        { "part": "mutual capability pairs", "measuredFrom": "p2b:mutualCapabilityPairs", "target": 0, "strength": "MACHINE_RATCHET" },
+        { "part": "largest strongly connected component", "measuredFrom": "p2b:largestSccSize", "target": 0, "strength": "MACHINE_RATCHET" },
+        { "part": "cross-domain private-state accesses", "measuredFrom": "p2d:confirmedAccesses", "target": 0, "strength": "MACHINE_ENFORCED" }
       ],
-      "why_not_enforced": "all guards refuse a REGRESSION and every part is still above 0: 38 mutual pairs, a largest component of 20 of 28 capabilities, and 5 private-state accesses over 3 (namespace, capability) pairs.",
+      "why_not_enforced": "This row carries THREE claims, and the three do not have the same strength, so the row is recorded at the strength of its weakest part and each part states its own: the cross-domain private-state part is MACHINE_ENFORCED (ledger CC-072 removed the last two dead accesses and CC-076 removed the dead observer cluster that read another capability's durable state; the live instrument now measures 0 over 0 (namespace, capability) pairs against a target of 0, and the guard refuses any non-zero measurement, so this part is at its target rather than above it). The cycle parts are MACHINE_RATCHET: p2b refuses a RISE in mutual capability pairs (31) or in the largest strongly connected component (18 of 29 capabilities), but neither is 0, and workbook section 17's acceptance target is capability dependency cycles = 0. Promoting the ROW to MACHINE_ENFORCED would claim the cycles are gone when they are not; that is the exact promotion this matrix exists to refuse, which is why the parts are graded individually instead.",
       "gap": "the migrations to 0 are stages P2-C and P2-D, declared per plot in config/city-flatness.json"
     },
     {

@@ -6,7 +6,12 @@
   "measured_by": "node scripts/core-budget-validator.cjs --measure",
   "anchored_by": "the starting measurement below is the one recorded in the ledger entry named by starting.recordedByLedgerEntry; the ledger is append-only, so the record of where this baseline came from cannot be withdrawn",
   "starting": {
-    "coreCapabilities": ["persistence", "providers", "runtime", "state-core"],
+    "coreCapabilities": [
+      "persistence",
+      "providers",
+      "runtime",
+      "state-core"
+    ],
     "coreOwnedFiles": 115,
     "compositionRootFiles": 2,
     "filesPerCoreCapability": {
@@ -15,11 +20,13 @@
       "runtime": 36,
       "state-core": 15
     },
-    "capabilityOwnedFiles": 596,
-    "scannedSourceFiles": 614,
+    "capabilityOwnedFiles": 592,
+    "scannedSourceFiles": 610,
     "manifestCount": 27,
     "capabilityCount": 27,
-    "recordedByLedgerEntry": "CC-035"
+    "recordedByLedgerEntry": "CC-035",
+    "floorsRevisedByLedgerEntry": "CC-076",
+    "floorsRevision": "CC-035 recorded 596 capability-owned files across 614 scanned source files; CC-076 lowers both counted surfaces to 592 and 610. EIGHT files that no production code reached or exercised left the tree: the host-observer cluster (electron/host/host-observer-collector.ts, src/shared/host-observer.ts, scripts/host-observe.cjs, tests/unit/host-observability.test.ts), the runtime-intelligence replay IO with its retired report and test (electron/runtime-intelligence/replay-corpus-io.ts, scripts/runtime-intelligence-report.cjs, tests/unit/runtime-intelligence/replay-corpus-io.test.ts), and src/shared/host-maturity-flags.ts, a Host-M flag registry no module imported whose only reader was the deleted observability test. The two counted surfaces fall by FOUR rather than by eight because four of the eight are tests and scripts that neither count includes. The floors are lowered to the new measured surface and NOT below it: the revision removes exactly the files that left the tree and nothing else, so the anti-gaming floor still refuses any future fall that comes from narrowing the ownership map or the scan. The ceilings in target are untouched -- re-recording a floor is not spending budget."
   },
   "floors": {
     "capabilityOwnedFiles": "a smaller Core that comes from a smaller ownership map is not a smaller Core, it is a smaller measurement",
@@ -34,5 +41,5 @@
     "why": "Section 22 permits Core to grow only through a separate architecture record, and requires that the record answer four questions and that the increase be separately Owner-approved. Section 24 adds that an exception must not silently redefine the baseline. An exception here is therefore an object with an identity, a positive file allowance, a debt id, an exit condition, an Owner authorization and an append-only ledger record naming BOTH itself and the entry -- none of which the baseline absorbs.",
     "reviewer_note": "Adding an entry to this array is a governance act, not a configuration change. The validator refuses any entry that leaves one of the required fields unstated, and refuses any growth not covered by one."
   },
-  "reason": "Recorded at the start of stage P2-H from `node scripts/core-budget-validator.cjs --measure`: four capabilities declare kind: kernel and own 115 of the 596 capability-owned files across the 614 scanned source files, and the composition root owns 2 more. The number is deliberately the STARTING surface and not the best surface achieved later: section 22's acceptance is `Core size <= Phase 2 starting Core size`, so lowering this block would not be progress, it would be spending the improvement in advance."
+  "reason": "Recorded at the start of stage P2-H from `node scripts/core-budget-validator.cjs --measure`: four capabilities declare kind: kernel and own 115 of the 596 capability-owned files across the 614 scanned source files, and the composition root owns 2 more (the floors were later revised to 593/611 by CC-076 after eight production-dead files were retired from the tree; see starting.floorsRevision). The number is deliberately the STARTING surface and not the best surface achieved later: section 22's acceptance is `Core size <= Phase 2 starting Core size`, so lowering this block would not be progress, it would be spending the improvement in advance."
 }

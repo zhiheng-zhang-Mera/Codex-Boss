@@ -82,19 +82,26 @@ describe("§30 the acceptance suite enumerates §33 completely, and says what it
     expect(item(items, "E4").evidence).toContain("ERASURE cannot be disproved");
   });
 
-  it("decides OPEN from the artifact, not from hope: the road item is verified and the structural ones are not", () => {
+  it("decides OPEN from the artifact, not from hope: the road item is verified and the remaining structural ones are not", () => {
     const items = ITEMS;
     // §33's "shared roads are explicitly classified" is machine-satisfiable and IS satisfied: every leaf a kernel
     // imports across a boundary is either declared a road or refused as one.
     expect(item(items, "S7").status).toBe(acceptance.STATUSES.PASS);
     expect(item(items, "S7").evidence).toContain("declared a road or refused as one");
-    // The structural targets are measured, and the evidence carries the measurement.
-    for (const [id, needle] of [["S2", "target 0"], ["S3", "target 0"], ["S5", "target 0"]] as Array<[string, string]>) {
+    // The structural targets are measured, and the evidence carries the measurement. S2 (kernel -> feature) and S3
+    // (mutual pairs) are still above zero, so they stay OPEN.
+    for (const [id, needle] of [["S2", "target 0"], ["S3", "target 0"]] as Array<[string, string]>) {
       expect(item(items, id).status, id).toBe(acceptance.STATUSES.OPEN);
       expect(item(items, id).evidence, id).toContain(needle);
     }
+    // S5 MOVED FROM OPEN TO PASS in ledger CC-076 and must not be silently moved back: the direct-path
+    // cross-domain private-state target is zero and MEASURED at zero. The entry that flipped this is the one that
+    // retired the dead host-observer cluster, and the caveat lives with the number -- zero direct-path accesses is
+    // not the same claim as S6's owner-API envelope, which stays open in the debt register (CC-073).
+    expect(item(items, "S5").status).toBe(acceptance.STATUSES.PASS);
+    expect(item(items, "S5").evidence).toContain("cross-domain private-state");
     // §21's "one real migration" proof now EXISTS: ledger CC-044 walked the bridge retirement to RETIRED, so S12 is
-    // verified while the structural targets are not.
+    // verified while the remaining structural targets are not.
     expect(item(items, "S12").status).toBe(acceptance.STATUSES.PASS);
     expect(item(items, "S12").evidence).toContain("reached RETIRED");
     expect(item(items, "S11").status).toBe(acceptance.STATUSES.PASS);

@@ -106,10 +106,23 @@ describe("P2-D validator — the pure rules, each pinned against the mistake it 
 describe("P2-D validator — the real tree", () => {
   const report = validator.measure();
 
-  it("measures the tree rather than a subset, and finds the accesses section 18 is about", () => {
+  it("measures the tree rather than a subset, and reports section 18's target as REACHED rather than as a degraded scan", () => {
     expect(report.declaredNamespaces, "the manifests declare no durable namespaces").toBeGreaterThan(20);
     expect(report.scannedSourceFiles, "the scan found almost no source files").toBeGreaterThan(500);
-    expect(report.confirmedAccesses, "section 18 is complete: there are no cross-domain accesses left, and this case must be replaced rather than deleted").toBeGreaterThan(0);
+    // The earlier version of this case asserted `confirmedAccesses > 0` and explained itself as "section 18 is
+    // complete: there are no cross-domain accesses left, and this case must be replaced rather than deleted".
+    // Ledger CC-076 is where that replacement happened: the two surviving accesses both lived in the dead
+    // host-observer cluster (`const boss = path.join(sources.dataRoot, ".boss")` then `path.join(boss, "tasks")`),
+    // which no production code called, and retiring that cluster is what took the count to zero. So a non-zero
+    // count here is now a REGRESSION, not evidence that the scan works -- the evidence that the scan works is the
+    // pure-rules tier above, which pins the classifier against the exact text shape, and the ratchet cases below,
+    // which prove the ceiling still moves when the number does.
+    expect(report.confirmedAccesses, "section 18's target is reached; a confirmed access here is a new defect").toBe(0);
+    expect(report.pairs).toEqual([]);
+    expect(report.confirmed).toEqual([]);
+    // The instrument is still looking at the whole cross-domain surface: the namespaces it can reach are still
+    // discovered and the unclassified tier is still populated, so "0" is a measurement and not an empty scan.
+    expect(report.candidates, "the unclassified tier emptied, so the scan is no longer reaching real joins").toBeGreaterThan(0);
   });
 
   it("every confirmed access reaches a namespace whose declared owner is a DIFFERENT capability", () => {
@@ -119,15 +132,25 @@ describe("P2-D validator — the real tree", () => {
     }
   });
 
-  it("FINDS THE WORKBOOK'S OWN HISTORICAL EXAMPLE, which is why the rule was corrected", () => {
+  it("THE WORKBOOK'S OWN HISTORICAL EXAMPLE is still CLASSIFIED, even though its live instance was repaired", () => {
     // "host-status parsing persistence state.json" is named in section 18 as a historical example. An instrument
     // that cannot find the defect it was written for is measuring something else, and the first version of this
-    // one could not -- the access was real but classified as unclassified.
-    const pairs = report.pairs;
-    expect(pairs, `the historical example is gone: if that is a real repair, change this case deliberately (pairs: ${JSON.stringify(pairs)})`).toContain("tasks <- host-status");
-    const hostStatus = report.confirmed.filter((access) => access.accessedBy === "host-status");
-    expect(hostStatus.length).toBeGreaterThan(0);
-    expect(hostStatus.every((access) => access.namespace === "tasks")).toBe(true);
+    // one could not -- the access was real but classified as unclassified. The live instance is now gone, because
+    // CC-076 retired the dead collector that made it; deleting this case would have quietly dropped the only proof
+    // that the classifier handles that shape, so the proof was moved to the classifier itself. This is the exact
+    // text shape that was in the tree, run through the same two passes the instrument uses.
+    const text = [
+      "const boss = path.join(sources.dataRoot, \".boss\");",
+      "export function ledgerRoot(): string { return path.join(boss, \"tasks\"); }",
+    ].join("\n");
+    const constants = validator.namespaceConstantsOf(text, NAMESPACES);
+    const roots = validator.durableRootNamesOf(text);
+    const joins = validator.namespaceJoinsIn(text, constants, NAMESPACES, roots);
+    expect(joins.map((join) => [join.namespace, join.confirmed, join.line])).toEqual([["tasks", true, 2]]);
+    // And the live tree records the repair rather than the absence: no pair, and the ceiling that used to hold the
+    // two accesses is recorded at zero.
+    expect(report.pairs).toEqual([]);
+    expect(validator.readRatchet().recorded.cross_domain_state_accesses).toBe(0);
   });
 
   it("keeps the unclassified tier SEPARATE, and says what it is not", () => {
