@@ -9667,3 +9667,123 @@ research_value              (1) The cheapest target is the one with ONE consumer
                             already imports the class, which makes the classifier reliable enough to predict the
                             measurement before running it.
 ```
+
+## CC-092 鈥?The twelfth migration: `task-contexts` moves to `tenx`, resolving the `retainTaskIds` question CC-091 raised. S2 51 -> 50
+
+CC-091 declined this candidate as non-mechanical and named why. This entry answers the question rather than routing
+around it. **S2 moves for the fifth time this session.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The question CC-091 raised, and its answer.** The boot module's construction is followed immediately by a
+retention call, and that call needs the STATE store:
+
+```text
+const contexts = open("task-contexts", () => new ContextManager(path.join(dataRoot, "task-contexts.json")));
+// Contexts are retained, never created here: a task that no longer exists must not keep its context alive.
+contexts.retainTaskIds(store.snapshot().tasks.map((task) => task.id));        <-- needs the state store
+```
+
+CC-091 recorded that relocating the store "would have required relocating that call as well and re-deriving which
+module owns the retention step" and treated that as a design question. Reading `main.ts` showed the question has a
+mechanical answer: **`main.ts` already holds `store`.** So the retention call moves WITH the store, and its ORDERING
+relative to the construction is preserved exactly 鈥?the same two statements, in the same order, now both in the
+composition root. Nothing about which module owns the retention step changes, because the boot module was never
+owning it either; it was executing it next to a store it should not have been building.
+
+**2. The migration, four parts, the recipe unchanged.**
+
+```text
+config/capabilities/persistence.yaml     loses the `task-contexts` claim
+config/capabilities/tenx.yaml            gains it, AND declares electron/commander/context-manager.ts in `modules:`
+electron/bootstrap/persistence.ts        loses the import, the service type field, the boot construction, the
+                                         retention call and the service object field -- 9 durable stores, down
+                                         from 10
+electron/main.ts                         constructs ContextManager at the IDENTICAL path persistence composed,
+                                         path.join(app.getPath("userData"), ".boss", "task-contexts.json"), then
+                                         performs the retention call -- so no stored data moves
+tests/unit/bootstrap-persistence.test.ts projection loses the name and store; count 10 -> 9
+```
+
+**3. Measured 鈥?and this one BREAKS the pattern the previous four set.**
+
+```text
+                                            BEFORE      AFTER
+p2b kernel -> feature file edges              51    ->   50      DELETED
+p2b raw cross-capability total               775    ->  775      UNCHANGED  <-- not -1
+p2b edges from composition root               99         100      ROSE BY ONE
+p2b pairs / mutual pairs / largest SCC    16/31/18   16/31/18     UNCHANGED
+p2b files owned / capability edges       594 / 197  594 / 197     UNCHANGED
+p2d accesses / pairs / multi-writer        0/0/0      0/0/0       no regression
+architecture enforcement: PASS, 0 violations
+```
+
+CC-084, CC-089, CC-090 and CC-091 all produced `raw -1, root unchanged`, and the ledger recorded that as the shape to
+expect when the composition root already imports the class. **This migration added an import the root did not
+previously have** 鈥?`ContextManager` 鈥?so the new composition-root edge exactly OFFSETS the deleted kernel -> feature
+edge and the raw total holds at 775. The root edge count rises 99 -> 100.
+
+That is worth recording as a correction to a pattern, not a footnote: four observations were enough to make the
+signature look predictive, and the fifth case shows what breaks it. The prediction failed in the SAFE direction (S2
+still fell, nothing regressed), but a programme that had started quoting `raw -1` as a rule would now be wrong.
+
+**4. Trust surface.** Baseline **v19** with its own series entry (full 40-hex `source_commit`) and **epoch 65**,
+`--check` reporting `integrity/series/tree` all true.
+
+**5. What is NOT done.** S2 50, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-092
+timestamp_utc               2026-09-27T12:01:01Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed,
+                            so the baseline advanced to v19 and the epoch to 65. Every series entry carries a full
+                            40-hex source_commit and no acceptance was rewritten.
+main_before                 9753509  (CC-091 merged as PR #128; accepted baseline v18, epoch 64)
+branch                      fix/cc092-task-contexts-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS at 50/775/16/31/18, p2d HOLDS 0/0/0, closure PASS, core HOLDS,
+                            roads HOLDS, principles HONEST, architecture enforcement PASS 0 violations, the
+                            pinned matrix table regenerated and its readback literal moved 51 -> 50 together,
+                            bootstrap-persistence updated for 10 -> 9 stores and passing 10/10, tsc clean,
+                            baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/tenx.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md;
+                            config/p2b-kernel-feature-ratchet.json; config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            trust-policy/root-trust-surface.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The raw cross-capability total did NOT fall this round, so a reader comparing
+                            rounds must not read 50 as "one better" in every column; the kernel -> feature column
+                            is the one that moved. (2) The retention call now lives in the composition root, which
+                            is correct -- it needs the state store -- but it means `main.ts` performs one step of
+                            context lifecycle rather than merely constructing the store. No test asserted the
+                            call's LOCATION, only its effect, and the effect is unchanged.
+evidence_preserved          the retainTaskIds question and its answer in point 1; the four-part migration in
+                            point 2; the broken-pattern measurement in point 3 with the root count rising
+rollback                    Revert these commits in reverse order (ceremony first, then the migration). The
+                            namespace returns to `persistence`, the store and the retention call return to the
+                            boot module, and the baseline/epoch return to v18/64. No stored data moved.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured migration. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) A candidate declined as "non-mechanical" in one round was mechanical in the next
+                            once the objection was read closely: the retention call did not need a new owner, it
+                            needed the module that already held the store it depends on. (2) Four migrations
+                            established a signature that the fifth broke, which is the argument for recording a
+                            pattern as an OBSERVATION with its conditions rather than as a rule -- the prediction
+                            failed safely, but it failed. (3) The raw total is a CEILING, so a migration that adds
+                            an import can hold it flat while still deleting a kernel -> feature edge; reading only
+                            the raw column would have hidden this round's progress.
+```
