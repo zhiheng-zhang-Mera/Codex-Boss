@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 15,
-  "parent_baseline_hash": "efe005e9a750d7d2bf78980233334d933df44b7ad36f4d7b14955ff265e0d0b3",
-  "source_commit": "338fc51ec27be17c60ebd6ba107297fc28977805",
+  "baseline_version": 16,
+  "parent_baseline_hash": "22ee3648ac0e55277a068a8c5d2b1fd801e22f607007b29049e2e397220ea0ec",
+  "source_commit": "b5f089323ced847b6b6f0c2a90b7cf59f1dec23f",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-084: the `runtime-budget` namespace claim moves from `persistence` to `tenx`, the capability that IMPLEMENTS the store (electron/commander/budget-manager.ts). The eighth instance of the namespace-ownership family and the CC-067 shape: the kernel -> feature edge is DELETED outright (55 -> 54) with edgesFromCompositionRoot UNCHANGED, because main.ts already imported BudgetManager and now constructs it at the identical path persistence composed, so no stored data moves. No capability relation is added: the edge moves from the kernel's column to the composition root's, which already held the import.",
+  "reason": "CC-089: the enforcement model now attributes the composition root, and the `runtime-resources` namespace claim moves from `persistence` to `tenx`. The boot module loses a store (12 durable stores, down from 13) and main.ts builds ResourceController at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 54 -> 53 and the raw cross-capability total 778 -> 777; no capability relation is added.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -22,9 +22,9 @@
       },
       "ownership": {
         "manifests": 27,
-        "declared_modules": 26,
-        "declared_owned_files": 26,
-        "undeclared_files": 583,
+        "declared_modules": 27,
+        "declared_owned_files": 29,
+        "undeclared_files": 580,
         "conflicts": []
       },
       "edges": 1659,
@@ -42,9 +42,9 @@
   },
   "ownership": {
     "manifests": 27,
-    "declared_modules": 26,
-    "declared_owned_files": 26,
-    "undeclared_files": 583,
+    "declared_modules": 27,
+    "declared_owned_files": 29,
+    "undeclared_files": 580,
     "conflicts": []
   },
   "files": {
@@ -112,7 +112,7 @@
     "electron/commander/provider-dispatch-guard.ts": "UNDECLARED",
     "electron/commander/provider-session-registry.ts": "UNDECLARED",
     "electron/commander/recovery-scheduler.ts": "UNDECLARED",
-    "electron/commander/resource-controller.ts": "UNDECLARED",
+    "electron/commander/resource-controller.ts": "tenx",
     "electron/commander/role-router.ts": "UNDECLARED",
     "electron/commander/runtime-policy.ts": "UNDECLARED",
     "electron/commander/runtime-registry.ts": "UNDECLARED",
@@ -268,7 +268,7 @@
     "electron/learning/routing/exploration-policy.ts": "UNDECLARED",
     "electron/learning/routing/routing-feedback.ts": "UNDECLARED",
     "electron/learning/task-fingerprint.ts": "UNDECLARED",
-    "electron/main.ts": "UNDECLARED",
+    "electron/main.ts": "<composition-root>",
     "electron/node/node-capability-registry.ts": "UNDECLARED",
     "electron/node/node-inspector.ts": "UNDECLARED",
     "electron/platform/architecture-ratchet.ts": "UNDECLARED",
@@ -283,7 +283,7 @@
     "electron/platform/repo-scan.ts": "UNDECLARED",
     "electron/platform/state-ownership.ts": "UNDECLARED",
     "electron/platform/test-impact.ts": "UNDECLARED",
-    "electron/preload.ts": "UNDECLARED",
+    "electron/preload.ts": "<composition-root>",
     "electron/process/process-gateway.ts": "UNDECLARED",
     "electron/project/project-state.ts": "UNDECLARED",
     "electron/project/task-completion-recorder.ts": "UNDECLARED",
@@ -918,10 +918,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/commander/human-guidance-gate.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/commander/resource-controller.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -3858,6 +3854,10 @@
     [
       "electron/main.ts",
       "electron/commander/recovery-scheduler.ts"
+    ],
+    [
+      "electron/main.ts",
+      "electron/commander/resource-controller.ts"
     ],
     [
       "electron/main.ts",
@@ -7319,6 +7319,10 @@
     ],
     [
       "electron/bootstrap/persistence.ts",
+      "electron/commander/resource-controller.ts"
+    ],
+    [
+      "electron/bootstrap/persistence.ts",
       "electron/experience/experience-store.ts"
     ],
     [
@@ -7510,10 +7514,10 @@
   "counts": {
     "note": "SUMMARIES ONLY. Identity above is authoritative; counts are never the ratchet.",
     "tracked_source_files": 609,
-    "declared_owned_files": 26,
-    "undeclared_files": 583,
+    "declared_owned_files": 29,
+    "undeclared_files": 580,
     "internal_edges": 1659,
     "unresolved_references": 1
   },
-  "baseline_hash": "22ee3648ac0e55277a068a8c5d2b1fd801e22f607007b29049e2e397220ea0ec"
+  "baseline_hash": "cc335992026e0a98a9b5e5eabc35c5bc2392bef08e2e164c61ea48e50049ca42"
 }
