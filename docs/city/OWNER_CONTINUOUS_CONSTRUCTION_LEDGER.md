@@ -10535,3 +10535,94 @@ research_value              (1) A metric can be dominated by a class the instrum
                             kernels name feature TYPES, or accept that a kernel's own fan-out is not what section
                             16's target is about.
 ```
+
+## CC-102 鈥?CC-101's classification is WRONG and is withdrawn: a mixed import makes the edge a runtime coupling, and I made the same reading error twice
+
+While looking for a mechanical S2 edge this round, the first candidate disproved CC-101's method. **No tracked file
+changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The disproof.** CC-101 classified `providers -> workspace` for `electron/provider-views.ts` as an
+**import-position** coupling 鈥?the symbol used only as a type 鈥?on the strength of reading this:
+
+```text
+electron/provider-views.ts:7
+  import { layoutProviderPanes, type WorkspaceViewState } from "../src/shared/workspace-layout";
+```
+
+`WorkspaceViewState` does appear only in type positions (lines 28, 42, 59, 152). But **`layoutProviderPanes` is a
+VALUE imported from the same specifier**, so the file genuinely runs code from the `workspace` capability. The edge
+cannot be discharged by declaring a local shape, because the local shape would not supply the function.
+
+CC-101's classifier looked for `import type` on the statement and for `new X` / `typeof X` on the named bindings. A
+statement that mixes a value with a `type`-modified symbol passed its test, because the value binding is never
+constructed or type-derived 鈥?it is merely CALLED. **The classification is therefore unsound for every mixed import,
+and 42 cannot be trusted as an upper bound on dischargeable edges.**
+
+**2. Why this is worth its own entry rather than a silent fix.** It is the **same reading error** as CC-095, where a
+`REINTRODUCED_DEBT` counter was read as a cause without checking the artifact, and CC-096 had to correct it. Both times
+the mistake had the same shape: **a summary of the tree was treated as the tree.** Here the summary was my own
+classifier, and the artifact was one import statement.
+
+It also means CC-101's headline 鈥?"no mechanical lane left" 鈥?is not established by its own evidence. The conclusion
+may still be true, but the 42/7 split does not support it, and a later round must not quote those numbers.
+
+**3. What IS still established, and what is not.**
+
+```text
+STANDS    the namespace-ownership lane is exhausted, because the fifteen landed migrations (CC-065..CC-093) removed
+          MISPLACED STORES and that class is gone; CC-099 closed the one remaining candidate (workspaces) on the
+          architecture ratchet's kernel-imports-feature rule, which does not distinguish a type import from a value.
+STANDS    `electron/bootstrap/provider-pool.ts -> ProviderAutomation` is a runtime coupling: it CONSTRUCTS the class
+          and derives eight ConstructorParameters types from it (read in full, not classified).
+NOT       the 42/7 split, and therefore not "42 edges a consumer could discharge by declaring a local shape".
+ESTABLISHED
+```
+
+The correct method, for whichever round redoes this: classify by **every binding the specifier provides**, and treat
+the edge as a runtime coupling if ANY of them is used as a value 鈥?called, constructed, or passed. A per-statement
+test cannot see that.
+
+**4. What is NOT done.** S2 49, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. Tree at `282bb5a`, clean, `--mode enforce` PASS 0, p2b HOLDS at 49.
+
+```text
+ENTRY_ID                    CC-102
+timestamp_utc               2026-09-27T15:39:32Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY, and the exploration was reverted: no tracked
+                            file differs from main, so NO EPOCH CEREMONY is due.
+main_before                 282bb5a  (CC-101 merged as PR #137; accepted baseline v20, epoch 66)
+branch                      docs/city-cc-102-cc101-withdrawn
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: electron/provider-views.ts line 7 read in full (both specifiers), and every use
+                            of WorkspaceViewState in the file; layoutProviderPanes confirmed as a value export from
+                            src/shared/workspace-layout.ts; CC-101's classifier re-read to identify the hole
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) Withdrawing the classification leaves the question it tried to answer OPEN: how many
+                            of the 49 are genuinely runtime couplings is now unknown beyond the one measured here.
+                            (2) The withdrawal does not change any metric, and CC-101's entry stays in the ledger as
+                            the record of a claim that was made and corrected, per the append-only rule.
+evidence_preserved          the mixed-import statement that disproves the method in point 1; the statement of what
+                            still stands and what does not in point 3; the corrected method in point 3
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a WITHDRAWAL. The OBJECTIVE is NOT complete and this entry does not claim it
+                            is.
+research_value              (1) A classifier written quickly is a SUMMARY of the tree, and this ledger has now
+                            recorded three separate occasions where a summary was read as the tree (CC-095's counter,
+                            and twice here) -- the discipline that prevents it is to open the artifact the summary is
+                            about, which took one file view to disprove a 49-edge classification. (2) A mixed import
+                            `{ value, type T }` defeats any per-statement type test, and mixed imports are common in
+                            this tree. (3) Withdrawing a claim that is already published is cheaper than defending
+                            it: the append-only ledger makes the correction visible, which is the point of keeping
+                            one.
+```
