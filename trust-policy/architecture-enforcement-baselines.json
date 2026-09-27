@@ -561,6 +561,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 20,
+      "baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6",
+      "parent_baseline_hash": "3f906892d68f4deb848223f165d223847a6677a25c49a6fdf07a1067e468aa7c",
+      "source_commit": "e5516f1d8f43a135c215b9d92bfbfd3639aef4bf",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the thirteenth namespace-ownership migration. Recorded in ledger CC-093.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-093; config/capabilities/workspace.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T12:30:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `persistence -> workspace` falls 4 -> 3.",
+        "new_legitimate_relation": "NONE added. main.ts already imported WorkspaceSelectionStore for its own binding.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "Its sibling `workspaces` was considered first and declined for this round: main.ts reads `workspaces` to root the workspace-scoped stores built just after it (permissionManifests, experiences), so moving that construction would have had to preserve that ordering. `workspace-selection` has exactly one use and no ordering constraint.",
+        "why_the_baseline_moves": "Tracked source changed: the boot module lost a construction and main.ts gained one. The structural ratchets were re-measured: kernel -> feature 50 -> 49, raw 775 -> 774, pairs 16, mutual pairs 31, largest SCC 18 all unchanged."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1663,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
