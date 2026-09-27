@@ -406,6 +406,37 @@
         "retired_edges": 18,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 15,
+      "baseline_hash": "22ee3648ac0e55277a068a8c5d2b1fd801e22f607007b29049e2e397220ea0ec",
+      "parent_baseline_hash": "efe005e9a750d7d2bf78980233334d933df44b7ad36f4d7b14955ff265e0d0b3",
+      "source_commit": "338fc51ec27be17c60ebd6ba107297fc28977805",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the eighth namespace-ownership migration. Recorded in ledger CC-084.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-084; config/capabilities/persistence.yaml; config/capabilities/tenx.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T09:25:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `persistence -> tenx` falls 10 -> 9. The namespace `runtime-budget` is no longer declared by the persistence kernel, so the boot module no longer imports the store it never implemented.",
+        "new_legitimate_relation": "NONE added. The store is now constructed by the composition root, which already imported BudgetManager, so no new source file and no new import relation appears.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "Leaving `runtime-budget` declared by `persistence` while `tenx` implemented the store was the alternative. It was declined because the ownership registry's whole purpose is that a namespace is owned by the capability that implements it, and because `state-core.yaml` records that a SECOND declaration of an owned namespace is the failure the registry exists to catch.",
+        "why_the_baseline_moves": "The boot module lost a service field and a construction, and main.ts gained one, so tracked source changed and the accepted tree identity moves legitimately. The structural ratchets were re-measured: kernel -> feature 55 -> 54, raw total 778 -> 777, pairs 16, mutual pairs 31 and largest SCC 18 all unchanged."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1667,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
