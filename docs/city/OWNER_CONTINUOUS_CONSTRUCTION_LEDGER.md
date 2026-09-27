@@ -10176,3 +10176,125 @@ research_value              (1) A counter is not a cause: CC-095 inferred "the b
                             worth doing with NO metric movement: `workspaces` is about ownership correctness, and
                             saying so in advance is what stops a neutral result being dressed up as progress.
 ```
+
+## CC-099 鈥?`workspaces` is closed as WON'T-DO: the architecture ratchet forbids the import the migration requires, and the migration is metric-neutral anyway
+
+Three attempts have been made to migrate the `workspaces` namespace from `persistence` to `workspace`
+(CC-095, CC-097, CC-098), and all three were reverted. This entry closes it as a deliberate **won't-do** with the
+measured reason, rather than spending a fourth attempt. **No tracked file changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The blocker, established from the ratchet's own source.** `scripts/architecture.cjs` `ratchet` walks every import
+edge and refuses a kernel that imports a feature:
+
+```text
+for (const edge of scan.imports) {
+  if (edge.fromCapability === edge.toCapability) continue;
+  if (scan.kinds[edge.fromCapability] === "kernel" && scan.kinds[edge.toCapability] === "feature") {
+    violations.push({ ratchet: "kernel-imports-feature", file: edge.from, detail: `${edge.from} -> ${edge.to}` });
+```
+
+Measured on the CC-098 attempt, which was otherwise complete -- all three typechecks clean, 52 tests passing,
+`--mode enforce` PASS with 0 violations, and the trust ceremony run:
+
+```json
+{ "ratchet": "kernel-imports-feature",
+  "file": "electron/bootstrap/persistence.ts",
+  "detail": "electron/bootstrap/persistence.ts -> electron/workspace/workspace-registry.ts" }
+```
+
+**The rule does not distinguish a type-only import.** That is the crux: the migration requires the persistence module
+to name `WorkspaceRegistry` because its health report calls `workspaces.activeWorkspaceId()`, and this ratchet refuses
+the import in any form. The two other gates agree from different directions -- the enforcement model needs the file
+declared in `workspace.yaml`'s `modules:` to resolve its owner, while `workspace.yaml`'s `surface: []` means it is not
+a declared surface either -- so there is no configuration that satisfies all of them at once.
+
+**2. The three attempts failed for three different reasons, and the last one is the real answer.**
+
+```text
+CC-095  misdiagnosed the failure as a baseline-retirement blocker after reading a REINTRODUCED_DEBT COUNTER instead
+        of the artifact; the edge is in the accepted `edges` set and NOT in `retired_edges` (corrected in CC-096).
+CC-097  failed on scripted text interpolation into multi-line object literals -- four passes, each placing the
+        `workspaces` option inside the `crypto: {` object.
+CC-098  completed the code correctly by direct edits AND all three typechecks, then hit the architecture ratchet.
+```
+
+The first two were my errors. **The third is the tree's answer**: the migration is opposed by a ratchet whose purpose
+is to keep a kernel from naming a feature's implementation.
+
+**3. Why this is the right call rather than a compromise.** The migration's ONLY benefit is that a namespace
+declaration matches the capability implementing it. It is **metric-neutral by construction**: removing the boot
+construction deletes `persistence -> workspace` for `workspace-registry.ts`, and the injected option's type-only
+import restores exactly that edge, so `kernel -> feature` stays 49 either way (measured in CC-098). So the trade is:
+
+```text
+BENEFIT   one declaration becomes consistent with its implementer; no instrument moves
+COST      a ratified architecture ratchet must be amended to permit a kernel to name a feature file -- the exact
+          relation the ratchet and the whole namespace-ownership family exist to remove
+```
+
+A programme that amends the ratchet to gain a metric-neutral bookkeeping improvement is spending its strongest
+structural guarantee for nothing. **The correct resolution is to leave the declaration as it is and record why.**
+
+**4. What this changes about the family's completion claim.** Fourteen of the fifteen namespace migrations are
+complete, and the fifteen landed between CC-065 and CC-093:
+
+```text
+CC-065 attachments   CC-066 identity   CC-067 node        CC-068 experience   CC-069 project-state
+CC-070 permission-manifest              CC-084 runtime-budget                CC-090 interventions
+CC-091 external-sessions                CC-092 task-contexts                 CC-093 workspace-selection
+```
+
+`workspaces` is the single exception, and its exception is recorded rather than hidden: `persistence` still declares
+it, `workspace` still implements it, and the architecture ratchet is why that stays true. **Any future claim that the
+family is complete must name this exception.**
+
+**5. What is NOT done.** S2 49, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. Tree at `23ed0af`, clean, `--mode enforce` PASS 0, architecture ratchet 0
+violations, p2b HOLDS at 49.
+
+```text
+ENTRY_ID                    CC-099
+timestamp_utc               2026-09-27T14:19:37Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY, and the third attempt was already reverted:
+                            no tracked file differs from main, so NO EPOCH CEREMONY is due.
+main_before                 23ed0af  (CC-096 merged as PR #133; accepted baseline v20, epoch 66)
+branch                      docs/city-cc-099-workspaces-wont-do
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: scripts/architecture.cjs ratchet read at its source (the kernel-imports-feature
+                            rule) and run against the CC-098 attempt, where it reported the
+                            persistence -> workspace-registry pair; config/capabilities/workspace.yaml read and its
+                            `surface: []` confirmed; the CC-098 CI job log read for the ratchet failure; after the
+                            revert, ratchet 0 violations, enforce PASS 0, p2b HOLDS 49
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) This closes ONE route (the standard recipe) rather than the goal: a future round
+                            could still land it by giving the persistence module a local structural type so it never
+                            names the feature file, which removes the ratchet edge at the cost of a cast. That was
+                            not attempted because it is a THIRD structural shape for a metric-neutral gain.
+                            (2) The claim "fourteen of fifteen complete" counts only namespace claims that another
+                            capability implements; other `persistence` edges (shared type modules, the boot-module
+                            interface) are a different relation and were never in scope.
+evidence_preserved          the ratchet source excerpt and the measured violation in point 1; the three distinct
+                            failure causes in point 2; the benefit-versus-cost table and the metric-neutrality
+                            measurement in point 3; the exception statement in point 4
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was whitelisted, no threshold moved, and the ratchet was NOT amended.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred; a route was closed.
+closure_status              CLOSED as a WON'T-DO with a measured reason. The OBJECTIVE is NOT complete and this
+                            entry does not claim it is.
+research_value              (1) A migration can be correct, complete, type-clean, tested, enforced and still be
+                            refused by a THIRD gate that looks at the same relation from a different angle -- so
+                            "all the gates I know about pass" is not evidence that a change is landable.
+                            (2) Three attempts with three different causes is the signal to stop attempting and start
+                            deciding; the first two were my errors but the third was the tree answering, and only the
+                            third was worth acting on. (3) Spending a ratified structural guarantee for a
+                            metric-neutral bookkeeping gain is the wrong trade however tidy the bookkeeping looks.
+```
