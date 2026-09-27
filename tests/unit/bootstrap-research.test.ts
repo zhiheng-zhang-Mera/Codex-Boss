@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createResearchModule } from "../../electron/bootstrap/research";
 import { createPersistenceModule } from "../../electron/bootstrap/persistence";
+import { WorkspaceRegistry } from "../../electron/workspace/workspace-registry";
 
 /**
  * Phase F — the research composition root is a module.
@@ -31,7 +32,7 @@ const crypto = { encrypt: (value: string) => `p:${value}`, decrypt: (value: stri
 
 function build(options: { automation?: () => undefined } = {}) {
   const dataRoot = makeRoot();
-  const persistence = createPersistenceModule({ dataRoot, historyRoot: path.join(dataRoot, "history"), cacheRoot: path.join(dataRoot, "cache"), appPath: process.cwd(), crypto });
+  const persistence = createPersistenceModule({ dataRoot, historyRoot: path.join(dataRoot, "history"), cacheRoot: path.join(dataRoot, "cache"), appPath: process.cwd(), crypto, workspaces: new WorkspaceRegistry(path.join(dataRoot, ".boss", "workspaces.json")) });
   const module = createResearchModule({
     dataRoot,
     store: persistence.service.store,

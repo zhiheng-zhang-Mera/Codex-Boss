@@ -16,10 +16,17 @@ state:
   # (electron/workspace/external-session-ledger.ts). The path is unchanged, so no stored data moves.
   - namespace: external-sessions
     owner: workspace
+  # The registry of workspaces. Declared by `persistence` until ledger CC-098, which moved the claim to the
+  # capability that IMPLEMENTS the store (electron/workspace/workspace-registry.ts). The registry is CONSTRUCTED
+  # by the composition root and INJECTED into the persistence module, which still derives its own health report
+  # from it -- so the module reads the store without building it. The path is unchanged.
+  - namespace: workspaces
+    owner: workspace
 
 health:
   critical: false
 modules:
+  - electron/workspace/workspace-registry.ts
   - electron/workspace/workspace-selection.ts
   - electron/workspace/external-session-ledger.ts
   - electron/bootstrap/workspace-ipc.ts

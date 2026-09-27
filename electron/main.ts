@@ -67,6 +67,7 @@ import { reportBootHealth, type BootModule } from "./bootstrap/boot-module";
 import { availableWorkspace, persistedWorkspaceAvailable, workspaceForRequest } from "./workspace/task-workspace";
 import { selectWorkspaceDirectory } from "./workspace/workspace-picker";
 import { WorkspaceSelectionStore } from "./workspace/workspace-selection";
+import { WorkspaceRegistry } from "./workspace/workspace-registry";
 import { engineeringSessionId } from "./engineering/engineering-session";
 import { durableFileFor } from "./workspace/durable-roots";
 import { DEFAULT_WORKSPACE_ID } from "../src/shared/workspace";
@@ -606,11 +607,20 @@ if (ownsInstance) app.whenReady().then(() => {
   // "what does Boss keep, and where" has one answer that can be built and
   // inspected without booting Electron. The Electron-only piece it needs — the
   // platform secure storage — is injected rather than imported.
+  // The `workspace` capability's registry is built HERE and INJECTED into the persistence module (ledger CC-098).
+  // `workspaces` was declared by `persistence` until this change even though
+  // electron/workspace/workspace-registry.ts implements it. The path and the `ensureShims` call are identical to
+  // the ones the boot module used, so no stored data moves and the shims still point at this install. The binding
+  // is named `workspaceRegistry` because this function destructures a `workspaces` binding from the service
+  // further down; they are the same object, and only one may hold the name.
+  const workspaceRegistry = new WorkspaceRegistry(path.join(app.getPath("userData"), ".boss", "workspaces.json"));
+  workspaceRegistry.ensureShims(fs.realpathSync(app.getAppPath()));
   const persistence = createPersistenceModule({
     dataRoot: app.getPath("userData"),
     historyRoot: roots.history,
     cacheRoot: roots.cache,
     appPath: fs.realpathSync(app.getAppPath()),
+    workspaces: workspaceRegistry,
     crypto: {
       encrypt: (plainText) => {
         if (!safeStorage.isEncryptionAvailable()) throw new Error("当前系统安全存储不可用，无法保存 API Key");

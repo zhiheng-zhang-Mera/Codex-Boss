@@ -8,6 +8,7 @@ import { DEFAULT_WORKSPACE_ID } from "../../src/shared/workspace";
 // Ledger CC-093: the selection store left this module, so the case that proves it remembers a workspace across a
 // rebuild constructs it directly rather than through the boot module's service.
 import { WorkspaceSelectionStore } from "../../electron/workspace/workspace-selection";
+import { WorkspaceRegistry } from "../../electron/workspace/workspace-registry";
 
 /**
  * Phase F — the durable stores are one boot module.
@@ -54,7 +55,7 @@ const testCrypto: PersistenceCrypto = {
 const DECLARED = [
   "history", "tasks", "state", "provider-capabilities", "github-cache",
   "api-settings",
-  "decision-ledger", "workspaces",
+  "decision-ledger",
 ];
 
 function build(root: string) {
@@ -63,7 +64,10 @@ function build(root: string) {
     historyRoot: path.join(root, "history"),
     cacheRoot: path.join(root, "cache"),
     appPath: process.cwd(),
-    crypto: testCrypto
+    crypto: testCrypto,
+    // `workspaces` is declared by the `workspace` capability and INJECTED (ledger CC-098); the path matches the one
+    // the boot module used to compose.
+    workspaces: new WorkspaceRegistry(path.join(root, ".boss", "workspaces.json"))
   });
 }
 
@@ -81,7 +85,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "github-cache": service.github,
     "api-settings": service.apiSettings,
     "decision-ledger": service.decisions,
-    workspaces: service.workspaces,
   };
 }
 
@@ -118,7 +121,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("8 durable store(s)");
+    expect(fresh.health().detail).toContain("7 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {

@@ -23,8 +23,6 @@ state:
     owner: persistence
   - namespace: decision-ledger
     owner: persistence
-  - namespace: workspaces
-    owner: persistence
 health:
   critical: true
 modules:

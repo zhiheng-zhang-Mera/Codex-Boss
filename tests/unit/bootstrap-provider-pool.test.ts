@@ -7,6 +7,7 @@ import { createPersistenceModule } from "../../electron/bootstrap/persistence";
 import { SessionLifecycleLedger } from "../../electron/identity/session-lifecycle-ledger";
 import { createProvidersModule } from "../../electron/bootstrap/providers";
 import { AccountSessionManager } from "../../electron/account-sessions";
+import { WorkspaceRegistry } from "../../electron/workspace/workspace-registry";
 
 /**
  * Phase F — the provider pool's objects.
@@ -38,7 +39,7 @@ const crypto = { encrypt: (value: string) => `p:${value}`, decrypt: (value: stri
 /** A pool whose window never arrives — the state before boot creates one. */
 function buildWithoutWindow() {
   const dataRoot = makeRoot();
-  const persistence = createPersistenceModule({ dataRoot, historyRoot: path.join(dataRoot, "history"), cacheRoot: path.join(dataRoot, "cache"), appPath: process.cwd(), crypto });
+  const persistence = createPersistenceModule({ dataRoot, historyRoot: path.join(dataRoot, "history"), cacheRoot: path.join(dataRoot, "cache"), appPath: process.cwd(), crypto, workspaces: new WorkspaceRegistry(path.join(dataRoot, ".boss", "workspaces.json")) });
   const store = persistence.service.store;
   const providers = createProvidersModule({ userData: dataRoot, store, apiSettings: persistence.service.apiSettings, crypto: { protect: crypto.encrypt, unprotect: crypto.decrypt }, views: () => undefined, maxActive: 3, navigateOnOpen: true });
   // The lifecycle ledger is built by the `identity` capability now, not handed back by
