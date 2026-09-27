@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 14,
-  "parent_baseline_hash": "c06179d6e3c103761484e93cc20e7618bdcb3683695cae4f72d650d138a22832",
-  "source_commit": "164497cd758934960dcbf4d5976d4b919778ad5e",
+  "baseline_version": 15,
+  "parent_baseline_hash": "efe005e9a750d7d2bf78980233334d933df44b7ad36f4d7b14955ff265e0d0b3",
+  "source_commit": "338fc51ec27be17c60ebd6ba107297fc28977805",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-076: the production-dead host-observer cluster and the runtime-intelligence replay IO are retired from the tree, together with the two CLI scripts and three tests that existed only to run them, and one Host-M flag registry no module imported. Every one of the eight files had zero importers under electron/ or src/ and was unreachable from main.ts/preload.ts. The single undeclared source (`electron/runtime-intelligence/replay-cases.ts` was undeclared; `src/shared/host-maturity-flags.ts` was UNDECLARED in the prospective identity) and the grandfathered edge entries that pointed at these files are gone with them, which is why the accepted identity moves. No capability relation was ADDED: the removed modules contributed 18 outgoing cross-capability edges and zero incoming ones, and none of S2, S3 or S4 moved.",
+  "reason": "CC-084: the `runtime-budget` namespace claim moves from `persistence` to `tenx`, the capability that IMPLEMENTS the store (electron/commander/budget-manager.ts). The eighth instance of the namespace-ownership family and the CC-067 shape: the kernel -> feature edge is DELETED outright (55 -> 54) with edgesFromCompositionRoot UNCHANGED, because main.ts already imported BudgetManager and now constructs it at the identical path persistence composed, so no stored data moves. No capability relation is added: the edge moves from the kernel's column to the composition root's, which already held the import.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -27,7 +27,7 @@
         "undeclared_files": 583,
         "conflicts": []
       },
-      "edges": 1660,
+      "edges": 1659,
       "unresolved": 1
     }
   },
@@ -906,10 +906,6 @@
     [
       "electron/bootstrap/persistence.ts",
       "electron/bootstrap/boot-module.ts"
-    ],
-    [
-      "electron/bootstrap/persistence.ts",
-      "electron/commander/budget-manager.ts"
     ],
     [
       "electron/bootstrap/persistence.ts",
@@ -7319,6 +7315,10 @@
     ],
     [
       "electron/bootstrap/persistence.ts",
+      "electron/commander/budget-manager.ts"
+    ],
+    [
+      "electron/bootstrap/persistence.ts",
       "electron/experience/experience-store.ts"
     ],
     [
@@ -7512,8 +7512,8 @@
     "tracked_source_files": 609,
     "declared_owned_files": 26,
     "undeclared_files": 583,
-    "internal_edges": 1660,
+    "internal_edges": 1659,
     "unresolved_references": 1
   },
-  "baseline_hash": "efe005e9a750d7d2bf78980233334d933df44b7ad36f4d7b14955ff265e0d0b3"
+  "baseline_hash": "22ee3648ac0e55277a068a8c5d2b1fd801e22f607007b29049e2e397220ea0ec"
 }
