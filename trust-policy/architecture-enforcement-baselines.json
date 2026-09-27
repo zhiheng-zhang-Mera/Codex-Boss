@@ -592,6 +592,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 21,
+      "baseline_hash": "6dcc655e324532f3aff0d0a91ebba1c0f9f65130e47c31742de0c4615011e7ec",
+      "parent_baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6",
+      "source_commit": "dc3fb53f4a6e07220254371e42de01fae34f3579",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the fifteenth and final namespace-ownership migration. Recorded in ledger CC-098.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-098; config/capabilities/workspace.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts",
+      "accepted_at": "2026-09-27T14:20:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "NO metric movement. `persistence -> workspace` for workspace-registry.ts is DELETED by removing the boot construction and RESTORED by the injected option's type-only import, so the column is unchanged at 49.",
+        "new_legitimate_relation": "The composition root reaches electron/workspace/workspace-registry.ts directly now (import, construction and ensureShims), where the boot module used to. It is classified NEW_EDGE_DECLARED_ENDPOINT.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "A structural interface for the injected registry would have removed the file edge and measured 48, but it breaks two consumers that read the full registry out of the service (main.ts passes it to MainCommander; a boot test calls create/setActive). Measured as TS2740 and TS2339 in the CC-095 attempt. The real type was kept.",
+        "why_the_baseline_moves": "Tracked source changed across nine files: the boot module lost a construction, main.ts gained one, PersistenceOptions gained a required field, and six fixtures supply it. Structural ratchets were re-measured and are unchanged: kernel -> feature 49, raw 775, pairs 16, mutual pairs 31, largest SCC 18."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1663,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
