@@ -9538,3 +9538,132 @@ research_value              (1) "A previous ledger entry touched this namespace"
                             the ratchet's own verdict is what caught it, which is why the instruments are run
                             after every hand edit rather than assumed.
 ```
+
+## CC-091 鈥?The eleventh migration: `external-sessions` moves to `workspace`, and S2 falls 52 -> 51
+
+The second migration on the lane CC-089 unblocked, and the first where the target was chosen by REJECTING a harder
+one. **S2 moves for the fourth time this session.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The target was picked by ruling one out.** `task-contexts` looked like the natural next candidate, and reading
+its boot construction showed why it is not:
+
+```text
+task-contexts   const contexts = open("task-contexts", () => new ContextManager(path.join(dataRoot, "task-contexts.json")));
+                contexts.retainTaskIds(store.snapshot().tasks.map((task) => task.id));   <-- cross-store dependency
+```
+
+That `retainTaskIds` call needs the STATE store's task list, which lives in the boot module, so relocating the store
+would have required relocating that call as well and re-deriving which module owns the retention step. That is a real
+design question, not a mechanical move, so it was declined FOR THIS ROUND and recorded rather than quietly skipped.
+
+`external-sessions` has the shape a migration should have:
+
+```text
+one consumer       externalSessions?.upsert / deferArchive / forTask, all in main.ts
+no cross-store     the constructor takes only a file path
+already imported   main.ts line 94 imports ExternalSessionLedger, so no new endpoint pair appears
+```
+
+**2. The migration, four parts, the recipe unchanged.**
+
+```text
+config/capabilities/persistence.yaml     loses the `external-sessions` claim
+config/capabilities/workspace.yaml       gains it, AND declares electron/workspace/external-session-ledger.ts in
+                                         `modules:` so the enforcement model can resolve the store's owner
+electron/bootstrap/persistence.ts        loses the import, the service type field, the boot construction and the
+                                         service object field -- 10 durable stores, down from 11
+electron/main.ts                         constructs ExternalSessionLedger at the IDENTICAL path persistence
+                                         composed, path.join(app.getPath("userData"), ".boss",
+                                         "external-sessions.json"), so no stored data moves
+tests/unit/bootstrap-persistence.test.ts projection loses the name and store; count 11 -> 10
+```
+
+**3. Measured.**
+
+```text
+                                                  BEFORE      AFTER
+p2b kernel -> feature file edges                    52    ->   51      DELETED
+p2b raw cross-capability total                     776    ->  775      -1
+p2b edges from composition root                     99          99      UNCHANGED
+p2b pairs / mutual pairs / largest SCC          16/31/18     16/31/18    UNCHANGED
+p2b files owned / capability edges             594 / 197    594 / 197    UNCHANGED
+p2d accesses / pairs / multi-writer              0/0/0        0/0/0      no regression
+closure PASS; core HOLDS; roads HOLDS; principles HONEST; ledger provenance HOLDS
+architecture enforcement: PASS, 0 violations
+```
+
+`persistence -> workspace` falls **5 -> 4**. The CC-084/089/090 shape again: raw **-1** with
+`edgesFromCompositionRoot` **unchanged**.
+
+**4. A recorder guard that caught the previous round's mistake.** CC-090's ratchet recorder read the wrong JSON key
+and silently wrote `undefined` into the raw-total field; it was caught only because p2b's own verdict is run after
+every hand edit. This round's recorder was written to **refuse** unless both values resolve to numbers, and the guard
+FIRED 鈥?the p2b `--json` output does not carry `totalCrossCapabilityFileEdges` at all, so the first attempt was
+rejected before writing anything. The value was then taken from the edge inventory, which is where it lives. That is
+the difference between a tool that reports a mistake and one that makes it.
+
+**5. Trust surface.** Baseline **v18** with its own series entry (full 40-hex `source_commit`) and **epoch 64**,
+`--check` reporting `integrity/series/tree` all true.
+
+**6. What is NOT done.** S2 51, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. `task-contexts` remains a candidate needing a design decision about
+`retainTaskIds`.
+
+```text
+ENTRY_ID                    CC-091
+timestamp_utc               2026-09-27T11:36:34Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed,
+                            so the baseline advanced to v18 and the epoch to 64. Every series entry carries a full
+                            40-hex source_commit and no acceptance was rewritten.
+main_before                 5c2c8f3  (CC-090 merged as PR #127; accepted baseline v17, epoch 63)
+branch                      fix/cc091-external-sessions-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS at 51/775/16/31/18, p2d HOLDS 0/0/0, closure PASS, core HOLDS,
+                            roads HOLDS, principles HONEST, ledger provenance HOLDS, architecture enforcement PASS
+                            0 violations, the pinned matrix table regenerated and its readback literal moved
+                            52 -> 51 together, bootstrap-persistence updated for 11 -> 10 stores and passing 10/10,
+                            tsc clean, baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/workspace.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-persistence.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md;
+                            config/p2b-kernel-feature-ratchet.json; config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            trust-policy/root-trust-surface.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) `external-sessions` is declared by `workspace`, a KERNEL, and the declaration is
+                            correct -- the store is workspace-scoped and workspace implements it -- but it means a
+                            kernel now owns a namespace whose edges the composition root authors. No instrument
+                            changed verdict, and the closure and ownership validators pass.
+                            (2) `task-contexts` is now the largest remaining single-edge candidate and it needs the
+                            `retainTaskIds` design question answered first; a later round must not treat it as
+                            mechanical.
+evidence_preserved          the task-contexts rejection with the retainTaskIds line in point 1; the four-part
+                            migration in point 2; the measured table in point 3; the recorder guard and what it
+                            caught in point 4
+rollback                    Revert these commits in reverse order (ceremony first, then the migration). The
+                            namespace returns to `persistence`, the store returns to its service, and the
+                            baseline/epoch return to v17/63. No stored data moved.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured migration. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) The cheapest target is the one with ONE consumer and NO cross-store dependency, and
+                            finding that required reading the boot construction rather than the edge count -- the
+                            two candidates look identical in the edge instruments. (2) A guard that refuses to
+                            write a non-number is worth more than a check that reports one afterwards: CC-090's
+                            recorder was caught by p2b, CC-091's was stopped by itself. (3) Four migrations have now
+                            produced the same signature (raw -1, root unchanged) when the composition root
+                            already imports the class, which makes the classifier reliable enough to predict the
+                            measurement before running it.
+```
