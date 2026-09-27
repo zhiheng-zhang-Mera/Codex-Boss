@@ -7,6 +7,11 @@ provides:
 requires: []
 optional: []
 state:
+  # Per-task assembled context, retained across restarts. Declared by `persistence` until ledger CC-092,
+  # which moved the claim to the capability that IMPLEMENTS the store
+  # (electron/commander/context-manager.ts). The path is unchanged, so no stored data moves.
+  - namespace: task-contexts
+    owner: tenx
   # The pause/correction store a human answers. Declared by `persistence` until ledger CC-090, which moved
   # the claim to the capability that IMPLEMENTS the store (electron/commander/human-guidance-gate.ts).
   # CC-075 gave this namespace a live READ side on the status module; the READER is not the store, so
@@ -29,6 +34,7 @@ state:
 health:
   critical: false
 modules:
+  - electron/commander/context-manager.ts
   - electron/commander/human-guidance-gate.ts
   - electron/commander/resource-controller.ts
 bootModules: []

@@ -52,8 +52,7 @@ const DECLARED = [
   "history", "tasks", "state", "provider-capabilities", "github-cache",
   "api-settings",
   "decision-ledger", "workspaces",
-  "workspace-selection",
-  "task-contexts"
+  "workspace-selection",
 ];
 
 function build(root: string) {
@@ -82,7 +81,6 @@ function exposedStores(service: ReturnType<typeof build>["service"]): Record<str
     "decision-ledger": service.decisions,
     workspaces: service.workspaces,
     "workspace-selection": service.workspaceSelection,
-    "task-contexts": service.contexts
   };
 }
 
@@ -119,7 +117,7 @@ describe("Phase F — the persistence boot module", () => {
     expect(fresh.health().module).toBe("persistence");
     expect(fresh.health().status).toBe("DEGRADED");
     expect(fresh.health().detail).toContain("default shim");
-    expect(fresh.health().detail).toContain("10 durable store(s)");
+    expect(fresh.health().detail).toContain("9 durable store(s)");
   });
 
   it("reports READY over a workspace that was selected before boot", async () => {
