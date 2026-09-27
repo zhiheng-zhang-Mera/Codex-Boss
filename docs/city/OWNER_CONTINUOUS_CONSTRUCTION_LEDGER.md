@@ -10298,3 +10298,124 @@ research_value              (1) A migration can be correct, complete, type-clean
                             third was worth acting on. (3) Spending a ratified structural guarantee for a
                             metric-neutral bookkeeping gain is the wrong trade however tidy the bookkeeping looks.
 ```
+
+## CC-100 鈥?CITY-DEBT-005's closure was INCOMPLETE: the sweep missed the assertion that failed next, in the same file and the same case
+
+The CC-099 PR was documentation-only and CI still failed. Tracing it found a **thirteenth** occurrence of the flake
+family in a file the CC-080 sweep had already repaired twice 鈥?and it shows that sweep's evidence was weaker than
+its closure claim. Both are now repaired and the register corrected. **No ratchet or threshold moved.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The failure, on a change that no soak file reads.**
+
+```text
+run 36325568489  test:slow  tests/unit/platform/platform-soak.test.ts
+                             "exercises every stage the book names, without intervention"
+                             AssertionError: expected 1000 to be greater than 1000
+```
+
+The assertions are:
+
+```text
+expect(result.totals.stateWrites).toBeGreaterThan(1_000);
+expect(result.totals.eventsAppended).toBeGreaterThan(1_000);
+```
+
+Both are **per-cycle counts inside a fixed wall-clock budget**, so they scale with how many cycles the host finished
+鈥?the identical condition to `cycles` and `samples.length` that CC-079 repaired **eight lines above, in the same
+case**. A loaded runner appended exactly 1000 events and the floor of 1001 failed by one.
+
+**2. Why the CC-080 sweep missed it, and why that matters more than the repair.** That sweep was performed by reading
+assertions FOR the condition ("an environmental budget or a host-supplied count read as a correctness verdict") and it
+found one live site, which it repaired. It walked past these two because **a numeric floor of 1000 does not look like
+a host count** 鈥?it looks like an ordinary magnitude assertion. The condition only becomes visible when a host
+supplies exactly the boundary value. So the sweep's method was reasonable and its claim was nevertheless too strong:
+it had swept the assertions it could RECOGNISE, not the condition.
+
+**3. The repair, the same shape as every other in this entry.**
+
+```text
+                                              BEFORE                    AFTER
+stateWrites                                   > 1_000                   > 0 + NOT_MEASURED when <= 1_000
+eventsAppended                                > 1_000                   > 0 + NOT_MEASURED when <= 1_000
+```
+
+A positive floor asserts what the case is actually named for 鈥?that each stage RAN, so work of that kind happened at
+all 鈥?and the MAGNITUDE is reported as a host-supplied absence. **No allowance, bound, ceiling or target moved**; the
+two exceptions that consumed the old thresholds are still asserted by the identity checks
+(`journal.stats().events === result.totals.eventsAppended`, `storage.journalEvents === result.totals.eventsAppended`)
+and by the per-sample assertions, which read this run's actual samples.
+
+**4. The register is corrected rather than quietly updated.** Its `status` field still reads CLOSED and that remains
+the right STATUS 鈥?the condition is now repaired everywhere it was found, twice over 鈥?but the EVIDENCE for it was
+weaker than the closure claimed. Two fields were added:
+
+```text
+occurrence_thirteen  the failure, the two assertions, why they are host-supplied, and the repair
+status_correction    states plainly that the closure's evidence was too strong, and records the LESSON: the next
+                     sweep of this family must search for NUMERIC THRESHOLDS on per-cycle totals, not for the word
+                     "host", because the assertions that fail are written as ordinary floors
+```
+
+The durable part of the fix is not the two edited lines: it is that the condition is now **stated in the file at the
+repaired site**, so the next reader meets the reasoning instead of the number.
+
+**5. Measured.** Soak suites pass (7 + 6 tests); all four architecture gates hold (`p2b HOLDS`, closure `PASS`,
+principles `HONEST`, core `HOLDS`); `--mode enforce` `PASS` with 0 violations; ledger provenance `HOLDS`. E2 still
+names exactly ONE open debt (`CITY-DEBT-006`), so nothing regressed and no debt changed state.
+
+**6. What is NOT done.** S2 49, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY.
+
+```text
+ENTRY_ID                    CC-100
+timestamp_utc               2026-09-27T14:53:22Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY: the
+                            test file and the debt register are outside the Root Trust Surface, so the baseline and
+                            epoch were both re-checked and still MATCH.
+main_before                 14755ab  (CC-099 merged as PR #135; accepted baseline v20, epoch 66)
+branch                      fix/cc100-soak-sweep-followup
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: the CC-099 CI job log read for the exact assertion; the two assertion sites read
+                            in the test; the soaked suites re-run (platform-soak 7/7, platform-soak-report 6/6);
+                            p2b HOLDS, closure PASS, principles HONEST, core HOLDS, enforce PASS 0, ledger
+                            provenance HOLDS; city-final-acceptance E2 still names one open debt
+files_or_rules_changed      tests/unit/platform/platform-soak.test.ts (the two floors and their NOT_MEASURED
+                            report); docs/city/CITY_RENOVATION_DEBT_REGISTER.md (occurrence_thirteen,
+                            status_correction, enumeration_is_illustrative_v2);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The two floors are now weaker, so a run in which a stage wrote exactly ONE row
+                            would pass where it used to fail. That is the trade exit condition (a) asks for, and it
+                            is the same trade the three sibling sites already made; the stage-coverage property is
+                            carried by positive floors on EVERY stage total plus the identity checks.
+                            (2) The sweep is NOT re-run: this entry repairs the site that failed and corrects the
+                            claim, but a THIRD site may still exist. The lesson in the register is the mitigation
+                            -- search for numeric thresholds on per-cycle totals -- and it is recorded rather than
+                            acted on, because a full re-audit is a different piece of work.
+evidence_preserved          the failing assertion and its run id in point 1; the method-versus-claim argument in
+                            point 2; the before/after shape and what still carries the guarantee in point 3; the
+                            two added register fields in point 4
+rollback                    Revert this commit. The floors return to 1_000 and the register's two added fields
+                            are withdrawn. No ratchet, baseline, epoch or ownership map moves.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved; what changed is a floor in a test
+                            that was reading a host count as a platform property.
+debt_id                     CITY-DEBT-005 (stays CLOSED; its evidence is corrected, not its status)
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured repair plus an honest correction to a prior closure claim. The
+                            OBJECTIVE is NOT complete and this entry does not claim it is.
+research_value              (1) A sweep can be honestly performed and still be incomplete, because it searches for
+                            the assertions a reader RECOGNISES as the condition -- and a host count written as
+                            `toBeGreaterThan(1_000)` is indistinguishable from an ordinary magnitude floor until a
+                            host supplies exactly 1_000. (2) The strongest evidence that a flake family is closed
+                            is a repair that also STATES THE CONDITION at the site, so the next occurrence is
+                            recognised by reading rather than by failing. (3) A docs-only change failing a
+                            behavioural gate is the cheapest possible detector of a pre-existing test defect, and
+                            the previous three occurrences in this entry were all found the same way.
+```
