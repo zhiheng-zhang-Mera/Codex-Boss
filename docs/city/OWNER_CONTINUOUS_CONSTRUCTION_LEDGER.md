@@ -9041,3 +9041,116 @@ research_value              (1) Two readers of "the ownership model" can disagre
                             the ceremony would have certified a change to the artifact that exists to be audited
                             while the change itself did nothing.
 ```
+
+## CC-087 鈥?The endpoint refusal SURVIVES declaring the file in the manifest, so CC-086's diagnosis was still incomplete
+
+A further measurement that narrows the blocker without resolving it. **No tracked file changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. What was tested, and the negative result.** CC-086 concluded the fix "lives in the MANIFEST": the enforcer reads
+`config/capabilities/<id>.yaml`, `tenx.yaml` declares `modules: []`, and the enforcer therefore cannot resolve
+`electron/commander/resource-controller.ts`. That conclusion was TESTED rather than assumed:
+
+```text
+1. the `runtime-resources` migration was reapplied in full (manifest claims, boot module, main.ts)
+2. tenx.yaml's `modules: []` was changed to declare `electron/commander/resource-controller.ts`
+3. architecture-enforcement.cjs --mode enforce
+     -> verdict POLICY_VIOLATION, violations 1, new_edge_undeclared_endpoint 1     STILL REFUSED
+```
+
+So **declaring the file in the manifest does not clear the refusal**, and CC-086's diagnosis was incomplete. The
+migration was reverted again and the tree is byte-identical to `bcb14ea`: `--mode enforce` PASS with 0 violations.
+
+**2. What the attempt DID establish, which is worth keeping.** A survey of all 27 manifests measures the manifest
+model's actual grain, and it rules out the reconciliation CC-086 proposed:
+
+```text
+manifests declaring a DIRECTORY in `modules:`        0
+manifests declaring individual FILES                 25 declarations in total across 27 manifests
+manifests with `modules: []`                          9   (experience, identity, learning, node, project,
+                                                           promotion, remote, security, tenx)
+```
+
+**No manifest anywhere declares a directory.** So "make `tenx.yaml` declare `electron/commander`" would not have been
+a reconciliation of two models 鈥?it would have been an unprecedented third shape, a directory declaration no other
+capability uses. That reading of CC-086's proposal is now closed by measurement rather than by opinion.
+
+**3. Where the blocker actually sits, corrected a second time.** The loaders were traced this round and the chain is:
+
+```text
+architecture-enforcement.cjs  measureTree()                     line 136
+  -> baselineModule.loadOwnership(root)                         line 140
+  -> architecture-observatory.cjs  ownershipFromManifests()     builds moduleOwner keyed by DECLARED STRINGS
+  -> files[file] = ownership.moduleOwner.get(file) ?? UNDECLARED
+```
+
+`moduleOwner` is keyed by what a manifest DECLARES, and `get(file)` is an exact lookup. So neither the file
+declaration NOR a prefix rule reaches the case, because the key and the lookup disagree in SHAPE. CC-086 tested a
+prefix rule against a map that did not contain the directory and correctly measured it as a no-op; this round tested
+the file declaration against the same exact lookup and it too did not resolve. **What remains un-established is how
+the enforcer is MEANT to learn a file's owner at all** 鈥?the 25 file declarations across 27 manifests suggest the
+manifest model was never designed to enumerate the tree, which means the enforcement model's `UNDECLARED` may be its
+intended answer for most files rather than a defect.
+
+**4. Why this round stopped rather than continuing.** The next step would be to read how the enforcer is meant to
+resolve ownership and whether `UNDECLARED` is correct-by-design for undeclared files 鈥?which decides whether the
+`runtime-resources` migration is blockable at all, or whether the whole second-class lane is closed. That is a
+question about the trust model, and this round's budget did not reach it. Continuing to poke at it would have produced
+a third hopeful diagnosis of the same kind that has now failed twice, and the honest thing to record is that the
+model is not yet understood rather than to keep proposing repairs to it.
+
+**5. The condition has now persisted for three consecutive goal rounds.** CC-085 attempted the migration and was
+refused. CC-086 diagnosed the refusal and proposed a fix, which measured as a no-op. CC-087 applied the corrected
+proposal and the refusal survived. **The same concrete condition has blocked new construction in all three:** the
+enforcer cannot resolve ownership for files that the manifest model does not declare, and the round cannot determine
+from the available budget whether that is intended. Everything else about the migration is verified 鈥?it typechecks,
+it moves `kernel -> feature` from 54 to 53, and it preserves the store's path so no data moves.
+
+**6. What is NOT done.** S2 54, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY at 14 blocking items. Tree at `bcb14ea`, clean, every gate green.
+
+```text
+ENTRY_ID                    CC-087
+timestamp_utc               2026-09-27T10:12:48Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY; the attempted migration and the manifest
+                            declaration were both REVERTED, so the only tracked difference from main is this entry
+                            and NO EPOCH CEREMONY is due.
+main_before                 bcb14ea  (CC-086 merged as PR #123; accepted baseline v15, epoch 61)
+branch                      docs/city-cc-087-endpoint-refusal-persists
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: the full migration reapplied and measured (kernel -> feature 54 -> 53, tsc
+                            clean), the manifest file declaration added, then --mode enforce re-run and still
+                            POLICY_VIOLATION with new_edge_undeclared_endpoint 1; the manifest survey (0 directory
+                            declarations, 25 file declarations, 9 empty); the loader chain traced to
+                            ownershipFromManifests and its exact-key lookup; after the reverts, --mode enforce PASS
+                            0 violations and p2b HOLDS
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The claim that `UNDECLARED` may be correct-by-design for undeclared files is a
+                            HYPOTHESIS from the 25-of-27 declaration count, not a finding; it is what the next
+                            round must establish. (2) Two successive diagnoses of this blocker have now been wrong,
+                            so a reader should treat any further proposal in this ledger as a hypothesis until the
+                            enforcer's intended ownership resolution is read directly.
+evidence_preserved          the three-step negative result in point 1; the manifest survey in point 2; the loader
+                            chain and the shape mismatch in point 3; the three-round statement in point 5
+rollback                    Revert this commit. Documentation only; both attempted changes are already absent.
+temporary_debt_created      no. Nothing was landed, whitelisted or weakened.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              BLOCKED LANE, recorded honestly: the migration is verified and cannot land, and the
+                            reason is not yet established. The OBJECTIVE is NOT complete.
+research_value              (1) Two plausible diagnoses in a row were wrong, and each was cheaply falsifiable by
+                            applying it and watching the output not move -- which is the argument for testing a
+                            diagnosis before writing it up as a fix. (2) A survey of all 27 manifests took one
+                            command and closed a proposed reconciliation outright (no manifest declares a
+                            directory), so measuring the SHAPE of a convention is cheaper than reasoning about it.
+                            (3) When the same condition blocks three consecutive rounds, the useful output stops
+                            being another repair proposal and becomes a precise statement of what is not yet
+                            understood plus the single question that would resolve it.
+```
