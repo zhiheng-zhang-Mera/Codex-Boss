@@ -10061,3 +10061,118 @@ research_value              (1) The seven migrations looked uniform from the edg
                             PREDICTED measurement alongside the plan turns the next round into a check of the
                             classifier rather than a report of whatever the instrument happens to say.
 ```
+
+## CC-096 鈥?CC-095's failure was NOT a baseline retirement: the edge was already accepted, and the real cause was two ordinary type errors plus a name collision
+
+CC-095 was attempted and reverted. This entry corrects the diagnosis its own report gave, because the corrected version
+changes what the next round should do. **No tracked file changed except this entry.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. What CC-095's report claimed, and why it was wrong.** That report concluded the migration "needs the accepted
+baseline's retired-edge record changed" because the enforcer returned `REINTRODUCED_DEBT` for
+`electron/bootstrap/persistence.ts -> electron/workspace/workspace-registry.ts`. Reading the baseline directly shows
+the opposite:
+
+```text
+edge in accepted  edges        : TRUE
+edge in retired_edges          : FALSE
+accepted edges total           : 1656
+retired_edges total            : 52
+retired sample                 : [["electron/account-sessions.ts","src/shared/contracts.ts"], ...]
+```
+
+The edge is **grandfathered** 鈥?the decision at the top of the new-edge loop returns `PASS_AS_GRANDFATHERED` before the
+retired branch is ever reached. So the `REINTRODUCED_DEBT` finding CC-095 saw was **not** produced by that edge, and
+"the baseline records it as retired" was an inference drawn from a counter rather than from the artifact. That is the
+same class of error the ledger has recorded twice before: reading a summary and naming a cause.
+
+**2. What actually failed, in order.** The verifiable failures were ordinary and local:
+
+```text
+1. electron/bootstrap/persistence.ts referenced `WorkspaceRegistry` after its import was removed
+   -> the FIX was attempted but the file was left referencing the type in TWO places (PersistenceOptions and
+      PersistenceService), so typecheck kept reporting TS2304 at both.
+2. electron/main.ts declared `const workspaces` while the same function later destructures `workspaces` from the
+   persistence service -> TS2451 "Cannot redeclare block-scoped variable".
+3. The first CI run failed `quality` and `architecture` on exactly those, and the local check that should have caught
+   them did not, because CI runs THREE tsconfigs (`tsconfig.json`, `tsconfig.electron.json`, `tsconfig.tests.json`)
+   and only the first was run locally.
+```
+
+Every one of those is a mechanical defect in the attempt, not a property of the tree.
+
+**3. The one real design question, stated correctly.** With the construction gone the module still needs the
+registry's TYPE, and there are exactly two options:
+
+```text
+(a) `import type { WorkspaceRegistry }`   keeps the `persistence -> workspace` file edge. That edge is ALREADY in
+                                          the accepted baseline, so it is grandfathered and costs nothing.
+(b) a STRUCTURAL interface                 removes the file edge (S2 measured 48 with it) but then `main.ts`, which
+                                          passes the registry to MainCommander, and
+                                          tests/unit/bootstrap-persistence.test.ts, which calls `create`/`setActive`,
+                                          can no longer read the full registry back out of the service -- measured as
+                                          TS2740 and TS2339.
+```
+
+So the choice is a **real trade**, not a blocked one: (a) gives a correct, type-safe tree with S2 unchanged at 49;
+(b) gives S2 48 at the cost of two consumers that need the full type. CC-095 chose (b), measured 48, then hit the
+consumer errors and reported a baseline blocker that does not exist.
+
+**4. What this means for the next round.** The `workspaces` migration is **re-attemptable with ordinary care**:
+
+```text
+1. keep `import type { WorkspaceRegistry }` in the boot module -- do NOT remove it, and do NOT replace it with a
+   structural interface unless the two consumers are also changed
+2. rename the composition-root local to `workspaceRegistry` and pass it as `workspaces: workspaceRegistry`
+3. expect S2 to stay at 49, not fall: the deleted construction edge is offset by the injected type import, so the
+   migration's value is OWNERSHIP CORRECTNESS, not a metric movement -- and that has to be said plainly rather
+   than reported as a win
+4. run ALL THREE typechecks before pushing: `tsc --noEmit -p tsconfig.json`, `-p tsconfig.electron.json`,
+   `-p tsconfig.tests.json` (this is the process fix the round earned)
+```
+
+**5. What is NOT done.** S2 49 (unchanged, because the migration was reverted), S3 31 mutual pairs, S4 largest SCC 18
+of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows. CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081).
+`FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched, city acceptance NOT_READY. The tree is
+at `75697a7` with a clean working copy, `--mode enforce` PASS with 0 violations, and p2b HOLDS at 49.
+
+```text
+ENTRY_ID                    CC-096
+timestamp_utc               2026-09-27T13:36:38Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY, and the previous round's attempt was already
+                            reverted: no tracked file differs from main, so NO EPOCH CEREMONY is due.
+main_before                 75697a7  (CC-094 merged as PR #131; accepted baseline v20, epoch 66)
+branch                      docs/city-cc-096-cc095-diagnosis-corrected
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: the accepted baseline's `edges` and `retired_edges` sets read directly and the
+                            `persistence -> workspace-registry` pair looked up in each; the retired set's size and
+                            a sample printed; the CC-095 CI errors re-read from the failed job logs; the three
+                            tsconfigs confirmed from package.json's `typecheck` script
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The corrected diagnosis is verified for the ONE edge CC-095 named; whether some
+                            OTHER pair produced CC-095's REINTRODUCED_DEBT counter was not established, so the next
+                            round should read the enforcer's finding list, not the summary counts, when a violation
+                            appears. (2) The `workspaces` migration is expected to be metric-NEUTRAL; a round that
+                            reports it as an S2 improvement would be wrong.
+evidence_preserved          the two lookup results in point 1; the three ordered failures in point 2; the
+                            (a)-versus-(b) trade in point 3; the four-step re-attempt plan in point 4
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was landed and nothing was whitelisted.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a CORRECTED DIAGNOSIS. The OBJECTIVE is NOT complete and this entry does not
+                            claim it is.
+research_value              (1) A counter is not a cause: CC-095 inferred "the baseline retired this edge" from a
+                            REINTRODUCED_DEBT count and the artifact says the opposite, so the summary a tool prints
+                            must be checked against the file it summarises before it is written down as a finding.
+                            (2) Running one of three typechecks is a process defect with a silent failure mode --
+                            it reports success while the gate that matters is not being run. (3) A migration can be
+                            worth doing with NO metric movement: `workspaces` is about ownership correctness, and
+                            saying so in advance is what stops a neutral result being dressed up as progress.
+```
