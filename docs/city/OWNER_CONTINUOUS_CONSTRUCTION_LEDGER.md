@@ -8432,3 +8432,103 @@ research_value              (1) CC-080's `NOT_MEASURED` shape does NOT generalis
                             been worked on, and recording which one it is prevents a later round from spending
                             itself re-discovering the same refusal.
 ```
+
+## CC-082 — The leafless test is NECESSARY but not SUFFICIENT for a road: the eligible-looking candidate is a builder
+
+A short round that stops before making a mistake, and records why so the next round does not make it. **No tracked
+file changed except this entry.** The finding is one sentence long and it closes an avenue the previous round left
+open.
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What was being attempted.** CC-078 established that a road must be owned by a FEATURE and closed that path for
+the two largest hubs (`boot-module.ts`, 25 edges, owner `runtime`; `provider-contracts.ts`, 16 edges, owner
+`providers`), because both are KERNEL-owned. It also listed the remaining candidates, and this round went to the
+most promising one:
+
+```text
+src/shared/task-fingerprint.ts   owner tasks (FEATURE)   leafless (0 imports)   8 incoming cross-capability edges
+```
+
+It passes every test CC-078 had applied: it is leafless by the road validator's own measure, its owner is a feature,
+and EIGHT edges from `host-status`, `knowledge` (three files), `learning` (two files) and `workspace` all point into
+it. Declaring it would have moved 8 edges into the `<road>` class and lowered the raw cross-capability total by 8 --
+the same mechanism that made the refused `boot-module.ts` trial drop the total by 25.
+
+**2. Why it was NOT declared, and what that corrects.** Reading the file rather than its edge count showed it is not
+a contract, it is an implementation:
+
+```text
+src/shared/task-fingerprint.ts  (146 lines)
+  TaskFingerprint, FingerprintInput            the contract, which IS a road-shaped thing
+  MODALITY_KEYWORDS, HIGH_EFFECT_PATTERN       POLICY: a keyword table and an effect-level pattern
+  tokenize, deriveSpecificity, deriveContextScale,
+  deriveModalities, deriveExternalEffectLevel  the deterministic DERIVATIONS
+  buildStructuralFingerprint                   the BUILDER
+```
+
+The file's own header says the CONTRACT lives here and the deterministic builder lives in
+`electron/learning/task-fingerprint.ts` -- but a builder for `deriveSpecificity`, `deriveModalities` and
+`deriveExternalEffectLevel` is in THIS file, holding a keyword table and an effect pattern that decide what a task's
+modality and external-effect level ARE. That is business logic by any reading, and the roadmap's declaration
+requires every road to answer `whyNotBusiness` substantively: a road "performs no command, task, budget or scheduling
+function" and "names no capability domain". This file names a capability domain on every line.
+
+**So the leafless test is NECESSARY and NOT SUFFICIENT.** The road validator applies both, and they are independent:
+leaflessness is the mechanical half (a road that imports another capability would HIDE that edge), and the
+`whyNotBusiness` answer is the judgement half (a module with policy is a BUILDING, and re-labelling it as shared
+infrastructure is the fraud the refutation record exists to catch). CC-078's analysis was leafless-based because that
+is what the validator mechanically refuses on; this round found a candidate that passes the mechanical half and fails
+the judgement half, which means **an edge-count-first search for road candidates will always surface builders like
+this one**, and the count is not evidence that the declaration is true.
+
+**3. The correction generalises, and it is the reason this entry exists.** Any future round scanning for roads should
+expect the largest leafless candidates to be contracts AND builders, because both are naturally leaf-like: a builder
+that imports nothing is still a builder. The two are told apart by reading the exports, not by counting edges. The
+candidates that remain genuinely untested after this round are the ones that are BOTH leafless and contract-only, and
+no such candidate has yet been identified among the files carrying more than a few edges.
+
+**4. What is NOT done.** S2 55 kernel -> feature edges, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27,
+S14 2 MACHINE_RATCHET rows. CITY-DEBT-006 stays OPEN with exit (a) foreclosed (CC-081) and exit (b) needing an
+Owner-level decision. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32 are untouched, the Owner lease
+is in force, city acceptance NOT_READY at 14 blocking items. The tree is at `611cec4` with a clean working copy.
+
+```text
+ENTRY_ID                    CC-082
+timestamp_utc               2026-09-27T07:35:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY: no configuration, source or test file
+                            differs from main, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 611cec4  (CC-081 merged as PR #118; accepted baseline v14, epoch 60)
+branch                      docs/city-cc-082-road-necessity-not-sufficiency
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: scripts/phase2-pair-edges.cjs --json grouped by target file for the
+                            candidate's eight incoming edges; scripts/capability-roads-validator.cjs read for how
+                            the leaf test is computed (`reached.length === 0`, from the inventory's full edge set,
+                            so TYPE-ONLY imports count as reaching); src/shared/task-fingerprint.ts read in full
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The finding is a RULING on one candidate, not a re-audit of the six declared roads or
+                            the fourteen refuted ones. A declared road that is also a builder would not have been
+                            caught here.
+evidence_preserved          the candidate's eligibility facts in point 1; its export list and the two policy
+                            constants in point 2; the necessary-versus-sufficient statement and its consequence
+                            for an edge-count-first search in point 3
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. The candidate was NOT declared, so no whitelist entry exists to withdraw.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a RULING that prevents a specific mis-declaration. The OBJECTIVE is NOT
+                            complete and this entry does not claim it is.
+research_value              (1) A candidate can pass every MECHANICAL gate a validator applies and still be the
+                            wrong answer, and the only way to find that out is to read the file rather than trust
+                            its edge count. (2) The road class has two independent requirements -- leafless and
+                            not-a-building -- and the previous round's analysis had effectively collapsed them
+                            into one, which is exactly how a builder gets re-labelled as shared infrastructure.
+                            (3) The largest leafless files are the ones most likely to be builders, so a
+                            count-ordered search for roads is biased toward the worst candidates; the ordering
+                            should be by contract-only-ness, which the edge set cannot express at all.
+```
