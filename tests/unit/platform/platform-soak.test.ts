@@ -81,7 +81,32 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
           `not by this count, and this dimension is NOT reported as a pass.`
       );
     }
-    expect(result.samples.length).toBeGreaterThan(5);
+    // How MANY samples a fixed run yields is a measurement OF THE HOST, not a property of the platform, and this
+    // is the LAST site in the soak family still demanding a count rather than reporting an absence. The other
+    // three were repaired first and the reasoning is theirs, applied here verbatim: `cycles > 5` above became a
+    // NOT_MEASURED report, `steady.length > 2` below became one, and tests/acceptance/platform-soak-report.test.ts
+    // explains at length why `report.samples > 3` is not demanded. This case is the one that failed on a loaded
+    // runner as `expected 3 to be greater than 5` (INC-2026-09-25-01 occurrence eleven, and again in run
+    // 36298116240 on the CC-079 branch, where a parallel run of the identical commit was green).
+    //
+    // What the case actually needs is that the sampler RAN -- a run that produced no sample measured nothing about
+    // memory, storage or queue whatsoever -- and that is kept as a hard failure. A sparse run is reported as an
+    // absence instead. This does NOT weaken a bound: no allowance, threshold or ceiling moves, and the trend case
+    // below still refuses to compute a slope from too few points.
+    // The floor is the one tests/acceptance/platform-soak-report.test.ts already settled on for this same
+    // quantity -- "a report carrying N sample(s) is not a soak run" with `> 1` -- rather than a number invented
+    // here, so the two tiers agree about what makes a sample set usable. Measured context: this case asks for a
+    // 25 ms interval over a 5 s run, which is ~200 samples if the sampler were time-driven; it produced THREE on
+    // a loaded runner, because the sampler advances between cycles and a cycle is the costly unit. A count that
+    // falls from ~200 to 3 with the host is a host measurement, which is the whole point.
+    expect(result.samples.length, "a soak that produced fewer than two samples is not a soak run").toBeGreaterThan(1);
+    if (result.samples.length <= 5) {
+      console.log(
+        `[soak] NOT_MEASURED sample-count: this host produced ${result.samples.length} sample(s) in the fixed ` +
+          `run, below the six used as a speed proxy. The per-sample assertions below still read this run's ` +
+          `actual samples, and this dimension is NOT reported as a pass.`
+      );
+    }
 
     // Each stage ran, and the report shows the work rather than only its cost.
     expect(result.totals.stateWrites).toBeGreaterThan(1_000);

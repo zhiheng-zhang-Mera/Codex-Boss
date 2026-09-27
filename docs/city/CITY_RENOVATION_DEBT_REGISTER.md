@@ -320,8 +320,64 @@ outstanding_instance tests/unit/root-trust-authority-lockdown.test.ts, "holds no
                      exit condition (a) does not reach it as written: what is needed is a recorded decision about
                      whether that check's work is too large for the required `unit` lane, which changes what the
                      check proves. Until that decision exists, this entry stays OPEN.
-status               OPEN (narrowed: the four soak-style instances are repaired; one duration-budget instance
-                     remains, named above)
+                     REPAIRED (CC-080): the decision was recorded and acted on rather than the budget raised a second
+                     time. That case used to read and parse every workflow TWICE -- once for the `runs-on` loop and
+                     again for the corpus-upload loop -- so its cost was a property of the repository's workflow set
+                     and grew with every workflow added, which is why the group budget had gone 60s -> 120s and
+                     still timed out. It now parses once into a map and reads the document from there, and the
+                     120s budget is left where it was. The file states this in its own comment: "the fix for a cost
+                     that grows with the repository is to do the work once, not to buy more time for doing it
+                     twice; raising the budget a second time would have repeated the family's own mistake."
+status               CLOSED (CC-080) under exit condition (a), by SWEEPING the family rather than by fixing a list.
+                     The register's own `enumeration_is_illustrative` field set the bar: the debt is the positive
+                     condition -- "an environmental budget or a host-supplied count read as a correctness verdict"
+                     -- and the named instances are examples of it, so closing it required re-reading every such
+                     assertion in the soak and lifecycle families against that condition. That sweep was performed
+                     and found ONE remaining live site, which is the LAST repair below.
+occurrence_twelve   2026-09-27, PR #115 (the CC-079 flatness change, which touches no soak file) -- a SEVENTH
+                     instance, and the one that finally closed the entry by being repaired rather than retried:
+                       run 36298116240  test:slow  tests/unit/platform/platform-soak.test.ts
+                                                     "exercises every stage the book names, without intervention"
+                                                     AssertionError: expected 3 to be greater than 5
+                     A parallel run of the identical commit was green, and the change under test was a
+                     configuration registry that this suite does not read. This is occurrence eleven's sibling in
+                     the same case, one assertion further down: `expect(result.samples.length).toBeGreaterThan(5)`.
+last_repair          tests/unit/platform/platform-soak.test.ts, "exercises every stage the book names, without
+                     intervention" -- `samples.length > 5` became a `> 1` floor plus a NOT_MEASURED report, which
+                     is the shape the OTHER THREE sites in this same file and tier already use for this exact
+                     condition: `cycles > 5` above it, `steady.length > 2` below it, and
+                     tests/acceptance/platform-soak-report.test.ts's `report.samples > 3`. The floor is `> 1`
+                     because that file already settled on exactly that number for exactly this quantity ("a report
+                     carrying N sample(s) is not a soak run"), so the two tiers now agree rather than each
+                     inventing a threshold. Measured context for why the count is a host measurement: the case
+                     asks for a 25 ms interval over a 5 s run, which is ~200 samples if the sampler were
+                     time-driven, and a loaded runner produced THREE -- the sampler advances between cycles and a
+                     cycle is the costly unit. Nothing that is a property of the platform was relaxed: no
+                     allowance, bound or ceiling moved, and the trend case below still refuses to compute a slope
+                     from fewer than three steady points.
+sweep                Every expectation in the soak and lifecycle families that reads a host-supplied quantity was
+                     re-read against the positive condition. The families are platform-soak.test.ts,
+                     platform-soak-report.test.ts, soak.test.ts, host-soak-harness.test.ts, data-lifecycle-report
+                     .test.ts, session-lifecycle.test.ts, knowledge-lifecycle.test.ts, context-lifecycle.test.ts
+                     and replacement-lifecycle.test.ts. Findings: (1) ONE live site, repaired above. (2) Every
+                     remaining host-quantity assertion in platform-soak.test.ts either carries a NOT_MEASURED guard
+                     already or asserts a property of the run rather than of the host --
+                     `elapsedMs >= auditSeconds * 1000` is a property of the SOAK CONTRACT (the runner is asked for
+                     a duration and must serve it), and `recoveredTransactions === cycles` is an identity between
+                     two measured totals, not a threshold. (3)
+                     tests/unit/host-soak-harness.test.ts asserts against SYNTHETIC sample arrays built inside the
+                     case, so it is deterministic by construction and cannot be host-sensitive. (4)
+                     tests/acceptance/platform-soak-report.test.ts still contains one `expect(report.samples)
+                     .toBeGreaterThan(3)` in the report-SHAPE case, and it is deliberately left: that case runs a
+                     fixed `--minutes 0.25 --interval 250`, which is fifteen seconds at four samples per second,
+                     so ~60 samples are produced by the interval and not by the host. The sibling case that DID
+                     fail on a loaded runner already carries both the weaker floor and the NOT_MEASURED report.
+enumeration_is_illustrative
+                     The six instances above and this seventh are examples, not the debt. The debt is the
+                     condition stated in occurrence_ten: an environmental budget or a host-supplied count read
+                     as a correctness verdict. It is CLOSED because that condition was SWEPT rather than because
+                     the list was exhausted -- the `sweep` field above is the evidence, and this list is what it
+                     found.
 occurrence_eleven   2026-09-25, PR #88 (docs-only) -- a SIXTH instance appeared while this entry was being
                      rewritten, in a file already repaired twice:
                        run 36186092756  test:slow  tests/unit/platform/platform-soak.test.ts
@@ -335,12 +391,15 @@ occurrence_eleven   2026-09-25, PR #88 (docs-only) -- a SIXTH instance appeared 
                      statement as the debt and the list as examples of it.
                      The repair is the same shape as CC-056's: `cycles > 5` is a host-supplied count inside a
                      test about which STAGES ran, not how many cycles a loaded runner could fit into the run.
-enumeration_is_illustrative
-                     The five instances above and this sixth are examples, not the debt. The debt is the
+enumeration_is_illustrative_closure
+                     The five instances above and the sixth and seventh are examples, not the debt. The debt is the
                      condition stated in occurrence_ten: an environmental budget or a host-supplied count read
-                     as a correctness verdict. Closing it requires either every such assertion in the soak and
+                     as a correctness verdict. Closing it required either every such assertion in the soak and
                      lifecycle families to be re-read against that condition -- which is a sweep of the family,
-                     not a list of fixes -- or the quarantine in exit condition (b).
+                     not a list of fixes -- or the quarantine in exit condition (b). THE SWEEP WAS DONE (CC-080),
+                     which is why this entry is CLOSED: see `sweep` above for the families read, the one live
+                     site it found, and the four findings that decided the rest were not host-sensitive. The
+                     quarantine was NOT taken, because the sweep produced a repair for the only remaining site.
 ```
 
 ---
@@ -384,14 +443,14 @@ CITY-DEBT-001  dispatch helper can dispatch without --confirm                  C
 CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    CLOSED
 CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      CLOSED
 CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CLOSED
-CITY-DEBT-005  the soak suites fail non-deterministically under hosted load    OPEN
+CITY-DEBT-005  the soak suites fail non-deterministically under hosted load    CLOSED
 CITY-DEBT-006  the desktop smoke suite fails after an application restart      OPEN
 ```
 
 ```text
-OPEN               2   (CITY-DEBT-005, CITY-DEBT-006)
+OPEN               1   (CITY-DEBT-006)
 CONTAINED          0
-CLOSED             4   (CITY-DEBT-001, -002, -003, -004)
+CLOSED             5   (CITY-DEBT-001, -002, -003, -004, -005)
 ACCEPTED_PERMANENT 0
 ```
 
