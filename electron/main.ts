@@ -747,7 +747,11 @@ if (ownsInstance) app.whenReady().then(() => {
   // no boot module was added because a new one would raise `bootModuleCount` in the frozen
   // `config/architecture-baseline.json`. The path is the one persistence used to compose.
   nodeRegistry = new NodeCapabilityRegistry(path.join(app.getPath("userData"), ".boss", "node-registry.json"));
-  externalSessions = persistence.service.externalSessions;
+  // The `workspace` capability's external-session ledger is built HERE rather than handed back by
+  // `persistence` (ledger CC-091). `external-sessions` was declared by `persistence` until this change even
+  // though electron/workspace/external-session-ledger.ts implements it. The path is IDENTICAL to the one
+  // `persistence` composed, so no stored data moves, and this file already imported the class.
+  externalSessions = new ExternalSessionLedger(path.join(app.getPath("userData"), ".boss", "external-sessions.json"));
   // The `tenx` capability's interventions store is built HERE rather than handed back by `persistence`
   // (ledger CC-090). `interventions` was declared by `persistence` until this change even though
   // electron/commander/human-guidance-gate.ts implements it. CC-075 gave the namespace a live READ side on

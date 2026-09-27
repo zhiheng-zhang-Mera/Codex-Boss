@@ -499,6 +499,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 18,
+      "baseline_hash": "01c75eb3a5f5a1df3cac56f2376a9080a665ae0c925d6cbb78ae15e3a7b12d64",
+      "parent_baseline_hash": "0a09fec9ec668bf11ce8425c20709ccb6ad0ae2167ff8333a6a50f1aa7baab56",
+      "source_commit": "c197d36d3c64de7a0bb8e725627c91ec1839a25c",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the eleventh namespace-ownership migration. Recorded in ledger CC-091.",
+      "evidence_reference": "docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-091; config/capabilities/workspace.yaml; config/capabilities/persistence.yaml; electron/bootstrap/persistence.ts; electron/main.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-27T11:35:00Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `persistence -> workspace` falls 5 -> 4.",
+        "new_legitimate_relation": "NONE added. main.ts already imported ExternalSessionLedger for its own binding.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "`task-contexts` was considered first and declined for this round: its boot construction calls `retainTaskIds` with the state store's task list, so moving it would have required relocating that call as well. `external-sessions` has exactly one consumer and no cross-store dependency, which is the shape a migration should have.",
+        "why_the_baseline_moves": "Tracked source changed: the boot module lost a construction and main.ts gained one. The structural ratchets were re-measured: kernel -> feature 52 -> 51, raw 776 -> 775, pairs 16, mutual pairs 31, largest SCC 18 all unchanged."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 605,
+        "internal_edges": 1664,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
