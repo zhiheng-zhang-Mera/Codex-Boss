@@ -165,6 +165,37 @@ describe("P2-F — the committed registry passes, and the SEAL correctly does no
     }
   });
 
+  it("refuses a migration whose source names a file that no longer exists, because that migration has no subject", () => {
+    // Ledger CC-079. `host-status`'s ONLY migration read
+    // "electron/host/host-observer-collector.ts:256 resolves persistence's `tasks` namespace by hard-coded path",
+    // and CC-076 deleted that file. The plot was still recorded MIGRATION_IN_PROGRESS against it, so the registry
+    // claimed a live migration whose subject was gone. This case builds exactly that shape on a fixture whose
+    // capability list is real, so the rejection is caused by the missing file and nothing else.
+    const root = fixture({
+      capabilities: ["alpha", "beta"],
+      registry: {
+        ...(validator.readRegistry(PROJECT) as Record<string, unknown>),
+        plots: {
+          alpha: { state: "FLAT", why: "no defect measured by any instrument for this fixture plot" },
+          beta: {
+            state: "MIGRATION_IN_PROGRESS",
+            why: "the fixture records a migration against a file that this repository does not contain",
+            migrations: [
+              {
+                stage: "P2-D",
+                source: "electron/definitely/not/a/real/file.ts:12 resolves another capability's namespace by hard-coded path",
+                target: "read the ledger through the owner's declared query API or read model instead",
+              },
+            ],
+          },
+        },
+      },
+    });
+    const report = validator.validate(root, { reports: NO_DEFECTS });
+    expect(report.problems.join("\n")).toContain("does not exist");
+    expect(report.problems.join("\n")).toContain("electron/definitely/not/a/real/file.ts");
+  });
+
   it("declares NO bridge, and still carries the obligations of the one it retired", () => {
     const registry = validator.readRegistry(PROJECT) as { bridges: Record<string, Record<string, unknown>>; $bridges_comment?: string };
     // Ledger CC-044 retired P2A-BRIDGE-01, so the object is empty. That is a RESULT and this case pins it; the loop

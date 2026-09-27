@@ -131,15 +131,15 @@
       ]
     },
     "host-status": {
-      "state": "MIGRATION_IN_PROGRESS",
-      "why": "it resolves persistence's `tasks` namespace by hard-coded path -- the workbook's own historical example",
-      "migrations": [
-        {
-          "stage": "P2-D",
-          "source": "electron/host/host-observer-collector.ts:256 resolves persistence's `tasks` namespace by hard-coded path",
-          "target": "read the task ledger through persistence's declared query API or read model"
-        }
-      ]
+      "state": "FLAT",
+      "why": "the hard-coded path into persistence's `tasks` namespace was the workbook's own historical example, and it lived in electron/host/host-observer-collector.ts, which no production code reached and which ledger CC-076 deleted together with the rest of that cluster. The target it named was delivered first: ledger CC-075 gave this capability a live read-only `boss:interventions` channel on the live status module, so the ledger is now read through a declared read model rather than by resolving another capability's path. Stage P2-D's exit condition (cross-domain private-state accesses = 0) measures 0, and neither the inversion nor the cycle instrument names this capability, so no measured defect implicates it.",
+      "completedMigration": {
+        "stage": "P2-D",
+        "source": "electron/host/host-observer-collector.ts:256 resolved persistence's `tasks` namespace by hard-coded path",
+        "target": "read the task ledger through persistence's declared query API or read model",
+        "completedBy": "CC-075 delivered the declared read model (`boss:interventions` on the live status module); CC-076 deleted the dead module that held the access.",
+        "ledgerEntry": "CC-076"
+      }
     },
     "identity": {
       "state": "MIGRATION_IN_PROGRESS",

@@ -7964,3 +7964,179 @@ research_value              (1) The cheapest-looking repair in the whole cycle p
                             declaration that measured well was still withdrawn because the validator refused it,
                             which is the one behaviour that separates this programme's numbers from its claims.
 ```
+
+## CC-079 — S10 moves for the first time: one plot was migrating against a file that no longer exists, and the rule that allowed it is now machine-checked
+
+This round found a genuine defect in the city's own bookkeeping, fixed it, and then closed the hole that let it
+happen. **S10 goes from 22 to 21 plots in `MIGRATION_IN_PROGRESS`**, and unlike every previous round, this one did
+NOT come from a re-classification that hides work — it came from a migration whose subject had been deleted.
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. The defect: a plot recorded as migrating against a file that is gone.** `host-status` carried exactly one
+migration:
+
+```text
+state       MIGRATION_IN_PROGRESS
+migration   [P2-D]  electron/host/host-observer-collector.ts:256 resolves persistence's `tasks`
+                    namespace by hard-coded path
+            target  read the task ledger through persistence's declared query API or read model
+```
+
+`electron/host/host-observer-collector.ts` was DELETED by ledger CC-076, three rounds ago. So the registry was
+asserting a live migration whose declared SOURCE no longer exists anywhere in the tree, and every instrument agreed
+the plot was fine:
+
+```text
+host-status in kernel -> feature pairs        false
+host-status in mutual capability pairs        false
+p2d confirmed cross-domain accesses            0        (stage P2-D's exit condition)
+stage P2-D exit condition met                 true
+plot implicated by ANY measured defect        false
+```
+
+This is the same failure the flatness registry has produced twice before, in a THIRD shape. CC-039 found a stale
+count in the enforcement matrix's prose, CC-041 found one in this registry's stage measurements, and the validator
+already refuses a `why` string that states a measurement for exactly that reason. **This one is not a stale number
+but a stale SUBJECT**: a migration is a statement that work is outstanding, and it stays outstanding only while the
+thing it names is still there to be worked on. A deleted file cannot be migrated.
+
+**2. The fix, and why the state is now honestly FLAT.** The migration's own target had already been DELIVERED, and by
+the round that deleted the file: ledger CC-075 gave this capability a live read-only `boss:interventions` channel on
+the live status module, so the task ledger is now read through a declared read model rather than by resolving another
+capability's path — which is exactly what the P2-D target asks for. The defect is gone, the target is met, and
+stage P2-D's exit condition measures zero. The entry was rewritten:
+
+```text
+                              BEFORE                                  AFTER
+state                         MIGRATION_IN_PROGRESS                   FLAT
+migrations                    [P2-D ... deleted file ...]             (none)
+completedMigration            --                                      P2-D, source/target preserved, completedBy
+                                                                      CC-075 (delivered the read model) and
+                                                                      CC-076 (deleted the dead module)
+ledgerEntry for the closure   --                                      CC-076
+states                        22 MIGRATION_IN_PROGRESS / 5 FLAT       21 MIGRATION_IN_PROGRESS / 6 FLAT
+```
+
+The history is PRESERVED rather than deleted: `completedMigration` keeps the stage, the source, the target and the
+ledger entry that closed it, so a reader can still see what was migrated and by whom. Deleting the migration outright
+would have destroyed the only record of why this plot was ever non-FLAT.
+
+**3. The rule, added so the shape cannot recur.** `city-flatness-validator` now refuses a migration whose source
+NAMES a file that does not exist:
+
+```text
+a migration pointing at a deleted file is not a migration
+```
+
+It extracts a repository path from the migration's source and refuses the registry when that path is absent. The
+rule deliberately does NOT decide the plot's state — a plot can be non-FLAT for a reason other than the migration
+that names the missing file, and an instrument that decided state from this would be guessing. What it refuses is a
+registry that claims work is outstanding against a file that is not there. A new case in
+`tests/unit/city/city-flatness-validator.test.ts` builds that exact shape on a fixture and pins the rejection; the
+suite is 28 cases and all of them pass.
+
+**4. The other two apparent hits were NOT the same defect, which is why the check is path-exact.** A first pass that
+matched bare filenames flagged `tenx` twice as well, for `live-capture.ts` and `replay-corpus-io.ts`. Reading both
+showed a false positive and a real-but-different situation:
+
+```text
+tenx  live-capture.ts       FALSE POSITIVE for the new rule: electron/runtime-intelligence/live-capture.ts is
+                            still present, and the migration names it by bare basename rather than by path.
+tenx  replay-corpus-io.ts   the FILE is gone (CC-076), so this half of the source is stale -- but `tenx` must
+                            stay MIGRATION_IN_PROGRESS anyway: it carries P2-B ("24 kernel -> feature edges over
+                            4 pairs") and P2-C ("mutually dependent with twelve capabilities"), both still open.
+```
+
+So `tenx` keeps its state, and the plot count is unaffected either way. What is worth recording is the ASYMMETRY:
+`tenx`'s P2-D source reads `live-capture.ts:519 and replay-corpus-io.ts:111 and :411` and spells no repository path
+for the deleted file, so the path-exact rule does not fire on it. Reading the source further shows the P2-D half of
+that migration has in fact been overtaken by events -- CC-072 made the ledger root a REQUIRED PARAMETER of
+`runLiveCaptureSmoke`, so `live-capture.ts` no longer resolves persistence's `tasks` namespace at all, and the
+instrument confirms zero accesses. That closure is NOT claimed here: `tenx`'s entry was left exactly as it was,
+because recording it would change no plot's state and the round's rule is to move a plot only when the change is
+load-bearing. The narrower rule was nevertheless preferred to a broader one, because a broad pattern would have
+produced a false positive on `live-capture.ts`, and a validator that cries wolf on a live file is worse than one
+that misses a case it can be taught later.
+
+**5. What did NOT move, and this is the honest headline of the round.** S10 improved by one plot. S2 is 55 kernel ->
+feature edges, S3 is 31 mutual pairs, and **S4 is still 18 of 29** — the largest SCC did not move, and three plans to
+move it were tested this round or the last and are now closed:
+
+```text
+A  move a pure utility out of a capability contract        raw total ROSE 778 -> 780        REJECTED (CC-078)
+B  declare the shared hubs as roads                        refused: a road must be FEATURE-owned
+                                                           and the two biggest hubs are KERNEL-owned
+C  re-home a kernel-owned hub into the composition root    SCC 18 -> 28, pairs 31 -> 49     REJECTED (measured)
+D  eliminate ALL of one file's cross-capability out-edges  no single file moves the SCC more
+                                                           than 18 -> 16 (electron/store.ts)
+```
+
+Plan D is the result that closes the search: the SCC is not pinched at any one file. Every candidate was simulated
+against the instrument's own edge set, and the best single-file cut takes an 18-member component to 16. **S4 can only
+fall by reversing a substantial share of the 778 cross-capability edges**, which is the architectural endgame rather
+than a next step, and no round yet has had the capacity for it.
+
+**6. What is NOT done.** S2 55. S3 31. S4 18 of 29. S5 PASS (CC-076, direct-path; S6's owner-API envelope open under
+CC-073). S10 21 of 27. S14 2 MACHINE_RATCHET rows. `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, the Owner lease is in force, city acceptance NOT_READY. The tree is at `4af5541` plus this change,
+with every local gate green and no trust-surface movement.
+
+```text
+ENTRY_ID                    CC-079
+timestamp_utc               2026-09-27T05:39:52Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY:
+                            config/city-flatness.json is not tracked source, so the accepted baseline and the
+                            epoch were both re-checked and still MATCH (baseline v14, epoch 60).
+main_before                 4af5541  (CC-078 merged as PR #114; accepted baseline v14, epoch 60)
+branch                      fix/cc079-stale-migration-subject
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS, p2d HOLDS, closure PASS, core HOLDS, principles HONEST,
+                            roads HOLDS, ledger provenance HOLDS, architecture baseline --check exit 0 with
+                            artifact_integrity/series/tree all true and identical, bless MATCHES at epoch 60,
+                            city-flatness VERDICT=PASS at 21 MIGRATION_IN_PROGRESS / 6 FLAT, the flatness suite
+                            at 28 cases, the full unit suite at 3886 passed / 4 failed where all four failures are
+                            tests/unit/sandbox-failure-cleanup.test.ts, which passes 8/8 when run alone and is
+                            recorded rather than retried, and the new rule proved to fire on a fixture before it
+                            was trusted
+files_or_rules_changed      config/city-flatness.json (the host-status entry);
+                            scripts/city-flatness-validator.cjs (the stale-subject rule);
+                            tests/unit/city/city-flatness-validator.test.ts (the new case);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The new rule is PATH-EXACT and therefore incomplete: a migration that names a
+                            deleted file by basename alone is not caught, which is exactly the `tenx` case, and
+                            that limitation is recorded rather than hidden. (2) Moving a plot to FLAT removes it
+                            from the seal-blocking set, so if the `host-status` closure were ever found to be
+                            wrong, the seal gate would be one plot quieter -- the mitigation is that the closure
+                            rests on TWO ledger entries (CC-075 delivered the target, CC-076 deleted the source)
+                            rather than on an absence of evidence. (3) No trust surface moved, so this entry
+                            claims no ceremony it did not perform.
+evidence_preserved          the live instrument readings in point 1; the before/after entry shape in point 2; the
+                            `tenx` false-positive-versus-real-but-not-load-bearing asymmetry in point 4; the four
+                            rejected plans with their measured effects in point 5
+rollback                    Revert this commit. One atomic act: the registry entry, the validator rule, its case
+                            and this entry. config/city-flatness.json returns to 22 MIGRATION_IN_PROGRESS and the
+                            validator to its previous shape. No baseline, epoch, ratchet or source file moves.
+temporary_debt_created      no. Nothing was whitelisted, no threshold was weakened, and no plot was moved to FLAT
+                            on the strength of a missing detection alone -- the closure rests on the deleted source
+                            AND the delivered target.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a measured bookkeeping repair plus a machinery hardening. The OBJECTIVE is
+                            NOT complete and this entry does not claim it is.
+research_value              (1) A migration is a claim about OUTSTANDING work, and it can go stale in a way no
+                            count-based check notices: the defect was not a wrong number but a SUBJECT that had
+                            been deleted, and every instrument reported the plot healthy while the registry still
+                            said work remained. (2) The cheapest honest S10 improvement available was to make the
+                            registry match reality, not to reclassify anything -- and it was only available
+                            because an earlier round's deletion had already done the architectural work. (3) Four
+                            distinct plans to move S4 were tested and closed in two rounds, and the fourth is the
+                            decisive one: no single file is a pinch point, so the metric cannot be moved by
+                            targeted repair at all. That is worth more than a round spent discovering it by
+                            experiment one at a time.
+```

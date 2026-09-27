@@ -137,6 +137,17 @@ function validate(root = ROOT, options = {}) {
         if (typeof migration?.target !== "string" || migration.target.trim().length < 20) problems.push(`${capability}: migration for ${migration?.stage} carries no substantive target`);
         const exit = stages[migration?.stage]?.exitCondition;
         if (typeof exit !== "string" || exit.trim().length < 20) problems.push(`${capability}: stage ${migration?.stage} declares no exit condition, so the migration has no exit`);
+        // A MIGRATION POINTING AT A DELETED FILE IS NOT A MIGRATION. Some sources name the file the defect lived in --
+        // `electron/host/host-observer-collector.ts:256 resolves persistence's `tasks` namespace ...` -- and when that
+        // file is deleted the migration's own subject is gone. The plot can still be non-FLAT for another reason, so
+        // this does not decide the state; it refuses a source whose named file no longer exists, because otherwise a
+        // plot stays "migrating" against a file that is not there and nobody notices. Ledger CC-079 is where this was
+        // found: `host-status`'s only migration named a file CC-076 had retired, and the plot was still recorded
+        // MIGRATION_IN_PROGRESS for it.
+        const namedFile = typeof migration?.source === "string" ? /(?:^|\s)((?:electron|src|scripts|tests)\/[A-Za-z0-9_./-]+\.(?:ts|tsx|cjs|js))/.exec(migration.source) : null;
+        if (namedFile && !fs.existsSync(path.join(root, namedFile[1]))) {
+          problems.push(`${capability}: migration for ${migration?.stage} names ${namedFile[1]}, which does not exist, so the migration is recorded against a file that is gone`);
+        }
       }
     }
     if (state === "PARTIALLY_DEGRADED") {
