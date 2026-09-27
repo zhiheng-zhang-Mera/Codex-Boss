@@ -27,6 +27,7 @@ import { RuntimeRegistry } from "./commander/runtime-registry";
 import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
+import { ResourceController } from "./commander/resource-controller";
 import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture } from "./theme/visual-capture";
 import { recordThemeKnowledge } from "./theme/theme-knowledge";
 import { writeJson } from "./commander/durable-json";
@@ -775,7 +776,12 @@ if (ownsInstance) app.whenReady().then(() => {
   // so no stored data moves; and as with CC-070 this is a RELOCATION rather than a dead-store removal,
   // because the store has real consumers (`budgetManager` below).
   budgetManager = new BudgetManager(path.join(app.getPath("userData"), ".boss", "runtime-budget.json"));
-  const { workspaces, resources: resourceController, contexts: contextManager } = persistence.service;
+  // The `tenx` capability's runtime-resource store is built HERE rather than handed back by `persistence`
+  // (ledger CC-086). `runtime-resources` was declared by `persistence` until this change even though
+  // electron/commander/resource-controller.ts implements it. The path is IDENTICAL to the one `persistence`
+  // composed, so no stored data moves, and the store has real consumers in `MainCommander` and `RoleRouter`.
+  const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
+  const { workspaces, contexts: contextManager } = persistence.service;
   // The `security` capability's permission-manifest store is built HERE rather than handed back by
   // `persistence` (ledger CC-070). It has a REAL consumer -- `permissionForWorkspace` below -- so this
   // is a relocation, not the dead-store removal CC-069 performed. Its path is WORKSPACE-SCOPED, so the

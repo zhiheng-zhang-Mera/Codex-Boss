@@ -31,8 +31,6 @@ state:
     owner: persistence
   - namespace: workspace-selection
     owner: persistence
-  - namespace: runtime-resources
-    owner: persistence
   - namespace: task-contexts
     owner: persistence
 health:

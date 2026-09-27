@@ -121,6 +121,12 @@ function listTracked(root) {
   return git(root, ["ls-files", "-z"]).split("\0").filter(Boolean).map((entry) => entry.split(path.sep).join("/")).sort();
 }
 
+/**
+ * The owner name the composition root is attributed to. It MUST match the sentinel the edge instruments already
+ * publish (`scripts/phase2-edge-inventory.cjs`'s `COMPOSITION_ROOT`), so the two models name the same class.
+ */
+const COMPOSITION_ROOT_OWNER = "<composition-root>";
+
 function loadOwnership(root) {
   const dir = path.join(root, "config", "capabilities");
   const files = [];
@@ -135,7 +141,33 @@ function loadOwnership(root) {
   const manifests = files.map((file) =>
     observatory.parseManifestText(path.relative(root, file).split(path.sep).join("/"), fs.readFileSync(file, "utf8"))
   );
-  return { ownership: observatory.ownershipFromManifests(manifests), manifestCount: manifests.length };
+  const ownership = observatory.ownershipFromManifests(manifests);
+
+  // THE COMPOSITION ROOT IS A CLASS, AND THIS MODEL DID NOT KNOW IT (ledger CC-089).
+  //
+  // `ownershipFromManifests` is built from each manifest's `modules:` list, so it can only ever name files a
+  // CAPABILITY declares. The composition root is not a capability: `config/capability-modules.json` records
+  // `electron/main.ts` and `electron/preload.ts` under `composition_root`, each with the reason it belongs to the
+  // platform rather than to any one capability, and the edge instruments read that file -- which is why `p2b`
+  // reports `edgesFromCompositionRoot`. This model never read it, so both files resolved to UNDECLARED.
+  //
+  // The cost was not theoretical. The accepted baseline carries 95 edges FROM `electron/main.ts`, and because
+  // existing edges are grandfathered the omission stayed invisible until a NEW edge originated there -- which is
+  // the shape of every namespace-ownership migration, since each one moves a store's construction INTO the
+  // composition root. Four rounds (CC-085..CC-088) were refused by that gap.
+  //
+  // Attributing the files does not by itself permit such an edge: `isAuthorized` would still refuse it, because a
+  // platform class declares no `requires`. The enforcer treats this owner as the platform in its edge decision.
+  const compositionRootPath = path.join(root, "config", "capability-modules.json");
+  if (fs.existsSync(compositionRootPath)) {
+    const map = JSON.parse(fs.readFileSync(compositionRootPath, "utf8"));
+    for (const file of Object.keys(map.composition_root ?? {})) {
+      const normalized = String(file).split(path.sep).join("/");
+      ownership.moduleOwner.set(normalized, COMPOSITION_ROOT_OWNER);
+    }
+  }
+
+  return { ownership, manifestCount: manifests.length };
 }
 
 /**

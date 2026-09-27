@@ -5,7 +5,6 @@ import { StateStore } from "../store";
 import { ApiSettingsStore } from "../api-settings";
 import { TaskLedger } from "../commander/task-ledger";
 import { ContextManager } from "../commander/context-manager";
-import { ResourceController } from "../commander/resource-controller";
 import { DecisionLedgerStore } from "../commander/decision-ledger-store";
 import { HumanGuidanceGate } from "../commander/human-guidance-gate";
 import { ProviderCapabilityRegistry } from "../input/provider-capability-registry";
@@ -85,8 +84,6 @@ interface PersistenceService {
   decisions: DecisionLedgerStore;
   workspaces: WorkspaceRegistry;
   workspaceSelection: WorkspaceSelectionStore;
-  /** Runtime admission: what may run right now, and against which resources. */
-  resources: ResourceController;
   contexts: ContextManager;
   /** The counter names this module opened, for the boot health line. */
   opened: readonly string[];
@@ -145,7 +142,6 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
   // construction had NO consumer: `main.ts` already builds a `ProjectStateStore` per workspace through
   // `openProjectState(workspaceId)`, and nothing ever read the boot-time instance. The namespace is now
   // claimed by the `project` capability that implements it, and the store is built where it is used.
-  const resources = open("runtime-resources", () => new ResourceController(boss("runtime-resources.json")));
   const contexts = open("task-contexts", () => new ContextManager(path.join(dataRoot, "task-contexts.json")));
   // Contexts are retained, never created here: a task that no longer exists must
   // not keep its context alive across a restart.
@@ -157,7 +153,7 @@ export function createPersistenceModule(options: PersistenceOptions): BootModule
       history, tasks, store, capture, capabilities, github, apiSettings,
       externalSessions, guidance, decisions,
       workspaces, workspaceSelection,
-      resources, contexts,
+      contexts,
       opened
     },
     health: () => ({
