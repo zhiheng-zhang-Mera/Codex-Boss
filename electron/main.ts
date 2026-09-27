@@ -27,6 +27,7 @@ import { RuntimeRegistry } from "./commander/runtime-registry";
 import { BudgetManager } from "./commander/budget-manager";
 import { RoleRouter } from "./commander/role-router";
 import { Scheduler } from "./commander/scheduler";
+import { ContextManager } from "./commander/context-manager";
 import { ResourceController } from "./commander/resource-controller";
 import { captureSurfacesForThemeDesign, defaultCaptureTargets, summarizeCapture } from "./theme/visual-capture";
 import { recordThemeKnowledge } from "./theme/theme-knowledge";
@@ -790,7 +791,17 @@ if (ownsInstance) app.whenReady().then(() => {
   // electron/commander/resource-controller.ts implements it. The path is IDENTICAL to the one `persistence`
   // composed, so no stored data moves, and the store has real consumers in `MainCommander` and `RoleRouter`.
   const resourceController = new ResourceController(path.join(app.getPath("userData"), ".boss", "runtime-resources.json"));
-  const { workspaces, contexts: contextManager } = persistence.service;
+  // The `tenx` capability's task-context store is built HERE rather than handed back by `persistence`
+  // (ledger CC-092). `task-contexts` was declared by `persistence` until this change even though
+  // electron/commander/context-manager.ts implements it. The path is IDENTICAL to the one `persistence`
+  // composed, so no stored data moves.
+  const contextManager = new ContextManager(path.join(app.getPath("userData"), ".boss", "task-contexts.json"));
+  // Contexts are retained, never created here: a task that no longer exists must not keep its context alive
+  // across a restart. This call moved WITH the store rather than being left behind in the boot module -- it
+  // needs the state store, which this function already holds, so the retention step keeps its ordering
+  // relative to the construction and nothing about which module owns it changes.
+  contextManager.retainTaskIds(store.snapshot().tasks.map((task) => task.id));
+  const { workspaces } = persistence.service;
   // The `security` capability's permission-manifest store is built HERE rather than handed back by
   // `persistence` (ledger CC-070). It has a REAL consumer -- `permissionForWorkspace` below -- so this
   // is a relocation, not the dead-store removal CC-069 performed. Its path is WORKSPACE-SCOPED, so the

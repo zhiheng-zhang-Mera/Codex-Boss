@@ -27,8 +27,6 @@ state:
     owner: persistence
   - namespace: workspace-selection
     owner: persistence
-  - namespace: task-contexts
-    owner: persistence
 health:
   critical: true
 modules:
