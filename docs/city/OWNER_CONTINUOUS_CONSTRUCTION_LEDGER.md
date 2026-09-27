@@ -8923,3 +8923,121 @@ research_value              (1) A migration can be FUNCTIONALLY correct, typeche
                             imports its class, because that is what keeps the endpoint pair inside the accepted
                             set -- which is exactly why CC-084 worked and this one did not.
 ```
+
+## CC-086 鈥?The endpoint refusal is CORRECT: the enforcer and the edge instruments read two DIFFERENT ownership models
+
+This entry corrects an inference CC-085 recorded and closes the question it left open. The refusal that blocked the
+`runtime-resources` migration is not a bug in the enforcer and not a baseline-grain problem: **the enforcer cannot
+resolve that file's owner because the model it reads never declares it.** No tracked file changed except this entry.
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. The two models, and which reader uses which.** There are two ownership models in this tree, and they disagree
+about a whole directory:
+
+```text
+config/capability-modules.json            capabilitITIES -> PATHS, including DIRECTORY patterns
+  capabilities.tenx contains "electron/commander"        READ BY: phase2-edge-inventory.cjs -> p2b, p2c, p2d
+                                                         RESULT: electron/commander/* is tenx's
+
+config/capabilities/<id>.yaml  modules:   the MANIFEST's declared modules
+  tenx.yaml has  modules: []                             READ BY: architecture-observatory.cjs
+                                                         RESULT: electron/commander/* has NO owner
+```
+
+So `electron/commander/resource-controller.ts` is `tenx`'s to the edge instruments and ownerless to the trust
+machinery. The `NEW_EDGE_UNDECLARED_ENDPOINT` refusal follows directly: a NEW edge whose endpoint the enforcement
+model cannot resolve is refused, **and on that model the flat refusal is correct** 鈥?it is the enforcer doing exactly
+what it is for, not a false positive.
+
+**2. Why the obvious repair does not work, tested rather than reasoned.** CC-085's entry inferred that the baseline's
+`files` map was not a per-file switch and that the fix "lives in the baseline's edge-set grain". That inference was
+WRONG, and this round measured it. The enforcer resolves a file through
+`ownership.moduleOwner.get(file) ?? UNDECLARED`, where `moduleOwner` is built by `ownershipFromManifests` from each
+manifest's `modules` list. The map is keyed by the DECLARED STRING, so a declared DIRECTORY never matches a file
+inside it. A prefix rule was added to `architecture-enforcement.cjs` and measured:
+
+```text
+architecture-enforcement.cjs --mode enforce, by_code
+  WITHOUT the prefix rule:  {"NON_SOURCE_ASSET":1,"NOT_YET_ENFORCED":5,"PASS_AS_GRANDFATHERED":1659}
+  WITH    the prefix rule:  {"NON_SOURCE_ASSET":1,"NOT_YET_ENFORCED":5,"PASS_AS_GRANDFATHERED":1659}
+```
+
+**Identical output.** The rule is a no-op, because `tenx.yaml` declares no modules for it to expand 鈥?the prefix rule
+widens a map that does not contain the directory in the first place. The change was therefore reverted rather than
+landed: a Root Trust machinery edit that changes nothing verifiable is not worth its ceremony, and landing one would
+have put a no-op into the artifact that exists to be auditable.
+
+**3. What this corrects in CC-085.** That entry said the fix "lives in the baseline's file-granularity model, not in
+the ownership registry". The measured truth is the reverse: the fix lives in the **MANIFEST** 鈥?`tenx.yaml` would have
+to declare the modules it owns 鈥?and the baseline's `files` map is a derived readout, not the thing to edit. CC-085's
+`known_risk` said the nature of `new_edge_undeclared_endpoint` was inferred rather than established; this entry
+establishes it, and the inference it replaces was wrong in the useful direction, because it pointed at the wrong
+artifact.
+
+**4. The decision this now poses, which is not the executor's to make.** Making `tenx.yaml` declare `electron/commander`
+would give the enforcement model the directory's files as `tenx`'s. That is not a one-line correction:
+
+```text
+(a) it changes the ENFORCEMENT model, which is the trust machinery, for the ~12 files in electron/commander;
+(b) those files' EXISTING edges are grandfathered, so the change's effect is on FUTURE edges -- it does not by
+    itself improve any current metric, which is precisely why it could not be validated by measurement here;
+(c) it is the same class of decision as the other standing item: whether a capability may own a DIRECTORY, and
+    whether the two models should be reconciled in general rather than one manifest at a time.
+```
+
+Reconciling the two models is a real and worthwhile piece of work, and it is the prerequisite for the whole
+second-class migration lane. But it is a change to what the city's trust machinery can see, so it belongs with an
+Owner ruling or a round dedicated to that reconciliation 鈥?not appended to a migration round.
+
+**5. What is NOT done.** S2 54. S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY at 14 blocking items. The tree is at `4d73ad9` with a clean working copy,
+`--mode enforce` at PASS with 0 violations, and p2b HOLDS.
+
+```text
+ENTRY_ID                    CC-086
+timestamp_utc               2026-09-27T09:48:19Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. PLANNING ONLY; both attempted changes were REVERTED (the
+                            prefix rule because it measured as a no-op, the migration because it is still refused),
+                            so the only tracked difference from main is this entry and NO EPOCH CEREMONY is due.
+main_before                 4d73ad9  (CC-085 merged as PR #122; accepted baseline v15, epoch 61)
+branch                      docs/city-cc-086-two-ownership-models
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: both ownership models read directly; architecture-observatory.cjs's
+                            ownershipFromManifests read for how moduleOwner is keyed; the prefix rule applied to
+                            architecture-enforcement.cjs and measured IDENTICAL output before/after, then reverted;
+                            the migration reapplied on top of a REVERTED fix and still refused, which is what
+                            proves the fix was irrelevant rather than insufficient; city tier 26 files / 466 tests
+                            passed while the rule was in place; after the reverts, --mode enforce PASS 0 violations
+                            and p2b HOLDS
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The effect of making tenx.yaml declare electron/commander was NOT measured, because
+                            it changes the enforcement model and the round had no budget to characterise that; the
+                            entry presents it as a decision to take, not a fix to apply. (2) The two models may
+                            disagree about MORE than electron/commander, which this round did not enumerate --
+                            583 baseline files read UNDECLARED, and only some of them are explained by this.
+evidence_preserved          the two-model table in point 1; the identical before/after by_code output in point 2;
+                            the correction to CC-085's inference in point 3; the three-part decision in point 4
+rollback                    Revert this commit. Documentation only; both attempted code changes are already absent.
+temporary_debt_created      no. The no-op rule was WITHDRAWN rather than landed, and no threshold or gate moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a DIAGNOSIS that corrects CC-085. The OBJECTIVE is NOT complete and this entry
+                            does not claim it is.
+research_value              (1) Two readers of "the ownership model" can disagree about an entire directory while
+                            both are internally consistent, and the disagreement is invisible until a NEW edge
+                            crosses it -- which is why a migration can be refused for a reason unrelated to the
+                            migration. (2) The previous round's inference pointed at the baseline's grain; measuring
+                            it showed the baseline is a DERIVED readout and the live input is the manifest, so an
+                            inference that is directionally plausible can still name the wrong artifact -- and the
+                            cheap way to find out was to apply it and watch the output not move. (3) A Root Trust
+                            machinery edit that measures as a no-op should be reverted, not landed with a ceremony:
+                            the ceremony would have certified a change to the artifact that exists to be audited
+                            while the change itself did nothing.
+```
