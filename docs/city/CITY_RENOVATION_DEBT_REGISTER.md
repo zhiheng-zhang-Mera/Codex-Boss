@@ -375,9 +375,37 @@ sweep                Every expectation in the soak and lifecycle families that r
 enumeration_is_illustrative
                      The six instances above and this seventh are examples, not the debt. The debt is the
                      condition stated in occurrence_ten: an environmental budget or a host-supplied count read
-                     as a correctness verdict. It is CLOSED because that condition was SWEPT rather than because
-                     the list was exhausted -- the `sweep` field above is the evidence, and this list is what it
-                     found.
+                     as a correctness verdict. It was CLOSED on the `sweep` field above -- and that closure was
+                     INCOMPLETE, see occurrence_thirteen.
+occurrence_thirteen  2026-09-27, PR #135 (a DOCS-ONLY change that no soak file reads) -- a SEVENTH instance in the
+                     same file the sweep had already repaired twice, and the one that shows the sweep was not
+                     thorough:
+                       run 36325568489  test:slow  tests/unit/platform/platform-soak.test.ts
+                                                     "exercises every stage the book names, without intervention"
+                                                     AssertionError: expected 1000 to be greater than 1000
+                     `expect(result.totals.stateWrites).toBeGreaterThan(1_000)` and the identical assertion on
+                     `eventsAppended` are PER-CYCLE counts inside a fixed wall-clock budget, so they scale with
+                     how many cycles the host finished -- the same condition as `cycles` and `samples.length`
+                     above, in the same case, six lines below a repair. The CC-080 sweep looked for
+                     host-supplied counts and named this assertion's siblings but MISSED these two, so the
+                     closure's claim that the condition had been swept was too strong.
+                     REPAIRED: both floors are now 1 (work of that kind happened at all, which is the
+                     stage-coverage property the case is named for) with a NOT_MEASURED report above 1000, the
+                     same shape as every other repair in this entry. No allowance, bound or ceiling moved.
+                     LESSON RECORDED: the sweep was performed by reading assertions for the CONDITION, and a
+                     numeric floor of 1000 does not look like a host count until a host supplies exactly 1000.
+                     The durable fix is that the condition is now stated in the file at the repaired site, so
+                     the next reader meets the reasoning rather than the number.
+status_correction    The `status` field above says CLOSED by sweep. That remains the right STATUS -- the
+                     condition is now repaired everywhere it was found, twice over -- but the EVIDENCE for it
+                     was weaker than claimed, and occurrence_thirteen is the counter-example. A future sweep of
+                     this family should search for numeric thresholds on per-cycle totals, not for the phrase
+                     "host", because the assertions that fail are written as ordinary floors.
+enumeration_is_illustrative_v2
+                     The condition, not the list, is still the debt: an environmental budget or a host-supplied
+                     count read as a correctness verdict. Thirteen occurrences have now been found in the soak
+                     and lifecycle families, and every one was repaired by the same shape -- a positive floor
+                     that asserts the stage happened, plus a NOT_MEASURED report for the magnitude.
 occurrence_eleven   2026-09-25, PR #88 (docs-only) -- a SIXTH instance appeared while this entry was being
                      rewritten, in a file already repaired twice:
                        run 36186092756  test:slow  tests/unit/platform/platform-soak.test.ts

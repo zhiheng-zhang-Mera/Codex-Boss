@@ -109,8 +109,24 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
     }
 
     // Each stage ran, and the report shows the work rather than only its cost.
-    expect(result.totals.stateWrites).toBeGreaterThan(1_000);
-    expect(result.totals.eventsAppended).toBeGreaterThan(1_000);
+    //
+    // The FLOOR is 1, not 1_000, and this is the site the CC-080 sweep missed: `stateWrites` and `eventsAppended`
+    // are per-cycle counts inside a FIXED wall-clock budget, so they scale with how many cycles the host could
+    // finish -- exactly the condition `cycles` and `samples.length` above were repaired for. A loaded runner
+    // appended exactly 1000 events and failed as `expected 1000 to be greater than 1000` (observed on the docs-only
+    // CC-099 PR, whose change no soak file reads). The stage-coverage property is "work of each kind happened at
+    // all", which is carried by a positive floor on every stage total below; the MAGNITUDE is reported as a
+    // host-supplied absence rather than asserted as a platform property.
+    expect(result.totals.stateWrites, "a soak that wrote no state exercised no stage").toBeGreaterThan(0);
+    expect(result.totals.eventsAppended, "a soak that appended no event exercised no stage").toBeGreaterThan(0);
+    if (result.totals.stateWrites <= 1_000 || result.totals.eventsAppended <= 1_000) {
+      console.log(
+        `[soak] NOT_MEASURED stage-volume: this host wrote ${result.totals.stateWrites} state row(s) and appended ` +
+          `${result.totals.eventsAppended} event(s) in the fixed run, below the 1000 used as a speed proxy. Stage ` +
+          `COVERAGE is asserted by the positive floors below, not by this volume, and this dimension is NOT ` +
+          `reported as a pass.`
+      );
+    }
     expect(result.totals.eventsReplayed).toBeGreaterThan(0);
     expect(result.totals.knowledgeAssessed).toBeGreaterThan(0);
     expect(result.totals.gcPlanned).toBeGreaterThan(0);
