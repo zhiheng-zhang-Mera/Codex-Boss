@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HumanGuidanceGate } from "../../electron/commander/human-guidance-gate";
-import { collectHostSnapshot } from "../../electron/host/host-observer-collector";
+import { readInterventions } from "../../electron/bootstrap/host-status-ipc";
 import {
   INTERVENTION_SCHEMA_VERSION,
   interventionFileDocument,
@@ -19,6 +19,13 @@ import type { HumanInterventionRequest } from "../../src/shared/intervention";
  * inside a `try/catch` that reported every problem as "interventions.json absent". The observation
  * surface therefore reported **zero** unresolved human interventions, always — invisible tasks, and a
  * defect that looked exactly like good news.
+ *
+ * WHY THE READ SIDE CHANGED (ledger CC-075). These cases used to obtain their read side from
+ * `collectHostSnapshot` in `electron/host/host-observer-collector.ts`, which has NO production caller.
+ * A guarantee about a read path the product never runs is not a guarantee, so the read side is now
+ * `readInterventions` from the LIVE `status` module — the same code path the `boss:interventions`
+ * channel returns. The defect, the writer, the parser and the assertions are unchanged; only the
+ * surface being held to them is real now.
  *
  * These tests exercise BOTH sides against one file, so a future divergence fails here rather than
  * quietly emptying a report. They are deliberately two-way: it is not enough that an unresolved pause
@@ -48,28 +55,15 @@ function request(overrides: Partial<HumanInterventionRequest> = {}): Omit<HumanI
   };
 }
 
-/** The failure/intervention rows the observation surface collected. */
-async function collectedInterventions(): Promise<Array<{ taskId: string; kind: string; detail: string }>> {
-  const snapshot = await collectHostSnapshot({ dataRoot: dir, now: () => AT });
-  return snapshot.recentFailures
-    .filter((failure) => failure.source === "intervention")
-    .map((failure) => ({ taskId: failure.taskId ?? "", kind: failure.kind, detail: failure.detail }));
+/** The unresolved interventions the LIVE production read side reports for this data root. */
+function collectedInterventions(): Array<{ taskId: string; kind: string; question: string }> {
+  return readInterventions(dir).unresolved;
 }
 
-/**
- * The unreadable-store notes the surface collected.
- *
- * Read from `recentFailures`, which is where this collector reports a self-declared store problem —
- * the same place `learning.degraded` entries already surfaced. It is deliberately NOT `snapshot.degraded`:
- * that array carries per-dimension `guard()` failures, and the failures dimension itself collected
- * successfully here. The distinction matters, so the test asserts the real location rather than
- * whichever array happens to be convenient.
- */
-async function degradationNotes(): Promise<string[]> {
-  const snapshot = await collectHostSnapshot({ dataRoot: dir, now: () => AT });
-  return snapshot.recentFailures
-    .filter((failure) => failure.source === "store-degradation")
-    .map((failure) => failure.detail);
+/** The degradation the live read side reports, as a single string. */
+function degradationNote(): string {
+  const model = readInterventions(dir);
+  return model.unreadable ? `interventions: ${model.reason ?? "unreadable"}` : "";
 }
 
 describe("Phase 06 — interventions.json is one contract with two consumers", () => {
@@ -83,7 +77,7 @@ describe("Phase 06 — interventions.json is one contract with two consumers", (
     expect(collected[0].kind).toBe("LOGIN");
     // The detail is the question the task is actually waiting on — the field the old reader expected
     // the writer to have named differently.
-    expect(collected[0].detail).toContain("Sign in to the provider");
+    expect(collected[0].question).toContain("Sign in to the provider");
   });
 
   it("does NOT collect an intervention after it is resolved", async () => {
@@ -128,8 +122,8 @@ describe("Phase 06 — interventions.json is one contract with two consumers", (
   it("treats a MISSING file as 'no interventions', which is not a degradation", async () => {
     // A fresh install has no pauses. This is the one case where empty is the truth.
     expect(fs.existsSync(storePath())).toBe(false);
-    expect(await collectedInterventions()).toHaveLength(0);
-    expect(await degradationNotes()).toEqual([]);
+    expect(collectedInterventions()).toHaveLength(0);
+    expect(degradationNote()).toBe("");
   });
 
   it("reports an UNREADABLE store as a degradation instead of as nothing", async () => {
@@ -138,9 +132,8 @@ describe("Phase 06 — interventions.json is one contract with two consumers", (
     fs.mkdirSync(path.dirname(storePath()), { recursive: true });
     fs.writeFileSync(storePath(), "{ this is not json", "utf8");
 
-    expect(await collectedInterventions()).toHaveLength(0);
-    const degraded = await degradationNotes();
-    expect(degraded.join(" ")).toContain("interventions");
+    expect(collectedInterventions()).toHaveLength(0);
+    expect(degradationNote()).toContain("interventions");
   });
 
   it("reports an unrecognised schema version rather than reading it as empty", () => {

@@ -544,15 +544,17 @@ describe("Phase G — host status and learning module", () => {
       proxyConfigured: () => false,
       ...overrides
     };
-    const module = createHostStatusIpcModule({ handle: ipc.handle.bind(ipc), host });
+    // A throwaway root: the intervention read model is the only dependency that touches disk, and a
+    // missing store is the honest "no pauses" state, so the channel-level cases need no fixture.
+    const module = createHostStatusIpcModule({ handle: ipc.handle.bind(ipc), host, dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "boss-host-status-")) });
     return { ipc, module };
   }
 
-  it("registers exactly the six channels it owns and reports READY", () => {
+  it("registers exactly the seven channels it owns and reports READY", () => {
     const { ipc, module } = build();
     expect(ipc.channels.sort()).toEqual([...HOST_STATUS_IPC_CHANNELS].sort());
     expect(module.health()).toMatchObject({ module: "host-status-ipc", status: "READY" });
-    expect(module.health().detail).toContain("6/6");
+    expect(module.health().detail).toContain("7/7");
   });
 
   it("reports an uninitialised device rather than throwing when no registry is attached", async () => {

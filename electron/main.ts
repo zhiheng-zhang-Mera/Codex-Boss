@@ -1089,6 +1089,9 @@ if (ownsInstance) app.whenReady().then(() => {
   // later in startup — after this point.
   bootModules.push(createHostStatusIpcModule({
     handle: (channel, listener) => ipcMain.handle(channel, listener),
+    // The data root for the intervention read model (PF-DEBT-005; ledger CC-075). The composition root
+    // owns the root, so it supplies it rather than letting the module derive it.
+    dataRoot: app.getPath("userData"),
     host: {
       accounts: () => store.snapshot().accounts.map((account) => ({ providerId: account.providerId, mode: account.mode as import("../src/shared/provider-contracts").ProviderAccountMode | undefined })),
       sessionLifecycles: () => sessionLifecycleLedger?.list() ?? [],

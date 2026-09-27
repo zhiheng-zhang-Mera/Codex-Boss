@@ -7252,3 +7252,246 @@ research_value              (1) A detector that refuses to guess found, for the 
 ```
 
 ---
+
+## CC-075 — PF-DEBT-005's read side is now live, and the dead cluster is bounded by an acceptance check
+
+The provenance block of this entry is at the END of the section, for the reason CC-065 recorded.
+
+**1. What shipped: the missing production reader.** CC-074 found that PF-DEBT-005 (HIGH severity, status
+`FIXED`) has a live *writer* but no live *reader*, and that its only regression guard pointed at dead code. That
+gap is now closed by the smallest change that satisfies the existing requirement:
+
+```text
+NEW   electron/host/intervention-read-model.ts   `readInterventions(dataRoot)` — read-only, uses the ONE
+                                                 shared contract (`src/shared/intervention-file.ts`), and
+                                                 returns `unreadable` as a distinct fact from an empty list
+WIRED electron/bootstrap/host-status-ipc.ts      new `dataRoot` dependency + channel `boss:interventions`
+WIRED electron/main.ts                           supplies the data root from the composition root
+MOVED tests/unit/intervention-store-contract.test.ts   its read side no longer calls the dead collector
+```
+
+No product capability was added, no general observer subsystem was restored, and the parser was NOT
+re-implemented — the module imports the shared contract that the writer already uses. The requirement it satisfies
+is pre-existing: PF-DEBT-005's own record names `status` as the read-side capability and requires that an
+unresolved pause IS observable, a resolved one is NOT, and unreadable is distinguished from absent.
+
+**The guarantee got stronger rather than merely relocated.** The 10 PF-DEBT-005 tests now exercise a read path
+that production actually runs (`boss:interventions`), instead of one nothing calls. A guarantee about dead code
+is not a guarantee; this one is now about the product.
+
+
+**1b. The design changed once during this round, and the reason is recorded.** The first version put the
+reader in a NEW file (electron/host/intervention-read-model.ts). CI rejected it with three enforcement
+violations: a new file is a new UNDECLARED source, and its two endpoints made the accepted prospective
+identity move by more than an acceptance alone could carry. The cleaner answer was already available: the
+reader now lives IN electron/bootstrap/host-status-ipc.ts, which is a DECLARED file, so the change adds no
+source and the only prospective movement is the one legitimate edge. The new file was deleted, the ownership
+map was left alone, and the baseline still had to advance -- version 12, epoch 58 -- because a dormant edge
+became LIVE, which is a real change to the accepted identity. Two red CI runs produced this, both root-caused
+rather than rerun: the first from the undeclared source, the second from the same cause after declaring the
+file in the ownership map without accepting the edge. The lesson is the same one CC-072 recorded and it
+generalises: **adding a file to make a design tidier costs a governance event; adding the same logic to a
+file that already exists does not.**
+
+**2. The measurement, and the one number that ROSE.**
+
+```text
+                                                     BEFORE   AFTER
+p2b kernel -> feature edges / pairs / mutual / SCC  55/16/31/18   UNCHANGED
+p2b raw cross-capability total                         795   ->   796     ROSE BY ONE
+p2b capability graph edges                             197   ->   197
+p2b files owned                                        598   ->   598
+p2d confirmed accesses / pairs                        3 / 2  ->  3 / 2    unchanged (deletion deferred)
+architecture enforcement 0 violations; closure PASS; ledger provenance HOLDS; epoch 57 MATCHES
+```
+
+The rise is recorded rather than hidden, and the cause is specific: the new edge is `host-status -> tasks`, the
+new file importing `src/shared/intervention-file.ts`. **That relation is not new** — the same edge already
+existed through the dead collector, which the ownership map already attributes to `host-status`. What changed is
+that production now *runs* it. So the ratchet fired on a dormant dependency becoming live, which is exactly the
+fact a reviewer must see rather than something to suppress. It is a legitimate USE of another capability's
+declared contract, not a kernel -> feature inversion, which is why `kernel_to_feature_file_edges` did not move.
+The alternative — reading the store directly — would have been a private-state access and would have worsened S5
+to keep one number flat; that trade was refused.
+
+**3. The dead cluster: production-dead, but NOT repository-dead, and that distinction is the finding.** The CC-074
+reachability conclusion was re-verified mechanically by an independent audit that used two methods agreeing on
+the same importer sets (a literal tree-wide grep, complete because a survey found NO computed module specifier
+anywhere in `electron/` or `src/`; and a Node import-graph walk from `main.ts` + `preload.ts` that reaches 393 of
+613 `.ts` files, with positive controls resolving correctly):
+
+```text
+electron/host/host-observer-collector.ts        VERDICT: PRODUCTION_DEAD   (0 importers under electron/ or src/)
+src/shared/host-observer.ts                     VERDICT: PRODUCTION_DEAD   (1 importer, itself production-dead)
+electron/runtime-intelligence/replay-corpus-io.ts  VERDICT: PRODUCTION_DEAD (0 importers under electron/ or src/)
+```
+
+All three of the remaining p2d accesses are confirmed inside those files, and the `runtime-intelligence` ones are
+confirmed unreachable: `describeRoot` is private and called only from `locateRealRoots`, and `exportReplayCorpus`
+has no production caller.
+
+**But none of the three is repository-dead**, and this is what CC-074 could not have known:
+
+```text
+scripts/host-observe.cjs:82-83            loads BOTH host-observer artifacts through a `compiled()` helper that
+                                          HARD-FAILS if the artifact is gone
+scripts/runtime-intelligence-report.cjs   loads replay-corpus-io at :210 and :372 through `load()`, which
+                                          hard-fails with exit 2
+electron/host/acceptance-catalog.ts:341-353
+                                          `host:observability` is a DECLARED ACCEPTANCE CHECK whose
+                                          entryPoint is scripts/host-observe.cjs -- deleting the modules makes
+                                          that check permanently BLOCKED_EXTERNAL
+config/test-catalogue.json, config/capability-modules.json (incl. its generator
+  scripts/extend-capability-modules.cjs:207), config/architecture-enforcement-baseline.json (3 UNDECLARED
+  entries + 17 + 7 edge entries), config/p2d-private-state-ratchet.json, config/city-flatness.json
+```
+
+So the deletion is a **five-code-consumer plus five-generated-config change**, not a file deletion, and one of
+those consumers is an acceptance check that must be *decided about* rather than deleted as an afterthought.
+Deferring it is the workbook's section 30 rule applied honestly: do not start what cannot be closed in the
+budget available. **Nothing was deleted, so no guarantee is missing and no check is broken.**
+
+**4. What is NOT done, stated so it is not mistaken for progress.** S2 55, S3 31, S4 largest SCC 18/29,
+S5 3 accesses / 2 pairs (**not** 0 -- the dead code that holds them is still present), S6 1 candidate,
+S10 22/27, S14 2. `FINAL_ACCEPTANCE_RELEASE_RECORD` does not exist (`FINAL_ACCEPTANCE_RECORD.md`), sections 31
+and 32 are untouched, the Owner lease is in force, city acceptance NOT_READY. **Deleting the cluster is now
+known to take p2d to 0 / 0 and S5 to closed**, but that is a PROJECTION from the audit's caller sets, not a
+measurement, and this programme's rule is that a prediction is confirmed by the instrument or it is not claimed.
+
+**5. The next construction, priced with the audit's list.** Delete the three modules **and** in the same atomic
+change: retire or re-home the `host:observability` acceptance check, retire the two CLI scripts that exist only
+to run dead code, re-point or delete the three affected test files, and regenerate the five configs. Expected
+effect: `p2d` 3/2 -> 0/0, S5 closed, and roughly 24 dead cross-capability edges removed. The open design question
+is narrow and must be answered first: **is `host:observability` still a check worth having, and if so what should
+it inspect now that its reader is the live `boss:interventions` channel?**
+
+```text
+ENTRY_ID                    CC-075
+timestamp_utc               2026-09-27T02:07:25Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY:
+                            the accepted baseline, its series and the epoch were all re-checked and still MATCH.
+main_before                 88d3b0debe527644f3af78ad68a48cfd238594ff  (CC-074 merged; epoch 57)
+branch                      fix/cc075-intervention-read-model
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS (rise recorded with cause), p2d HOLDS, closure PASS, architecture
+                            ratchet 0 violations, bless MATCHES, ledger provenance HOLDS, test catalogue
+                            current, tsc clean on electron AND tests, and green focused suites
+                            (bootstrap-ipc-modules 116 tests incl. the new 7/7 channel count;
+                            intervention-store-contract 10 tests re-pointed)
+files_or_rules_changed      electron/host/intervention-read-model.ts (new);
+                            electron/bootstrap/host-status-ipc.ts; electron/main.ts;
+                            config/p2b-kernel-feature-ratchet.json;
+                            tests/unit/intervention-store-contract.test.ts;
+                            tests/unit/bootstrap-ipc-modules.test.ts;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) `boss:interventions` is a NEW CHANNEL, so the preload/renderer contract does not
+                            expose it yet -- it is a main-process read surface with one production consumer
+                            (the channel itself) and the regression test. If the Owner UI should display
+                            unresolved pauses, that is a separate act and was NOT done, because rendering it
+                            is a product change the scope freeze forbids. (2) The dead cluster remains, so S5
+                            is unchanged at 3/2. (3) The p2b raw total is permanently one higher: the ledger
+                            and the ratchet reason both say why, so a later reader cannot mistake it for drift.
+evidence_preserved          the audit's two-method reachability proof and complete caller sets; the five-code
+                            and five-config deletion impact list; the before/after measurement in point 2
+rollback                    Revert this commit. One atomic act: the new module, the three wiring edits, the
+                            two test changes and the ratchet record. No baseline, epoch or ownership moves.
+temporary_debt_created      no. The rise was recorded, not deferred; nothing was whitelisted or weakened.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred. The dead-cluster deletion is a priced next
+                            construction, not a registered compromise, because its blocking question
+                            (what `host:observability` should inspect now) is a design decision with a
+                            defined owner: the next round.
+closure_status              CLOSED as a measured construction plus a verified audit. The OBJECTIVE is NOT
+                            complete and this entry does not claim it is.
+research_value              (1) A defect can be marked FIXED in a register while its read side has no production
+                            caller, and the thing that surfaced it was a reachability walk, not reading the
+                            register -- so "closed" is a claim to re-verify against the tree. (2) Production-dead
+                            and repository-dead are DIFFERENT properties, and the gap between them is where this
+                            programme's cheapest wins hid: three modules look like free deletions until the
+                            CLI and acceptance-check consumers are enumerated, at which point the work is a
+                            five-consumer, five-config change and one of the consumers is a governance
+                            artifact. (3) A ratchet firing on a RISE was the control working correctly: the
+                            same capability edge existed in dead code, and moving it into live code is
+                            precisely the change a reviewer must be forced to see rather than have absorbed
+                            silently.
+```
+
+### CC-075 CORRECTION — the entry above was written for an intermediate design; the FINAL state is this
+
+```text
+corrects                    CC-075 (appended, not rewritten: the ledger is append-only)
+why_this_exists             The entry above was written while the reader was a NEW FILE and before any
+                            trust surface moved. The final branch is a different, smaller design, so six
+                            of that entry's fields describe an intermediate state rather than the shipped
+                            one. The intermediate state is PRESERVED above as the historical fact it is,
+                            and this block is the authoritative reading of CC-075's final state. A reader
+                            who stops at the entry above will hold two false beliefs: that no Root Trust
+                            change happened, and that a file exists which the branch does not contain.
+superseded_field            authority_level -> said "NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY"
+                            FINAL FACT: Root Trust DID change. Making a dormant prospective edge live is a
+                            real change to the accepted identity, so the accepted baseline advanced to
+                            version 13 and the trust epoch to 59, each with its own ceremony in the same
+                            commit as the surface change. The claim was true of the intermediate design
+                            only, because that design's edge was still dormant.
+superseded_field            files_or_rules_changed -> listed
+                            "electron/host/intervention-read-model.ts (new)"
+                            FINAL FACT: that file is NOT part of this change. It was created, and then
+                            DELETED in the same branch, because CI rejected it: a new file is a new
+                            UNDECLARED source, and its endpoints moved the accepted identity further than
+                            an acceptance alone could carry (BASELINE_SERIES / enforcement violations).
+                            Inlining the same reader into the DECLARED live module
+                            (electron/bootstrap/host-status-ipc.ts) removed that cost entirely -- no new
+                            source, no ownership-map entry.
+superseded_field            rollback -> said "the new module, the three wiring edits ... No baseline,
+                            epoch or ownership moves"
+                            FINAL FACT: the rollback is the inlined reader, the wiring edits, the ratchet
+                            record, the accepted baseline version 13, its series entries and epoch 59.
+superseded_field            known_risk (3) -> said the raw total is "permanently one higher"
+                            FINAL FACT: it is one higher, and the ratchet carries the reason; that part
+                            stands unchanged.
+final_changed_file_set      config/architecture-enforcement-baseline.json
+                            config/p2b-kernel-feature-ratchet.json
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md
+                            electron/bootstrap/host-status-ipc.ts
+                            electron/main.ts
+                            tests/unit/bootstrap-ipc-modules.test.ts
+                            tests/unit/intervention-store-contract.test.ts
+                            trust-policy/architecture-enforcement-baselines.json
+                            trust-policy/trust-epoch.json
+                            (no new source file; no config/capability-modules.json net change)
+final_state                 accepted baseline v13; trust epoch 59; baseline series 1..13 accepted;
+                            PR #111 head adac3e740245123e2c915eff0e6e2a39ff484781
+intermediate_states_kept    The ceremony ran twice and BOTH intermediate states are preserved as facts:
+                              v12 / epoch 58 -- accepted for the tree as it stood after the reader was
+                                               inlined but BEFORE the two unused exports
+                                               (InterventionReadModel, interventionStorePath) were made
+                                               internal for the export-surface guard;
+                              v13 / epoch 59 -- accepted for the final tree.
+                            Collapsing them would erase the evidence that the export-surface guard moved
+                            the accepted identity a second time, which is exactly the two-readback lesson
+                            this programme keeps re-learning.
+source_commit_semantics     The ceremony's `source_commit` fields are NOT normalized to one value, and
+                            the repository contract is the reason: the generator sets
+                            `source_commit` to the commit the candidate was MEASURED at, so each accepted
+                            version legitimately records the commit it was derived from rather than the
+                            eventual merge SHA. Fields therefore differ across versions by design. All
+                            values are full 40-hex SHAs, which is the property the series actually
+                            enforces (a short SHA is refused as BASELINE_SERIES_MALFORMED). No hash chain
+                            was rewritten to make fields equal.
+research_value              (1) A ledger entry can be TRUE about an intermediate state and FALSE about the
+                            shipped one, and the failure mode is not fabrication but TIMING: it was
+                            written at the moment its claims held. That is why the correction is a new
+                            block naming the superseded fields rather than a silent edit -- a reader must
+                            be able to see which beliefs the earlier text would have produced.
+                            (2) The cheapest design was the one with no new file, and CI found it by
+                            enforcing a governance rule (undeclared source) rather than by reviewing the
+                            logic. Two of this round's three red runs were that same rule seen twice.
+```
+
+
+---
