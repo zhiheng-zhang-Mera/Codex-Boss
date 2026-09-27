@@ -10176,3 +10176,117 @@ research_value              (1) A counter is not a cause: CC-095 inferred "the b
                             worth doing with NO metric movement: `workspaces` is about ownership correctness, and
                             saying so in advance is what stops a neutral result being dressed up as progress.
 ```
+
+## CC-098 鈥?The FIFTEENTH and final namespace migration: `workspaces` moves to `workspace` by injection, and the metric does NOT move
+
+Landed on the third attempt, after CC-095 and CC-097 were both reverted. **S2 is unchanged at 49**, and that is the
+result the ledger predicted rather than a disappointment.
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. What this migration is for, since it is not a number.** `workspaces` was declared by `persistence` while
+`electron/workspace/workspace-registry.ts` implements it. Moving the claim makes the declaration and the code agree,
+which is the ownership rule the other fourteen migrations followed. **It cannot move S2**: deleting the boot module's
+construction removes `persistence -> workspace` for `workspace-registry.ts`, and the injected option's type-only
+import puts exactly that edge back. Net zero, stated in advance by CC-096.
+
+**2. The migration.**
+
+```text
+config/capabilities/persistence.yaml   loses the `workspaces` claim
+config/capabilities/workspace.yaml     gains it, AND declares electron/workspace/workspace-registry.ts in `modules:`
+electron/bootstrap/persistence.ts      keeps a TYPE-ONLY `WorkspaceRegistry` import (the health report still derives
+                                       `workspaceRoot` / `atDefaultWorkspace` from `activeWorkspaceId()`), loses the
+                                       construction and the `ensureShims` call, gains a REQUIRED
+                                       `workspaces: WorkspaceRegistry` option -- 7 durable stores, down from 8
+electron/main.ts                       builds WorkspaceRegistry at the IDENTICAL path persistence composed and calls
+                                       ensureShims(app) there, so no stored data moves and the shims still point at
+                                       this install. The binding is `workspaceRegistry` because the same function
+                                       destructures a `workspaces` binding from the service.
+six boot-test fixtures                 supply a registry at their own root
+tests/unit/bootstrap-persistence.ts    drops `workspaces` from the projection (the module no longer OPENS it)
+```
+
+**3. Measured.**
+
+```text
+p2b kernel -> feature file edges    49 -> 49    UNCHANGED (expected)
+p2b raw cross-capability total      775 -> 775  UNCHANGED
+p2b pairs / mutual / SCC            16/31/18     UNCHANGED
+architecture enforcement            PASS, 0 violations; the root edge is NEW_EDGE_DECLARED_ENDPOINT
+p2d                                 no regression
+all three typechecks                clean
+six fixture suites + persistence    52 tests passing
+```
+
+**4. Why it took three attempts, recorded because the causes differ.**
+
+```text
+CC-095  misdiagnosed the failure as a baseline-retirement blocker after reading a REINTRODUCED_DEBT COUNTER rather
+        than the artifact; the edge is in the accepted `edges` set and NOT in `retired_edges` (corrected in CC-096).
+CC-097  failed on scripted text interpolation into multi-line object literals -- four passes, each placing the
+        `workspaces` option inside the `crypto: {` object. The CODE changes were trivial; the TOOLING was wrong.
+CC-098  succeeded by making the ~12 edits DIRECTLY and running ALL THREE CI typechecks
+        (tsconfig.json, tsconfig.electron.json, tsconfig.tests.json) -- the process fix CC-096 recorded, and the
+        single most important thing this sequence produced.
+```
+
+**5. Trust surface.** Baseline **v21** with its own series entry (full 40-hex `source_commit`) and **epoch 67**,
+`--check` reporting `integrity/series/tree` all true.
+
+**6. What is NOT done.** S2 49, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. **The namespace-ownership family is now complete**: every namespace claim
+that another capability implements belongs to the capability that implements it, and no further migration of this kind
+remains.
+
+```text
+ENTRY_ID                    CC-098
+timestamp_utc               2026-09-27T14:06:54Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed
+                            across nine files, so the baseline advanced to v21 and the epoch to 67. Every series
+                            entry carries a full 40-hex source_commit and no acceptance was rewritten.
+main_before                 23ed0af  (CC-096 merged as PR #133; accepted baseline v20, epoch 66)
+branch                      fix/cc098-workspaces-direct
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: all THREE typechecks clean BEFORE any commit; p2b HOLDS at 49/775/16/31/18;
+                            p2d HOLDS; architecture enforcement PASS 0 violations; the six fixture suites plus the
+                            persistence suite at 52 tests passing; baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/workspace.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-{automation,knowledge,persistence,provider-pool,providers,research}.test.ts;
+                            config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            trust-policy/root-trust-surface.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) `PersistenceOptions.workspaces` is REQUIRED, so the module's constructor is a
+                            breaking change for any caller outside this repository. Six fixtures were updated and
+                            all three typechecks pass.
+                            (2) The registry's TYPE import keeps a `persistence -> workspace` edge, which is why
+                            the metric does not move. The alternative (a structural interface) reaches 48 but breaks
+                            two consumers, measured as TS2740/TS2339 in CC-095.
+                            (3) The `crypto` option must remain the LAST option in the fixtures' call sites for the
+                            boot tests to keep working with the shared `build()` helpers; no test asserts that.
+evidence_preserved          the migration in point 2; the measured table in point 3; the three distinct failure
+                            causes in point 4; the statement that the family is complete in point 6
+rollback                    Revert the two commits in reverse order (ceremony first, then the migration). The
+                            namespace returns to `persistence`, the module builds the registry again, the six
+                            fixtures drop the option, and the baseline/epoch return to v20/66. No stored data moved.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as the final migration of the namespace-ownership family. The OBJECTIVE is NOT
+                            complete and this entry does not claim it is.
+research_value              (1) A migration worth doing can be worth exactly ZERO in the metric it touches: the value
+                            here is that the declaration and the code agree, and saying that in advance is what
+                            stops a neutral result being dressed up as progress. (2) Three attempts with three
+                            DIFFERENT causes -- a misread diagnosis, then tooling, then success -- is an argument
+                            for fixing the process (run ALL the CI's typechecks) before fixing the tooling.
+                            (3) Scripted text interpolation into multi-line object literals is the wrong instrument;
+                            direct edits on a dozen known lines took one attempt once actually used.
+```
