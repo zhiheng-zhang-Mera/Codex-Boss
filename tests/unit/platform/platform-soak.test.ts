@@ -59,6 +59,41 @@ async function soak(root: string): Promise<PlatformSoakResult> {
   return runPlatformSoak({ root, durationMs: RUN_MS, sampleIntervalMs: 25 });
 }
 
+/**
+ * Whether this run actually OBSERVED a provider recovery, derived from the per-cycle sequence rather
+ * than from the run's totals.
+ *
+ * `runPlatformSoak` degrades the first provider on cycles where `cycle % 3 === 0` and records the
+ * recovery on the FOLLOWING cycle (`cycle % 3 === 1`). The totals alone cannot tell a crash loop from a
+ * run that simply STOPPED before that following cycle ever ran: both leave `degradedProviders > 0` with
+ * `recoveredProviders = 0`. That is what put hosted `unit` red on main@bf45476 — a fixed wall-clock
+ * budget expired on a degradation cycle, so the recovery was never observed, and the assertion read the
+ * absence of an observation as evidence of a fault.
+ *
+ * The window is measurable only when a degradation cycle exists AND at least one LATER cycle completed.
+ * Everything else keeps the assertion: an opportunity existed and no recovery happened, which is exactly
+ * the crash loop the shared `provider-crash-loop-bounded` invariant exists to catch, so a genuine failed
+ * recovery can never be reported as an absence.
+ */
+function recoveryObservationWindow(cycles: PlatformSoakResult["cycles"]): { measurable: boolean; why: string } {
+  const degradedAt = cycles.findIndex((cycle) => cycle.degradedProviders > 0);
+  if (degradedAt === -1) {
+    return {
+      measurable: false,
+      why: "this run degraded no provider, so 'a degraded provider recovers rather than crash-looping' has no sample"
+    };
+  }
+  if (degradedAt === cycles.length - 1) {
+    return {
+      measurable: false,
+      why:
+        `this run degraded a provider in its final recorded cycle (cycle ${cycles[degradedAt].cycle} of ` +
+        `${cycles.length}), so the cycle that carries the recovery was never observed`
+    };
+  }
+  return { measurable: true, why: "" };
+}
+
 describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycle", () => {
   it("exercises every stage the book names, without intervention", async () => {
     const result = await soak(tempRoot());
@@ -140,11 +175,18 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
     // count above (INC-2026-09-25-01). A host that degraded nothing has failed to MEASURE this dimension,
     // so the absence is reported -- while a degradation with no recovery is the crash loop the shared
     // invariant exists to catch, and that is still asserted whenever there is a sample to assert it on.
-    if (result.totals.degradedProviders === 0) {
+    //
+    // CC-103: the recovery claim is measurable ONLY when the run contains a degradation cycle AND at least one
+    // LATER completed cycle. `degradedProviders > 0` with `recoveredCircuits = 0` is what a run that stopped
+    // immediately after its degradation cycle looks like, and that is an absence of observation rather than a
+    // crash loop -- it is what put hosted `unit` red on main@bf45476. The opportunity is now derived from the
+    // per-cycle sequence, so a genuine failed recovery (an opportunity existed, recovery did not happen) still
+    // FAILS, and a true failed recovery can never be turned into a pass.
+    const recoveryOpportunity = recoveryObservationWindow(result.cycles);
+    if (!recoveryOpportunity.measurable) {
       console.log(
-        `[soak] NOT_MEASURED provider-degrade: this run degraded no provider (recovered ` +
-          `${result.totals.recoveredProviders}), so the recovery path was not exercised here and this ` +
-          `dimension is NOT reported as a pass.`
+        `[soak] NOT_MEASURED provider-recovery: ${recoveryOpportunity.why}. This dimension is NOT reported ` +
+          `as a pass.`
       );
     } else {
       expect(result.totals.recoveredProviders, "a provider degraded and never recovered").toBeGreaterThan(0);
@@ -314,11 +356,17 @@ describe("Phase 05 Task F / gate 6 — the platform soak runs the whole lifecycl
     // proves nothing: expected 0 to be greater than 0" -- an assertion whose own message admits the run
     // proved nothing, failing as though it had proved something bad (INC-2026-09-25-01, seventh instance).
     // The absence is REPORTED instead, and the recovery claim is still asserted whenever a sample exists.
-    if (result.totals.degradedProviders === 0) {
+    //
+    // CC-103: `degradedProviders > 0` was not sufficient either. The recovery is recorded on the cycle that
+    // FOLLOWS the degradation (`cycle % 3 === 1`), so a budget that expired on a degradation cycle leaves
+    // `recoveredCircuits = 0` with no observation behind it -- which is what put hosted `unit` red on
+    // main@bf45476. The same per-cycle window decides it here, so a degradation with a later cycle and no
+    // recovered circuit still FAILS.
+    const recoveryOpportunity = recoveryObservationWindow(result.cycles);
+    if (!recoveryOpportunity.measurable) {
       console.log(
-        "[soak] NOT_MEASURED provider-recovery: this run degraded no provider, so 'a degraded provider " +
-          "recovers rather than crash-looping' has no sample here. The open-circuit bound below still ran, " +
-          "and this dimension is NOT reported as a pass."
+        `[soak] NOT_MEASURED provider-recovery: ${recoveryOpportunity.why}. The open-circuit bound below ` +
+          `still ran, and this dimension is NOT reported as a pass.`
       );
     } else {
       // Every degradation was followed by an unattended recovery.
