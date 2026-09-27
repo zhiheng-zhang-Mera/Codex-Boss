@@ -5,10 +5,17 @@ provides:
   - workspace.selection@1
 requires: []
 optional: []
-state: []
+state:
+  # The ledger of provider conversations that outlive a task. Declared by `persistence` until ledger
+  # CC-091, which moved the claim to the capability that IMPLEMENTS the store
+  # (electron/workspace/external-session-ledger.ts). The path is unchanged, so no stored data moves.
+  - namespace: external-sessions
+    owner: workspace
+
 health:
   critical: false
 modules:
+  - electron/workspace/external-session-ledger.ts
   - electron/bootstrap/workspace-ipc.ts
 bootModules:
   - electron/bootstrap/workspace-ipc.ts
