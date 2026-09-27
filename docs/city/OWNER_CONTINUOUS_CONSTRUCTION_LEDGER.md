@@ -7421,4 +7421,77 @@ research_value              (1) A defect can be marked FIXED in a register while
                             silently.
 ```
 
+### CC-075 CORRECTION — the entry above was written for an intermediate design; the FINAL state is this
+
+```text
+corrects                    CC-075 (appended, not rewritten: the ledger is append-only)
+why_this_exists             The entry above was written while the reader was a NEW FILE and before any
+                            trust surface moved. The final branch is a different, smaller design, so six
+                            of that entry's fields describe an intermediate state rather than the shipped
+                            one. The intermediate state is PRESERVED above as the historical fact it is,
+                            and this block is the authoritative reading of CC-075's final state. A reader
+                            who stops at the entry above will hold two false beliefs: that no Root Trust
+                            change happened, and that a file exists which the branch does not contain.
+superseded_field            authority_level -> said "NO ROOT TRUST CHANGE and therefore NO EPOCH CEREMONY"
+                            FINAL FACT: Root Trust DID change. Making a dormant prospective edge live is a
+                            real change to the accepted identity, so the accepted baseline advanced to
+                            version 13 and the trust epoch to 59, each with its own ceremony in the same
+                            commit as the surface change. The claim was true of the intermediate design
+                            only, because that design's edge was still dormant.
+superseded_field            files_or_rules_changed -> listed
+                            "electron/host/intervention-read-model.ts (new)"
+                            FINAL FACT: that file is NOT part of this change. It was created, and then
+                            DELETED in the same branch, because CI rejected it: a new file is a new
+                            UNDECLARED source, and its endpoints moved the accepted identity further than
+                            an acceptance alone could carry (BASELINE_SERIES / enforcement violations).
+                            Inlining the same reader into the DECLARED live module
+                            (electron/bootstrap/host-status-ipc.ts) removed that cost entirely -- no new
+                            source, no ownership-map entry.
+superseded_field            rollback -> said "the new module, the three wiring edits ... No baseline,
+                            epoch or ownership moves"
+                            FINAL FACT: the rollback is the inlined reader, the wiring edits, the ratchet
+                            record, the accepted baseline version 13, its series entries and epoch 59.
+superseded_field            known_risk (3) -> said the raw total is "permanently one higher"
+                            FINAL FACT: it is one higher, and the ratchet carries the reason; that part
+                            stands unchanged.
+final_changed_file_set      config/architecture-enforcement-baseline.json
+                            config/p2b-kernel-feature-ratchet.json
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md
+                            electron/bootstrap/host-status-ipc.ts
+                            electron/main.ts
+                            tests/unit/bootstrap-ipc-modules.test.ts
+                            tests/unit/intervention-store-contract.test.ts
+                            trust-policy/architecture-enforcement-baselines.json
+                            trust-policy/trust-epoch.json
+                            (no new source file; no config/capability-modules.json net change)
+final_state                 accepted baseline v13; trust epoch 59; baseline series 1..13 accepted;
+                            PR #111 head adac3e740245123e2c915eff0e6e2a39ff484781
+intermediate_states_kept    The ceremony ran twice and BOTH intermediate states are preserved as facts:
+                              v12 / epoch 58 -- accepted for the tree as it stood after the reader was
+                                               inlined but BEFORE the two unused exports
+                                               (InterventionReadModel, interventionStorePath) were made
+                                               internal for the export-surface guard;
+                              v13 / epoch 59 -- accepted for the final tree.
+                            Collapsing them would erase the evidence that the export-surface guard moved
+                            the accepted identity a second time, which is exactly the two-readback lesson
+                            this programme keeps re-learning.
+source_commit_semantics     The ceremony's `source_commit` fields are NOT normalized to one value, and
+                            the repository contract is the reason: the generator sets
+                            `source_commit` to the commit the candidate was MEASURED at, so each accepted
+                            version legitimately records the commit it was derived from rather than the
+                            eventual merge SHA. Fields therefore differ across versions by design. All
+                            values are full 40-hex SHAs, which is the property the series actually
+                            enforces (a short SHA is refused as BASELINE_SERIES_MALFORMED). No hash chain
+                            was rewritten to make fields equal.
+research_value              (1) A ledger entry can be TRUE about an intermediate state and FALSE about the
+                            shipped one, and the failure mode is not fabrication but TIMING: it was
+                            written at the moment its claims held. That is why the correction is a new
+                            block naming the superseded fields rather than a silent edit -- a reader must
+                            be able to see which beliefs the earlier text would have produced.
+                            (2) The cheapest design was the one with no new file, and CI found it by
+                            enforcing a governance rule (undeclared source) rather than by reviewing the
+                            logic. Two of this round's three red runs were that same rule seen twice.
+```
+
+
 ---
