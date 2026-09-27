@@ -10061,3 +10061,128 @@ research_value              (1) The seven migrations looked uniform from the edg
                             PREDICTED measurement alongside the plan turns the next round into a check of the
                             classifier rather than a report of whatever the instrument happens to say.
 ```
+
+## CC-095 鈥?The FINAL namespace-ownership migration: `workspaces` moves to `workspace` by INJECTION, and S2 falls 49 -> 48
+
+CC-094 priced this and declined it as non-mechanical. This entry executes it, and the prediction CC-094 recorded
+**held exactly**. **S2 moves for the seventh time this session.**
+
+The provenance block is at the END, for the reason CC-065 recorded.
+
+**1. Why this one is not the previous recipe, and what was done instead.** The boot module does not merely construct
+the registry 鈥?it derives health state from it:
+
+```text
+const workspaces = open("workspaces", () => new WorkspaceRegistry(boss("workspaces.json")));
+workspaces.ensureShims(appPath);
+const workspaceRoot = workspaces.activeWorkspaceId();
+const atDefaultWorkspace = workspaceRoot === DEFAULT_WORKSPACE_ID;
+
+health: () => ({ status: atDefaultWorkspace ? "DEGRADED" : "READY", detail: `... rooted at ${...workspaceRoot}` })
+```
+
+So removing the construction would remove the only source of the values the health report needs. The registry is
+**INJECTED**: `PersistenceOptions` gains `workspaces: WorkspaceRegistry`, and the module keeps **reading** it while no
+longer **building** it 鈥?the health line is unchanged in what it reports. `ensureShims(appPath)` moved with the
+construction to the composition root, where `appPath` already is. **The declaration and the code now agree**, which is
+the option CC-094 recorded as the only honest one.
+
+**2. The cost CC-094 identified, paid.** Six test fixtures now build a registry at their own root
+(`path.join(<their root>, ".boss", "workspaces.json")`). Only `bootstrap-persistence.test.ts` previously reached one;
+the other five never used `service.workspaces` at all, which is why the change was mechanical but spread across files
+unrelated to the migration. The persistence projection also drops `workspaces` 鈥?the module no longer **opens** it 鈥?so
+the counter goes **8 -> 7**, while the registry stays a service field because the module still reads it.
+
+**3. Measured 鈥?and the prediction held.**
+
+```text
+                                            PREDICTED (CC-094)      ACTUAL
+p2b kernel -> feature file edges            49 -> 48                49 -> 48      DELETED
+p2b raw cross-capability total              FLAT                   774 -> 774     UNCHANGED
+p2b edges from composition root             +1                      99 -> 102      ROSE BY THREE
+p2b pairs / mutual pairs / largest SCC      16/31/18 unchanged      16/31/18       UNCHANGED
+architecture enforcement                    --                      PASS, 0 violations
+                                              (edge classified NEW_EDGE_DECLARED_ENDPOINT)
+```
+
+The raw total did **not** fall, exactly as predicted: the composition root gained edges to
+`workspace-registry.ts`, so the deleted kernel -> feature edge is **offset rather than netted**. Recording the
+prediction in advance is what made this a *check of the classifier* rather than a report of whatever the instrument
+happened to say 鈥?and the root count rose by three rather than the predicted one (import, construction, and the
+`ensureShims` reference), which is a small correction to the model worth having.
+
+**4. What this closes.** **No namespace claim that another capability implements remains with `persistence`.** What is
+left of its fan-out is shared TYPE modules and the boot-module interface 鈥?a different relation, and not a migration
+target. The namespace-ownership family that began at CC-065 and ran through CC-095 is complete:
+
+```text
+CC-065 attachments   CC-066 identity   CC-067 node        CC-068 experience   CC-069 project-state
+CC-070 permission-manifest              CC-084 runtime-budget                CC-090 interventions
+CC-091 external-sessions                CC-092 task-contexts                 CC-093 workspace-selection
+CC-095 workspaces
+```
+
+**5. Trust surface.** Baseline **v21** with its own series entry (full 40-hex `source_commit`) and **epoch 67**,
+`--check` reporting `integrity/series/tree` all true.
+
+**6. What is NOT done.** S2 48, S3 31 mutual pairs, S4 largest SCC 18 of 29, S10 21 of 27, S14 2 MACHINE_RATCHET rows.
+CITY-DEBT-006 OPEN with exit (a) foreclosed (CC-081). `FINAL_ACCEPTANCE_RECORD.md` does not exist, sections 31 and 32
+are untouched, city acceptance NOT_READY. **The namespace-ownership lane is now exhausted**: further S2 progress
+requires inverting shared type modules or the boot-module interface, which is a different class of work.
+
+```text
+ENTRY_ID                    CC-095
+timestamp_utc               2026-09-27T13:17:40Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit
+                            that carries this entry, which is the property scripts/city-ledger-provenance.cjs
+                            checks on every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, PLUS an accepted-baseline ceremony: tracked source changed
+                            across nine files, so the baseline advanced to v21 and the epoch to 67. Every series
+                            entry carries a full 40-hex source_commit and no acceptance was rewritten.
+main_before                 75697a7  (CC-094 merged as PR #131; accepted baseline v20, epoch 66)
+branch                      fix/cc095-workspaces-ownership
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             local: p2b HOLDS at 48/774/16/31/18, p2d HOLDS 0/0/0, closure PASS, core HOLDS,
+                            roads HOLDS, principles HONEST, ledger provenance HOLDS, architecture enforcement PASS
+                            0 violations, the pinned matrix table regenerated and its readback literal moved
+                            49 -> 48 together, SIX fixtures updated and all seven affected suites passing 68/68,
+                            tsc clean, baseline --check and bless --check both exit 0
+files_or_rules_changed      config/capabilities/persistence.yaml; config/capabilities/workspace.yaml;
+                            electron/bootstrap/persistence.ts; electron/main.ts;
+                            tests/unit/bootstrap-{automation,knowledge,persistence,provider-pool,providers,research}.test.ts;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md;
+                            config/p2b-kernel-feature-ratchet.json; config/architecture-enforcement-baseline.json;
+                            trust-policy/architecture-enforcement-baselines.json; trust-policy/trust-epoch.json;
+                            trust-policy/root-trust-surface.json;
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) `PersistenceOptions.workspaces` is REQUIRED, so this is a breaking change to the
+                            module's constructor: every future caller must supply a registry. Six fixtures were
+                            updated and tsc is clean, but a caller outside this repository would break.
+                            (2) The persistence module still READS the registry for health, so the two modules remain
+                            coupled by a value even though ownership has moved -- the coupling is now an explicit
+                            parameter rather than a construction, which is what the ownership rule asks for, but it
+                            is not zero coupling.
+                            (3) The predicted root-edge delta (+1) was actually +3; the classifier's condition is
+                            right and its magnitude estimate was not.
+evidence_preserved          the health() dependency and the injection decision in point 1; the six-fixture cost in
+                            point 2; the prediction-versus-actual table in point 3; the completed family in point 4
+rollback                    Revert these commits in reverse order (ceremony first, then the migration). The
+                            namespace returns to `persistence`, the module builds the registry again, the six
+                            fixtures drop the option, and the baseline/epoch return to v20/66. No stored data moved.
+temporary_debt_created      no. Nothing was whitelisted and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as the final measured migration of the namespace-ownership family. The OBJECTIVE
+                            is NOT complete and this entry does not claim it is.
+research_value              (1) A migration declined as "non-mechanical" in one round was executed in the next once
+                            the module was read closely: the store could be injected, so the module keeps the health
+                            report it derives without owning the construction. (2) Six of seven call sites were TEST
+                            fixtures and five of those never used the store -- cost concentrated outside the
+                            migration's subject is a reason to price it, not to skip it. (3) Recording a predicted
+                            measurement turned the round into a test of the classifier: the DIRECTION and the flat
+                            raw total were right, the root-edge MAGNITUDE was not, and knowing which part was wrong
+                            is more useful than knowing only that the instrument agreed.
+```
