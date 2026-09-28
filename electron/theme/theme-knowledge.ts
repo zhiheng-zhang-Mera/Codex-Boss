@@ -18,7 +18,21 @@ import type { KnowledgeCandidate } from "../../src/shared/knowledge-object";
 import type { ThemePackage, ThemeValidationReport } from "../../src/shared/theme";
 import type { ThemeIntent } from "../../src/shared/theme-intent";
 import { contentHashOf } from "../../src/shared/workbook";
-import type { KnowledgeScope } from "../../src/shared/tenx/knowledge";
+
+/**
+ * The knowledge scope vocabulary, declared HERE rather than imported from `src/shared/tenx/knowledge.ts`
+ * (owner `tenx`).
+ *
+ * CC-119 cut (docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md): that import was the ONLY edge this file has onto the
+ * tenx capability, it was type-only, and the type is a four-literal union with no behaviour — which made
+ * `theme|tenx` one of the mutual capability pairs for the sake of a scope string. Which scope a theme fact is
+ * recorded under is a parameter here, not a decision taken here.
+ *
+ * `tests/unit/theme-knowledge-scope.test.ts` pins this union to the tenx original in BOTH directions at COMPILE
+ * time, so a new scope shape stops the build rather than passing a runtime check — the same boundary discipline as
+ * CC-114 (protocol roles) and CC-118 (the recovery port).
+ */
+export type ThemeKnowledgeScope = "global" | `project:${string}` | `task:${string}` | `user:${string}`;
 
 /** The narrow slice of the Knowledge Foundation this integration needs. */
 interface ThemeKnowledgePort {
@@ -26,7 +40,7 @@ interface ThemeKnowledgePort {
 }
 
 interface ThemeKnowledgeInput {
-  scope: KnowledgeScope;
+  scope: ThemeKnowledgeScope;
   taskRef: string;
   intent: ThemeIntent;
   pkg: ThemePackage;

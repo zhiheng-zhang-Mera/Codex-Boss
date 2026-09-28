@@ -410,10 +410,12 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
       // 31 -> 30 in CC-114: `electron/protocols/protocol.ts` declared its own protocol role vocabulary instead of
       // importing `RoleId` from the tenx commander, so `research|tenx` stopped being a mutual pair. 30 -> 29 in
       // CC-118: `electron/commander/web-recovery.ts` declared `RecoveryAutomationPort` instead of importing the
-      // `ProviderAutomation` TYPE, so `automation|tenx` stopped being one. The largest SCC is UNCHANGED at 18 both
-      // times, which is the point CC-077 measured: breaking one 2-cycle does not shrink the component, because its
-      // members stay mutually reachable through other paths.
-      ["p2b:mutualCapabilityPairs", 29],
+      // `ProviderAutomation` TYPE, so `automation|tenx` stopped being one. 29 -> 28 in CC-119:
+      // `electron/theme/theme-knowledge.ts` declared `ThemeKnowledgeScope` instead of importing it from tenx, so
+      // `theme|tenx` stopped being one. The largest SCC is UNCHANGED at 18 on all three, which is the point CC-077
+      // measured: breaking one 2-cycle does not shrink the component, because its members stay mutually reachable
+      // through other paths.
+      ["p2b:mutualCapabilityPairs", 28],
       ["p2b:largestSccSize", 18],
       // 5 -> 3 in CC-072: the dead `ledgerRootUnder()` helper and the test-only smoke writer were both
       // removed, so the p2d instrument found 3 accesses over 2 pairs. 3 -> 0 in CC-076: the two surviving

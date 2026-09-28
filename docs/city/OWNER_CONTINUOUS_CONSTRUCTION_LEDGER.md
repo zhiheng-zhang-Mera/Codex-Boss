@@ -12551,3 +12551,127 @@ research_value              (1) A blanket finding needs an exception check befor
                             cliff, not a slope" has now been reproduced on two real repairs rather than on a
                             planner, which is what makes it usable as a planning assumption.
 ```
+
+---
+
+## CC-119 — The third CYCLE cut, and one ceremony done wrong before it was done right
+
+**This round changes tracked source**, so it carries a Root Trust ceremony. It was performed **twice**: the first
+attempt failed between recording the series entry and accepting it, and that failure is worth recording because it
+exposed what the ceremony's own ordering protects.
+
+**1. The cut.** `electron/theme/theme-knowledge.ts` (owner `theme`) had exactly one edge onto the tenx capability:
+
+```text
+before: import type { KnowledgeScope } from "../../src/shared/tenx/knowledge";
+after:  export type ThemeKnowledgeScope = "global" | `project:${string}` | `task:${string}` | `user:${string}`;
+```
+
+A four-literal union with no behaviour, which made `theme|tenx` one of the mutual pairs for the sake of a scope
+string. Which scope a theme fact is recorded under is a **parameter** here, not a decision taken here. The tenx
+original is untouched, and `tests/unit/theme-knowledge-scope.test.ts` pins the two unions to each other **in both
+directions at compile time** — the third instance of the technique CC-114 proved (a union), CC-118 extended (two
+methods of a class) and this entry applies again (a template-literal union).
+
+**2. The measurement.**
+
+```text
+mutual capability pairs               29 -> 28      MOVED
+raw cross-capability total           769 -> 768
+capability edges (a PAIR count)      195 -> 194
+largest SCC                           18 -> 18      UNCHANGED (third time)
+kernel -> feature file edges          46 -> 46      UNCHANGED
+floors (files_owned 594, kinds 27, composition-root 2, road_files 6, edges_to_roads 75)  unchanged
+```
+
+**3. The ceremony failed in the middle, and the failure is the finding.** The first attempt recorded the series entry
+and then the accept step **did not run at all** (the recording script aborted on a string-replacement error after
+writing part of its work). The state that left was:
+
+```text
+tracked baseline   v25
+series head        v25
+Root Trust epoch   72   <-- ADVANCED anyway, over a surface whose baseline was still v25
+architecture-enforcement-baseline --check:  candidate_tree_matches_frozen = false
+```
+
+So the epoch was one step ahead of the surface it certifies. **Nothing was laundered** — the mismatch made the check
+report `false`, which is exactly what it is for — but it is the state the ceremony exists to prevent, and it was
+reached by running the steps out of order rather than by editing a file. The repair was to run the whole sequence
+again from the recorded candidate: record v26 → accept → advance → verify, and the result is
+
+```text
+series head v26 = tracked baseline v26;  candidate_tree_matches_frozen = true;  epoch 73 (boss-root-trust-73)
+```
+
+**4. The rule this adds, stated as an ordering rather than a caution** (the same shape CC-116 gave the timestamp):
+
+```text
+The four ceremony steps are ONE unit: regenerate candidate -> record the series entry -> accept -> advance.
+A partial run is not "half done", it is a state where the epoch certifies a surface whose baseline is not the
+accepted one. The verification is cheap and must be the LAST step of the unit:
+  node scripts/architecture-enforcement-baseline.cjs --check   -> candidate_tree_matches_frozen must be TRUE
+  node scripts/acceptance-evolution-bless.cjs --check          -> MATCHES
+```
+
+**5. What was NOT attempted.** The sibling `theme|knowledge` pair (one edge, `theme -> src/shared/knowledge-object.ts`)
+stays: cutting it means redeclaring the `KnowledgeCandidate` interface, which is **twenty fields**, not a four-literal
+union — the distinction CC-117 drew between a union and a class, now with a third category. The cut plan's CC-117
+finding said both theme pairs were candidates; this entry shows which of the two the technique actually reaches.
+
+**6. Verification.** Typecheck clean; the ceremony-sensitive suites 78 tests pass; the ratchet reads 28 mutual pairs,
+194 capability edges and HOLDS; both ceremony checks report success.
+
+```text
+ENTRY_ID                    CC-119
+timestamp_utc               2026-09-28T20:44:49Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (to 73) because config/architecture-enforcement-baseline.json is a declared Root
+                            Trust Surface path and its frozen identity genuinely changed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             p2b --json (mutual pairs 29 -> 28, capability edges 195 -> 194, HOLDS);
+                            architecture-enforcement-baseline --check (candidate_tree_matches_frozen FALSE on the
+                            partial run, TRUE after the unit was completed); architecture-baseline-series --check;
+                            acceptance-evolution-bless --advance/--check (epoch 73); pnpm run typecheck; the
+                            ceremony-sensitive suites
+files_or_rules_changed      electron/theme/theme-knowledge.ts; tests/unit/theme-knowledge-scope.test.ts (new);
+                            config/p2b-kernel-feature-ratchet.json (three values lowered);
+                            config/architecture-enforcement-baseline.json (v25 -> v26);
+                            trust-policy/architecture-enforcement-baselines.json (v26 ACCEPTED);
+                            trust-policy/trust-epoch.json (epoch 73); config/test-catalogue.json;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) `ThemeKnowledgeScope` is a second declaration of a four-literal union, so a new
+                            scope shape must reach it; the compile-time pin makes that a build failure. (2) The
+                            epoch advanced past the accepted baseline once before this landed; the state was
+                            repaired by completing the unit, not by editing either file, and the check that reported
+                            `false` is the evidence. (3) S3 fell by one of 31 and S4 did not move; the strict
+                            targets remain unmet.
+evidence_preserved          the before/after counts; the candidate's report showing ONE retired edge; the partial
+                            ceremony state with candidate_tree_matches_frozen = false and the completed state with
+                            true; the declined sibling pair and the twenty-field reason
+rollback                    Ordinary revert of this commit. The epoch advance is in the same commit, so a revert
+                            restores both the surface and the epoch that certifies it.
+temporary_debt_created      no. No threshold was moved and no floor was lowered.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as ONE LANDED CYCLE CUT plus a CEREMONY-ORDERING RULE. The OBJECTIVE is NOT
+                            complete.
+research_value              (1) A multi-step governance ceremony is a UNIT: running three of its four steps does not
+                            leave the system "partly advanced", it leaves the epoch certifying a surface whose
+                            baseline is not the accepted one — and the only reason that was visible is that the
+                            enforcement check REPORTS the comparison instead of assuming it. (2) The proven cut
+                            technique has three instances and one boundary: a type-only import of a union (four
+                            literals, seven literals, a template-literal union) is cuttable, a type-only import of a
+                            CLASS is cuttable if the consumer drives a subset, and a type-only import of a
+                            twenty-field INTERFACE is not — the size and shape of the shared thing decides, not the
+                            edge count. (3) Re-running a ceremony from its own recorded candidate is what makes a
+                            partial run recoverable without hand-editing a governed file.
+```

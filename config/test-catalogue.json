@@ -2228,6 +2228,14 @@
       ]
     },
     {
+      "file": "tests/unit/theme-knowledge-scope.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tenx",
+        "theme"
+      ]
+    },
+    {
       "file": "tests/unit/ui-isolation.test.ts",
       "tier": "unit",
       "covers": [
