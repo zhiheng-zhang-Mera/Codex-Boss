@@ -9,13 +9,16 @@
   "branch": "city/phase2-closeout-post-cc103",
   "work_start_sha": "8df428eaa437a409368401e95194e40266b83080",
   "drift_at_signing_point": false,
-  "checkpoint_sha": null,
+  "checkpoint_sha": "9ce8795",
   "completed_tasks": [
     "T1: F0 verified unchanged; F1 created and pushed; work-start drift checked (none); construction branch created and pushed; freeze notice, workbook, state file, extraction map and acceptance template written",
     "T2: work-start baseline measured with the repository's own instruments (8 reports archived and hashed); OPEN items split into real structural work vs hosted/human boundaries; the old record confirmed identical, not stale; unit suite green at 284 files / 3678 tests",
-    "T2/T4 analysis: three measurements taken (binding classification 30 runtime / 18 import-position; re-homing leverage 0 SCC nodes from any single file; SCC cost 337 file edges across 60 pairs to reach SCC 10) plus the ownership hypothesis tested and reverted with the real gate refusing it"
+    "T2/T4 analysis: three measurements taken (binding classification 30 runtime / 18 import-position; re-homing leverage 0 SCC nodes from any single file; SCC cost 337 file edges across 60 pairs to reach SCC 10) plus two ownership hypotheses tested and reverted, both refused by the real gate",
+    "T2: affected-test mapping (301 suites), user entry points and the phased migration plan recorded in the extraction map",
+    "T6: the Owner chose route A2 over A1 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106)",
+    "T3/Phase A2-1 LANDED: electron/store.ts stopped importing the run-mode policy it never decided. kernel -> feature edges 49 -> 48, total cross-capability edges 774 -> 773; every floor unchanged; mutual pairs 31 and largest SCC 18 unchanged (expected). Root Trust ceremony performed: enforcement baseline v20 -> v21 with the retired edge named, epoch 66 -> 67, bless --check MATCHES. Unit tier 285 files / 3680 tests green."
   ],
-  "active_task": "T3/T4 (BLOCKED as measured, see structural_blocker)",
+  "active_task": "T3/Phase A2 (next: A2-2, the pure utilities move to the kernel)",
   "next_action": "Record the measured structural blocker and the priced migration plan; resume T3/T4 only as a multi-round architecture programme, not as a bounded checkpoint.",
   "structural_blocker": {
     "status": "MEASURED_NOT_REACHABLE_IN_ONE_BOUNDED_SESSION",

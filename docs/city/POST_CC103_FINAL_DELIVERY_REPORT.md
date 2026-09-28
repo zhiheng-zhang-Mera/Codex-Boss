@@ -1,6 +1,6 @@
 # Post-CC103 closeout — final delivery report
 
-> Filled from real measurements at the construction checkpoint `50d4a20` on `city/phase2-closeout-post-cc103`.
+> Filled from real measurements at the construction checkpoint `9ce8795` on `city/phase2-closeout-post-cc103`.
 > Every field is a real value; `NOT_PERFORMED` and `UNVERIFIED` are used where that is the truth. This report is
 > the workbook §20 template, filled in, and it is deliberately **not** a success report.
 
@@ -40,7 +40,7 @@ post_freeze_cohort_location
 
 ```text
 work_start_sha             8df428eaa437a409368401e95194e40266b83080   (== origin/main at work start; NO drift)
-checkpoint_sha             50d4a20   (branch city/phase2-closeout-post-cc103, pushed)
+checkpoint_sha             9ce8795   (branch city/phase2-closeout-post-cc103, pushed); the FIRST commit to change source
 final_main_sha             NOT ESTABLISHED — main has not moved and this round changed no source file
 final_machine_ready_tag    NOT CREATED — it names a final verified main SHA, and there is none
 merged_prs                 none (a PR may be opened for review; nothing was merged)
@@ -57,7 +57,7 @@ Measured at the work-start SHA and re-verified at the checkpoint; **this round r
 work-start values ARE the checkpoint values.
 
 ```text
-kernel_to_feature_file_edges = 49   (target 0)      NOT MET
+kernel_to_feature_file_edges = 48   (target 0)      NOT MET   [work start 49; A2-1 retired one edge]
 kernel_to_feature_pairs      = 16   (target 0)      NOT MET
 mutual_capability_pairs      = 31   (target 0)      NOT MET
 largest_scc_size             = 18 of 29 nodes (target <= 1)   NOT MET
@@ -101,7 +101,9 @@ real_runtime_and_replacement_evidence
     prove. The existing replacement lifecycle evidence (one instance RETIRED with evidence at every state)
     is unchanged and is not re-claimed as new.
 root_trust_epoch / MATCHES
-    epoch 66 (boss-root-trust-66) MATCHES the live surface — real run, exit 0. UNCHANGED; no ceremony due.
+    epoch 67 (boss-root-trust-67) MATCHES the live surface — real run, exit 0. ADVANCED from 66 by the A2-1
+    ceremony, because config/architecture-enforcement-baseline.json is a declared Root Trust Surface path and the
+    frozen identity genuinely changed (one edge retired, internal_edges 1656 -> 1655).
 final_hosted_run_id
     NOT ESTABLISHED for a final main SHA. Branch evidence: run 36432693238 @ 4ed0f44 produced all five jobs
     completed/success (quality 108962644082, architecture 108962644520, unit 108962991894,
@@ -110,7 +112,7 @@ final_hosted_run_id
 per_job_name / job_id / subject_sha / attempt / conclusion
     as above; no attempt is stitched across commits and no PR merge-ref run is presented as a main run.
 strict_gate_raw_status
-    NOT_READY: 22 PASS / 5 OPEN / 7 UNVERIFIED at the checkpoint on a clean tree
+    NOT_READY: 22 PASS / 5 OPEN / 7 UNVERIFIED at checkpoint 9ce8795 on a clean tree
     open       = S2, S3, S4, S10, S14
     unverified = G2, G3 (hosted ruleset reads), E1, E4 (human integrity half), F1, F2, F4 (need a final SHA)
 remaining_unverified_ids_and_reasons
@@ -129,9 +131,10 @@ completed_in_repo_boundaries
     B-06 the shared DTO surface). Status IN_PROGRESS for the four kernels and the shared surface; the map's
     section 4 sequences the work in four phases.
 unchanged_boss_default_runtime
-    TRUE, trivially and verifiably: 0 files under electron/, src/, scripts/, config/, tests/ or .github/
-    differ from main. The branch is 33 files over 8 commits, all documentation, evidence and analysis
-    (7404 insertions, 0 deletions in total).
+    NO LONGER TRIVIALLY TRUE, and that is the point of this round: A2-1 changed electron/store.ts, added one
+    test, lowered two ratchet values, accepted enforcement baseline v21 and advanced the Root Trust epoch to 67.
+    The earlier 33-file documentation-only checkpoint still exists as a299d6b for anyone who wants to see the
+    round's analysis with no source change; the delivery is now measured at 9ce8795 instead.
 deferred_optional_boundaries_and_reasons
     DEFERRED: every extra pre-decoupling. The workbook caps optional pilots at two and makes zero acceptable;
     with the strict targets unmet, an optional pilot would be scope growth, and section 4.1 grades new work
