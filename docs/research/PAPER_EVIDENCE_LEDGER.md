@@ -4575,3 +4575,157 @@ the sequence, which is why each row is labelled with its entry rather than prese
 be driven down over a long sequence without ever reaching its absolute target, and the honest artifact for that state
 is a checkpoint that prints the achieved value, the frozen floor and the unmet target together — not a gate that
 reports the target as met, and not a metric quietly dropped from the report.*
+
+---
+
+# Post-CC103 continuation
+
+> Cohort: `POST_CC103_CONTINUATION`. Every measurement below was taken **after** the CC-103 freeze and belongs to a
+> separate cohort from §A–§W. It does not restate, strengthen or retroactively alter any CC-103 result.
+> Index: `docs/research/post-cc103/EXPERIMENT_INDEX.csv`. Raw evidence: `docs/research/post-cc103/evidence/`.
+
+## X-1 — `BOUNDARY`: the material carrier is frozen, and the old anchor is not moved
+
+**Question/hypothesis.** Can a second, paper-citable reference be created that carries the *material* surface
+(ledger §A–§W, the CC-103 CSV, the branch archive, the citation bridge) without implying that its commit was an
+experimental acceptance, and without moving the existing experiment anchor?
+
+**Change.** `boss-paper-cc103-bundle-20260928-v1` was created as an **annotated** tag on
+`8df428eaa437a409368401e95194e40266b83080` and pushed. Its annotation states, in the tag object itself, that the
+experiment anchor remains `bedeb828…`, that the strict full city is `NOT_READY`, and that no experimental
+acceptance is implied.
+
+**Before / after evidence.** Before: `git ls-remote --tags origin refs/tags/boss-paper-cc103-bundle-20260928-v1*`
+returned nothing. After: it returns the tag object `caa4e35d44e233a1867667e8a861f930e3df642b` and the peeled commit
+`8df428eaa437a409368401e95194e40266b83080`. F0's own remote resolution is unchanged: tag object
+`f0973b59a3b298b68c0b652785719aa71917b9b4`, peeled commit `bedeb8280f4bdb51e54fbead642775b1a32d16b6`.
+
+**Failure or counterexample.** `origin/main` already equalled the intended bundle SHA at the signing point, so the
+workbook's §6.3 drift procedure could not be exercised this round — it was checked and did not apply. That is a
+limitation on the evidence, not a confirmation of the procedure.
+
+**Behaviour preserved.** Only new files were added; no tracked file was modified, and no tag was moved, deleted or
+recreated.
+
+**Conclusion supported.** An annotated tag can carry a *provenance claim as part of the reference itself*, so a
+citation can address frozen material without asserting an experimental result. Two anchors with different meanings
+can coexist on one commit (`8df428…` is simultaneously F1 and, before this round, `main`).
+
+**Conclusion NOT supported.** This does not show that tags are unforgeable — a writer with push access can move
+them. It also does not show that the material surface is complete; see X-4.
+
+**Reference.** subject SHA `8df428…`; instrument = `git ls-remote` against `origin`; raw evidence
+`docs/research/PAPER_FREEZE_CC103_BUNDLE.md`.
+
+## X-2 — `MEASUREMENT`: the work-start baseline is identical to the CC-103 record, so "the record is stale" is refuted
+
+**Question/hypothesis.** The old `MINIMUM_HUMAN_ACCEPTANCE_RECORD.md` figures were measured at `1faf29a…`, not at the
+work-start SHA. Were they stale?
+
+**Change.** None — a read-only re-measurement at `8df428…` with the repository's own instruments.
+
+**Result.** Every recorded structural metric reproduces exactly:
+
+```text
+owned source files                 594
+kernel -> feature file edges        49   over 16 pairs   (target 0)
+mutual capability pairs             31                    (target 0)
+largest strongly connected comp.    18 of 29 nodes        (target <= 1)
+MIGRATION_IN_PROGRESS plots         21
+UNSAFE_GAP plots                     0
+confirmed private-state accesses     0
+multi-writer candidates              0
+edges leaving a road                 0
+Core measured size                 115   budget HOLDS, unexcused growth 0
+strict gate                        19 PASS / 8 OPEN / 7 UNVERIFIED
+```
+
+**Conclusion supported.** A record carried across several merges can still describe the tree exactly. The honest
+statement about that record is that it is *accurate*, not that it is *old*.
+
+**Conclusion NOT supported.** This says nothing about whether the recorded state is acceptable. `NOT_READY` remains
+`NOT_READY`.
+
+**Reference.** subject/instrument SHA `8df428…`; raw evidence `evidence/baseline-phase2-edge-inventory.json`,
+`evidence/baseline-city-final-acceptance.json`.
+
+## X-3 — `CORRECTION`: the 49 remaining kernel → feature edges are runtime couplings, and CC-101's 42/7 split is refuted by measurement
+
+**Question/hypothesis.** CC-101 classified the 49 edges as 42 import-position (dischargeable by declaring a local
+shape) and 7 runtime. CC-102 withdrew the method but could only measure one edge. How many are runtime?
+
+**Change.** Implemented CC-102's own corrected method as a separate program: classify by **every binding a specifier
+provides** and call the edge a **runtime** coupling if **any** binding is used as a value — called, constructed,
+passed, computed with, or read as a table — regardless of an `import type` keyword on the statement. Then applied it
+to all 48 kernel → feature import statements. No tracked file was changed.
+
+**Result.**
+
+```text
+kernel -> feature import statements    48
+  RUNTIME                              30
+  IMPORT-POSITION (every binding type) 18
+```
+
+The 18 are not free either: removing an import and re-declaring the shape locally is exactly the surgery CC-095 and
+CC-098 each attempted for **one** edge and reverted, because `scripts/architecture.cjs`'s `kernel-imports-feature`
+violation cannot distinguish a type import from a value import, so the ratchet refuses the result until the shape has
+a home that is not the feature.
+
+**Failure or counterexample.** The program's own parser mis-read a doc-comment that contains the word `from` before
+an actual `import type` line, so one row (`src/shared/provider-contracts.ts`) is noise; the statement count is 48
+against the inventory's 49 because `persist`-style dynamic imports and one comment-adjacent statement are not
+attributed the same way by the two readers. Both discrepancies are reported rather than smoothed.
+
+**Conclusion supported.** CC-101's 42/7 headline is **wrong by roughly four times in the direction that matters**: the
+majority of the remaining inversions are genuine runtime couplings, so "there is no mechanical lane left" now has its
+own measurement rather than an unsound classifier. The corrected split is a **tool result**, and the tool is preserved
+so the number can be re-derived.
+
+**Conclusion NOT supported.** The 18/30 split is not a lower bound on work: each of the 18 still needs the imported
+shape to acquire a home outside the feature, and "import-position" says nothing about whether that home exists.
+
+**Reference.** subject SHA `8df428…`; instrument written this round
+(`docs/research/post-cc103/tools/binding-classify.cjs`);
+raw evidence = the classifier's own output, archived as `evidence/baseline-kernel-feature-binding-classification.json`.
+
+## X-4 — `MEASUREMENT`: the SCC collapse is hundreds of real dependency changes, not a re-attribution
+
+**Question/hypothesis.** `src/shared/**` is assigned file-by-file to feature capabilities, which looks like a
+mis-attribution that could be corrected cheaply. If the largest strongly connected component (18 of 29 nodes) and the
+31 mutual capability pairs were mostly attribution artifacts, re-homing a handful of files would dissolve them.
+
+**Change.** None — two read-only experiments against the repository's own ownership map and instruments.
+
+**Result 1 — re-attribution has almost no leverage.** Of 200 distinct import targets, re-homing any single file to a
+different owner changes 16 of them at all, and the best single file (`electron/commander/durable-json.ts`, already
+declared a road) breaks 4 of 36 measured pairs in the exploratory model. The largest SCC stays at 18 or 19 nodes in
+**every** single-file re-homing. No re-attribution choice, on its own, reduces the component.
+
+**Result 2 — the real cost, measured.** Removing a whole capability *pair* is the strongest lever available, and the
+strongest single pair removal (`providers -> identity`, 1 file edge) takes the largest SCC from 18 to **17**. A greedy
+search that removes the best available pair at every step needed **337 file edges across 60 capability pairs** just to
+reach `largest SCC = 10` — still far from the target of `<= 1`.
+
+**Failure or counterexample.** The greedy is not optimal and is not presented as a lower bound; the exact entry cost is
+unresolved. The two experiments also disagree slightly with the CI instruments (36 mutual pairs in the exploratory
+model versus 31 in `phase2-cycles.cjs`) because the exploratory model drops the composition-root and road columns;
+that is why both experiments are labelled directional and every *conclusion* below rests on the CI instruments'
+numbers, which are identical in both.
+
+**Conclusion supported.** The strict structural targets cannot be reached by relabelling, by declaring roads, or by any
+bounded set of file moves. They require removing **hundreds of real file dependencies** from a 594-file application
+while preserving its behaviour — an architecture programme, not a checkpoint. This is a *measured* statement: the
+strongest available single move is worth 1 node out of an 18-node component.
+
+**Conclusion NOT supported.** This does not show the targets are unachievable — only that the cost is structural.
+It also does not discharge S2/S3/S4: those remain unmet, and `NOT_READY` remains the honest verdict.
+
+**Paper-use category.** Measurement + method critique: *a metric's remaining distance can be misread as an attribution
+problem; measuring the leverage of the attribution fix is what distinguishes "we labelled it wrong" from "we built it
+wrong". Here the attribution fix was worth at most 4 of 36 pairs and 0 of 18 nodes, so the metric is measuring the
+build, not the labels.*
+
+**Reference.** subject SHA `8df428…`; instruments `scripts/phase2-edge-inventory.cjs`, `scripts/phase2-cycles.cjs`,
+`scripts/capability-closure-validator.cjs`; exploratory tools committed with this evidence:
+`docs/research/post-cc103/tools/cycle-leverage.cjs` and `docs/research/post-cc103/tools/scc-what-would-it-take.cjs`.

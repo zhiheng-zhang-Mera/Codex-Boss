@@ -83,13 +83,32 @@ historical failure was erased. It can, however, check the *reachability and pref
 round records before any human reads the result.
 
 ```text
-old ledger §A–§W preserved as a prefix                 = PENDING (T8)
-retired branch tips reachable through archive tags     = PENDING (T8)
-CC-103 first FAILED acceptance attempt preserved       = PENDING (T8)
-CC-103 second (permitted) attempt preserved            = PENDING (T8)
-CITY-DEBT-006 = ACCEPTED_PERMANENT retained            = PENDING (T8)
-new evidence hashes match the index                    = PENDING (T8)
+old ledger §A–§W preserved as a prefix                 = VERIFIED (2026-09-28)
+retired branch tips reachable through archive tags     = VERIFIED (2026-09-28)
+CC-103 first FAILED acceptance attempt preserved       = VERIFIED (2026-09-28)
+CC-103 second (permitted) attempt preserved            = VERIFIED (2026-09-28)
+CITY-DEBT-006 = ACCEPTED_PERMANENT retained            = VERIFIED (2026-09-28)
+new evidence hashes match the index                    = VERIFIED (2026-09-28)
 ```
+
+Each `VERIFIED` above is a machine-checkable statement, and here is the check that produced it rather than a claim:
+
+| Statement | How it was checked | Result |
+|---|---|---|
+| §A–§W is an untouched prefix | `git diff 8df428e… --numstat -- docs/research/PAPER_EVIDENCE_LEDGER.md` | `153 0` — **153 insertions, 0 deletions**. The new section is appended; no old line was modified. |
+| retired branch tips are reachable | `git ls-remote --tags origin`, filtered to `archive/branch-tip-20260928` | 39 archived tips, each resolved to both its tag object and its peeled commit (78 refs). |
+| the CC-103 attempt history survives | `git log --oneline -6 bedeb828…` | the `feat(city)` pre-seal commit, both merge commits, the record commit and the timestamp-correction commit are all present. |
+| debt retention | `docs/city/CITY_RENOVATION_DEBT_REGISTER.md` | `CITY-DEBT-006  the desktop smoke suite fails after an application restart  ACCEPTED_PERMANENT`; the register's own tally line reads `ACCEPTED_PERMANENT 1`. |
+| evidence hashes | SHA-256 of every file under `docs/research/post-cc103/evidence/` against the values in `EXPERIMENT_INDEX.csv` | 11 files, hashes recorded per row. |
+
+Two of these deserve an explicit limit, because a machine result is easy to over-read:
+
+- `153 0` proves the old section is a **prefix** of the new file. It does **not** prove that the prefix is *complete*
+  relative to some earlier state — a line deleted and an identical line re-added elsewhere would not be visible here.
+  Completeness is the human claim in §3's closing paragraph.
+- `ACCEPTED_PERMANENT` proves the **classification** is still recorded. It does not extend that acceptance to any
+  later failure: a fresh acceptance red is a new failure until it is shown to be the same fingerprint.
+
 
 The remaining, human-only part is stated plainly rather than implied:
 

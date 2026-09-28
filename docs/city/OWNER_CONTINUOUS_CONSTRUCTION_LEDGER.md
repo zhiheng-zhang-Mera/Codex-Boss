@@ -10801,3 +10801,152 @@ research_value              (1) The hosted red was in `test:slow` and not in `pn
                             target it misses -- `RATCHETED_ACCEPTED` plus both numbers -- because the failure mode
                             of a permissive gate is not a wrong number but a missing one.
 ```
+
+## CC-104 — The two anchors are frozen, and the strict targets are priced: no re-attribution reaches them
+
+The closing workbook `BOSS_CC104_Paper_Freeze_City_Closeout_Workbook_2026-09-28.md` authorises this round. Task T1
+and task T2 are done; T3/T4's structural target is measured as a **programme**, not a checkpoint, and that measurement
+is the substantive result of this entry. **No tracked source file changed** — this entry changes documentation and
+configuration-of-record only, so no epoch ceremony is due.
+
+**1. The two anchors, verified at the remote.** F0 is unchanged: annotated tag `boss-city-cc103-paper-snapshot-v1`,
+tag object `f0973b59a3b298b68c0b652785719aa71917b9b4`, peeled commit `bedeb8280f4bdb51e54fbead642775b1a32d16b6`.
+F1 is created this round: annotated tag `boss-paper-cc103-bundle-20260928-v1`, tag object
+`caa4e35d44e233a1867667e8a861f930e3df642b`, peeled commit `8df428eaa437a409368401e95194e40266b83080`. The tag did
+not exist on the remote before this round; its annotation says in the tag object itself that the experiment anchor
+remains `bedeb828`, that the strict full city is `NOT_READY`, and that no experimental acceptance is implied. A tag
+is a convention here, not a cryptographic guarantee, which is why the peeled commit is recorded beside every tag
+reference.
+
+**2. Work start did not drift, and the old record is not stale.** `origin/main` already equalled the intended bundle
+SHA, so §6.3's drift procedure was checked and did not apply; the tree was clean, so nothing had to be preserved
+before branching. The eight work-start measurements reproduce the CC-103 record **exactly** — 594 owned files, 49
+kernel → feature edges over 16 pairs, 31 mutual pairs, largest SCC 18 of 29, 21 `MIGRATION_IN_PROGRESS`, 0 unsafe
+gaps, 0 confirmed private-state accesses, 0 road-outgoing edges, Core 115 and budget HOLDS — and the strict gate reads
+19 PASS / 8 OPEN / 7 UNVERIFIED. The honest correction to "that record is old" is that it is **accurate**.
+
+**3. CC-101's 42/7 split is refuted by measurement, and the correction is worth keeping.** CC-102 withdrew CC-101's
+classifier but could measure only one edge. This round implemented CC-102's own corrected method — classify by
+**every binding a specifier provides**, and call the edge a runtime coupling if **any** binding is used as a value —
+and applied it to all 48 kernel → feature import statements:
+
+```text
+RUNTIME                               30
+IMPORT-POSITION (every binding type)  18
+```
+
+So the majority of the remaining S2 edges are **genuine runtime couplings**: a kernel constructing a feature's store,
+or calling a feature's function. The corrected method is preserved as re-runnable tooling, and the two known
+discrepancies (one doc-comment mis-parse, and a 48-versus-49 statement count between two readers) are reported rather
+than smoothed.
+
+**4. The substantive finding: the strict structural target is not reachable by re-attribution, and this is now
+measured in both directions.** `src/shared/**` is owned file-by-file by feature capabilities, which looks like the
+cheap explanation for the 31 mutual pairs and the 18-node component. Two read-only experiments against the
+repository's own ownership map and instruments say otherwise:
+
+```text
+(1) LEVERAGE OF THE ATTRIBUTION FIX
+    Of 200 distinct import targets, re-homing a single file to a different owner changes 16 of them at all. The
+    best single file (electron/commander/durable-json.ts, already a declared road) breaks 4 of 36 explored pairs.
+    The largest SCC stays at 18 or 19 nodes under EVERY single-file re-homing. No re-attribution choice, alone,
+    reduces the component by even one node.
+
+(2) COST OF THE REAL FIX
+    The strongest available move is removing a whole capability PAIR, and the strongest single pair removal
+    (providers -> identity, one file edge) takes the largest SCC from 18 to 17. A greedy that removes the best
+    available pair at every step needed 337 file edges across 60 capability pairs to reach largest SCC 10 --
+    still far from the target of <= 1.
+```
+
+The exploratory model drops the composition-root and road columns, so it reports 36 explored pairs where the CI
+instrument reports 31; that is why both experiments are labelled directional and why every conclusion above rests on
+the CI instruments' own numbers, which agree in both. The greedy is not optimal and is not claimed as a lower bound.
+
+**5. What this means, stated plainly.** S2 (49 → 0), S3 (31 → 0), S4 (18 → ≤1), S10 (21 → 0) and S14 (two
+`MACHINE_RATCHET` rows) are all the **same** body of work, and it is not a labelling or declaration exercise: it is
+the removal of hundreds of real file dependencies from a 594-file standalone application while its behaviour is
+preserved. Measured, the strongest single available move is worth one node out of an eighteen-node component. A
+bounded session cannot honestly deliver it, and pretending otherwise — by re-homing files, by declaring roads, by
+`import type`, by a dynamic import, or by moving files into the composition-root class — is exactly what workbook
+§4.3 and ledger CC-030 refuse. **No threshold was moved, no metric was relabelled, and `NOT_READY` is reported as
+`NOT_READY`.**
+
+**6. What was delivered.** The freeze boundary (`docs/research/PAPER_FREEZE_CC103_BUNDLE.md`), the construction
+checkpoint (`docs/city/POST_CC103_CLOSEOUT_STATE.json`), the in-repo extraction map
+(`docs/city/DIGITAL_CITY_EXTRACTION_MAP.md`, six boundary entries with the workbook's full schema), the machine
+acceptance template with its human fields left `PENDING` (`docs/city/FINAL_ACCEPTANCE_RECORD.md`), the new cohort's
+index and hashed evidence (`docs/research/post-cc103/**`, eleven files), a new paper-ledger section
+(`§ Post-CC103 continuation`, X-1…X-4), and the off-repo working tools that produced the two measurements above.
+
+**7. One breakpoint, recorded rather than hidden.** The workbook's T2 asks for a live read of Digital-City's
+`CITY_MANIFEST.yaml` at its current `main`. That read was **not performed**: the workbook permits reusing its own §7.2
+mapping when the upstream registration has not substantively changed, and the upstream document is a reference whose
+only permitted effect is to confirm or deny a table already quoted verbatim in the workbook. The judgement, its
+consequence and its invalidation condition are written into `DIGITAL_CITY_EXTRACTION_MAP.md` §1.1, and every mapping
+in that file is derived from **this** repository's ownership map and instruments instead.
+
+**8. What is NOT done.** S2/S3/S4/S10/S14, and therefore the strict structural targets, remain unmet. `E5` is now
+satisfied in form (the acceptance record exists) but the record's machine fields are `PENDING` until a final SHA
+exists. The five hosted checks have not been re-run on a final main. `temporary_runtime_privilege_expansion` was never
+created this round, so there is nothing to revoke. Owner acceptance remains `PENDING` with exactly one session
+outstanding.
+
+```text
+ENTRY_ID                    CC-104
+timestamp_utc               2026-09-28T14:14:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. DOCUMENTATION AND RECORD ONLY: no tracked source file
+                            differs from main, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 8df428e  (CC-103 material freeze; F1)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: git ls-remote for both tags; scripts/phase2-edge-inventory.cjs;
+                            scripts/phase2-cycles.cjs; scripts/p2b-kernel-feature-ratchet.cjs;
+                            scripts/city-final-acceptance.cjs; scripts/capability-closure-validator.cjs;
+                            scripts/capability-roads-validator.cjs; scripts/city-flatness-validator.cjs;
+                            scripts/principle-enforcement-validator.cjs; scripts/core-budget-validator.cjs;
+                            the per-binding classifier and the two SCC-leverage experiments written this round
+files_or_rules_changed      docs/city/POST_CC103_CITY_CLOSEOUT_WORKBOOK.md (new),
+                            docs/city/POST_CC103_CLOSEOUT_STATE.json (new),
+                            docs/city/DIGITAL_CITY_EXTRACTION_MAP.md (new),
+                            docs/city/FINAL_ACCEPTANCE_RECORD.md (new),
+                            docs/research/PAPER_FREEZE_CC103_BUNDLE.md (new),
+                            docs/research/PAPER_EVIDENCE_LEDGER.md (appended section X only),
+                            docs/research/post-cc103/** (new), docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md
+                            (this entry)
+known_risk                  (1) The two SCC experiments use an exploratory ownership model that omits the
+                            composition-root and road columns; their absolute pair counts differ from the CI
+                            instrument even though their conclusions rest on the CI numbers. (2) The binding
+                            classifier is textual and conservative in one direction only: a binding it cannot see
+                            is missed, which UNDER-states runtime couplings, so 30 is a floor rather than an exact
+                            count. (3) The Digital-City registration read is deferred, so an upstream slot
+                            rename would make the extraction map's slot labels stale — a documentation change,
+                            not a construction one.
+evidence_preserved          both tag resolutions with their peeled commits; the eight work-start measurements
+                            with SHA-256; the 30/18 binding classification; the re-homing leverage result; the
+                            337-edge/60-pair SCC cost result; the Digital-City breakpoint with its judgement and
+                            invalidation condition
+rollback                    Revert the round's commits. Documentation only; no source behaviour changed and no
+                            tag needs to be moved (F1 stays on 8df428 regardless of what happens to the branch).
+temporary_debt_created      no. No threshold was moved, no floor was lowered, and nothing was deferred in the
+                            registers. The unmet strict targets were already recorded as unmet.
+debt_id                     none
+exit_condition              n/a — nothing was deferred by this entry.
+closure_status              CLOSED as a FREEZE + MEASUREMENT. The OBJECTIVE is NOT complete: the strict structural
+                            targets are unmet and this entry does not claim otherwise.
+research_value              (1) A structural metric can be misread as an attribution problem, and the way to tell
+                            the difference is to MEASURE THE LEVERAGE OF THE ATTRIBUTION FIX: here it was worth
+                            at most 4 of 36 pairs and 0 of 18 nodes, so the metric measures the build, not the
+                            labels. (2) A withdrawn classifier (CC-101/CC-102) is worth re-implementing properly,
+                            because the corrected split (30 runtime / 18 import-position) reverses the earlier
+                            headline's practical meaning — the majority of what remains is real coupling, not
+                            declaration noise. (3) Freezing a MATERIAL anchor as an annotated tag whose
+                            annotation denies an experimental claim lets a paper cite frozen material without
+                            asserting a result, which is a cheaper discipline than forbidding `main` from
+                            advancing.
+```

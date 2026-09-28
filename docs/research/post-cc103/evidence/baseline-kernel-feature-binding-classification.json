@@ -1,0 +1,2025 @@
+[
+  {
+    "from": "providers",
+    "to": "identity",
+    "fromFile": "electron/account-sessions.ts",
+    "toFile": "electron/identity/session-lifecycle-ledger.ts",
+    "spec": "./identity/session-lifecycle-ledger",
+    "line": 7,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "SessionLifecycleLedger",
+        "kind": "type",
+        "as": "SessionLifecycleLedger",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tenx",
+    "fromFile": "electron/bootstrap/persistence.ts",
+    "toFile": "electron/commander/task-ledger.ts",
+    "spec": "../commander/task-ledger",
+    "line": 6,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "TaskLedger",
+        "kind": "value",
+        "as": "TaskLedger",
+        "valueUses": [
+          {
+            "line": 33,
+            "snippet": "*  - the `TaskLedger` is built once and shared with the `StateStore`, because the",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tenx",
+    "fromFile": "electron/bootstrap/persistence.ts",
+    "toFile": "electron/commander/decision-ledger-store.ts",
+    "spec": "../commander/decision-ledger-store",
+    "line": 7,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "DecisionLedgerStore",
+        "kind": "value",
+        "as": "DecisionLedgerStore",
+        "valueUses": [
+          {
+            "line": 115,
+            "snippet": "const decisions = open(\"decision-ledger\", () => new DecisionLedgerStore(boss(\"decision-ledger.json\")));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "workspace",
+    "fromFile": "electron/bootstrap/persistence.ts",
+    "toFile": "electron/workspace/workspace-registry.ts",
+    "spec": "../workspace/workspace-registry",
+    "line": 10,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "WorkspaceRegistry",
+        "kind": "value",
+        "as": "WorkspaceRegistry",
+        "valueUses": [
+          {
+            "line": 116,
+            "snippet": "const workspaces = open(\"workspaces\", () => new WorkspaceRegistry(boss(\"workspaces.json\")));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "workspace",
+    "fromFile": "electron/bootstrap/persistence.ts",
+    "toFile": "electron/workspace/durable-roots.ts",
+    "spec": "../workspace/durable-roots",
+    "line": 11,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "durableFileFor",
+        "kind": "value",
+        "as": "durableFileFor",
+        "valueUses": [
+          {
+            "line": 38,
+            "snippet": "*    Root Memory of `durableFileFor` is asked for that id here rather than in",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tenx",
+    "fromFile": "electron/bootstrap/persistence.ts",
+    "toFile": "electron/runtime-intelligence/live-capture.ts",
+    "spec": "../runtime-intelligence/live-capture",
+    "line": 12,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "RuntimeIntelligenceCapture",
+        "kind": "value",
+        "as": "RuntimeIntelligenceCapture",
+        "valueUses": [
+          {
+            "line": 100,
+            "snippet": "const capture = new RuntimeIntelligenceCapture({",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "createCaptureObservingLedger",
+        "kind": "value",
+        "as": "createCaptureObservingLedger",
+        "valueUses": [
+          {
+            "line": 105,
+            "snippet": "const tasks = open(\"tasks\", () => createCaptureObservingLedger({ root: boss(\"tasks\"), capture }));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "automation",
+    "fromFile": "electron/bootstrap/provider-pool.ts",
+    "toFile": "electron/provider-automation.ts",
+    "spec": "../provider-automation",
+    "line": 3,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "ProviderAutomation",
+        "kind": "value",
+        "as": "ProviderAutomation",
+        "valueUses": [
+          {
+            "line": 10,
+            "snippet": "* `ProviderViews` on the controller window and the `ProviderAutomation` over them.",
+            "typePosition": false
+          },
+          {
+            "line": 105,
+            "snippet": "automation = new ProviderAutomation(",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "security",
+    "fromFile": "electron/bootstrap/providers.ts",
+    "toFile": "electron/github/github-machine-runtime.ts",
+    "spec": "../github/github-machine-runtime",
+    "line": 6,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "createGitHubMachineRuntime",
+        "kind": "value",
+        "as": "createGitHubMachineRuntime",
+        "valueUses": [
+          {
+            "line": 112,
+            "snippet": "githubMachine: ReturnType<typeof createGitHubMachineRuntime>;",
+            "typePosition": false
+          },
+          {
+            "line": 142,
+            "snippet": "let githubMachine: ReturnType<typeof createGitHubMachineRuntime>;",
+            "typePosition": false
+          },
+          {
+            "line": 144,
+            "snippet": "githubMachine = createGitHubMachineRuntime({ userData, crypto });",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "workspace",
+    "fromFile": "electron/bootstrap/providers.ts",
+    "toFile": "src/shared/workspace-layout.ts",
+    "spec": "../../src/shared/workspace-layout",
+    "line": 8,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "WorkspaceViewState",
+        "kind": "type",
+        "as": "WorkspaceViewState",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "state-core",
+    "to": "tenx",
+    "fromFile": "electron/bootstrap/state-core.ts",
+    "toFile": "electron/commander/decision-ledger-store.ts",
+    "spec": "../commander/decision-ledger-store",
+    "line": 3,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "DecisionLedgerStore",
+        "kind": "type",
+        "as": "DecisionLedgerStore",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/capability/integration/execution-authorization.ts",
+    "toFile": "electron/commander/execution-gate.ts",
+    "spec": "../../commander/execution-gate",
+    "line": 3,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "ExecutionAuthorizationContext",
+        "kind": "type",
+        "as": "ExecutionAuthorizationContext",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "ExecutionAuthorizationOutcome",
+        "kind": "type",
+        "as": "ExecutionAuthorizationOutcome",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "tasks",
+    "fromFile": "electron/computer/backends/dom-page.ts",
+    "toFile": "src/shared/action-readiness.ts",
+    "spec": "../../../src/shared/action-readiness",
+    "line": 2,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "readinessFromProbe",
+        "kind": "value",
+        "as": "readinessFromProbe",
+        "valueUses": [
+          {
+            "line": 96,
+            "snippet": "const verdict = readinessFromProbe({ readyState: probe.readyState, found: probe.found, visible: probe.visible, enabled: probe.enabled, stableSamples: probe.stab",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "ReadinessProbeFacts",
+        "kind": "type",
+        "as": "ReadinessProbeFacts",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "engineering",
+    "fromFile": "electron/computer/backends/structured-apps.ts",
+    "toFile": "electron/engineering/native-tools.ts",
+    "spec": "../../engineering/native-tools",
+    "line": 5,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "workspacePath",
+        "kind": "value",
+        "as": "workspacePath",
+        "valueUses": [
+          {
+            "line": 18,
+            "snippet": "if (app === \"explorer\") { const directory = workspacePath(this.workspace, target || \".\"); evidence = { source: \"filesystem\", directory, entries: fs.readdirSync(",
+            "typePosition": false
+          },
+          {
+            "line": 19,
+            "snippet": "else if (app === \"terminal\") { const file = workspacePath(this.workspace, target); const size = fs.statSync(file).size; if (size > 1000000) throw new Error(\"Ter",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "executeNative",
+        "kind": "value",
+        "as": "executeNative",
+        "valueUses": [
+          {
+            "line": 20,
+            "snippet": "else if (app === \"git\") { if (![\"status\", \"diff\"].includes(target)) return { status: \"UNSUPPORTED\" }; evidence = await executeNative(this.workspace, { kind: tar",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "security",
+    "fromFile": "electron/computer/computer-service.ts",
+    "toFile": "src/shared/permission.ts",
+    "spec": "../../src/shared/permission",
+    "line": 9,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "PermissionManifest",
+        "kind": "type",
+        "as": "PermissionManifest",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "status",
+    "fromFile": "electron/history-repository.ts",
+    "toFile": "src/shared/contracts.ts",
+    "spec": "../src/shared/contracts",
+    "line": 3,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "AppSnapshot",
+        "kind": "type",
+        "as": "AppSnapshot",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "BossConversation",
+        "kind": "type",
+        "as": "BossConversation",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "ConversationFolder",
+        "kind": "type",
+        "as": "ConversationFolder",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/platform/coordination-recorder.ts",
+    "toFile": "electron/commander/task-ledger.ts",
+    "spec": "../commander/task-ledger",
+    "line": 22,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "TaskLedger",
+        "kind": "type",
+        "as": "TaskLedger",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "TaskLedgerRecord",
+        "kind": "type",
+        "as": "TaskLedgerRecord",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/platform/coordination-recorder.ts",
+    "toFile": "src/shared/coordination-ledger.ts",
+    "spec": "../../src/shared/coordination-ledger",
+    "line": 23,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "coordinationRecordFromLedger",
+        "kind": "value",
+        "as": "coordinationRecordFromLedger",
+        "valueUses": [
+          {
+            "line": 108,
+            "snippet": "const derived = coordinationRecordFromLedger(viewOf(persisted), derivation);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "executedPipelineOf",
+        "kind": "value",
+        "as": "executedPipelineOf",
+        "valueUses": [
+          {
+            "line": 138,
+            "snippet": "const observed = executedPipelineOf(viewOf(persisted));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "CoordinationDerivationOptions",
+        "kind": "type",
+        "as": "CoordinationDerivationOptions",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "LedgerRecordView",
+        "kind": "type",
+        "as": "LedgerRecordView",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/platform/coordination-recorder.ts",
+    "toFile": "src/shared/coordination-economics.ts",
+    "spec": "../../src/shared/coordination-economics",
+    "line": 25,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "CoordinationRecord",
+        "kind": "type",
+        "as": "CoordinationRecord",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/platform/coordination-store.ts",
+    "toFile": "src/shared/coordination-economics.ts",
+    "spec": "../../src/shared/coordination-economics",
+    "line": 16,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "CoordinationRecord",
+        "kind": "type",
+        "as": "CoordinationRecord",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/platform/external-compatibility.ts",
+    "toFile": "electron/commander/circuit-breaker.ts",
+    "spec": "../commander/circuit-breaker",
+    "line": 14,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "CircuitBreaker",
+        "kind": "value",
+        "as": "CircuitBreaker",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "tenx",
+    "fromFile": "electron/platform/external-compatibility.ts",
+    "toFile": "electron/commander/runtime-registry.ts",
+    "spec": "../commander/runtime-registry",
+    "line": 15,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "RuntimeRegistry",
+        "kind": "type",
+        "as": "RuntimeRegistry",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "status",
+    "fromFile": "electron/provider-views.ts",
+    "toFile": "src/shared/contracts.ts",
+    "spec": "../src/shared/contracts",
+    "line": 3,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "ViewBounds",
+        "kind": "type",
+        "as": "ViewBounds",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "workspace",
+    "fromFile": "electron/provider-views.ts",
+    "toFile": "src/shared/workspace-layout.ts",
+    "spec": "../src/shared/workspace-layout",
+    "line": 7,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "layoutProviderPanes",
+        "kind": "value",
+        "as": "layoutProviderPanes",
+        "valueUses": [
+          {
+            "line": 118,
+            "snippet": "const panes = layoutProviderPanes(openIds, Math.max(1, width), Math.max(1, height));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "WorkspaceViewState",
+        "kind": "type",
+        "as": "WorkspaceViewState",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "status",
+    "fromFile": "electron/runtimes/codex/codex-cli-runtime.ts",
+    "toFile": "src/shared/contracts.ts",
+    "spec": "../../../src/shared/contracts",
+    "line": 6,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "ControllerState",
+        "kind": "type",
+        "as": "ControllerState",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "EvidenceBundle",
+        "kind": "type",
+        "as": "EvidenceBundle",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RawArtifact",
+        "kind": "type",
+        "as": "RawArtifact",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "tasks",
+    "fromFile": "electron/runtimes/native-api-runtime.ts",
+    "toFile": "src/shared/task-ir.ts",
+    "spec": "../../src/shared/task-ir",
+    "line": 3,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "compileIntent",
+        "kind": "value",
+        "as": "compileIntent",
+        "valueUses": [
+          {
+            "line": 13,
+            "snippet": "const operation = compileIntent(request.prompt).steps[0].operation;",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "engineering",
+    "fromFile": "electron/runtimes/native-api-runtime.ts",
+    "toFile": "electron/engineering/native-tools.ts",
+    "spec": "../engineering/native-tools",
+    "line": 4,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "executeNative",
+        "kind": "value",
+        "as": "executeNative",
+        "valueUses": [
+          {
+            "line": 15,
+            "snippet": "const evidence = await executeNative(this.workspace, operation);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "status",
+    "fromFile": "electron/runtimes/runtime.ts",
+    "toFile": "src/shared/contracts.ts",
+    "spec": "../../src/shared/contracts",
+    "line": 1,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "RawArtifact",
+        "kind": "type",
+        "as": "RawArtifact",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "security",
+    "fromFile": "electron/software/software-runtime.ts",
+    "toFile": "src/shared/permission.ts",
+    "spec": "../../src/shared/permission",
+    "line": 4,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "manifestAllows",
+        "kind": "value",
+        "as": "manifestAllows",
+        "valueUses": [
+          {
+            "line": 88,
+            "snippet": "if (!manifestAllows(permission, kind, `${this.adapter.id}:${action.capability}`)) {",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "PermissionKind",
+        "kind": "type",
+        "as": "PermissionKind",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "PermissionManifest",
+        "kind": "type",
+        "as": "PermissionManifest",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "state-core",
+    "to": "tenx",
+    "fromFile": "electron/state-core/decision-ledger-migration.ts",
+    "toFile": "electron/commander/decision-ledger-store.ts",
+    "spec": "../commander/decision-ledger-store",
+    "line": 3,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "DecisionLedgerStore",
+        "kind": "value",
+        "as": "DecisionLedgerStore",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "state-core",
+    "to": "status",
+    "fromFile": "electron/state-core/platform-soak.ts",
+    "toFile": "src/shared/soak-harness.ts",
+    "spec": "../../src/shared/soak-harness",
+    "line": 38,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "SOAK_BOUNDS",
+        "kind": "value",
+        "as": "SOAK_BOUNDS",
+        "valueUses": [
+          {
+            "line": 21,
+            "snippet": "* `SOAK_BOUNDS` are absolute: 512 MiB of RSS growth, 256 MiB of heap, 2000 handles. Those are sized",
+            "typePosition": false
+          },
+          {
+            "line": 159,
+            "snippet": "* The absolute `SOAK_BOUNDS` are sized for hours. Scaling them by elapsed time keeps the bound",
+            "typePosition": false
+          },
+          {
+            "line": 168,
+            "snippet": "const rssPerMinute = SOAK_BOUNDS.rssGrowthMiB / (referenceSeconds / 60);",
+            "typePosition": false
+          },
+          {
+            "line": 169,
+            "snippet": "const heapPerMinute = SOAK_BOUNDS.heapGrowthMiB / (referenceSeconds / 60);",
+            "typePosition": false
+          },
+          {
+            "line": 170,
+            "snippet": "const handlePerMinute = SOAK_BOUNDS.handleGrowth / (referenceSeconds / 60);",
+            "typePosition": false
+          },
+          {
+            "line": 175,
+            "snippet": "scaling: `${SOAK_BOUNDS.rssGrowthMiB}MiB RSS / ${SOAK_BOUNDS.heapGrowthMiB}MiB heap / ${SOAK_BOUNDS.handleGrowth} handles over the 30m reference tier, divided b",
+            "typePosition": false
+          },
+          {
+            "line": 175,
+            "snippet": "scaling: `${SOAK_BOUNDS.rssGrowthMiB}MiB RSS / ${SOAK_BOUNDS.heapGrowthMiB}MiB heap / ${SOAK_BOUNDS.handleGrowth} handles over the 30m reference tier, divided b",
+            "typePosition": false
+          },
+          {
+            "line": 175,
+            "snippet": "scaling: `${SOAK_BOUNDS.rssGrowthMiB}MiB RSS / ${SOAK_BOUNDS.heapGrowthMiB}MiB heap / ${SOAK_BOUNDS.handleGrowth} handles over the 30m reference tier, divided b",
+            "typePosition": false
+          },
+          {
+            "line": 221,
+            "snippet": "* sessions whose heartbeat is older than `SOAK_BOUNDS.staleSessionSeconds`, and a soak that",
+            "typePosition": false
+          },
+          {
+            "line": 410,
+            "snippet": "const staleSessions = [...sessions.values()].filter((session) => Date.now() - session.openedMs > SOAK_BOUNDS.staleSessionSeconds * 1000).length;",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "SoakSample",
+        "kind": "type",
+        "as": "SoakSample",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "state-core",
+    "to": "knowledge",
+    "fromFile": "electron/state-core/platform-soak.ts",
+    "toFile": "src/shared/data-retention.ts",
+    "spec": "../../src/shared/data-retention",
+    "line": 39,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "RETENTION_RULES",
+        "kind": "value",
+        "as": "RETENTION_RULES",
+        "valueUses": [
+          {
+            "line": 335,
+            "snippet": "if (!RETENTION_RULES.PROTECTED.deletable) totals.degradedProviders += 0; // the guard is asserted by the lifecycle suite",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "applyCollection",
+        "kind": "value",
+        "as": "applyCollection",
+        "valueUses": [
+          {
+            "line": 329,
+            "snippet": "const execution = applyCollection({ now: new Date().toISOString(), records, plan, delete: (record) => deleted.push(record.id) });",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "planCollection",
+        "kind": "value",
+        "as": "planCollection",
+        "valueUses": [
+          {
+            "line": 326,
+            "snippet": "const plan = planCollection({ now: new Date().toISOString(), records, dedupe: true });",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "DataRecord",
+        "kind": "type",
+        "as": "DataRecord",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "state-core",
+    "to": "knowledge",
+    "fromFile": "electron/state-core/platform-soak.ts",
+    "toFile": "src/shared/knowledge-staleness.ts",
+    "spec": "../../src/shared/knowledge-staleness",
+    "line": 41,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "assessStaleness",
+        "kind": "value",
+        "as": "assessStaleness",
+        "valueUses": [
+          {
+            "line": 316,
+            "snippet": "assessStaleness(claim, observation);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tasks",
+    "fromFile": "electron/store.ts",
+    "toFile": "src/shared/final-response.ts",
+    "spec": "../src/shared/final-response",
+    "line": 1,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "currentFinalResponse",
+        "kind": "value",
+        "as": "currentFinalResponse",
+        "valueUses": [
+          {
+            "line": 776,
+            "snippet": "const result = currentFinalResponse(this.snapshotValue, taskId);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "status",
+    "fromFile": "electron/store.ts",
+    "toFile": "src/shared/owner-result.ts",
+    "spec": "../src/shared/owner-result",
+    "line": 5,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "isRunMode",
+        "kind": "value",
+        "as": "isRunMode",
+        "valueUses": [
+          {
+            "line": 480,
+            "snippet": "if (!isRunMode(mode)) throw new Error(\"Invalid run mode\");",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tasks",
+    "fromFile": "electron/store.ts",
+    "toFile": "src/shared/result-validator.ts",
+    "spec": "../src/shared/result-validator",
+    "line": 6,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "isVerificationContract",
+        "kind": "value",
+        "as": "isVerificationContract",
+        "valueUses": [
+          {
+            "line": 494,
+            "snippet": "if (!isVerificationContract(contract)) throw new Error(\"Invalid verification contract\");",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tasks",
+    "fromFile": "electron/store.ts",
+    "toFile": "src/shared/conversation-policy.ts",
+    "spec": "../src/shared/conversation-policy",
+    "line": 7,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "isConversationPolicy",
+        "kind": "value",
+        "as": "isConversationPolicy",
+        "valueUses": [
+          {
+            "line": 519,
+            "snippet": "if (!isConversationPolicy(policy)) throw new Error(\"Invalid conversation policy\");",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "status",
+    "fromFile": "electron/store.ts",
+    "toFile": "src/shared/contracts.ts",
+    "spec": "../src/shared/contracts",
+    "line": 8,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "AppMode",
+        "kind": "type",
+        "as": "AppMode",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "AppSnapshot",
+        "kind": "type",
+        "as": "AppSnapshot",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "AuditEvent",
+        "kind": "type",
+        "as": "AuditEvent",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "BossConversation",
+        "kind": "type",
+        "as": "BossConversation",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "BossTask",
+        "kind": "type",
+        "as": "BossTask",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "CodexReview",
+        "kind": "type",
+        "as": "CodexReview",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "ControllerState",
+        "kind": "type",
+        "as": "ControllerState",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "ConversationFolder",
+        "kind": "type",
+        "as": "ConversationFolder",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "CouncilSession",
+        "kind": "type",
+        "as": "CouncilSession",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "DispatchCheckpoint",
+        "kind": "type",
+        "as": "DispatchCheckpoint",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "EvidenceBundle",
+        "kind": "type",
+        "as": "EvidenceBundle",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "FinalResponse",
+        "kind": "type",
+        "as": "FinalResponse",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RawArtifact",
+        "kind": "type",
+        "as": "RawArtifact",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RemoteChannel",
+        "kind": "type",
+        "as": "RemoteChannel",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RemoteChannelSetting",
+        "kind": "type",
+        "as": "RemoteChannelSetting",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RemoteChannelStatus",
+        "kind": "type",
+        "as": "RemoteChannelStatus",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RemoteCommand",
+        "kind": "type",
+        "as": "RemoteCommand",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RemoteCommandStatus",
+        "kind": "type",
+        "as": "RemoteCommandStatus",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RoleRouteView",
+        "kind": "type",
+        "as": "RoleRouteView",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "RuntimeStatusView",
+        "kind": "type",
+        "as": "RuntimeStatusView",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "TaskMode",
+        "kind": "type",
+        "as": "TaskMode",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "TaskStatus",
+        "kind": "type",
+        "as": "TaskStatus",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tenx",
+    "fromFile": "electron/store.ts",
+    "toFile": "electron/commander/task-ledger.ts",
+    "spec": "./commander/task-ledger",
+    "line": 14,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "TaskLedger",
+        "kind": "value",
+        "as": "TaskLedger",
+        "valueUses": [
+          {
+            "line": 42,
+            "snippet": "* `TaskLedger.save` is a read-modify-write over a revision number and throws",
+            "typePosition": false
+          },
+          {
+            "line": 53,
+            "snippet": "this.ledger = ledger ?? new TaskLedger(path.join(path.dirname(filePath), \".boss\", \"tasks\"));",
+            "typePosition": false
+          },
+          {
+            "line": 1129,
+            "snippet": "const fingerprint = TaskLedger.fingerprint({ task, runs });",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "workspace",
+    "fromFile": "electron/store.ts",
+    "toFile": "electron/workspace/path-utils.ts",
+    "spec": "./workspace/path-utils",
+    "line": 15,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "canonicalRealPathOrNormalized",
+        "kind": "value",
+        "as": "canonicalRealPathOrNormalized",
+        "valueUses": [
+          {
+            "line": 1140,
+            "snippet": "const session = { id: run.id, taskId: task.id, provider: run.transport + \":\" + run.providerId, checkpoint: state.revision, health: run.outcome ?? \"UNKNOWN\", url",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tenx",
+    "fromFile": "electron/store.ts",
+    "toFile": "electron/commander/state-budget.ts",
+    "spec": "./commander/state-budget",
+    "line": 16,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "applyStateStorageBudget",
+        "kind": "value",
+        "as": "applyStateStorageBudget",
+        "valueUses": [
+          {
+            "line": 72,
+            "snippet": "applyStorageBudget(policy: Parameters<typeof applyStateStorageBudget>[1] = { maxCompletedTasksPerConversation: 0, maxRunsPerTask: 0, enforceTtl: false }): Lifec",
+            "typePosition": false
+          },
+          {
+            "line": 73,
+            "snippet": "const { snapshot, report } = applyStateStorageBudget(this.snapshotValue, policy);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "LifecyclePruneReport",
+        "kind": "type",
+        "as": "LifecyclePruneReport",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tasks",
+    "fromFile": "electron/store.ts",
+    "toFile": "src/shared/execution.ts",
+    "spec": "../src/shared/execution",
+    "line": 18,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "defaultReviewPolicy",
+        "kind": "value",
+        "as": "defaultReviewPolicy",
+        "valueUses": [
+          {
+            "line": 407,
+            "snippet": "run.review = reviewResponse(run.response, { ...(task.reviewPolicy ?? defaultReviewPolicy), approvalRequired: false, highImpact: false, externalAction: false }, ",
+            "typePosition": false
+          },
+          {
+            "line": 612,
+            "snippet": "run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);",
+            "typePosition": false
+          },
+          {
+            "line": 1062,
+            "snippet": "run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "reviewResponse",
+        "kind": "value",
+        "as": "reviewResponse",
+        "valueUses": [
+          {
+            "line": 407,
+            "snippet": "run.review = reviewResponse(run.response, { ...(task.reviewPolicy ?? defaultReviewPolicy), approvalRequired: false, highImpact: false, externalAction: false }, ",
+            "typePosition": false
+          },
+          {
+            "line": 612,
+            "snippet": "run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);",
+            "typePosition": false
+          },
+          {
+            "line": 1062,
+            "snippet": "run.review = reviewResponse(run.response, task.reviewPolicy ?? defaultReviewPolicy, run.attempts ?? 0);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "ReviewPolicy",
+        "kind": "type",
+        "as": "ReviewPolicy",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "status",
+    "fromFile": "src/shared/bootstrap-audit.ts",
+    "toFile": "src/shared/final-acceptance.ts",
+    "spec": "./final-acceptance",
+    "line": 19,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "bootstrapCompletion",
+        "kind": "value",
+        "as": "bootstrapCompletion",
+        "valueUses": [
+          {
+            "line": 256,
+            "snippet": "const completion = bootstrapCompletion(established);",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "CRITICAL_CAPABILITIES",
+        "kind": "value",
+        "as": "CRITICAL_CAPABILITIES",
+        "valueUses": [
+          {
+            "line": 250,
+            "snippet": "const capabilityEvidence = CRITICAL_CAPABILITIES.map((capability) => {",
+            "typePosition": false
+          },
+          {
+            "line": 353,
+            "snippet": "? `§57/§58: ${gatesPassed}/${gateSources.length} gates produced trusted evidence, the desktop black box satisfied its complete claim contract, all ${CRITICAL_CA",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "BootstrapCompletionVerdict",
+        "kind": "type",
+        "as": "BootstrapCompletionVerdict",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "status",
+    "fromFile": "src/shared/bootstrap-audit.ts",
+    "toFile": "src/shared/acceptance-contracts.ts",
+    "spec": "./acceptance-contracts",
+    "line": 20,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "ACCEPTANCE_GATE_CONTRACTS",
+        "kind": "value",
+        "as": "ACCEPTANCE_GATE_CONTRACTS",
+        "valueUses": [
+          {
+            "line": 193,
+            "snippet": "const gateJudgements = ACCEPTANCE_GATE_CONTRACTS.map((contract) => judgeGateEvidence({",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "CAPABILITY_GATES",
+        "kind": "value",
+        "as": "CAPABILITY_GATES",
+        "valueUses": [
+          {
+            "line": 244,
+            "snippet": "const proof = CAPABILITY_GATES[capability] ?? [];",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "DESKTOP_BLACK_BOX_CONTRACT",
+        "kind": "value",
+        "as": "DESKTOP_BLACK_BOX_CONTRACT",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "DESKTOP_BLACK_BOX_GATE",
+        "kind": "value",
+        "as": "DESKTOP_BLACK_BOX_GATE",
+        "valueUses": [
+          {
+            "line": 45,
+            "snippet": "export const DESKTOP_BLACK_BOX = DESKTOP_BLACK_BOX_GATE;",
+            "typePosition": false
+          },
+          {
+            "line": 165,
+            "snippet": "kind: contract.gate === DESKTOP_BLACK_BOX_GATE ? \"desktop\" : \"gate\",",
+            "typePosition": false
+          },
+          {
+            "line": 241,
+            "snippet": "...(desktopSource.verdict === \"PASS\" ? [DESKTOP_BLACK_BOX_GATE] : [])",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "GATE_REQUIREMENTS",
+        "kind": "value",
+        "as": "GATE_REQUIREMENTS",
+        "valueUses": [
+          {
+            "line": 48,
+            "snippet": "export { GATE_REQUIREMENTS, CAPABILITY_GATES };",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "AcceptanceGateContract",
+        "kind": "type",
+        "as": "AcceptanceGateContract",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "status",
+    "fromFile": "src/shared/bootstrap-audit.ts",
+    "toFile": "src/shared/acceptance-evidence.ts",
+    "spec": "./acceptance-evidence",
+    "line": 28,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "canonicalSha256",
+        "kind": "value",
+        "as": "canonicalSha256",
+        "valueUses": [
+          {
+            "line": 295,
+            "snippet": "const rootHash = canonicalSha256({",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "sessionProblems",
+        "kind": "value",
+        "as": "sessionProblems",
+        "valueUses": [
+          {
+            "line": 189,
+            "snippet": "else reasons.push(...renderTrustProblems(sessionProblems(session)).map((problem) => `§5.2: ${problem}`));",
+            "typePosition": false
+          },
+          {
+            "line": 223,
+            "snippet": "const sessionProblemList = session ? sessionProblems(session) : [trustProblem(TRUST_CODES.SESSION_NOT_OBJECT)];",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "validateDesktopBlackBoxReport",
+        "kind": "value",
+        "as": "validateDesktopBlackBoxReport",
+        "valueUses": [
+          {
+            "line": 145,
+            "snippet": "? validateDesktopBlackBoxReport({ contract, report: evidence.report })",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "validateGateReport",
+        "kind": "value",
+        "as": "validateGateReport",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "verifyGateAttestation",
+        "kind": "value",
+        "as": "verifyGateAttestation",
+        "valueUses": [
+          {
+            "line": 150,
+            "snippet": "problems.push(...verifyGateAttestation({",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "AcceptanceSession",
+        "kind": "type",
+        "as": "AcceptanceSession",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "StrictReportValidation",
+        "kind": "type",
+        "as": "StrictReportValidation",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "status",
+    "fromFile": "src/shared/bootstrap-audit.ts",
+    "toFile": "src/shared/owner-intervention.ts",
+    "spec": "./owner-intervention",
+    "line": 37,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "deriveOwnerInterventions",
+        "kind": "value",
+        "as": "deriveOwnerInterventions",
+        "valueUses": [
+          {
+            "line": 216,
+            "snippet": "const ownerInterventions = input.ownerLedger ? deriveOwnerInterventions(input.ownerLedger) : 0;",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "OWNER_LEDGER_CODES",
+        "kind": "value",
+        "as": "OWNER_LEDGER_CODES",
+        "valueUses": [
+          {
+            "line": 212,
+            "snippet": "? (session ? verifyOwnerLedger({ ledger: input.ownerLedger, session }) : [trustProblem(OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH, \"unverifiable\")])",
+            "typePosition": false
+          },
+          {
+            "line": 213,
+            "snippet": ": [trustProblem(OWNER_LEDGER_CODES.LEDGER_MISSING)];",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "verifyOwnerLedger",
+        "kind": "value",
+        "as": "verifyOwnerLedger",
+        "valueUses": [
+          {
+            "line": 212,
+            "snippet": "? (session ? verifyOwnerLedger({ ledger: input.ownerLedger, session }) : [trustProblem(OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH, \"unverifiable\")])",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "OwnerInterventionLedger",
+        "kind": "type",
+        "as": "OwnerInterventionLedger",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "runtime",
+    "to": "promotion",
+    "fromFile": "src/shared/bootstrap-audit.ts",
+    "toFile": "src/shared/trust-problems.ts",
+    "spec": "./trust-problems",
+    "line": 38,
+    "runtime": true,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "PROVENANCE_CODES",
+        "kind": "value",
+        "as": "PROVENANCE_CODES",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "REQUIRED_ID_CODES",
+        "kind": "value",
+        "as": "REQUIRED_ID_CODES",
+        "valueUses": [
+          {
+            "line": 123,
+            "snippet": "return validation.problems.filter((problem) => REQUIRED_ID_CODES.includes(problem.code)).length;",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "TRUST_CODES",
+        "kind": "value",
+        "as": "TRUST_CODES",
+        "valueUses": [
+          {
+            "line": 140,
+            "snippet": "problems.push(trustProblem(TRUST_CODES.EVIDENCE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 142,
+            "snippet": "if (fileMissing) problems.push(trustProblem(TRUST_CODES.REPORT_FILE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 147,
+            "snippet": "if (!session) problems.push(trustProblem(TRUST_CODES.SESSION_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 158,
+            "snippet": "if (evidence.attestation_sha256 === \"\") problems.push(trustProblem(TRUST_CODES.ATTESTATION_FILE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 222,
+            "snippet": "const sessionProblemList = session ? sessionProblems(session) : [trustProblem(TRUST_CODES.SESSION_NOT_OBJECT)];",
+            "typePosition": false
+          },
+          {
+            "line": 258,
+            "snippet": "evidence_present: !hasAnyTrustCode(allProblems, [TRUST_CODES.EVIDENCE_MISSING, TRUST_CODES.REPORT_FILE_MISSING, TRUST_CODES.ATTESTATION_FILE_MISSING]),",
+            "typePosition": false
+          },
+          {
+            "line": 278,
+            "snippet": "if (!session) problems.push(trustProblem(TRUST_CODES.SESSION_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 280,
+            "snippet": "if (input.session_sha256 === \"\") problems.push(trustProblem(TRUST_CODES.SESSION_FILE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 284,
+            "snippet": "problems.push(trustProblem(TRUST_CODES.CAPABILITY_INCOMPLETE, completion.missing.join(\",\")));",
+            "typePosition": false
+          },
+          {
+            "line": 286,
+            "snippet": "if (ownerInterventions > 0) problems.push(trustProblem(TRUST_CODES.OWNER_INTERVENTION_PRESENT, String(ownerInterventions)));",
+            "typePosition": false
+          },
+          {
+            "line": 287,
+            "snippet": "if (!provenance.same_session) problems.push(trustProblem(TRUST_CODES.MIXED_SESSION));",
+            "typePosition": false
+          },
+          {
+            "line": 288,
+            "snippet": "if (!provenance.same_commit) problems.push(trustProblem(TRUST_CODES.MIXED_COMMIT));",
+            "typePosition": false
+          },
+          {
+            "line": 289,
+            "snippet": "if (!provenance.same_tree) problems.push(trustProblem(TRUST_CODES.MIXED_TREE));",
+            "typePosition": false
+          },
+          {
+            "line": 290,
+            "snippet": "if (!provenance.source_hashes_verified) problems.push(trustProblem(TRUST_CODES.SOURCE_HASHES_UNVERIFIED));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "hasAnyTrustCode",
+        "kind": "value",
+        "as": "hasAnyTrustCode",
+        "valueUses": [
+          {
+            "line": 257,
+            "snippet": "source_hashes_verified: !hasAnyTrustCode(allProblems, PROVENANCE_CODES),",
+            "typePosition": false
+          },
+          {
+            "line": 258,
+            "snippet": "evidence_present: !hasAnyTrustCode(allProblems, [TRUST_CODES.EVIDENCE_MISSING, TRUST_CODES.REPORT_FILE_MISSING, TRUST_CODES.ATTESTATION_FILE_MISSING]),",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "hasTrustCode",
+        "kind": "value",
+        "as": "hasTrustCode",
+        "valueUses": [
+          {
+            "line": 254,
+            "snippet": "same_session: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_SESSION_MISMATCH) && !hasTrustCode(allProblems, OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 254,
+            "snippet": "same_session: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_SESSION_MISMATCH) && !hasTrustCode(allProblems, OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 255,
+            "snippet": "same_commit: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_COMMIT_MISMATCH) && !hasTrustCode(allProblems, OWNER_LEDGER_CODES.LEDGER_COMMIT_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 255,
+            "snippet": "same_commit: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_COMMIT_MISMATCH) && !hasTrustCode(allProblems, OWNER_LEDGER_CODES.LEDGER_COMMIT_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 256,
+            "snippet": "same_tree: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_TREE_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 261,
+            "snippet": "reportPresent: !hasTrustCode(allProblems, TRUST_CODES.REPORT_FILE_MISSING) && !hasTrustCode(allProblems, TRUST_CODES.EVIDENCE_MISSING),",
+            "typePosition": false
+          },
+          {
+            "line": 261,
+            "snippet": "reportPresent: !hasTrustCode(allProblems, TRUST_CODES.REPORT_FILE_MISSING) && !hasTrustCode(allProblems, TRUST_CODES.EVIDENCE_MISSING),",
+            "typePosition": false
+          },
+          {
+            "line": 262,
+            "snippet": "attestationPresent: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_FILE_MISSING) && !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_NOT_OBJECT),",
+            "typePosition": false
+          },
+          {
+            "line": 262,
+            "snippet": "attestationPresent: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_FILE_MISSING) && !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_NOT_OBJECT),",
+            "typePosition": false
+          },
+          {
+            "line": 263,
+            "snippet": "reportHashValid: !hasTrustCode(allProblems, TRUST_CODES.SOURCE_HASH_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 264,
+            "snippet": "attestationHashValid: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_HASH_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 265,
+            "snippet": "sessionMatch: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_SESSION_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 266,
+            "snippet": "commitMatch: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_COMMIT_MISMATCH),",
+            "typePosition": false
+          },
+          {
+            "line": 267,
+            "snippet": "treeMatch: !hasTrustCode(allProblems, TRUST_CODES.ATTESTATION_TREE_MISMATCH)",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "renderTrustProblems",
+        "kind": "value",
+        "as": "renderTrustProblems",
+        "valueUses": [
+          {
+            "line": 188,
+            "snippet": "else reasons.push(...renderTrustProblems(sessionProblems(session)).map((problem) => `§5.2: ${problem}`));",
+            "typePosition": false
+          },
+          {
+            "line": 205,
+            "snippet": "reasons.push(...renderTrustProblems(ledgerProblems).map((problem) => `§7: ${problem}`));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "trustProblem",
+        "kind": "value",
+        "as": "trustProblem",
+        "valueUses": [
+          {
+            "line": 140,
+            "snippet": "problems.push(trustProblem(TRUST_CODES.EVIDENCE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 142,
+            "snippet": "if (fileMissing) problems.push(trustProblem(TRUST_CODES.REPORT_FILE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 147,
+            "snippet": "if (!session) problems.push(trustProblem(TRUST_CODES.SESSION_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 158,
+            "snippet": "if (evidence.attestation_sha256 === \"\") problems.push(trustProblem(TRUST_CODES.ATTESTATION_FILE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 203,
+            "snippet": "? (session ? verifyOwnerLedger({ ledger: input.ownerLedger, session }) : [trustProblem(OWNER_LEDGER_CODES.LEDGER_SESSION_MISMATCH, \"unverifiable\")])",
+            "typePosition": false
+          },
+          {
+            "line": 204,
+            "snippet": ": [trustProblem(OWNER_LEDGER_CODES.LEDGER_MISSING)];",
+            "typePosition": false
+          },
+          {
+            "line": 222,
+            "snippet": "const sessionProblemList = session ? sessionProblems(session) : [trustProblem(TRUST_CODES.SESSION_NOT_OBJECT)];",
+            "typePosition": false
+          },
+          {
+            "line": 278,
+            "snippet": "if (!session) problems.push(trustProblem(TRUST_CODES.SESSION_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 280,
+            "snippet": "if (input.session_sha256 === \"\") problems.push(trustProblem(TRUST_CODES.SESSION_FILE_MISSING));",
+            "typePosition": false
+          },
+          {
+            "line": 284,
+            "snippet": "problems.push(trustProblem(TRUST_CODES.CAPABILITY_INCOMPLETE, completion.missing.join(\",\")));",
+            "typePosition": false
+          },
+          {
+            "line": 286,
+            "snippet": "if (ownerInterventions > 0) problems.push(trustProblem(TRUST_CODES.OWNER_INTERVENTION_PRESENT, String(ownerInterventions)));",
+            "typePosition": false
+          },
+          {
+            "line": 287,
+            "snippet": "if (!provenance.same_session) problems.push(trustProblem(TRUST_CODES.MIXED_SESSION));",
+            "typePosition": false
+          },
+          {
+            "line": 288,
+            "snippet": "if (!provenance.same_commit) problems.push(trustProblem(TRUST_CODES.MIXED_COMMIT));",
+            "typePosition": false
+          },
+          {
+            "line": 289,
+            "snippet": "if (!provenance.same_tree) problems.push(trustProblem(TRUST_CODES.MIXED_TREE));",
+            "typePosition": false
+          },
+          {
+            "line": 290,
+            "snippet": "if (!provenance.source_hashes_verified) problems.push(trustProblem(TRUST_CODES.SOURCE_HASHES_UNVERIFIED));",
+            "typePosition": false
+          }
+        ],
+        "verdict": "VALUE"
+      },
+      {
+        "name": "TrustProblem",
+        "kind": "type",
+        "as": "TrustProblem",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "persistence",
+    "to": "tasks",
+    "fromFile": "src/shared/dsh-presets.ts",
+    "toFile": "src/shared/task-ir.ts",
+    "spec": "./task-ir",
+    "line": 14,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "TaskLevel",
+        "kind": "type",
+        "as": "TaskLevel",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  },
+  {
+    "from": "providers",
+    "to": "tasks",
+    "fromFile": "src/shared/provider-contracts.ts",
+    "toFile": "src/shared/execution.ts",
+    "spec": "./execution",
+    "line": 21,
+    "runtime": false,
+    "bare": false,
+    "bindings": [
+      {
+        "name": "from `contracts.ts`. That is the property that makes the move clean: this module depends\r\n *   only on `./execution`, so the dependency runs one way (`contracts.ts` -> here) and the two shared modules\r\n *   cannot form a cycle -- which would have RAISED the mutual-pair count the P2-C ratchet guards.\r\n *\r\n *   It does not re-export the other six concerns, and it does not absorb them. The remaining purposes in\r\n *   `contracts.ts` (task / council / claim-evidence / conversation / remote / app-snapshot) are a separate\r\n *   migration with its own measured blast radius.\r\n */\r\n\r\nimport type",
+        "kind": "default",
+        "as": "from `contracts.ts`. That is the property that makes the move clean: this module depends\r\n *   only on `./execution`, so the dependency runs one way (`contracts.ts` -> here) and the two shared modules\r\n *   cannot form a cycle -- which would have RAISED the mutual-pair count the P2-C ratchet guards.\r\n *\r\n *   It does not re-export the other six concerns, and it does not absorb them. The remaining purposes in\r\n *   `contracts.ts` (task / council / claim-evidence / conversation / remote / app-snapshot) are a separate\r\n *   migration with its own measured blast radius.\r\n */\r\n\r\nimport type",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "ReviewResult",
+        "kind": "value",
+        "as": "ReviewResult",
+        "valueUses": [],
+        "verdict": "type-only"
+      },
+      {
+        "name": "WorkerResponse",
+        "kind": "value",
+        "as": "WorkerResponse",
+        "valueUses": [],
+        "verdict": "type-only"
+      }
+    ]
+  }
+]
