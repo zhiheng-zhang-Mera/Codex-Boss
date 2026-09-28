@@ -1,0 +1,32 @@
+{
+  "schema": "city-minimum-human-acceptance-profile/1",
+  "profile": "MINIMUM_HUMAN_ACCEPTANCE",
+  "decision": "docs/city/PHASE2_MINIMUM_HUMAN_ACCEPTANCE_DECISION.md",
+  "frozen_from": "main@bf45476bb111602efe0c1811bf86d1b9aaf0da18",
+  "note": "Floors only, plus the strict targets they are measured against. This file does not restate the Phase-2 contract; docs/city/PHASE2_MINIMUM_HUMAN_ACCEPTANCE_DECISION.md does that. A metric may improve below a floor and may not regress above it.",
+  "floors": {
+    "kernel_to_feature_file_edges": 49,
+    "kernel_to_feature_distinct_pairs": 16,
+    "mutual_capability_pairs": 31,
+    "largest_scc_size": 18,
+    "migration_in_progress": 21,
+    "confirmed_cross_domain_accesses": 0,
+    "multi_writer_candidates": 0,
+    "road_edges_leaving_a_road": 0,
+    "architecture_enforcement_violations": 0,
+    "unsafe_gap": 0,
+    "expired_bridge": 0,
+    "not_guarded": 0
+  },
+  "strict_targets": {
+    "kernel_to_feature_file_edges": 0,
+    "kernel_to_feature_distinct_pairs": 0,
+    "mutual_capability_pairs": 0,
+    "largest_scc_size": 1,
+    "migration_in_progress": 0,
+    "not_guarded": 0,
+    "machine_ratchet": 0
+  },
+  "accepted_debt_statuses": ["CLOSED", "ACCEPTED_PERMANENT"],
+  "required_hosted_checks": ["quality", "unit", "acceptance", "package", "architecture"]
+}

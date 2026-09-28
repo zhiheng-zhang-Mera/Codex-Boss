@@ -428,6 +428,44 @@ enumeration_is_illustrative_closure
                      which is why this entry is CLOSED: see `sweep` above for the families read, the one live
                      site it found, and the four findings that decided the rest were not host-sensitive. The
                      quarantine was NOT taken, because the sweep produced a repair for the only remaining site.
+occurrence_fourteen  2026-09-27, main@bf45476bb111602efe0c1811bf86d1b9aaf0da18 (workflow run 36331698636, job
+                     `unit`, step `pnpm run test:slow`) -- an EIGHTH instance, and the one that took the tracked
+                     main red:
+                       tests/unit/platform/platform-soak.test.ts
+                       "distinguishes a recovered provider from a crash loop"  (line 325)
+                       AssertionError: a provider degraded and no circuit ever recovered:
+                                       expected 0 to be greater than 0
+                     The same commit's `pnpm test` (the default tier, 283 files / 3668 tests) and its
+                     `test:postbuild` were GREEN; the red is only in `test:slow`, which runs this file under
+                     five-way parallel load. The predicate was the sibling of the two occurrence_thirteen
+                     repairs: it read `degradedProviders > 0` as an observation of a crash loop, but the engine
+                     records the recovery on the cycle AFTER the degradation (`failing = cycle % 3 === 0`, and
+                     the recovery at `cycle % 3 === 1`), so a run whose wall-clock budget expires on a
+                     degradation cycle reports `degradedProviders > 0` with `recoveredCircuits = 0` and has
+                     observed nothing.
+                     MEASURED on the construction host: a 300 ms budget produced exactly that signature
+                     (`cycles = 3`, sequence `1:d0/r0/c0 2:d0/r0/c0 3:d1/r0/c0`, `degraded=1 recoveredProviders=0
+                     recoveredCircuits=0 opens={"alpha":1}`), and a 400 ms budget produced the next cycle
+                     (`4:d0/r1/c1`) with both counters. So the signature locates the run precisely:
+                     `recoveredCircuits = 0` WITH `degradedProviders > 0` is possible ONLY when the last
+                     completed cycle is the first degradation cycle.
+                     REPAIRED (CC-103 section 1): the recovery claim is now derived from the per-cycle sequence
+                     -- measurable only when a degradation cycle exists AND at least one later cycle completed --
+                     and reported NOT_MEASURED otherwise. Both sites in the file call ONE helper
+                     (`recoveryObservationWindow`), so the predicate is not duplicated beside the test. An
+                     opportunity that existed and produced no recovery still FAILS, and the independent
+                     `reported unrecovered opens <= 1` assertion is unchanged.
+sweep_claim_correction
+                     The `sweep` field above and `enumeration_is_illustrative_closure` claimed the CC-080 sweep
+                     had found this family. occurrence_thirteen showed it had not, and occurrence_fourteen is a
+                     second counter-example measured on main. The sweep's stated search was for an assertion
+                     reading a host-supplied COUNT; this one read a host-supplied count of CYCLES to decide
+                     whether an OBSERVATION had happened at all, which is the same condition one level up.
+                     CORRECTED: the CC-080 sweep was NOT exhaustive, and this entry's closure rests on the
+                     condition being repaired everywhere it has been FOUND -- four times in this one file -- not
+                     on a proof that no site remained. No further repository-wide archaeology is performed
+                     (CC-103 section 1 forbids it); the counter-example is recorded here instead. The `status`
+                     field is unchanged: the condition is repaired at every known site.
 ```
 
 ---
@@ -488,7 +526,17 @@ attempt_record       The attempted implementation was REVERTED in full and no tr
                      validator showed that the absence it produces is precisely what the contract refuses. The
                      attempt is recorded because "we decided (a) is impossible" is only trustworthy if it is
                      visible that (a) was tried.
-status               OPEN
+owner_disposition    ACCEPTED_PERMANENT under workbook section 31 (CC-103 D3). The desktop black-box contract
+                     remains STRICT, the restart-readiness flake is accepted as permanent CI/environmental debt,
+                     and a final checkpoint is valid only when the exact immutable final main SHA obtains a
+                     successful hosted `acceptance` job -- with one re-run permitted on that same SHA, both runs
+                     preserved, and a second failure treated as a real blocker rather than retried indefinitely.
+                     NEITHER exit condition was performed: (a) was foreclosed by the contract itself and (b), the
+                     quarantine, was NOT taken. No test was quarantined, no `NOT_MEASURED` verdict was added to
+                     the hostile desktop evidence contract, and `acceptance` remains required hosted evidence.
+                     This is a new Owner disposition under section 31, not a repair, and it does not claim the
+                     flake is gone. See docs/city/PHASE2_MINIMUM_HUMAN_ACCEPTANCE_DECISION.md.
+status               ACCEPTED_PERMANENT
 ```
 
 ---
@@ -499,19 +547,22 @@ CITY-DEBT-002  finalization checkout is floating main, not the dispatch SHA    C
 CITY-DEBT-003  main CI red from the stale epoch 28 anchor                      CLOSED
 CITY-DEBT-004  test fixture reached the real gh and opened four protected runs CLOSED
 CITY-DEBT-005  the soak suites fail non-deterministically under hosted load    CLOSED
-CITY-DEBT-006  the desktop smoke suite fails after an application restart      OPEN
+CITY-DEBT-006  the desktop smoke suite fails after an application restart      ACCEPTED_PERMANENT
 ```
 
 ```text
-OPEN               1   (CITY-DEBT-006)
+OPEN               0
 CONTAINED          0
 CLOSED             5   (CITY-DEBT-001, -002, -003, -004, -005)
-ACCEPTED_PERMANENT 0
+ACCEPTED_PERMANENT 1   (CITY-DEBT-006)
 ```
 
-**Status of this register:** TWO OPEN entries, one CONTAINED none. This is **not** the final debt review: Phase 2
-(workbook §15–§23) has not started, and it is expected to create new `CITY-DEBT-*` entries for every temporary
-bridge and every baseline change it needs. The earlier text here claimed "no OPEN and no CONTAINED entry", which
-was true when written and was left stale by two later additions -- corrected rather than deleted, because a
-register that overstates its own closure is the one artifact a final review cannot afford to trust. Final seal
-requires the register to close at zero OPEN and zero CONTAINED **at that time** (workbook §31).
+**Status of this register:** NO OPEN and NO CONTAINED entry; one ACCEPTED_PERMANENT disposition (CITY-DEBT-006, CC-103
+D3). This is **not** the final debt review: Phase 2 (workbook §15–§23) has not started, and it is expected to create new
+`CITY-DEBT-*` entries for every temporary bridge and every baseline change it needs. The earlier text here claimed "no
+OPEN and no CONTAINED entry", which was true when written and was left stale by later additions, and a later revision
+said "TWO OPEN entries" beside a table that listed one -- both corrected rather than deleted, because a register that
+overstates its own closure is the one artifact a final review cannot afford to trust. ACCEPTED_PERMANENT is a
+disposition, not a repair: it records that the Owner decided the residual risk is permanent and bounded, and it does not
+claim the restart flake was fixed. Final seal requires the register to close at zero OPEN and zero CONTAINED **at that
+time** (workbook §31).

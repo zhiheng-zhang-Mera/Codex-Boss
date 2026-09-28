@@ -51,6 +51,32 @@ const PASS = "PASS";
 const OPEN = "OPEN";
 const UNVERIFIED = "UNVERIFIED";
 
+/**
+ * ONE reading of the renovation debt register, shared by this gate and the minimum-human-acceptance
+ * gate (ledger CC-103).
+ *
+ * The two readings this replaces are described at the call site below: `unsettled` matched a status
+ * line only when it was exactly `status <WORD>` to end-of-line while the message used a tolerant
+ * regex, so a debt honestly widened to `status OPEN (narrowed: ...)` was counted as settled and the
+ * gate reported PASS. Ledger CC-063 pins both directions of that defect.
+ *
+ * Extracted rather than copied for the same reason: two gates that each read the register with their
+ * own regex are two readings of one file, which is precisely how a verdict and its explanation come
+ * to certify opposite things. The verdict and the message for both gates now come from this function.
+ */
+function debtStatuses(text) {
+  const ids = [...new Set((text.match(/CITY-DEBT-\d+/g) ?? []))];
+  const entries = [];
+  for (const match of text.matchAll(/CITY-DEBT-(\d+)[\s\S]*?status\s+(OPEN|CONTAINED|CLOSED|ACCEPTED_PERMANENT)/g)) {
+    const id = `CITY-DEBT-${match[1]}`;
+    if (entries.some((entry) => entry.id === id)) continue;
+    entries.push({ id, status: match[2] });
+  }
+  const unsettled = entries.filter((entry) => entry.status === "OPEN" || entry.status === "CONTAINED");
+  const settled = entries.filter((entry) => entry.status !== "OPEN" && entry.status !== "CONTAINED");
+  return { ids, entries, unsettled, settled };
+}
+
 function exists(rel, root = ROOT) {
   return fs.existsSync(path.join(root, rel));
 }
@@ -268,25 +294,18 @@ function checklist(root = ROOT, options = {}, cache = new Map()) {
         : verdict(OPEN, "the construction ledger has no entries")));
 
   const debtText = exists(DEBT_REGISTER, root) ? readText(DEBT_REGISTER, root) : "";
-  const debtIds = [...new Set((debtText.match(/CITY-DEBT-\d+/g) ?? []))];
-  // ONE detector decides BOTH the verdict and the message.
+  // ONE detector decides BOTH the verdict and the message -- `debtStatuses` above, shared with the
+  // minimum-human-acceptance gate so the two cannot drift apart.
   //
   // These used to be two readings of the same file. `unsettled` matched a status line ONLY when it was exactly
-  // `status <WORD>` to end-of-line, while `openDebtIds` below tolerates an appended explanation. Ledger CC-056
+  // `status <WORD>` to end-of-line, while `openDebtIds` below tolerated an appended explanation. Ledger CC-056
   // had honestly widened CITY-DEBT-005 to `status               OPEN (narrowed: ...)`, which the strict reading
   // does not match -- so `unsettled` was empty, `debtReady` was true, and E2 reported PASS while a debt was
   // OPEN. The message beside it used the tolerant detector, so the item printed "2 debt entries are still OPEN"
   // only AFTER a second, plainly-written entry existed. An instrument whose verdict and whose explanation come
   // from different readings of the same file can certify the opposite of what it prints; ledger CC-063 pins
   // both directions of this, and the fix is not a better regex but a single reading.
-  const openDebtIds = [];
-  for (const match of debtText.matchAll(/CITY-DEBT-(\d+)[\s\S]*?status\s+(OPEN|CONTAINED|CLOSED|ACCEPTED_PERMANENT)/g)) {
-    const id = `CITY-DEBT-${match[1]}`;
-    if (openDebtIds.some((entry) => entry.id === id)) continue;
-    openDebtIds.push({ id, status: match[2] });
-  }
-  const unsettledIds = openDebtIds.filter((entry) => entry.status === "OPEN" || entry.status === "CONTAINED");
-  const settledIds = openDebtIds.filter((entry) => entry.status !== "OPEN" && entry.status !== "CONTAINED");
+  const { ids: debtIds, unsettled: unsettledIds, settled: settledIds } = debtStatuses(debtText);
   const debtReady = debtIds.length > 0 && unsettledIds.length === 0;
   add("EVIDENCE", "E2", "all live renovation debt is CLOSED or ACCEPTED_PERMANENT",
     debtReady
@@ -420,4 +439,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, checklist, render, summarise, decideSeal, rulesetFacts, gh, FINAL_RECORD, FINAL_STATUS, SECTION_ORDER, STATUSES: { PASS, OPEN, UNVERIFIED } };
+module.exports = { main, checklist, render, summarise, decideSeal, debtStatuses, rulesetFacts, gh, FINAL_RECORD, FINAL_STATUS, SECTION_ORDER, STATUSES: { PASS, OPEN, UNVERIFIED } };

@@ -601,6 +601,15 @@
       "alwaysRun": true
     },
     {
+      "file": "tests/unit/city/city-minimum-human-acceptance.test.ts",
+      "tier": "unit",
+      "covers": [
+        "runtime"
+      ],
+      "obligation": "CC-103 D2 added a second, narrower acceptance checkpoint -- the smallest honest human gate reachable without another bulk rewiring programme -- and the whole risk of such a gate is that it becomes a way of calling debt finished, so the floors are falsified in BOTH directions: the exact value frozen from main@bf45476 is accepted for every metric, one step above each ratcheted floor is BLOCKING and names the metric it blocks on, and an improvement below a floor stays accepted; a metric that sits on its floor but above the strict full-city target is reported RATCHETED_ACCEPTED with the measured value, the floor AND the strict target printed beside it, never PASS, and the report carries a STRICT_FULL_CITY_TARGETS line so a reader of a READY checkpoint can still see that S2/S3/S4/S10 are not at target; the two statuses that differ from the strict gate behave as D2 specifies -- NOT_GUARDED is BLOCKING while MACHINE_RATCHET is accepted and still never a pass, and CITY-DEBT-006 ACCEPTED_PERMANENT is accepted while OPEN and CONTAINED are both refused BY NAME -- and the checkpoint refuses to rest on a local run: missing or red hosted evidence on the named SHA, and a named SHA that is not this tree, each block it; the last cases prove the STRICT gate was not quietly loosened to make the narrower one possible, asserting that it still carries section 33 whole with unique ids, that its structural items still measure against ZERO rather than against the new floors and know nothing about a floor, that its seal decision still blocks a single OPEN and still requires BOTH the attestation and the record for UNVERIFIED, and that the two gates' verdicts stay independent; and the register reading is asserted to be ONE exported function shared by both gates, because two gates reading one register with two regexes is how a verdict and its own explanation come to certify opposite things",
+      "alwaysRun": true
+    },
+    {
       "file": "tests/unit/city/core-budget-validator.test.ts",
       "tier": "unit",
       "covers": [
