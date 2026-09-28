@@ -2,7 +2,6 @@ import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { isRunMode } from "../src/shared/owner-result";
 import { isVerificationContract } from "../src/shared/result-validator";
 import { isConversationPolicy } from "../src/shared/conversation-policy";
 import type { AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
@@ -19,6 +18,27 @@ import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/s
 
 const defaultFolderId = "folder-general";
 const defaultConversationId = "conversation-default";
+
+/**
+ * The persisted run-mode vocabulary (Owner-Result §3), declared HERE rather than imported from the capability that
+ * owns the run-mode POLICY.
+ *
+ * `electron/store.ts` is the kernel's durable state document: it keeps whatever the domain already decided. It has
+ * no business importing `src/shared/owner-result.ts`, because that file decides when an advanced task defaults to
+ * OWNER_RESULT and what a run mode means — a decision this store never makes and never reads. What the store needs
+ * is the SHAPE it has to write and read back, and that is three literals.
+ *
+ * This is A2 move (i) of docs/city/PHASE_A_DECISION_A2.md, not a deletion of the guard: `setRunMode` still refuses
+ * anything outside this vocabulary, and the owner of the policy (`main-commander.ts`, which is the only production
+ * caller and already holds the typed `RunMode`) keeps the authoritative `isRunMode` and `RUN_MODES`.
+ *
+ * Known trade-off, recorded rather than hidden: the feature's vocabulary and this one are now two declarations, so
+ * a fourth run mode would have to be added in both places. That is the price of the boundary, and
+ * `tests/unit/store-run-mode-vocabulary.test.ts` pins the two to each other so the drift is caught by a test
+ * instead of by a runtime surprise.
+ */
+export type DurableRunMode = "ASSISTED" | "AUTONOMOUS" | "OWNER_RESULT";
+export const DURABLE_RUN_MODES: readonly DurableRunMode[] = ["ASSISTED", "AUTONOMOUS", "OWNER_RESULT"];
 
 export const providerSeed: Provider[] = [
   { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", accent: "#6ee7b7", windowOpen: false, isCustom: false },
@@ -476,8 +496,8 @@ export class StateStore {
    * creation; this setter makes the resolved mode durable so decision points
    * (intervention gate, stall ladder) can read it without re-deriving.
    */
-  setRunMode(taskId: string, mode: import("../src/shared/owner-result").RunMode): void {
-    if (!isRunMode(mode)) throw new Error("Invalid run mode");
+  setRunMode(taskId: string, mode: DurableRunMode): void {
+    if (!DURABLE_RUN_MODES.includes(mode)) throw new Error("Invalid run mode");
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
     task.runMode = mode;

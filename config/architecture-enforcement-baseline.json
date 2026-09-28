@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 20,
-  "parent_baseline_hash": "3f906892d68f4deb848223f165d223847a6677a25c49a6fdf07a1067e468aa7c",
-  "source_commit": "e5516f1d8f43a135c215b9d92bfbfd3639aef4bf",
+  "baseline_version": 21,
+  "parent_baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6",
+  "source_commit": "a299d6be9bb68de120a4d547e10058646283542c",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-093: the `workspace-selection` namespace claim moves from `persistence` to `workspace`, which implements the store in electron/workspace/workspace-selection.ts. The boot module loses a store (8 durable stores, down from 9) and main.ts builds WorkspaceSelectionStore at the identical path persistence composed, so no stored data moves. kernel -> feature edges fall 50 -> 49 and the raw cross-capability total 775 -> 774; no capability relation is added.",
+  "reason": "CC-106/A2-1: electron/store.ts stops importing the run-mode policy (src/shared/owner-result.ts) it never decided, declaring the shape it persists instead. One kernel -> feature edge removed; the frozen edge set and its identity counts are unchanged in kind, only the import statement is gone.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -27,7 +27,7 @@
         "undeclared_files": 576,
         "conflicts": []
       },
-      "edges": 1656,
+      "edges": 1655,
       "unresolved": 1
     }
   },
@@ -5705,10 +5705,6 @@
     ],
     [
       "electron/store.ts",
-      "src/shared/owner-result.ts"
-    ],
-    [
-      "electron/store.ts",
       "src/shared/provider-contracts.ts"
     ],
     [
@@ -7482,6 +7478,10 @@
       "src/shared/secret-scan.ts"
     ],
     [
+      "electron/store.ts",
+      "src/shared/owner-result.ts"
+    ],
+    [
       "src/shared/login-scan.ts",
       "src/shared/contracts.ts"
     ],
@@ -7520,8 +7520,8 @@
     "tracked_source_files": 609,
     "declared_owned_files": 33,
     "undeclared_files": 576,
-    "internal_edges": 1656,
+    "internal_edges": 1655,
     "unresolved_references": 1
   },
-  "baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6"
+  "baseline_hash": "3eaf219fcd6f129d47b662c6c33259d937f02731cc86f2017461e9c35c0ee20d"
 }

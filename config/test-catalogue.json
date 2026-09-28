@@ -2041,6 +2041,14 @@
       ]
     },
     {
+      "file": "tests/unit/store-run-mode-vocabulary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "persistence",
+        "status"
+      ]
+    },
+    {
       "file": "tests/unit/task-ledger.test.ts",
       "tier": "unit",
       "covers": [

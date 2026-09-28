@@ -11132,3 +11132,152 @@ research_value              (1) When two routes differ mainly in which rule they
                             Trust consequence here was visible in a file listing, and finding it at a red CI job
                             instead would have cost a round.
 ```
+
+---
+
+## CC-107 — A2-1 lands: the store stops importing the run-mode policy, and the Root Trust epoch moves for one retired edge
+
+The first real dependency removal of the post-CC103 closeout, executed under the Owner's route A2 (CC-106).
+**This round changes tracked source**, so unlike every entry before it this one carries an epoch ceremony.
+
+**1. What was removed, and why it was an inversion rather than a declaration.** `electron/store.ts` imported
+`isRunMode` from `src/shared/owner-result.ts` — a file owned by the capability that owns the run-mode POLICY — purely
+to validate a value it only writes down. A store decides what to keep. `owner-result.ts` decides when an advanced
+task defaults to `OWNER_RESULT` and what a run mode means; the store never made or read that decision, so the import
+was the kernel reaching into a building it does not otherwise need.
+
+**2. The repair, and the one thing it deliberately did NOT do.** The store now declares the SHAPE it persists and
+keeps its own guard:
+
+```text
+export type DurableRunMode = "ASSISTED" | "AUTONOMOUS" | "OWNER_RESULT";
+export const DURABLE_RUN_MODES: readonly DurableRunMode[] = [...];
+setRunMode(taskId: string, mode: DurableRunMode) { if (!DURABLE_RUN_MODES.includes(mode)) throw new Error("Invalid run mode"); ... }
+```
+
+The feature's `RunMode` is structurally that same union, so every existing call site typechecks with **no edit**, and
+the feature named under `src/shared/owner-result.ts` in `capability-modules.json` is unchanged — the file's owner is
+not being reassigned to make a number move; the kernel simply stops importing it.
+
+**Deleting the guard was not the repair, and that is asserted rather than promised.** A behaviour that stops being
+validated is a behaviour that changed, so `tests/unit/store-run-mode-vocabulary.test.ts` pins both directions:
+the two vocabularies are equal (a fourth run mode cannot be added on one side only), and the store's guard still
+**fires** on a value outside the vocabulary with the task left untouched — a deleted guard would make that case pass
+vacuously, so it asserts the throw *and* the absence of the write.
+
+**Known trade-off, recorded rather than hidden:** the feature's vocabulary and the store's are now two declarations,
+which is the price of the boundary. It is caught by a test instead of by a runtime surprise.
+
+**3. The measurement.**
+
+```text
+p2b kernel -> feature file edges      49 -> 48
+p2b total cross-capability file edges 774 -> 773
+kernel -> feature pairs               16    unchanged
+mutual capability pairs               31    unchanged
+largest SCC                           18    unchanged
+capability nodes / edges              29 / 197  unchanged
+floors (files_owned 594, kinds 27, composition-root 2, road_files 6, edges_to_roads 75)  unchanged
+```
+
+The unchanged numbers are the honest result and the important one: **one declaration removed is one edge, and S3/S4
+are unmoved**, exactly as paper-ledger §X-4/§X-5/§X-6 predicted. The strict targets need the implementation
+dependencies behind them, and this entry does not claim otherwise.
+
+Both recorded values were lowered in `config/p2b-kernel-feature-ratchet.json` **in this same commit**, which that
+file's own `$comment` requires; a script asserted that only those two keys moved.
+
+**4. The governance act, and why it was due.** `config/architecture-enforcement-baseline.json` is one of the 32
+declared paths in `trust-policy/root-trust-surface.json`, and the frozen identity genuinely changed: exactly one edge
+— `electron/store.ts -> src/shared/owner-result.ts` — left it, and `internal_edges` fell 1656 -> 1655. Nothing was
+added. So the ceremony was performed instead of the enforcement check being satisfied by a stale file:
+
+```text
+1  regenerated a CANDIDATE (v21), which governs nothing
+2  recorded v21 in trust-policy/architecture-enforcement-baselines.json as the next ACCEPTED series entry, with the
+   lease reference, the retired edge named, and the alternative (A1) recorded as declined by the Owner
+3  accepted the candidate, after asserting that the tracked file was byte-identical to what the series head named
+4  advanced the Root Trust epoch: 66 -> 67 (boss-root-trust-67), parent a586249...
+5  bless --check now reports MATCHES
+```
+
+The entry is not a rubber stamp: the script **refused** to write unless the candidate retired exactly one edge, added
+none, and retired the specific edge this entry documents.
+
+**5. Also corrected because the change made them stale, not because they were wrong.**
+
+```text
+tests/unit/city/principle-enforcement-validator.test.ts   the 15.1 readback literal 49 -> 48, an INDEPENDENT read
+                                                         of the live p2b instrument, which is why it moves
+docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md          the generated table regenerated with the validator's own
+                                                         renderer (one cell: 49 -> 48)
+config/test-catalogue.json                                the new suite registered (302 suites)
+```
+
+**6. Verification.**
+
+```text
+typecheck                 clean
+affected suites           6 files / 154 tests pass
+full unit tier            re-run on this commit
+architecture gates        architecture:ratchet, enforce:baseline --check, enforce:baseline:series and
+                          enforce --mode enforce all exit 0 with violations 0
+root trust                epoch 67 MATCHES
+```
+
+```text
+ENTRY_ID                    CC-107
+timestamp_utc               2026-09-28T17:32:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (66 -> 67) because config/architecture-enforcement-baseline.json is a declared
+                            Root Trust Surface path. The epoch was advanced by the repository's own ceremony
+                            (scripts/acceptance-evolution-bless.cjs --advance), not by hand-editing a baseline.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             node scripts/p2b-kernel-feature-ratchet.cjs (49 -> 48, HOLDS);
+                            scripts/architecture-enforcement-baseline.cjs --check/--accept;
+                            scripts/architecture-baseline-series.cjs --check;
+                            scripts/architecture-enforcement.cjs --mode enforce (violations 0);
+                            scripts/acceptance-evolution-bless.cjs --advance/--check;
+                            pnpm run typecheck; the six affected suites; the full unit tier
+files_or_rules_changed      electron/store.ts; tests/unit/store-run-mode-vocabulary.test.ts (new);
+                            config/p2b-kernel-feature-ratchet.json (two values lowered);
+                            config/architecture-enforcement-baseline.json (v20 -> v21);
+                            trust-policy/architecture-enforcement-baselines.json (v21 ACCEPTED);
+                            trust-policy/trust-epoch.json (epoch 67);
+                            config/test-catalogue.json; tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) The store's run-mode vocabulary is now declared twice, so a fourth mode must be
+                            added in both places; the drift is caught by tests/unit/store-run-mode-vocabulary.test.ts
+                            rather than by a shared constant, and that is a weaker guarantee than sharing the type.
+                            (2) The Root Trust epoch advanced for one retired edge, so every later measurement in
+                            this round must quote epoch 67 and not 66. (3) The strict structural targets are
+                            UNMOVED by this entry: the mutual-pair and SCC counts are identical, which is the
+                            expected result and is reported as such rather than as progress on S3/S4.
+evidence_preserved          the ratchet before/after (49/774 -> 48/773) with every floor unchanged; the candidate
+                            and accepted baseline v21 with the retired edge named; the epoch 66 -> 67 lineage; the
+                            boundary test that asserts the guard still fires; the three readbacks that had to move
+rollback                    Ordinary revert of this commit. The epoch advance is part of the same commit, so a
+                            revert restores both the surface and the epoch that certifies it; the accepted series
+                            keeps v21 as a historical entry, which is the append-only rule.
+temporary_debt_created      no. No threshold was moved and no floor was lowered.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as ONE LANDED BOUNDARY. The OBJECTIVE is NOT complete: S2 is 48, not 0, and this
+                            entry does not claim otherwise.
+research_value              (1) The anti-gaming floors were exercised again, and this time they did NOT fire:
+                            files_owned, the kind count, the composition-root count, the road count and the
+                            edges-to-roads count were all unchanged by a repair that deleted exactly one real
+                            import, which is the signature of a real repair rather than a re-attribution. (2) A
+                            repair that changes a governed surface must carry its ceremony in the SAME commit;
+                            splitting them would leave a commit whose enforcing baseline certifies a tree that no
+                            longer exists, which is the laundered-baseline failure the series exists to refuse.
+                            (3) Two readback literals had to move with the instrument: a change that lowers a
+                            measured value is not finished until every independent readback of that value agrees.
+```

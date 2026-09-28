@@ -592,6 +592,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 21,
+      "baseline_hash": "3eaf219fcd6f129d47b662c6c33259d937f02731cc86f2017461e9c35c0ee20d",
+      "parent_baseline_hash": "7a6ac9397df5620b452f4758833d03ab0a6edd2a990cdab056c4813de1ce36d6",
+      "source_commit": "a299d6be9bb68de120a4d547e10058646283542c",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the first A2 dependency removal of the post-CC103 closeout. The Owner chose route A2 over A1 on 2026-09-28 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106). Recorded in ledger CC-106 and CC-107.",
+      "evidence_reference": "docs/city/PHASE_A_DECISION_A2.md; docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-106 (the decision) and CC-107 (this acceptance); electron/store.ts; src/shared/owner-result.ts; tests/unit/store-run-mode-vocabulary.test.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-28T17:32:46Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `electron/store.ts -> src/shared/owner-result.ts` (`persistence -> status`). The store imported the run-mode POLICY's `isRunMode` to validate a value it only persists.",
+        "new_legitimate_relation": "NONE added. The store now declares the shape it writes (`DurableRunMode`) and keeps its own guard; the policy owner keeps the authoritative `RUN_MODES`/`isRunMode`, and tests/unit/store-run-mode-vocabulary.test.ts pins the two vocabularies to each other so they cannot drift apart silently.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "Route A1 was declined by the Owner: giving the shared contracts a home the kernel owns would have had to be argued as an exception to the ratchet's own anti-gaming floors, which CC-104 measured firing on exactly that attempt (paper-ledger X-5: files_owned 574 < 594, edges_to_roads 74 < 75, capability_edges 177 < 197). A2 needs no exception.",
+        "why_the_baseline_moves": "A tracked source file changed: electron/store.ts no longer imports src/shared/owner-result.ts, so exactly one edge leaves the frozen identity. The structural ratchets were re-measured: kernel -> feature 49 -> 48, raw cross-capability total 774 -> 773, pairs 16, mutual pairs 31, largest SCC 18, capability nodes 29, capability edges 197 all unchanged. Floors not moved: files_owned 594, capabilities_with_kinds 27, composition_root_files 2, road_files 6, edges_to_roads 75."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 609,
+        "internal_edges": 1655,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
