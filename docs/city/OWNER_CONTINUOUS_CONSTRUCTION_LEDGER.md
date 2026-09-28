@@ -11398,3 +11398,113 @@ research_value              (1) An ownership model that resolves by LAST matchin
                             does not move, the instrument is telling you the model differs from your reading of
                             it, and the fastest way to find out how is to instrument the model, not the change.
 ```
+
+---
+
+## CC-109 — A2-3 makes S2 fall by three and the CYCLE metrics worse, so it was reverted: moving a file does not delete a dependency
+
+The second A2 candidate, executed and measured rather than argued. **The tree is byte-identical to the branch head
+afterwards**; nothing from the attempt is committed except the result.
+
+**1. The candidate.** `electron/state-core/platform-soak.ts` is the platform SOAK — a test instrument that drives a
+real database, writes the gate-6 report and applies shared soak bounds. It is the file that makes the `state-core`
+KERNEL reach `status` (`soak-harness`) and `knowledge` (`data-retention`, `knowledge-staleness`). It has **no
+production importer**: the only code that loads it is `scripts/platform-soak.cjs` and one unit test, both verified by
+scan. So it is exactly A2 move (iii) — "the side effect leaves the kernel" — and the move looked free.
+
+**2. What was done.** The file was moved to `electron/status/platform-soak.ts`, its four state-core imports were
+re-pointed (`../state-core/database`, `event-journal`, `state-repository`, `transaction`), the driver's compiled path
+and the unit test's import were updated, and the file was given an owner in the new location — necessary, because the
+ratchet's `files_owned` floor fired on the first attempt exactly as designed (593 < 594) when the moved file had no
+owner at all.
+
+**3. Resolved state of the measurement.**
+
+```text
+                                    before    after A2-3
+kernel -> feature file edges          48        45      IMPROVED by 3
+kernel -> feature pairs               16        14      IMPROVED by 2
+total cross-capability file edges    773       776      WORSE by 3
+mutual capability pairs               31        32      WORSE by 1
+largest SCC                           18        19      WORSE by 1
+capability edges                     197       196      fell 1 (floor)
+owned files                          594       594      restored by adding the owner
+```
+
+**4. Why the cycle metrics got worse — and this is the finding.** Moving the file out of the kernel does not delete
+the dependency; it **changes who is the source**. `state-core -> status (1)` and `state-core -> knowledge (2)`
+disappear, but `status -> knowledge (2)` and `status -> state-core (4)` appear, so three cross-capability edges become
+six. Two of those new edges close a loop: `status` now reaches `knowledge`, which reaches `status`, and the component
+grows by a node. A repair that satisfies S2 while making S3 and S4 worse is not a repair under this workbook, whose
+§4.3 forbids count compensation in either direction and whose S4 reading does not move for pairwise work but DOES
+move for this.
+
+**5. Therefore the A2 move (iii) category is bounded, and the bound is worth stating.** "Move the side effect out of
+the kernel" only helps when the moved file's own dependencies are **fewer** than the ones it carried. Here a
+test instrument with six cross-capability imports was sitting in a kernel that had three, so moving it relocated
+three edges and created three. The category is still correct in principle — a soak instrument does not belong in
+Core — but it cannot be paid for with S3/S4, and the honest disposition is to leave it until the implementation
+dependencies behind those six are removed, or until the instrument itself is rewritten to not drive `knowledge`
+policy.
+
+**6. Reverted, verified, and recorded.** `config/capability-modules.json`, `scripts/platform-soak.cjs`,
+`tests/unit/platform/platform-soak.test.ts` and the moved file were all restored; `git diff --stat` against the
+branch head is **empty**, and the ratchet re-reads `48 / 16 / 31 / 18 / 594 / 197` — the A2-1 checkpoint exactly.
+
+**7. Where this leaves Phase A.** Two of the three A2 move categories have now been measured and both are bounded:
+
+```text
+(i)   the kernel stops deciding      ONE landed (A2-1, 49 -> 48). The rest of this class is `electron/store.ts`'s
+                                     remaining guards, each of which is a behaviour move with its own boundary test.
+(ii)  the utility moves to the kernel  BLOCKED for every candidate inspected: re-homing `final-response.ts` or
+                                     `path-utils.ts` makes the kernel reach `src/shared/contracts.ts` (status) or
+                                     `src/shared/workspace-path.ts` (workspace), which is a NEW inversion.
+(iii) the side effect leaves the kernel  MEASURED and bounded (this entry): it trades three S2 edges for three raw
+                                     edges, one new mutual pair and a larger component.
+```
+
+So the remaining work is (i) — moving behaviours whose owner should have had them — plus the implementation
+dependencies behind the mutual pairs themselves. Both are the large, behaviour-by-behaviour work the extraction map
+§4 describes, and neither is reachable by anything this round has left unmeasured.
+
+```text
+ENTRY_ID                    CC-109
+timestamp_utc               2026-09-28T18:20:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. The attempted change was REVERTED in full: `git diff --stat`
+                            against the branch head is empty, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             node scripts/p2b-kernel-feature-ratchet.cjs --json in three states (before the move, after
+                            the move without an owner -> `owned files FELL to 593`, after the move with an owner ->
+                            45/14/32/19/776); a scan for importers of the module (scripts/platform-soak.cjs and one
+                            unit test only); `git diff --stat` after the revert (empty)
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The instrument measures edges by SOURCE file ownership; this entry is the second
+                            demonstration that a repair can move S2 without moving the dependency, and the first
+                            where doing so made S3/S4 worse. A reader who wants S2 to fall must therefore check all
+                            four numbers, not one. (2) The `files_owned` floor fired on the intermediate state (593)
+                            and that is correct behaviour, not an obstacle: the file had genuinely left the scan.
+evidence_preserved          the resolved before/after table in point 3; the reason in point 4; the bound on the
+                            move-(iii) category in point 5; the empty diff after the revert
+rollback                    Revert this commit. Documentation only; the attempted change is already reverted.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASURED AND REVERTED CANDIDATE. The OBJECTIVE is NOT complete.
+research_value              (1) A metric that counts edges by SOURCE owner can be improved by changing which file is
+                            the source, and the improvement can be exactly cancelled or reversed in the metrics that
+                            count the graph as a whole: here S2 fell 3 while the raw total rose 3, a mutual pair
+                            appeared and the component grew. Repairing one number in a multi-number target is not
+                            progress, and only running all of them shows it. (2) A move is only a repair when the
+                            thing moved carries FEWER dependencies than it leaves behind; a test instrument with six
+                            cross-capability imports sitting in a kernel with three is a move that relocates debt
+                            rather than retiring it. (3) The `files_owned` floor caught a genuine loss (the moved
+                            file left the scan) rather than a hypothetical one, which is the second time this round
+                            that the anti-gaming rules did real work.
+```
