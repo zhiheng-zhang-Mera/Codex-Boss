@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "record": {
-    "trust_epoch": 68,
-    "root_contract_version": "boss-root-trust-68",
-    "root_surface_hash": "f3dde613b78080f7633f8a2777719d56ff1cba124c059f61fbfdca0f3707bdba",
-    "parent_epoch_hash": "8e144e5f64c195801cc1e9fd079f58611388206782338fe0865a49849a9a596e",
-    "created_at": "2026-09-28T18:54:55.863Z"
+    "trust_epoch": 69,
+    "root_contract_version": "boss-root-trust-69",
+    "root_surface_hash": "b4c6df387d4212dc8434e955a292ce4120733dc183c2de819c0c9cee4b781398",
+    "parent_epoch_hash": "14789aaeb67ce85408bb6fb3acae0cb7cb6a808425d87cf3bcf13634c3571c71",
+    "created_at": "2026-09-28T19:26:20.915Z"
   },
-  "epoch_hash": "14789aaeb67ce85408bb6fb3acae0cb7cb6a808425d87cf3bcf13634c3571c71"
+  "epoch_hash": "9b519662e5d3ea5a5e12ee70d2587d8a9da806497069c6e0969b8efb6f3b4061"
 }

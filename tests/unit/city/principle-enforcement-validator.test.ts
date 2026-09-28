@@ -398,10 +398,12 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     // 54 -> 53 in CC-089 and 53 -> 52 in CC-090 by the SAME repair (the `interventions` namespace moved to the
     // capability that implements its store). This literal is the INDEPENDENT readback of the live p2b instrument,
     // which is why it moves when the ratchet does.
-    // 49 -> 48 in CC-106/A2-1 (`electron/store.ts` stopped importing the run-mode policy) and 48 -> 47 in
-    // CC-111/A2-4 (it stopped importing `currentFinalResponse` and reads its own document instead). This literal
-    // is the INDEPENDENT readback of the live p2b instrument, which is why it moves when the ratchet does.
-    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 47]]);
+    // 49 -> 48 in CC-106/A2-1 (`electron/store.ts` stopped importing the run-mode policy), 48 -> 47 in
+    // CC-111/A2-4 (it stopped importing `currentFinalResponse` and reads its own document instead), and 47 -> 46 in
+    // CC-112/A2-5 (it stopped importing the verification-contract guard and the conversation-policy guard, keeping
+    // the vocabulary and moving the guard to each policy's producer). This literal is the INDEPENDENT readback of
+    // the live p2b instrument, which is why it moves when the ratchet does.
+    expect(measured("15.1")).toEqual([["p2b:kernelToFeatureFileEdges", 46]]);
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([

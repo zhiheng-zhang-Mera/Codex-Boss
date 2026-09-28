@@ -654,6 +654,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 23,
+      "baseline_hash": "c2d216d8da1af774646a636e7ce73cda2691462e75d0175450c5ccb0ba324125",
+      "parent_baseline_hash": "9db74b59a98f7db45d4f9342904a7221ed3fa83d7fd863b392b18ff6d6d8922a",
+      "source_commit": "3321fa7d4ea7aee1f479c763f0b0552a346e4c7a",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the third A2 dependency removal of the post-CC103 closeout, under the Owner's route A2 chosen on 2026-09-28 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106). Recorded in ledger CC-112.",
+      "evidence_reference": "docs/city/PHASE_A_DECISION_A2.md; docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-106 (the decision) and CC-112 (this acceptance); electron/store.ts; electron/commander/main-commander.ts; src/shared/conversation-policy.ts; tests/unit/store-policy-vocabulary.test.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-28T19:26:18Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `electron/store.ts -> src/shared/conversation-policy.ts` (`persistence -> tasks`). The store imported `isConversationPolicy` to validate a POLICY it never decided.",
+        "new_legitimate_relation": "NONE added. The store declares the SET of policies it may persist (`DurableConversationPolicy` / `DURABLE_CONVERSATION_POLICIES`) and keeps its own guard; the owner keeps the authoritative `CONVERSATION_POLICIES`/`isConversationPolicy`, and `tests/unit/store-policy-vocabulary.test.ts` pins the two together in both directions.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "The same change also moved the `isVerificationContract` GUARD out of the store into `electron/commander/main-commander.ts` (both call sites). That is a real improvement — the store no longer decides which verification contracts are valid — but it did NOT retire an edge: the store still reaches `src/shared/result-validator.ts` through two inline type positions in `recordVerification`. Recorded because the first draft of this entry claimed two retired edges and the instrument measured one.",
+        "why_the_baseline_moves": "A tracked source file changed: `electron/store.ts` no longer imports `src/shared/conversation-policy.ts`, so exactly one edge leaves the frozen identity and `internal_edges` falls 1654 -> 1653. The structural ratchets were re-measured: kernel -> feature 47 -> 46, raw cross-capability total 772 -> 771, pairs 16, mutual pairs 31, largest SCC 18, capability nodes 29, capability edges 197 all unchanged. Floors not moved: files_owned 594, capabilities_with_kinds 27, composition_root_files 2, road_files 6, edges_to_roads 75."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 609,
+        "internal_edges": 1653,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

@@ -1,8 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { isVerificationContract } from "../src/shared/result-validator";
-import { isConversationPolicy } from "../src/shared/conversation-policy";
 import type { AppMode, AppSnapshot, AuditEvent, BossConversation, BossTask, CodexReview, ControllerState, ConversationFolder, CouncilSession, DispatchCheckpoint, EvidenceBundle, FinalResponse, RawArtifact, RemoteChannel, RemoteChannelSetting, RemoteChannelStatus, RemoteCommand, RemoteCommandStatus, RoleRouteView, RuntimeStatusView, TaskMode, TaskStatus } from "../src/shared/contracts";
 import type { AdapterOutcome, ApiProviderSetting, Provider, ProviderAccountMode, ProviderId, ProviderRun, ProviderRunPhase, RunTransport } from "../src/shared/provider-contracts";
 import { validateInputObjectRef, uniqueInputObjectRefs, type InputObject, type InputObjectRef } from "../src/shared/input-object";
@@ -17,6 +15,22 @@ import { defaultReviewPolicy, reviewResponse, type ReviewPolicy } from "../src/s
 
 const defaultFolderId = "folder-general";
 const defaultConversationId = "conversation-default";
+
+/**
+ * The persisted conversation-policy vocabulary (R-204), declared HERE rather than imported from the capability that
+ * owns the policy.
+ *
+ * The store keeps the value; it does not decide which value is right for a task — that is the owner
+ * (`src/shared/conversation-policy.ts`), which maps an app mode and a resume/fresh hint onto one of these. The store
+ * needs the SET it may write and read back, so it declares the set and keeps its own guard (A2 move (i),
+ * `docs/city/PHASE_A_DECISION_A2.md`). `tests/unit/store-policy-vocabulary.test.ts` pins it to the owner's constant
+ * so the two cannot drift apart silently, which is the one real cost of the boundary.
+ */
+export type DurableConversationPolicy = "PERSISTENT" | "REUSABLE" | "TEMPORARY" | "AUTO_DELETE";
+export const DURABLE_CONVERSATION_POLICIES: readonly DurableConversationPolicy[] = ["PERSISTENT", "REUSABLE", "TEMPORARY", "AUTO_DELETE"];
+function isDurableConversationPolicy(value: unknown): value is DurableConversationPolicy {
+  return typeof value === "string" && (DURABLE_CONVERSATION_POLICIES as readonly string[]).includes(value);
+}
 
 /**
  * The persisted run-mode vocabulary (Owner-Result §3), declared HERE rather than imported from the capability that
@@ -508,9 +522,15 @@ export class StateStore {
    * Attaches a §20–§22 verification contract (Owner-Result.md Rev.2) to a task.
    * When present, the task's MODEL_DONE claim may not complete it until the
    * risk-gated verification plan passes with evidence; absent = legacy path.
+   *
+   * A2 move (i), docs/city/PHASE_A_DECISION_A2.md: the runtime guard that used to sit here
+   * (`isVerificationContract`, from the `tasks` capability) has moved to the PRODUCER, which is
+   * `electron/commander/main-commander.ts` — the only production caller, the place that decides whether a supplied
+   * contract is acceptable, and a file that already imports both names. The store keeps the value; it does not decide
+   * which contracts are valid. The accepted domain/risk vocabulary stays declared in the owning module, so the shape
+   * below is still checked at the call site rather than restated here.
    */
-  setVerificationContract(taskId: string, contract: import("../src/shared/result-validator").VerificationContract): void {
-    if (!isVerificationContract(contract)) throw new Error("Invalid verification contract");
+  setVerificationContract(taskId: string, contract: { domain: import("../src/shared/result-validator").ResultDomain; risk: import("../src/shared/result-validator").RiskLevel }): void {
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
     task.verification = { domain: contract.domain, risk: contract.risk };
@@ -533,9 +553,17 @@ export class StateStore {
     this.persist();
   }
 
-  /** R-204: persists the task's conversation policy (TEMPORARY/REUSABLE/PERSISTENT/AUTO_DELETE). */
-  setConversationPolicy(taskId: string, policy: import("../src/shared/conversation-policy").ConversationPolicy): void {
-    if (!isConversationPolicy(policy)) throw new Error("Invalid conversation policy");
+  /**
+   * R-204: persists the task's conversation policy (TEMPORARY/REUSABLE/PERSISTENT/AUTO_DELETE).
+   *
+   * A2 move (i), docs/city/PHASE_A_DECISION_A2.md: the store declares the SET of policies it may persist and keeps
+   * its own guard, instead of importing `isConversationPolicy` from the capability that owns the POLICY. Which policy
+   * a task should get — the mapping from an app mode and a resume/fresh hint — is decided in
+   * `src/shared/conversation-policy.ts` and is not the store's business. `tests/unit/store-policy-vocabulary.test.ts`
+   * pins the two vocabularies to each other so they cannot drift apart silently.
+   */
+  setConversationPolicy(taskId: string, policy: DurableConversationPolicy): void {
+    if (!isDurableConversationPolicy(policy)) throw new Error("Invalid conversation policy");
     const task = this.snapshotValue.tasks.find((item) => item.id === taskId);
     if (!task) throw new Error("Unknown task");
     task.conversationPolicy = policy;

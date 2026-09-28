@@ -11747,3 +11747,132 @@ research_value              (1) The same "move the implementation and re-export 
                             one round, both by the same scripted route with assert-before-write guards, is evidence
                             that the governance act scales rather than being a special case each time.
 ```
+
+---
+
+## CC-112 — A2-5 lands a third edge, and the instrument corrects the entry: the guard that moved did not retire one
+
+**1. What was changed.** Two of `electron/store.ts`'s remaining policy imports, both A2 move (i) —
+"the kernel stops deciding":
+
+```text
+conversation policy     the store imported `isConversationPolicy` to validate a POLICY that decides how a task's
+                        provider conversation is handled. The store now declares the SET it may persist
+                        (`DurableConversationPolicy` / `DURABLE_CONVERSATION_POLICIES`) and keeps its own guard,
+                        exactly as A2-1 did for the run mode. The owner keeps the authoritative constant, and
+                        `tests/unit/store-policy-vocabulary.test.ts` pins the two vocabularies to each other in both
+                        directions and asserts the guard still fires on a value outside the set.
+
+verification contract   the store also imported a type AND a runtime guard for a value it merely copies two fields
+                        out of. The guard cannot be re-hosted without re-implementing the mapping it checks against,
+                        so it moved to the PRODUCER: `electron/commander/main-commander.ts` now validates both call
+                        sites before handing the contract over — including the `risk as ...` cast, which the guard
+                        now covers at runtime where the cast had skipped it.
+```
+
+**2. What the instrument measured, and where it corrected the entry.**
+
+```text
+kernel -> feature file edges   47 -> 46
+raw cross-capability total    772 -> 771
+```
+
+That is **one** retired edge, not two, and the reason is worth recording: the conversation policy import is gone, so
+`electron/store.ts -> src/shared/conversation-policy.ts` is retired, but the store **still** reaches
+`src/shared/result-validator.ts` through two inline type positions in `recordVerification` (its `evidence` and
+`verdict` parameters). The verification-contract change is a real improvement — the store no longer decides which
+contracts are valid — but it retired no edge, and the acceptance entry says so in those words rather than claiming
+two. The first draft of that entry claimed two; the candidate's own retire/add report is what caught it.
+
+This is the fourth time this round that a change's measured effect differed from its intent, and the third time the
+difference was in the direction of *less* progress than expected. The instrument is the authority.
+
+**3. The governance act.** `config/architecture-enforcement-baseline.json` is a declared Root Trust Surface path and
+the frozen identity changed by exactly one edge (`internal_edges` 1654 -> 1653):
+
+```text
+candidate v23 generated -> recorded as the next ACCEPTED series entry from the CANDIDATE's measured retire/add
+report (one removed, none added), naming the retired edge and recording the guard move that retired nothing ->
+accepted after asserting the tracked file matched the series head -> Root Trust epoch 68 -> 69
+(boss-root-trust-69), parent 14789aa -> bless --check reports MATCHES
+```
+
+**4. Verification.** Typecheck clean; the affected suites pass (including the two new boundary suites and the
+enforcement authorization suite, which is what caught the need for the ceremony); the ratchet reads 46 and HOLDS; the
+epoch check passes.
+
+**5. Where the S2 work stands, and why the next move is different in kind.** Three edges have now been retired by
+removing what the kernel *decides* (49 → 48 → 47 → 46). What remains in `electron/store.ts` is not more of the same:
+
+```text
+src/shared/contracts.ts (status)   the SNAPSHOT SHAPE the store persists. Removing it means the kernel declaring the
+                                   document it owns — the same trade A2-1 and A2-5 made, but over 22 types rather
+                                   than one vocabulary, and `AppSnapshot` is the store's whole reason to exist.
+src/shared/result-validator.ts     two inline type positions in `recordVerification`.
+src/shared/execution.ts (tasks)    `defaultReviewPolicy` / `reviewResponse` — a review POLICY the store applies.
+src/shared/task-ir.ts (tasks)      `compileIntent` at one call site.
+src/shared/work-mode.ts (tasks)    three values.
+src/shared/workbook-dispatch.ts    two values.
+src/shared/optional-review.ts      one inline type.
+src/shared/ceo... (tenx)           task-ledger, state-budget, optional-review — the ledger cluster.
+```
+
+Each of those is either a large vocabulary move or a behaviour move, and the measured lesson of this round is that
+the small vocabulary moves are worth exactly one edge each while the behaviour moves are where the mutual pairs
+live.
+
+```text
+ENTRY_ID                    CC-112
+timestamp_utc               2026-09-28T19:24:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run. Committed inside the +5 minute tolerance.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (68 -> 69) because config/architecture-enforcement-baseline.json is a declared
+                            Root Trust Surface path and its frozen identity genuinely changed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             node scripts/p2b-kernel-feature-ratchet.cjs --json (47 -> 46, HOLDS);
+                            scripts/architecture-enforcement.cjs --mode enforce (verdict PASS, violations 0,
+                            debt_reduced 1); scripts/architecture-enforcement-baseline.cjs --check/--accept;
+                            scripts/architecture-baseline-series.cjs --check; scripts/acceptance-evolution-bless.cjs
+                            --advance/--check (epoch 69); pnpm run typecheck; the seven affected suites
+files_or_rules_changed      electron/store.ts; electron/commander/main-commander.ts;
+                            tests/unit/store-policy-vocabulary.test.ts (new);
+                            config/p2b-kernel-feature-ratchet.json (two values lowered);
+                            config/architecture-enforcement-baseline.json (v22 -> v23);
+                            trust-policy/architecture-enforcement-baselines.json (v23 ACCEPTED);
+                            trust-policy/trust-epoch.json (epoch 69); config/test-catalogue.json;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) The store's conversation-policy vocabulary is now declared twice, so a fifth policy
+                            must be added in both places; the drift is caught by a test rather than by a shared
+                            constant, which is a weaker guarantee than sharing the type. (2) The verification-contract
+                            guard moved to the producer, so an untyped caller that bypasses `main-commander` would no
+                            longer be refused; there is one production caller and it validates. (3) The Root Trust
+                            epoch advanced for one retired edge, so later measurements must quote epoch 69. (4) The
+                            strict structural targets are unmoved except S2 by one: mutual pairs and the SCC are
+                            identical, reported as such rather than as progress on S3/S4.
+evidence_preserved          the before/after counts with every floor unchanged; the candidate's own retire/add
+                            report showing ONE edge; the entry recording that the guard move retired nothing; the
+                            epoch 68 -> 69 lineage
+rollback                    Ordinary revert of this commit. The epoch advance is in the same commit, so a revert
+                            restores both the surface and the epoch that certifies it; the series keeps v23 as a
+                            historical entry.
+temporary_debt_created      no. No threshold was moved and no floor was lowered.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as ONE LANDED BOUNDARY plus ONE CORRECTED CLAIM. The OBJECTIVE is NOT complete.
+research_value              (1) A change can make the architecture better and retire no edge at all: moving the
+                            verification guard to the producer removed a decision from the kernel while the kernel
+                            kept reaching the same module through type positions, and only the instrument's
+                            retire/add report distinguishes those two facts. (2) Writing the acceptance entry FROM
+                            the instrument's report rather than from the intent of the change is the mechanism that
+                            caught it, and it is worth using every time. (3) Three rounds of "remove what the kernel
+                            decides" have produced three edges; the remaining ones are either large vocabulary moves
+                            or behaviour moves, so the next step's cost is qualitatively different, and saying so is
+                            cheaper than discovering it twice.
+```

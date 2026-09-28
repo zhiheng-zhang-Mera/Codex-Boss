@@ -2041,6 +2041,14 @@
       ]
     },
     {
+      "file": "tests/unit/store-policy-vocabulary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "persistence",
+        "tasks"
+      ]
+    },
+    {
       "file": "tests/unit/store-run-mode-vocabulary.test.ts",
       "tier": "unit",
       "covers": [

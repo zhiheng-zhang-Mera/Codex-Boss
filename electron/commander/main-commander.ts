@@ -29,7 +29,7 @@ import type { AppMode, BossTask, FinalizationPolicy, TaskMode, TaskStatus } from
 import type { ProviderId, RunTransport } from "../../src/shared/provider-contracts";
 import type { RuntimeRequest, RuntimeResult } from "../runtimes/runtime";
 import { defaultRunModeForTask, effectiveRunMode, runTaskKindFor, type RunMode } from "../../src/shared/owner-result";
-import { verifyResult, verificationPlanFor, type VerificationContract } from "../../src/shared/result-validator";
+import { verifyResult, verificationPlanFor, isVerificationContract, type VerificationContract } from "../../src/shared/result-validator";
 import { collectVerificationEvidence } from "./verification-collector";
 import { runRepoGate, type RepoGate } from "../engineering/gate-runner";
 import { conversationPolicyFor, type ConversationPolicy } from "../../src/shared/conversation-policy";
@@ -183,7 +183,14 @@ export class MainCommander {
     this.store.setRunMode(task.id, input.runMode ?? defaultRunModeForTask(runTaskKindFor(task.appMode, task.mode)));
     // Rev.2 §20–§22: persist an explicit verification contract when supplied so
     // every later completion point enforces MODEL_DONE → VERIFYING → PASS/REWORK.
-    if (input.verification) this.store.setVerificationContract(task.id, input.verification);
+    // A2 move (i), docs/city/PHASE_A_DECISION_A2.md: the acceptance guard for a verification contract lives HERE,
+    // at the producer, rather than in the store. Two reasons, and the second is the one that matters: the store
+    // keeps what it is handed and has no business deciding which contracts are valid; and this call site is where a
+    // risk level is derived, so the guard is next to the derivation it protects.
+    if (input.verification) {
+      if (!isVerificationContract(input.verification)) throw new Error("Invalid verification contract");
+      this.store.setVerificationContract(task.id, input.verification);
+    }
     // The OPTIONAL review Agent is persisted the same way, so the trace, the ledger and the snapshot
     // agree about which of the two ran — a mandatory gate or optional Agent work.
     if (input.optionalReview) this.store.setOptionalReview(task.id, input.optionalReview);
@@ -465,7 +472,11 @@ export class MainCommander {
         && effectiveRunMode({ runMode: taskForPolicy.runMode, kind: runTaskKindFor(taskForPolicy.appMode, taskForPolicy.mode) }) === "OWNER_RESULT";
       if (taskForPolicy && hasEdits && isOwnerResult) {
         const risk = finalPlan.riskLevel && ["low", "medium", "high", "critical"].includes(finalPlan.riskLevel) ? finalPlan.riskLevel : "medium";
-        this.store.setVerificationContract(taskId, { domain: "engineering", risk: risk as "low" | "medium" | "high" | "critical" });
+        const autoContract: VerificationContract = { domain: "engineering", risk: risk as "low" | "medium" | "high" | "critical" };
+        // The same guard the store used to apply, applied where the contract is BUILT -- including the shape check
+        // that the `risk as ...` cast would otherwise skip at runtime.
+        if (!isVerificationContract(autoContract)) throw new Error("Invalid verification contract");
+        this.store.setVerificationContract(taskId, autoContract);
         current = this.store.snapshot().tasks.find((item) => item.id === taskId)!;
       }
     }
