@@ -11281,3 +11281,120 @@ research_value              (1) The anti-gaming floors were exercised again, and
                             (3) Two readback literals had to move with the instrument: a change that lowers a
                             measured value is not finished until every independent readback of that value agrees.
 ```
+
+---
+
+## CC-108 — A2-2 is blocked by the ownership model's precedence rule, and that is a fact about the model rather than about the file
+
+**1. The candidate, and why it looked free.** `electron/commander/state-budget.ts` is the state.json ARRAY BUDGET:
+`applyStateStorageBudget(snapshot: AppSnapshot, policy: StorageBudgetPolicy)` returning `{ snapshot, report }`. It
+carries no command, no task and no scheduling semantics — its whole contract is "which rows of the state document
+may be dropped, and never an active one". Its only importer anywhere in the tree is `electron/store.ts`, the kernel's
+state document (verified by scanning every `.ts` file under `electron/`, `src/` and `tests/`). It is claimed by `tenx`
+through its **directory** entry `electron/commander`, so the obvious repair was an exact-file claim on `persistence`
+and nothing else.
+
+**2. The measurement that refuted it.** The claim was added, the instruments were re-run, and **nothing moved**:
+
+```text
+kernel -> feature file edges   48 -> 48
+persistence -> tenx            6  -> 6      (the edge to state-budget.ts was still counted)
+```
+
+The reason is the ownership resolver's precedence rule, which `scripts/phase2-edge-inventory.cjs` and
+`scripts/phase2-pair-edges.cjs` implement identically and which I had read backwards:
+
+```text
+for (const [capability, patterns] of Object.entries(map.capabilities)) {
+  for (const file of allFiles) if (ownsPath(patterns, file)) owner.set(file, capability);
+}
+```
+
+**The LAST capability that claims a path wins, not the most specific one.** `persistence` is declared 12th and
+`tenx` 25th, so `tenx`'s directory claim overwrites the exact-file claim that was supposed to beat it. A direct
+trace of the assignment confirms the order:
+
+```text
+set by persistence (previous undefined)
+set by tenx (previous persistence)
+final: tenx
+```
+
+**3. What this means, stated as a rule rather than as an anecdote.** An exact-file claim can only move a file's
+ownership to a capability declared **earlier** in `config/capability-modules.json` than the capability whose
+directory claim currently owns it. Two consequences follow, and both are load-bearing for Phase A:
+
+```text
+(a) A file under `electron/commander/**` cannot be moved out of `tenx` by an exact-file claim at all, because no
+    capability declared before `tenx` owns that directory. Relocation, or removing the dependency, are the only
+    routes left for the 10 edges this cluster carries.
+(b) The repair class that CC-090..CC-093 used successfully worked because the target capability happened to be
+    declared earlier. That was a property of those cases, not of the technique.
+```
+
+**4. The failure was recorded and reverted, not smoothed.** `config/capability-modules.json` was restored with
+`git checkout --`; the ratchet was re-run and reads `48 / 31 / 18 / 594` — the A2-1 checkpoint exactly. Nothing from
+the attempt is committed. The attempt cost three instrument runs and produced a rule the next round does not have to
+rediscover; the alternative would have been a fourth round spent on the same candidate.
+
+**5. What the next step has to be, and why it is not another attribution.** With `state-budget.ts` unreachable by
+ownership and `final-response.ts`/`path-utils.ts` blocked the other way (re-homing EITHER would make the kernel reach
+`src/shared/contracts.ts` (status) or `src/shared/workspace-path.ts` (workspace), which is a NEW kernel -> feature
+edge, not a repaired one), the remaining A2 moves all require changing code rather than the map:
+
+```text
+A2-3  electron/state-core/platform-soak.ts is a soak TEST INSTRUMENT living inside a kernel capability and driving
+      `knowledge` retention and `status` soak bounds. Extracting it removes state-core -> status (1 edge) and
+      state-core -> knowledge (3 edges). It is also claimed through a directory (`electron/state-core`), so it has
+      the same precedence problem and must be a MOVE plus a map edit in the same commit.
+A2-4  the implementation dependencies behind the mutual pairs (10 edges to tenx, 3 to workspace, 3 to status, 4 to
+      providers, 2 to engineering, 2 to automation, 2 to security, 1 to identity). These are the ones paper-ledger
+      X-6 measured: a hub cannot be shrunk by relabelling, so each needs the implementation to move or the need to
+      be removed.
+```
+
+**6. Honest position.** The strict targets are unmet and this entry moves no metric. It is recorded because a
+negative result about the *model* is worth more than a third attempt at the same file, and because the rule in
+point 3 changes which candidates are worth trying.
+
+```text
+ENTRY_ID                    CC-108
+timestamp_utc               2026-09-28T18:10:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. The one attempted change was REVERTED: no tracked file
+                            differs from the branch head, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only plus one reverted edit: scripts/phase2-p2b-kernel-feature-ratchet.cjs --json
+                            before and after (48 -> 48); scripts/phase2-pair-edges.cjs scan() reading the edge
+                            `electron/store.ts -> electron/commander/state-budget.ts` as `persistence -> tenx`; a
+                            direct trace of the ownership loop printing the two `owner.set` calls and the final
+                            value; the importer scan over electron/, src/ and tests/ (one importer)
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The trace reproduces the resolver's logic rather than calling it, so the rule in
+                            point 3 is derived by reading `phase2-edge-inventory.cjs` and `phase2-pair-edges.cjs`
+                            and confirming the outcome with the real instruments; a reader should re-run the tools
+                            rather than trust the excerpt. (2) The rule is about the CURRENT resolver; a future
+                            change to make exact-file claims win would reopen the whole class at once, and that is
+                            a decision rather than a repair.
+evidence_preserved          the before/after counts that did NOT move; the two `owner.set` trace lines with the
+                            final value; the rule in point 3 with its two consequences; the reverted tree state
+rollback                    Revert this commit. Documentation only; the attempted change was already reverted.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a REFUTED CANDIDATE plus a model rule. The OBJECTIVE is NOT complete.
+research_value              (1) An ownership model that resolves by LAST matching claim rather than most specific
+                            makes the feasibility of a repair depend on the DECLARATION ORDER of the capabilities,
+                            which is invisible at the call site: the same exact-file claim is a repair in one
+                            directory and a no-op in another. (2) Reading the resolver's loop and believing the
+                            obvious reading cost one attempt; tracing the two assignments cost three instrument
+                            runs and produced the rule. When a change is expected to move a number and the number
+                            does not move, the instrument is telling you the model differs from your reading of
+                            it, and the fastest way to find out how is to instrument the model, not the change.
+```
