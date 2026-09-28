@@ -4729,3 +4729,68 @@ build, not the labels.*
 **Reference.** subject SHA `8df428…`; instruments `scripts/phase2-edge-inventory.cjs`, `scripts/phase2-cycles.cjs`,
 `scripts/capability-closure-validator.cjs`; exploratory tools committed with this evidence:
 `docs/research/post-cc103/tools/cycle-leverage.cjs` and `docs/research/post-cc103/tools/scc-what-would-it-take.cjs`.
+
+## X-5 — `REFUTATION`: the cycles are not an ownership artifact, and the ratchet refused the shortcut that would have made them look gone
+
+**Question/hypothesis.** `src/shared/**` is claimed file-by-file by feature capabilities, so a kernel that imports a
+`src/shared` contract is recorded as reaching a *building*. That looked like the cheap explanation for both S2 (49) and
+S4 (largest SCC 18 of 29). Hypothesis: re-home that surface and the cycles dissolve.
+
+**Change.** None committed. The hypothesis was **tested and reverted**: the 25 exact-file `src/shared/**` entries a
+kernel reaches were temporarily removed from `config/capability-modules.json`'s capability lists and listed under
+`exempt`, the repository's own ratchet was run, and the file was restored from a byte copy taken beforehand.
+
+**Result — the numbers move in the direction the hypothesis predicts, except the one that matters.**
+
+```text
+kernelToFeatureFileEdges     49 -> 19
+kernelToFeaturePairs         16 ->  8
+mutualCapabilityPairs        31 -> 23
+largestSccSize               18 -> 18      <- UNCHANGED
+capabilityEdges             197 -> 177
+filesOwned                  594 -> 574
+```
+
+**Result — and the instrument rejected the patch outright.** `scripts/p2b-kernel-feature-ratchet.cjs` exits **1** with
+three anti-gaming problems, in its own words:
+
+```text
+owned files FELL to 574, below the recorded 594 (fewer files scanned is not fewer inversions; a file removed
+  from the map, or absorbed by another class to hide its edges, makes the migration look finished without being
+  finished)
+edges to roads FELL to 74, below the recorded 75 (the road edges are published on their own line precisely so they
+  cannot vanish; a fall here is only legitimate when the consumers really stopped using the road)
+capability edges FELL to 177, below the recorded 197 (fewer edges in the graph means fewer cycles found, which is
+  how a knot could be reported as dissolved without being touched)
+```
+
+A second, independent in-memory model of the same idea extends it to the extreme — **every** `src/shared` file out of
+the capability graph, 216 of them — and still only reaches `largest SCC 17`:
+
+```text
+BASELINE                                       edges 736  pairs 161  mutual 36  largest SCC 18
+kernel-reached src/shared -> FOUNDATION (25)   edges 561  pairs 137  mutual 27  largest SCC 18
+ALL src/shared -> FOUNDATION (216)             edges 332  pairs  92  mutual 15  largest SCC 17
+```
+
+**Behaviour preserved.** The tree is byte-identical to the work-start state after the revert, re-verified by the
+ratchet: `edges 49 / pairs 16 / mutual 31 / scc 18 / files 594`. Nothing was committed from the experiment.
+
+**Conclusion supported.** The knot lives in `electron/**`: it is feature capabilities calling each other's
+*implementations* — `commander`, `engineering`, `status`, `promotion`, `security`, `providers`, `runtime` — not in how
+`src/shared` is attributed. Even removing the entire shared surface from the capability graph, 216 files of structural
+debt buy exactly one node out of eighteen. The single fact that would have made this round cheap is therefore false,
+and it is now false by measurement in two independent models plus a direct run of the gate.
+
+**Conclusion NOT supported.** This does not show that the `src/shared` attribution is *correct* — only that changing it
+cannot deliver the strict targets. It also does not discharge S2/S3/S4, and it does not license the patch: the ratchet
+refused it, and the refusal is the correct behaviour, because the underlying imports were untouched.
+
+**Paper-use category.** Anti-gaming evidence + instrument validation: *a gate's anti-gaming rules were exercised
+against a real, motivated shortcut rather than against a constructed fixture, and the shortcut was refused for the
+right reason. The measured result — 216 re-attributed files for one SCC node — is what turns "this looks like an
+attribution problem" into "this is a build problem", and it is the kind of claim that only a run can settle.*
+
+**Reference.** subject/instrument SHA `8df428…`; `scripts/p2b-kernel-feature-ratchet.cjs` (real run, exit 1, output
+preserved at `docs/research/post-cc103/evidence/baseline-foundation-hypothesis.txt`); off-repo models
+`docs/research/post-cc103/tools/foundation-lever.cjs` and `docs/research/post-cc103/tools/scc-shared-hypothesis.cjs`.

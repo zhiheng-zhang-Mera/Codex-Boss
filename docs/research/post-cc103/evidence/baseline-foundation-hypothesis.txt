@@ -1,0 +1,55 @@
+# Hypothesis test output (post-CC103 closeout, T4)
+
+## H1 -- re-attribution of `src/shared/**` does not dissolve the cycles
+
+**Patch applied (temporarily, then reverted):** removed the 25 exact-file `src/shared/**` entries that a kernel
+reaches from `config/capability-modules.json`'s capability lists and listed them under `exempt`.
+
+**Measured with `node scripts/p2b-kernel-feature-ratchet.cjs --json`:**
+
+```text
+kernelToFeatureFileEdges     49 -> 19
+kernelToFeaturePairs         16 ->  8
+mutualCapabilityPairs        31 -> 23
+largestSccSize               18 -> 18      (UNCHANGED)
+capabilityNodes              29 -> 29
+capabilityEdges             197 -> 177
+filesOwned                  594 -> 574
+edgesToRoads                 75 -> 74
+```
+
+**Verdict of the repository's own instrument on that patch -- it refused it:**
+
+```text
+problems [
+  "owned files FELL to 574, below the recorded 594 (fewer files scanned is not fewer inversions; a file removed
+   from the map, or absorbed by another class to hide its edges, makes the migration look finished without being
+   finished)",
+  "edges to roads FELL to 74, below the recorded 75 (the road edges are published on their own line precisely so
+   they cannot vanish; a fall here is only legitimate when the consumers really stopped using the road)",
+  "capability edges FELL to 177, below the recorded 197 (fewer edges in the graph means fewer cycles found, which
+   is how a knot could be reported as dissolved without being touched)"
+]
+exit code 1
+```
+
+**Exact-file entries removed: 25. Working tree restored from a byte copy taken before the patch; re-verified after
+revert as `edges 49 / pairs 16 / mutual 31 / scc 18 / files 594`, i.e. the work-start baseline exactly.**
+
+## H2 -- an exploratory model of the same patch, for direction only
+
+An independent in-memory model (ownership patched without touching disk) reproduces the same shape:
+
+```text
+BASELINE                                  edges 736  pairs 161  mutual 36  largest SCC 18
+patch: kernel-reached src/shared -> FOUNDATION (25 files)   edges 561  pairs 137  mutual 27  largest SCC 18
+patch: ALL src/shared -> FOUNDATION (216 files)             edges 332  pairs  92  mutual 15  largest SCC 17
+```
+
+The exploratory model's absolute counts differ from the CI instrument (it drops the composition-root and road
+columns), which is why it is used for direction only. Both models agree on the two facts that matter:
+
+```text
+25 attributed src/shared files  ->  mutual pairs fall about a quarter, largest SCC does not move at all
+216 attributed src/shared files ->  mutual pairs roughly halve,  largest SCC falls exactly ONE node
+```

@@ -12,7 +12,8 @@
   "checkpoint_sha": null,
   "completed_tasks": [
     "T1: F0 verified unchanged; F1 created and pushed; work-start drift checked (none); construction branch created and pushed; freeze notice, workbook, state file, extraction map and acceptance template written",
-    "T2: work-start baseline measured with the repository's own instruments (8 reports archived and hashed); OPEN items split into real structural work vs hosted/human boundaries; the old record confirmed identical, not stale; unit suite green at 284 files / 3678 tests"
+    "T2: work-start baseline measured with the repository's own instruments (8 reports archived and hashed); OPEN items split into real structural work vs hosted/human boundaries; the old record confirmed identical, not stale; unit suite green at 284 files / 3678 tests",
+    "T2/T4 analysis: three measurements taken (binding classification 30 runtime / 18 import-position; re-homing leverage 0 SCC nodes from any single file; SCC cost 337 file edges across 60 pairs to reach SCC 10) plus the ownership hypothesis tested and reverted with the real gate refusing it"
   ],
   "active_task": "T3/T4 (BLOCKED as measured, see structural_blocker)",
   "next_action": "Record the measured structural blocker and the priced migration plan; resume T3/T4 only as a multi-round architecture programme, not as a bounded checkpoint.",
@@ -47,7 +48,28 @@
       "evidence": "docs/research/post-cc103/evidence/baseline-scc-what-would-it-take.txt",
       "greedy_is_not_a_lower_bound": true
     },
-    "why_no_shortcut_was_taken": "Workbook section 4.3 and ledger CC-030 refuse count compensation. Re-homing a file, declaring a road, import type, dynamic import, a callback dictionary, a unified event bus, or absorption into the composition-root class are all named as forbidden ways to move this number, and none of them changes the underlying dependency."
+    "measurement_4_ownership_hypothesis": {
+      "hypothesis": "src/shared/** being claimed by feature capabilities explains the 31 mutual pairs and the 18-node SCC, so re-homing that surface dissolves them",
+      "verdict": "REFUTED, and the ratchet refused the patch",
+      "temporary_patch": "the 25 exact-file src/shared entries a kernel reaches were removed from the capability lists and listed under exempt, then reverted byte-for-byte",
+      "measured_with_the_real_gate": {
+        "kernel_to_feature_file_edges": "49 -> 19",
+        "kernel_to_feature_pairs": "16 -> 8",
+        "mutual_capability_pairs": "31 -> 23",
+        "largest_scc_size": "18 -> 18 (UNCHANGED)",
+        "ratchet_exit_code": 1,
+        "ratchet_problems": "owned files FELL to 574 (<594); edges to roads FELL to 74 (<75); capability edges FELL to 177 (<197)"
+      },
+      "exploratory_confirmation": "taking ALL 216 src/shared files out of the capability graph reaches largest SCC 17 -- one node",
+      "conclusion": "the knot lives in electron/** implementations, not in how src/shared is attributed; the strict targets require removing real inter-capability implementation dependencies",
+      "tree_after_revert": "byte-identical to the work-start state; re-verified as edges 49 / pairs 16 / mutual 31 / scc 18 / files 594",
+      "evidence": [
+        "docs/research/post-cc103/evidence/baseline-foundation-hypothesis.txt",
+        "docs/research/post-cc103/tools/foundation-lever.cjs",
+        "docs/research/post-cc103/tools/scc-shared-hypothesis.cjs"
+      ]
+    },
+    "why_no_shortcut_was_taken": "Workbook section 4.3 and ledger CC-030 refuse count compensation, and the ownership hypothesis was tested rather than assumed precisely so the refusal would be measured rather than asserted. Re-homing a file, declaring a road, import type, dynamic import, a callback dictionary, a unified event bus, or absorption into the composition-root class are all forbidden ways to move this number, and the ratchet's own anti-gaming floors caught the one that was actually attempted."
   },
   "process": {
     "workbook_workflow_order": "T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8"
