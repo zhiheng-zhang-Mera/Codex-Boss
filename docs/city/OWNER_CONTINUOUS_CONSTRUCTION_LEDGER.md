@@ -11508,3 +11508,98 @@ research_value              (1) A metric that counts edges by SOURCE owner can b
                             file left the scan) rather than a hypothetical one, which is the second time this round
                             that the anti-gaming rules did real work.
 ```
+
+---
+
+## CC-110 — CC-109's `timestamp_utc` was ten minutes later than the commit that carried it, and the ledger's own control caught it
+
+**1. The defect, and how it surfaced.** The strict gate flipped two items that had been `UNVERIFIED` since CC-104:
+
+```text
+E1  OPEN  "city-ledger-provenance.cjs reports 1 violation(s) in the ledger itself: PROVENANCE CC-109"
+E4  OPEN  "a required historical record is missing"
+```
+
+E4 reads `incidents && entryIds > 0`, and `entryIds` comes from the provenance report — so **one malformed entry made a
+second, unrelated item read as if the ledger had no entries at all.** The cause was mine and it was exact:
+
+```text
+CC-109 records 2026-09-28T18:20:00Z, 10 minutes AFTER the commit that first carried it
+(f5988ea @ 2026-09-29T04:09:52+10:00)
+```
+
+The rule the control enforces is that an entry's timestamp is the moment it was **written**, which precedes the
+commit that carries it by at most **5** minutes. CC-109 wrote a timestamp ten minutes into the future relative to
+its own commit.
+
+**2. Why this happened, stated plainly rather than blamed on the clock.** The timestamps in this round were read from
+the host clock and then written into a file that was committed some minutes later. That is fine while the gap is
+under five minutes and wrong the moment it is not. The earlier entries of this round happened to land inside the
+window (CC-104..CC-108); CC-109 did not, and no amount of care about the clock would fix the underlying fragility —
+the only safe discipline is **read the clock, write the entry, and commit inside the tolerance**, which is what this
+entry does.
+
+**3. The repair, and why it is an append rather than an edit.** CC-109 is already pushed, and the ledger is
+append-only in the sense that matters to this control: the fix is a new entry that records the violation rather than
+a silent rewrite of the offending one. `PROVENANCE` is not on the disclosed-history list in
+`config/city-ledger-provenance.json` and adding it there would be exactly the "make the check pass by listing the id"
+move that file's own `$comment` forbids, so it was not added.
+
+```text
+CC-109's recorded instant            2026-09-28T18:20:00Z  (kept, and now known to be wrong)
+commit that carried it               f5988ea @ 2026-09-29T04:09:52+10:00 = 2026-09-28T18:09:52Z
+delta                                +10 minutes  (tolerance +5)
+disposition                          recorded by this entry; CC-109's text is not rewritten
+```
+
+**4. The consequence for the gate, measured rather than assumed.** E1 and E4 return to `UNVERIFIED` once the ledger
+has no `PROVENANCE` problem, because both are integrity/history boundaries that a working tree cannot close — E1 says
+completeness cannot be proven from the tree and E4 says erasure cannot be disproved from a working tree. Neither is
+discharged by this entry and neither is claimed to be.
+
+**5. What this costs the round, and what it is worth.** Nothing in the structural targets moved, and the next round
+should read this as an operational rule rather than as a study: **the ledger control is on the critical path of every
+entry, and an entry is not finished until `city-ledger-provenance.cjs --json` exits 0.** The check is doing exactly
+what it was built for — it caught a real, self-inflicted inconsistency that would otherwise have sat in the record as
+a false timestamp, in the same family as the two entries it was built to catch at CC-063 and CC-064.
+
+```text
+ENTRY_ID                    CC-110
+timestamp_utc               2026-09-28T18:22:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry. This entry is committed within the same minute, so the +5 minute
+                            tolerance is met by construction rather than by hope -- which is the discipline point 2
+                            records.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. DOCUMENTATION ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             scripts/city-ledger-provenance.cjs --json run through the gate's own `runJson` helper
+                            ({status: 1, entries: 105, ok: false, one PROVENANCE problem on CC-109}); the same
+                            program invoked directly; scripts/city-final-acceptance.cjs --json before and after
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) E1/E4 were UNVERIFIED before CC-109 and return to UNVERIFIED after this entry; they
+                            are not closed by it and must not be reported as closed. (2) CC-109's timestamp stays
+                            wrong in the record on purpose: correcting it in place would erase the evidence that the
+                            control fired, which is the same discipline that keeps a failed CI attempt in the
+                            index. (3) Every later entry in this round must be committed inside the tolerance, and
+                            that is now stated as a rule rather than left to care.
+evidence_preserved          the gate's own message for E1 and E4; the exact delta between CC-109's recorded instant
+                            and its commit's committer instant; the reason E4 was collateral damage of E1
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a CORRECTION of this round's own record. The OBJECTIVE is NOT complete.
+research_value              (1) An integrity control on an append-only ledger is on the critical path of writing the
+                            ledger: the artifact cannot be finished without running the control, and the control's
+                            tolerance is a property of the WORKFLOW (write then commit promptly) rather than of the
+                            entry's content. (2) One malformed entry made an unrelated item read as a different
+                            failure -- E4 reported "a required historical record is missing" when in fact the ledger
+                            had 105 entries and the incident records were present. Cross-item coupling in an
+                            acceptance gate is worth knowing about, and it is only visible when the gate is read
+                            item by item rather than as a single verdict.
+```
