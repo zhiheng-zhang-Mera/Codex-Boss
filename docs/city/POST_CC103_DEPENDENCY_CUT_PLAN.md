@@ -1,5 +1,40 @@
 # The dependency-cut plan: what remains, costed file edge by file edge
 
+> **STATUS AFTER 12 ROUNDS — read this block first.** Measured at checkpoint `3fde2cc` unless a line says otherwise.
+>
+> ```text
+> kernel -> feature file edges          46   (was 49; A2-1, A2-4, A2-5 retired three)
+> mutual capability pairs               28   (was 31; CC-114, CC-118, CC-119 retired three)
+> largest SCC                           18 of 29 nodes   (UNCHANGED by all six removals)
+> MIGRATION_IN_PROGRESS plots           21
+> capability graph                     29 nodes / 194 capability edges
+> Root Trust epoch                      73   MATCHES
+> ```
+>
+> **Three cuts landed, all by ONE technique**, and its boundary is now measured (ledger CC-120):
+>
+> ```text
+> CUTTABLE     a type-only import from another capability, replaced by a local declaration or a narrow port,
+>              pinned at compile time -- when the shared thing is a SMALL UNION (CC-114 seven literals, CC-119 a
+>              template-literal union) or a CLASS the consumer uses a SUBSET of (CC-118: two methods of 554 lines)
+> NOT CUTTABLE a pair held by a SHARED MODULE both sides legitimately use (runtime|tenx, CC-120), by a shared
+>              CONSTRUCTION (automation|providers, CC-117/118), by a shared ALGORITHM (persistence|tasks, CC-113),
+>              or by an INTERFACE too large to redeclare (theme|knowledge, twenty fields, CC-119)
+> ```
+>
+> **STEP 1 below is exhausted at one landing.** Of its seven one-edge cuts, one was real and the other six are two
+> net-neutral, two blocked, one needing the declined A1 route, and one mis-costed — each recorded in CC-117 and
+> CC-118. The remaining work is STEP 2/3, where a file must MOVE or a behaviour must be SPLIT, and the two routes
+> for the 46 S2 edges are deliberately different programmes:
+>
+> ```text
+> ROUTE A  redeclare vocabularies into the kernel   mechanical, one edge each, bounded, and the kernel grows
+> ROUTE B  move implementations                     architectural, riskier, and where the mutual pairs actually live
+> ```
+>
+> **Four governance rules, each paid for with a failed attempt, are in ledger CC-120 §3. Read them before touching
+> anything.** The plan's own history is below, kept as it was written so the corrections stay visible.
+
 > Measured at checkpoint `65df177` with the repository's own instruments, not estimated. The generator is
 > `docs/research/post-cc103/tools/cut-list.cjs` and its output is preserved as
 > `docs/research/post-cc103/evidence/cut-list-r5.txt`, so every number below can be re-derived.
