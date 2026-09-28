@@ -324,6 +324,40 @@ electron/main.ts stays the only composition root           (and is not widened t
 the four kernels keep their `kind` and their real work      (no kernel is emptied to make a count fall)
 ```
 
+### Affected-test mapping (T2 deliverable)
+
+The selection mechanism already exists and is not to be replaced: `node scripts/test-impact.cjs select --base <sha>`
+answers "which suites does this change require" and names its reasons; `audit` reports the catalogue; `verify`
+re-derives the selection against the full suite's file list. Measured at the work-start SHA:
+
+```text
+catalogued suites                 301
+capabilities with suites           28   (only `composition_root` has none, and it is covered by the always-run set)
+unit tier at the work-start SHA    284 files / 3678 tests, all passing
+```
+
+Suites per capability, for the phases above:
+
+```text
+Phase A  persistence 31, status 33, tasks 36, providers 35, runtime 50, workspace 15, tenx 93
+Phase B  persistence 31, tenx 93, state-core 12
+Phase C  workspace 15, persistence 31
+Phase D  providers 35, state-core 12, knowledge 14, status 33, engineering 52, security 26, identity 3, automation 2
+```
+
+Because `tenx` alone carries 93 suites and `engineering` 52, a phase that touches either is an L2/L3 checkpoint rather
+than an L1 one: the workbook's §9.1 tiers apply per semantic unit, and the always-run set (the city validators and the
+architecture governance suites) runs regardless.
+
+### Main user entry points that must keep working
+
+```text
+electron/main.ts            the composition root the application boots through
+electron/preload.ts         the narrowed renderer surface
+the packaged app            `pnpm run package:portable` / `package:installer`; the desktop black-box contract
+                            (`tests/acceptance/desktop-black-box-contract.test.ts`) launches the real application
+```
+
 ## 5. What this map explicitly does NOT promise
 
 ```text
