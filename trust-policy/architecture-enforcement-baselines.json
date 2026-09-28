@@ -685,6 +685,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 24,
+      "baseline_hash": "193a4b9d3f5e664525eab6c96948720580740bcae95e096c898448c6a17403b4",
+      "parent_baseline_hash": "c2d216d8da1af774646a636e7ce73cda2691462e75d0175450c5ccb0ba324125",
+      "source_commit": "bb3d690078f52ae618ca59f0cb8c6a54aacd9293",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the first CYCLE cut of the post-CC103 closeout under the Owner's route A2 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106) and the cut plan (docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md; ledger CC-113). Recorded in ledger CC-114.",
+      "evidence_reference": "docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md; docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-113 (the plan) and CC-114 (this acceptance); electron/protocols/protocol.ts; electron/commander/role-router.ts; tests/unit/protocol-role-vocabulary.test.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-28T19:57:41Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE feature -> feature edge retired: `electron/protocols/protocol.ts -> electron/commander/role-router.ts` (`research -> tenx`). It was the ONLY import in that file and type-only: a seven-literal union was the whole reason `research` reached `tenx`, and it made `research|tenx` one of the 31 mutual capability pairs.",
+        "new_legitimate_relation": "NONE added. `electron/protocols/protocol.ts` declares its own `ProtocolRoleId` union; the commander keeps the authoritative `RoleId` and the routing table that maps roles to runtime capabilities. `tests/unit/protocol-role-vocabulary.test.ts` pins the two unions to each other IN BOTH DIRECTIONS at COMPILE time, so a role added on one side only stops the build rather than passing a runtime check.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "The other six one-edge cuts in the plan's STEP 1 were checked with `docs/research/post-cc103/tools/a2-2-feasibility.cjs` before this one was attempted; this was chosen because the file is a genuine leaf whose only import is the edge itself. `persistence|tasks` remains refused (it would need a second copy of the test-pinned SHA-256 in `src/shared/hash.ts`) and the `workbook-dispatch` group remains blocked by that file's own two `tasks` imports.",
+        "why_the_baseline_moves": "A tracked source file changed: `electron/protocols/protocol.ts` no longer imports `electron/commander/role-router.ts`, so exactly one edge leaves the frozen identity and `internal_edges` falls 1653 -> 1652. The structural ratchets were re-measured: mutual capability pairs 31 -> 30, raw cross-capability total 771 -> 770, capability edges 197 -> 196 (a pair count, so a legitimate fall when a pair stops existing), largest SCC 18 and kernel -> feature 46 both UNCHANGED. Floors not moved: files_owned 594, capabilities_with_kinds 27, composition_root_files 2, road_files 6, edges_to_roads 75."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 609,
+        "internal_edges": 1652,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

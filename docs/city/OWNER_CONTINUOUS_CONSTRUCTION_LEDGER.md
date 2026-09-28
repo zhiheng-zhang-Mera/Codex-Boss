@@ -11986,3 +11986,138 @@ research_value              (1) A costed work list changes what "the remaining w
                             renderer cannot use node:crypto, and refusing it is the correct reading of "do not
                             lower a semantic standard to move a number".
 ```
+
+---
+
+## CC-114 — The first CYCLE cut lands: `research|tenx` stops being a mutual pair, and the SCC does not move
+
+The first cut from `docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md` §4 STEP 1, and the first movement of S3 in this
+whole round. **This round changes tracked source**, so it carries an epoch ceremony like CC-107/111/112.
+
+**1. The cut, and why it was the first one attempted.** The plan's cheapest ten pairs cost ONE edge each, and this
+candidate was checked with `docs/research/post-cc103/tools/a2-2-feasibility.cjs` before the edit: it is a genuine
+leaf whose ONLY import is the edge itself.
+
+```text
+electron/protocols/protocol.ts   owner=research
+  before: import type { RoleId } from "../commander/role-router";   (owner tenx)   <-- the whole file's only import
+  after:  export type ProtocolRoleId = "planner" | "researcher" | "reviewer" | "synthesizer" | "coder" | "validator" | "critic";
+```
+
+A seven-literal union was the entire reason `research` reached `tenx`, and it made `research|tenx` one of the 31
+mutual pairs. The protocol names the roles its steps run; **which runtime a role is routed to, and what capability it
+needs, is the commander's business and is never read here.**
+
+**2. The boundary's one real cost, paid with a compile-time pin rather than a test.** A new role now has to be added
+in two places. `tests/unit/protocol-role-vocabulary.test.ts` pins the two unions to each other **in both directions
+at compile time**:
+
+```text
+type ProtocolIsAssignableToRouter = ProtocolRoleId extends RoleId ? true : never;
+type RouterIsAssignableToProtocol = RoleId extends ProtocolRoleId ? true : never;
+```
+
+If either side gains a member the other lacks, the mutual-assignability checks stop compiling — the build fails
+rather than a runtime assertion. That is a stronger guarantee than the runtime guards A2-1 and A2-5 kept, and it is
+available here because both sides are types with no behaviour.
+
+**3. The measurement.**
+
+```text
+mutual capability pairs               31 -> 30      MOVED (the first time this round)
+raw cross-capability total           771 -> 770
+capability edges (a PAIR count)      197 -> 196     a legitimate fall when a pair stops existing
+largest SCC                           18 -> 18      UNCHANGED
+kernel -> feature file edges          46 -> 46      UNCHANGED -- this cut retired a feature -> feature edge
+floors (files_owned 594, kinds 27, composition-root 2, road_files 6, edges_to_roads 75)  unchanged
+```
+
+**The two unchanged numbers are the finding.** CC-077 measured that breaking one 2-cycle leaves its members mutually
+reachable through other paths, so the component reads 18 until the last cycle is gone — this confirms it on a real
+cut rather than on a planner. And S2 did not move at all, which is the concrete demonstration that **S2 and S3 are
+different work**: three repairs retired S2 edges and moved no cycle, and this repair moved a cycle and retired no S2
+edge.
+
+**4. The governance act.** `config/architecture-enforcement-baseline.json` is a declared Root Trust Surface path and
+the frozen identity changed by exactly one edge (`internal_edges` 1653 → 1652):
+
+```text
+candidate v24 -> recorded as the next ACCEPTED series entry FROM the candidate's own retire/add report (one
+removed, none added) -> accepted after asserting the tracked file matched the series head -> Root Trust epoch
+69 -> 70 (boss-root-trust-70), parent 9b51966 -> bless --check reports MATCHES
+```
+
+Three recorded p2b values were lowered in the same commit, with a script that refused any other key: the mutual-pair
+count, the raw total, and `capability_edges` — the last a PAIR count, which the ratchet's own `$comment` says a
+repair may legitimately lower. Two readbacks moved with the instrument: the 15.7 literal in
+`principle-enforcement-validator.test.ts` and the generated table in `PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md`.
+
+**5. Verification.** Typecheck clean; the ceremony-sensitive suites 94 tests pass; the ratchet reads 30 mutual pairs
+and 196 capability edges and HOLDS; the epoch check passes.
+
+**6. Where the plan stands.** STEP 1 had seven remaining one-edge cuts; one is done and six remain, all still to be
+checked with the feasibility reader before being attempted:
+
+```text
+automation|providers   providers -> automation   electron/bootstrap/provider-pool.ts (constructs ProviderAutomation)
+automation|tenx        tenx -> automation        electron/commander/web-recovery.ts
+knowledge|theme        theme -> knowledge        electron/theme/theme-knowledge.ts
+promotion|status       promotion -> status       src/shared/autonomous-evolution-trust.ts
+research|status        status -> research        src/shared/contracts.ts
+tasks|theme            tasks -> theme            src/shared/workbook-dispatch.ts   (blocked group)
+tenx|theme             theme -> tenx             electron/theme/theme-knowledge.ts
+```
+
+```text
+ENTRY_ID                    CC-114
+timestamp_utc               2026-09-28T20:08:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run. Committed inside the +5 minute tolerance.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (69 -> 70) because config/architecture-enforcement-baseline.json is a declared
+                            Root Trust Surface path and its frozen identity genuinely changed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             node scripts/p2b-kernel-feature-ratchet.cjs --json (mutual pairs 31 -> 30, capability
+                            edges 197 -> 196, HOLDS); scripts/architecture-enforcement-baseline.cjs --check/--accept;
+                            scripts/architecture-baseline-series.cjs --check;
+                            scripts/acceptance-evolution-bless.cjs --advance/--check (epoch 70);
+                            pnpm run typecheck; the ceremony-sensitive suites (94 tests)
+files_or_rules_changed      electron/protocols/protocol.ts; tests/unit/protocol-role-vocabulary.test.ts (new);
+                            config/p2b-kernel-feature-ratchet.json (three values lowered);
+                            config/architecture-enforcement-baseline.json (v23 -> v24);
+                            trust-policy/architecture-enforcement-baselines.json (v24 ACCEPTED);
+                            trust-policy/trust-epoch.json (epoch 70); config/test-catalogue.json;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) The protocol role vocabulary is now declared twice, so a new role must be added in
+                            both places; the compile-time pin makes that a build failure rather than a runtime
+                            surprise, which is the strongest form available for two behaviour-free types. (2) The
+                            Root Trust epoch advanced for one retired edge, so later measurements must quote epoch
+                            70. (3) S3 fell by one of 31 and S4 did not move at all; the strict targets remain
+                            unmet and this entry does not claim otherwise.
+evidence_preserved          the before/after counts with the pair-count floor's legitimate fall; the candidate's own
+                            report showing ONE retired edge; the two UNCHANGED numbers and why they are the finding;
+                            the epoch 69 -> 70 lineage
+rollback                    Ordinary revert of this commit. The epoch advance is in the same commit, so a revert
+                            restores both the surface and the epoch that certifies it; the series keeps v24 as a
+                            historical entry.
+temporary_debt_created      no. No threshold was moved, and the one floor that fell (capability_edges) is a PAIR
+                            count the ratchet explicitly says a repair may lower.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as ONE LANDED CYCLE CUT. The OBJECTIVE is NOT complete.
+research_value              (1) A 2-cycle can be held together by a single TYPE-ONLY import of a seven-literal
+                            union, and the instrument cannot tell that from a runtime dependency -- so the cheapest
+                            cycle cuts are found by reading the importing file, not by ranking the pair table.
+                            (2) Two behaviour-free types can be pinned to each other AT COMPILE TIME, which is a
+                            strictly stronger boundary guarantee than the runtime guards the S2 repairs needed; the
+                            choice of guard should follow whether the shared thing has behaviour. (3) S2 and S3 are
+                            demonstrably different work: three S2 repairs moved no cycle, and this cycle repair
+                            moved no S2 edge. A round that reports only one of the two numbers cannot tell progress
+                            from relocation.
+```

@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 23,
-  "parent_baseline_hash": "9db74b59a98f7db45d4f9342904a7221ed3fa83d7fd863b392b18ff6d6d8922a",
-  "source_commit": "3321fa7d4ea7aee1f479c763f0b0552a346e4c7a",
+  "baseline_version": 24,
+  "parent_baseline_hash": "c2d216d8da1af774646a636e7ce73cda2691462e75d0175450c5ccb0ba324125",
+  "source_commit": "bb3d690078f52ae618ca59f0cb8c6a54aacd9293",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-112/A2-5: electron/store.ts stops importing two policies it never decided -- the conversation-policy guard (the store now declares the set it may persist and keeps its own guard) and isVerificationContract (the guard moves to the producer, electron/commander/main-commander.ts). Two kernel -> feature edges retired; nothing added.",
+  "reason": "CC-114: electron/protocols/protocol.ts declares its own protocol role vocabulary instead of importing RoleId from the tenx commander, retiring the research -> tenx edge and the research|tenx mutual pair. One edge retired; nothing added.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -27,7 +27,7 @@
         "undeclared_files": 576,
         "conflicts": []
       },
-      "edges": 1653,
+      "edges": 1652,
       "unresolved": 1
     }
   },
@@ -4284,10 +4284,6 @@
       "electron/protocols/protocol.ts"
     ],
     [
-      "electron/protocols/protocol.ts",
-      "electron/commander/role-router.ts"
-    ],
-    [
       "electron/provider-api.ts",
       "electron/api-settings.ts"
     ],
@@ -7434,6 +7430,10 @@
       "src/shared/contracts.ts"
     ],
     [
+      "electron/protocols/protocol.ts",
+      "electron/commander/role-router.ts"
+    ],
+    [
       "electron/provider-api.ts",
       "src/shared/contracts.ts"
     ],
@@ -7520,8 +7520,8 @@
     "tracked_source_files": 609,
     "declared_owned_files": 33,
     "undeclared_files": 576,
-    "internal_edges": 1653,
+    "internal_edges": 1652,
     "unresolved_references": 1
   },
-  "baseline_hash": "c2d216d8da1af774646a636e7ce73cda2691462e75d0175450c5ccb0ba324125"
+  "baseline_hash": "193a4b9d3f5e664525eab6c96948720580740bcae95e096c898448c6a17403b4"
 }

@@ -1440,6 +1440,14 @@
       ]
     },
     {
+      "file": "tests/unit/protocol-role-vocabulary.test.ts",
+      "tier": "unit",
+      "covers": [
+        "research",
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/provider-dom-surface.test.ts",
       "tier": "unit",
       "covers": [

@@ -407,7 +407,11 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
     expect(measured("15.5")).toEqual([["p2b:addedLateralLoad", 0]]);
     expect(measured("15.6")).toEqual([["flatness:shapeProblems", 0]]);
     expect(measured("15.7")).toEqual([
-      ["p2b:mutualCapabilityPairs", 31],
+      // 31 -> 30 in CC-114: `electron/protocols/protocol.ts` declared its own protocol role vocabulary instead of
+      // importing `RoleId` from the tenx commander, so `research|tenx` stopped being a mutual pair. The largest SCC
+      // is UNCHANGED at 18, which is the point CC-077 measured: breaking one 2-cycle does not shrink the component,
+      // because its members stay mutually reachable through other paths.
+      ["p2b:mutualCapabilityPairs", 30],
       ["p2b:largestSccSize", 18],
       // 5 -> 3 in CC-072: the dead `ledgerRootUnder()` helper and the test-only smoke writer were both
       // removed, so the p2d instrument found 3 accesses over 2 pairs. 3 -> 0 in CC-076: the two surviving
