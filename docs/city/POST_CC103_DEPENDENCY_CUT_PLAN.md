@@ -104,6 +104,26 @@ constructs `TaskLedger`, `DecisionLedgerStore` and `RuntimeIntelligenceCapture`;
 rule) and A2-3 could not move (it made the cycles worse). They need the implementations relocated into the kernel or
 the need removed.
 
+**(d) STEP 3's target is ONE hub, not a misplaced file.** Measured after STEP 1 was exhausted (CC-117):
+
+```text
+electron/provider-automation.ts   554 lines, owner automation, the orchestration loop
+  imports:  tenx (commander/continuation-router, commander/event-bus)
+            providers (runtimes/runtime, adapters/registry, adapters/page-scripts, provider-api, provider-views,
+                       input/attachment-store, input/attachment-upload, account-sessions)
+            persistence (store)
+            providers (src/shared/provider-contracts, src/shared/provider-policy)
+  imported by: bootstrap/provider-pool.ts (CONSTRUCTS it), bootstrap/research.ts, commander/web-recovery.ts
+               (TYPE only)
+```
+
+Moving this file anywhere re-points edges rather than removing them, and in several directions it would create a
+kernel -> feature edge where a feature -> feature one stands today — the same number of S2 edges, moved. So the
+`automation|providers` and `automation|tenx` pairs cannot be cut by relocating the file: **the automation loop
+genuinely implements behaviour belonging to several capabilities**, and the only honest repairs are to split the
+behaviour or to inject the construction. That is a different kind of work from everything STEP 1 attempted, and it is
+the reason STEP 3 is where the remaining S2 and S3 cost actually lives.
+
 ## 4. Sequencing
 
 ```text
