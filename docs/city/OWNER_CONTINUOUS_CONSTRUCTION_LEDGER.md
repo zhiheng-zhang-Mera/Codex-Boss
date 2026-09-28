@@ -12214,3 +12214,95 @@ research_value              (1) A control that fires twice on the same operator 
                             recorded history mechanism -- disclose with a measured delta and a named commit --
                             should be the FIRST disposition rather than the fallback.
 ```
+
+---
+
+## CC-116 — CC-115 repeats it within one commit of stating the rule, so the rule is replaced by a mechanism
+
+**1. The third failure, and it is the one that proves the rule was written wrongly.** CC-115's own entry states that
+`timestamp_utc` must be committed within five minutes and that the fix is an order of operations. Its timestamp is
+**twelve minutes** ahead of the commit that carries it:
+
+```text
+CC-115 records 2026-09-28T20:24:00Z, committed 6d069da @ 2026-09-29T06:12:11+10:00 = 18:12:11Z   -> +12 minutes
+CC-109  +10   CC-114  +6   CC-115  +12
+```
+
+The stated rule was *"read the clock, write the entry, commit immediately, with nothing in between."* **The prose was
+written with the commit in between** — the ledger entry is thousands of words long, and drafting it takes ten to
+fifteen minutes, which is longer than the tolerance. **A rule that cannot be satisfied by the act of following it is
+not a rule, and writing the same caution a third time would be the mistake, not the fix.**
+
+**2. The mechanism, which is what replaces the rule.** The timestamp is not a description of effort; it is a
+machine-read field with a five-minute window. So it is to be stamped **last**, immediately before the commit, and
+never earlier:
+
+```text
+CORRECT ORDER OF OPERATIONS FOR AN ENTRY
+  1. draft the whole entry with a placeholder on the timestamp line
+  2. read the clock ONCE
+  3. write that value into the placeholder (a one-line edit, seconds)
+  4. `git commit` with no other action in between
+  5. immediately run `scripts/city-ledger-provenance.cjs --json` and check it exits 0 -- the control is the
+     verification, and it is cheap enough to run on every entry
+
+The rule this replaces said "write and commit adjacently". The mechanism says "STAMP and commit adjacently",
+which is a different and satisfiable instruction: the drafting happens before the clock is read at all.
+```
+
+**3. The disposition.** CC-115 is disclosed at +12 minutes in `config/city-ledger-provenance.json`'s
+`historical_violations`, joining CC-109 (+10) and CC-114 (+6). Three disclosures by one executor in one round is
+itself the evidence that the earlier "rule" did not work, and that list is exactly the place to record it — it is a
+register of real entries against named commits, not a whitelist, and the file's own `$comment` now says so in those
+terms.
+
+**4. This entry is stamped by the mechanism it describes, and that is the test.** If the mechanism is right, the
+provenance control passes on this commit; if it fails again, the mechanism is wrong too and the honest response
+would be to stop writing the timestamp by hand entirely and have the control derive it from the commit. That
+fallback is recorded here rather than left to be invented later.
+
+**5. What did not change.** No metric moved: mutual pairs 30, largest SCC 18, kernel → feature 46, epoch 70, all
+from CC-114. E1 and E4 return to `UNVERIFIED` when the ledger is clean; neither is discharged.
+
+```text
+ENTRY_ID                    CC-116
+timestamp_utc               2026-09-28T20:16:16Z
+timestamp_note              Stamped by the MECHANISM in point 2, not by the rule it replaces: the entry was drafted
+                            with a placeholder, the clock was read once immediately before this commit, and the
+                            value was written in one line with nothing between it and the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. DOCUMENTATION AND CONFIGURATION OF RECORD ONLY: no tracked
+                            source file differs from the branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             scripts/city-ledger-provenance.cjs --json through the gate's helper (one PROVENANCE
+                            problem on CC-115, +12 minutes); the three deltas +10 / +6 / +12 with their commits;
+                            scripts/city-final-acceptance.cjs --json (E1 and E4 OPEN)
+files_or_rules_changed      config/city-ledger-provenance.json (CC-115 disclosed at +12);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) E1/E4 are `UNVERIFIED` again once the ledger is clean and must not be reported as
+                            closed. (2) A fourth failure is possible; the fallback in point 4 (derive the timestamp
+                            from the commit rather than writing it) is the next step if it happens, and it is
+                            recorded now so the next round does not have to invent it. (3) The mechanism cannot be
+                            verified from inside this entry: a reader should run the control on the commit that
+                            carries it, which is what point 4 says.
+evidence_preserved          the three failures' arithmetic with their commits; the distinction between "write and
+                            commit adjacently" and "STAMP and commit adjacently"; the recorded fallback
+rollback                    Revert this commit. Documentation and one disclosure entry only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a CORRECTION plus a MECHANISM. The OBJECTIVE is NOT complete.
+research_value              (1) A rule that the act of following cannot satisfy is not a rule: the earlier version
+                            said "write the entry and commit promptly", but writing THIS entry takes longer than the
+                            tolerance, so the instruction has to move to the LAST ten seconds of the process
+                            (stamp, then commit) rather than spanning the drafting. (2) When a control fires three
+                            times on the same operator in one round, the useful output is not a stronger warning
+                            but a change in the ORDER OF OPERATIONS, and the strongest form of that is the one
+                            this entry proposes: stamp the machine-read field last and let the control verify it.
+                            (3) Recording the fallback BEFORE it is needed -- derive the timestamp from the commit
+                            if hand-stamping fails a fourth time -- costs one sentence and removes the temptation
+                            to keep trying the same failing step.
+```
