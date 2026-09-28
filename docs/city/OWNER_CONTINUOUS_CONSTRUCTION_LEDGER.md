@@ -12805,3 +12805,108 @@ research_value              (1) A technique's boundary is more useful than its s
                             (3) The governance rules were each paid for with a failed attempt in this round, and
                             writing them next to the boundary they govern is what makes the hand-off usable.
 ```
+
+---
+
+## CC-121 — The standalone-product condition is evidenced again after the three cuts, locally and hosted
+
+Eleventh round of the post-CC103 closeout. **No cut attempted and no tracked source file changed**: this entry records
+verification evidence for a condition the objective names and that every structural change could have broken —
+`BOSS_STANDALONE_RUNTIME = MUST_REMAIN_FUNCTIONAL`.
+
+**1. Why this needed its own entry.** Three repairs have now changed tracked source (`electron/store.ts` twice,
+`electron/commander/main-commander.ts`, `electron/protocols/protocol.ts`, `electron/commander/web-recovery.ts`,
+`electron/theme/theme-knowledge.ts`), and the workbook's §2.4 makes the standalone product a terminal condition
+alongside the structural targets. The hosted `package` job builds the portable artifact and smoke-tests it, but no
+entry has stated, in one place, that the condition holds **on a commit that contains the cuts**.
+
+**2. The hosted evidence, per SHA.**
+
+```text
+run 36480369730   head 166518d (contains CC-114, CC-118 and the readiness repairs)
+  quality        completed success  109124222744
+  architecture   completed success  109124223160
+  unit           completed success  109124549156
+  acceptance     completed success  109128283897
+  package        completed success  109128283999   <-- builds the portable artifact and smoke-tests it
+```
+
+`166518d` is the checkpoint after the second cycle cut, so the five jobs cover a tree in which two of the three
+source-changing cuts are present. `dcc61a4` (the CC-118 commit itself) also completed `success`, and the runs for the
+later heads are queued as this is written — recorded as pending rather than claimed.
+
+**3. The local evidence, at `67b9314`** — the newest commit, which contains all three cuts:
+
+```text
+pnpm run typecheck        exit 0
+pnpm test                 285 files / 3680 tests, exit 0
+pnpm run build            exit 0  (renderer bundle 293.73 kB, CSS 45.83 kB, theme-measure 2.87 kB,
+                                   index.html 0.46 kB; "built in 2.15s")
+pnpm run test:postbuild   8 files / 119 tests, exit 0
+```
+
+The postbuild tier is the one that matters for this condition: its own comment says these suites read the REAL
+`dist/` and `dist-electron/` output, so they cannot pass until something has built the application — "making these
+tests skip when the build is missing would turn 'we verified the build identity' into 'we did not look'". Running
+them after a successful build is therefore the local form of the standalone claim, and it passed on a tree carrying
+all three cuts.
+
+**4. What this does and does not establish.**
+
+```text
+ESTABLISHED   the application typechecks, builds, and its build-dependent suites pass on a commit containing every
+              source-changing cut of this round; the hosted pipeline's `package` job was green on the run whose head
+              contains two of the three.
+NOT           that a human has opened the application (that is the single remaining Owner session, unspent);
+NOT           that every provider, network path or multi-device case works (the workbook forbids claiming that);
+NOT           that the strict structural targets are met -- they are not: S2 46, S3 28, S4 18.
+```
+
+**5. The measurement to keep the record honest.** A build and a test tier are not a substitute for the structural
+work, and this entry does not present them as progress on S2/S3/S4. Nothing moved:
+
+```text
+kernel -> feature file edges   46   (unchanged)
+mutual capability pairs        28   (unchanged)
+largest SCC                    18   (unchanged)
+```
+
+```text
+ENTRY_ID                    CC-121
+timestamp_utc               2026-09-28T21:03:19Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. VERIFICATION ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            36480369730 (head 166518d, five jobs completed/success); 36480339448 (head dcc61a4,
+                            completed/success); later heads queued at the time of writing
+checks_observed             pnpm run typecheck; pnpm test (285 files / 3680 tests); pnpm run build; pnpm run
+                            test:postbuild (8 files / 119 tests); the hosted run's per-job ids and conclusions read
+                            from gh
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The local build ran on the executor's host, so it is evidence about THIS tree and
+                            platform, not about a clean runner — which is what the hosted `package` job is for, and
+                            it was green on a head containing two of the three cuts rather than all three. (2) The
+                            postbuild tier is eight files; it is the tier that reads the build, not a full product
+                            test. (3) No human has opened the application.
+evidence_preserved          the per-job ids and conclusions for the green run; the four local command results with
+                            the build's own output sizes; the explicit list of what is NOT established
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as VERIFICATION EVIDENCE. The OBJECTIVE is NOT complete.
+research_value              (1) A terminal condition that every repair could break needs its own entry per round
+                            rather than an assumption inherited from the last one: the point of recording it is that
+                            it was MEASURED on a tree containing the cuts, not that it was true before them.
+                            (2) The postbuild tier's design — refuse to skip when the build is missing — is what
+                            makes "the app still builds" a checkable claim instead of a hopeful one, and running it
+                            after `pnpm run build` is the cheapest local form of that claim. (3) Stating what the
+                            evidence does NOT establish, next to what it does, is what stops a green build from
+                            being read as a met structural target.
+```
