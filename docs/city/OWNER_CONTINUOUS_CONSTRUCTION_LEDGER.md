@@ -12121,3 +12121,96 @@ research_value              (1) A 2-cycle can be held together by a single TYPE-
                             moved no S2 edge. A round that reports only one of the two numbers cannot tell progress
                             from relocation.
 ```
+
+---
+
+## CC-115 — CC-114's timestamp was six minutes ahead of its commit: the discipline failed a second time, so it is now a stated rule
+
+**1. The defect, and that it is the second one.** The strict gate flipped E1 and E4 back to `OPEN` for the same
+reason as CC-110:
+
+```text
+CC-114 records 2026-09-28T20:08:00Z, 6 minutes AFTER the commit that first carried it
+(995823b @ 2026-09-29T06:02:23+10:00 = 18:02:23Z)  -- tolerance is +5
+```
+
+CC-110 recorded this exact failure mode for CC-109 and wrote the discipline down: *read the clock, write the entry,
+commit inside the tolerance*. **CC-114 broke it anyway**, which means the discipline was recorded as a lesson rather
+than as a step. That is the honest reading, and the fix is procedural rather than another note:
+
+```text
+RULE (now written where the work starts, not where it is regretted):
+an entry's `timestamp_utc` must be chosen so that the commit carrying it happens WITHIN FIVE MINUTES. Writing the
+entry from a clock read taken earlier in the round does not satisfy that, because the gap grows with everything
+that happens in between -- a ceremony, a baseline accept, a test run. The safe form is: read the clock, write the
+entry, commit IMMEDIATELY, with nothing between.
+
+The arithmetic of the two failures, for the record:
+  CC-109  wrote 18:20:00Z, committed 18:09:52Z  -> +10 minutes
+  CC-114  wrote 20:08:00Z, committed 18:02:23Z  -> +6 minutes   (the clock was read once and reused later)
+```
+
+**2. The repair, and this time the disposition is disclosure on the FIRST attempt.** CC-110 tried an append-only
+correction first and had to fix a MONOTONE violation it created (a correction timestamped before the entry it
+corrected), then disclosed. This entry does it in one step:
+
+```text
+CC-114's recorded instant  2026-09-28T20:08:00Z   KEPT (the field is a record of what the entry actually said)
+disposition               disclosed in config/city-ledger-provenance.json's historical_violations as +6 minutes,
+                          with the commit named, exactly as CC-109 was
+this entry's instant       read from the clock immediately before this commit and committed with nothing in between
+```
+
+`PROVENANCE` is still NOT added to any whitelist and `historical_violations` is not a whitelist: the two ids in it
+are a real entry with a real measured delta and a named commit, which is what the file's own `$comment` says the
+list is for.
+
+**3. Why the same mistake twice is worth its own entry rather than a quiet fix.** The first time, the cause looked
+like a one-off: a timestamp typed for a commit that happened later. The second time shows it is a **step that is
+missing from the round's own procedure**, and the round has a mechanism for that — it writes the step down where the
+work starts. A reader of this ledger should be able to see that the discipline exists *because* it failed twice, and
+that the fix is in the order of operations rather than in more care.
+
+**4. What did not change.** No metric moved. The mutual-pair count stays at 30 and the largest SCC at 18 from
+CC-114; the epoch stays at 70. E1 and E4 return to `UNVERIFIED` once the ledger is clean, which is what they were
+before this round's entry, and neither is discharged.
+
+```text
+ENTRY_ID                    CC-115
+timestamp_utc               2026-09-28T20:24:00Z
+timestamp_note              Read from the host clock immediately before this commit and committed with nothing in
+                            between, which is the rule point 1 states and the thing CC-109 and CC-114 both failed.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. DOCUMENTATION AND CONFIGURATION OF RECORD ONLY: no tracked
+                            source file differs from the branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             scripts/city-ledger-provenance.cjs --json through the gate's own helper (one PROVENANCE
+                            problem on CC-114, +6 minutes); scripts/city-final-acceptance.cjs --json (E1 and E4 both
+                            OPEN, which is what made the defect visible); the +5 minute tolerance in
+                            config/city-ledger-provenance.json
+files_or_rules_changed      config/city-ledger-provenance.json (CC-114 disclosed at +6);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) E1/E4 are `UNVERIFIED` again once this lands and must not be reported as closed.
+                            (2) CC-114's timestamp stays wrong on purpose; correcting it in place would erase the
+                            evidence that the control fired twice. (3) The rule in point 1 is procedural and can be
+                            broken a third time; the difference now is that it is stated as an ORDER OF OPERATIONS
+                            rather than as a caution, so breaking it means skipping a step rather than forgetting a
+                            warning.
+evidence_preserved          both failures' arithmetic (the +10 and the +6 with their commits); the one-step repair
+                            disposition; the reason the metric numbers are unchanged
+rollback                    Revert this commit. Documentation and one disclosure entry only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a CORRECTION of this round's own record. The OBJECTIVE is NOT complete.
+research_value              (1) A control that fires twice on the same operator is telling you the workflow lacks a
+                            step, not that the operator lacks care: the timestamp's meaning ("the moment it was
+                            written") makes the write-to-commit gap a PROCEDURAL quantity, and the only reliable
+                            form is to write and commit adjacently. (2) The first repair attempt (append-only
+                            correction) created a second violation of a different rule (MONOTONE), which is why the
+                            recorded history mechanism -- disclose with a measured delta and a named commit --
+                            should be the FIRST disposition rather than the fallback.
+```

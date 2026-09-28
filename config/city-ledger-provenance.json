@@ -17,7 +17,7 @@
     "CC-020": "no ENTRY_ID/timestamp_utc block: the entry is prose under a `## CC-020` heading"
   },
   "historical_violations": {
-    "$comment": "Entries whose recorded timestamp is LATER than the committer instant of the commit that first carried them, by more than the +5 minute tolerance. Measured with `node scripts/city-ledger-provenance.cjs --json`: 26 entries, from +7 minutes (CC-025) to +606 minutes (CC-014); CC-109 was added by CC-110 after this round's own entry was written 10 minutes ahead of its commit, and is disclosed rather than rewritten because the commit is already published. These values are preserved as evidence -- the ledger is append-only and the defect is a record of what the field actually said, so it is disclosed and grandfathered, not rewritten. CC-109 is the first entry added after the control existed and was introduced by the same executor who wrote the control; it is listed for the same reason as the rest, and its own ledger entry (CC-110) records how it happened. The mechanism is analysed in ledger CC-065.",
+    "$comment": "Entries whose recorded timestamp is LATER than the committer instant of the commit that first carried them, by more than the +5 minute tolerance. Measured with `node scripts/city-ledger-provenance.cjs --json`: 27 entries, from +7 minutes (CC-025) to +606 minutes (CC-014). TWO were added during the post-CC103 closeout by the same executor who was running the control: CC-109 by CC-110 (+10 minutes) and CC-114 by CC-115 (+6 minutes). Both are disclosed rather than rewritten because their commits are published, and CC-115 records why the same discipline failed twice and what the procedural fix is. These values are preserved as evidence -- the ledger is append-only and the defect is a record of what the field actually said, so it is disclosed and grandfathered, not rewritten. CC-109 is the first entry added after the control existed and was introduced by the same executor who wrote the control; it is listed for the same reason as the rest, and its own ledger entry (CC-110) records how it happened. The mechanism is analysed in ledger CC-065.",
     "CC-008": 20,
     "CC-013": 601,
     "CC-014": 606,
@@ -42,7 +42,8 @@
     "CC-062": 473,
     "CC-063": 446,
     "CC-064": 455,
-    "CC-109": 10
+    "CC-109": 10,
+    "CC-114": 6
   },
   "historical_violations_note": "26 ids are listed for 27 violating ENTRIES: CC-027 appears twice in the ledger (two `## CC-027` sections under one ENTRY_ID, at lines 2041 and 2182) and only the later one violates the tolerance. CC-109 is the only entry in this list that was written AFTER the control existed; it is disclosed rather than rewritten because its commit is published, and CC-110 records the discipline that prevents a recurrence. The duplicate id is itself recorded here because a control that silently collapsed the two would be hiding an entry.",
   "timestamp_hygiene_violations": {
