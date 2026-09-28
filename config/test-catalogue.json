@@ -2276,6 +2276,14 @@
       ]
     },
     {
+      "file": "tests/unit/web-recovery-automation-port.test.ts",
+      "tier": "unit",
+      "covers": [
+        "automation",
+        "tenx"
+      ]
+    },
+    {
       "file": "tests/unit/web-recovery-r6.test.ts",
       "tier": "unit",
       "covers": [

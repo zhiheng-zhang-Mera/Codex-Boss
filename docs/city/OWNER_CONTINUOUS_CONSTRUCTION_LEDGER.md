@@ -12419,3 +12419,135 @@ research_value              (1) Ordering work by a metric's per-item COUNT does 
                             redirects the next round to STEP 2/3 instead of spending it on attempts that would
                             each end in a revert.
 ```
+
+---
+
+## CC-118 — The second CYCLE cut: a type-only import of a CLASS is cuttable if the consumer only drives two behaviours
+
+The second cut from the cut plan, and the first one CC-117 did **not** refuse. **This round changes tracked source**,
+so it carries a Root Trust ceremony like CC-107/111/112/114.
+
+**1. What was cut, and why CC-117's finding had an exception.** CC-117 recorded that `automation|tenx` was blocked
+"because the consumer imports the CLASS as a type". That was true of `provider-pool.ts` and **not** of the other
+consumer:
+
+```text
+electron/commander/web-recovery.ts   owner=tenx
+  before: import type { ProviderAutomation } from "../provider-automation";
+          constructor(..., private readonly automation: () => ProviderAutomation, ...)
+  after:  export interface RecoveryAutomationPort { resumePending(taskId: string): Promise<void>;
+                                                     dispatchTask(taskId: string): Promise<void>; }
+```
+
+Web recovery drives exactly **two** behaviours of the 554-line automation loop —
+`this.automation().resumePending(task.id)` and `this.automation().dispatchTask(task.id)`. That import was the ONLY
+reason `tenx` reached `automation`, and therefore the only reason `automation|tenx` was one of the mutual capability
+pairs. A port of two methods is not a restatement of the class; it is what the consumer actually needs.
+
+**2. The boundary is pinned in BOTH directions, at compile time.**
+
+```text
+tests/unit/web-recovery-automation-port.test.ts
+  1. a TWO-METHOD STUB satisfies RecoveryAutomationPort  -> the port is narrow, not the class restated
+  2. ProviderAutomation extends RecoveryAutomationPort   -> the real instance type is still assignable, so no caller
+                                                            changes and the port cannot drift from the implementation
+```
+
+If the loop's signatures change, check 2 stops compiling: the build fails rather than a call going silently
+somewhere else. **This is the second cut in a row where a compile-time pin was available because the shared thing is
+a type rather than a behaviour** — the pattern CC-114 found, now with a second instance.
+
+**3. The measurement.**
+
+```text
+mutual capability pairs               30 -> 29      MOVED
+raw cross-capability total           770 -> 769
+capability edges (a PAIR count)      196 -> 195     a legitimate fall when a pair stops existing
+largest SCC                           18 -> 18      UNCHANGED
+kernel -> feature file edges          46 -> 46      UNCHANGED
+floors (files_owned 594, kinds 27, composition-root 2, road_files 6, edges_to_roads 75)  unchanged
+```
+
+The two unchanged numbers are the same finding as CC-114, now confirmed a second time: **breaking a 2-cycle does not
+shrink the component** (CC-077 measured it; two real cuts have now reproduced it), and a cycle cut does not move S2.
+
+**4. What was NOT attempted, and why.** The sibling pair `automation|providers` (one edge, `providers -> automation`)
+stays: `provider-pool.ts` **constructs** `ProviderAutomation` and derives twelve `ConstructorParameters` types from
+it, so that one needs the construction moved into the composition root and the pool's rebuild-on-new-window
+behaviour redone — STEP 3 work. CC-117 measured the loop as a 554-line hub of providers, tenx and persistence, so
+relocating the file would re-point edges rather than remove them.
+
+**5. The governance act.** `config/architecture-enforcement-baseline.json` is a declared Root Trust Surface path and
+the frozen identity changed by exactly one edge (`internal_edges` 1652 → 1651):
+
+```text
+candidate v25 -> recorded as the next ACCEPTED series entry FROM the candidate's own retire/add report (one
+removed, none added), which also records that the sibling `automation|providers` pair was declined with its reason
+-> accepted after asserting the tracked file matched the series head -> Root Trust epoch 70 -> 71
+(boss-root-trust-71), parent 9eb6f21 -> bless --check reports MATCHES
+```
+
+Three p2b values were lowered in the same commit with a script that refused any other key. Two readbacks moved with
+the instrument: the 15.7 literal in `principle-enforcement-validator.test.ts` and the generated table in
+`PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md`; `config/test-catalogue.json` gained the new suite.
+
+**6. Verification.** Typecheck clean; the ceremony-sensitive suites 118 tests pass; the ratchet reads 29 mutual
+pairs, 195 capability edges and HOLDS; the epoch check passes.
+
+**7. Where S3 stands.** Two of the 31 mutual pairs are gone (29 left), both by the same technique: a type-only import
+that can be replaced by a narrow port pinned at compile time. The plan's ¥4 STEP 2 is where the rest live, and every
+one of them needs a file to move or a behaviour to split.
+
+```text
+ENTRY_ID                    CC-118
+timestamp_utc               2026-09-28T20:31:48Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (70 -> 71) because config/architecture-enforcement-baseline.json is a declared
+                            Root Trust Surface path and its frozen identity genuinely changed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             node scripts/p2b-kernel-feature-ratchet.cjs --json (mutual pairs 30 -> 29, capability
+                            edges 196 -> 195, HOLDS); scripts/architecture-enforcement-baseline.cjs --check/--accept;
+                            scripts/architecture-baseline-series.cjs --check;
+                            scripts/acceptance-evolution-bless.cjs --advance/--check (epoch 71);
+                            pnpm run typecheck; the ceremony-sensitive suites (118 tests)
+files_or_rules_changed      electron/commander/web-recovery.ts; tests/unit/web-recovery-automation-port.test.ts (new);
+                            config/p2b-kernel-feature-ratchet.json (three values lowered);
+                            config/architecture-enforcement-baseline.json (v24 -> v25);
+                            trust-policy/architecture-enforcement-baselines.json (v25 ACCEPTED);
+                            trust-policy/trust-epoch.json (epoch 71); config/test-catalogue.json;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) `RecoveryAutomationPort` is a second declaration of two signatures, so a change to
+                            the loop's method shapes must reach it; the compile-time pin makes that a build failure
+                            rather than a runtime surprise. (2) The Root Trust epoch advanced for one retired edge,
+                            so later measurements must quote epoch 71. (3) S3 fell by one of 31 and S4 did not move;
+                            the strict targets remain unmet.
+evidence_preserved          the before/after counts with the pair-count floor's legitimate fall; the candidate's
+                            report showing ONE retired edge and the declined sibling with its reason; the two
+                            UNCHANGED numbers as the second confirmation of CC-077; the epoch 70 -> 71 lineage
+rollback                    Ordinary revert of this commit. The epoch advance is in the same commit, so a revert
+                            restores both the surface and the epoch that certifies it; the series keeps v25 as a
+                            historical entry.
+temporary_debt_created      no. No threshold was moved, and the one floor that fell (capability_edges) is a PAIR
+                            count the ratchet explicitly says a repair may lower.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as ONE LANDED CYCLE CUT. The OBJECTIVE is NOT complete.
+research_value              (1) A blanket finding needs an exception check before it becomes a plan: CC-117 recorded
+                            "this pair is blocked because the consumer imports the class as a type", and that was
+                            true of ONE consumer while the other needed two methods. The pair was cut in the next
+                            round because the finding was written with its evidence (the two importers) rather than
+                            as a verdict. (2) The same technique now has two instances: a type-only import can be
+                            replaced by a narrow port whenever the consumer drives a SUBSET of the shared surface,
+                            and the port can then be pinned at compile time. That is the cheapest cut shape found
+                            so far, and it is cheaper than the one-edge cuts CC-117 refused. (3) CC-077's "S4 is a
+                            cliff, not a slope" has now been reproduced on two real repairs rather than on a
+                            planner, which is what makes it usable as a planning assumption.
+```

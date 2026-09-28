@@ -1,13 +1,37 @@
 import type { ProviderRun, Provider } from "../../src/shared/provider-contracts";
 import type { StateStore } from "../store";
 import type { ProviderViews } from "../provider-views";
-import type { ProviderAutomation } from "../provider-automation";
 import { adapterFor } from "../adapters/registry";
 import { probeScript, type PageProbe } from "../adapters/page-scripts";
 import { classifyRepairNeed } from "../../src/shared/computer-recovery";
 import { BudgetManager } from "./budget-manager";
 import { RecoveryScheduler, type RecoveryResult, type RecoveryWakeup } from "./recovery-scheduler";
 type WebRecoveryStrategy = "CAPTURE_EXISTING" | "RETRY_UNSENT";
+
+/**
+ * The narrow slice of the automation loop web recovery drives.
+ *
+ * CC-118 cut (docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md): this file used to `import type { ProviderAutomation }`
+ * and take `() => ProviderAutomation`, which is the ONLY reason `tenx` reached `automation` — and therefore the only
+ * reason `automation|tenx` was one of the mutual capability pairs. Web recovery drives exactly two behaviours of
+ * that loop, so it declares those two:
+ *
+ * ```text
+ * this.automation().resumePending(task.id)   (CAPTURE_EXISTING)
+ * this.automation().dispatchTask(task.id)    (RETRY_UNSENT)
+ * ```
+ *
+ * The real automation still satisfies this interface structurally, so the composition root passes it unchanged.
+ * Guarded by `tests/unit/web-recovery-automation-port.test.ts`, which asserts both directions: the port is
+ * satisfied by a two-method stub AND by the real `ProviderAutomation` instance type.
+ *
+ * This is a PORT, not a copy: if the loop's signatures change, the caller stops typechecking rather than silently
+ * calling something else.
+ */
+export interface RecoveryAutomationPort {
+  resumePending(taskId: string): Promise<void>;
+  dispatchTask(taskId: string): Promise<void>;
+}
 
 /**
  * §26/§28 guarded Computer-Use repair hook (P0-6 R6 slot). Injected by the
@@ -20,7 +44,7 @@ export type WebRecoveryRepair = (input: { taskId: string; providerId: string; ru
 
 export class WebRecovery {
   constructor(private readonly store: StateStore, private readonly views: ProviderViews,
-    private readonly automation: () => ProviderAutomation, private readonly provider: (id: string) => Provider,
+    private readonly automation: () => RecoveryAutomationPort, private readonly provider: (id: string) => Provider,
     private readonly queue: RecoveryScheduler, private readonly budgets: BudgetManager,
     private readonly repair?: WebRecoveryRepair) {
     queue.register("web", (record) => this.resume(record));

@@ -716,6 +716,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 25,
+      "baseline_hash": "9d8856925860e7c0c205d0fbb68e8aeec982b8b0a56330aa93a1d7ed3325dfa2",
+      "parent_baseline_hash": "193a4b9d3f5e664525eab6c96948720580740bcae95e096c898448c6a17403b4",
+      "source_commit": "72f9bfe06fbb7e0d6634b5457dffedaf55952c77",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the second CYCLE cut of the post-CC103 closeout under the Owner's route A2 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106) and the cut plan (docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md; ledger CC-113/CC-117). Recorded in ledger CC-118.",
+      "evidence_reference": "docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md; docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-117 (the measurement that named this candidate) and CC-118; electron/commander/web-recovery.ts; electron/provider-automation.ts; tests/unit/web-recovery-automation-port.test.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-28T20:30:18Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE feature -> feature edge retired: `electron/commander/web-recovery.ts -> electron/provider-automation.ts` (`tenx -> automation`). It was a TYPE-ONLY import of the automation CLASS, and it was the only reason `tenx` reached `automation`, which made `automation|tenx` one of the mutual capability pairs.",
+        "new_legitimate_relation": "NONE added. `electron/commander/web-recovery.ts` declares `RecoveryAutomationPort` with the two behaviours it drives (`resumePending`, `dispatchTask`); the real `ProviderAutomation` satisfies it structurally, so the composition root passes the same object with no caller change. `tests/unit/web-recovery-automation-port.test.ts` pins the port in BOTH directions at COMPILE time: a two-method stub satisfies it (so it is narrow, not the class restated) AND the real instance type is assignable to it (so it cannot drift from the implementation).",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "The sibling `automation|providers` pair (one edge, `providers -> automation`) was NOT attempted: `electron/bootstrap/provider-pool.ts` CONSTRUCTS `ProviderAutomation` and derives twelve `ConstructorParameters` types from it, and removing that means moving the construction into the composition root and re-doing the pool's rebuild-on-new-window behaviour. That is STEP 3 work, and CC-117 measured that the automation loop is a 554-line hub of providers, tenx and persistence, so relocating it re-points edges rather than removing them.",
+        "why_the_baseline_moves": "A tracked source file changed: `electron/commander/web-recovery.ts` no longer imports `electron/provider-automation.ts`, so exactly one edge leaves the frozen identity and `internal_edges` falls 1652 -> 1651. The structural ratchets were re-measured: mutual capability pairs 30 -> 29, raw cross-capability total 770 -> 769, capability edges 196 -> 195 (a pair count), largest SCC 18 and kernel -> feature 46 both UNCHANGED. Floors not moved: files_owned 594, capabilities_with_kinds 27, composition_root_files 2, road_files 6, edges_to_roads 75."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 609,
+        "internal_edges": 1651,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }

@@ -1,10 +1,10 @@
 {
   "schema": "city-architecture-enforcement-baseline/1",
-  "baseline_version": 24,
-  "parent_baseline_hash": "c2d216d8da1af774646a636e7ce73cda2691462e75d0175450c5ccb0ba324125",
-  "source_commit": "bb3d690078f52ae618ca59f0cb8c6a54aacd9293",
+  "baseline_version": 25,
+  "parent_baseline_hash": "193a4b9d3f5e664525eab6c96948720580740bcae95e096c898448c6a17403b4",
+  "source_commit": "72f9bfe06fbb7e0d6634b5457dffedaf55952c77",
   "generated_by": "node scripts/architecture-enforcement-baseline.cjs --reason \"<reason>\"",
-  "reason": "CC-114: electron/protocols/protocol.ts declares its own protocol role vocabulary instead of importing RoleId from the tenx commander, retiring the research -> tenx edge and the research|tenx mutual pair. One edge retired; nothing added.",
+  "reason": "CC-118: electron/commander/web-recovery.ts declares RecoveryAutomationPort instead of importing the ProviderAutomation type from the automation capability, retiring the tenx -> automation edge and the automation|tenx mutual pair. One edge retired; nothing added.",
   "sensor": {
     "spec_path": "docs/city/PHASE0_ARCHITECTURE_OBSERVATORY_SPEC.md",
     "spec_commit": "76b2f495f57928f34823f6ce17176890963e846e",
@@ -27,7 +27,7 @@
         "undeclared_files": 576,
         "conflicts": []
       },
-      "edges": 1652,
+      "edges": 1651,
       "unresolved": 1
     }
   },
@@ -1878,10 +1878,6 @@
     [
       "electron/commander/web-recovery.ts",
       "electron/commander/recovery-scheduler.ts"
-    ],
-    [
-      "electron/commander/web-recovery.ts",
-      "electron/provider-automation.ts"
     ],
     [
       "electron/commander/web-recovery.ts",
@@ -7347,6 +7343,10 @@
     ],
     [
       "electron/commander/web-recovery.ts",
+      "electron/provider-automation.ts"
+    ],
+    [
+      "electron/commander/web-recovery.ts",
       "src/shared/contracts.ts"
     ],
     [
@@ -7520,8 +7520,8 @@
     "tracked_source_files": 609,
     "declared_owned_files": 33,
     "undeclared_files": 576,
-    "internal_edges": 1652,
+    "internal_edges": 1651,
     "unresolved_references": 1
   },
-  "baseline_hash": "193a4b9d3f5e664525eab6c96948720580740bcae95e096c898448c6a17403b4"
+  "baseline_hash": "9d8856925860e7c0c205d0fbb68e8aeec982b8b0a56330aa93a1d7ed3325dfa2"
 }
