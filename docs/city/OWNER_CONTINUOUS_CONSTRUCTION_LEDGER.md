@@ -13006,3 +13006,112 @@ research_value              (1) A freeze claim is worth re-measuring at the END 
                             own validators closes the loop between "we recorded evidence" and "the evidence still
                             resolves", at the cost of two commands.
 ```
+
+---
+
+## CC-124 — A reproducible feasibility table for the remaining 28 pairs, and the refined cheap end
+
+Fourteenth round of the post-CC103 closeout. **No cut attempted and no tracked source file changed.** This entry
+replaces ad-hoc feasibility checks with a reader that classifies EVERY remaining mutual pair's cheaper direction, and
+records what its first run changes about the candidate list.
+
+**1. Why a tool rather than another manual pass.** The pair table ranks by EDGE COUNT, and this round has shown five
+times that edge count does not predict cuttability. What decides it is **what the consumer imports** — a union, a
+class used partially, an interface, a value, or an inline `import("...")` type. `docs/research/post-cc103/tools/cut-feasibility.cjs`
+walks every pair that is still mutually dependent, takes the cheaper direction, opens each carrying file, and derives
+the imported symbol's kind **from the repository's own source** rather than from a list kept by hand. Its output is
+preserved as `docs/research/post-cc103/evidence/cut-feasibility-r14.txt`.
+
+```text
+mutually dependent pairs           28
+cheaper-direction edges            84
+pairs with a CUTTABLE-UNION edge    8
+pairs entirely UNKNOWN              0
+```
+
+**2. The cheap end, as classified.**
+
+```text
+ 1  automation|providers   providers -> automation    VALUE            provider-pool.ts CONSTRUCTS ProviderAutomation
+ 1  knowledge|theme        theme -> knowledge         MAYBE-IF-SMALL   theme-knowledge.ts imports the KnowledgeCandidate INTERFACE
+ 1  persistence|tasks      tasks -> persistence       VALUE            workbook.ts imports the SHA-256 PRIMITIVES
+ 1  promotion|status       promotion -> status        VALUE            autonomous-evolution-trust.ts imports CAPABILITY_GATES
+ 1  research|status        status -> research         INLINE-TYPE      contracts.ts: import("./research-protocol").ResearchProtocol
+ 1  tasks|theme            tasks -> theme             INLINE-TYPE      workbook-dispatch.ts: import("./ui-surface").UISurfaceSummary
+ 1  tasks|workspace        tasks -> workspace         INLINE-TYPE      workbook-dispatch.ts: import("./repo-world-model").WorldModelSummary
+ 2  engineering|knowledge  engineering -> knowledge   VALUE + UNION    ...
+```
+
+**3. What the first run changed, and it is a correction to my own earlier reading.** Three of the seven one-edge cuts
+are held by an **inline type import** — `import("./x").T` inside a signature — which the repository's edge instrument
+DOES count as an edge (the enforcement baseline records type-only imports too, verified in CC-117). I had classified
+`tasks|theme` and `tasks|workspace` as `VALUE` in the CC-117 pass by reading the import lines too quickly; this run
+shows the edges are type-only:
+
+```text
+src/shared/workbook-dispatch.ts (owner tasks)
+  ui_surfaces?:  import("./ui-surface").UISurfaceSummary          -> tasks|theme
+  world_model?:  import("./repo-world-model").WorldModelSummary   -> tasks|workspace
+```
+
+and both targets are **small**:
+
+```text
+WorldModelSummary   17 lines, primitive fields plus one `RepoWorkspaceBoundary["kind"]` and one inline object
+UISurfaceSummary    12 lines, primitive fields plus `UISurfaceId[]` and two `typeof ..._VERSION`
+```
+
+So the two `tasks` pairs are candidates of exactly the shape the three landed cuts had — a type-only dependency on a
+**small** shape — with one caveat that is visible in the measured size: both summaries reference a `typeof` version
+constant and one references another type, so a local redeclaration has to reach those two constants rather than just
+the literals. That is a bounded cost, not a blocker, and it is the cheapest pair on the table after the three landed.
+
+**4. What did NOT change.** `automation|providers`, `persistence|tasks`, `promotion|status` and `knowledge|theme`
+remain refused or blocked for the reasons already recorded (a construction, an algorithm the renderer depends on, a
+value table, and a twenty-field interface respectively). The table confirms each classification from source instead of
+from memory, which is the point of the tool.
+
+**5. The honest position.** Two new candidates are identified, neither attempted. The strict targets are unchanged:
+S2 46, S3 28, S4 18.
+
+```text
+ENTRY_ID                    CC-124
+timestamp_utc               2026-09-28T21:27:16Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             the new cut-feasibility reader over all 28 mutually dependent pairs (its output kept as
+                            evidence); the three inline type imports read directly from their files; the two
+                            interfaces measured by brace matching (17 and 12 lines)
+files_or_rules_changed      docs/research/post-cc103/tools/cut-feasibility.cjs (new);
+                            docs/research/post-cc103/evidence/cut-feasibility-r14.txt (new);
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry)
+known_risk                  (1) The classifier decides symbol kind by regex over the target file, so a symbol declared
+                            unusually could be classified UNKNOWN — it reported zero UNKNOWN, which is a result about
+                            THIS tree and not a guarantee. (2) The inline-type detection was added after the first run
+                            showed three edges with no extracted names, so a fourth form of import expression could
+                            still be missing. (3) The two new candidates reference version constants and one further
+                            type, so their redeclaration cost is bounded but not zero.
+evidence_preserved          the full per-pair classification with every carrying file and imported name; the corrected
+                            reading of the two workbook-dispatch imports; the measured sizes of the two interfaces
+rollback                    Revert this commit. Documentation and a read-only tool only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASUREMENT THAT REFINES THE CANDIDATE LIST. The OBJECTIVE is NOT complete.
+research_value              (1) Replacing a manual feasibility pass with a reader that derives the classification from
+                            source immediately corrected a mistake the manual pass had made: three edges it called
+                            VALUE are inline TYPE imports, and one of them is the next cheapest cut. (2) The
+                            discriminating question for a cut is the SHAPE AND SIZE of the imported thing plus
+                            whether it is type-only, and all four of those are readable from the repository — so
+                            the table can be regenerated rather than remembered. (3) A tool that reports zero
+                            UNKNOWN on a real tree is evidence about that tree; stating it as a result rather than
+                            a guarantee is what keeps the next round from treating the table as complete.
+```
