@@ -4435,3 +4435,105 @@ required, and S3 remains unactivated.
 **Supersedes / superseded_by.** Supersedes the `NEGATIVE_CONTROL_HOSTED_EVIDENCE` status of §T-4 and §T-6
 (`NOT_YET_RUN` → `RUN`; the hosted half is now produced and measured). §T itself is unmodified, including
 its `NOT_ACHIEVABLE` line, which remains the correct description of the pre-repair state. / none.
+
+---
+
+# §W — CC-103 paper snapshot: architecture migration and minimum-human-acceptance freeze
+
+**This section is APPENDED. §A through §V are byte-for-byte unchanged.** It is an extraction from evidence that
+already exists: no experiment was run for it, no run was re-executed to fill a cell, and no number below was produced
+for the paper. Where a figure has no recorded source it is marked as such rather than filled in.
+
+## W-1 — Snapshot identity
+
+```text
+paper snapshot tag          boss-city-cc103-paper-snapshot-v1   (annotated; never moved)
+exact SHA                   bedeb8280f4bdb51e54fbead642775b1a32d16b6
+Root Trust epoch            66   (root_contract_version boss-root-trust-66)
+root surface hash           324af881f0c2e088a3f43a7d597640e0fac9ff2b13c91422fb6bf6eb461efedd
+accepted baseline           v20  (baseline_hash 7a6ac9397df5620b…, source_commit e5516f1d8f43a135c215b9d92bfbfd3639aef4bf)
+minimum acceptance          MINIMUM_HUMAN_ACCEPTANCE = READY at that SHA; Owner ACCEPTED
+strict full-city status     STRICT_FULL_CITY_STATUS = NOT_READY  (S2/S3/S4/S10/S14 not at target; E5 absent)
+hosted five-check evidence  run 36364429724 attempt 2 — quality, unit, acceptance, package, architecture all SUCCESS
+                            (attempt 1 of the SAME SHA was red on the known CITY-DEBT-006 desktop restart flake;
+                             CC-103 D3 permits exactly one same-SHA re-run, and both attempts are preserved)
+```
+
+Two verdicts, both published and never conflated: `docs/city/MINIMUM_HUMAN_ACCEPTANCE_RECORD.md` prints
+`MINIMUM_HUMAN_ACCEPTANCE = READY` and `STRICT_FULL_CITY_STATUS = NOT_READY` side by side, with every structural
+metric beside BOTH its frozen floor and its strict target.
+
+## W-2 — Structural trajectory (two labelled snapshots, then labelled intermediate points)
+
+The **Phase-2 start** column is the Phase-2 measurement recorded before any migration ran; the **CC-103 snapshot**
+column is measured at `bedeb828`. No value is interpolated, and every intermediate point below is labelled with the
+ledger entry that recorded it.
+
+| metric | Phase-2 start | CC-103 snapshot | source of the Phase-2 start value | source of the snapshot value |
+| --- | --- | --- | --- | --- |
+| kernel → feature FILE edges | 158 | **49** | `PHASE2_ARCHITECTURE_MIGRATION_SPEC.md` M-12; `PHASE2_ARCHITECTURE_MIGRATION_ACCEPTANCE.md` §1.2 | `p2b-kernel-feature-ratchet.cjs` at `bedeb828` |
+| kernel → feature distinct pairs | 82 | **16** | same spec, "158 file edges / 82 distinct pairs"; acceptance §"starting 158 file edges / 82 pairs" | same instrument |
+| mutual capability pairs | 54 | **31** | `PHASE2_ARCHITECTURE_MIGRATION_SPEC.md` P2-C ("1 SCC containing all 27 capabilities; 54 mutual pairs") | same instrument |
+| largest SCC | 27 of 27 | **18 of 29** | `PHASE2_ARCHITECTURE_MIGRATION_SPEC.md` M-10; acceptance M-10 = 27 of 27 | `phase2-cycles.cjs` / p2b `largestSccSize` |
+| confirmed cross-domain private access | 13 (11 stores) | **0** | `PHASE2_ARCHITECTURE_MIGRATION_SPEC.md` M-16 = 11, M-17 = 13; acceptance §1.4 | `phase2-private-state.cjs` `confirmedAccesses` = 0 over 0 pairs |
+| multi-writer candidates | 0 confirmed | **0** | acceptance §1.4 P2-D records candidates, not confirmed writers | `phase2-private-state.cjs` `multiWriterCandidates` = [] |
+| `MIGRATION_IN_PROGRESS` plots | n/a — the flatness registry did not exist at Phase-2 start | **21 of 27** | — (not applicable; stated as n/a rather than back-filled) | `city-flatness-validator.cjs` counts |
+| road edges leaving a road | n/a — the road class was introduced later (P2-E) | **0** | — (not applicable) | `capability-roads-validator.cjs` `effect.edgesFromRoads` (6 roads carry 75 edges onto them) |
+| architecture enforcement violations | 0 at the accepted gate | **0** | accepted baseline series, `trust-policy/architecture-enforcement-baselines.json` | `architecture-enforcement.cjs --mode enforce` verdict PASS, 0 violations, 0 engine errors |
+
+**Labelled intermediate points** (each is one recorded reading, quoted from the ledger entry that took it — the
+sequence is not a smooth curve and is not presented as one):
+
+```text
+CC-027  kernel -> feature 82 -> 73 file edges            (provider closure; ledger CC-027)
+CC-046  kernel -> feature 62 -> 61; p2b HOLDS (61 / 22 pairs / 33 mutual)   (ledger CC-046)
+CC-053  largest SCC 20 of 29; capability nodes 29; capability edges 203     (ledger CC-053)
+CC-065  S2 60, S3 32 mutual, SCC 20 of 29, S5 5 confirmed accesses over 3 pairs  (ledger CC-065)
+CC-076  S5 PASS: 0 direct-path cross-domain private-state accesses          (ledger CC-076)
+CC-079  S10 22 -> 21: one plot MIGRATION_IN_PROGRESS -> FLAT (22/5 -> 21/6 of 27)  (ledger CC-079)
+CC-103  S2 49 / 16 pairs / mutual 31 / SCC 18 of 29 / S5 0 / S6 0 / S10 21 / roads 0 leaving
+```
+
+Between CC-046 and CC-103 the kernel→feature count falls 61 → 49 and the mutual pairs fall 33 → 31, through fifteen
+landed namespace-ownership migrations (CC-065 … CC-093) plus the composition-root attribution repair (CC-089). The
+SCC falls 20 → 18 late and only where an edge INSIDE the knot was removed (CC-067 and successors).
+
+## W-3 — Hosted and falsification evidence (index only; nothing re-run)
+
+```text
+§P       21 consecutive valid hosted-shadow observations, and why the count is 21 and not 23
+§Q       the S2 hosted ENFORCE step, visible and not required, with the content failures it exposed
+§T/§V    the S2 hosted negative control: structurally unreachable before the T-5 integrity split, RUN after it
+         (tag city-evidence-s2-negative-control-v1, PR #56 closed without merge)
+parity   same-commit local/hosted parity by finding IDENTITY (normalized schema + order-independent digest),
+         not by count: scripts/architecture-findings-parity.cjs, ENF-12 in the hosted architecture job
+epochs   fail-closed Root Trust epoch transitions and the spurious-dispatch incidents (§M, §N, §S; CC-004)
+CC-103   exact-SHA five-check run 36364429724 attempt 2 on bedeb828 (quality/unit/acceptance/package/architecture)
+CC-103   attempt 1 red on the known desktop restart claim, permitted same-SHA attempt 2 green (CITY-DEBT-006/D3)
+005      CITY-DEBT-005: occurrence_thirteen (the sweep was not thorough), occurrence_fourteen (the real main red,
+         in `test:slow`), and `sweep_claim_correction` (the CC-080 sweep was NOT exhaustive)
+006      CITY-DEBT-006: ACCEPTED_PERMANENT, bounded — contract unchanged, neither exit condition performed
+```
+
+## W-4 — Honest limitations
+
+```text
+single repository
+single primary project / development lineage
+strict full-city targets not reached
+minimum-human-acceptance profile introduced late as a stopping checkpoint
+some findings are mechanism demonstrations, not prevalence estimates
+hosted evidence comes from this repository's GitHub Actions environment
+```
+
+Two further limitations are stated because they bound what W-2 can support. First, several Phase-2 start figures were
+**hand-verified lists** rather than instrument output (M-17's 13 accesses), so the 13 → 0 fall is an improvement in a
+hand-maintained count that was later replaced by a measured one; the comparison is honest but not like-for-like.
+Second, the intermediate points come from **different ledger entries taken at different commits**, and each was
+measured by the instrument as it existed then — the p2b "pairs" currency and the cycle extraction both changed during
+the sequence, which is why each row is labelled with its entry rather than presented as one continuous series.
+
+**Paper-use category.** Measurement + mechanism illustration: *a structural metric that is enforced by a ratchet can
+be driven down over a long sequence without ever reaching its absolute target, and the honest artifact for that state
+is a checkpoint that prints the achieved value, the frozen floor and the unmet target together — not a gate that
+reports the target as met, and not a metric quietly dropped from the report.*
