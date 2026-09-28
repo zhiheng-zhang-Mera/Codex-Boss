@@ -12910,3 +12910,99 @@ research_value              (1) A terminal condition that every repair could bre
                             evidence does NOT establish, next to what it does, is what stops a green build from
                             being read as a met structural target.
 ```
+
+---
+
+## CC-123 — The freeze is re-verified at the end of the round, so "unchanged" is a measurement and not an assumption
+
+Thirteenth round of the post-CC103 closeout. **No cut attempted and no tracked source file changed.** This entry
+re-runs the freeze and evidence checks that T8 names, on the tree as it stands after twelve rounds of work, because
+"the frozen material was not touched" is exactly the kind of claim that goes unchecked and is exactly the kind the
+workbook makes the first priority.
+
+**1. The two anchors, at the remote, unchanged.**
+
+```text
+F0  boss-city-cc103-paper-snapshot-v1
+      tag object f0973b59a3b298b68c0b652785719aa71917b9b4   (unchanged since before this round)
+      peeled     bedeb8280f4bdb51e54fbead642775b1a32d16b6   (the CC-103 experiment anchor)
+F1  boss-paper-cc103-bundle-20260928-v1
+      tag object caa4e35d44e233a1867667e8a861f930e3df642b   (CREATED this round, once)
+      peeled     8df428eaa437a409368401e95194e40266b83080
+```
+
+`git ls-remote --tags origin` is the authority here, not a local tag listing: a tag created locally and never pushed
+is not a freeze, which is why the peeled commit is read from the remote on every verification.
+
+**2. The paper evidence, measured as a prefix rather than asserted.**
+
+```text
+git diff 8df428e --numstat -- docs/research/PAPER_EVIDENCE_LEDGER.md
+  287   0      <- 287 insertions, ZERO deletions
+```
+
+Sections A–W of the paper evidence ledger are an **untouched prefix**: the Post-CC103 continuation (§X-1 … §X-6)
+was appended, and no old line was rewritten. The other two frozen artefacts are not in the diff at all:
+
+```text
+docs/research/PAPER_SNAPSHOT_CC103.csv          NOT in git diff 8df428e..HEAD
+docs/history/BRANCH_ARCHIVE_2026-09-28.md       NOT in git diff 8df428e..HEAD
+docs/city/CITY_RENOVATION_DEBT_REGISTER.md      NOT in git diff 8df428e..HEAD   (CITY-DEBT-006 still ACCEPTED_PERMANENT)
+```
+
+**3. The new cohort's own integrity, re-run rather than remembered.**
+
+```text
+docs/research/post-cc103/EXPERIMENT_INDEX.csv     8 rows x 23 columns, 0 malformed
+docs/research/post-cc103/evidence/                14 files, ALL EVIDENCE HASHES VERIFIED (8/8 indexed refs match)
+```
+
+**4. Why this matters more than it looks.** The strict gate reports `E1` and `E4` as `UNVERIFIED` because a working
+tree cannot prove completeness or disprove erasure — and the workbook is explicit that those two are the human proof
+boundary. What a machine **can** do is show that the objects the claims are about are still there and still resolve,
+and that the old section is still a prefix. That is what items 1–3 do, and doing it again at the end of a long round
+is the difference between a claim and an assumption. It also catches the one failure mode that would invalidate
+everything: a repair that quietly edited the evidence it was measured against.
+
+**5. Relationship to the objective, stated plainly.** The freeze and the post-freeze cohort are the parts of T1, T2
+and T8 that are **done**, and this entry is their end-of-round verification. The structural targets are not done
+(S2 46, S3 28, S4 18), the machine-ready tag does not exist because there is no final verified `main` SHA, and the
+single Owner session is unspent.
+
+```text
+ENTRY_ID                    CC-123
+timestamp_utc               2026-09-28T21:23:03Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. VERIFICATION ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             git ls-remote --tags origin for both anchors; git diff 8df428e --numstat for the ledger;
+                            git diff --name-only 8df428e..HEAD for the other frozen artefacts; the index validator and
+                            the hash verifier in docs/research/post-cc103/tools/
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The prefix check proves the old section was not EDITED, not that it is COMPLETE
+                            relative to some earlier state — a line deleted and an identical line re-added elsewhere
+                            would not be visible, which is why E1/E4 stay UNVERIFIED and human. (2) The hash checks
+                            cover the files the index REFERENCES; evidence kept off-repo (the full unit log) has a
+                            summary archived instead and its hash is the summary's.
+evidence_preserved          both anchors with their tag objects and peeled commits as read from the remote; the
+                            287/0 prefix measurement; the three unchanged frozen artefacts; the index and hash results
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as VERIFICATION EVIDENCE. The OBJECTIVE is NOT complete.
+research_value              (1) A freeze claim is worth re-measuring at the END of a long round rather than only when
+                            it is made: the failure it guards against (a repair editing the evidence it was measured
+                            against) can only happen after the claim. (2) The prefix measurement is the honest form of
+                            "the old data was not touched" — it proves no line was edited and explicitly does not
+                            prove completeness, which is the boundary E1/E4 exist to mark. (3) Re-running the cohort's
+                            own validators closes the loop between "we recorded evidence" and "the evidence still
+                            resolves", at the cost of two commands.
+```
