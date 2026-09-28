@@ -1,4 +1,4 @@
-﻿# OWNER CONTINUOUS CONSTRUCTION LEDGER
+# OWNER CONTINUOUS CONSTRUCTION LEDGER
 
 **Repository:** `zhiheng-zhang-Mera/Codex-Boss`
 **Authority document:** `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` (issued 2026-09-24, Australia/Melbourne)
@@ -10715,12 +10715,22 @@ S4 largest SCC 18 of 29, S10 21 of 27 plots, S14 two `MACHINE_RATCHET` rows. `wo
 
 ```text
 ENTRY_ID                    CC-103
-timestamp_utc               2026-09-28T00:41:20Z
-timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
-                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
-                            every run (recorded-before-commit tolerance 5 minutes, maximum lead 90 minutes). The
-                            clock reads +10:00 local; the defect this note guards against is the one CC-063 found,
-                            where an entry claimed an instant HOURS after the commit that already contained it.
+timestamp_utc               2026-09-28T00:38:08Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant BEFORE this entry was written and
+                            before the commit that carries it, which is the property
+                            scripts/city-ledger-provenance.cjs checks on every run (recorded-before-commit
+                            tolerance 5 minutes, maximum lead 90 minutes). The clock reads +10:00 local; the
+                            defect this note guards against is the one CC-063 found, where an entry claimed an
+                            instant HOURS after the commit that already contained it.
+timestamp_correction        The FIRST committed value of the field above was 2026-09-28T00:41:20Z -- a PROJECTED
+                            instant written a minute ahead of the clock reading rather than the reading itself.
+                            The commit that first carried this entry is d3f4b82, committer instant
+                            2026-09-28T10:39:58+10:00 == 2026-09-28T00:39:58Z, so that claim LED its own commit by
+                            82 seconds: inside the 5-minute tolerance, and still wrong about which came first.
+                            Corrected here to the instant actually read (2026-09-28T00:38:08Z, 1m50s before the
+                            commit) instead of left as a near-miss, because a ledger whose timestamps are
+                            approximately the moment of writing is the artifact CC-063 found wanting in 25 of 63
+                            entries. Recorded as a correction to a published claim, per the append-only rule.
 executor                    Hns (temporary Owner-authorised City construction executor)
 authority_level             L1 construction on a branch, under the CC-103 instruction sheet's explicit D1-D4 Owner
                             decisions. No Owner re-authorisation was requested, and D4's single remaining human
