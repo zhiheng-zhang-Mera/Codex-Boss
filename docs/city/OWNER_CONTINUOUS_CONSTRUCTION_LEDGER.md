@@ -12675,3 +12675,133 @@ research_value              (1) A multi-step governance ceremony is a UNIT: runn
                             edge count. (3) Re-running a ceremony from its own recorded candidate is what makes a
                             partial run recoverable without hand-editing a governed file.
 ```
+
+---
+
+## CC-120 — The cut technique's reach is exhausted on the cheap pairs, and `runtime|tenx` shows why: the coupling is in the shared module, not the imports
+
+Tenth round of the post-CC103 closeout. **This entry attempts no cut.** It measures the next two cheapest remaining
+pairs with the technique that produced the last three (CC-114, CC-118, CC-119), records why neither yields, and
+states the programme's position as a hand-off. **No tracked source file changed.**
+
+**1. `runtime|tenx` is NOT cuttable by the technique, and the reason is structural.**
+
+```text
+tenx -> runtime   (2 file edges, the cheaper direction)
+  electron/commander/plan-compiler.ts:4   import { resolveCapabilityGraph } from "../../src/shared/capability-graph"
+  electron/commander/role-router.ts:6     import { resolveCapabilityGraph, type CapabilityResolution } from the same
+
+runtime -> tenx   (7 file edges, unchanged)
+```
+
+`src/shared/capability-graph.ts` is owned by `runtime`. Cutting the two `tenx -> runtime` edges means re-homing that
+module — and **`runtime` itself reaches it through `src/shared/capability-needs.ts`**, so the two edges would become
+a `runtime -> runtime` internal reference only if the module's owner changes while nothing else does. Checked the
+other way: both `plan-compiler.ts` and `role-router.ts` ALSO import `resolveCapabilityToKind` from
+`src/shared/cheapest-execution.ts`, also owned by `runtime`, so even a successful re-home of one module leaves the
+imports that carry the pair. **The `runtime|tenx` coupling is the capability-resolution logic living in both
+capabilities**, not an import that a narrow port could replace.
+
+**2. The technique's reach, stated as a rule with its evidence.** Three cuts landed by one method: a type-only import
+from another capability, replaced by a local declaration or a narrow port, pinned at compile time.
+
+```text
+CC-114  protocol.ts -> role-router.ts        SEVEN-LITERAL UNION            cut
+CC-118  web-recovery.ts -> provider-automation.ts  CLASS, consumer drives 2 of 554 lines   cut
+CC-119  theme-knowledge.ts -> tenx/knowledge.ts    TEMPLATE-LITERAL UNION     cut
+```
+
+and four measured NON-cases:
+
+```text
+theme|knowledge      needs a TWENTY-FIELD interface redeclared                       refused (CC-119)
+automation|providers needs a CONSTRUCTION moved (12 ConstructorParameters derived)   STEP 3   (CC-117/118)
+persistence|tasks    would duplicate the SHA-256 the renderer depends on             refused  (CC-113)
+runtime|tenx         the coupling is a SHARED MODULE both sides legitimately use     this entry
+```
+
+**The technique reaches a pair when one side's dependency is an import of a small TYPE it uses a subset of. It does
+not reach a pair held by a shared module, by a shared construction, or by a shared algorithm.** That is the boundary,
+and the four non-cases are what establishes it.
+
+**3. Where the programme stands, for a reader who has not followed the ten rounds.**
+
+```text
+STRICT TARGETS (unchanged, unmet)
+  kernel -> feature file edges   46   (was 49; three removed by A2-1, A2-4, A2-5)
+  mutual capability pairs        28   (was 31; three removed by CC-114, CC-118, CC-119)
+  largest SCC                    18   (UNCHANGED by all six removals -- CC-077's cliff)
+  MIGRATION_IN_PROGRESS          21
+  MACHINE_RATCHET principles      2   (15.1, 15.7)
+
+WHAT REMOVING AN S2 EDGE COSTS
+  a vocabulary small enough to redeclare in the kernel (done three times), or
+  an implementation moved into the kernel (not attempted: the ledger cluster, the automation hub,
+  the review policy in `src/shared/execution.ts`, the 22-type `contracts.ts` snapshot vocabulary)
+
+WHAT REMOVING AN S3 EDGE COSTS
+  the same two things, and the cheap cases are now exhausted: the remaining 28 pairs are held by
+  shared modules, shared constructions, shared algorithms, or interfaces too large to redeclare
+
+WHAT S4 NEEDS
+  S3 plus a feedback arc set over what remains; CC-077's 138-edge upper bound is still the only figure
+  covering both, and three real cuts have now reproduced "the component reads 18 until the last cycle is gone"
+
+GOVERNANCE, ESTABLISHED THE HARD WAY THIS ROUND
+  1. an acceptance entry is written FROM the candidate baseline's retire/add report, never from the intent
+     of the change (CC-112 caught a claim of two retired edges where the instrument measured one)
+  2. the four ceremony steps are ONE unit and the verification is its last step (CC-119 left the epoch
+     certifying a baseline that was not yet accepted, and the check reported it)
+  3. a ledger entry's timestamp is STAMPED last: draft with a placeholder, read the clock once, write it,
+     commit with nothing in between (CC-115/CC-116; the control fired three times before this existed)
+  4. every independent readback of a moved value moves in the same commit (the 15.1 literal, the generated
+     principle table, the test catalogue)
+```
+
+**4. What a successor should do first, in order.** (a) Read the four governance rules above before touching
+anything — each cost a round to learn. (b) Re-run `docs/research/post-cc103/tools/cut-list.cjs` and
+`a2-2-feasibility.cjs` before any attempt; the pair table ranks by edge count and this round has shown four times
+that edge count does not predict cuttability. (c) Choose between the two S2 routes deliberately, because they are
+different programmes: redeclare vocabularies into the kernel (mechanical, bounded, one edge each, and the kernel
+grows) or move implementations (architectural, risky, and where the mutual pairs actually live). (d) Do not expect
+the SCC to move until the last cycle is gone — report it and expect 18.
+
+```text
+ENTRY_ID                    CC-120
+timestamp_utc               2026-09-28T20:54:34Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT AND HAND-OFF ONLY: no tracked source file
+                            differs from the branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             docs/research/post-cc103/tools/pair-edges.cjs over tenx<->runtime (2 / 7 edges with their
+                            files); the two import statements read directly; the cut list regenerated at the current
+                            tree; the four landed cuts' own ledger entries
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The boundary in point 2 is derived from four landed cuts and four measured
+                            non-cases, which is evidence rather than proof; a shared module could in principle be
+                            split so that one side stops needing it, and that would be a cut this entry does not
+                            anticipate. (2) The hand-off in point 3 is written by the executor who did the work; a
+                            reader should re-derive the numbers from the tools rather than trust the table.
+evidence_preserved          the two files and their two imports that make `runtime|tenx` structural; the technique's
+                            three landed cases and four measured non-cases in one place; the four governance rules
+                            with the round each was learned in
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a BOUNDARY plus a HAND-OFF. The OBJECTIVE is NOT complete.
+research_value              (1) A technique's boundary is more useful than its successes: three cuts landed and four
+                            measured non-cases, all with their evidence, is what lets a successor decide in one
+                            reading whether a pair is worth attempting instead of finding out by reverting. (2) A
+                            metric's per-item count does not order its cost -- four separate demonstrations now --
+                            and the discriminating question is what the edge IS: a small type, a class used
+                            partially, a shared module, a construction, an algorithm, or a large interface.
+                            (3) The governance rules were each paid for with a failed attempt in this round, and
+                            writing them next to the boundary they govern is what makes the hand-off usable.
+```
