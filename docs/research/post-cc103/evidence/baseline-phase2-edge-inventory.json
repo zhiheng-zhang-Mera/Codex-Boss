@@ -1,0 +1,1658 @@
+{
+  "schema": "city-phase2-edge-inventory/1",
+  "measured": {
+    "filesOwned": 594,
+    "capabilitiesWithKinds": 27,
+    "declaredModulePaths": 31,
+    "declaredRequirementPairs": 3,
+    "compositionRootFiles": 2,
+    "roadFiles": 6
+  },
+  "edges": {
+    "totalCrossCapabilityFileEdges": 774,
+    "distinctCapabilityPairs": 197,
+    "kernelToFeatureFileEdges": 49,
+    "kernelToFeaturePairs": 16,
+    "mutualCapabilityPairs": 31,
+    "fullyDeclaredCrossCapabilityEdges": 4,
+    "realPairsAlreadyDeclared": 1,
+    "realPairsUndeclared": 196,
+    "edgesFromCompositionRoot": 101,
+    "edgesToCompositionRoot": 0,
+    "edgesToRoads": 75,
+    "edgesFromRoads": 0
+  },
+  "topPairs": [
+    {
+      "pair": "tenx -> providers",
+      "count": 27,
+      "samples": [
+        "electron/commander/budget-manager.ts -> electron/runtimes/runtime.ts",
+        "electron/commander/circuit-breaker.ts -> electron/runtimes/runtime.ts",
+        "electron/commander/degraded-controller.ts -> electron/runtimes/runtime.ts"
+      ]
+    },
+    {
+      "pair": "tenx -> tasks",
+      "count": 25,
+      "samples": [
+        "electron/commander/context-manager.ts -> src/shared/task-ir.ts",
+        "electron/commander/execution-supervisor.ts -> src/shared/execution.ts",
+        "electron/commander/human-guidance-gate.ts -> src/shared/intervention.ts"
+      ]
+    },
+    {
+      "pair": "tenx -> engineering",
+      "count": 21,
+      "samples": [
+        "electron/commander/main-commander.ts -> electron/engineering/native-tools.ts",
+        "electron/commander/main-commander.ts -> electron/engineering/merge-coordinator.ts",
+        "electron/commander/main-commander.ts -> electron/engineering/workspace.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> providers",
+      "count": 18,
+      "samples": [
+        "electron/main.ts -> electron/computer/backends/provider-vision-surface.ts",
+        "electron/main.ts -> electron/computer/backends/provider-dom-surface.ts",
+        "electron/main.ts -> electron/input/provider-capability-registry.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> runtime",
+      "count": 18,
+      "samples": [
+        "electron/bootstrap/engineering-surface-ipc.ts -> electron/bootstrap/boot-module.ts",
+        "electron/bootstrap/engineering.ts -> electron/bootstrap/boot-module.ts",
+        "electron/engineering/acceptance-session.ts -> electron/git/git-gateway.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> tenx",
+      "count": 16,
+      "samples": [
+        "electron/main.ts -> electron/commander/recovery-scheduler.ts",
+        "electron/main.ts -> electron/commander/web-recovery.ts",
+        "electron/main.ts -> electron/commander/runtime-registry.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> tasks",
+      "count": 16,
+      "samples": [
+        "electron/engineering/dev-handoff.ts -> src/shared/auto-handoff.ts",
+        "electron/engineering/engineering-runtime.ts -> src/shared/task-ir.ts",
+        "electron/engineering/git-checkpoint.ts -> src/shared/workbook.ts"
+      ]
+    },
+    {
+      "pair": "promotion -> security",
+      "count": 16,
+      "samples": [
+        "electron/promotion-gate/github-promotion-adapter.ts -> electron/credential-boundary/github-credential-provider.ts",
+        "electron/promotion-gate/promotion-controller.ts -> electron/root-authority/root-authority.ts",
+        "electron/promotion-gate/promotion-controller.ts -> electron/emergency-control/emergency-control.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> status",
+      "count": 15,
+      "samples": [
+        "electron/engineering/autonomous-evolution-identity.ts -> src/shared/desktop-black-box-contract.ts",
+        "electron/engineering/bootstrap-completion.ts -> src/shared/acceptance-contracts.ts",
+        "electron/engineering/cached-repo-scan.ts -> electron/cache/content-cache.ts"
+      ]
+    },
+    {
+      "pair": "status -> tasks",
+      "count": 13,
+      "samples": [
+        "electron/evaluation/evaluation-store.ts -> src/shared/task-ir.ts",
+        "src/shared/contracts.ts -> src/shared/execution.ts",
+        "src/shared/contracts.ts -> src/shared/work-mode.ts"
+      ]
+    },
+    {
+      "pair": "tenx -> persistence",
+      "count": 13,
+      "samples": [
+        "electron/commander/decision-ledger-store.ts -> src/shared/decision-ledger.ts",
+        "electron/commander/main-commander.ts -> electron/store.ts",
+        "electron/commander/provider-session-registry.ts -> src/shared/session-state.ts"
+      ]
+    },
+    {
+      "pair": "tenx -> status",
+      "count": 13,
+      "samples": [
+        "electron/commander/context-manager.ts -> src/shared/contracts.ts",
+        "electron/commander/continuation-router.ts -> src/shared/contracts.ts",
+        "electron/commander/main-commander.ts -> src/shared/contracts.ts"
+      ]
+    },
+    {
+      "pair": "host-status -> tenx",
+      "count": 12,
+      "samples": [
+        "electron/host/fault-lab.ts -> electron/commander/budget-manager.ts",
+        "electron/host/fault-lab.ts -> electron/commander/circuit-breaker.ts",
+        "electron/host/fault-lab.ts -> electron/commander/task-ledger.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> workspace",
+      "count": 11,
+      "samples": [
+        "electron/engineering/cached-repo-scan.ts -> electron/workspace/path-utils.ts",
+        "electron/engineering/change-points.ts -> electron/workspace/path-utils.ts",
+        "electron/engineering/command-runner.ts -> electron/workspace/path-utils.ts"
+      ]
+    },
+    {
+      "pair": "learning -> knowledge",
+      "count": 11,
+      "samples": [
+        "electron/learning/concepts/concept-merge.ts -> src/shared/learned-concept.ts",
+        "electron/learning/concepts/concept-merge.ts -> src/shared/learning-episode.ts",
+        "electron/learning/concepts/concept-miner.ts -> src/shared/learned-concept.ts"
+      ]
+    },
+    {
+      "pair": "automation -> providers",
+      "count": 10,
+      "samples": [
+        "electron/bootstrap/automation.ts -> electron/computer/software-lease.ts",
+        "electron/provider-automation.ts -> electron/runtimes/runtime.ts",
+        "electron/provider-automation.ts -> electron/computer/semantic-runtime.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> promotion",
+      "count": 10,
+      "samples": [
+        "electron/bootstrap/engineering.ts -> electron/self-evolution/self-evolution-host.ts",
+        "electron/engineering/acceptance-session.ts -> src/shared/trust-problems.ts",
+        "electron/engineering/autonomous-evolution-identity.ts -> src/shared/trust-problems.ts"
+      ]
+    },
+    {
+      "pair": "knowledge -> tasks",
+      "count": 10,
+      "samples": [
+        "electron/knowledge/knowledge-foundation.ts -> src/shared/task-fingerprint.ts",
+        "electron/knowledge/knowledge-foundation.ts -> src/shared/workbook-dispatch.ts",
+        "src/shared/knowledge-extraction.ts -> src/shared/task-contract.ts"
+      ]
+    },
+    {
+      "pair": "research -> <road>",
+      "count": 10,
+      "samples": [
+        "electron/ingestion/ingest.ts -> src/shared/input-object.ts",
+        "electron/ingestion/workbook-registry.ts -> electron/commander/durable-json.ts",
+        "electron/research/evidence/evidence-graph.ts -> electron/commander/durable-json.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> research",
+      "count": 9,
+      "samples": [
+        "electron/main.ts -> electron/bootstrap/research-ipc.ts",
+        "electron/main.ts -> electron/bootstrap/research-owner-ipc.ts",
+        "electron/main.ts -> electron/bootstrap/research-run-ipc.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> workspace",
+      "count": 9,
+      "samples": [
+        "electron/main.ts -> electron/workspace/path-utils.ts",
+        "electron/main.ts -> electron/bootstrap/workspace-ipc.ts",
+        "electron/main.ts -> electron/workspace/task-workspace.ts"
+      ]
+    },
+    {
+      "pair": "learning -> <road>",
+      "count": 9,
+      "samples": [
+        "electron/learning/adaptive-flag-store.ts -> electron/commander/durable-json.ts",
+        "electron/learning/concepts/concept-registry.ts -> electron/commander/durable-json.ts",
+        "electron/learning/evolution/promotion-gate.ts -> electron/commander/durable-json.ts"
+      ]
+    },
+    {
+      "pair": "promotion -> engineering",
+      "count": 9,
+      "samples": [
+        "electron/promotion-gate/promotion-controller.ts -> electron/engineering/owner-intervention-ledger.ts",
+        "electron/self-evolution/self-evolution-coordinator.ts -> electron/engineering/engineering-loop-driver.ts",
+        "electron/self-evolution/self-evolution-coordinator.ts -> src/shared/engineering-loop.ts"
+      ]
+    },
+    {
+      "pair": "providers -> runtime",
+      "count": 9,
+      "samples": [
+        "electron/api-settings.ts -> src/shared/provider-models.ts",
+        "electron/bootstrap/provider-ipc.ts -> electron/bootstrap/boot-module.ts",
+        "electron/bootstrap/provider-pool.ts -> electron/bootstrap/boot-module.ts"
+      ]
+    },
+    {
+      "pair": "persistence -> tasks",
+      "count": 8,
+      "samples": [
+        "electron/store.ts -> src/shared/final-response.ts",
+        "electron/store.ts -> src/shared/result-validator.ts",
+        "electron/store.ts -> src/shared/conversation-policy.ts"
+      ]
+    },
+    {
+      "pair": "automation -> tenx",
+      "count": 7,
+      "samples": [
+        "electron/bootstrap/automation.ts -> electron/commander/event-bus.ts",
+        "electron/bootstrap/automation.ts -> electron/commander/recovery-scheduler.ts",
+        "electron/bootstrap/automation.ts -> electron/commander/circuit-breaker.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> security",
+      "count": 7,
+      "samples": [
+        "electron/engineering/candidate-guardian.ts -> src/shared/secret-scan.ts",
+        "electron/engineering/ci-repair-loop.ts -> electron/github/github-gateway.ts",
+        "electron/engineering/ci-repair-loop.ts -> src/shared/github-machine.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> tenx",
+      "count": 7,
+      "samples": [
+        "electron/engineering/candidate-guardian.ts -> src/shared/tenx/knowledge.ts",
+        "electron/engineering/engineering-runtime.ts -> src/shared/microtask.ts",
+        "electron/engineering/engineering-runtime.ts -> electron/commander/task-ledger.ts"
+      ]
+    },
+    {
+      "pair": "host-status -> providers",
+      "count": 7,
+      "samples": [
+        "electron/bootstrap/host-status-ipc.ts -> src/shared/login-scan.ts",
+        "electron/bootstrap/host-status-ipc.ts -> src/shared/network-policy.ts",
+        "electron/bootstrap/host-status-ipc.ts -> src/shared/provider-contracts.ts"
+      ]
+    },
+    {
+      "pair": "host-status -> runtime",
+      "count": 7,
+      "samples": [
+        "electron/bootstrap/host-status-ipc.ts -> electron/bootstrap/boot-module.ts",
+        "electron/host/doctor.ts -> electron/git/git-gateway.ts",
+        "electron/host/doctor.ts -> electron/runtime-paths.ts"
+      ]
+    },
+    {
+      "pair": "promotion -> runtime",
+      "count": 7,
+      "samples": [
+        "electron/promotion-gate/github-promotion-adapter.ts -> electron/git/git-gateway.ts",
+        "electron/self-evolution/self-evolution-coordinator.ts -> electron/git/git-gateway.ts",
+        "electron/self-evolution/self-evolution-coordinator.ts -> electron/runtime-paths.ts"
+      ]
+    },
+    {
+      "pair": "providers -> <road>",
+      "count": 7,
+      "samples": [
+        "electron/computer/perception-loop.ts -> electron/commander/durable-json.ts",
+        "electron/computer/semantic-runtime.ts -> electron/commander/durable-json.ts",
+        "electron/input/github-resolver.ts -> src/shared/github-url.ts"
+      ]
+    },
+    {
+      "pair": "runtime -> tenx",
+      "count": 7,
+      "samples": [
+        "electron/capability/integration/execution-authorization.ts -> electron/commander/execution-gate.ts",
+        "electron/platform/coordination-recorder.ts -> electron/commander/task-ledger.ts",
+        "electron/platform/coordination-recorder.ts -> src/shared/coordination-ledger.ts"
+      ]
+    },
+    {
+      "pair": "status -> persistence",
+      "count": 7,
+      "samples": [
+        "electron/evaluation/evaluation-store.ts -> src/shared/evaluation.ts",
+        "src/shared/acceptance-evidence.ts -> src/shared/hash.ts",
+        "src/shared/contracts.ts -> src/shared/external-session.ts"
+      ]
+    },
+    {
+      "pair": "tenx -> workspace",
+      "count": 7,
+      "samples": [
+        "electron/commander/context-manager.ts -> src/shared/context-capsule.ts",
+        "electron/commander/main-commander.ts -> electron/workspace/path-utils.ts",
+        "electron/commander/main-commander.ts -> electron/workspace/workspace-registry.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> <road>",
+      "count": 6,
+      "samples": [
+        "electron/engineering/dev-handoff.ts -> electron/commander/durable-json.ts",
+        "electron/engineering/engineering-loop-store.ts -> electron/commander/durable-json.ts",
+        "electron/engineering/engineering-recovery.ts -> electron/commander/durable-json.ts"
+      ]
+    },
+    {
+      "pair": "persistence -> tenx",
+      "count": 6,
+      "samples": [
+        "electron/bootstrap/persistence.ts -> electron/commander/task-ledger.ts",
+        "electron/bootstrap/persistence.ts -> electron/commander/decision-ledger-store.ts",
+        "electron/bootstrap/persistence.ts -> electron/runtime-intelligence/live-capture.ts"
+      ]
+    },
+    {
+      "pair": "research -> runtime",
+      "count": 6,
+      "samples": [
+        "electron/bootstrap/research-ipc.ts -> electron/bootstrap/boot-module.ts",
+        "electron/bootstrap/research-owner-ipc.ts -> electron/bootstrap/boot-module.ts",
+        "electron/bootstrap/research-run-ipc.ts -> electron/bootstrap/boot-module.ts"
+      ]
+    },
+    {
+      "pair": "security -> promotion",
+      "count": 6,
+      "samples": [
+        "electron/root-authority/execution-profile.ts -> src/shared/root-authority/contracts.ts",
+        "electron/root-authority/protected-surface-guard.ts -> src/shared/root-authority/contracts.ts",
+        "electron/root-authority/root-audit-ledger.ts -> src/shared/root-authority/contracts.ts"
+      ]
+    },
+    {
+      "pair": "tasks -> status",
+      "count": 6,
+      "samples": [
+        "electron/bootstrap/task-lifecycle-ipc.ts -> electron/evidence-engine.ts",
+        "electron/bootstrap/task-state-ipc.ts -> src/shared/contracts.ts",
+        "electron/tasks/task-inputs.ts -> src/shared/contracts.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> tasks",
+      "count": 5,
+      "samples": [
+        "electron/main.ts -> src/shared/work-mode.ts",
+        "electron/main.ts -> electron/bootstrap/task-lifecycle-ipc.ts",
+        "electron/main.ts -> electron/bootstrap/task-state-ipc.ts"
+      ]
+    },
+    {
+      "pair": "dispatch -> tenx",
+      "count": 5,
+      "samples": [
+        "electron/bootstrap/dispatch-ipc.ts -> electron/commander/workbook-production.ts",
+        "electron/bootstrap/dispatch-ipc.ts -> electron/commander/workbook-dispatch.ts",
+        "electron/bootstrap/dispatch-ipc.ts -> electron/commander/provider-dispatch-guard.ts"
+      ]
+    },
+    {
+      "pair": "learning -> providers",
+      "count": 5,
+      "samples": [
+        "electron/learning/episode-store.ts -> src/shared/provider-outcome.ts",
+        "electron/learning/evolution/policy-candidate.ts -> src/shared/adaptive-routing.ts",
+        "electron/learning/routing/adaptive-scorer.ts -> src/shared/provider-profile.ts"
+      ]
+    },
+    {
+      "pair": "learning -> tasks",
+      "count": 5,
+      "samples": [
+        "electron/learning/learning-service.ts -> src/shared/adaptive-flags.ts",
+        "electron/learning/outcome-evaluator.ts -> src/shared/adaptive-flags.ts",
+        "electron/learning/providers/provider-profile.ts -> src/shared/task-fingerprint.ts"
+      ]
+    },
+    {
+      "pair": "providers -> persistence",
+      "count": 5,
+      "samples": [
+        "electron/account-sessions.ts -> electron/store.ts",
+        "electron/account-sessions.ts -> src/shared/session-lifecycle.ts",
+        "electron/bootstrap/providers.ts -> electron/store.ts"
+      ]
+    },
+    {
+      "pair": "security -> engineering",
+      "count": 5,
+      "samples": [
+        "electron/hardening/hardening-runner.ts -> src/shared/hardening-matrix.ts",
+        "electron/root-authority/execution-profile.ts -> electron/engineering/command-runner.ts",
+        "electron/root-authority/protected-surface-guard.ts -> electron/engineering/native-tools.ts"
+      ]
+    },
+    {
+      "pair": "tenx -> research",
+      "count": 5,
+      "samples": [
+        "electron/commander/workbook-dispatch.ts -> electron/ingestion/role-assignment.ts",
+        "electron/commander/workbook-dispatch.ts -> electron/ingestion/workbook-registry.ts",
+        "electron/commander/workbook-dispatch.ts -> electron/ingestion/ingest.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> <road>",
+      "count": 4,
+      "samples": [
+        "electron/main.ts -> src/shared/github-url.ts",
+        "electron/main.ts -> src/shared/input-object.ts",
+        "electron/main.ts -> electron/commander/durable-json.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> engineering",
+      "count": 4,
+      "samples": [
+        "electron/main.ts -> src/shared/council-engine.ts",
+        "electron/main.ts -> electron/bootstrap/engineering-surface-ipc.ts",
+        "electron/main.ts -> electron/bootstrap/engineering.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> status",
+      "count": 4,
+      "samples": [
+        "electron/main.ts -> src/shared/contracts.ts",
+        "electron/main.ts -> electron/bootstrap/status-ipc.ts",
+        "electron/main.ts -> electron/evidence-engine.ts"
+      ]
+    },
+    {
+      "pair": "<composition-root> -> theme",
+      "count": 4,
+      "samples": [
+        "electron/main.ts -> electron/theme/visual-capture.ts",
+        "electron/main.ts -> electron/theme/theme-knowledge.ts",
+        "electron/main.ts -> electron/bootstrap/theme-ipc.ts"
+      ]
+    },
+    {
+      "pair": "attachments -> <road>",
+      "count": 4,
+      "samples": [
+        "electron/bootstrap/attachment-ipc.ts -> src/shared/input-object.ts",
+        "electron/input/attachment-router.ts -> src/shared/input-object.ts",
+        "electron/input/attachment-store.ts -> src/shared/input-object.ts"
+      ]
+    },
+    {
+      "pair": "attachments -> providers",
+      "count": 4,
+      "samples": [
+        "electron/input/attachment-router.ts -> src/shared/provider-contracts.ts",
+        "electron/input/attachment-router.ts -> src/shared/provider-capabilities.ts",
+        "electron/input/attachment-upload.ts -> electron/adapters/registry.ts"
+      ]
+    },
+    {
+      "pair": "engineering -> persistence",
+      "count": 4,
+      "samples": [
+        "electron/engineering/engineering-session.ts -> src/shared/hash.ts",
+        "electron/self-engineering/self-mod-sandbox.ts -> src/shared/compatibility.ts",
+        "src/shared/ci-repair.ts -> src/shared/hash.ts"
+      ]
+    },
+    {
+      "pair": "knowledge -> <road>",
+      "count": 4,
+      "samples": [
+        "electron/knowledge/knowledge-base.ts -> electron/commander/durable-json.ts",
+        "electron/knowledge/knowledge-governance-store.ts -> electron/commander/durable-json.ts",
+        "electron/knowledge/knowledge-space-store.ts -> electron/commander/durable-json.ts"
+      ]
+    },
+    {
+      "pair": "knowledge -> tenx",
+      "count": 4,
+      "samples": [
+        "electron/knowledge/knowledge-base.ts -> src/shared/tenx/knowledge.ts",
+        "electron/knowledge/knowledge-foundation.ts -> src/shared/tenx/knowledge.ts",
+        "src/shared/knowledge-extraction.ts -> src/shared/tenx/knowledge.ts"
+      ]
+    },
+    {
+      "pair": "persistence -> providers",
+      "count": 4,
+      "samples": [
+        "electron/bootstrap/persistence.ts -> electron/api-settings.ts",
+        "electron/bootstrap/persistence.ts -> electron/input/provider-capability-registry.ts",
+        "electron/bootstrap/persistence.ts -> electron/input/github-resolver.ts"
+      ]
+    },
+    {
+      "pair": "promotion -> workspace",
+      "count": 4,
+      "samples": [
+        "electron/self-evolution/mutation-context.ts -> electron/workspace/path-utils.ts",
+        "electron/self-evolution/self-target-resolver.ts -> electron/workspace/path-utils.ts",
+        "electron/stable-candidate/evolution-root-policy.ts -> electron/workspace/path-utils.ts"
+      ]
+    },
+    {
+      "pair": "research -> tasks",
+      "count": 4,
+      "samples": [
+        "electron/bootstrap/research-owner-ipc.ts -> src/shared/intervention.ts",
+        "electron/ingestion/workbook-registry.ts -> src/shared/workbook.ts",
+        "electron/research/research-supervisor.ts -> src/shared/intervention.ts"
+      ]
+    },
+    {
+      "pair": "research -> workspace",
+      "count": 4,
+      "samples": [
+        "electron/bootstrap/research-run-ipc.ts -> electron/workspace/path-utils.ts",
+        "electron/research/default-levelb-executor.ts -> electron/workspace/path-utils.ts",
+        "electron/research/levela-planner.ts -> electron/workspace/path-utils.ts"
+      ]
+    }
+  ],
+  "allPairs": [
+    {
+      "pair": "tenx -> providers",
+      "count": 27
+    },
+    {
+      "pair": "tenx -> tasks",
+      "count": 25
+    },
+    {
+      "pair": "tenx -> engineering",
+      "count": 21
+    },
+    {
+      "pair": "<composition-root> -> providers",
+      "count": 18
+    },
+    {
+      "pair": "engineering -> runtime",
+      "count": 18
+    },
+    {
+      "pair": "<composition-root> -> tenx",
+      "count": 16
+    },
+    {
+      "pair": "engineering -> tasks",
+      "count": 16
+    },
+    {
+      "pair": "promotion -> security",
+      "count": 16
+    },
+    {
+      "pair": "engineering -> status",
+      "count": 15
+    },
+    {
+      "pair": "status -> tasks",
+      "count": 13
+    },
+    {
+      "pair": "tenx -> persistence",
+      "count": 13
+    },
+    {
+      "pair": "tenx -> status",
+      "count": 13
+    },
+    {
+      "pair": "host-status -> tenx",
+      "count": 12
+    },
+    {
+      "pair": "engineering -> workspace",
+      "count": 11
+    },
+    {
+      "pair": "learning -> knowledge",
+      "count": 11
+    },
+    {
+      "pair": "automation -> providers",
+      "count": 10
+    },
+    {
+      "pair": "engineering -> promotion",
+      "count": 10
+    },
+    {
+      "pair": "knowledge -> tasks",
+      "count": 10
+    },
+    {
+      "pair": "research -> <road>",
+      "count": 10
+    },
+    {
+      "pair": "<composition-root> -> research",
+      "count": 9
+    },
+    {
+      "pair": "<composition-root> -> workspace",
+      "count": 9
+    },
+    {
+      "pair": "learning -> <road>",
+      "count": 9
+    },
+    {
+      "pair": "promotion -> engineering",
+      "count": 9
+    },
+    {
+      "pair": "providers -> runtime",
+      "count": 9
+    },
+    {
+      "pair": "persistence -> tasks",
+      "count": 8
+    },
+    {
+      "pair": "automation -> tenx",
+      "count": 7
+    },
+    {
+      "pair": "engineering -> security",
+      "count": 7
+    },
+    {
+      "pair": "engineering -> tenx",
+      "count": 7
+    },
+    {
+      "pair": "host-status -> providers",
+      "count": 7
+    },
+    {
+      "pair": "host-status -> runtime",
+      "count": 7
+    },
+    {
+      "pair": "promotion -> runtime",
+      "count": 7
+    },
+    {
+      "pair": "providers -> <road>",
+      "count": 7
+    },
+    {
+      "pair": "runtime -> tenx",
+      "count": 7
+    },
+    {
+      "pair": "status -> persistence",
+      "count": 7
+    },
+    {
+      "pair": "tenx -> workspace",
+      "count": 7
+    },
+    {
+      "pair": "engineering -> <road>",
+      "count": 6
+    },
+    {
+      "pair": "persistence -> tenx",
+      "count": 6
+    },
+    {
+      "pair": "research -> runtime",
+      "count": 6
+    },
+    {
+      "pair": "security -> promotion",
+      "count": 6
+    },
+    {
+      "pair": "tasks -> status",
+      "count": 6
+    },
+    {
+      "pair": "<composition-root> -> tasks",
+      "count": 5
+    },
+    {
+      "pair": "dispatch -> tenx",
+      "count": 5
+    },
+    {
+      "pair": "learning -> providers",
+      "count": 5
+    },
+    {
+      "pair": "learning -> tasks",
+      "count": 5
+    },
+    {
+      "pair": "providers -> persistence",
+      "count": 5
+    },
+    {
+      "pair": "security -> engineering",
+      "count": 5
+    },
+    {
+      "pair": "tenx -> research",
+      "count": 5
+    },
+    {
+      "pair": "<composition-root> -> <road>",
+      "count": 4
+    },
+    {
+      "pair": "<composition-root> -> engineering",
+      "count": 4
+    },
+    {
+      "pair": "<composition-root> -> status",
+      "count": 4
+    },
+    {
+      "pair": "<composition-root> -> theme",
+      "count": 4
+    },
+    {
+      "pair": "attachments -> <road>",
+      "count": 4
+    },
+    {
+      "pair": "attachments -> providers",
+      "count": 4
+    },
+    {
+      "pair": "engineering -> persistence",
+      "count": 4
+    },
+    {
+      "pair": "knowledge -> <road>",
+      "count": 4
+    },
+    {
+      "pair": "knowledge -> tenx",
+      "count": 4
+    },
+    {
+      "pair": "persistence -> providers",
+      "count": 4
+    },
+    {
+      "pair": "promotion -> workspace",
+      "count": 4
+    },
+    {
+      "pair": "research -> tasks",
+      "count": 4
+    },
+    {
+      "pair": "research -> workspace",
+      "count": 4
+    },
+    {
+      "pair": "security -> <road>",
+      "count": 4
+    },
+    {
+      "pair": "security -> runtime",
+      "count": 4
+    },
+    {
+      "pair": "status -> <road>",
+      "count": 4
+    },
+    {
+      "pair": "status -> runtime",
+      "count": 4
+    },
+    {
+      "pair": "tasks -> providers",
+      "count": 4
+    },
+    {
+      "pair": "tenx -> knowledge",
+      "count": 4
+    },
+    {
+      "pair": "workspace -> <road>",
+      "count": 4
+    },
+    {
+      "pair": "<composition-root> -> attachments",
+      "count": 3
+    },
+    {
+      "pair": "<composition-root> -> persistence",
+      "count": 3
+    },
+    {
+      "pair": "<composition-root> -> runtime",
+      "count": 3
+    },
+    {
+      "pair": "<composition-root> -> security",
+      "count": 3
+    },
+    {
+      "pair": "dispatch -> runtime",
+      "count": 3
+    },
+    {
+      "pair": "knowledge -> engineering",
+      "count": 3
+    },
+    {
+      "pair": "persistence -> <road>",
+      "count": 3
+    },
+    {
+      "pair": "persistence -> status",
+      "count": 3
+    },
+    {
+      "pair": "persistence -> workspace",
+      "count": 3
+    },
+    {
+      "pair": "promotion -> <road>",
+      "count": 3
+    },
+    {
+      "pair": "promotion -> persistence",
+      "count": 3
+    },
+    {
+      "pair": "providers -> security",
+      "count": 3
+    },
+    {
+      "pair": "providers -> status",
+      "count": 3
+    },
+    {
+      "pair": "providers -> tasks",
+      "count": 3
+    },
+    {
+      "pair": "research -> engineering",
+      "count": 3
+    },
+    {
+      "pair": "research -> status",
+      "count": 3
+    },
+    {
+      "pair": "security -> workspace",
+      "count": 3
+    },
+    {
+      "pair": "status -> engineering",
+      "count": 3
+    },
+    {
+      "pair": "status -> promotion",
+      "count": 3
+    },
+    {
+      "pair": "status -> workspace",
+      "count": 3
+    },
+    {
+      "pair": "tasks -> engineering",
+      "count": 3
+    },
+    {
+      "pair": "tenx -> <road>",
+      "count": 3
+    },
+    {
+      "pair": "tenx -> security",
+      "count": 3
+    },
+    {
+      "pair": "theme -> <road>",
+      "count": 3
+    },
+    {
+      "pair": "theme -> tasks",
+      "count": 3
+    },
+    {
+      "pair": "workspace -> persistence",
+      "count": 3
+    },
+    {
+      "pair": "<composition-root> -> automation",
+      "count": 2
+    },
+    {
+      "pair": "<composition-root> -> knowledge",
+      "count": 2
+    },
+    {
+      "pair": "automation -> attachments",
+      "count": 2
+    },
+    {
+      "pair": "automation -> experience",
+      "count": 2
+    },
+    {
+      "pair": "automation -> persistence",
+      "count": 2
+    },
+    {
+      "pair": "automation -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "automation -> status",
+      "count": 2
+    },
+    {
+      "pair": "dispatch -> status",
+      "count": 2
+    },
+    {
+      "pair": "engineering -> knowledge",
+      "count": 2
+    },
+    {
+      "pair": "engineering -> providers",
+      "count": 2
+    },
+    {
+      "pair": "host-status -> knowledge",
+      "count": 2
+    },
+    {
+      "pair": "host-status -> node",
+      "count": 2
+    },
+    {
+      "pair": "host-status -> persistence",
+      "count": 2
+    },
+    {
+      "pair": "host-status -> status",
+      "count": 2
+    },
+    {
+      "pair": "host-status -> tasks",
+      "count": 2
+    },
+    {
+      "pair": "knowledge -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "knowledge -> theme",
+      "count": 2
+    },
+    {
+      "pair": "node -> tenx",
+      "count": 2
+    },
+    {
+      "pair": "persistence -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "promotion -> tasks",
+      "count": 2
+    },
+    {
+      "pair": "providers -> engineering",
+      "count": 2
+    },
+    {
+      "pair": "providers -> workspace",
+      "count": 2
+    },
+    {
+      "pair": "runtime -> providers",
+      "count": 2
+    },
+    {
+      "pair": "runtime -> status",
+      "count": 2
+    },
+    {
+      "pair": "settings -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "state-core -> knowledge",
+      "count": 2
+    },
+    {
+      "pair": "state-core -> persistence",
+      "count": 2
+    },
+    {
+      "pair": "state-core -> tenx",
+      "count": 2
+    },
+    {
+      "pair": "status -> providers",
+      "count": 2
+    },
+    {
+      "pair": "status -> security",
+      "count": 2
+    },
+    {
+      "pair": "status -> tenx",
+      "count": 2
+    },
+    {
+      "pair": "status -> theme",
+      "count": 2
+    },
+    {
+      "pair": "task-creation -> providers",
+      "count": 2
+    },
+    {
+      "pair": "task-creation -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "task-creation -> tenx",
+      "count": 2
+    },
+    {
+      "pair": "tasks -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "tasks -> tenx",
+      "count": 2
+    },
+    {
+      "pair": "tenx -> runtime",
+      "count": 2
+    },
+    {
+      "pair": "tenx -> theme",
+      "count": 2
+    },
+    {
+      "pair": "<composition-root> -> conversation",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> dispatch",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> experience",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> host-status",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> identity",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> learning",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> node",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> project",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> remote",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> settings",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> state-core",
+      "count": 1
+    },
+    {
+      "pair": "<composition-root> -> task-creation",
+      "count": 1
+    },
+    {
+      "pair": "attachments -> runtime",
+      "count": 1
+    },
+    {
+      "pair": "conversation -> runtime",
+      "count": 1
+    },
+    {
+      "pair": "conversation -> status",
+      "count": 1
+    },
+    {
+      "pair": "dispatch -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "dispatch -> providers",
+      "count": 1
+    },
+    {
+      "pair": "dispatch -> tasks",
+      "count": 1
+    },
+    {
+      "pair": "engineering -> learning",
+      "count": 1
+    },
+    {
+      "pair": "engineering -> theme",
+      "count": 1
+    },
+    {
+      "pair": "experience -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "experience -> tenx",
+      "count": 1
+    },
+    {
+      "pair": "host-status -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "host-status -> identity",
+      "count": 1
+    },
+    {
+      "pair": "host-status -> learning",
+      "count": 1
+    },
+    {
+      "pair": "host-status -> workspace",
+      "count": 1
+    },
+    {
+      "pair": "identity -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "identity -> persistence",
+      "count": 1
+    },
+    {
+      "pair": "knowledge -> persistence",
+      "count": 1
+    },
+    {
+      "pair": "knowledge -> providers",
+      "count": 1
+    },
+    {
+      "pair": "knowledge -> security",
+      "count": 1
+    },
+    {
+      "pair": "knowledge -> status",
+      "count": 1
+    },
+    {
+      "pair": "knowledge -> workspace",
+      "count": 1
+    },
+    {
+      "pair": "node -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "project -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "project -> status",
+      "count": 1
+    },
+    {
+      "pair": "project -> workspace",
+      "count": 1
+    },
+    {
+      "pair": "promotion -> status",
+      "count": 1
+    },
+    {
+      "pair": "providers -> automation",
+      "count": 1
+    },
+    {
+      "pair": "providers -> identity",
+      "count": 1
+    },
+    {
+      "pair": "remote -> status",
+      "count": 1
+    },
+    {
+      "pair": "research -> automation",
+      "count": 1
+    },
+    {
+      "pair": "research -> persistence",
+      "count": 1
+    },
+    {
+      "pair": "research -> security",
+      "count": 1
+    },
+    {
+      "pair": "research -> tenx",
+      "count": 1
+    },
+    {
+      "pair": "runtime -> <road>",
+      "count": 1
+    },
+    {
+      "pair": "settings -> providers",
+      "count": 1
+    },
+    {
+      "pair": "settings -> status",
+      "count": 1
+    },
+    {
+      "pair": "state-core -> providers",
+      "count": 1
+    },
+    {
+      "pair": "state-core -> runtime",
+      "count": 1
+    },
+    {
+      "pair": "state-core -> status",
+      "count": 1
+    },
+    {
+      "pair": "status -> research",
+      "count": 1
+    },
+    {
+      "pair": "task-creation -> status",
+      "count": 1
+    },
+    {
+      "pair": "task-creation -> tasks",
+      "count": 1
+    },
+    {
+      "pair": "tasks -> persistence",
+      "count": 1
+    },
+    {
+      "pair": "tasks -> security",
+      "count": 1
+    },
+    {
+      "pair": "tasks -> theme",
+      "count": 1
+    },
+    {
+      "pair": "tasks -> workspace",
+      "count": 1
+    },
+    {
+      "pair": "tenx -> automation",
+      "count": 1
+    },
+    {
+      "pair": "tenx -> learning",
+      "count": 1
+    },
+    {
+      "pair": "theme -> knowledge",
+      "count": 1
+    },
+    {
+      "pair": "theme -> runtime",
+      "count": 1
+    },
+    {
+      "pair": "theme -> tenx",
+      "count": 1
+    },
+    {
+      "pair": "workspace -> runtime",
+      "count": 1
+    },
+    {
+      "pair": "workspace -> tasks",
+      "count": 1
+    }
+  ],
+  "kernelToFeaturePairs": [
+    {
+      "pair": "persistence -> tasks",
+      "count": 8
+    },
+    {
+      "pair": "runtime -> tenx",
+      "count": 7
+    },
+    {
+      "pair": "persistence -> tenx",
+      "count": 6
+    },
+    {
+      "pair": "persistence -> status",
+      "count": 3
+    },
+    {
+      "pair": "persistence -> workspace",
+      "count": 3
+    },
+    {
+      "pair": "providers -> security",
+      "count": 3
+    },
+    {
+      "pair": "providers -> status",
+      "count": 3
+    },
+    {
+      "pair": "providers -> tasks",
+      "count": 3
+    },
+    {
+      "pair": "providers -> engineering",
+      "count": 2
+    },
+    {
+      "pair": "providers -> workspace",
+      "count": 2
+    },
+    {
+      "pair": "runtime -> status",
+      "count": 2
+    },
+    {
+      "pair": "state-core -> knowledge",
+      "count": 2
+    },
+    {
+      "pair": "state-core -> tenx",
+      "count": 2
+    },
+    {
+      "pair": "providers -> automation",
+      "count": 1
+    },
+    {
+      "pair": "providers -> identity",
+      "count": 1
+    },
+    {
+      "pair": "state-core -> status",
+      "count": 1
+    }
+  ],
+  "mutualPairs": [
+    {
+      "a": "tenx",
+      "b": "tasks",
+      "forward": 25,
+      "backward": 2
+    },
+    {
+      "a": "tenx",
+      "b": "engineering",
+      "forward": 21,
+      "backward": 7
+    },
+    {
+      "a": "engineering",
+      "b": "tasks",
+      "forward": 16,
+      "backward": 3
+    },
+    {
+      "a": "promotion",
+      "b": "security",
+      "forward": 16,
+      "backward": 6
+    },
+    {
+      "a": "engineering",
+      "b": "status",
+      "forward": 15,
+      "backward": 3
+    },
+    {
+      "a": "status",
+      "b": "tasks",
+      "forward": 13,
+      "backward": 6
+    },
+    {
+      "a": "tenx",
+      "b": "persistence",
+      "forward": 13,
+      "backward": 6
+    },
+    {
+      "a": "tenx",
+      "b": "status",
+      "forward": 13,
+      "backward": 2
+    },
+    {
+      "a": "automation",
+      "b": "providers",
+      "forward": 10,
+      "backward": 1
+    },
+    {
+      "a": "engineering",
+      "b": "promotion",
+      "forward": 10,
+      "backward": 9
+    },
+    {
+      "a": "providers",
+      "b": "runtime",
+      "forward": 9,
+      "backward": 2
+    },
+    {
+      "a": "persistence",
+      "b": "tasks",
+      "forward": 8,
+      "backward": 1
+    },
+    {
+      "a": "automation",
+      "b": "tenx",
+      "forward": 7,
+      "backward": 1
+    },
+    {
+      "a": "engineering",
+      "b": "security",
+      "forward": 7,
+      "backward": 5
+    },
+    {
+      "a": "runtime",
+      "b": "tenx",
+      "forward": 7,
+      "backward": 2
+    },
+    {
+      "a": "status",
+      "b": "persistence",
+      "forward": 7,
+      "backward": 3
+    },
+    {
+      "a": "providers",
+      "b": "persistence",
+      "forward": 5,
+      "backward": 4
+    },
+    {
+      "a": "tenx",
+      "b": "research",
+      "forward": 5,
+      "backward": 1
+    },
+    {
+      "a": "knowledge",
+      "b": "tenx",
+      "forward": 4,
+      "backward": 4
+    },
+    {
+      "a": "status",
+      "b": "runtime",
+      "forward": 4,
+      "backward": 2
+    },
+    {
+      "a": "tasks",
+      "b": "providers",
+      "forward": 4,
+      "backward": 3
+    },
+    {
+      "a": "knowledge",
+      "b": "engineering",
+      "forward": 3,
+      "backward": 2
+    },
+    {
+      "a": "persistence",
+      "b": "workspace",
+      "forward": 3,
+      "backward": 3
+    },
+    {
+      "a": "providers",
+      "b": "status",
+      "forward": 3,
+      "backward": 2
+    },
+    {
+      "a": "research",
+      "b": "status",
+      "forward": 3,
+      "backward": 1
+    },
+    {
+      "a": "status",
+      "b": "promotion",
+      "forward": 3,
+      "backward": 1
+    },
+    {
+      "a": "theme",
+      "b": "tasks",
+      "forward": 3,
+      "backward": 1
+    },
+    {
+      "a": "engineering",
+      "b": "providers",
+      "forward": 2,
+      "backward": 2
+    },
+    {
+      "a": "knowledge",
+      "b": "theme",
+      "forward": 2,
+      "backward": 1
+    },
+    {
+      "a": "tenx",
+      "b": "theme",
+      "forward": 2,
+      "backward": 1
+    },
+    {
+      "a": "tasks",
+      "b": "workspace",
+      "forward": 1,
+      "backward": 1
+    }
+  ],
+  "declaredRequirementPairs": [
+    "knowledge -> persistence",
+    "research -> knowledge",
+    "theme -> theme"
+  ],
+  "sampleKernelToFeatureEdges": [
+    "electron/history-repository.ts -> src/shared/contracts.ts  (persistence -> status)",
+    "electron/store.ts -> src/shared/owner-result.ts  (persistence -> status)",
+    "electron/store.ts -> src/shared/contracts.ts  (persistence -> status)",
+    "electron/store.ts -> src/shared/final-response.ts  (persistence -> tasks)",
+    "electron/store.ts -> src/shared/result-validator.ts  (persistence -> tasks)",
+    "electron/store.ts -> src/shared/conversation-policy.ts  (persistence -> tasks)",
+    "electron/store.ts -> src/shared/execution.ts  (persistence -> tasks)",
+    "electron/store.ts -> src/shared/task-ir.ts  (persistence -> tasks)",
+    "electron/store.ts -> src/shared/work-mode.ts  (persistence -> tasks)",
+    "electron/store.ts -> src/shared/workbook-dispatch.ts  (persistence -> tasks)",
+    "src/shared/dsh-presets.ts -> src/shared/task-ir.ts  (persistence -> tasks)",
+    "electron/bootstrap/persistence.ts -> electron/commander/task-ledger.ts  (persistence -> tenx)",
+    "electron/bootstrap/persistence.ts -> electron/commander/decision-ledger-store.ts  (persistence -> tenx)",
+    "electron/bootstrap/persistence.ts -> electron/runtime-intelligence/live-capture.ts  (persistence -> tenx)",
+    "electron/store.ts -> electron/commander/task-ledger.ts  (persistence -> tenx)",
+    "electron/store.ts -> electron/commander/state-budget.ts  (persistence -> tenx)",
+    "electron/store.ts -> src/shared/optional-review.ts  (persistence -> tenx)",
+    "electron/bootstrap/persistence.ts -> electron/workspace/workspace-registry.ts  (persistence -> workspace)",
+    "electron/bootstrap/persistence.ts -> electron/workspace/durable-roots.ts  (persistence -> workspace)",
+    "electron/store.ts -> electron/workspace/path-utils.ts  (persistence -> workspace)",
+    "electron/bootstrap/provider-pool.ts -> electron/provider-automation.ts  (providers -> automation)",
+    "electron/computer/backends/structured-apps.ts -> electron/engineering/native-tools.ts  (providers -> engineering)",
+    "electron/runtimes/native-api-runtime.ts -> electron/engineering/native-tools.ts  (providers -> engineering)",
+    "electron/account-sessions.ts -> electron/identity/session-lifecycle-ledger.ts  (providers -> identity)",
+    "electron/bootstrap/providers.ts -> electron/github/github-machine-runtime.ts  (providers -> security)",
+    "electron/computer/computer-service.ts -> src/shared/permission.ts  (providers -> security)",
+    "electron/software/software-runtime.ts -> src/shared/permission.ts  (providers -> security)",
+    "electron/provider-views.ts -> src/shared/contracts.ts  (providers -> status)",
+    "electron/runtimes/codex/codex-cli-runtime.ts -> src/shared/contracts.ts  (providers -> status)",
+    "electron/runtimes/runtime.ts -> src/shared/contracts.ts  (providers -> status)",
+    "electron/computer/backends/dom-page.ts -> src/shared/action-readiness.ts  (providers -> tasks)",
+    "electron/runtimes/native-api-runtime.ts -> src/shared/task-ir.ts  (providers -> tasks)",
+    "src/shared/provider-contracts.ts -> src/shared/execution.ts  (providers -> tasks)",
+    "electron/bootstrap/providers.ts -> src/shared/workspace-layout.ts  (providers -> workspace)",
+    "electron/provider-views.ts -> src/shared/workspace-layout.ts  (providers -> workspace)",
+    "src/shared/bootstrap-audit.ts -> src/shared/final-acceptance.ts  (runtime -> status)",
+    "src/shared/bootstrap-audit.ts -> src/shared/owner-intervention.ts  (runtime -> status)",
+    "electron/capability/integration/execution-authorization.ts -> electron/commander/execution-gate.ts  (runtime -> tenx)",
+    "electron/platform/coordination-recorder.ts -> electron/commander/task-ledger.ts  (runtime -> tenx)",
+    "electron/platform/coordination-recorder.ts -> src/shared/coordination-ledger.ts  (runtime -> tenx)"
+  ]
+}

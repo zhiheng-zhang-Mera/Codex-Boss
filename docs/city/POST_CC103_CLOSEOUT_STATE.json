@@ -1,0 +1,67 @@
+{
+  "schema": "boss-post-cc103-closeout/1",
+  "status": "IN_PROGRESS",
+  "paper_experiment_sha": "bedeb8280f4bdb51e54fbead642775b1a32d16b6",
+  "paper_bundle_sha": "8df428eaa437a409368401e95194e40266b83080",
+  "paper_experiment_tag": "boss-city-cc103-paper-snapshot-v1",
+  "paper_bundle_tag": "boss-paper-cc103-bundle-20260928-v1",
+  "paper_bundle_tag_object": "caa4e35d44e233a1867667e8a861f930e3df642b",
+  "branch": "city/phase2-closeout-post-cc103",
+  "work_start_sha": "8df428eaa437a409368401e95194e40266b83080",
+  "drift_at_signing_point": false,
+  "checkpoint_sha": null,
+  "completed_tasks": [],
+  "active_task": "T3",
+  "next_action": "Remove the real kernel -> feature runtime dependencies cluster by cluster, starting with the persistence cluster, re-measuring the kernel -> feature edge count after each committed boundary.",
+  "running_jobs": [],
+  "machine_blockers": [
+    "S2 kernel -> feature file edges = 49 (target 0)",
+    "S3 mutual capability pairs = 31 (target 0)",
+    "S4 largest SCC = 18 of 29 nodes (target <= 1)",
+    "S10 MIGRATION_IN_PROGRESS plots = 21 (target 0)",
+    "S14 MACHINE_RATCHET principles = 2 (15.1, 15.7; target 0)",
+    "E5 docs/city/FINAL_ACCEPTANCE_RECORD.md does not exist yet"
+  ],
+  "non_blocking_unverified": [
+    "G2/G3 live ruleset readability (requires --hosted; not new architecture work)",
+    "E1/E4 human integrity/anti-erasure proof boundary; executor-verifiable parts due in T7",
+    "F1/F2/F4 final-main fields, filled once a final SHA exists"
+  ],
+  "deferred_optional_work": [],
+  "human_intervention_count": 0,
+  "delegated_owner_action_count": 0,
+  "baseline_measurement": {
+    "subject_sha": "8df428eaa437a409368401e95194e40266b83080",
+    "instrument_sha": "8df428eaa437a409368401e95194e40266b83080",
+    "schema_version": "city-phase2-edge-inventory/1",
+    "included_source_count": 594,
+    "capability_node_count": 29,
+    "capability_edge_count": 197,
+    "kernel_to_feature_file_edges": 49,
+    "kernel_to_feature_distinct_pairs": 16,
+    "mutual_capability_pairs": 31,
+    "largest_scc_size": 18,
+    "scc_count": 12,
+    "non_trivial_scc_count": 1,
+    "migration_in_progress": 21,
+    "unsafe_gap": 0,
+    "private_state_accesses": 0,
+    "multi_writer_candidates": 0,
+    "roads_outgoing_edges": 0,
+    "edges_to_roads": 75,
+    "core_measured_size": 115,
+    "core_budget_result": "HOLDS; unexcused growth 0",
+    "raw_report_refs": [
+      "D:/Codex-Boss-Offrepo/post-cc103/t2-baseline/phase2-edge-inventory.json",
+      "D:/Codex-Boss-Offrepo/post-cc103/t2-baseline/city-final-acceptance.json",
+      "D:/Codex-Boss-Offrepo/post-cc103/t2-baseline/p2b-kernel-feature-ratchet.json"
+    ]
+  },
+  "baseline_strict_gate": {
+    "pass": 19,
+    "open": 8,
+    "unverified": 7,
+    "open_ids": ["S2", "S3", "S4", "S10", "S14", "E5", "F5", "F6"],
+    "unverified_ids": ["G2", "G3", "E1", "E4", "F1", "F2", "F4"]
+  }
+}
