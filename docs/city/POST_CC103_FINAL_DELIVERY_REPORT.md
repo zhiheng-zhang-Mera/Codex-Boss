@@ -1,6 +1,6 @@
 # Post-CC103 closeout — final delivery report
 
-> Filled from real measurements at the construction checkpoint `bab3f71` on `city/phase2-closeout-post-cc103`.
+> Filled from real measurements at the construction checkpoint `65df177` on `city/phase2-closeout-post-cc103`.
 > Every field is a real value; `NOT_PERFORMED` and `UNVERIFIED` are used where that is the truth. This report is
 > the workbook §20 template, filled in, and it is deliberately **not** a success report.
 
@@ -40,7 +40,7 @@ post_freeze_cohort_location
 
 ```text
 work_start_sha             8df428eaa437a409368401e95194e40266b83080   (== origin/main at work start; NO drift)
-checkpoint_sha             bab3f71   (branch city/phase2-closeout-post-cc103, pushed); TWO A2 boundaries have landed
+checkpoint_sha             65df177   (branch city/phase2-closeout-post-cc103, pushed); THREE A2 boundaries have landed
 final_main_sha             NOT ESTABLISHED — main has not moved and this round changed no source file
 final_machine_ready_tag    NOT CREATED — it names a final verified main SHA, and there is none
 merged_prs                 none (a PR may be opened for review; nothing was merged)
@@ -57,7 +57,7 @@ Measured at the work-start SHA and re-verified at the checkpoint; **this round r
 work-start values ARE the checkpoint values.
 
 ```text
-kernel_to_feature_file_edges = 47   (target 0)      NOT MET   [work start 49; A2-1 and A2-4 retired one edge each]
+kernel_to_feature_file_edges = 46   (target 0)      NOT MET   [work start 49; A2-1, A2-4 and A2-5 retired the edges]
 kernel_to_feature_pairs      = 16   (target 0)      NOT MET
 mutual_capability_pairs      = 31   (target 0)      NOT MET
 largest_scc_size             = 18 of 29 nodes (target <= 1)   NOT MET
@@ -101,11 +101,13 @@ real_runtime_and_replacement_evidence
     prove. The existing replacement lifecycle evidence (one instance RETIRED with evidence at every state)
     is unchanged and is not re-claimed as new.
 root_trust_epoch / MATCHES
-    epoch 68 (boss-root-trust-68) MATCHES the live surface — real run, exit 0. Advanced twice this round: 66 -> 67
-    by A2-1 and 67 -> 68 by A2-4, both because config/architecture-enforcement-baseline.json is a declared Root
-    Trust Surface path and the frozen identity genuinely changed (one edge retired each time, internal_edges
-    1656 -> 1655 -> 1654). Each ceremony regenerated a candidate, recorded it as an ACCEPTED series entry naming
-    the retired edge, asserted the tracked file matched the series head, then advanced.
+    epoch 69 (boss-root-trust-69) MATCHES the live surface — real run, exit 0. Advanced three times this round:
+    66 -> 67 (A2-1), 67 -> 68 (A2-4), 68 -> 69 (A2-5), each because config/architecture-enforcement-baseline.json
+    is a declared Root Trust Surface path and the frozen identity genuinely changed (internal_edges
+    1656 -> 1655 -> 1654 -> 1653). Every ceremony regenerated a candidate, recorded it as an ACCEPTED series entry
+    FROM the candidate's own retire/add report, asserted the tracked file matched the series head, then advanced.
+    The third entry records that the guard move which accompanied the retired edge retired NOTHING by itself — the
+    instrument's report, not the intent of the change, is what the entry is written from.
 final_hosted_run_id
     NOT ESTABLISHED for a final main SHA. Branch evidence: run 36432693238 @ 4ed0f44 produced all five jobs
     completed/success (quality 108962644082, architecture 108962644520, unit 108962991894,
@@ -114,7 +116,7 @@ final_hosted_run_id
 per_job_name / job_id / subject_sha / attempt / conclusion
     as above; no attempt is stitched across commits and no PR merge-ref run is presented as a main run.
 strict_gate_raw_status
-    NOT_READY: 22 PASS / 5 OPEN / 7 UNVERIFIED at checkpoint bab3f71 on a clean tree
+    NOT_READY: 22 PASS / 5 OPEN / 7 UNVERIFIED at checkpoint 65df177 on a clean tree
     open       = S2, S3, S4, S10, S14
     unverified = G2, G3 (hosted ruleset reads), E1, E4 (human integrity half), F1, F2, F4 (need a final SHA)
 remaining_unverified_ids_and_reasons

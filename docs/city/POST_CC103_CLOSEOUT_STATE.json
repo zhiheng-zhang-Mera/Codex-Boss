@@ -9,7 +9,7 @@
   "branch": "city/phase2-closeout-post-cc103",
   "work_start_sha": "8df428eaa437a409368401e95194e40266b83080",
   "drift_at_signing_point": false,
-  "checkpoint_sha": "bab3f71",
+  "checkpoint_sha": "65df177",
   "completed_tasks": [
     "T1: F0 verified unchanged; F1 created and pushed; work-start drift checked (none); construction branch created and pushed; freeze notice, workbook, state file, extraction map and acceptance template written",
     "T2: work-start baseline measured with the repository's own instruments (8 reports archived and hashed); OPEN items split into real structural work vs hosted/human boundaries; the old record confirmed identical, not stale; unit suite green at 284 files / 3678 tests",
@@ -18,12 +18,13 @@
     "T6: the Owner chose route A2 over A1 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106)",
     "T3/Phase A2-1 LANDED (CC-107): electron/store.ts stopped importing the run-mode policy it never decided. kernel -> feature edges 49 -> 48; Root Trust epoch 66 -> 67.",
     "T3/Phase A2-2 REFUTED (CC-108): the ownership resolver keeps the LAST matching claim, not the most specific one, so an exact-file claim cannot move a file out of a directory claim declared later. Config restored; no metric moved.",
-    "T3/Phase A2-3 MEASURED AND REVERTED (CC-109): moving the soak test instrument out of state-core took S2 from 48 to 45 but raised the raw edge total 773 -> 776, mutual pairs 31 -> 32 and the largest SCC 18 -> 19. Recorded as the bound on the 'side effect leaves the kernel' category.",
     "T3/Phase A2-4 LANDED (CC-111): the store reads the current final response out of its own snapshot instead of importing the task capability's read model. kernel -> feature edges 48 -> 47; Root Trust epoch 67 -> 68; move (ii) attempted, refuted by the renderer's dependency on src/shared/**, and reverted.",
-    "T7 evidence: five hosted jobs green on bab3f71 (quality, architecture, unit, package, acceptance)."
+    "T3/Phase A2-3 MEASURED AND REVERTED (CC-109): moving the soak test instrument out of state-core took S2 48 -> 45 but raised the raw edge total 773 -> 776, mutual pairs 31 -> 32 and the largest SCC 18 -> 19. The bound on the side-effect-leaves-the-kernel category.",
+    "T3/Phase A2-5 LANDED (CC-112): the store stops importing isConversationPolicy (it declares the set it may persist and keeps its own guard, pinned to the owner constant) and isVerificationContract (the guard moves to the producer, main-commander.ts, both call sites). kernel -> feature edges 47 -> 46; Root Trust epoch 68 -> 69. The instrument corrected the entry: the guard move retired NO edge, because the store still reaches result-validator through two inline type positions.",
+    "T7 evidence: five hosted jobs green on bab3f71 and on 65df177 (quality, architecture, unit, package, acceptance)."
   ],
-  "active_task": "T3/Phase A2 (next: the store's remaining guards — a behaviour move each)",
-  "next_action": "Continue A2 move (i): relocate the remaining validation guards in electron/store.ts (isConversationPolicy, isVerificationContract, reviewResult) to the capability that owns each policy, with a boundary test per guard that proves the guard still fires. Each landed edge needs a p2b value lowered and a Root Trust ceremony in the same commit.",
+  "active_task": "T3/Phase A2 (next: a large vocabulary move or a behaviour move — see the ledger CC-112 note)",
+  "next_action": "The remaining electron/store.ts imports are no longer the cheap kind. Next candidates, in measured order: (1) the review POLICY in src/shared/execution.ts (defaultReviewPolicy/reviewResponse) — a behaviour move; (2) the 22-type snapshot vocabulary in src/shared/contracts.ts — a large vocabulary move with a two-declaration cost; (3) the tenx ledger cluster (task-ledger, state-budget, optional-review). Each landed edge needs a p2b value lowered and a Root Trust ceremony in the same commit, and the acceptance entry must be written FROM the candidate retire/add report.",
   "structural_blocker": {
     "status": "MEASURED_NOT_REACHABLE_IN_ONE_BOUNDED_SESSION",
     "targets_unmet": {

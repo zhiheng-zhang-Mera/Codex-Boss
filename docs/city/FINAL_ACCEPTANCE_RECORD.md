@@ -15,7 +15,7 @@
 | Repository | `zhiheng-zhang-Mera/Codex-Boss` |
 | Work branch | `city/phase2-closeout-post-cc103` |
 | Work-start SHA (= F1) | `8df428eaa437a409368401e95194e40266b83080` |
-| Construction checkpoint SHA | `bab3f71` — the second landed A2 boundary (the store reads its own document instead of importing the task capability's read model). Ledgers CC-107 and CC-111. Root Trust epoch 68. Five hosted jobs green on this SHA. |
+| Construction checkpoint SHA | `65df177` — the third landed A2 boundary (the store stops importing two more policies it never decided). Ledgers CC-107, CC-111 and CC-112. Root Trust epoch 69. Five hosted jobs green on this SHA. |
 | Final main SHA | **NOT ESTABLISHED** — `main` has not moved and this round made no code change, see §2.5 |
 | Final machine-ready tag | **NOT CREATED** — it names a final verified main SHA, and there is none |
 | Paper experiment anchor (F0) | `bedeb8280f4bdb51e54fbead642775b1a32d16b6` — tag `boss-city-cc103-paper-snapshot-v1` |
@@ -26,7 +26,7 @@
 ```text
 CITY_MACHINE_ACCEPTANCE   = NOT_READY
 STRICT_STRUCTURAL_TARGETS = NOT_MET
-STRICT_GATE_RAW_STATUS    = NOT_READY  (22 PASS / 5 OPEN / 7 UNVERIFIED at checkpoint bab3f71)
+STRICT_GATE_RAW_STATUS    = NOT_READY  (22 PASS / 5 OPEN / 7 UNVERIFIED at checkpoint 65df177)
 ```
 
 ### 2.0 Why there is no final main SHA, stated plainly
@@ -51,7 +51,7 @@ this round:
 
 | Metric | Work-start = checkpoint value | Target | Met? |
 |---|---:|---:|---|
-| kernel → feature file edges | 49 → **47** (A2-1 CC-107, A2-4 CC-111) | 0 | **NO** |
+| kernel → feature file edges | 49 → **46** (A2-1 CC-107, A2-4 CC-111, A2-5 CC-112) | 0 | **NO** |
 | kernel → feature distinct pairs | 16 | 0 | **NO** |
 | mutual capability pairs | 31 | 0 | **NO** |
 | largest strongly connected component | 18 / 29 nodes | ≤ 1 | **NO** |
@@ -85,7 +85,7 @@ green run on the final `main` SHA, and successes from different attempts are nev
 ### 2.3 Root trust
 
 ```text
-root_epoch = 68 (boss-root-trust-68) / MATCHES -- advanced from 66 by the A2-1 ceremony and from 67 by A2-4
+root_epoch = 69 (boss-root-trust-69) / MATCHES -- advanced three times this round: 66 -> 67 (A2-1), 67 -> 68 (A2-4), 68 -> 69 (A2-5)
 acceptance-evolution-bless.cjs --check = exit 0 (the committed epoch matches the live surface)
 ```
 
@@ -97,11 +97,11 @@ performed. The `MATCHES` result is a real run of the gate, not an assumption.
 ```text
 final_hosted_run_id   = NOT ESTABLISHED (no final main run exists)
 final_main_sha        = NOT ESTABLISHED
-branch_checkpoint_sha = bab3f71
+branch_checkpoint_sha = 65df177
 branch_ci_run         = 36432693238 (4ed0f44) -- all five jobs completed/success
 post_freeze_cohort    = docs/research/post-cc103/EXPERIMENT_INDEX.csv
 strict_gate_raw       = NOT_READY: 20 PASS / 7 OPEN / 7 UNVERIFIED
-remaining_open        = S2 (47), S3 (31), S4 (18), S10 (21), S14 (15.1, 15.7)
+remaining_open        = S2 (46), S3 (31), S4 (18), S10 (21), S14 (15.1, 15.7)
 remaining_unverified  = G2, G3, E1, E4, F1, F2, F4  (G2/G3 are the hosted-ruleset reads; F1/F2/F4 need a final SHA;
                         E1/E4's machine half is VERIFIED in section 3 and only the human half remains)
 ```
