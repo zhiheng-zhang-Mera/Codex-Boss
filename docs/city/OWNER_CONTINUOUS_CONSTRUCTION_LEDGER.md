@@ -11033,3 +11033,102 @@ research_value              (1) Measurements taken independently converge, and c
                             produced a gate refusal with three named reasons, which is a stronger record than
                             another estimate would have been.
 ```
+
+---
+
+## CC-106 — The Owner chose A2, and it settles the one question the measurements could not
+
+**1. The decision.** Phase A of `docs/city/DIGITAL_CITY_EXTRACTION_MAP.md` could not start without a policy choice,
+because the two available routes have different costs and different architectural meanings:
+
+```text
+A1  give the 25 kernel-reached `src/shared/**` contracts a home the kernel owns, which requires deliberately
+    widening the kernel file set against a ratchet that floors `files_owned`; or
+A2  remove the kernel's NEED for them — the kernel stops deciding task/status policy it currently validates.
+```
+
+**The Owner chose A2.** Recorded here as a decision with its reasoning, because the next several rounds are
+sequenced by it and because a decision that is only in a chat message is not durable:
+
+```text
+A2 is chosen because A1's entire argument is an argument with the anti-gaming rule. The ratchet floors
+`files_owned` and `capability_edges` precisely so that a file cannot be moved between classes to make an
+inversion look repaired, and CC-104 measured both floors firing on exactly that attempt. A1 would have to be
+argued as an exception to a rule whose purpose it shares. A2 needs no exception: it changes what the kernel
+DOES, and the edge disappears because the dependency disappeared.
+
+A2 is the larger change and that is acknowledged rather than minimised. It also has a property A1 cannot have:
+it is testable behaviour by behaviour, and each behaviour it moves has an owner who should have had it.
+```
+
+**2. What A2 means concretely, in order.** The kernel's need is not one thing; it is 30 runtime import statements
+(`docs/research/post-cc103/evidence/baseline-kernel-feature-binding-classification.json`). A2 reduces each of them
+to one of three honest moves:
+
+```text
+(i)   THE KERNEL STOPS DECIDING. `electron/store.ts` validates `isConversationPolicy`,
+      `isVerificationContract`, `isRunMode` and applies `reviewResponse`/`defaultReviewPolicy`. A store decides
+      what to keep, not what a valid task policy is. The guard belongs where the value is produced; the store
+      accepts an already-validated value. The TYPE stays where its owner declares it — the store is not a second
+      declaration of the task domain, it is a consumer of it, and that is the one place A2 and A1 agree.
+(ii)  THE UTILITY MOVES TO THE KERNEL, AND THE OWNER KEEPS CALLING IT. `currentFinalResponse`,
+      `canonicalRealPathOrNormalized` and `applyStateStorageBudget` are pure functions over data the kernel
+      already holds. Moving the function and letting the feature import it FROM the kernel is not a re-point: the
+      feature's edge becomes feature -> kernel, which is the allowed direction, and nothing is hidden because the
+      file's owner genuinely changes.
+(iii) THE SIDE EFFECT LEAVES THE KERNEL. `state-core/platform-soak.ts` is a soak test instrument inside a kernel
+      capability that drives `knowledge` retention and `status` soak bounds. A test instrument is not Core
+      behaviour; it belongs with the acceptance surface that owns the bounds it applies.
+```
+
+**3. What A2 forbids, stated so the next round cannot drift into it.** A2 is not "delete the guard". A behaviour
+that stops being validated is a behaviour that changed, and the workbook forbids weakening a semantic standard to
+make a count fall. Each move therefore needs a test at the boundary that now owns the guard, plus evidence that the
+guard still fires.
+
+**4. The consequence the next rounds must handle: this class of change is a Root Trust change.**
+`config/architecture-enforcement-baseline.json` is listed in `trust-policy/root-trust-surface.json`. The
+architecture ratchet records every `kernel-imports-feature` and `feature-imports-undeclared-surface` violation, so
+removing a kernel → feature edge and re-pointing its consumers *will* change that file's contents and therefore its
+surface hash. The existing exact-SHA ceremony (`scripts/acceptance-evolution-bless.cjs`, then
+`--advance` in the same commit) is the sanctioned route and no new ceremony is invented. This is recorded now,
+before the first edit, so the ceremony is planned rather than discovered at a red CI job.
+
+```text
+ENTRY_ID                    CC-106
+timestamp_utc               2026-09-28T17:25:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L0/L1: this entry records an OWNER DECISION and the plan it selects. No tracked source
+                            file changes, so NO EPOCH CEREMONY is due for THIS entry.
+main_before                 8df428e  (unchanged; the CC-104 branch work is documentation and evidence)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: docs/city/DIGITAL_CITY_EXTRACTION_MAP.md section 4 read; the 30/18 binding
+                            classification; trust-policy/root-trust-surface.json read in full (32 declared paths,
+                            including config/architecture-enforcement-baseline.json); the store's four guard call
+                            sites and their single production caller read
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) A2 is the larger route and its first moves touch `electron/store.ts`, a 1125-line
+                            module whose behaviour several suites pin; the guard-relocation has to be accompanied by
+                            a boundary test or it is a semantic weakening. (2) The enforcement baseline is a Root
+                            Trust surface, so the ceremony is on the critical path and must be done in the same
+                            commit as the change, not afterwards.
+evidence_preserved          the Owner's choice and its reasoning in point 1; the three move classes in point 2; the
+                            blanket prohibition on deleting a guard in point 3; the Root Trust consequence in
+                            point 4, written BEFORE the first edit
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a DECISION. The OBJECTIVE is NOT complete.
+research_value              (1) When two routes differ mainly in which rule they have to be excused from, the one
+                            that needs NO exception is the cheaper engineering even when it is the larger change,
+                            and saying so explicitly stops a later round re-litigating it. (2) A decision that
+                            changes a governed surface should name that surface BEFORE the first edit: the Root
+                            Trust consequence here was visible in a file listing, and finding it at a red CI job
+                            instead would have cost a round.
+```
