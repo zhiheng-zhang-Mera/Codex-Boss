@@ -4794,3 +4794,71 @@ attribution problem" into "this is a build problem", and it is the kind of claim
 **Reference.** subject/instrument SHA `8df428…`; `scripts/p2b-kernel-feature-ratchet.cjs` (real run, exit 1, output
 preserved at `docs/research/post-cc103/evidence/baseline-foundation-hypothesis.txt`); off-repo models
 `docs/research/post-cc103/tools/foundation-lever.cjs` and `docs/research/post-cc103/tools/scc-shared-hypothesis.cjs`.
+
+## X-6 — `REFUTATION`: the hub file that holds the knot together is also the one that hides it, and moving it makes the graph worse
+
+**Question/hypothesis.** CC-077 measured that the 18-member component is not held together by its mutual pairs but by
+a handful of files nearly every capability imports, and named `electron/bootstrap/boot-module.ts` as the largest
+(eighteen capabilities, twenty-five edges, owner `runtime`, "the boot-module interface"). If that file is really the
+platform's wiring contract rather than a `runtime` implementation, giving it to the composition-root class should
+dissolve the knot that its single owner is causing.
+
+**Change.** None committed. The hypothesis was **tested and reverted**: `electron/bootstrap/boot-module.ts` was
+removed from `runtime`'s file list and added to `composition_root` with its reason, the repository's own ratchet was
+run, and the file was restored from a byte copy.
+
+**Result — the graph got dramatically worse, not better.**
+
+```text
+                                  baseline      after moving boot-module.ts to composition_root
+kernel -> feature file edges          49         49      (unchanged)
+kernel -> feature pairs               16         16      (unchanged)
+mutual capability pairs               31         49      (+18)
+largest SCC                          18         28      (+10)
+capability edges                    197        209      (+12)
+capability nodes                     29         29
+composition-root files                2          3
+owned files                          594        594
+```
+
+And the ratchet refused it, exit 1, on the two counts that measure exactly this:
+
+```text
+mutual capability pairs ROSE to 49, above the recorded 31 (a new pair is a new cycle)
+largest SCC size        ROSE to 28, above the recorded 18 (a LARGER component means the knot grew even if the pair
+                        count fell, and pairwise repairs do not split a large component)
+mutual capability pairs (cycles) ROSE to 49, above the recorded 31
+```
+
+**Why it got worse — and this is the finding.** The composition-root class is *excluded from the capability graph*
+(`scripts/phase2-cycles.cjs` computes over capabilities; the composition root is its own 1-node component). So the
+file did not leave the graph — it left the graph **and took its de-duplicating role with it**. Twenty-nine
+capabilities imported one shared file; after the move they import a class that the instrument draws no edges
+through, so the paths that used to run *through* the hub now run *around* it, through each other. Twelve new
+capability edges and eighteen new mutual pairs appeared without a line of code changing.
+
+`electron/bootstrap/boot-module.ts` was therefore doing two jobs at once: it is a genuine shared contract **and** it
+is the single hub whose centrality makes the component look smaller than it is. Its `runtime` ownership is not the
+defect. **Absorbing a hub into the composition root is not a repair; it is the exact move ledger CC-024 and CC-077
+warned about, and here it is measured to be worse than leaving the file alone.**
+
+**Behaviour preserved.** Tree restored byte-for-byte and re-verified against the baseline:
+`edges 49 / mutual 31 / scc 18 / files 594 / capability edges 197`. Nothing was committed from the experiment.
+
+**Conclusion supported.** The 18-node component cannot be shrunk by changing which class owns a hub file. Two
+independent hub experiments now agree: re-homing shared *contracted* files is worth at most four pairs and zero SCC
+nodes (X-5), and re-homing the *largest* hub is worth **minus ten** nodes and **minus eighteen** pairs. The strict
+targets require removing the capability-to-capability edges themselves.
+
+**Conclusion NOT supported.** This does not show `boot-module.ts` is correctly owned — only that moving it is worse
+than not moving it, and that the composition-root class is not a place to put things to make a count fall. It also
+does not discharge S2/S3/S4.
+
+**Paper-use category.** Negative result + instrument boundary: *a metric can be improved by a change that makes the
+architecture worse, and the only way to know which is which is to run the instrument on the proposed change. Here the
+class that is excluded from the measurement was the most attractive place to hide a problem, and putting a real hub
+there inflated both cycle metrics — which is a direct demonstration of why the class is excluded and floored.*
+
+**Reference.** subject/instrument SHA `8df428…`; `scripts/p2b-kernel-feature-ratchet.cjs` (real run, exit 1),
+`scripts/phase2-cycles.cjs`; procedure and raw output preserved at
+`docs/research/post-cc103/evidence/baseline-boot-module-hypothesis.txt`.

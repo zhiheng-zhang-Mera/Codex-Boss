@@ -69,7 +69,28 @@
         "docs/research/post-cc103/tools/scc-shared-hypothesis.cjs"
       ]
     },
-    "why_no_shortcut_was_taken": "Workbook section 4.3 and ledger CC-030 refuse count compensation, and the ownership hypothesis was tested rather than assumed precisely so the refusal would be measured rather than asserted. Re-homing a file, declaring a road, import type, dynamic import, a callback dictionary, a unified event bus, or absorption into the composition-root class are all forbidden ways to move this number, and the ratchet's own anti-gaming floors caught the one that was actually attempted."
+    "measurement_5_hub_hypothesis": {
+      "hypothesis": "electron/bootstrap/boot-module.ts is the platform's wiring contract rather than a runtime file, so giving it to the composition-root class dissolves the knot its single runtime ownership causes (CC-077 named it the largest hub: 18 capabilities, 25 edges)",
+      "verdict": "REFUTED, and the result is NEGATIVE: the graph got dramatically worse",
+      "temporary_patch": "boot-module.ts removed from runtime's file list and added to composition_root with its reason, then reverted byte-for-byte",
+      "measured_with_the_real_gate": {
+        "kernel_to_feature_file_edges": "49 -> 49",
+        "mutual_capability_pairs": "31 -> 49 (+18)",
+        "largest_scc_size": "18 -> 28 (+10)",
+        "capability_edges": "197 -> 209 (+12)",
+        "owned_files": "594 -> 594",
+        "composition_root_files": "2 -> 3",
+        "ratchet_exit_code": 1,
+        "ratchet_problems": "mutual capability pairs ROSE to 49; largest SCC size ROSE to 28; mutual pairs (cycles) ROSE to 49"
+      },
+      "why": "the composition-root class is excluded from the capability graph, so the file left the graph AND took its de-duplicating role with it: paths that ran THROUGH the hub now run AROUND it, through each other",
+      "conclusion": "a hub cannot be shrunk by moving its ownership class; absorbing a hub into the composition root is worse than leaving it alone, and the composition root is not a place to put things to make a count fall",
+      "tree_after_revert": "byte-identical to the work-start state; re-verified as edges 49 / pairs 16 / mutual 31 / scc 18 / files 594 / capability edges 197",
+      "evidence": [
+        "docs/research/post-cc103/evidence/baseline-boot-module-hypothesis.txt"
+      ]
+    },
+    "why_no_shortcut_was_taken": "Workbook section 4.3 and ledger CC-030 refuse count compensation, and BOTH ownership shortcuts were tested rather than assumed so the refusals would be measured rather than asserted. Re-homing a file, declaring a road, import type, dynamic import, a callback dictionary, a unified event bus, and absorption into the composition-root class are all forbidden ways to move this number: the first was attempted and refused by the ratchet's floors, and the last was attempted and made the graph measurably WORSE (mutual pairs 31 -> 49, largest SCC 18 -> 28)."
   },
   "process": {
     "workbook_workflow_order": "T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8"

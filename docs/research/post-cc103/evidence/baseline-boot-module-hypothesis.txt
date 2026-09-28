@@ -1,0 +1,47 @@
+# Hypothesis test output (post-CC103 closeout, T4) -- the hub file
+
+## H2 -- giving the largest hub to the composition-root class makes the knot WORSE
+
+**Patch applied (temporarily, then reverted):** `electron/bootstrap/boot-module.ts` removed from `runtime`'s file list
+and added to `composition_root` with its reason. Motive: CC-077 measured that the 18-member component is held
+together by a few files nearly every capability imports, and named this one as the largest hub (18 capabilities, 25
+edges).
+
+**Measured with `node scripts/p2b-kernel-feature-ratchet.cjs --json`:**
+
+```text
+                                  baseline      after
+kernel -> feature file edges          49         49
+kernel -> feature pairs               16         16
+mutual capability pairs               31         49      (+18)
+largest SCC                           18         28      (+10)
+capability edges                     197        209      (+12)
+capability nodes                      29         29
+composition-root files                 2          3
+owned files                          594        594
+road files                             6          6
+edges to roads                        75         75
+```
+
+**Verdict of the repository's own instrument -- it refused the patch, exit 1:**
+
+```text
+problems [
+  "mutual capability pairs ROSE to 49, above the recorded 31 (workbook section 17's target is 0; a new pair is a
+   new cycle)",
+  "largest SCC size ROSE to 28, above the recorded 18 (section 17's target is 0; a LARGER component means the knot
+   grew even if the pair count fell, and pairwise repairs do not split a large component)",
+  "mutual capability pairs (cycles) ROSE to 49, above the recorded 31 (the same number as above, measured from the
+   SCC's own edge list rather than from the inventory's pair rollup; if the two disagree the instruments disagree
+   and neither should be trusted)"
+]
+exit code 1
+```
+
+**Why.** The composition-root class is excluded from the capability graph, so the file did not leave the graph -- it
+left the graph AND took its de-duplicating role with it. Twenty-nine capabilities used to share one file; afterwards
+they reach a class the instrument draws no edges through, so the paths that ran THROUGH the hub now run AROUND it,
+through each other.
+
+**Tree restored from the byte copy and re-verified against the work-start baseline:**
+`ok true / edges 49 / mutual 31 / scc 18 / files 594 / capability edges 197`.
