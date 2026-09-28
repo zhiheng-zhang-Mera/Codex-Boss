@@ -13350,3 +13350,99 @@ research_value              (1) A technique's exhaustion has a SHAPE, not just a
                             decision is worth more than another cut, because it changes what the next round
                             attempts.
 ```
+
+---
+
+## CC-128 — The cheap cut queue is empty: all six remaining one-edge cuts are VALUE imports, so what remains is architectural
+
+Eighteenth round of the post-CC103 closeout. **No cut attempted and no tracked source file changed.** This entry
+closes the last open question about the cheap end of the cut table: whether any of the six remaining one-edge cuts can
+be paid for the way the four landed ones were.
+
+**1. The test, applied to all six.** The four landed cuts each removed a **type-only** import of a small shape. For a
+cut to be payable that way, the cheaper direction's edge must be a TYPE import. Measured from the feasibility table
+(CC-124) and re-read here:
+
+```text
+pair                cheaper direction      what the consumer imports                        payable?
+automation|providers  providers->automation  `ProviderAutomation` — a CLASS it CONSTRUCTS      NO, construction
+knowledge|theme       theme->knowledge       `KnowledgeCandidate` — a 20-field INTERFACE        NO, too large
+persistence|tasks     tasks->persistence     `sha256Bytes/sha256Hex/utf8Bytes` — FUNCTIONS      NO, behaviour
+promotion|status      promotion->status      `CAPABILITY_GATES` — a runtime TABLE               NO, behaviour
+research|status       status->research       `ResearchProtocol` — an inline TYPE                MAYBE, see 2
+tasks|theme           tasks->theme           (RETIRED by CC-125)
+tasks|workspace       tasks->workspace       (RETIRED by CC-125)
+```
+
+**2. The one MAYBE, and why it is not a cut either.** `src/shared/contracts.ts` reaches
+`src/shared/research-protocol.ts` through an inline type position in a signature. That is the right SHAPE — but the
+carrier is **the twenty-two-type hub itself**, so redeclaring the one type inside `contracts.ts` would not remove the
+edge; the edge is a property of `contracts.ts`, and `contracts.ts` is exactly the file CC-126 identified as the
+decision. So it folds into the same decision rather than being a separate cut.
+
+**3. What that means, stated plainly.** The cut queue built on one technique — find a type-only import of a small
+shape, redeclare it locally, pin it at compile time — is now **empty**. It produced five retired mutual pairs
+(31 → 26) and three retired S2 edges (49 → 46) across four cuts. Everything that remains needs one of:
+
+```text
+A CONSTRUCTION MOVED        automation|providers: the pool builds the loop; the root would build it instead, and the
+                            pool's rebuild-on-new-window behaviour has to be redone
+A BEHAVIOUR MOVED           persistence|tasks (a hash algorithm the renderer depends on), promotion|status (a gate
+                            table), and the review policy the state document applies
+AN ARCHITECTURAL DECISION   the state document's vocabulary (contracts.ts, 22 types) and the validation behaviour
+                            behind it — CC-126's decision
+```
+
+All three are behaviour-and-structure work, and none of them is a declaration edit.
+
+**4. What this entry does not claim.** It does not claim the remaining 26 pairs are all architectural: the feasibility
+table classified them by what each consumer imports, and some of the 2-edge and 3-edge pairs may contain a type-only
+edge that becomes payable once the value edge beside it is dealt with. It claims only that **the six one-edge cuts
+this round kept naming are not payable**, and that the queue the plan called STEP 1 is empty rather than merely
+worked-through.
+
+**5. The honest position.** Seventeen rounds have retired five mutual pairs and three S2 edges, run ten Root Trust
+ceremonies, and established the technique's boundary, the feasibility table, and five governance rules. The strict
+targets remain far off (S2 46, S3 26, S4 18), and this entry removes the last cheap hope rather than leaving it to be
+rediscovered as a failed attempt.
+
+```text
+ENTRY_ID                    CC-128
+timestamp_utc               2026-09-28T21:56:33Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             docs/research/post-cc103/evidence/cut-feasibility-r14.txt re-read for the six one-edge
+                            cuts; the import statements of the four carriers read directly; the CC-126 cluster
+                            measurement for contracts.ts
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) "Not payable" is judged by the kind of the imported symbol, which the feasibility
+                            reader derives from source; a cut of a VALUE import is conceivable but would be a
+                            behaviour change and therefore not a declaration edit. (2) Some 2-edge and 3-edge pairs
+                            may still contain a payable type edge; this entry does not claim the whole table is
+                            exhausted, only the six one-edge cuts it names. (3) The strict targets remain unmet and
+                            nothing here moves them.
+evidence_preserved          the six cuts with what each consumer actually imports; the one MAYBE and why it folds
+                            into the same decision; the three kinds of work that remain, with an example each
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as the EXHAUSTION OF A QUEUE, recorded so it is not rediscovered by attempt. The
+                            OBJECTIVE is NOT complete.
+research_value              (1) A technique's boundary can be stated as a QUEUE LENGTH: four cuts landed, six one-edge
+                            candidates remain, and all six fail the same test, so the queue is empty rather than
+                            long. Recording that is cheaper than six failed attempts and one discovery.
+                            (2) Distinguishing "a declaration edit" from "a behaviour change" is what makes the
+                            remaining work assignable: the former is mechanical and bounded, the latter is a
+                            decision, and this round's evidence puts every remaining one-edge cut in the latter.
+                            (3) A measurement that removes a hope is a result, and it belongs next to the
+                            successes rather than after them.
+```
