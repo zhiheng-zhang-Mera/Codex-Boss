@@ -1,4 +1,4 @@
-﻿# OWNER CONTINUOUS CONSTRUCTION LEDGER
+# OWNER CONTINUOUS CONSTRUCTION LEDGER
 
 **Repository:** `zhiheng-zhang-Mera/Codex-Boss`
 **Authority document:** `docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md` (issued 2026-09-24, Australia/Melbourne)
@@ -10625,4 +10625,179 @@ research_value              (1) A classifier written quickly is a SUMMARY of the
                             this tree. (3) Withdrawing a claim that is already published is cheaper than defending
                             it: the append-only ledger makes the correction visible, which is the point of keeping
                             one.
+```
+
+---
+
+## CC-103 — The real hosted red on `main@bf45476` is repaired, and the pre-seal minimum-human-acceptance checkpoint exists
+
+**1. The mission changed, and the new instruction overrides the old plan on conflict.** The previous round stopped with
+the successor workbook's full-city objective unfulfilled and the goal BLOCKED. The instruction sheet
+`Codex-Boss_CC103_minimum_human_acceptance.md` (sha256 `9a1ee7ff…7227dc`) supersedes it for this round: recover the
+**real** hosted red, establish a **non-regressing minimum-human-acceptance checkpoint**, and stop at **one** Owner
+confirmation. This is **not** the Phase-2 seal.
+
+**2. The real red was not where the previous round believed it was, and reading the artifact is what found it.** At the
+start of this round `main@bf45476` was red in **run 36331698636**. The failing job is `unit`, and the failing step is
+`pnpm run test:slow` — **not** `pnpm test`, whose 283 files and 3668 tests were green on the same commit, and not
+`test:postbuild`, which was green too. `acceptance` and `package` were SKIPPED because they `needs:` a green `unit`.
+
+```text
+tests/unit/platform/platform-soak.test.ts
+"distinguishes a recovered provider from a crash loop"  (line 325)
+AssertionError: a provider degraded and no circuit ever recovered: expected 0 to be greater than 0
+```
+
+**3. The failure signature locates the run exactly, and that is what made the repair targeted rather than another
+sweep.** `runPlatformSoak` sets `failing = cycleNumber % 3 === 0` and records the recovery on the cycle AFTER the
+degradation, gated on `cycleNumber % 3 === 1`. The recovery counter therefore cannot move until a LATER cycle has
+completed, which means `recoveredCircuits = 0` together with `degradedProviders > 0` is possible **only** when the last
+completed cycle is the first degradation cycle. MEASURED on the construction host, by sweeping the budget:
+
+```text
+budget 300 ms  cycles=3  seq=[1:d0/r0/c0 2:d0/r0/c0 3:d1/r0/c0]  degraded=1 recoveredProviders=0 recoveredCircuits=0  opens={"alpha":1}
+budget 400 ms  cycles=4  seq=[1:d0/r0/c0 2:d0/r0/c0 3:d1/r0/c0 4:d0/r1/c1]  degraded=1 recoveredProviders=1 recoveredCircuits=1  opens={}
+```
+
+The 300 ms row reproduces the hosted signature exactly, and one more completed cycle flips both counters. The predicate
+read `degradedProviders > 0` as an observation of a crash loop; it was reading the absence of an observation. That is
+the CITY-DEBT-005 condition — an environmental budget read as a correctness verdict — one level up from the two sites
+CC-100 repaired, and the **eighth** occurrence.
+
+**REPAIRED (targeted, as section 1 requires).** The recovery claim is derived from the per-cycle sequence the soak
+already emits: measurable only when a degradation cycle exists **and** at least one LATER cycle completed. Both sites
+call ONE helper, `recoveryObservationWindow`, so the predicate is not duplicated beside the test. An opportunity that
+existed and produced no recovery still FAILS; a true failed recovery can never be turned into a pass; the independent
+`reported unrecovered opens <= 1` assertion is unchanged; and no allowance, bound or ceiling moved. Locally the whole
+soak file is 7/7 green and the unit tier is 284 files / 3678 tests green.
+
+**4. CITY-DEBT-005's own evidence was corrected rather than defended.** Its register entry gains
+`occurrence_fourteen` and `sweep_claim_correction`, which states plainly that the CC-080 sweep **was not exhaustive** —
+it searched for assertions reading a host-supplied COUNT, and this one read a host-supplied count of CYCLES to decide
+whether an OBSERVATION had happened at all. Its `status` is unchanged (`CLOSED (CC-080)`): the condition is repaired at
+every site where it has been FOUND, four times in this one file, which is a weaker and truer claim than a proof that no
+site remained. `CITY-DEBT-007` was not created, and no repository-wide soak archaeology was performed.
+
+**5. A second, narrower acceptance profile now exists, and the strict one was not touched (D2).** The strict
+`scripts/city-final-acceptance.cjs` keeps its meaning and still reports `NOT_READY` (19 PASS / 8 OPEN / 7 UNVERIFIED on
+a clean tree). The new `scripts/city-minimum-human-acceptance.cjs` reads its floors from
+`config/city-minimum-human-acceptance.json`, frozen from `bf45476`, and reports each structural metric with **both** its
+floor and its strict full-city target — `RATCHETED_ACCEPTED` when it is at the floor but not at target, never `PASS` —
+plus a `STRICT_FULL_CITY_TARGETS = NOT_MET (...)` line so a `READY` checkpoint can never be read as "the city is
+complete". `MACHINE_RATCHET` does not block this profile; `NOT_GUARDED` does. Missing or red hosted evidence on the
+named SHA blocks, and a named SHA that is not the checked-out tree blocks.
+
+The risk of a second profile is that it becomes a way of calling debt finished, so its suite falsifies the floors in
+both directions: the exact frozen value accepted; **+1 rejected for every ratcheted metric**; an improvement below a
+floor accepted; `NOT_GUARDED` rejected while `MACHINE_RATCHET` is accepted and still never a pass; `CITY-DEBT-006
+ACCEPTED_PERMANENT` accepted while `OPEN` and `CONTAINED` are refused **by name**; missing/red hosted evidence rejected;
+and the **strict** gate proven not to have inherited the new floors — it still carries section 33 whole, still measures
+against zero, still blocks a single `OPEN` even with an attestation, and the two gates' verdicts stay independent.
+
+**6. One register reading instead of two.** `city-final-acceptance.cjs`'s debt-register reading is extracted into the
+exported pure function `debtStatuses`, which **both** gates call. Ledger CC-063 pinned the defect this closes: two
+readings of one register let a verdict certify the opposite of the message printed beside it. A behaviour-preserving
+refactor, and the strict gate's own suite passes unchanged.
+
+**7. CITY-DEBT-006 is `ACCEPTED_PERMANENT`, and neither exit condition was performed (D3).** The desktop black-box
+contract stays strict; the restart-readiness flake is accepted as permanent CI/environmental debt; a final checkpoint
+requires the **exact immutable final main SHA** to obtain a successful hosted `acceptance` job; **one** re-run on that
+same SHA is permitted with both runs preserved; and a second failure is a real blocker rather than an invitation to
+retry. The suite is not quarantined, `NOT_MEASURED` is not added to the hostile desktop evidence contract, and
+`acceptance` is not removed from required hosted evidence. Exit (a) was foreclosed by the contract itself (CC-081) and
+exit (b) was not taken; the register says so in those words and points at
+`docs/city/PHASE2_MINIMUM_HUMAN_ACCEPTANCE_DECISION.md`.
+
+**8. What is NOT done.** The full-city seal; workbook sections 31/32; `FINAL_ACCEPTANCE_RECORD.md`; the Owner
+construction lease is not closed. The strict targets are unchanged and unmet: S2 49 file edges, S3 31 mutual pairs,
+S4 largest SCC 18 of 29, S10 21 of 27 plots, S14 two `MACHINE_RATCHET` rows. `workspaces` stays closed as won't-do
+(CC-099), `architecture.cjs` is not amended, and CC-101's withdrawn 42/7 figures are not resurrected.
+
+```text
+ENTRY_ID                    CC-103
+timestamp_utc               2026-09-28T00:38:08Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant BEFORE this entry was written and
+                            before the commit that carries it, which is the property
+                            scripts/city-ledger-provenance.cjs checks on every run (recorded-before-commit
+                            tolerance 5 minutes, maximum lead 90 minutes). The clock reads +10:00 local; the
+                            defect this note guards against is the one CC-063 found, where an entry claimed an
+                            instant HOURS after the commit that already contained it.
+timestamp_correction        The FIRST committed value of the field above was 2026-09-28T00:41:20Z -- a PROJECTED
+                            instant written a minute ahead of the clock reading rather than the reading itself.
+                            The commit that first carried this entry is d3f4b82, committer instant
+                            2026-09-28T10:39:58+10:00 == 2026-09-28T00:39:58Z, so that claim LED its own commit by
+                            82 seconds: inside the 5-minute tolerance, and still wrong about which came first.
+                            Corrected here to the instant actually read (2026-09-28T00:38:08Z, 1m50s before the
+                            commit) instead of left as a near-miss, because a ledger whose timestamps are
+                            approximately the moment of writing is the artifact CC-063 found wanting in 25 of 63
+                            entries. Recorded as a correction to a published claim, per the append-only rule.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the CC-103 instruction sheet's explicit D1-D4 Owner
+                            decisions. No Owner re-authorisation was requested, and D4's single remaining human
+                            gate is untouched by this entry.
+main_before                 1faf29a6eda99d8cbf69e9512c52a3e95d10aa80  (CC-103's repair, profile, gate and decision
+                            merged as PR #139; accepted baseline v20, trust epoch 66)
+branch                      city/cc103-minimum-acceptance (PR #139), then city/cc103-minimum-acceptance-record
+                            (this entry and the acceptance record)
+PR                          #139 (the repair, the profile, the gate and the decision), then the PR that carries
+                            this entry
+workflow_run_ids            36331698636 -- the RED this round repaired: job 108655033803, step
+                            `pnpm run test:slow`, tests/unit/platform/platform-soak.test.ts line 325.
+                            36360287130 / 36360299895 -- green on the PR #139 head 7bcfdf7.
+                            36361469126 -- green on the merged main 1faf29a, all five jobs:
+                            quality 108739357145, architecture 108739357324, unit 108739451703,
+                            acceptance 108741372284, package 108741372311. The known desktop restart flake
+                            (CITY-DEBT-006) did NOT recur, so D3's one permitted re-run was not used.
+checks_observed             read-only: the hosted failure log of run 36331698636 in full (`gh run view
+                            --log-failed`); tests/unit/platform/platform-soak.test.ts and
+                            electron/state-core/platform-soak.ts read in full (the per-cycle schedule and both
+                            recovery counters); a budget sweep of runPlatformSoak at 300..1100 ms to locate the
+                            boundary; the JSON of p2b, p2d, roads, flatness, principles, core, closure,
+                            ledger-provenance, bridge, architecture ratchet and architecture enforcement; the
+                            hosted API reads behind the five-check result above. The live RULESET is not read
+                            this round (the strict gate was run without --hosted), and no such claim is made.
+files_or_rules_changed      tests/unit/platform/platform-soak.test.ts (both recovery sites, one helper),
+                            scripts/city-final-acceptance.cjs (debtStatuses extraction, behaviour-preserving),
+                            scripts/city-minimum-human-acceptance.cjs (new), scripts/generate-test-catalogue.cjs
+                            (one curated entry), config/city-minimum-human-acceptance.json (new),
+                            config/test-catalogue.json (regenerated), docs/city/CITY_RENOVATION_DEBT_REGISTER.md,
+                            docs/city/PHASE2_MINIMUM_HUMAN_ACCEPTANCE_DECISION.md (new),
+                            docs/city/MINIMUM_HUMAN_ACCEPTANCE_RECORD.md (new),
+                            docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry).
+                            NO Root Trust Surface file is touched: no accepted-baseline and no epoch ceremony is due.
+known_risk                  (1) The minimum profile is a NEW gate, and a new gate can be wrong in the direction of
+                            permissiveness; the mitigation is that its suite falsifies every floor in both
+                            directions, and that the metric it accepts is printed beside the target it misses.
+                            (2) The desktop restart flake is ACCEPTED, not fixed: a future round will meet it
+                            again, and the disposition says one re-run is allowed and a second failure is a
+                            blocker. (3) The 300 ms boundary measurement is host-local; the consumed property is
+                            the ENGINE's per-cycle schedule, which is deterministic in `cycleNumber`, and the
+                            local sweep is evidence for that reasoning rather than the reasoning itself.
+evidence_preserved          the hosted red log and its exact step; the 300 ms / 400 ms cycle sequences; the
+                            strict-gate report (19 PASS / 8 OPEN / 7 UNVERIFIED) and the minimum-gate report with
+                            both bounds per metric; the CC-103 Owner decision record; the five-check hosted
+                            evidence for the exact final main SHA in MINIMUM_HUMAN_ACCEPTANCE_RECORD.md
+evidence_preserved_note     The two runs of the SAME immutable SHA are both preserved in Actions history when the
+                            one permitted re-run is used, per D3.
+rollback                    Revert the PRs. Nothing outside the tracked files changed; the soak test, the register
+                            and the decision record are documentation and one predicate.
+temporary_debt_created      no. Nothing was deferred by this round and no threshold was loosened.
+debt_id                     CITY-DEBT-005 (occurrence_fourteen + sweep_claim_correction; stays CLOSED) and
+                            CITY-DEBT-006 (OPEN -> ACCEPTED_PERMANENT). No new debt id was created.
+exit_condition              n/a -- nothing was deferred. The two debts named above carry their own conditions.
+closure_status              CLOSED as a CHECKPOINT, not as the objective. The full-city objective is NOT complete
+                            and this entry does not claim it is. `MINIMUM_HUMAN_ACCEPTANCE = READY` on the exact
+                            SHA 1faf29a with all five hosted checks green; `STRICT_FULL_CITY_STATUS = NOT_READY`.
+                            Terminal status of the round is WAITING_FOR_SINGLE_OWNER_ACCEPTANCE, never
+                            CITY_COMPLETE.
+research_value              (1) The hosted red was in `test:slow` and not in `pnpm test`, and one `gh run view
+                            --log-failed` decided it: a tier boundary is part of a failure's identity, and the
+                            previous round's belief about which tier was red would have produced a repair in the
+                            wrong place. (2) A failure signature can be made to LOCATE its run: deriving that
+                            `recoveredCircuits = 0` with `degradedProviders > 0` is possible only on the first
+                            degradation cycle turned a vague "loaded runner" into a measurable boundary, which is
+                            what let the repair be targeted instead of another sweep. (3) A second, narrower
+                            acceptance profile is only safe if the metric it accepts is printed NEXT TO the
+                            target it misses -- `RATCHETED_ACCEPTED` plus both numbers -- because the failure mode
+                            of a permissive gate is not a wrong number but a missing one.
 ```
