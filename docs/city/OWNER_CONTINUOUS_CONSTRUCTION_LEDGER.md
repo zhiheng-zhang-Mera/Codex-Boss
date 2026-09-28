@@ -12306,3 +12306,116 @@ research_value              (1) A rule that the act of following cannot satisfy 
                             if hand-stamping fails a fourth time -- costs one sentence and removes the temptation
                             to keep trying the same failing step.
 ```
+
+---
+
+## CC-117 — The remaining one-edge cuts are measured: one is net-neutral, one is blocked by type imports, and the hub is a hub
+
+The cut plan's STEP 1 has six one-edge cuts left after CC-114. **This entry attempts none of them.** It measures
+each one's shape first, with the repository's own feasibility reader, and records why four of the six are not worth
+attempting and what the other two need. **No tracked source file changed.**
+
+**1. `theme|knowledge` and `tenx|theme` — measured NET NEUTRAL.** Both pairs run through
+`electron/theme/theme-knowledge.ts`, whose single importer is the composition root:
+
+```text
+electron/theme/theme-knowledge.ts   owner=theme
+  imports:  src/shared/knowledge-extraction.ts (knowledge), src/shared/knowledge-object.ts (knowledge),
+            src/shared/theme.ts (theme), src/shared/theme-intent.ts (theme),
+            src/shared/workbook.ts (tasks), src/shared/tenx/knowledge.ts (tenx)
+  exported: recordThemeKnowledge  -- one function, and NOTHING reads knowledge back out of this file
+```
+
+Moving the whole file into `knowledge` removes `theme -> knowledge` and `theme -> tenx`, but `knowledge` then imports
+`src/shared/theme.ts` and `src/shared/theme-intent.ts`, so `knowledge -> theme` APPEARS — the same mutual pair,
+pointing the other way. The only genuine gain is `theme -> tenx`, and it costs a knowledge module that records theme
+facts. **Net: one pair replaced by another, one edge gained for one lost.** Not worth a Root Trust ceremony.
+
+There is a cleaner variant — split the file so the pure mapping lives in `theme` and only the recording call goes to
+`knowledge` — but that is a behaviour split, not a declaration move, and it is a different size of change than STEP 1
+claims to contain.
+
+**2. `automation|providers` and `automation|tenx` — BLOCKED by a property of the enforcement baseline.**
+Both run through a `ProviderAutomation` reference, and the two consumers are different in kind:
+
+```text
+electron/commander/web-recovery.ts        import type { ProviderAutomation }   -- the whole reference is a TYPE
+electron/bootstrap/provider-pool.ts       import { ProviderAutomation }         -- CONSTRUCTS it, and derives
+                                                                                   TWELVE ConstructorParameters types
+```
+
+`config/architecture-enforcement-baseline.json` records **type-only imports as edges** — verified directly: it
+contains `electron/store.ts -> src/shared/result-validator.ts`, which was a type-only import at the time. So moving
+the class to a kernel and re-exporting it would not retire an edge while `web-recovery.ts` keeps a type import of it,
+and replacing that type import means re-declaring a class's whole surface. **Both pairs need the class's construction
+(not its type) moved first, which is the factory-injection change, and that is STEP 3 work, not STEP 1.**
+
+**3. `promotion|status` — the file is a leaf but its importers are not.** `src/shared/autonomous-evolution-trust.ts`
+(owner `promotion`) imports `src/shared/acceptance-contracts.ts` (status) and two of its own files, and is imported by
+`engineering` and `status`. `acceptance-contracts.ts` is itself a status-owned hub. Cutting this edge means moving
+the acceptance vocabulary or redeclaring it, and the redeclaration was the A1 route the Owner declined.
+
+**4. `research|status` cannot even be a STEP 1 cut.** The plan lists `status -> research` through
+`src/shared/contracts.ts`, which is the 22-type snapshot hub owned by `status`. Cutting it is the large vocabulary
+move, not a one-edge cut; the plan's cost column was a file count, and this is the case where that column is
+misleading. Corrected here rather than quietly skipped.
+
+**5. What this leaves, stated plainly.** Of the seven one-edge cuts STEP 1 named, ONE was real (`research|tenx`,
+landed in CC-114) and the other six are: two net-neutral, two blocked on a property of the enforcement baseline, one
+that needs the A1 route the Owner declined, and one that was mis-costed. **The cheapest-first ordering of the cut
+plan is therefore exhausted at one landing**, and the honest next step is STEP 2/3 — the cuts where a file must move
+and its construction must be injected — not more STEP 1 attempts.
+
+**6. The finding worth keeping.** A pair-count table ranks pairs by EDGE COUNT, and this round has now shown twice
+that edge count does not predict cuttability:
+
+```text
+a 1-edge pair can be held together by a TYPE-ONLY import of a small union      -> cuttable (CC-114)
+a 1-edge pair can be held together by a TYPE-ONLY import of a CLASS             -> not cuttable without moving the class
+a 1-edge pair can be a 22-type HUB reached by a single specifier                -> not a one-edge cut at all
+a 1-edge pair can be held by a file whose move is net-neutral                   -> not worth a ceremony
+```
+
+The instrument that distinguishes them is not the pair table but the importing file, and the feasibility reader is
+what turns that into a one-command check before an attempt.
+
+```text
+ENTRY_ID                    CC-117
+timestamp_utc               2026-09-28T20:22:37Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             docs/research/post-cc103/tools/a2-2-feasibility.cjs over theme-knowledge.ts,
+                            autonomous-evolution-trust.ts and the two ProviderAutomation consumers; a direct read of
+                            config/architecture-enforcement-baseline.json's edge set to confirm it records
+                            type-only imports; the composition root read for theme-knowledge.ts's single importer
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) "Net neutral" for the theme cut is reasoned from the import list, not measured by
+                            applying the move; a future round that wants certainty should apply it in memory the way
+                            CC-113 did for the ownership hypothesis. (2) The four findings are about the ENFORCEMENT
+                            baseline's treatment of type imports, which is a property of the instrument as it
+                            exists; a change to that treatment would reopen all six at once. (3) STEP 1's cost
+                            column counts FILES, and finding 4 is the case where that is not the same as edges.
+evidence_preserved          the import lists that decide each finding; the confirmation that the enforcement
+                            baseline records type-only imports; the corrected cost of `research|status`
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASUREMENT THAT EXHAUSTS A STEP. The OBJECTIVE is NOT complete.
+research_value              (1) Ordering work by a metric's per-item COUNT does not order it by cost: four of the six
+                            remaining one-edge cuts are not one-edge work, and the reason is a property of what the
+                            edge IS (a union, a class, a hub, a net-neutral move) rather than how many there are.
+                            (2) Checking feasibility with a reader before attempting a repair has now paid for
+                            itself twice -- CC-113's four-pair file and this entry's six candidates -- at a cost of
+                            one command each. (3) A measurement that says "do not do these six" is a result: it
+                            redirects the next round to STEP 2/3 instead of spending it on attempts that would
+                            each end in a revert.
+```
