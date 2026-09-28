@@ -13446,3 +13446,124 @@ research_value              (1) A technique's boundary can be stated as a QUEUE 
                             (3) A measurement that removes a hope is a result, and it belongs next to the
                             successes rather than after them.
 ```
+
+---
+
+## CC-130 — What twenty rounds establish, and the one question a successor must answer before any further cut
+
+Twentieth round of the post-CC103 closeout. **No cut attempted and no tracked source file changed.** This entry is
+the consolidated hand-off: what the round accomplished, what it measured about the remaining work, and the single
+question that decides whether any further cut is worth attempting.
+
+**1. The question, stated first because everything else follows from it.**
+
+```text
+Does the kernel genuinely need to know the SHAPE of the state it persists?
+
+YES -> the state document's vocabulary belongs to the kernel, the 22 types must be declared there (or the
+       document's owner must change), and roughly forty of the forty-six remaining S2 edges are paid for by ONE
+       deliberate act whose size is the vocabulary. That is a bounded, mechanical programme.
+
+NO  -> the store must stop reading and writing domain shapes at all, which means every domain operation moves out
+       of it: the review policy it applies, the verification record it writes, the ledger it constructs, the
+       dispatch record it carries. That is a behaviour programme, larger and riskier, and it is the one the
+       workbook's section 7.4 actually describes.
+```
+
+**The Owner's A2 choice (ledger CC-106) decided the mechanism — remove what the kernel NEEDS, do not move files —
+but not this question**, because A2 was chosen when a third option (re-home the contract files and leave the
+kernel's behaviour alone) was still on the table. With that option declined, the two above are what remain, and
+they are different programmes rather than different tactics.
+
+**2. What twenty rounds produced, as a list a successor can verify.**
+
+```text
+FREEZE        F0 resolved unchanged at the remote (tag f0973b59, peeled bedeb828)
+              F1 created once (tag caa4e35d, peeled 8df428ea) with an annotation denying an experimental claim
+              the paper ledger is a 287/0 prefix against F1; CSV, branch archive and debt register are not in
+              the diff at all; the post-CC103 cohort validates (8 rows x 23 columns, 8/8 hashes)
+
+MEASUREMENT   the work-start baseline reproduces the CC-103 record exactly (so the old record is accurate, not
+              stale); the binding classification refutes CC-101's 42/7 split; the re-homing leverage is 0 of 18
+              SCC nodes; the ownership hypothesis was tested and refused by the ratchet itself; the boot-module
+              hypothesis made the graph WORSE (mutual 31 -> 49, SCC 18 -> 28)
+
+CHANGES       four cycle cuts and three S2 repairs, all by one technique: five mutual pairs retired (31 -> 26)
+              and three S2 edges (49 -> 46). Ten Root Trust ceremonies, epochs 66 -> 74, each run as one unit
+              and verified. Unit tier 285 files / 3680 tests; build and postbuild tiers green; five hosted jobs
+              green on the newest code-bearing head with a completed run
+
+ARTEFACTS     docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md (87 file edges, pair by pair)
+              docs/research/post-cc103/tools/cut-feasibility.cjs (28 pairs classified, 0 unknown)
+              docs/research/post-cc103/tools/{cut-list,binding-classify,cycle-leverage,scc-what-would-it-take,
+              foundation-lever,scc-shared-hypothesis,ownership-precedence-trace,a2-2-feasibility}.cjs
+              docs/research/post-cc103/evidence/ (14 hashed files)
+              the ledger's CC-104 .. CC-130, 122 entries, 0 provenance problems
+
+RULES         1 an acceptance entry is written FROM the candidate's retire/add report, never from the intent
+              2 the four ceremony steps are ONE unit and the verification is its last step
+              3 a ledger entry's timestamp is STAMPED last, never drafted early
+              4 every independent readback moves in the same commit as the value it reads back
+              5 do NOT spell an import path in a comment inside the file being cut (the instrument reads text)
+              6 a repair that changes a governed surface carries its ceremony in the same commit
+```
+
+**3. Why the strict targets are not merely "unfinished".**
+
+```text
+S2 = 46   the six remaining ONE-edge cuts are all VALUE imports (a construction, a twenty-field interface, a hash
+          algorithm, a gate table) -> not payable by declaration. The rest cluster behind `contracts.ts` (22 types,
+          one specifier) and `execution.ts` (a policy the store APPLIES). Answering question 1 decides all of it.
+S3 = 26   five pairs were retired cheaply; the survivors are held by shared modules (`runtime|tenx`), shared
+          constructions (`automation|providers`), shared algorithms, or interfaces too large to restate. The
+          feasibility table classifies every one.
+S4 = 18   UNCHANGED by all five real cuts. CC-077 measured the component reads its size until the LAST cycle is
+          gone; five repairs have now reproduced that, so S4 needs S3 plus a feedback arc set (CC-077's 138-edge
+          upper bound remains the only figure covering both), and NOTHING measured in twenty rounds suggests a
+          shortcut.
+```
+
+**4. What this entry is not.** It is not a claim that the objective is complete, not a request for a decision it
+can make itself, and not a recommendation to stop. It is the state of the work, recorded so that a successor starts
+from measurements rather than from a summary — and the question in point 1 is the one thing that cannot be answered
+by an instrument.
+
+```text
+ENTRY_ID                    CC-130
+timestamp_utc               2026-09-28T22:11:30Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. HAND-OFF ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             the ledger's own CC-104 .. CC-129 read in sequence; the cut plan; the feasibility
+                            table; the p2b instrument, the provenance control and the epoch check re-run at the
+                            branch head
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The hand-off is written by the executor who did the work, so a successor should
+                            re-derive the numbers from the tools rather than trust the list. (2) Question 1 is
+                            framed as a choice between two programmes; a third framing may exist and this entry
+                            does not claim to enumerate every possibility. (3) The strict targets are unmet and
+                            nothing here moves them.
+evidence_preserved          the question and why A2 did not settle it; the verify-list with the tools and the rule
+                            set; the per-target statement of why each is a programme rather than a remainder
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a HAND-OFF. The OBJECTIVE is NOT complete.
+research_value              (1) A decision that fixed the MECHANISM (A2: remove what the kernel needs) can leave a
+                            deeper question open (does the kernel need the SHAPE at all), and separating those two
+                            is what stops a successor from reading the earlier decision as an answer to both.
+                            (2) Twenty rounds of negative results have a shape: the cheap technique, its boundary,
+                            the empty queue, and the five-time-unmoved SCC together say the remaining work is a
+                            programme, and saying that with the evidence beside it is more useful than another
+                            attempt. (3) A rule set gathered from failed attempts transfers further than any
+                            single cut: six rules, each with the round that paid for it, are the part of this
+                            round most likely to be reused unchanged.
+```
