@@ -9,17 +9,21 @@
   "branch": "city/phase2-closeout-post-cc103",
   "work_start_sha": "8df428eaa437a409368401e95194e40266b83080",
   "drift_at_signing_point": false,
-  "checkpoint_sha": "9ce8795",
+  "checkpoint_sha": "bab3f71",
   "completed_tasks": [
     "T1: F0 verified unchanged; F1 created and pushed; work-start drift checked (none); construction branch created and pushed; freeze notice, workbook, state file, extraction map and acceptance template written",
     "T2: work-start baseline measured with the repository's own instruments (8 reports archived and hashed); OPEN items split into real structural work vs hosted/human boundaries; the old record confirmed identical, not stale; unit suite green at 284 files / 3678 tests",
     "T2/T4 analysis: three measurements taken (binding classification 30 runtime / 18 import-position; re-homing leverage 0 SCC nodes from any single file; SCC cost 337 file edges across 60 pairs to reach SCC 10) plus two ownership hypotheses tested and reverted, both refused by the real gate",
     "T2: affected-test mapping (301 suites), user entry points and the phased migration plan recorded in the extraction map",
     "T6: the Owner chose route A2 over A1 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106)",
-    "T3/Phase A2-1 LANDED: electron/store.ts stopped importing the run-mode policy it never decided. kernel -> feature edges 49 -> 48, total cross-capability edges 774 -> 773; every floor unchanged; mutual pairs 31 and largest SCC 18 unchanged (expected). Root Trust ceremony performed: enforcement baseline v20 -> v21 with the retired edge named, epoch 66 -> 67, bless --check MATCHES. Unit tier 285 files / 3680 tests green."
+    "T3/Phase A2-1 LANDED (CC-107): electron/store.ts stopped importing the run-mode policy it never decided. kernel -> feature edges 49 -> 48; Root Trust epoch 66 -> 67.",
+    "T3/Phase A2-2 REFUTED (CC-108): the ownership resolver keeps the LAST matching claim, not the most specific one, so an exact-file claim cannot move a file out of a directory claim declared later. Config restored; no metric moved.",
+    "T3/Phase A2-3 MEASURED AND REVERTED (CC-109): moving the soak test instrument out of state-core took S2 from 48 to 45 but raised the raw edge total 773 -> 776, mutual pairs 31 -> 32 and the largest SCC 18 -> 19. Recorded as the bound on the 'side effect leaves the kernel' category.",
+    "T3/Phase A2-4 LANDED (CC-111): the store reads the current final response out of its own snapshot instead of importing the task capability's read model. kernel -> feature edges 48 -> 47; Root Trust epoch 67 -> 68; move (ii) attempted, refuted by the renderer's dependency on src/shared/**, and reverted.",
+    "T7 evidence: five hosted jobs green on bab3f71 (quality, architecture, unit, package, acceptance)."
   ],
-  "active_task": "T3/Phase A2 (next: A2-2, the pure utilities move to the kernel)",
-  "next_action": "Record the measured structural blocker and the priced migration plan; resume T3/T4 only as a multi-round architecture programme, not as a bounded checkpoint.",
+  "active_task": "T3/Phase A2 (next: the store's remaining guards — a behaviour move each)",
+  "next_action": "Continue A2 move (i): relocate the remaining validation guards in electron/store.ts (isConversationPolicy, isVerificationContract, reviewResult) to the capability that owns each policy, with a boundary test per guard that proves the guard still fires. Each landed edge needs a p2b value lowered and a Root Trust ceremony in the same commit.",
   "structural_blocker": {
     "status": "MEASURED_NOT_REACHABLE_IN_ONE_BOUNDED_SESSION",
     "targets_unmet": {
@@ -27,7 +31,10 @@
       "mutual_capability_pairs": 31,
       "largest_scc_size": 18,
       "migration_in_progress": 21,
-      "machine_ratchet_principles": ["15.1", "15.7"]
+      "machine_ratchet_principles": [
+        "15.1",
+        "15.7"
+      ]
     },
     "measurement_1_binding_classification": {
       "method": "CC-102's corrected rule: classify by every binding a specifier provides; the edge is a runtime coupling if ANY binding is used as a value",
@@ -145,7 +152,24 @@
     "pass": 19,
     "open": 8,
     "unverified": 7,
-    "open_ids": ["S2", "S3", "S4", "S10", "S14", "E5", "F5", "F6"],
-    "unverified_ids": ["G2", "G3", "E1", "E4", "F1", "F2", "F4"]
+    "open_ids": [
+      "S2",
+      "S3",
+      "S4",
+      "S10",
+      "S14",
+      "E5",
+      "F5",
+      "F6"
+    ],
+    "unverified_ids": [
+      "G2",
+      "G3",
+      "E1",
+      "E4",
+      "F1",
+      "F2",
+      "F4"
+    ]
   }
 }
