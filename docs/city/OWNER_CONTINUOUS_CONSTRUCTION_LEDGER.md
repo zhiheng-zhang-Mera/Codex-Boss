@@ -13567,3 +13567,112 @@ research_value              (1) A decision that fixed the MECHANISM (A2: remove 
                             single cut: six rules, each with the round that paid for it, are the part of this
                             round most likely to be reused unchanged.
 ```
+
+---
+
+## CC-132 — The state of the work at the point a fresh context is required, and what the executor will not claim
+
+Twenty-second round of the post-CC103 closeout. **No cut attempted and no tracked source file changed.** This entry
+exists for one reason: the round has reached the point where continuing to make structural changes would be
+irresponsible, and saying so is part of the record rather than a private judgement.
+
+**1. Why this is the stopping point, stated as a measurement rather than as fatigue.**
+
+```text
+each remaining route requires HOLDING a large amount of state at once:
+  route A (move the automation loop's construction)  provider-pool.ts is 144 lines, derives twelve types from the
+      constructor, and rebuilds the loop on every new window; the composition root must take that over without
+      changing when the loop is disposed
+  route B (move a behaviour out of the state document)  the review policy, the verification record, the ledger
+      construction and the dispatch record all live in a 1268-line electron/store.ts that eleven suites pin
+  route C (CC-126's decision)  the answer decides the shape of roughly forty edges at once, so it must be right
+      before the first edit rather than discovered during it
+
+A partial attempt at any of them is worse than none: a half-moved construction leaves two owners, and a half-moved
+vocabulary leaves two declarations driftable apart. The obligations this round established - the acceptance entry
+written FROM the candidate's report, the ceremony as ONE unit, the timestamp STAMPED last, every readback moved in
+the same commit - exist precisely because several attempts were made with less care than that and each produced a
+correction entry. Continuing on a thin context would produce more corrections than progress.
+```
+
+**2. What is finished, and can be audited by a successor without re-doing it.**
+
+```text
+FREEZE + COHORT (T1, T2, T8)   F0 and F1 resolved at the remote; the 287/0 prefix; the cohort's 8/8 hashes; the
+                               freeze re-verified at the END of the round rather than only when made (CC-123)
+BASELINE (T2)                  the work-start measurement reproduced the CC-103 record exactly, and the four
+                               hypothesis tests whose refutations direct the remaining work
+FOUR CUTS (T3/T4)              five mutual pairs (31 -> 26) and three S2 edges (49 -> 46), each with a boundary
+                               test pinning the new declaration at compile time, each with its ceremony
+GOVERNANCE                     10 ceremonies (epoch 66 -> 74), all as one unit with verification last; 6 rules,
+                               each paid for with a failed attempt
+PLAN + INSTRUMENTS (T4/T6)     the cut plan (87 file edges), ten re-runnable tools, the feasibility table
+                               (28 pairs classified, 0 unknown), 14 hashed evidence files
+DELIVERY RECORDS (T7)          the acceptance record at NOT_READY with E1/E4's machine half VERIFIED, the delivery
+                               report, the checkpoint with next_action
+```
+
+**3. What is NOT finished, and will not be claimed.**
+
+```text
+STRICT_TARGETS   S2 46 / target 0      S3 26 / target 0      S4 18 / target <= 1
+                 S10 21 / target 0     S14 two MACHINE_RATCHET rows / target 0
+MACHINE_READY    the tag cannot exist: it names a final verified main SHA, and main has not moved because this
+                 round changed no source for the last ten rounds and never merged
+HOSTED           five jobs are green on 272ee59; the newest code-bearing commit's own run (aa487a9) is queued
+OWNER            the single session is UNSPENT, and this round does not offer it: five machine blockers stand, so
+                 presenting a build for a one-look acceptance would be the same masking as --attest
+```
+
+**4. The one question a successor must answer before the first edit.**
+
+> Does the kernel genuinely need to know the SHAPE of the state it persists?
+
+`YES` means the state document's vocabulary belongs to the kernel and roughly forty of the forty-six S2 edges are
+paid for by one deliberate, bounded act. `NO` means every domain operation leaves `electron/store.ts`, which is a
+behaviour programme. The Owner's A2 decision fixed the mechanism but not this question (CC-130), and no instrument
+can answer it.
+
+**5. What the round is worth, in one line each.** A frozen paper anchor that is verified twice; a set of refutations
+that redirect the work rather than a set of failed attempts; four repairs that are real and pinned; a governance
+procedure that has been exercised ten times and amended six times by its own failures; and a measured statement of
+what the remaining work costs. **The objective is not complete, and this entry does not present any part of it as
+if it were.**
+
+```text
+ENTRY_ID                    CC-132
+timestamp_utc               2026-09-28T22:26:12Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. HAND-OFF ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             the p2b instrument, the ledger provenance control, the Root Trust epoch check and the
+                            strict acceptance gate re-run at the branch head; the internal-job queue read from gh
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) "Requires a fresh context" is a statement about the executor's working conditions,
+                            not about the difficulty of the work; a successor with the same tools and more room may
+                            find route A tractable immediately. (2) The finished list in point 2 is written by the
+                            executor; every item names the entry or artefact that evidences it, so it can be
+                            audited rather than trusted. (3) The strict targets are unmet and nothing here moves
+                            them.
+evidence_preserved          the per-route statement of why a partial attempt is worse than none; the finished list
+                            with its evidence pointers; the unfinished list with the reason each cannot be claimed
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a HAND-OFF. The OBJECTIVE is NOT complete.
+research_value              (1) A long autonomous round needs a stated stopping point that is a MEASUREMENT (what a
+                            partial attempt would leave behind) rather than a feeling, because the workbook forbids
+                            stopping for the wrong reasons and the only honest way to distinguish them is to say
+                            what would break. (2) The finished/unfinished lists with per-item evidence pointers are
+                            what make a hand-off auditable: a successor can check each claim from the tree instead
+                            of re-deriving twenty rounds. (3) Separating "the work is hard" from "the executor's
+                            room is exhausted" keeps the second from being recorded as the first.
+```
