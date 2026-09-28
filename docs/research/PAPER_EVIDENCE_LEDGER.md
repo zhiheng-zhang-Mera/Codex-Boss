@@ -4515,6 +4515,44 @@ CC-103   attempt 1 red on the known desktop restart claim, permitted same-SHA at
 006      CITY-DEBT-006: ACCEPTED_PERMANENT, bounded — contract unchanged, neither exit condition performed
 ```
 
+### W-3b — A branch that §A cites as evidence, retired by this cleanup (citation bridge)
+
+§A line 46 records `refactor/capability-city-v1` (tip `3ab37d9f969d97af0bb8170a2517032b447e9ac9`) and says "That
+branch is **evidence**"; §A lines 72 and 167 cite the same branch name. The CC-103 branch housekeeping retired that
+branch ref, and §A–§V are byte-for-byte unchanged, so the bridge belongs here rather than in the citation.
+
+```text
+branch cited by §A        refactor/capability-city-v1
+exact tip                 3ab37d9f969d97af0bb8170a2517032b447e9ac9   (14 commits ahead of the snapshot; NOT reachable from main)
+preserved by              archive/branch-tip-20260928/3ab37d9f969d   (annotated; verified to resolve to that exact tip)
+manifest row              docs/history/BRANCH_ARCHIVE_2026-09-28.md   (action ARCHIVE_THEN_DELETE)
+reason the ref was retired
+                          CC-103 branch housekeeping: the tip is unreachable from main, so it was preserved by an
+                          immutable tag BEFORE the ref was deleted; the paper ledger's own citation has to be read
+                          through this bridge, and the branch name no longer resolves.
+```
+
+The other branch names §A–§V cite were checked the same way, and the check was written to catch the case that
+surfaced the first one rather than to confirm it. Measured across the whole ledger:
+
+```text
+branch-like names cited by §A..§V                     12
+still a live remote head after the cleanup             0
+retired and present in the archive manifest           12   (each with an exact tip and a preservation ref)
+retired and NOT in the manifest                        0
+```
+
+The twelve are `dev/city-phase0-architecture-observatory`, `dev/city-phase1a-enforcement-convergence`,
+`dev/city-phase1b-hosted-enforcement`, `dev/city-phase1b-hosted-shadow`,
+`dev/city-phase1b-s2-hosted-enforce-visible`, `evolution/acceptance-promotion-identity-20260922002642`,
+`feat/pf020-identity-convergence`, `fix/root-trust-finalization-transport-handoff-v1`,
+`refactor/capability-city-v1`, and `trust-epoch/boss-root-trust-26` / `-27` / `-28`.
+
+Four further branch-SHAPED strings in the ledger are not refs at all, and they are named here rather than silently
+filtered: `artifacts/city/phase1/engine-enforce` and `artifacts/city/phase1/paper-evidence.ndjson` are output paths in
+the CI workflow, `city/phase1` is a fragment of those same paths, and `candidate/accepted` (line 1629) is prose
+describing the two halves of a baseline in the laundering fix.
+
 ## W-4 — Honest limitations
 
 ```text
