@@ -245,7 +245,86 @@ explicit_non_goals      relabelling a load-bearing implementation as a road (CC-
 unresolved_dependencies the audit's BEHAVIOUR half
 ```
 
-## 4. What this map explicitly does NOT promise
+## 4. The migration plan the measurements imply
+
+This plan is written from measurements taken at the work-start SHA, not from an estimate. Four experiments are
+recorded in `docs/research/post-cc103/evidence/`: the corrected binding classification, the re-homing leverage, the
+SCC removal cost, and the ownership hypothesis that was tested and refused by the gate. What they jointly say:
+
+```text
+the 49 kernel -> feature edges are 30 RUNTIME couplings and 18 import-position ones
+no single file re-homing reduces the largest SCC by even one node
+the strongest available capability-pair removal is worth ONE node (18 -> 17)
+removing the whole 216-file src/shared surface from the capability graph is worth ONE node
+337 file edges across 60 pairs reached only SCC 10
+```
+
+**Therefore the migration is dependency removal inside `electron/**`, and it has to be sequenced by capability, not
+by metric.** The four phases below are ordered so that each one leaves the product working and is independently
+verifiable.
+
+### Phase A — the kernel-owned foundation surface (19 edges, 8 pairs)
+
+The 25 `src/shared/**` files a kernel reaches. Two honest routes exist, and the choice between them is a decision the
+measurements do not settle:
+
+```text
+A1  give the contract a home the kernel owns (a `src/foundation/**` surface, or the consuming kernel itself), so
+    the import is internal rather than an inversion. Requires a new ownership class or a deliberate widening of the
+    kernel file set, because the ratchet floors `files_owned` and would refuse a move into `exempt`.
+A2  leave the file where it is and REMOVE the kernel's need for it: the kernel stops validating/policy-deciding and
+    the capability that owns the policy does it. This is the larger but cleaner change, because `electron/store.ts`
+    currently decides `isConversationPolicy`, `isVerificationContract`, `isRunMode` and `reviewResponse` -- task and
+    status policy that a store has no business deciding.
+
+DECISION REQUIRED BEFORE STARTING: A1 or A2 or a mix. A1 is mechanical and reverses the ratchet's `files_owned`
+intent unless the class is added deliberately; A2 is the architecturally correct answer and touches validation
+semantics in a 1125-line module.
+```
+
+### Phase B — the ledger ports (10 edges, 3 pairs)
+
+```text
+electron/bootstrap/persistence.ts and electron/store.ts construct TaskLedger, DecisionLedgerStore and
+RuntimeIntelligenceCapture (all tenx). electron/state-core/* constructs DecisionLedgerStore as well.
+
+The genuine fix is to move the ledger's durable implementation out of `electron/commander/**` into the persistence
+kernel and leave the commander as an in-memory consumer -- the reverse of a port shim, which would move the import
+without moving the dependency and would be a relabelling, not a repair.
+```
+
+### Phase C — the workspace stores (3 edges, 1 pair)
+
+```text
+electron/bootstrap/persistence.ts constructs WorkspaceRegistry and reads durableFileFor;
+electron/store.ts canonicalizes through workspace/path-utils.
+`canonicalRealPathOrNormalized` carries NO workspace policy (it is a generic path canonicalizer), so it belongs with
+the kernel primitives outright; the registry and durable roots are workspace state and need an injection boundary
+rather than a move.
+```
+
+### Phase D — the bootstrap fan-out (17 edges, 4 pairs)
+
+```text
+providers -> identity, automation, engineering, security, tasks, workspace
+state-core -> knowledge, status (the soak harness drives knowledge retention and the soak bounds)
+runtime    -> status (bootstrap-audit drives the acceptance vocabulary)
+```
+
+`state-core/platform-soak.ts` is the clearest single case in the whole set: **a soak test instrument lives inside a
+kernel capability and drives two features' policy.** It belongs with the acceptance surface that owns the bounds, and
+moving it removes three edges without touching any production path.
+
+### What each phase must preserve
+
+```text
+Boss starts and runs standalone after every phase          (no new service, no new process, no cross-repo runtime dep)
+the on-disk format does not change                         (a migration of code, not of user data)
+electron/main.ts stays the only composition root           (and is not widened to absorb the problem)
+the four kernels keep their `kind` and their real work      (no kernel is emptied to make a count fall)
+```
+
+## 5. What this map explicitly does NOT promise
 
 ```text
 new_services                          = 0
