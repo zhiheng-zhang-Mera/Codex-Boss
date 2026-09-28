@@ -71,6 +71,70 @@ export interface WorkBookConflictSummary {
  * the model that matters is recorded here once and read back from the durable
  * WorkBook record afterwards (see src/shared/knowledge-extraction.ts).
  */
+/**
+ * The two discovery summaries the WorkBook dispatch record CARRIES, declared here rather than imported.
+ *
+ * CC-125 cut (`docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md`): these two fields were the ONLY edges this file had
+ * onto the `workspace` and `theme` capabilities — two inline type positions naming the world-model and
+ * UI-surface summary types — and each was the cheaper direction of a mutual capability pair. **Nothing in this file
+ * reads either value**: the record carries what the host produced, and the host's own typed value is still checked
+ * against the shape below at the assignment. (The two paths are deliberately NOT written here: the repository's
+ * edge instrument scans import statements textually, so a path spelled in a comment is counted as an edge, which
+ * the first attempt at this cut discovered by measurement.)
+ *
+ * The shapes are the full summaries rather than the handful of fields any current consumer touches, because the
+ * contract of a CARRIED record is to say what it may contain. Two fields that cannot be restated as literals are
+ * widened deliberately and named:
+ *
+ * ```text
+ * version      `typeof` a version CONSTANT in the owner. A value cannot be redeclared as a type, and copying the
+ *              literal would be a second source of truth for a schema version, so it is `string` here.
+ * workspace    `RepoWorkspaceBoundary["kind"]`, which IS a two-literal union ("SINGLE" | "MONOREPO"), so it is
+ *              restated exactly.
+ * unbound      `UISurfaceId[]`, whose vocabulary is the twenty-three ids in `ui-surface-ids.ts`. It is `string[]`
+ *              here for the same reason as `version`: the vocabulary is a VALUE, and one definition of it already
+ *              exists. The producer's typed value is what enforces membership.
+ * ```
+ *
+ * `tests/unit/workbook-dispatch-summaries.test.ts` pins both shapes IN BOTH DIRECTIONS at COMPILE time against the
+ * owner's interfaces except for those three named widenings, so a field added or changed on either side stops the
+ * build instead of silently dropping out of the record.
+ */
+export interface WorkBookWorldModelSummary {
+  /** `typeof REPO_WORLD_MODEL_VERSION` in the owner; a version VALUE, widened for the reason above. */
+  version: string;
+  id: string;
+  fingerprint: string;
+  built_at: string;
+  package_managers: string[];
+  build_system: string[];
+  runtimes: string[];
+  ci_files: string[];
+  languages: string[];
+  entry_points: string[];
+  modules: number;
+  tests: number;
+  /** `RepoWorkspaceBoundary["kind"]`, restated exactly. */
+  workspace: "SINGLE" | "MONOREPO";
+  git: { is_repository: boolean; head?: string; branch?: string; dirty_files?: number };
+  generated_surfaces: string[];
+}
+
+export interface WorkBookUISurfaceSummary {
+  /** `typeof UI_SURFACE_REGISTRY_VERSION` in the owner; widened for the same reason as `version` above. */
+  version: string;
+  generated_at: string;
+  surfaces: number;
+  bound: number;
+  /** `UISurfaceId[]` in the owner; the id vocabulary is a VALUE, widened for the same reason. */
+  unbound: string[];
+  tokens_declared: number;
+  tokens_total: number;
+  tokens_applied: boolean;
+  style_files: string[];
+  component_files: string[];
+}
+
 export interface RepositoryModelSummary {
   schemaVersion: 1;
   /** First path segment of every file, sorted and capped. */
@@ -102,9 +166,9 @@ export interface DiscoverySummary {
    * checkpoint-1 §6: the repository world model established BEFORE execution.
    * The full model is persisted by the host; the record carries this summary.
    */
-  world_model?: import("./repo-world-model").WorldModelSummary;
+  world_model?: WorkBookWorldModelSummary;
   /** checkpoint-1 §9: the discovered UI surface registry, summarized. */
-  ui_surfaces?: import("./ui-surface").UISurfaceSummary;
+  ui_surfaces?: WorkBookUISurfaceSummary;
   /** Non-empty when the world model or UI discovery degraded. */
   world_model_error?: string;
 }

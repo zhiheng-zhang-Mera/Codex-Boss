@@ -778,6 +778,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 27,
+      "baseline_hash": "309d437146e7bc2abd0fe612f247b3ef531556fd56ea49e5eb0664b337fb7ce2",
+      "parent_baseline_hash": "c98c332a68bb7085ae9d80d0db45597b218af8929b537e0addd5bd2413e49862",
+      "source_commit": "d411240ea8086c93b6d2b310137e419b5c907346",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the fourth cycle cut of the post-CC103 closeout under the Owner's route A2 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106) and the cut plan (CC-113, CC-117, CC-124). Recorded in ledger CC-125.",
+      "evidence_reference": "docs/city/POST_CC103_DEPENDENCY_CUT_PLAN.md; docs/research/post-cc103/evidence/cut-feasibility-r14.txt (the classification that named these two candidates); docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-124 and CC-125; src/shared/workbook-dispatch.ts; src/shared/repo-world-model.ts; src/shared/ui-surface.ts; tests/unit/workbook-dispatch-summaries.test.ts",
+      "accepted_at": "2026-09-28T21:33:11Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "TWO feature -> feature edges retired, both from `src/shared/workbook-dispatch.ts` (owner `tasks`): to `src/shared/repo-world-model.ts` (`workspace`) and to `src/shared/ui-surface.ts` (`theme`). Both were inline `import(...)` TYPE positions naming a summary shape the record merely CARRIES, and each was the cheaper direction of a mutual capability pair, so BOTH pairs dissolved.",
+        "new_legitimate_relation": "NONE added. The two shapes are declared locally in `src/shared/workbook-dispatch.ts` as `WorkBookWorldModelSummary` and `WorkBookUISurfaceSummary`; nothing in that file reads either value, and the host's own typed value is still checked against the shape at the assignment. `tests/unit/workbook-dispatch-summaries.test.ts` pins every owner field at COMPILE time (a field added, renamed or removed in the owner stops the build) with three NAMED widenings recorded because a version CONSTANT and a twenty-three-id VOCABULARY are values and cannot be restated as types.",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "The other one-edge cuts named in the same feasibility table stay refused for reasons measured there: `automation|providers` needs a construction moved, `persistence|tasks` would duplicate a SHA-256 the renderer depends on, `promotion|status` is a value table, and `knowledge|theme` is a twenty-field interface.",
+        "why_the_baseline_moves": "A tracked source file changed: `src/shared/workbook-dispatch.ts` no longer names either capability's module, so exactly two edges leave the frozen identity and `internal_edges` falls 1650 -> 1648. The structural ratchets were re-measured: mutual capability pairs 28 -> 26, raw cross-capability total 768 -> 766, capability edges 194 -> 192, largest SCC 18 and kernel -> feature 46 both UNCHANGED. Floors not moved: files_owned 594, capabilities_with_kinds 27, composition_root_files 2, road_files 6, edges_to_roads 75."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 609,
+        "internal_edges": 1648,
+        "retired_edges": 2,
+        "unresolved_references": 1
+      }
     }
   ]
 }

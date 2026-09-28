@@ -2316,6 +2316,15 @@
       ]
     },
     {
+      "file": "tests/unit/workbook-dispatch-summaries.test.ts",
+      "tier": "unit",
+      "covers": [
+        "tasks",
+        "theme",
+        "workspace"
+      ]
+    },
+    {
       "file": "tests/unit/workbook-dispatch.test.ts",
       "tier": "unit",
       "covers": [

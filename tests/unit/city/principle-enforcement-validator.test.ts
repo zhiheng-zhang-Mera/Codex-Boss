@@ -412,10 +412,12 @@ describe("P2-I the committed matrix, its guards, and its document", () => {
       // CC-118: `electron/commander/web-recovery.ts` declared `RecoveryAutomationPort` instead of importing the
       // `ProviderAutomation` TYPE, so `automation|tenx` stopped being one. 29 -> 28 in CC-119:
       // `electron/theme/theme-knowledge.ts` declared `ThemeKnowledgeScope` instead of importing it from tenx, so
-      // `theme|tenx` stopped being one. The largest SCC is UNCHANGED at 18 on all three, which is the point CC-077
-      // measured: breaking one 2-cycle does not shrink the component, because its members stay mutually reachable
-      // through other paths.
-      ["p2b:mutualCapabilityPairs", 28],
+      // `theme|tenx` stopped being one. 28 -> 26 in CC-125: `src/shared/workbook-dispatch.ts` declared the
+      // world-model and UI-surface summary shapes locally instead of naming them through inline type positions, so
+      // `tasks|workspace` and `tasks|theme` stopped being pairs — TWO in one cut. The largest SCC is UNCHANGED at 18
+      // on every one of them, which is the point CC-077 measured: breaking a 2-cycle does not shrink the component,
+      // because its members stay mutually reachable through other paths.
+      ["p2b:mutualCapabilityPairs", 26],
       ["p2b:largestSccSize", 18],
       // 5 -> 3 in CC-072: the dead `ledgerRootUnder()` helper and the test-only smoke writer were both
       // removed, so the p2d instrument found 3 accesses over 2 pairs. 3 -> 0 in CC-076: the two surviving

@@ -13115,3 +13115,130 @@ research_value              (1) Replacing a manual feasibility pass with a reade
                             UNKNOWN on a real tree is evidence about that tree; stating it as a result rather than
                             a guarantee is what keeps the next round from treating the table as complete.
 ```
+
+---
+
+## CC-125 — Two pairs in one cut, and the cut's own comment created the edges it was removing
+
+The fourth cycle cut, and the first that retired **two** mutual pairs, identified by the feasibility table CC-124
+built. **This round changes tracked source**, so it carries a Root Trust ceremony — run correctly as one unit this
+time, which is the rule CC-119 wrote.
+
+**1. The cut.** `src/shared/workbook-dispatch.ts` (owner `tasks`) named two summary shapes through **inline type
+positions**:
+
+```text
+world_model?:  import("./repo-world-model").WorldModelSummary     -> tasks|workspace
+ui_surfaces?:  import("./ui-surface").UISurfaceSummary            -> tasks|theme
+```
+
+Both were the ONLY edge from `tasks` onto those capabilities and each was the cheaper direction of a mutual pair, so
+both pairs dissolved. Both shapes are now declared locally as `WorkBookWorldModelSummary` and
+`WorkBookUISurfaceSummary`, and **nothing in that file reads either value** — the record carries what the host
+produced, and the host's own typed value is still checked against the shape at the assignment.
+
+**2. The first attempt failed, and the reason is worth keeping.** The rebuilt types were introduced with a doc comment
+that spelled the two paths — `` import("./repo-world-model").WorldModelSummary `` — as prose. The repository's edge
+instrument scans import expressions **textually**, so the comment was counted as two edges and the measurement did
+**not move at all**:
+
+```text
+after the type change, before removing the comment:   mutual pairs 28 -> 28   (nothing)
+after removing the path strings from the comment:     mutual pairs 28 -> 26
+```
+
+**A repair whose own documentation re-creates the dependency it removed is a real hazard, and it is invisible to
+typecheck** — the code was correct and compiling in both states. The comment now says so, in the file, where the next
+person to document a cut will read it.
+
+**3. The boundary, and its three named widenings.** The technique's cost is that a declaration must restate the shape,
+and two of these fields cannot be restated exactly:
+
+```text
+version   `typeof` a version CONSTANT in the owner. A value is not a type, and copying the literal would be a second
+          source of truth for a schema version  -> widened to `string`
+unbound   `UISurfaceId[]`, a vocabulary of TWENTY-THREE ids that already has one definition  -> widened to `string[]`
+workspace `RepoWorkspaceBoundary["kind"]`, which IS a two-literal union  -> restated exactly
+```
+
+`tests/unit/workbook-dispatch-summaries.test.ts` pins what can be pinned **at compile time and in the direction that
+matters**: every field the owner declares must still exist locally, so a field added or renamed in the owner stops the
+build rather than silently dropping out of a carried record. The reverse direction is deliberately NOT asserted, and
+the test says why: the local shape is allowed to be **broader**, never narrower.
+
+**4. The measurement.**
+
+```text
+mutual capability pairs               28 -> 26      MOVED (two pairs in one cut)
+capability edges (a PAIR count)      194 -> 192
+raw cross-capability total           768 -> 766
+largest SCC                           18 -> 18      UNCHANGED (fourth time)
+kernel -> feature file edges          46 -> 46      UNCHANGED
+floors (files_owned 594, kinds 27, composition-root 2, road_files 6, edges_to_roads 75)  unchanged
+```
+
+**5. The governance act, as ONE unit.** This time the four steps ran in order with nothing between them:
+candidate v27 (two retired edges, none added, `internal_edges` 1650 → 1648) → series entry written FROM the
+candidate's report → accept → epoch 74 (`boss-root-trust-74`) → verified:
+
+```text
+candidate_tree_matches_frozen = true;  bless --check MATCHES;  series head v27 = tracked baseline v27
+```
+
+Two readbacks moved with the instrument (the 15.7 literal, the generated principle table) plus the test catalogue.
+
+**6. Verification.** Typecheck clean; the six affected suites 151 tests pass; the ratchet reads 26 mutual pairs,
+192 capability edges and HOLDS; both ceremony checks pass.
+
+**7. Position.** Four cuts have landed, all by one technique, retiring **five** mutual pairs (31 → 26) and three S2
+edges (49 → 46). The largest SCC has not moved on any of them, which is now a four-time-confirmed planning fact.
+
+```text
+ENTRY_ID                    CC-125
+timestamp_utc               2026-09-28T21:35:03Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (to 74) because config/architecture-enforcement-baseline.json is a declared Root
+                            Trust Surface path and its frozen identity genuinely changed by two edges.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             p2b --json (mutual pairs 28 -> 26, capability edges 194 -> 192, HOLDS);
+                            architecture-enforcement-baseline --check/--accept (candidate_tree_matches_frozen true);
+                            architecture-baseline-series --check; acceptance-evolution-bless --advance/--check
+                            (epoch 74); pnpm run typecheck; the six affected suites
+files_or_rules_changed      src/shared/workbook-dispatch.ts; tests/unit/workbook-dispatch-summaries.test.ts (new);
+                            config/p2b-kernel-feature-ratchet.json (three values lowered);
+                            config/architecture-enforcement-baseline.json (v26 -> v27);
+                            trust-policy/architecture-enforcement-baselines.json (v27 ACCEPTED, two retired edges);
+                            trust-policy/trust-epoch.json (epoch 74); config/test-catalogue.json;
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) The local summaries are BROADER than the owners' in exactly three named places, so
+                            a value that is a string where the owner would require a known version or a known
+                            surface id would typecheck here; the producer's own typed value is what enforces
+                            membership, and the widening is recorded rather than hidden. (2) The two pairs that
+                            dissolved were 1-edge pairs; larger pairs need their whole cheaper direction removed.
+                            (3) The SCC stays at 18 and S2 stays at 46; the strict targets remain unmet.
+evidence_preserved          the before/after counts; the first attempt's non-moving measurement and the comment that
+                            caused it; the candidate's report showing exactly TWO retired edges; the three named
+                            widenings and the compile-time pin's direction; the epoch 73 -> 74 lineage
+rollback                    Ordinary revert of this commit. The epoch advance is in the same commit, so a revert
+                            restores both the surface and the epoch that certifies it.
+temporary_debt_created      no. No threshold was moved and no floor was lowered.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as TWO LANDED CYCLE CUTS. The OBJECTIVE is NOT complete.
+research_value              (1) The instrument reads the SOURCE TEXT, so a repair's own documentation can recreate
+                            the edge it removed: the type change alone moved nothing and the comment was the
+                            remaining edge. This is invisible to typecheck and to review, and it was found only by
+                            measuring after the change. (2) A cut that restates a shape has a measurable cost — the
+                            NUMBER of fields that cannot be restated and why — and naming those widenings in the
+                            test is what keeps "broader, never narrower" from becoming an unexamined claim.
+                            (3) Two pairs can be retired by one cut when one file carries both cheaper directions,
+                            which is cheaper per pair than the three one-pair cuts before it.
+```
