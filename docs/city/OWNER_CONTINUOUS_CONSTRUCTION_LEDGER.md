@@ -10950,3 +10950,86 @@ research_value              (1) A structural metric can be misread as an attribu
                             asserting a result, which is a cheaper discipline than forbidding `main` from
                             advancing.
 ```
+
+---
+
+## CC-105 — The round's measurements converge with the earlier pricing, and the ownership hypothesis is closed by a real gate refusal
+
+This is a **closing addendum** to CC-104, not a new round: it records two things that belong on the append-only
+record and would otherwise be lost. **No tracked file changed except this entry.**
+
+**1. The convergence, checked rather than assumed.** CC-104's four measurements were taken without consulting
+CC-077/CC-078/CC-083. Read afterwards, they agree:
+
+```text
+CC-083  S2 is not a type-import artifact: 16 type-only, 39 real runtime coupling   (on 55 edges)
+CC-104  per-binding classification of 48 kernel->feature statements: 30 runtime, 18 import-position
+        -> the same conclusion, measured by a different method on the same tree, four rounds later
+CC-077  minimum feedback arc set upper bound: 138 edges over 32 capability pairs
+CC-104  greedy pair removal: 337 file edges over 60 pairs to reach largest SCC 10 (18 -> 10)
+        -> CC-104 is larger because it is a greedy over PAIRS with no ordering, while CC-077 uses an
+           Eades-Lin-Smyth ordering; both are upper bounds and neither is a minimum
+CC-077  single-edge break of ANY mutual pair leaves largest SCC at 18
+CC-104  single-FILE re-homing reduces the largest SCC in ZERO of 200 cases
+        -> consistent, and it extends the finding from "no single edge" to "no single attribution change"
+```
+
+The convergence matters because the two rounds used different instruments and different questions and still landed on
+the same shape. It also means CC-104's numbers should be quoted **with** CC-077/CC-083 rather than instead of them:
+the earlier entries own the pricing, this round owns the re-derivation and the hypothesis test.
+
+**2. What CC-104 adds that the earlier entries do not have.** CC-077 measured that the road mechanism is already
+applied to two of the seven shared hubs and not to the others, and read that as the remaining opportunity. CC-104
+**tried it**. The exact-file `src/shared` entries a kernel reaches were temporarily moved out of the capability
+lists, and the repository's own ratchet refused the patch with exit 1 and three anti-gaming problems (`owned files`
+574 < 594, `edges to roads` 74 < 75, `capability edges` 177 < 197) even though the two numbers the hypothesis was
+trying to move DID move (49 -> 19 and 16 -> 8). The largest SCC did not move at all.
+
+So the question CC-077 left open — *is the hub attribution the load-bearing thing?* — is now closed by measurement:
+it is not. The floors that closed it are the ratchet's own, and they fired on a genuine, motivated attempt rather
+than on a fixture, which is the strongest form of that evidence this repository can produce.
+
+**3. What is genuinely still open.** The same thing CC-077 said: a minimum feedback arc set over a 661-edge
+capability graph, and the removal of the implementation dependencies behind it. CC-104's extraction map §4 sequences
+it in four phases by capability (A the 25 shared files a kernel reaches, B the ledger ports, C the workspace stores,
+D the bootstrap fan-out) and states the one decision Phase A needs before it starts: give the contract a home the
+kernel owns, or remove the kernel's need for it. That decision is architectural and belongs to the Owner; it is not a
+measurement this round can make.
+
+```text
+ENTRY_ID                    CC-105
+timestamp_utc               2026-09-28T14:40:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. DOCUMENTATION ONLY: no tracked source file differs from
+                            main, so NO EPOCH CEREMONY is due and none was performed.
+main_before                 8df428e  (unchanged; CC-104's branch work is documentation and evidence)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             read-only: docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-077 at line 7719,
+                            CC-078 at 7845 and CC-083 at 8536 read in full; compared against CC-104's own four
+                            archived measurements in docs/research/post-cc103/evidence/
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  The comparison is a READ of three entries and four measurements, not a re-run; a
+                            reader who wants the convergence verified should re-run
+                            docs/research/post-cc103/tools/binding-classify.cjs and
+                            docs/research/post-cc103/tools/scc-what-would-it-take.cjs, which are committed for
+                            exactly that reason.
+evidence_preserved          the four-row convergence table in point 1; the statement of what CC-104 adds in point
+                            2; the extraction map's Phase A decision in point 3
+rollback                    Revert this commit. Documentation only; nothing else changed.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as an ADDENDUM. The OBJECTIVE is NOT complete.
+research_value              (1) Measurements taken independently converge, and checking that they do is cheap and
+                            worth doing: two rounds, two instruments, four rounds apart, the same shape — and the
+                            one place they differ (138 vs 337) is explained by the algorithm rather than by the
+                            tree. (2) A hypothesis left open by measurement is worth CLOSING BY ATTEMPT: CC-077
+                            could only say the road mechanism was applied to two hubs and not five; attempting it
+                            produced a gate refusal with three named reasons, which is a stronger record than
+                            another estimate would have been.
+```
