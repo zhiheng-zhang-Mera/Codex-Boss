@@ -11603,3 +11603,147 @@ research_value              (1) An integrity control on an append-only ledger is
                             acceptance gate is worth knowing about, and it is only visible when the gate is read
                             item by item rather than as a single verdict.
 ```
+
+---
+
+## CC-111 — A2-4 lands the second edge, and move (ii) is refuted by the renderer: the same mistake in the opposite direction
+
+The second dependency removal of the post-CC103 closeout, plus a reverted attempt recorded because it establishes a
+rule. **This round changes tracked source**, so it carries an epoch ceremony like CC-107.
+
+**1. Move (ii), attempted and reverted.** The plan for `src/shared/final-response.ts` was the textbook A2 move (ii):
+put `currentArtifactIds`/`currentFinalResponse` in a kernel module and have the shared file re-export them, so the
+feature's edge becomes feature → kernel (allowed) instead of kernel → feature (the inversion). It was written,
+typechecked clean, and then **reverted**, because of one fact that only a real check finds:
+
+```text
+src/renderer/main.tsx imports { currentFinalResponse, isAnalysisOnlyCompletion } from "../shared/final-response"
+```
+
+`src/shared/**` is the **renderer-shareable** surface — that is why its files are pure by convention. Re-exporting
+kernel code through it would have made the renderer reach `electron/**`, which is the same class of mistake as the one
+being repaired, pointed the other way. `electron/final-response-read-model.ts` was deleted and
+`src/shared/final-response.ts` restored byte-for-byte.
+
+**2. Move (i), the version that is actually correct.** The function answers "which stored final response is the
+CURRENT one" by comparing a response's source artifact ids with the artifact ids of the task's latest round. The store
+**already holds that snapshot**, so this is a read over its own document — the same kind of thing `electron/store.ts`
+does for every other part of the state. `electron/store.ts` now performs that read itself:
+
+```text
+- import { currentFinalResponse } from "../src/shared/final-response";
+...
+  finalResponseForTask(taskId: string): FinalResponse | undefined {
+-   const result = currentFinalResponse(this.snapshotValue, taskId);
++   // The current round's artifact ids, then the response whose source artifacts are EXACTLY that set.
++   // A response built from a superseded round must never be surfaced as the current answer, ...
++   const runs = this.snapshotValue.runs.filter((item) => item.taskId === taskId);
++   const round = Math.max(0, ...runs.map((item) => item.round));
++   const ids = runs.filter((item) => item.round === round).map((item) => item.artifactId ?? "").sort();
++   if (!ids.length || ids.some((id) => !id)) return undefined;
++   const result = this.snapshotValue.finalResponses.find((item) => item.taskId === taskId ...);
+    return result ? structuredClone(result) : undefined;
+```
+
+**Nothing is duplicated for a consumer that needs the canonical one**: the renderer and
+`electron/commander/task-finalizer.ts` (which calls `currentArtifactIds`) still use
+`src/shared/final-response.ts` unchanged.
+
+**3. The measurement.**
+
+```text
+p2b kernel -> feature file edges       48 -> 47
+p2b total cross-capability file edges 773 -> 772
+kernel -> feature pairs                16    unchanged
+mutual capability pairs                31    unchanged
+largest SCC                            18    unchanged
+capability nodes / edges               29 / 197  unchanged
+floors (files_owned 594, kinds 27, composition-root 2, road_files 6, edges_to_roads 75)  unchanged
+```
+
+Both recorded values were lowered in `config/p2b-kernel-feature-ratchet.json` in the same commit, with a script that
+asserts only those two keys moved. The two readbacks that move with the instrument were updated as well: the 15.1
+literal in `principle-enforcement-validator.test.ts` (48 → 47, with its comment extended to name both repairs) and
+the generated table in `docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md`, regenerated with the validator's own
+renderer.
+
+**4. The governance act.** `config/architecture-enforcement-baseline.json` is a declared Root Trust Surface path and
+the frozen identity changed: exactly one edge — `electron/store.ts -> src/shared/final-response.ts` — left it and
+`internal_edges` fell 1655 → 1654. Nothing was added. So the ceremony ran, exactly as CC-107 describes it and with
+the same assert-before-write guards:
+
+```text
+candidate v22 generated (governs nothing) -> recorded as the next ACCEPTED series entry, naming the retired edge
+and recording move (ii) as declined -> accepted after asserting the tracked file matched the series head -> Root
+Trust epoch 67 -> 68 (boss-root-trust-68), parent 8e144e5 -> bless --check reports MATCHES
+```
+
+**5. Verification.** Typecheck clean; the six affected suites 134 tests pass; the ratchet reads 47 and HOLDS; the
+enforcement gates and the epoch check pass. Nothing else was touched.
+
+**6. Where Phase A stands, measured rather than described.** Two moves have landed (A2-1: 49 → 48; A2-4: 48 → 47) and
+two have been refuted by measurement (A2-2 by the ownership precedence rule, A2-3 by making S3/S4 worse). Every
+remaining candidate in the kernel's 47 edges is one of:
+
+```text
+(i)   a guard in `electron/store.ts` whose owner should have it — a behaviour move with its own boundary test;
+(ii)  a block: the utility's only honest home would make the renderer or the kernel reach a building;
+(iii) the implementation dependencies behind the mutual pairs themselves, which paper-ledger X-6 measured cannot be
+      moved by relabelling.
+```
+
+The strict targets are unmet: S2 = 47, S3 = 31, S4 = 18.
+
+```text
+ENTRY_ID                    CC-111
+timestamp_utc               2026-09-28T18:53:00Z
+timestamp_note              Read from the host clock as an ISO-8601 UTC instant and written BEFORE the commit that
+                            carries this entry, which is the property scripts/city-ledger-provenance.cjs checks on
+                            every run. Committed inside the +5 minute tolerance.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch, under the delegated Owner lease, PLUS a Root Trust epoch
+                            advance (67 -> 68) because config/architecture-enforcement-baseline.json is a declared
+                            Root Trust Surface path and its frozen identity genuinely changed.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             node scripts/p2b-kernel-feature-ratchet.cjs --json (48 -> 47, HOLDS);
+                            scripts/architecture-enforcement-baseline.cjs --check/--accept;
+                            scripts/architecture-baseline-series.cjs --check;
+                            scripts/acceptance-evolution-bless.cjs --advance/--check (epoch 68);
+                            pnpm run typecheck; the six affected suites
+files_or_rules_changed      electron/store.ts; config/p2b-kernel-feature-ratchet.json (two values lowered);
+                            config/architecture-enforcement-baseline.json (v21 -> v22);
+                            trust-policy/architecture-enforcement-baselines.json (v22 ACCEPTED);
+                            trust-policy/trust-epoch.json (epoch 68);
+                            tests/unit/city/principle-enforcement-validator.test.ts;
+                            docs/city/PHASE2_PRINCIPLE_ENFORCEMENT_MATRIX.md (generated table)
+known_risk                  (1) The kernel's read and the feature's canonical implementation are now two
+                            implementations of the same rule, kept in step by behaviour rather than by a shared
+                            function; the feature's version remains authoritative for the renderer and the task
+                            finalizer, and the store's is a read over its own document. A divergence would show up
+                            as a UI/behaviour difference rather than as a type error. (2) The Root Trust epoch
+                            advanced for one retired edge, so later measurements in this round must quote epoch 68.
+                            (3) The strict structural targets are UNMOVED except S2 by one: mutual pairs and the SCC
+                            are identical, which is the expected result and is reported as such.
+evidence_preserved          the moved numbers with every floor unchanged; the candidate and accepted v22 with the
+                            retired edge named and move (ii) recorded as declined; the epoch 67 -> 68 lineage; the
+                            renderer fact that refuted move (ii)
+rollback                    Ordinary revert of this commit. The epoch advance is part of the same commit, so a
+                            revert restores both the surface and the epoch that certifies it; the series keeps v22 as
+                            a historical entry.
+temporary_debt_created      no. No threshold was moved and no floor was lowered.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as ONE LANDED BOUNDARY plus ONE REFUTED CANDIDATE. The OBJECTIVE is NOT complete.
+research_value              (1) The same "move the implementation and re-export it" repair is correct in one
+                            direction and wrong in the other, and the deciding fact is not in the modules at all --
+                            it is which BUILD consumes the shared surface. A pure move that reads well and
+                            typechecks clean can still couple the renderer to the kernel, and only a check of the
+                            consumers finds it. (2) Readiness to hand a kernel's read of ITS OWN document back to the
+                            kernel is a good test for whether a utility was misplaced: if the answer can be computed
+                            from state the consumer already holds, the import was never needed. (3) Two ceremonies in
+                            one round, both by the same scripted route with assert-before-write guards, is evidence
+                            that the governance act scales rather than being a special case each time.
+```

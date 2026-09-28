@@ -1,4 +1,3 @@
-import { currentFinalResponse } from "../src/shared/final-response";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -793,7 +792,16 @@ export class StateStore {
   }
 
   finalResponseForTask(taskId: string): FinalResponse | undefined {
-    const result = currentFinalResponse(this.snapshotValue, taskId);
+    // The current round's artifact ids, then the response whose source artifacts are EXACTLY that set.
+    // A response built from a superseded round must never be surfaced as the current answer, which is why the
+    // comparison is on the sorted id set rather than on a round number.
+    const runs = this.snapshotValue.runs.filter((item) => item.taskId === taskId);
+    const round = Math.max(0, ...runs.map((item) => item.round));
+    const ids = runs.filter((item) => item.round === round).map((item) => item.artifactId ?? "").sort();
+    if (!ids.length || ids.some((id) => !id)) return undefined;
+    const result = this.snapshotValue.finalResponses.find((item) => item.taskId === taskId
+      && item.sourceArtifactIds.length === ids.length
+      && [...item.sourceArtifactIds].sort().every((id, index) => id === ids[index]));
     return result ? structuredClone(result) : undefined;
   }
 

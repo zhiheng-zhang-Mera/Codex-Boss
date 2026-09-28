@@ -623,6 +623,37 @@
         "retired_edges": 1,
         "unresolved_references": 1
       }
+    },
+    {
+      "baseline_version": 22,
+      "baseline_hash": "9db74b59a98f7db45d4f9342904a7221ed3fa83d7fd863b392b18ff6d6d8922a",
+      "parent_baseline_hash": "3eaf219fcd6f129d47b662c6c33259d937f02731cc86f2017461e9c35c0ee20d",
+      "source_commit": "71e445abb2dfefe7904c06187dae343ee99f25cc",
+      "authorization_reference": "Owner-authorised under the delegated City construction lease (docs/city/OWNER_CONTINUOUS_CONSTRUCTION_WORKBOOK.md section 0; ledger CC-001), exercised as the second A2 dependency removal of the post-CC103 closeout, under the Owner's route A2 chosen on 2026-09-28 (docs/city/PHASE_A_DECISION_A2.md; ledger CC-106). Recorded in ledger CC-111.",
+      "evidence_reference": "docs/city/PHASE_A_DECISION_A2.md; docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md CC-106 (the decision) and CC-111 (this acceptance); electron/store.ts; src/shared/final-response.ts; config/p2b-kernel-feature-ratchet.json",
+      "accepted_at": "2026-09-28T18:54:53Z",
+      "status": "ACCEPTED",
+      "classification": {
+        "retired_debt": "ONE kernel -> feature edge retired: `electron/store.ts -> src/shared/final-response.ts` (`persistence -> tasks`). `electron/store.ts` imported `currentFinalResponse` to answer a question about the snapshot it already holds.",
+        "new_legitimate_relation": "NONE added. The store reads the current final response out of its own document; the authoritative implementation stays in `src/shared/final-response.ts` for the renderer (`src/renderer/main.tsx`) and the feature (`electron/commander/task-finalizer.ts` calls `currentArtifactIds`).",
+        "new_grandfathered_debt": "none: nothing new is grandfathered.",
+        "alternative_declined": "Move (ii) as originally drafted -- put the read model in a kernel file and re-export it from `src/shared/final-response.ts` -- was written, typechecked and REVERTED: the renderer imports that shared module, so the re-export would have made the renderer reach kernel code, which is the same class of mistake in the opposite direction (ledger CC-111).",
+        "why_the_baseline_moves": "A tracked source file changed: `electron/store.ts` no longer imports `src/shared/final-response.ts`, so exactly one edge leaves the frozen identity and `internal_edges` falls 1655 -> 1654. The structural ratchets were re-measured: kernel -> feature 48 -> 47, raw cross-capability total 773 -> 772, pairs 16, mutual pairs 31, largest SCC 18, capability nodes 29, capability edges 197 all unchanged. Floors not moved: files_owned 594, capabilities_with_kinds 27, composition_root_files 2, road_files 6, edges_to_roads 75."
+      },
+      "not_yet_enforced": [
+        "dependency_cycles",
+        "cross_domain_private_state_access",
+        "bundle_structure_or_district_shape",
+        "layer_or_depth_violations",
+        "runtime_dependency_not_visible_in_source"
+      ],
+      "identity_counts": {
+        "note": "SUMMARIES ONLY, recorded for the record. The identities in the baseline are authoritative; these counts authorise nothing.",
+        "tracked_source_files": 609,
+        "internal_edges": 1654,
+        "retired_edges": 1,
+        "unresolved_references": 1
+      }
     }
   ]
 }
