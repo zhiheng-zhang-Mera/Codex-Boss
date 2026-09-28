@@ -13242,3 +13242,111 @@ research_value              (1) The instrument reads the SOURCE TEXT, so a repai
                             (3) Two pairs can be retired by one cut when one file carries both cheaper directions,
                             which is cheaper per pair than the three one-pair cuts before it.
 ```
+
+---
+
+## CC-126 — The remaining S2 work is one cluster of twelve files behind one hub, and that is a size not a technique
+
+Sixteenth round of the post-CC103 closeout. **No cut attempted and no tracked source file changed.** This entry
+closes the question the last three rounds kept circling: what exactly is left of S2, and why does no further cut of
+the proven kind apply to it.
+
+**1. The measurement.** Six of the forty-six kernel → feature edges were removed by three repairs (A2-1, A2-4, A2-5).
+The remaining forty cluster by the FILE that carries them:
+
+```text
+electron/store.ts                                12 edges   (the state document)
+electron/bootstrap/persistence.ts                 5 edges   (the durable-store boot module)
+electron/state-core/platform-soak.ts              3 edges   (the soak test instrument)
+the runtime cluster                               8 edges   (platform/, capability/, bootstrap-audit)
+the providers cluster                             8 edges   (runtimes/, computer/, software/, provider-views)
+src/shared/... carriers                           10 edges
+```
+
+and **the two biggest of those clusters share one target**:
+
+```text
+src/shared/contracts.ts   owner status   22 exported types, reached by store.ts AND by history-repository.ts
+src/shared/execution.ts   owner tasks    a review POLICY (defaultReviewPolicy, reviewResponse) + 3 types
+src/shared/result-validator.ts  owner tasks   two inline type positions in recordVerification
+```
+
+**2. Why the proven technique does not reach them.** Four cuts have landed by one method: replace a type-only import
+of a SMALL shape (a union, a two-method port, a twelve-field summary) with a local declaration pinned at compile
+time. Applied here:
+
+```text
+electron/store.ts imports TWENTY-TWO types from contracts.ts in ONE specifier
+   -> the technique would need all twenty-two redeclared, and AppSnapshot alone is a large interface
+electron/store.ts imports execution.ts for a POLICY it APPLIES (reviewResponse), not a shape it carries
+   -> that is a behaviour, and a behaviour cannot be redeclared, only moved
+electron/store.ts imports result-validator.ts through two inline type positions
+   -> the same shape problem as contracts.ts, smaller but the same kind
+```
+
+**So the remaining S2 work is not "more cuts": it is one decision about the state document's vocabulary.** Either
+`contracts.ts`'s types are declared in the kernel the store belongs to (mechanical, and the kernel grows by roughly
+the size of the application's shared vocabulary), or the review policy and the validation behaviour leave the store
+and are applied by the capabilities that own them (architectural, and it moves behaviour rather than shapes). The
+workbook's §7.4 rules out neither; the Owner's A2 choice (ledger CC-106) rules out only the third option, which was
+re-homing the files without changing what the kernel does.
+
+**3. What this does NOT change.** Nothing in the structural record moved this round, and the numbers a successor
+needs are:
+
+```text
+kernel -> feature file edges   46   (was 49)
+mutual capability pairs        26   (was 31; five retired by four cuts, all one technique)
+largest SCC                    18   (UNCHANGED on all four cuts)
+MIGRATION_IN_PROGRESS          21
+Root Trust epoch               74   MATCHES
+ledger                         120 entries, 0 problems
+```
+
+**4. The most useful thing a successor can read, in order.** CC-120 §2 for the technique's boundary (three landed
+cases and four measured non-cases); CC-120 §3 for the four governance rules each paid for with a failed attempt;
+CC-124 for the reproducible feasibility table; CC-125 §2 for the hazard that cost a measurement (a cut's own
+documentation re-creating the edge it removed); this entry for why the remaining forty S2 edges are one decision
+rather than a queue.
+
+```text
+ENTRY_ID                    CC-126
+timestamp_utc               2026-09-28T21:43:38Z
+timestamp_note              Stamped by the mechanism CC-116 established: drafted with a placeholder, the clock read
+                            once immediately before this commit, and the value written with nothing between it and
+                            the commit.
+executor                    Hns (temporary Owner-authorised City construction executor)
+authority_level             L1 construction on a branch. MEASUREMENT ONLY: no tracked source file differs from the
+                            branch head, so NO EPOCH CEREMONY is due.
+main_before                 8df428e  (unchanged)
+branch                      city/phase2-closeout-post-cc103
+PR                          the PR that carries this entry
+workflow_run_ids            recorded by the PR's own run when it reports
+checks_observed             the p2b instrument's own numbers; the kernel -> feature edge list grouped by carrying
+                            file; the import statements of electron/store.ts read directly (twenty-two types in one
+                            specifier, one policy imported for its behaviour, two inline type positions)
+files_or_rules_changed      docs/city/OWNER_CONTINUOUS_CONSTRUCTION_LEDGER.md (this entry only)
+known_risk                  (1) The clustering in point 1 is derived by grouping the instrument's edge list by
+                            source file, not by a new tool, so it has not been through the reproducibility check the
+                            other tables have. (2) "Twenty-two types and AppSnapshot is large" is a size observation,
+                            not a measurement of the redeclaration cost; a successor deciding between the two routes
+                            should measure it first. (3) The two routes are an architectural choice, not a repair,
+                            and this entry does not choose between them.
+evidence_preserved          the cluster table with its three shared targets; the direct reading of store.ts's
+                            imports that shows why the technique stops here; the recording of which option the
+                            Owner's A2 decision already excludes
+rollback                    Revert this commit. Documentation only.
+temporary_debt_created      no. Nothing was deferred and no threshold moved.
+debt_id                     none
+exit_condition              n/a -- nothing was deferred.
+closure_status              CLOSED as a MEASUREMENT THAT CLOSES A QUESTION. The OBJECTIVE is NOT complete.
+research_value              (1) A technique's exhaustion has a SHAPE, not just a count: the forty remaining S2 edges
+                            cluster on three shared targets, and the technique fails on all three for the same
+                            reason — the shared thing is too large to restate, or it is a behaviour rather than a
+                            shape. (2) Naming which option a completed decision already excludes is what keeps a
+                            later round from re-litigating it: the Owner's A2 choice rules out re-homing files
+                            without changing what the kernel does, and leaves the vocabulary route and the
+                            behaviour route both open. (3) An entry that measures why a queue is actually a
+                            decision is worth more than another cut, because it changes what the next round
+                            attempts.
+```
